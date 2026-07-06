@@ -1,5 +1,5 @@
 import { createClient as _createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { type Database } from '../types/supabase';
+import { type Database, type Json } from '../types/supabase';
 import logger from '@/lib/logger';
 
 // ── Console error suppression ────────────────────────────────────
@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
         arg !== null &&
         typeof arg === 'object' &&
         'name' in (arg as object) &&
-        (arg as { name: unknown }).name === 'AuthRetryableFetchError'
+        (arg as { name: string }).name === 'AuthRetryableFetchError'
       ) {
         return;
       }
@@ -188,16 +188,16 @@ export interface UserCanvasesTable {
     id: string;
     user_id: string;
     name: string;
-    nodes: unknown;
-    edges: unknown;
+    nodes: Json;
+    edges: Json;
     updated_at: string;
   }) => Promise<{ error: { message: string } | null }>;
   insert: (values: {
     id: string;
     user_id: string;
     name: string;
-    nodes: unknown;
-    edges: unknown;
+    nodes: Json;
+    edges: Json;
   }) => Promise<{ error: { message: string } | null }>;
   select: (columns?: string) => {
     order: (column: string, options: { ascending: boolean }) => Promise<{ data: Database['public']['Tables']['user_canvases']['Row'][] | null; error: { message: string } | null }>;
@@ -227,13 +227,13 @@ export interface TutorialProgressTable {
     current_step: number;
     current_phase: string;
     completed_levels: number[];
-    canvas_nodes: unknown[];
-    canvas_edges: unknown[];
+    canvas_nodes: Json;
+    canvas_edges: Json;
     explain_count: number;
     updated_at: string;
   }, options?: { onConflict: string }) => {
     select: () => {
-      single: () => Promise<{ data: unknown; error: { message: string } | null }>;
+      single: () => Promise<{ data: Json; error: { message: string } | null }>;
     };
   };
   select: (columns?: string) => {

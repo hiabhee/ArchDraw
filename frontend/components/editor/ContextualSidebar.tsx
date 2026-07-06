@@ -21,7 +21,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
   const knowledge = useMemo(() => {
     if (!node) return null;
     return getComponentKnowledge(node.data.label) || 
-           getComponentKnowledge((node.data as any).componentType || '') || 
+           getComponentKnowledge((node.data as Record<string, unknown>).componentType as string || '') || 
            null;
   }, [node]);
 

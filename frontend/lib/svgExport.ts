@@ -8,6 +8,26 @@ import {
 } from '@/lib/theme/stylingConstants';
 import { getSimpleEdgePositions, getSimpleHandlePosition, getEdgeShiftOffset, getNodeCenter } from '@/lib/utils/simpleFloatingEdge';
 
+interface TextLabelNodeData extends NodeData {
+  text?: string;
+  fontSize?: string;
+  bold?: boolean;
+}
+
+interface AnnotationNodeData extends NodeData {
+  title?: string;
+  body?: string;
+  titleSize?: string;
+  titleBold?: boolean;
+  bodySize?: string;
+  bodyBold?: boolean;
+}
+
+interface EdgeDataExtended extends EdgeData {
+  animated?: boolean;
+  isBidirectional?: boolean;
+}
+
 function escapeXml(str: string): string {
   if (!str) return '';
   return str
@@ -302,9 +322,10 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
 function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
   const { x, y, data } = node;
   
-  const textVal = (data as any).text || data.label || '';
+  const extData = data as TextLabelNodeData;
+  const textVal = extData.text || data.label || '';
   
-  const sizeStr = (data as any).fontSize || 'medium';
+  const sizeStr = extData.fontSize || 'medium';
   const sizeMap: Record<string, number> = {
     small: 14,
     medium: 18,
@@ -312,8 +333,8 @@ function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
     heading: 36,
   };
   const fontSize = sizeMap[sizeStr] || 18;
-  const fontWeight = (data as any).bold ? 700 : 500;
-  const color = (data as any).color || (isDark ? '#CBD5E1' : '#1F2937');
+  const fontWeight = extData.bold ? 700 : 500;
+  const color = data.color || (isDark ? '#CBD5E1' : '#1F2937');
   
   const lines = textVal.split('\n');
   const tspanElements = lines.map((line: string, idx: number) => `
@@ -339,17 +360,18 @@ function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
 function renderAnnotationNode(node: SystemNodeRenderData, isDark: boolean): string {
   const { x, y, width, height, data, selected } = node;
   
+  const extData = data as AnnotationNodeData;
   const bg = isDark ? '#1F2937' : '#ffffff';
   const border = isDark ? '#374151' : '#e5e7eb';
   const dividerColor = isDark ? '#374151' : '#e5e7eb';
   
-  const title = (data as any).title ?? '';
-  const body = (data as any).body ?? '';
+  const title = extData.title ?? '';
+  const body = extData.body ?? '';
   
-  const titleSizeStr = (data as any).titleSize ?? 'heading';
-  const titleBold = (data as any).titleBold ?? true;
-  const bodySizeStr = (data as any).bodySize ?? 'medium';
-  const bodyBold = (data as any).bodyBold ?? false;
+  const titleSizeStr = extData.titleSize ?? 'heading';
+  const titleBold = extData.titleBold ?? true;
+  const bodySizeStr = extData.bodySize ?? 'medium';
+  const bodyBold = extData.bodyBold ?? false;
   
   const sizeMap: Record<string, number> = {
     small: 11,
@@ -472,14 +494,14 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
     }
   }
   
-  const isAnimated = (data as any)?.animated || config.animated;
+  const isAnimated = (data as EdgeDataExtended)?.animated || config.animated;
   const strokeDashArray = dashArray || (isAnimated ? config.dash : '') || 'none';
   const opacity = selected ? 1 : (isDark ? 0.8 : 0.85);
   
   const pathResult = getPath(pathType, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, isFloating);
   const d = pathResult.path;
   
-  const isBidirectional = (data as any)?.isBidirectional;
+  const isBidirectional = (data as EdgeDataExtended)?.isBidirectional;
 
   const markerEndId = `arrow-${id}`;
   const markerStartId = `arrow-start-${id}`;

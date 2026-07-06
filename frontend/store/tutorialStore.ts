@@ -13,7 +13,7 @@ function migrateEdgesToSmoothstep(edges: Edge[]): SanitizedEdge[] {
     if (edge.data?.pathType === 'smooth') {
       return { ...edge, data: { ...edge.data, pathType: 'Smoothstep' } } as SanitizedEdge;
     }
-    return edge as unknown as SanitizedEdge;
+    return edge as SanitizedEdge;
   });
 }
 
@@ -198,7 +198,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
 
       startTutorialByDef: (tutorialInput) => {
         // All tutorials in the TUTORIALS array are TutorialDefinition instances
-        const tutorial = tutorialInput as unknown as TutorialDefinition;
+        const tutorial = tutorialInput as TutorialDefinition;
         const saved = get().richProgress[tutorial.id];
         let session: TutorialSession;
         let restoredNodes: Node[] = [];
@@ -207,8 +207,8 @@ export const useTutorialStore = create<TutorialStoreState>()(
         const totalStepsCount = tutorial.levels.reduce((acc, l) => acc + l.steps.length, 0);
         
         if (saved) {
-          restoredNodes = saved.canvasNodes as unknown as Node[];
-          restoredEdges = migrateEdgesToSmoothstep(saved.canvasEdges as unknown as Edge[]) as unknown as Edge[];
+          restoredNodes = saved.canvasNodes as Node[];
+          restoredEdges = migrateEdgesToSmoothstep(saved.canvasEdges as Edge[]) as Edge[];
           
           session = engine.restoreSession(tutorial, {
             levelIndex: saved.currentLevel,
@@ -277,10 +277,10 @@ export const useTutorialStore = create<TutorialStoreState>()(
       setEdges: (edges) => set({ edges }),
 
       setTutorialNodes: (nodes) =>
-        set({ tutorialNodes: nodes.map(sanitizeNode) as unknown as Node[] }),
+        set({ tutorialNodes: nodes.map(sanitizeNode) as Node[] }),
 
       setTutorialEdges: (edges) =>
-        set({ tutorialEdges: edges.map(sanitizeEdge) as unknown as Edge[] }),
+        set({ tutorialEdges: edges.map(sanitizeEdge) as Edge[] }),
 
       clearTutorialCanvas: () => set({ nodes: [], edges: [] }),
 
@@ -359,7 +359,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
       // FIX: Start tutorial fresh - with timeout handling
       startTutorialFresh: async (tutorialInput): Promise<{ success: boolean; error?: string }> => {
         // All tutorials in the TUTORIALS array are TutorialDefinition instances
-        const tutorial = tutorialInput as unknown as TutorialDefinition;
+        const tutorial = tutorialInput as TutorialDefinition;
         const totalStepsCount = tutorial.levels.reduce((acc, l) => acc + l.steps.length, 0);
         
         // Step 1: Clear local state
@@ -398,7 +398,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
               const { getSupabaseClient } = await import('@/lib/supabase');
               const supabase = getSupabaseClient();
               
-              const { error } = await (supabase.from('tutorial_progress') as unknown as TutorialProgressTable)
+              const { error } = await (supabase.from('tutorial_progress') as any as TutorialProgressTable)
                 .upsert({
                   user_id: (user as { id: string }).id,
                   tutorial_id: tutorial.id,
@@ -474,8 +474,8 @@ export const useTutorialStore = create<TutorialStoreState>()(
               currentStep: progress.currentStep ?? state.currentStep,
               currentPhase: progress.currentPhase ?? 'context',
               completedLevels: progress.completedLevels ?? state.completedLevels,
-              canvasNodes: progress.canvasNodes ?? state.tutorialNodes as unknown as SanitizedNode[],
-              canvasEdges: progress.canvasEdges ?? state.tutorialEdges as unknown as SanitizedEdge[],
+              canvasNodes: (progress.canvasNodes ?? state.tutorialNodes) as SanitizedNode[],
+              canvasEdges: (progress.canvasEdges ?? state.tutorialEdges) as SanitizedEdge[],
               explainCount: progress.explainCount ?? 0,
               updatedAt: progress.updatedAt ?? new Date().toISOString(),
             },
@@ -491,8 +491,8 @@ export const useTutorialStore = create<TutorialStoreState>()(
         const progress = get().richProgress[get().activeTutorialId ?? ''];
         if (progress?.currentLevel === level) {
           return {
-            nodes: progress.canvasNodes as unknown as Node[],
-            edges: progress.canvasEdges as unknown as Edge[],
+            nodes: progress.canvasNodes as Node[],
+            edges: progress.canvasEdges as Edge[],
           };
         }
         return null;
@@ -521,15 +521,15 @@ export const useTutorialStore = create<TutorialStoreState>()(
           set({ isSyncing: true });
           const { getSupabaseClient } = await import('@/lib/supabase');
           const supabase = getSupabaseClient();
-          await (supabase.from('tutorial_progress') as unknown as TutorialProgressTable).upsert({
+          await (supabase.from('tutorial_progress') as any as TutorialProgressTable).upsert({
             user_id: user.id,
             tutorial_id: tutorialId,
             current_level: progress.currentLevel,
             current_step: progress.currentStep,
             current_phase: progress.currentPhase,
             completed_levels: progress.completedLevels,
-            canvas_nodes: progress.canvasNodes,
-            canvas_edges: progress.canvasEdges,
+            canvas_nodes: progress.canvasNodes as any,
+            canvas_edges: progress.canvasEdges as any,
             explain_count: progress.explainCount,
             updated_at: progress.updatedAt,
           }, { onConflict: 'user_id,tutorial_id' });
@@ -550,7 +550,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
 
           const { getSupabaseClient } = await import('@/lib/supabase');
           const supabase = getSupabaseClient();
-          const { data, error } = await (supabase.from('tutorial_progress') as unknown as TutorialProgressTable)
+          const { data, error } = await (supabase.from('tutorial_progress') as any as TutorialProgressTable)
             .select('*')
             .eq('user_id', user.id)
             .eq('tutorial_id', tutorialId)
@@ -569,8 +569,8 @@ export const useTutorialStore = create<TutorialStoreState>()(
             currentStep: data.current_step,
             currentPhase: data.current_phase,
             completedLevels: data.completed_levels,
-            canvasNodes: (data.canvas_nodes as unknown as SanitizedNode[]) ?? [],
-            canvasEdges: migrateEdgesToSmoothstep(data.canvas_edges as unknown as Edge[]),
+            canvasNodes: (data.canvas_nodes as any as SanitizedNode[]) ?? [],
+            canvasEdges: migrateEdgesToSmoothstep(data.canvas_edges as any as Edge[]),
             explainCount: data.explain_count,
             updatedAt: data.updated_at ?? new Date().toISOString(),
           };

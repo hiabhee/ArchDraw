@@ -190,13 +190,13 @@ export function assignHandlesToEdges(
     let targetHandle = (`target-${desiredTarget}`) as unknown as ArchitectureEdge['targetHandle'];
 
     // If a port allocator exists, keep it only for fallback (older node types might not expose source-/target- handles).
-    if (sourcePorts && (sourceHandle as any).startsWith('source-') === false) {
+    if (sourcePorts && (sourceHandle as string).startsWith('source-') === false) {
       const portIndex = Math.min(sourceIndex, sourcePorts.ports.source.length - 1);
-      sourceHandle = (sourcePorts.ports.source[portIndex] || 'right') as any;
+      sourceHandle = (sourcePorts.ports.source[portIndex] || 'right') as unknown as ArchitectureEdge['sourceHandle'];
     }
-    if (targetPorts && (targetHandle as any).startsWith('target-') === false) {
+    if (targetPorts && (targetHandle as string).startsWith('target-') === false) {
       const portIndex = Math.min(targetIndex, targetPorts.ports.target.length - 1);
-      targetHandle = (targetPorts.ports.target[portIndex] || 'left') as any;
+      targetHandle = (targetPorts.ports.target[portIndex] || 'left') as unknown as ArchitectureEdge['targetHandle'];
     }
 
     return {

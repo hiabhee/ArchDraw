@@ -18,7 +18,7 @@ async function migrateGuestProgress(userId: string) {
   for (const [tutorialId, progress] of entries) {
     if (!progress.currentStep || progress.currentStep <= 1) continue;
     try {
-      await (supabase.from('tutorial_progress') as unknown as TutorialProgressTable).upsert(
+      await (supabase.from('tutorial_progress') as any as TutorialProgressTable).upsert(
         {
           user_id: userId,
           tutorial_id: tutorialId,
@@ -26,8 +26,8 @@ async function migrateGuestProgress(userId: string) {
           current_step: progress.currentStep,
           current_phase: progress.currentPhase,
           completed_levels: progress.completedLevels,
-          canvas_nodes: progress.canvasNodes,
-          canvas_edges: progress.canvasEdges,
+          canvas_nodes: progress.canvasNodes as any,
+          canvas_edges: progress.canvasEdges as any,
           explain_count: progress.explainCount,
           updated_at: progress.updatedAt || new Date().toISOString(),
         },
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let newCanvasId: string | null = null;
         const guestListRaw = localStorage.getItem(STORAGE_KEYS.guestCanvases);
         const legacyRaw = localStorage.getItem('archdraw-guest-canvas');
-        const candidates: any[] = [];
+        const candidates: Record<string, unknown>[] = [];
 
         try {
           const list = guestListRaw ? JSON.parse(guestListRaw) : null;
@@ -132,12 +132,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const supabaseClient = getSupabaseClient();
             for (const canvas of toMigrate) {
               const id = `canvas-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-              await (supabaseClient.from('user_canvases') as unknown as UserCanvasesTable).upsert({
+              await (supabaseClient.from('user_canvases') as any as UserCanvasesTable).upsert({
                 id,
                 user_id: u.id,
-                name: canvas.name || 'Elephant',
-                nodes: canvas.nodes,
-                edges: canvas.edges || [],
+                name: (canvas.name as string) || 'Elephant',
+                nodes: canvas.nodes as import('@/types/supabase').Json,
+                edges: (canvas.edges as import('@/types/supabase').Json[]) || [],
                 updated_at: new Date().toISOString(),
               });
               if (!newCanvasId) newCanvasId = id;

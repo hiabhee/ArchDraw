@@ -9,6 +9,7 @@ import ReactFlow, {
   MarkerType,
   Node,
   Edge,
+  type Connection,
   applyNodeChanges,
   applyEdgeChanges,
   BackgroundVariant,
@@ -75,8 +76,26 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+interface DemoNodeData {
+  isDemoDark?: boolean;
+  label?: string;
+  onRename?: (id: string, newName: string) => void;
+  hasHeader?: boolean;
+  height?: number;
+  style?: Record<string, string>;
+  headerColor?: string;
+  subtitle?: string;
+  comment?: string;
+  layer?: string;
+  accentColor?: string;
+  color?: string;
+  status?: string;
+  nodeWidth?: number;
+  nodeHeight?: number;
+}
+
 // Custom Dotted Node Component
-function DemoNode({ id, data, selected }: { id: string; data: any; selected: boolean }) {
+function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; selected: boolean }) {
   const isDark = data.isDemoDark !== false;
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label || '');
@@ -201,8 +220,13 @@ function DemoNode({ id, data, selected }: { id: string; data: any; selected: boo
   );
 }
 
+interface DemoGroupData extends DemoNodeData {
+  groupLabel?: string;
+  groupColor?: string;
+}
+
 // Custom Dotted Group Component
-function DemoGroup({ id, data, selected }: { id: string; data: any; selected: boolean }) {
+function DemoGroup({ id, data, selected }: { id: string; data: DemoGroupData; selected: boolean }) {
   const isDark = data.isDemoDark !== false;
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.groupLabel || data.label || '');
@@ -347,20 +371,20 @@ const PRESETS: Record<'loadBalancer', PresetData> = {
     title: 'Describe simple load balancer...',
     nodes: [
       // Containers
-      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 340, y: 40 }, style: { width: 320, height: 160 }, data: { label: 'CLIENT CONTAINER', color: '#6366f1' }, draggable: true },
-      { id: 'LB_GROUP', type: 'demoGroup', position: { x: 340, y: 252 }, style: { width: 320, height: 160 }, data: { label: 'LOAD BALANCER', color: '#22c55e' }, draggable: true },
-      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 100, y: 512 }, style: { width: 800, height: 160 }, data: { label: 'SERVER POOL', color: '#a855f7' }, draggable: true },
+      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 420, y: 40 }, style: { width: 320, height: 140 }, data: { label: 'CLIENT CONTAINER', color: '#6366f1' }, draggable: true },
+      { id: 'LB_GROUP', type: 'demoGroup', position: { x: 420, y: 220 }, style: { width: 320, height: 140 }, data: { label: 'LOAD BALANCER', color: '#22c55e' }, draggable: true },
+      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 40, y: 400 }, style: { width: 1080, height: 140 }, data: { label: 'SERVER POOL', color: '#a855f7' }, draggable: true },
       // Nodes
-      { id: 'client-node', type: 'demoNode', parentId: 'CLIENT_GROUP', position: { x: 60, y: 40 }, data: { label: 'Client', subtitle: 'Web Browser / iOS', layer: 'client', icon: '🌐' }, draggable: true },
-      { id: 'lb-node', type: 'demoNode', parentId: 'LB_GROUP', position: { x: 60, y: 40 }, data: { label: 'Load Balancer', subtitle: 'Nginx Proxy', layer: 'edge', icon: '⚡' }, draggable: true },
-      { id: 'server1', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 60, y: 40 }, data: { label: 'Server 1', subtitle: 'Node.js App', layer: 'compute', icon: '💻' }, draggable: true },
-      { id: 'server2', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 300, y: 40 }, data: { label: 'Server 2', subtitle: 'Go Microservice', layer: 'compute', icon: '💻' }, draggable: true },
-      { id: 'server3', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 540, y: 40 }, data: { label: 'Monitoring Service', subtitle: 'Prometheus', layer: 'observe', icon: '📊' }, draggable: true },
+      { id: 'client-node', type: 'demoNode', parentId: 'CLIENT_GROUP', position: { x: 60, y: 30 }, data: { label: 'Client', subtitle: 'Web Browser / iOS', layer: 'client', icon: '🌐' }, draggable: true },
+      { id: 'lb-node', type: 'demoNode', parentId: 'LB_GROUP', position: { x: 60, y: 30 }, data: { label: 'Load Balancer', subtitle: 'Nginx Proxy', layer: 'edge', icon: '⚡' }, draggable: true },
+      { id: 'server1', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 60, y: 30 }, data: { label: 'Server 1', subtitle: 'Node.js App', layer: 'compute', icon: '💻' }, draggable: true },
+      { id: 'server2', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 440, y: 30 }, data: { label: 'Server 2', subtitle: 'Go Microservice', layer: 'compute', icon: '💻' }, draggable: true },
+      { id: 'server3', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 820, y: 30 }, data: { label: 'Monitoring Service', subtitle: 'Prometheus', layer: 'observe', icon: '📊' }, draggable: true },
       // Invisible spacer node to push content up so the floating AI bar has background
       { 
         id: 'dummy-spacer', 
         type: 'spacerNode', 
-        position: { x: 500, y: 812 }, 
+        position: { x: 500, y: 650 }, 
         data: {}, 
         draggable: false, 
         selectable: false,
@@ -466,7 +490,7 @@ function InteractiveLandingDemoContent() {
 
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => {
-        fitView({ padding: 0.3 });
+        fitView({ padding: 0.15 });
       });
     });
 
@@ -644,7 +668,7 @@ function InteractiveLandingDemoContent() {
 
   // onConnect handler
   const onConnect = useCallback(
-    (params: any) => {
+    (params: Connection) => {
       const newEdge = {
         ...params,
         id: `e-${Date.now()}`,
@@ -702,7 +726,7 @@ function InteractiveLandingDemoContent() {
   }, [nodes, edges, setNodes, setEdges, pushState]);
 
   return (
-    <div className={`w-full h-[820px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
+    <div className={`w-full h-[740px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
       isDemoDark 
         ? 'dark dark-theme-forced bg-[#090b0d] text-[#f7f8f8] border-[#202327]' 
         : 'light-theme-forced bg-white text-[#0f172a] border-[#cbd5e1]'
@@ -1034,7 +1058,7 @@ function InteractiveLandingDemoContent() {
           nodeTypes={DEMO_NODE_TYPES}
           edgeTypes={DEMO_EDGE_TYPES}
           fitView
-          fitViewOptions={{ padding: 0.3 }}
+          fitViewOptions={{ padding: 0.15 }}
           preventScrolling={false}
           zoomOnScroll={false}
           zoomOnPinch={false}

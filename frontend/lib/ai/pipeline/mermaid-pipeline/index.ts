@@ -6,6 +6,7 @@ import type {
   LayerType,
 } from '../../types';
 import type {
+  ArchitectureStyle,
   DiagramScore,
   PipelineDiagnostics,
 } from '../types';
@@ -126,7 +127,7 @@ export async function runMermaidPipeline(
   onProgress?.('Scoring diagram', 80);
 
   const stylePlan = {
-    style: styleConfig.theme as any,
+    style: styleConfig.theme as ArchitectureStyle,
     strictness: 'explicit' as const,
     productionDepth: 'conceptual' as const,
   };
@@ -179,7 +180,7 @@ export async function runMermaidPipeline(
       height: 70,
       metadata: {},
     })),
-    edges: rfEdges as unknown as ArchitectureEdge[],
+    edges: rfEdges as any as ArchitectureEdge[],
     reactFlowNodes: rfNodes as ReactFlowNode[],
     graph: null,
     score: diagramScore.score,
@@ -194,7 +195,7 @@ export async function runMermaidPipeline(
   return {
     success: true,
     nodes: rfNodes as ReactFlowNode[],
-    edges: rfEdges as unknown as ArchitectureEdge[],
+    edges: rfEdges as any as ArchitectureEdge[],
     state,
     score: diagramScore.score,
     diagramScore: diagramScore as DiagramScore,

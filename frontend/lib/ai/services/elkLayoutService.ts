@@ -29,14 +29,18 @@ export function getNormalizedTier(layer?: string): string {
   return 'compute';
 }
 
-let elkInstance: any = null;
-async function getELK() {
+interface ELKInterface {
+  layout: (graph: Record<string, unknown>, options?: Record<string, unknown>) => Promise<Record<string, unknown>>;
+}
+
+let elkInstance: ELKInterface | null = null;
+async function getELK(): Promise<ELKInterface> {
   if (!elkInstance) {
     const ELKModule = await import('elkjs/lib/elk.bundled.js');
     const ELK = ELKModule.default ?? ELKModule;
-    elkInstance = new ELK();
+    elkInstance = new ELK() as any as ELKInterface;
   }
-  return elkInstance as { layout: (graph: any) => Promise<any> };
+  return elkInstance;
 }
 
 const LAYOUT_CACHE = new Map<string, { nodes: ReactFlowNode[]; timestamp: number }>();

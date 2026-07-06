@@ -4,14 +4,27 @@ import { getNodeShapeConfig } from '@/constants/nodeShapeConfig';
 import logger from '@/lib/logger';
 import { ELK_CONFIG } from '@/lib/config';
 
-let elkInstance: any = null;
-async function getELK() {
+interface ELKNode {
+  id: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  children?: ELKNode[];
+}
+
+interface ELKInterface {
+  layout: (graph: Record<string, unknown>, options?: Record<string, unknown>) => Promise<{ id: string; children?: ELKNode[] }>;
+}
+
+let elkInstance: ELKInterface | null = null;
+async function getELK(): Promise<ELKInterface> {
   if (!elkInstance) {
     const ELKModule = await import('elkjs/lib/elk.bundled.js');
     const ELK = ELKModule.default ?? ELKModule;
-    elkInstance = new ELK();
+    elkInstance = new ELK() as any as ELKInterface;
   }
-  return elkInstance as { layout: (graph: any) => Promise<any> };
+  return elkInstance;
 }
 
 const DEFAULT_GROUP_WIDTH = 400;
@@ -44,7 +57,7 @@ export async function applyLayoutPreset(
     
     const children = isGroup
       ? leafNodes
-          .filter(n => (n.parentId || (n as any).parentNode) === node.id)
+          .filter(n => (n.parentId || (n as { parentNode?: string }).parentNode) === node.id)
           .map(child => {
             const childServiceType = (child.data as { serviceType?: string })?.serviceType;
             const childConfig = getNodeShapeConfig(childServiceType);
@@ -86,7 +99,7 @@ export async function applyLayoutPreset(
 
   const rootElkNodes = elkNodes.filter(n => {
     const rfNode = nodes.find(r => r.id === n.id);
-    const pId = rfNode?.parentId || (rfNode as any)?.parentNode;
+    const pId = rfNode?.parentId || (rfNode as { parentNode?: string })?.parentNode;
     return !pId;
   });
 
@@ -141,20 +154,7 @@ export async function applyLayoutPreset(
     const sizeMap = new Map<string, { width?: number; height?: number }>();
 
     function extractPositions(
-      elkNodes: Array<{
-        id: string;
-        x?: number;
-        y?: number;
-        width?: number;
-        height?: number;
-        children?: Array<{
-          id: string;
-          x?: number;
-          y?: number;
-          width?: number;
-          height?: number;
-        }>;
-      }>,
+      elkNodes: ELKNode[],
       parentX: number = 0,
       parentY: number = 0
     ) {
@@ -170,7 +170,7 @@ export async function applyLayoutPreset(
       }
     }
 
-    extractPositions(layouted.children ?? []);
+    extractPositions((layouted.children ?? []) as ELKNode[]);
 
     return nodes.map(node => {
       const newPos = positionMap.get(node.id);
@@ -195,7 +195,7 @@ export async function applyLayoutPreset(
         };
       }
       
-      const pId = node.parentId || (node as any).parentNode;
+      const pId = node.parentId || (node as { parentNode?: string }).parentNode;
       if (pId) {
         const parentPos = positionMap.get(pId);
         if (parentPos) {

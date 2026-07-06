@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useEffect } from 'react';
+import { memo, useEffect, type CSSProperties } from 'react';
 import { Handle, Position, NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useNodeHandles } from '@/hooks/useNodeHandles';
 import { useCanvasTheme } from '@/lib/theme';
@@ -107,7 +107,7 @@ function Backplates({ layers, borderRadius }: { layers: { offset: number; color:
 
 // ── Individual shape renderers ────────────────────────────────────────────────
 
-function Rectangle({ id, data, selected, rounded, backplates, isDark, styles }: { id: string; data: ShapeNodeData; selected: boolean; rounded: boolean; backplates: { offset: number; color: string }[]; isDark: boolean; styles: any }) {
+function Rectangle({ id, data, selected, rounded, backplates, isDark, styles }: { id: string; data: ShapeNodeData; selected: boolean; rounded: boolean; backplates: { offset: number; color: string }[]; isDark: boolean;     styles: CSSProperties }) {
   const color = data.accentColor ?? data.color ?? '#6B7280';
   const r = rounded ? 14 : 8;
   const width = data.nodeWidth ?? 140;

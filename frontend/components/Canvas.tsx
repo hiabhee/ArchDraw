@@ -363,7 +363,7 @@ function CanvasInner() {
         // Avoid hijacking two-finger scroll for zoom; zoom still works via controls/pinch.
         zoomOnScroll={false}
         zoomOnPinch={true}
-        connectionMode={CANVAS_CONFIG.connectionMode as any}
+        connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
         connectionLineType={ConnectionLineType.SmoothStep}
         snapToGrid={CANVAS_CONFIG.snapToGrid}
         snapGrid={CANVAS_CONFIG.snapGrid}
@@ -373,7 +373,7 @@ function CanvasInner() {
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
       >
         <Background 
-          variant={CANVAS_CONFIG.background.variant as any} 
+          variant={CANVAS_CONFIG.background.variant as BackgroundVariant} 
           gap={CANVAS_CONFIG.background.gap} 
           size={CANVAS_CONFIG.background.size}
           color={isDark ? '#475569' : CANVAS_CONFIG.background.color}

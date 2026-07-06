@@ -75,7 +75,7 @@ async function getBranchHeadSha(owner: string, repo: string, branch: string, hea
   return sha;
 }
 
-async function getRecursiveTree(owner: string, repo: string, sha: string, headers: Record<string, string>): Promise<any> {
+async function getRecursiveTree(owner: string, repo: string, sha: string, headers: Record<string, string>): Promise<{ tree: GitTreeItem[]; truncated: boolean }> {
   const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`, headers);
   if (res.status === 404) throw new Error('Repository not found or is private');
   if (res.status === 403) {

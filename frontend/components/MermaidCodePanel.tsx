@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type CSSProperties } from 'react';
 import { X, Check, AlertCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -12,9 +12,25 @@ interface MermaidCodePanelProps {
   onClose: () => void;
 }
 
-function hashNodesEdges(nodes: any[], edges: any[]): string {
+interface MappedNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+  width: number;
+  height: number;
+  style?: CSSProperties;
+  zIndex?: number;
+  absX: number;
+  absY: number;
+  parentId?: string;
+  parentNode?: string;
+  extent?: 'parent' | [[number, number], [number, number]];
+}
+
+function hashNodesEdges(nodes: Record<string, unknown>[], edges: Record<string, unknown>[]): string {
   let h = `${nodes.length}:${edges.length}`;
-  for (const n of nodes) h += `|${n.id}:${n.type}:${(n as any).parentNode || ''}`;
+  for (const n of nodes) h += `|${n.id}:${n.type}:${(n as { parentNode?: string }).parentNode || ''}`;
   for (const e of edges) h += `|${e.id}:${e.source}-${e.target}`;
   return h;
 }
@@ -134,8 +150,8 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const avgDeltaY = matchedCount > 0 ? sumDeltaY / matchedCount : 0;
 
         // Map parsed nodes
-        const processedNodesMap = new Map<string, any>();
-        const subgraphs = new Map<string, any>();
+        const processedNodesMap = new Map<string, MappedNode>();
+        const subgraphs = new Map<string, MappedNode>();
         const childIdsByParent = new Map<string, string[]>();
 
         const hexToRgba = (hex: string, alpha: number): string => {
@@ -178,13 +194,13 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
             node.data?.subtitle !== existingNode.data?.subtitle
           );
 
-          const width = (preserveNode && !labelChanged) ? (existingNode.width ?? node.width) : node.width;
-          const height = (preserveNode && !labelChanged) ? (existingNode.height ?? node.height) : node.height;
+          const width = (preserveNode && !labelChanged) ? (existingNode.width ?? node.width ?? 100) : (node.width ?? 100);
+          const height = (preserveNode && !labelChanged) ? (existingNode.height ?? node.height ?? 60) : (node.height ?? 60);
           const nodeStyle = (preserveNode && !labelChanged) 
             ? (existingNode.style ? { ...existingNode.style } : (node.style ? { ...node.style } : undefined))
             : (node.style ? { ...node.style } : undefined);
 
-          const mappedNode: any = {
+          const mappedNode: MappedNode = {
             id: node.id,
             type: isGroup ? 'groupNode' : (existingNode?.type || 'shapeNode'),
             position: directionChanged ? { ...node.position } : { x: absX, y: absY },
@@ -231,7 +247,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
               let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
               
               childIds.forEach(childId => {
-                const child = processedNodesMap.get(childId);
+                const child = processedNodesMap.get(childId)!;
                 const cx = child.absX;
                 const cy = child.absY;
                 const cw = child.width ?? 0;
@@ -254,21 +270,21 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
                 subgraph.width = newWidth;
                 subgraph.height = newHeight;
                 
-                const groupColor = subgraph.data?.color || subgraph.data?.groupColor || '#2563EB';
+                const groupColor = (subgraph.data?.color as string) || (subgraph.data?.groupColor as string) || '#2563EB';
                 const bgRgba = hexToRgba(groupColor, 0.08);
 
                 subgraph.style = {
-                  ...(subgraph.style || {}),
+                  ...(subgraph.style as CSSProperties || {}),
                   width: newWidth,
                   height: newHeight,
                   backgroundColor: bgRgba,
                   borderColor: groupColor,
                   borderRadius: '12px',
-                };
+                } as CSSProperties;
 
                 // Readjust children to be relative to parent new position
                 childIds.forEach(childId => {
-                  const child = processedNodesMap.get(childId);
+                  const child = processedNodesMap.get(childId)!;
                   child.position = {
                     x: child.absX - newX,
                     y: child.absY - newY,

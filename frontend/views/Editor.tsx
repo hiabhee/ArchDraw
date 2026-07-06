@@ -224,7 +224,7 @@ export default function EditorPage() {
         store.setNodes([...existingNodes, ...offsetNodes]);
         store.setEdges([...existingEdges, ...processedEdges as Edge[]]);
       } else {
-        importDiagram(processedNodes as unknown as Node[], processedEdges as unknown as Edge[]);
+        importDiagram(processedNodes as Node[], processedEdges as Edge[]);
       }
 
       const generatedDiagramType = result.metadata?.diagramType as string;

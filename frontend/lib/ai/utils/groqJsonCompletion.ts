@@ -53,20 +53,16 @@ export async function groqJsonCompletion(
 ): Promise<string> {
   const { reasoning_effort, json_schema, ...coreParams } = params;
 
-  let body: Record<string, unknown> = {
+  let body: ChatCompletionCreateParamsNonStreaming = {
     ...coreParams,
     response_format: { type: 'json_object' as const },
     temperature: coreParams.temperature ?? 0.7,
+    ...(reasoning_effort ? { reasoning_effort } : {}),
   };
-
-  // Attach reasoning_effort if provided (Groq passes unknown params through)
-  if (reasoning_effort) {
-    body.reasoning_effort = reasoning_effort;
-  }
 
   try {
     const completion = await client.chat.completions.create(
-      body as unknown as ChatCompletionCreateParamsNonStreaming,
+      body,
     );
 
     const msg = completion.choices[0]?.message as ExtendedChatMessage | undefined;
@@ -82,13 +78,15 @@ export async function groqJsonCompletion(
     if (!isResponseFormatError(error)) throw error;
 
     // Retry without response_format if JSON mode is unsupported
-    const { reasoning_effort: _r, json_schema: _j, response_format: _rf, ...fallbackParams } = body;
-    const fallbackBody: Record<string, unknown> = { ...fallbackParams };
-    if (reasoning_effort) fallbackBody.reasoning_effort = reasoning_effort;
-    if (json_schema) fallbackBody.json_schema = json_schema;
+    const { reasoning_effort: _r, json_schema: _j, response_format: _rf, ...fallbackParams } = params as any;
+    const fallbackBody: ChatCompletionCreateParamsNonStreaming = {
+      ...fallbackParams,
+      ...(reasoning_effort ? { reasoning_effort } : {}),
+      ...(json_schema ? { json_schema } : {}),
+    } as any;
 
     const completion = await client.chat.completions.create(
-      fallbackBody as unknown as ChatCompletionCreateParamsNonStreaming,
+      fallbackBody,
     );
 
     const msg = completion.choices[0]?.message as ExtendedChatMessage | undefined;

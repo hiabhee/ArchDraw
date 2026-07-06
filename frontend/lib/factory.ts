@@ -1,5 +1,5 @@
 import logger from '@/lib/logger';
-import type { Node, Edge } from 'reactflow';
+import { MarkerType, type Node, type Edge } from 'reactflow';
 import { componentRegistry } from '@/lib/componentRegistry';
 
 // ─── NODE FACTORY ────────────────────────────────────────────
@@ -8,7 +8,7 @@ export function createNode(
   typeId: string,
   label: string,
   position = { x: 0, y: 0 },
-  extra: Record<string, any> = {}
+  extra: Record<string, unknown> = {}
 ): Node {
   const def = componentRegistry.get(typeId);
 
@@ -36,7 +36,7 @@ export function createNode(
 
   return {
     id: crypto.randomUUID(),
-    type: type || 'custom',
+    type: (type as string | undefined) || 'custom',
     position,
     ...restExtra,
     data: {
@@ -66,7 +66,7 @@ export function createEdge(
     animated: true,
     label,
     style: { strokeWidth: 1.5, stroke: '#94a3b8' },
-    markerEnd: { type: 'arrowclosed' as any, color: '#94a3b8' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
     ...extra,
   };
 }

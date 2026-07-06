@@ -99,7 +99,7 @@ export function CometTrailCanvas() {
 
           // Render glowing comet trails that fade and taper
           ctx.strokeStyle = `rgba(37, 99, 235, ${lifeRatio})`; 
-          ctx.lineWidth = Math.max(1.5, 6 * lifeRatio);
+          ctx.lineWidth = Math.max(0.8, 3 * lifeRatio);
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
           ctx.stroke();

@@ -117,7 +117,7 @@ class ComponentRegistry {
           .in('id', idList);
         
         if (data && data.length > 0) {
-          (data as unknown as TemplateRow[]).forEach((row) => {
+          (data as TemplateRow[]).forEach((row) => {
             const comp: ComponentDefinition = {
               id: row.id,
               label: row.name,
@@ -154,7 +154,7 @@ class ComponentRegistry {
         .select('id, name, description, color, icon, technology, component_categories(name)');
       
       if (data && data.length > 0) {
-        (data as unknown as TemplateRow[]).forEach((row) => {
+        (data as TemplateRow[]).forEach((row) => {
           const comp: ComponentDefinition = {
             id: row.id,
             label: row.name,

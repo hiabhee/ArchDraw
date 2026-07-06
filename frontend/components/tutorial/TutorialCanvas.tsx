@@ -198,10 +198,10 @@ function TutorialCanvasInner({
     const savedEdges = progress?.canvasEdges as Edge[] | undefined;
 
     if (savedNodes && savedNodes.length > 0) {
-      setNodes(savedNodes as unknown as Node[]);
-      setEdges((savedEdges ?? []) as unknown as Edge[]);
-      setTutorialNodes(savedNodes as unknown as Node[]);
-      setTutorialEdges((savedEdges ?? []) as unknown as Edge[]);
+      setNodes(savedNodes);
+      setEdges(savedEdges ?? []);
+      setTutorialNodes(savedNodes);
+      setTutorialEdges(savedEdges ?? []);
       toast.success('Canvas restored', { duration: 2000, position: 'bottom-center' });
       setTimeout(() => reactFlowInstance.fitView({ maxZoom: 0.7 }), 100);
     }

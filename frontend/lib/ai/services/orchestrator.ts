@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { UserIntent, GenerationResult, GenerationProgress, ReactFlowNode, ReactFlowEdge } from '../types';
+import type { ValidationIssue } from '../pipeline/types';
 import { runMermaidPipeline } from '../pipeline/mermaid-pipeline';
 import { requestContext } from '../utils/apiKeyManager';
 import logger from '@/lib/logger';
@@ -39,14 +40,14 @@ export async function generateDiagram(
       logger.log(`[Orchestrator] [${requestId}] Generation complete. Score: ${result.score}, logical: ${store?.logicalCalls ?? '?'}, network: ${store?.networkAttempts ?? '?'}`);
 
       const qualityWarnings = [
-        ...(result.diagnostics?.semanticIssues.map((i: any) => i.message) ?? []),
-        ...(result.diagnostics?.mechanicalRepairs.map((i: any) => i.message) ?? []),
+        ...(result.diagnostics?.semanticIssues.map((i: ValidationIssue) => i.message) ?? []),
+        ...(result.diagnostics?.mechanicalRepairs.map((i: ValidationIssue) => i.message) ?? []),
       ];
 
       return {
         type: 'architecture',
         nodes: result.nodes as ReactFlowNode[],
-        edges: result.edges as unknown as ReactFlowEdge[],
+        edges: result.edges as ReactFlowEdge[],
         metadata: {
           totalNodes: result.nodes.length,
           totalEdges: result.edges.length,

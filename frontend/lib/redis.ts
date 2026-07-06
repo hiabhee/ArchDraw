@@ -25,7 +25,7 @@ export const redis = url && token
       set: async () => null,
       del: async () => null,
       flushdb: async () => null,
-    } as unknown as Redis;
+    } as any as Redis;
 
 // ── Key builders ──────────────────────────────────────────────────────────────
 

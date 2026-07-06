@@ -19,7 +19,7 @@ if (isBrowser) {
         if ((state.nodes !== undefined || state.edges !== undefined) && state.activeCanvasId) {
           const activeId = state.activeCanvasId;
           const canvases = state.canvases || [];
-          const canvasIndex = canvases.findIndex((c: any) => c.id === activeId);
+          const canvasIndex = canvases.findIndex((c: { id: string }) => c.id === activeId);
           if (canvasIndex !== -1) {
             const canvas = canvases[canvasIndex];
             const topNodes = state.nodes || [];
@@ -153,8 +153,8 @@ function resolveNodeCollisions(nodes: Node[]): Node[] {
         const a = result[i];
         const b = result[j];
         
-        const aParent = a.parentId || (a as any).parentNode;
-        const bParent = b.parentId || (b as any).parentNode;
+        const aParent = a.parentId || (a as { parentNode?: string }).parentNode;
+        const bParent = b.parentId || (b as { parentNode?: string }).parentNode;
         if (aParent !== bParent) continue;
         
         const extA = getExtent(a);
@@ -434,7 +434,7 @@ function makeCanvas(name: string, id?: string): CanvasTab {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && parsed.state && parsed.state.canvases) {
-            const canvases = parsed.state.canvases as any[];
+            const canvases = parsed.state.canvases as { id: string }[];
             const numbers = canvases
               .map(c => {
                 const match = c.id.match(/^canvas-(\d+)$/);
@@ -518,7 +518,7 @@ function normalizeNodeType(type?: string): string {
 
 function normalizeNodes(nodes: Node[]): Node[] {
   return nodes.map((node) => {
-    const parentId = node.parentId || (node as any).parentNode;
+    const parentId = node.parentId || (node as { parentNode?: string }).parentNode;
     return {
       ...node,
       type: normalizeNodeType(node.type as string | undefined),
@@ -549,8 +549,8 @@ function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
     let y = node.position?.y ?? 0;
     let current = node;
     const visited = new Set<string>([node.id]);
-    while (current.parentId || (current as any).parentNode) {
-      const pId = current.parentId || (current as any).parentNode;
+    while (current.parentId || (current as { parentNode?: string }).parentNode) {
+      const pId = current.parentId || (current as { parentNode?: string }).parentNode;
       if (!pId || visited.has(pId)) break;
       visited.add(pId);
       const parent = nodes.find(n => n.id === pId);
@@ -704,7 +704,7 @@ function sanitizeNodes(nodes: Node[]): Node[] {
     if (!hasRequired) {
       logger.warn(`[sanitize] Node ${node.id} missing fields. Sanitizing in-place.`);
       const data = node.data || {};
-      const typeId = (data as any).typeId ?? 'default';
+      const typeId = (data as { typeId?: string }).typeId ?? 'default';
       const def = componentRegistry.get(typeId);
       return {
         ...node,
@@ -730,7 +730,7 @@ function sanitizeEdges(edges: Edge[]): Edge[] {
       ...edge,
       type: edge.type || 'smoothstep',
       markerEnd: edge.markerEnd || {
-        type: 'arrowclosed' as any,
+        type: MarkerType.ArrowClosed,
         color: typeof stroke === 'string' ? stroke : '#94a3b8',
       },
       style: {
@@ -780,12 +780,12 @@ const _debouncedSave = debounce(async (canvasId: string, get: () => DiagramState
   state.setSavingState('saving');
   try {
     const supabase = getSupabaseClient();
-    await (supabase.from('user_canvases') as unknown as UserCanvasesTable).upsert({
+    await (supabase.from('user_canvases') as any as UserCanvasesTable).upsert({
       id: canvasId,
       user_id: state.userProfile.id,
       name: canvas.name,
-      nodes: canvas.nodes as unknown as import('@/types/supabase').Json,
-      edges: canvas.edges as unknown as import('@/types/supabase').Json,
+      nodes: canvas.nodes as any as import('@/types/supabase').Json,
+      edges: canvas.edges as any as import('@/types/supabase').Json,
       updated_at: new Date().toISOString(),
     });
     state.setSavingState('saved');
@@ -805,7 +805,7 @@ async function deleteCanvasFromDB(canvasId: string, get: () => DiagramState): Pr
   if (!state.userProfile || state.userProfile.id === 'guest') return;
   try {
     const supabase = getSupabaseClient();
-    await (supabase.from('user_canvases') as unknown as UserCanvasesTable).delete().eq('id', canvasId);
+    await (supabase.from('user_canvases') as any as UserCanvasesTable).delete().eq('id', canvasId);
   } catch {
     // Silently fail - canvas is already removed from local state
   }
@@ -1301,18 +1301,18 @@ const useDiagramStoreRaw = create<DiagramState>()(
         const { activeCanvasId, canvases: localCanvases } = get();
         try {
           const supabase = getSupabaseClient();
-          const { data } = await (supabase.from('user_canvases') as unknown as UserCanvasesTable)
+          const { data } = await (supabase.from('user_canvases') as any as UserCanvasesTable)
             .select('*')
             .order('updated_at', { ascending: false });
           if (data && data.length > 0) {
             const dbCanvases: CanvasTab[] = data.map((d: Database['public']['Tables']['user_canvases']['Row']) => {
-              const rawNodes = normalizeNodes((d.nodes as unknown as Node[]) ?? []);
+              const rawNodes = normalizeNodes((d.nodes as any as Node[]) ?? []);
               const sortedNodes = validateAndFixNodes(rawNodes);
               return {
                 id: d.id,
                 name: d.name,
                 nodes: sortedNodes,
-                edges: normalizeEdges((d.edges as unknown as Edge[]) ?? []),
+                edges: normalizeEdges((d.edges as any as Edge[]) ?? []),
                 updatedAt: d.updated_at ? new Date(d.updated_at).getTime() : Date.now(),
                 isOpen: true,
                 lastAccessedAt: d.updated_at ? new Date(d.updated_at).getTime() : Date.now(),
@@ -1404,7 +1404,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
           // Temporarily set extent to undefined for child nodes so React Flow
           // does not clamp their layout positions to the old parent dimensions.
           const nodesWithoutExtent = layoutedNodes.map(n => 
-            (n.parentId || (n as any).parentNode) ? { ...n, extent: undefined } : n
+            (n.parentId || (n as { parentNode?: string }).parentNode) ? { ...n, extent: undefined } : n
           );
 
           const nextCanvases = canvases.map((c) =>
@@ -1426,7 +1426,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
             if (!canvas) return;
 
             const restoredNodes = canvas.nodes.map(n => {
-              const pId = n.parentId || (n as any).parentNode;
+              const pId = n.parentId || (n as { parentNode?: string }).parentNode;
               return pId ? { ...n, parentId: pId, parentNode: pId, extent: 'parent' as const } : n;
             });
 
@@ -1458,7 +1458,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
           // Temporarily set extent to undefined for child nodes so React Flow
           // does not clamp their layout positions to the old parent dimensions.
           const nodesWithoutExtent = layoutedNodes.map(n => 
-            (n.parentId || (n as any).parentNode) ? { ...n, extent: undefined } : n
+            (n.parentId || (n as { parentNode?: string }).parentNode) ? { ...n, extent: undefined } : n
           );
 
           const nextCanvases = canvases.map((c) =>
@@ -1480,7 +1480,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
             if (!canvas) return;
 
             const restoredNodes = canvas.nodes.map(n => {
-              const pId = n.parentId || (n as any).parentNode;
+              const pId = n.parentId || (n as { parentNode?: string }).parentNode;
               return pId ? { ...n, parentId: pId, parentNode: pId, extent: 'parent' as const } : n;
             });
 
@@ -1771,7 +1771,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
           e.id === id
             ? {
                 ...e,
-                label: data.label !== undefined ? (data.label as any) : e.label,
+                label: data.label !== undefined ? (data.label as string) : e.label,
                 data: { ...e.data, ...data },
               }
             : e
@@ -1983,7 +1983,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
         if (!node) return;
         pushHistory();
         
-        const parentId = node.parentId || (node as any).parentNode;
+        const parentId = node.parentId || (node as { parentNode?: string }).parentNode;
         let newPosition = { ...node.position };
         if (groupId) {
           const group = nodes.find((n) => n.id === groupId);
@@ -2292,9 +2292,9 @@ const useDiagramStoreRaw = create<DiagramState>()(
                   const list = JSON.parse(guestListSaved);
                   if (Array.isArray(list) && list.length > 0) {
                     const guestCanvases = list
-                      .filter((c: any) => c && typeof c.id === 'string')
+                      .filter((c: { id?: string }) => c && typeof c.id === 'string')
                       .slice(0, MAX_GUEST_CANVASES)
-                      .map((c: any) => ({
+                      .map((c: { id: string; nodes?: unknown[]; edges?: unknown[]; lastAccessedAt?: number; updatedAt?: number; createdAt?: number }) => ({
                         ...c,
                         isOpen: true,
                         lastAccessedAt: c.lastAccessedAt || c.updatedAt || Date.now(),
@@ -2304,15 +2304,15 @@ const useDiagramStoreRaw = create<DiagramState>()(
                         edges: c.edges || [],
                       }));
 
-                    state.canvases = guestCanvases;
-                    state.openCanvasIds = guestCanvases.map((c: any) => c.id);
+                    state.canvases = guestCanvases as CanvasTab[];
+                    state.openCanvasIds = guestCanvases.map((c) => c.id);
                     state.activeCanvasId =
-                      state.activeCanvasId && guestCanvases.some((c: any) => c.id === state.activeCanvasId)
+                      state.activeCanvasId && guestCanvases.some((c) => c.id === state.activeCanvasId)
                         ? state.activeCanvasId
                         : guestCanvases[0].id;
 
                     // keep legacy key pointing at active
-                    const active = guestCanvases.find((c: any) => c.id === state.activeCanvasId) || guestCanvases[0];
+                    const active = guestCanvases.find((c) => c.id === state.activeCanvasId) || guestCanvases[0];
                     localStorage.setItem('archdraw-guest-canvas', JSON.stringify(active));
                   }
                 } catch {
@@ -2391,16 +2391,16 @@ const useDiagramStoreRaw = create<DiagramState>()(
   )
 );
 
-function deriveNodesAndEdges(state: any) {
+function deriveNodesAndEdges(state: DiagramState) {
   if (!state) return state;
   return new Proxy(state, {
     get(target, prop, receiver) {
       if (prop === 'nodes') {
-        const active = target.canvases?.find((c: any) => c.id === target.activeCanvasId);
+        const active = target.canvases?.find((c: CanvasTab) => c.id === target.activeCanvasId);
         return active?.nodes || [];
       }
       if (prop === 'edges') {
-        const active = target.canvases?.find((c: any) => c.id === target.activeCanvasId);
+        const active = target.canvases?.find((c: CanvasTab) => c.id === target.activeCanvasId);
         return active?.edges || [];
       }
       return Reflect.get(target, prop, receiver);
@@ -2408,6 +2408,7 @@ function deriveNodesAndEdges(state: any) {
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zustand store wrapper needs flexible selector/equalityFn types for generic subscriber compatibility
 export const useDiagramStore = Object.assign(
   (selector?: (state: DiagramState) => any, equalityFn?: any) => {
     if (selector) {
@@ -2423,10 +2424,11 @@ export const useDiagramStore = Object.assign(
   {
     getState: () => deriveNodesAndEdges(useDiagramStoreRaw.getState()),
     setState: useDiagramStoreRaw.setState,
-    subscribe: (listener: any) => {
+    subscribe: (listener: (state: DiagramState, prevState: DiagramState) => void) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zustand subscribe callback signature is complex
       return (useDiagramStoreRaw.subscribe as any)((state: any, prevState: any) => {
         listener(deriveNodesAndEdges(state), deriveNodesAndEdges(prevState));
       });
     },
   }
-) as unknown as typeof useDiagramStoreRaw;
+) as typeof useDiagramStoreRaw;

@@ -326,7 +326,7 @@ export function translatePlanToReactFlow(
         },
       } as Node
     }
-    const nodeColor = (node.data as any)?.color || styleConfig.primaryColor
+    const nodeColor = (node.data as Record<string, unknown>)?.color as string || styleConfig.primaryColor
     return {
       ...node,
       type: 'shapeNode',
@@ -356,7 +356,7 @@ export function translatePlanToReactFlow(
       fill: styleConfig.secondaryColor,
       fontWeight: 500,
     },
-  })) as unknown as Edge[]
+  })) as any as Edge[]
 
   return { nodes: styledNodes, edges: styledEdges }
 }

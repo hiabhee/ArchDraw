@@ -56,7 +56,7 @@ function getTutorialMeta(tutorial: AnyTutorial): { nodeCount: number; stepCount:
     const levels = tutorial.levels ?? [];
     const stepCount = levels.reduce((acc, l) => acc + l.steps.length, 0);
     const nodeCount = levels.reduce((acc, l) => 
-      acc + l.steps.reduce((sAcc: number, s: any) => sAcc + (s.requiredNodes?.length ?? 0), 0), 
+      acc + l.steps.reduce((sAcc, s) => sAcc + ('requiredNodes' in s ? (s.requiredNodes?.length ?? 0) : 0), 0), 
       0
     );
 
@@ -77,7 +77,7 @@ function TutorialCard({ tutorial }: { tutorial: AnyTutorial }) {
   const { nodeCount, stepCount } = getTutorialMeta(tutorial);
   const isCompleted = completedTutorials.includes(tutorial.id);
   const isInProgress = progress > 0 && !isCompleted;
-  const diffConfig = DIFFICULTY_CONFIG[(tutorial as any).difficulty as keyof typeof DIFFICULTY_CONFIG] ?? DIFFICULTY_CONFIG.Intermediate;
+  const diffConfig = DIFFICULTY_CONFIG[(tutorial as { difficulty?: string }).difficulty as keyof typeof DIFFICULTY_CONFIG] ?? DIFFICULTY_CONFIG.Intermediate;
   const IconComp = tutorial.icon ? ICON_MAP[tutorial.icon] : undefined;
   const completionPercent = stepCount > 0 ? Math.round((progress / stepCount) * 100) : 0;
 

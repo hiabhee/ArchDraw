@@ -33,7 +33,7 @@ export interface EdgeConfig {
 }
 
 export interface PipelineState {
-  userIntent: unknown;
+  userIntent: UserIntent;
   rawNodes: unknown[];
   enrichedNodes: unknown[];
   edges: unknown[];
@@ -45,9 +45,10 @@ export interface PipelineState {
   errors: Array<{ message?: string }>;
   useAWS: boolean;
   systemIntent: Record<string, unknown>;
-  pipelineDiagnostics?: unknown;
+  pipelineDiagnostics?: PipelineDiagnostics;
 }
 
+import type { UserIntent } from '../../types';
 import type { PipelineDiagnostics } from '../types';
 
 export interface PipelineResult {
