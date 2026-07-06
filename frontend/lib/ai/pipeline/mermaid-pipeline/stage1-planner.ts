@@ -60,27 +60,14 @@ REAL-WORLD ARCHITECTURE RULES
     - Forward path example: Client → Load Balancer → Web Server → Database
     - Response path example: Database → Web Server → Client
     - The response path is the return leg of the same request/response pair — do NOT add an extra "maintains connection" edge on top of it
-    - Do NOT leave backend servers disconnected (they should connect to DB/cache)
-
- 3. GROUPING:
-    - Group nodes into logical tiers: Client Layer, Gateway/LB Layer, Service Layer, Data Layer
-    - Each group must contain at least one node
-    - Do NOT create empty groups
-
- 4. NODE LABELS:
-    - All node labels MUST be short acronyms or abbreviations that are strictly NOT more than three letters long.
-    - Use standard three-letter (or fewer) acronyms and abbreviations, e.g., "Web", "App", "DB", "LB", "API", "MQ", "VPC", "CDN", "DNS", "CLI", "S3", "GW".
-    - Never write out full names like "Load Balancer" (write "LB"), "Database" (write "DB"), "Application" (write "App"), "Message Queue" (write "MQ"), "API Gateway" (write "GW" or "API"), "Cache" (write "DB" or "Mem"), or "Web Server" (write "Web").
+    - Do NO  4. NODE LABELS:
+    - Keep node labels descriptive but concise (e.g. "Web Client", "API Gateway", "User Service", "PostgreSQL DB", "Message Queue", etc.).
+    - Use standard, clear terminology. Do NOT artificially restrict node labels to 3 letters.
 
  5. EDGE LABELS:
-    - Every edge label MUST describe the semantic relationship between the two nodes, not the protocol/transport
-    - Examples: "routes user request", "reads/writes user data", "queues media processing task", "fetches cached response", "loads model weights for inference", "proxies API call"
-    - Do NOT use protocol names: "HTTPS", "gRPC", "SQL query", "HTTP request" — instead describe what the connection does
-    - Keep labels short (2-5 words), action-oriented, lowercase
-    - Each label must be a SINGLE action. Do NOT join multiple actions with "/", "&", or "or"
-    - Do NOT use generic labels like "connects", "sends", "calls"
-    - The label must accurately reflect what the SOURCE node does. Browser/Client "sends request" or "submits form", not "routes request" (routing is the gateway's job). Gateway/LB "routes request" or "proxies request". Server "processes request" or "queries data".
-    - The label should reflect the relationship from the "from" node's perspective to the "to" node
+    - Every edge label MUST be extremely short, strictly not more than three letters long (e.g., abbreviations or short words).
+    - Keep labels as short as possible. Use abbreviations, e.g. "req" (request), "res" (response), "get" (fetch), "put" (update), "ack" (acknowledge), "pub" (publish), "sub" (subscribe), "api" (api calls), "db" (database queries/reads/writes), "tls" (secure connect).
+    - Do NOT use long protocol names or descriptive sentences. Keep it strictly to 3 letters or fewer.
 
  6. PRODUCTION PATTERNS:
     - Use standard, real-world topologies (not academic/idealized ones)
@@ -106,14 +93,14 @@ OUTPUT SCHEMA
 The "mermaidCode" field must contain the full, valid Mermaid flowchart syntax describing the architecture.
 Rules for the Mermaid syntax:
 - Start with the diagramType (e.g. graph LR or graph TD)
-- All node labels MUST be short acronyms or abbreviations that are strictly NOT more than three letters long (e.g., Web, App, DB, LB, API, MQ, VPC, CDN, DNS, CLI, S3, GW).
+- Node labels should be clear and descriptive (e.g., "Web Browser", "Load Balancer", "Product DB").
+- All edge labels MUST be strictly not more than three letters long (e.g., req, res, get, put, ack, pub, sub, api, db).
 - Define custom shapes for nodes using correct Mermaid bracket syntax:
-  - Cylinders for databases/storage: node_id[("DB")] or node_id[("S3")]
-  - Diamonds for gateways/load balancers: node_id{"LB"} or node_id{"GW"} or node_id{"API"}
-  - Circles for queues: node_id(("MQ"))
-  - Rounded rectangles for clients/browsers: node_id("Web") or node_id("App")
-- Group nodes into subgraphs for logical tiers (e.g., Client Layer, Gateway/LB Layer, Service Layer, Data Layer).
-- Edge labels must describe the semantic relationship (e.g., "routes user request", "reads/writes data", "queues task").`;
+  - Cylinders for databases/storage: node_id[("PostgreSQL DB")] or node_id[("S3 Storage")]
+  - Diamonds for gateways/load balancers: node_id{"Load Balancer"} or node_id{"API Gateway"}
+  - Circles for queues: node_id(("Message Queue"))
+  - Rounded rectangles for clients/browsers: node_id("Web Client") or node_id("Mobile App")
+- Group nodes into subgraphs for logical tiers (e.g., Client Layer, Gateway/LB Layer, Service Layer, Data Layer).`;
 }
 
 function getMaxNodes(size: 'small' | 'medium' | 'large'): number {
@@ -217,7 +204,7 @@ export async function runArchitecturePlanner(
 
 Size constraint: ${diagramSize} diagram (max ${maxNodes} nodes).
 
-IMPORTANT: Node labels must strictly NOT be more than 3 letters long. Edge labels must describe the semantic relationship between nodes (e.g. "sends request", "reads/writes data", "queues task"), NOT the protocol (e.g. not "HTTPS", "gRPC", "HTTP request").
+IMPORTANT: Edge labels must be strictly not more than 3 letters long (e.g. "req", "res", "get", "put", "ack", "pub", "sub", "api", "db"). Node labels should be descriptive.
 
 Output must conform to this JSON schema:
 {
