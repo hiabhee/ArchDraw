@@ -25,6 +25,13 @@ export function createNode(
     'shapeNode',
     'messageBrokerNode',
     'customNode',
+    'service',
+    'database',
+    'client',
+    'load-balancer',
+    'queue',
+    'external-service',
+    'observability',
   ].includes(typeId);
 
   if (!def && !isBuiltInNode) {
