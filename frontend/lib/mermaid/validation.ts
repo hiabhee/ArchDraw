@@ -60,8 +60,48 @@ export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], directio
     }
   }
 
-  // 5. Handle assignment (optional — store's distributeTargetHandles assigns these on import)
-  // Edge component (SimpleFloatingEdge) computes its own positions at runtime, so null handles are fine.
+  // 5. Accuracy Guardrails
+  for (const edge of edges) {
+    const src = nodes.find(n => n.id === edge.source)
+    const tgt = nodes.find(n => n.id === edge.target)
+    if (src && tgt) {
+      const srcService = src.data?.serviceType as string || 'service'
+      const tgtService = tgt.data?.serviceType as string || 'service'
+      const srcLabel = src.data?.label as string || src.id
+      const tgtLabel = tgt.data?.label as string || tgt.id
+      const edgeLabel = (edge.data?.label as string || edge.label || '').toLowerCase()
+
+      // 5a. Initiator Guardrail
+      if (srcService === 'database' && tgtService !== 'database' && tgtService !== 'observability' && tgtService !== 'external-service') {
+        const isCDC = edgeLabel.includes('cdc') || edgeLabel.includes('stream') || edgeLabel.includes('replication') || edgeLabel.includes('sync') || edgeLabel.includes('event') || edgeLabel.includes('publish')
+        if (!isCDC) {
+          warnings.push({
+            type: 'DATABASE_INITIATOR',
+            edgeId: edge.id,
+            message: `Database component "${srcLabel}" should not initiate request flow to "${tgtLabel}" (unless using CDC/replication).`
+          })
+        }
+      }
+
+      // 5b. Security Guardrail
+      if (srcService === 'client' && tgtService === 'database') {
+        warnings.push({
+          type: 'CLIENT_DIRECT_TO_DB',
+          edgeId: edge.id,
+          message: `Client "${srcLabel}" connects directly to Database "${tgtLabel}". Clients should route through API services/backends.`
+        })
+      }
+
+      // 5c. Async Protocol Guardrail
+      if (tgtService === 'queue' && edge.data?.connectionType === 'sync') {
+        warnings.push({
+          type: 'SYNC_TO_QUEUE',
+          edgeId: edge.id,
+          message: `Sync connection to Queue "${tgtLabel}". Connections to message queues/streams should be asynchronous.`
+        })
+      }
+    }
+  }
 
   return { passed: warnings.length === 0, warnings }
 }

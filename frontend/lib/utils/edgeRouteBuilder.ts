@@ -3,6 +3,8 @@ import { getObstacleAwareHandles } from '../features/dynamicHandles';
 import { getEdgeShiftOffset, getSimpleHandlePosition } from './simpleFloatingEdge';
 import { getCollisionFreeWaypoints, segmentIntersectsRect, buildSmoothStepSvg, getCollisionFreeSmoothStepPath } from './collisionFreeEdgePath';
 import type { NodeRect } from './collisionFreeEdgePath';
+import { useDiagramStore } from '@/store/diagramStore';
+import type { EdgeData } from '@/data/edgeTypes';
 
 export interface EdgeRouteResult {
   sourcePosition: Position;
@@ -88,16 +90,22 @@ export function computeEdgeRoute(
 
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined;
 
-  // 4. Resolve handle positions (sides)
+  // 4. Resolve handle positions (sides) — geometry first, semantics second
+  const edgeData = edge.data as Record<string, unknown> | undefined;
   let sourcePosition: Position;
   let targetPosition: Position;
 
+  const laneSourceSide = edgeData?.laneSourceSide as string | undefined;
+  const laneTargetSide = edgeData?.laneTargetSide as string | undefined;
+
+  // Compute normal handles first, then override with lane assignments if present.
+  // This ensures that when only one endpoint is a lane node, the other side
+  // still uses a geometrically sensible handle rather than defaulting to Bottom.
   const sHandle = edge.sourceHandle;
   const tHandle = edge.targetHandle;
   const hasStoredHandles = sHandle && tHandle && sHandle.startsWith('source-') && tHandle.startsWith('target-');
 
   if (edge.source === edge.target) {
-    // Self-loop
     sourcePosition = Position.Top;
     targetPosition = Position.Right;
   } else if (hasStoredHandles) {
@@ -106,7 +114,9 @@ export function computeEdgeRoute(
     sourcePosition = sSide === 'left' ? Position.Left : sSide === 'right' ? Position.Right : sSide === 'top' ? Position.Top : Position.Bottom;
     targetPosition = tSide === 'left' ? Position.Left : tSide === 'right' ? Position.Right : tSide === 'top' ? Position.Top : Position.Bottom;
   } else {
-    // Dynamic handle selection
+    const activePreset = useDiagramStore.getState().activeLayoutPresetId;
+    const direction = activePreset === 'layered-tb' ? 'TD' : 'LR';
+
     const handles = getObstacleAwareHandles(
       sourceRect,
       targetRect,
@@ -114,10 +124,23 @@ export function computeEdgeRoute(
       excludedIds,
       edge.id,
       edge.source,
-      edge.target
+      edge.target,
+      edge.data,
+      sourceNode.data?.serviceType,
+      targetNode.data?.serviceType,
+      direction
     );
     sourcePosition = handles.sourcePosition;
     targetPosition = handles.targetPosition;
+  }
+
+  // Override with lane assignments where present (only the lane node's side is
+  // overridden; the other side keeps the geometrically computed handle).
+  if (laneSourceSide) {
+    sourcePosition = laneSourceSide === 'left' ? Position.Left : laneSourceSide === 'right' ? Position.Right : laneSourceSide === 'top' ? Position.Top : Position.Bottom;
+  }
+  if (laneTargetSide) {
+    targetPosition = laneTargetSide === 'left' ? Position.Left : laneTargetSide === 'right' ? Position.Right : laneTargetSide === 'top' ? Position.Top : Position.Bottom;
   }
 
   // 5. Shift offsets for parallel routing

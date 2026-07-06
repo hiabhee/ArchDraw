@@ -180,6 +180,91 @@ function lineIntersectsRect(
   }
 }
 
+export function getSemanticPortSide(
+  sourceServiceType: string,
+  targetServiceType: string,
+  portType?: string,
+  direction: 'LR' | 'TD' = 'LR'
+): { sourceSide: Position; targetSide: Position } {
+  const isLR = direction === 'LR';
+  const leftSide = isLR ? Position.Left : Position.Top;
+  const rightSide = isLR ? Position.Right : Position.Bottom;
+  const topSide = isLR ? Position.Top : Position.Left;
+  const bottomSide = isLR ? Position.Bottom : Position.Right;
+
+  // Specific Overrides: Database target
+  if (targetServiceType === 'database') {
+    if (portType === 'events') return { sourceSide: rightSide, targetSide: rightSide };
+    if (portType === 'control') return { sourceSide: topSide, targetSide: topSide };
+    if (portType === 'storage') return { sourceSide: rightSide, targetSide: bottomSide };
+    return { sourceSide: rightSide, targetSide: leftSide };
+  }
+
+  // Queue
+  if (targetServiceType === 'queue') {
+    if (portType === 'control') return { sourceSide: topSide, targetSide: topSide };
+    if (portType === 'events') return { sourceSide: rightSide, targetSide: bottomSide };
+    return { sourceSide: rightSide, targetSide: leftSide };
+  }
+  if (sourceServiceType === 'queue') {
+    return { sourceSide: rightSide, targetSide: leftSide };
+  }
+
+  // API Gateway
+  if (sourceServiceType === 'load-balancer') {
+    if (portType === 'control' || portType === 'security') return { sourceSide: topSide, targetSide: leftSide };
+    if (portType === 'observability') return { sourceSide: bottomSide, targetSide: leftSide };
+    return { sourceSide: rightSide, targetSide: leftSide };
+  }
+
+  // Default general mapping based on portType
+  switch (portType) {
+    case 'control':
+      return { sourceSide: topSide, targetSide: topSide };
+    case 'data':
+    case 'storage':
+    case 'runtime':
+      return { sourceSide: rightSide, targetSide: bottomSide };
+    case 'observability':
+      return { sourceSide: bottomSide, targetSide: bottomSide };
+    case 'security':
+      return { sourceSide: topSide, targetSide: topSide };
+    case 'events':
+      return { sourceSide: rightSide, targetSide: leftSide };
+    case 'inbound':
+      return { sourceSide: leftSide, targetSide: leftSide };
+    case 'outbound':
+      return { sourceSide: rightSide, targetSide: leftSide };
+    default:
+      return { sourceSide: rightSide, targetSide: leftSide };
+  }
+}
+
+/**
+ * Returns true if any segment of the waypoint path crosses the given rect,
+ * excluding segments that lie entirely within a small tolerance of the
+ * rect's edge (to avoid flagging the handle connection point itself).
+ */
+function waypointsCrossRect(
+  waypoints: Array<{ x: number; y: number }>,
+  rx: number, ry: number, rw: number, rh: number,
+  tolerance: number = 4
+): boolean {
+  const inset = (v: number, lo: number, hi: number) => v >= lo - tolerance && v <= hi + tolerance;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i], b = waypoints[i + 1];
+    if (
+      lineIntersectsRect(a.x, a.y, b.x, b.y, rx - tolerance, ry - tolerance, rw + tolerance * 2, rh + tolerance * 2)
+    ) {
+      const aInside = inset(a.x, rx, rx + rw) && inset(a.y, ry, ry + rh);
+      const bInside = inset(b.x, rx, rx + rw) && inset(b.y, ry, ry + rh);
+      if (aInside && bInside) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 export function getObstacleAwareHandles(
   sourceRect: NodeRect,
   targetRect: NodeRect,
@@ -188,12 +273,13 @@ export function getObstacleAwareHandles(
   edgeId?: string,
   sourceId?: string,
   targetId?: string,
+  edgeData?: any,
+  sourceServiceType?: string,
+  targetServiceType?: string,
+  direction: 'LR' | 'TD' = 'LR'
 ): DynamicHandleResult {
-  const defaultHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId);
-
-  if (!nodeRects || nodeRects.size === 0) {
-    return defaultHandles;
-  }
+  const rects = nodeRects ?? new Map();
+  const excluded = excludedNodeIds ?? new Set();
 
   const allPositions = [Position.Left, Position.Right, Position.Top, Position.Bottom];
   const allPairs: Array<{ source: Position; target: Position }> = [];
@@ -203,12 +289,7 @@ export function getObstacleAwareHandles(
     }
   }
 
-  const rects = nodeRects!;
-  const excluded = excludedNodeIds ?? new Set();
-
-  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number } {
-    // No type passed — compute handle coordinates at the node edge center,
-    // matching getSimpleHandlePosition used for actual edge drawing.
+  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean } {
     const sh = getHandleCoordinate(sourceRect, sp);
     const th = getHandleCoordinate(targetRect, tp);
     const sx = sh.x, sy = sh.y, tx = th.x, ty = th.y;
@@ -223,6 +304,20 @@ export function getObstacleAwareHandles(
       nodeRects: rects,
       excludedNodeIds: excluded
     });
+
+    let crossesBody = false;
+    if (waypoints.length >= 2) {
+      if (
+        waypointsCrossRect(waypoints, sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height)
+      ) {
+        crossesBody = true;
+      }
+      if (
+        waypointsCrossRect(waypoints, targetRect.x, targetRect.y, targetRect.width, targetRect.height)
+      ) {
+        crossesBody = true;
+      }
+    }
 
     let collisions = 0;
     for (let i = 0; i < waypoints.length - 1; i++) {
@@ -239,25 +334,46 @@ export function getObstacleAwareHandles(
       pathLen += Math.abs(waypoints[i].x - waypoints[i - 1].x) + Math.abs(waypoints[i].y - waypoints[i - 1].y);
     }
 
-    return { collisions, pathLen };
+    return { collisions, pathLen, crossesBody };
   }
 
-  const defaultScore = scorePair(defaultHandles.sourcePosition, defaultHandles.targetPosition);
-  if (defaultScore.collisions === 0) {
-    return defaultHandles;
+  const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId);
+
+  const candidates: Array<{ source: Position; target: Position; label: string }> = [];
+
+  if (sourceServiceType && targetServiceType) {
+    const semantic = getSemanticPortSide(sourceServiceType, targetServiceType, edgeData?.portType, direction);
+    candidates.push({ source: semantic.sourceSide, target: semantic.targetSide, label: 'semantic' });
   }
 
-  let best = { ...defaultScore, pair: defaultHandles };
+  candidates.push({ source: geometryHandles.sourcePosition, target: geometryHandles.targetPosition, label: 'geometry' });
 
   for (const pair of allPairs) {
-    if (pair.source === defaultHandles.sourcePosition && pair.target === defaultHandles.targetPosition) continue;
-    const score = scorePair(pair.source, pair.target);
-    if (score.collisions < best.collisions || (score.collisions === best.collisions && score.pathLen < best.pathLen)) {
-      best = { ...score, pair: { sourcePosition: pair.source, targetPosition: pair.target } };
+    const already = candidates.some(c => c.source === pair.source && c.target === pair.target);
+    if (!already) {
+      candidates.push({ source: pair.source, target: pair.target, label: 'bruteforce' });
     }
   }
 
-  return best.pair;
+  let best = { collisions: Infinity, pathLen: Infinity, crossesBody: true, source: geometryHandles.sourcePosition, target: geometryHandles.targetPosition };
+
+  for (const cand of candidates) {
+    const score = scorePair(cand.source, cand.target);
+    const isBetter =
+      score.crossesBody < best.crossesBody ||
+      (score.crossesBody === best.crossesBody && score.collisions < best.collisions) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen < best.pathLen);
+
+    if (isBetter) {
+      best = { ...score, source: cand.source, target: cand.target };
+    }
+
+    if (!score.crossesBody && score.collisions === 0 && cand.label === 'geometry') {
+      break;
+    }
+  }
+
+  return { sourcePosition: best.source, targetPosition: best.target };
 }
 
 export function getHandleCoordinate(

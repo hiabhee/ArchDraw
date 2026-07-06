@@ -70,30 +70,65 @@ export default function SimpleFloatingEdge({
   } = route;
 
   const [isHovered, setIsHovered] = useState(false);
+
+  const detailLevel = useDiagramStore((s) => s.detailLevel);
+  const importance = data?.importance || 'secondary';
+  const isSpine = data?.isSpine || false;
+  const responseLabel = data?.responseLabel;
+  const isReturn = data?.isReturn || false;
+
+  let edgeLevel = 2;
+  if (importance === 'primary' || isSpine) {
+    edgeLevel = 1;
+  } else if (importance === 'diagnostic' || importance === 'optional' || isReturn) {
+    edgeLevel = 3;
+  }
+
+  const isVisible = detailLevel >= edgeLevel;
+  const opacity = isVisible ? (selected || isHovered ? 1 : 0.85) : 0.12;
+  const pointerEvents = isVisible ? 'auto' : 'none';
   
   const isAsync = data?.edgeVariant === 'dashed' || data?.async || data?.connectionType === 'async';
   const { isDark } = useCanvasTheme();
 
   const strokeStyle: React.CSSProperties = useMemo(() => {
-    // Prefer the color already set by useEdgeColors on the edge style prop.
-    // Fall back to theme-aware defaults so dark mode always works even if the
-    // prop chain hasn't propagated yet.
     const darkDefault = '#cbd5e1';
-    const lightDefault = DIAGRAM_CONSTANTS.edge.stroke; // '#94a3b8'
-    const stroke = edgeStyle?.stroke || (isDark ? darkDefault : lightDefault);
-    const strokeWidth = selected || isHovered ? 2.5 : DIAGRAM_CONSTANTS.edge.strokeWidth;
-    const strokeDasharray = isAsync ? DIAGRAM_CONSTANTS.edge.dashArray : undefined;
+    const lightDefault = DIAGRAM_CONSTANTS.edge.stroke;
+    let stroke = edgeStyle?.stroke || (isDark ? darkDefault : lightDefault);
+    
+    let baseWidth: number = DIAGRAM_CONSTANTS.edge.strokeWidth;
+    if (importance === 'primary' || isSpine) {
+      baseWidth = 2.5;
+    } else if (importance === 'supporting') {
+      baseWidth = 1.25;
+    } else if (importance === 'diagnostic' || importance === 'optional' || isReturn) {
+      baseWidth = 1.0;
+    }
+
+    const isDenseBundle = (data as Record<string, unknown>)?.isDenseBundle === true;
+    if (data?.isBundle) {
+      baseWidth = isDenseBundle ? 3.5 : 2.5;
+      stroke = isDenseBundle ? '#4f46e5' : '#818cf8';
+    }
+
+    const strokeWidth = selected || isHovered ? baseWidth + 1.0 : baseWidth;
+    let strokeDasharray = isAsync ? DIAGRAM_CONSTANTS.edge.dashArray : undefined;
+    if (importance === 'diagnostic' || importance === 'optional' || isReturn) {
+      strokeDasharray = '3 3';
+    }
 
     return {
       stroke,
       strokeWidth,
       strokeDasharray,
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
-      opacity: selected || isHovered ? 1 : 0.85,
+      opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, importance, isSpine, isReturn, data?.isBundle, data, opacity]);
 
-  const edgeLabel = typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : '');
+  const displayLabel = responseLabel
+    ? `${label || data?.label || ''} / ${responseLabel}`
+    : (typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : ''));
 
   const parallelEdges = useMemo(
     () => edges.filter((edge) => 
@@ -105,20 +140,17 @@ export default function SimpleFloatingEdge({
   const labelOrder = Math.max(0, parallelEdges.findIndex((edge) => edge.id === id));
   const labelT = data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
 
-  // Compute label position from labelT along the SVG path
   const labelPos = useMemo(() => {
-    if (!edgeLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
+    if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     try {
       return getPointOnPath(edgePath, labelT);
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [edgePath, labelT, edgeLabel, sx, sy, tx, ty]);
+  }, [edgePath, labelT, displayLabel, sx, sy, tx, ty]);
 
-  // Labels always stay on the edge path — never jump to node edges
   const safeLabelPos = labelPos;
 
-  // Drag state
   const isDragging = useRef(false);
   const [dragging, setDragging] = useState(false);
 
@@ -165,19 +197,17 @@ export default function SimpleFloatingEdge({
 
   return (
     <>
-      {/* Interaction layer */}
       <path
         d={edgePath}
         fill="none"
         strokeWidth={20}
         stroke="transparent"
         className="react-flow__edge-interaction"
-        style={{ cursor: 'pointer' }}
-        onContextMenu={handleContextMenu}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        style={{ cursor: isVisible ? 'pointer' : 'default', pointerEvents }}
+        onContextMenu={isVisible ? handleContextMenu : undefined}
+        onMouseEnter={isVisible ? () => setIsHovered(true) : undefined}
+        onMouseLeave={isVisible ? () => setIsHovered(false) : undefined}
       />
-      {/* Visual layer */}
       <path
         id={id}
         d={edgePath}
@@ -186,11 +216,11 @@ export default function SimpleFloatingEdge({
         markerEnd={markerEnd}
         className="react-flow__edge-path"
         style={strokeStyle}
-        onContextMenu={handleContextMenu}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={isVisible ? handleContextMenu : undefined}
+        onMouseEnter={isVisible ? () => setIsHovered(true) : undefined}
+        onMouseLeave={isVisible ? () => setIsHovered(false) : undefined}
       />
-      {edgeLabel && (
+      {displayLabel && isVisible && (
         <EdgeLabelRenderer>
           <div
             onMouseDown={handleLabelMouseDown}
@@ -209,7 +239,7 @@ export default function SimpleFloatingEdge({
           >
             <EdgeLabel
               edgeId={id}
-              label={edgeLabel}
+              label={displayLabel}
               labelX={safeLabelPos.x}
               labelY={safeLabelPos.y}
             />
@@ -217,7 +247,37 @@ export default function SimpleFloatingEdge({
         </EdgeLabelRenderer>
       )}
 
-      {selected && (
+      {data?.isBundle && isHovered && isVisible && data.bundledEdges && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -100%) translate(${safeLabelPos.x}px, ${safeLabelPos.y - 16}px)`,
+              pointerEvents: 'none',
+              zIndex: 9999,
+            }}
+          >
+            <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-xl px-3 py-2 text-xs max-w-xs flex flex-col gap-1 backdrop-blur-md bg-opacity-95">
+              <div className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border pb-1 mb-1">
+                Bundled Flows ({data.bundledEdges.length})
+              </div>
+              {data.bundledEdges.map((e: any, idx: number) => (
+                <div key={e.id || idx} className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                  <span className="font-semibold text-xs">{e.data?.label || e.label || 'request'}</span>
+                  {e.data?.protocol && (
+                    <span className="text-[9px] px-1 bg-muted text-muted-foreground rounded font-mono">
+                      {e.data.protocol}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+
+      {!isReturn && selected && isVisible && (
         <EdgeToolbar
           edgeId={id}
           currentLabel={data?.label}
@@ -228,7 +288,7 @@ export default function SimpleFloatingEdge({
         />
       )}
 
-      {contextMenu && ReactDOM.createPortal(
+      {!isReturn && contextMenu && isVisible && ReactDOM.createPortal(
         <EdgeContextMenu
           edgeId={id}
           position={contextMenu}

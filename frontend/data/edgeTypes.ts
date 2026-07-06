@@ -1,4 +1,4 @@
-import { MarkerType } from 'reactflow';
+import { MarkerType, type Edge } from 'reactflow';
 
 export type PathType = 'smooth' | 'Smoothstep' | 'bezier' | 'step' | 'straight';
 export type EdgeType = 'sync' | 'async' | 'stream' | 'event' | 'dep' | 'dotted';
@@ -99,6 +99,16 @@ export interface EdgeData {
   labelT?: number;
   curvature?: number;
   async?: boolean;
+  importance?: 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';
+  portType?: 'inbound' | 'outbound' | 'control' | 'data' | 'events' | 'storage' | 'runtime' | 'external' | 'observability' | 'security';
+  protocol?: string;
+  syncAsync?: 'sync' | 'async';
+  responseLabel?: string;
+  responseEdgeId?: string;
+  isReturn?: boolean;
+  isSpine?: boolean;
+  isBundle?: boolean;
+  bundledEdges?: Edge[];
 }
 
 export function getEdgeConfig(edgeType: EdgeType | undefined): EdgeTypeConfig {

@@ -2,7 +2,7 @@ import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor
 import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
 import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../utils/nodeSizing'
-
+import { classifyEdge } from './edgeClassifier'
 
 export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
   const nodes: RFNode[] = []
@@ -93,9 +93,14 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     nodes.push(rfNode)
   }
 
-
   // Create edges
   for (const pEdge of ast.edges) {
+    const srcNode = nodes.find(n => n.id === pEdge.source);
+    const tgtNode = nodes.find(n => n.id === pEdge.target);
+    const semantics = srcNode && tgtNode 
+      ? classifyEdge(srcNode, tgtNode, pEdge.label ?? '', pEdge.type)
+      : { importance: 'secondary' as const, syncAsync: 'sync' as const, protocol: 'HTTP' };
+
     const rfEdge: RFEdge = {
       id: pEdge.id,
       source: pEdge.source,
@@ -108,6 +113,10 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         label: pEdge.label ?? undefined,
         connectionType: pEdge.type === 'dotted' ? 'async' : 'sync',
         edgeVariant: pEdge.type === 'dotted' ? 'dashed' : 'solid',
+        importance: semantics.importance,
+        syncAsync: semantics.syncAsync,
+        portType: semantics.portType,
+        protocol: semantics.protocol,
       },
     }
     edges.push(rfEdge)

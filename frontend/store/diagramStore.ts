@@ -88,6 +88,8 @@ export const serializedStorage = {
 
 import { addEdge, applyNodeChanges, applyEdgeChanges, MarkerType, Position } from 'reactflow';
 import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
+import { processEdgeManagement } from '@/lib/features/edgeManagement';
+import { runClarityCompiler } from '@/lib/features/clarityCompiler';
 import { getSupabaseClient, isSupabaseConfigured, isReachable, type UserCanvasesTable } from '@/lib/supabase';
 import { type Database } from '@/types/supabase';
 import { DEFAULT_EDGE_TYPE, type EdgeType } from '@/data/edgeTypes';
@@ -325,6 +327,7 @@ interface DiagramState {
   sidebarOpen: boolean;
   canvasMode: 'empty' | 'editing' | 'template';
   activeLayoutPresetId: string;
+  detailLevel: 1 | 2 | 3;
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
@@ -332,8 +335,10 @@ interface DiagramState {
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
   setActiveLayoutPresetId: (id: string) => void;
+  setDetailLevel: (level: 1 | 2 | 3) => void;
   isPenModeActive: boolean;
   setPenModeActive: (active: boolean) => void;
+  clarityReport?: import('@/lib/features/clarityCompiler').ClarityReport;
   toggleLayoutDirection: () => Promise<void>;
   applyLayoutPresetById: (presetId: string) => Promise<void>;
 
@@ -517,87 +522,116 @@ function normalizeEdge(edge: Edge): Edge {
 }
 
 function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
-  const getAbsolutePosition = (node: Node) => {
-    let x = node.position?.x ?? 0;
-    let y = node.position?.y ?? 0;
-    let current = node;
-    const visited = new Set<string>([node.id]);
-    while (current.parentId || (current as { parentNode?: string }).parentNode) {
-      const pId = current.parentId || (current as { parentNode?: string }).parentNode;
-      if (!pId || visited.has(pId)) break;
-      visited.add(pId);
-      const parent = nodes.find(n => n.id === pId);
-      if (!parent || !parent.position) break;
-      x += parent.position.x;
-      y += parent.position.y;
-      current = parent;
-    }
-    return { x, y };
-  };
-
-  const normalized = normalizeEdges(edges);
+  // Run visual edge management (bundling / collapsing)
+  const { edges: managedEdges } = processEdgeManagement(nodes, edges);
+  const normalized = normalizeEdges(managedEdges);
 
   return normalized.map(edge => {
     const sourceNode = nodes.find(n => n.id === edge.source);
-    const targetNode = nodes.find(n => n.id === edge.target);
 
-    let sourceHandle = edge.sourceHandle ?? undefined;
-    let targetHandle = edge.targetHandle ?? undefined;
+    if (!sourceNode) return edge;
 
-    if (sourceNode && targetNode) {
-      if (edge.source === edge.target) {
-        sourceHandle = 'source-top';
-        targetHandle = 'target-right';
-      } else {
-        const sPos = getAbsolutePosition(sourceNode);
-        const tPos = getAbsolutePosition(targetNode);
-
-        const sWidth = sourceNode.width ?? (sourceNode.data as any)?.nodeWidth ?? 180;
-        const sHeight = sourceNode.height ?? (sourceNode.data as any)?.nodeHeight ?? 70;
-        const tWidth = targetNode.width ?? (targetNode.data as any)?.nodeWidth ?? 180;
-        const tHeight = targetNode.height ?? (targetNode.data as any)?.nodeHeight ?? 70;
-
-        const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
-        const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
-
-        const intermediateNodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>();
-        const excludedIds = new Set([edge.source, edge.target]);
-
-        for (const node of nodes) {
-          if (excludedIds.has(node.id)) continue;
-          const isGroup =
-            node.type === 'groupNode' ||
-            node.type === 'frameNode' ||
-            node.type === 'group' ||
-            node.type === 'demoGroup' ||
-            (node.data as any)?.isGroup === true;
-          if (isGroup) continue;
-
-          const pos = getAbsolutePosition(node);
-          const w = node.width ?? (node.data as any)?.nodeWidth ?? 180;
-          const h = node.height ?? (node.data as any)?.nodeHeight ?? 70;
-          intermediateNodeRects.set(node.id, { id: node.id, x: pos.x, y: pos.y, w, h });
-        }
-
-        const handles = getObstacleAwareHandles(
-          sourceRect,
-          targetRect,
-          intermediateNodeRects.size > 0 ? intermediateNodeRects : undefined,
-          excludedIds
-        );
-
-        sourceHandle = `source-${handles.sourcePosition}`;
-        targetHandle = `target-${handles.targetPosition}`;
-      }
+    if (edge.source === edge.target) {
+      return {
+        ...edge,
+        sourceHandle: 'source-top',
+        targetHandle: 'target-right',
+        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+      };
     }
+
+    const isFloating = !edge.sourceHandle && !edge.targetHandle;
+    if (isFloating) {
+      return {
+        ...edge,
+        sourceHandle: null,
+        targetHandle: null,
+        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+      };
+    }
+    
+    const targetNode = nodes.find(n => n.id === edge.target);
+    if (!targetNode) {
+      return {
+        ...edge,
+        sourceHandle: null,
+        targetHandle: null,
+        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+      };
+    }
+
+    const sPos = getAbsolutePosition(sourceNode, nodes);
+    const tPos = getAbsolutePosition(targetNode, nodes);
+
+    const sWidth = sourceNode.width ?? (sourceNode.data as any)?.nodeWidth ?? 180;
+    const sHeight = sourceNode.height ?? (sourceNode.data as any)?.nodeHeight ?? 70;
+    const tWidth = targetNode.width ?? (targetNode.data as any)?.nodeWidth ?? 180;
+    const tHeight = targetNode.height ?? (targetNode.data as any)?.nodeHeight ?? 70;
+
+    const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
+    const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
+
+    const intermediateNodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>();
+    const excludedIds = new Set([edge.source, edge.target]);
+
+    for (const node of nodes) {
+      if (excludedIds.has(node.id)) continue;
+      const isGroup =
+        node.type === 'groupNode' ||
+        node.type === 'frameNode' ||
+        node.type === 'group' ||
+        node.type === 'demoGroup' ||
+        (node.data as any)?.isGroup === true;
+      if (isGroup) continue;
+
+      const pos = getAbsolutePosition(node, nodes);
+      const w = node.width ?? (node.data as any)?.nodeWidth ?? 180;
+      const h = node.height ?? (node.data as any)?.nodeHeight ?? 70;
+      intermediateNodeRects.set(node.id, { id: node.id, x: pos.x, y: pos.y, w, h });
+    }
+
+    const activePreset = typeof useDiagramStore !== 'undefined' ? useDiagramStore.getState()?.activeLayoutPresetId : 'layered-lr';
+    const direction = activePreset === 'layered-tb' ? 'TD' : 'LR';
+
+    const handles = getObstacleAwareHandles(
+      sourceRect,
+      targetRect,
+      intermediateNodeRects.size > 0 ? intermediateNodeRects : undefined,
+      excludedIds,
+      edge.id,
+      edge.source,
+      edge.target,
+      edge.data,
+      sourceNode.data?.serviceType,
+      targetNode.data?.serviceType,
+      direction
+    );
 
     return {
       ...edge,
-      sourceHandle,
-      targetHandle,
+      sourceHandle: `source-${handles.sourcePosition}`,
+      targetHandle: `target-${handles.targetPosition}`,
       type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
     };
   });
+}
+
+function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
+  let x = node.position?.x ?? 0;
+  let y = node.position?.y ?? 0;
+  let current = node;
+  const visited = new Set<string>([node.id]);
+  while (current.parentId || (current as { parentNode?: string }).parentNode) {
+    const pId = current.parentId || (current as { parentNode?: string }).parentNode;
+    if (!pId || visited.has(pId)) break;
+    visited.add(pId);
+    const parent = nodes.find(n => n.id === pId);
+    if (!parent || !parent.position) break;
+    x += parent.position.x;
+    y += parent.position.y;
+    current = parent;
+  }
+  return { x, y };
 }
 
 function normalizeEdges(edges: Edge[]): Edge[] {
@@ -1320,10 +1354,12 @@ const useDiagramStoreRaw = create<DiagramState>()(
       sidebarOpen: true,
       canvasMode: 'empty',
       activeLayoutPresetId: 'layered-lr',
+      detailLevel: 2,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setGuideLines: (lines) => set({ guideLines: lines }),
       setCanvasMode: (mode) => set({ canvasMode: mode }),
       setActiveLayoutPresetId: (id) => set({ activeLayoutPresetId: id }),
+      setDetailLevel: (level) => set({ detailLevel: level }),
       isPenModeActive: false,
       setPenModeActive: (active) => set({ isPenModeActive: active }),
       applyLayoutPresetById: async (presetId) => {
@@ -1750,13 +1786,19 @@ const useDiagramStoreRaw = create<DiagramState>()(
         
         console.log('[importDiagram] nodes:', validatedNodes.map(n => ({ id: n.id, x: n.position?.x, y: n.position?.y, parentId: n.parentId, type: n.type })));
         
-        const edgesWithHandles = distributeTargetHandles(validatedNodes, normalizedEdges);
+        const { nodes: clarityNodes, edges: clarityEdges, report } = runClarityCompiler(validatedNodes, normalizedEdges);
+        
+        if (report.warnings.length > 0) {
+          console.log('[ClarityCompiler]', report.warnings.join('; '));
+        }
+        
+        const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges);
         
         const canvases = get().canvases.map((c) =>
           // Qualifies for updatedAt because diagram was imported
-          c.id === get().activeCanvasId ? { ...c, nodes: validatedNodes, edges: edgesWithHandles, updatedAt: Date.now() } : c
+          c.id === get().activeCanvasId ? { ...c, nodes: clarityNodes, edges: edgesWithHandles, updatedAt: Date.now() } : c
         );
-        set({ canvases });
+        set({ canvases, clarityReport: report });
         const canvasAfter = get().canvases.find(c => c.id === get().activeCanvasId);
         console.log('[importDiagram] canvas after set:', canvasAfter?.nodes?.length ?? 0, 'nodes,', canvasAfter?.edges?.length ?? 0, 'edges');
         get().saveCanvasToDB(get().activeCanvasId);

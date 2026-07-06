@@ -6,6 +6,7 @@ import { useNodeHandles } from '@/hooks/useNodeHandles';
 import { useCanvasTheme } from '@/lib/theme';
 import { LIGHT_NODE_STYLES, DARK_NODE_STYLES } from '@/lib/theme/stylingConstants';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
+import { useDiagramStore } from '@/store/diagramStore';
 import './nodes/nodeStyles.css';
 
 export type ShapeType =
@@ -294,14 +295,45 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   const backplates = styles.backplates;
 
-  switch (data.shape) {
-    case 'diamond':          return <Diamond id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
-    case 'cylinder':         return <Cylinder id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
-    case 'circle':           return <Circle id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
-    case 'parallelogram':    return <Parallelogram id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
-    case 'rounded-rectangle': return <Rectangle id={id} data={data} selected={!!selected} rounded backplates={backplates} isDark={isDark} styles={styles} />;
-    default:                 return <Rectangle id={id} data={data} selected={!!selected} rounded={false} backplates={backplates} isDark={isDark} styles={styles} />;
+  const detailLevel = useDiagramStore((s) => s.detailLevel);
+
+  // Determine node importance level (1, 2, or 3)
+  const serviceType = (data as any).category || (data as any).serviceType || 'service';
+  let nodeLevel = 2; // Default to Level 2 (core)
+  
+  if (serviceType === 'client' || serviceType === 'networking' || serviceType === 'gateway' || serviceType === 'load-balancer') {
+    nodeLevel = 1;
+  } else if (serviceType === 'data' || serviceType === 'database') {
+    nodeLevel = 1;
+  } else if (serviceType === 'compute' || serviceType === 'service') {
+    nodeLevel = 1;
+  } else if (serviceType === 'observability' || serviceType === 'monitor' || serviceType === 'external') {
+    nodeLevel = 3;
   }
+
+  const isVisible = detailLevel >= nodeLevel;
+  const opacity = isVisible ? 1 : 0.12;
+  const pointerEvents = isVisible ? 'auto' as const : 'none' as const;
+
+  const wrapperStyle: React.CSSProperties = {
+    opacity,
+    pointerEvents,
+    transition: 'opacity 0.3s ease, filter 0.3s ease',
+    filter: isVisible ? 'none' : 'blur(0.5px)',
+  };
+
+  const renderShape = () => {
+    switch (data.shape) {
+      case 'diamond':          return <Diamond id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
+      case 'cylinder':         return <Cylinder id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
+      case 'circle':           return <Circle id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
+      case 'parallelogram':    return <Parallelogram id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
+      case 'rounded-rectangle': return <Rectangle id={id} data={data} selected={!!selected} rounded backplates={backplates} isDark={isDark} styles={styles} />;
+      default:                 return <Rectangle id={id} data={data} selected={!!selected} rounded={false} backplates={backplates} isDark={isDark} styles={styles} />;
+    }
+  };
+
+  return <div style={wrapperStyle}>{renderShape()}</div>;
 }
 
 export const ShapeNode = memo(ShapeNodeComponent);

@@ -27,6 +27,7 @@ import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
+import { DetailLevelSelector } from '@/components/editor/DetailLevelSelector';
 
 type ExportFormat = 'png-dark-4x' | 'png-light-4x' | 'png-transparent-4x' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
 
@@ -648,6 +649,8 @@ export function Toolbar() {
           </button>
 
           <LayoutToggleButton />
+
+          <DetailLevelSelector />
 
           <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 

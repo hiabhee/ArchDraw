@@ -123,6 +123,12 @@ export interface ArchitectureEdge {
   markerEnd: MarkerType;
   markerStart: MarkerType;
   edgeVariant?: EdgeVariant;
+  importance?: 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';
+  syncAsync?: 'sync' | 'async';
+  portType?: 'inbound' | 'outbound' | 'control' | 'data' | 'events' | 'storage' | 'runtime' | 'external' | 'observability' | 'security';
+  protocol?: string;
+  isBundle?: boolean;
+  bundledEdges?: ArchitectureEdge[];
 }
 
 export interface LayoutConfig {
