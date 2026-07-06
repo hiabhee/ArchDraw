@@ -20,6 +20,7 @@ import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/GuideLines';
 import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
+import { CometTrailCanvas } from '@/components/CometTrailCanvas';
 import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
 import { useCallback, useEffect, useRef, DragEvent, useState } from 'react';
 import { useCanvasTheme } from '@/lib/theme';
@@ -56,6 +57,7 @@ function CanvasInner() {
     pendingLabelEdgeId, setPendingLabelEdgeId, updateEdgeData, setCanvasMode,
     setNodes,
     pipelineStatus,
+    isPenModeActive,
   } = useDiagramStore();
   const { isDark } = useCanvasTheme();
 
@@ -354,10 +356,10 @@ function CanvasInner() {
         fitViewOptions={{ padding: 0.0 }}
         selectionMode={SelectionMode.Full}
         // Keep canvas panning on middle/right mouse so left-drag can draw selection box.
-        panOnDrag={[1, 2]}
+        panOnDrag={isPenModeActive ? false : [1, 2]}
         // Trackpad/touchpad two-finger gesture should move (pan) the canvas.
-        panOnScroll={true}
-        selectionOnDrag={true}
+        panOnScroll={isPenModeActive ? false : true}
+        selectionOnDrag={isPenModeActive ? false : true}
         // Avoid hijacking two-finger scroll for zoom; zoom still works via controls/pinch.
         zoomOnScroll={false}
         zoomOnPinch={true}
@@ -402,6 +404,9 @@ function CanvasInner() {
           )}
         </EdgeLabelRenderer>
       </ReactFlow>
+
+      {/* Comet Trail Pen Overlay */}
+      <CometTrailCanvas />
 
       <AnimatePresence>
         {pipelineStatus === 'generating' && (

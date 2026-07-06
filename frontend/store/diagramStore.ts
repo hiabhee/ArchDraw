@@ -359,6 +359,8 @@ interface DiagramState {
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
   setActiveLayoutPresetId: (id: string) => void;
+  isPenModeActive: boolean;
+  setPenModeActive: (active: boolean) => void;
   toggleLayoutDirection: () => Promise<void>;
   applyLayoutPresetById: (presetId: string) => Promise<void>;
 
@@ -1379,6 +1381,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
       setGuideLines: (lines) => set({ guideLines: lines }),
       setCanvasMode: (mode) => set({ canvasMode: mode }),
       setActiveLayoutPresetId: (id) => set({ activeLayoutPresetId: id }),
+      isPenModeActive: false,
+      setPenModeActive: (active) => set({ isPenModeActive: active }),
       applyLayoutPresetById: async (presetId) => {
         if (isLayouting) return;
         isLayouting = true;

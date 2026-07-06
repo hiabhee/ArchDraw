@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Github,
   ArrowDownToLine, ArrowRightToLine,
+  PenTool,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -196,6 +197,7 @@ export function Toolbar() {
     getVisibleCanvases,
     savingState, userProfile, setSidebarOpen, sidebarOpen,
     activeLayoutPresetId, sequenceDiagrams,
+    isPenModeActive, setPenModeActive,
   } = useDiagramStore();
 
   const { user } = useAuthStore();
@@ -632,6 +634,18 @@ export function Toolbar() {
           <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 
           <ThemeToggle />
+
+          <button
+            onClick={() => setPenModeActive(!isPenModeActive)}
+            className={`p-1 sm:p-1.5 rounded-md transition-all ${
+              isPenModeActive 
+                ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+            }`}
+            title={isPenModeActive ? "Deactivate Comet Trail Pen" : "Activate Comet Trail Pen"}
+          >
+            <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+          </button>
 
           <LayoutToggleButton />
 
