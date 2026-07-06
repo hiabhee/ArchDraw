@@ -44,7 +44,7 @@ describe('getDynamicHandles - Debug Logging', () => {
     expect(loggerInfoSpy).not.toHaveBeenCalled();
   });
 
-  it('should log node centers, dx, dy, and dominant axis when debug is enabled', () => {
+  it('should log node centers, dx, dy when debug is enabled', () => {
     process.env.NEXT_PUBLIC_DEBUG_HANDLES = 'true';
 
     const sourceRect: NodeRect = { x: 0, y: 0, width: 100, height: 80 };
@@ -68,7 +68,6 @@ describe('getDynamicHandles - Debug Logging', () => {
       },
       dx: 200,
       dy: 0,
-      dominantAxis: 'horizontal',
     });
 
     // Second call should log selected handles
@@ -83,7 +82,7 @@ describe('getDynamicHandles - Debug Logging', () => {
     });
   });
 
-  it('should log vertical dominant axis correctly', () => {
+  it('should log vertical distance correctly', () => {
     process.env.NEXT_PUBLIC_DEBUG_HANDLES = 'true';
 
     const sourceRect: NodeRect = { x: 0, y: 0, width: 100, height: 80 };
@@ -93,7 +92,6 @@ describe('getDynamicHandles - Debug Logging', () => {
 
     const firstCall = loggerInfoSpy.mock.calls[0];
     expect(firstCall[1]).toMatchObject({
-      dominantAxis: 'vertical',
       dx: 0,
       dy: 200,
     });

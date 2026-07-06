@@ -3,18 +3,19 @@ import logger from '@/lib/logger';
  * @feature DynamicHandleSelection
  * @protected true
  * @description Dynamically selects edge source/target handles based on 
- *   relative node positions. Source handle is on the side facing the target.
- *   Target handle is on the side facing the source. Recalculates on every 
- *   node position change (drag, layout, programmatic move).
+ *   relative node positions. For each edge, picks the handle pair (from all
+ *   4 sides) that minimizes Manhattan distance between the two handle
+ *   positions — automatically giving the shortest possible edge path.
  * 
  * @do-not-modify Without explicit instruction from the user.
  * @do-not-delete This file implements core edge routing behavior.
  * @affects SimpleFloatingEdge, useAutoLayout, elkLayoutService
  * 
- * @last-updated 2026-05-27
+ * @last-updated 2026-07-07
  */
 
 import { Position } from 'reactflow';
+import { getCollisionFreeWaypoints } from '../utils/collisionFreeEdgePath';
 
 export type HandleSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -31,14 +32,15 @@ export interface DynamicHandleResult {
 }
 
 /**
- * Given two node rects, returns which handle sides to use for source and target.
- * The handle position matches the direction of the connection:
- * - bottom handle for downward connections (target below source)
- * - top handle for upward connections (target above source)
- * Falls back to horizontal handles when nodes are on the same level.
+ * Given two node rects, picks the handle pair (source side + target side)
+ * that gives the shortest Manhattan distance between the two handles.
+ * This naturally routes each edge through the side closest to its target:
+ * - target below  → bottom→top
+ * - target above  → top→bottom
+ * - target right  → right→left
+ * - target left   → left→right
+ * — without any gap-ratio heuristic or axis bias.
  */
-export const VERTICAL_BIAS = 1.5;
-
 export function getDynamicHandles(
   sourceRect: NodeRect,
   targetRect: NodeRect,
@@ -68,68 +70,47 @@ export function getDynamicHandles(
 
     dx = targetCX - sourceCX;
     dy = targetCY - sourceCY;
-    
-    // Normalize values extremely close to 0 to prevent floating-point rounding
-    // differences from flipping signs during axis-aligned coordinate movements.
+
     if (Math.abs(dx) < 1e-9) dx = 0;
     if (Math.abs(dy) < 1e-9) dy = 0;
   } catch {
     return { sourcePosition: Position.Right, targetPosition: Position.Left };
   }
 
-  let sourcePosition = Position.Right;
-  let targetPosition = Position.Left;
-  let dominantAxis = 'horizontal';
+  // Pick the shorter axis by computing actual handle-to-handle Manhattan distance
+  // for two candidates:
+  //   - Horizontal (Right→Left or Left→Right based on dx)
+  //   - Vertical   (Bottom→Top or Top→Bottom based on dy)
+  //
+  // Using center-to-center direction for WHICH pair within an axis guarantees
+  // symmetry (A→B and B→A always reverse correctly), while the distance
+  // comparison between axes picks the truly shorter path.
+  const useRight = dx > 0 || (dx === 0 && dy >= 0);
+  const useBottom = dy > 0 || (dy === 0 && dx > 0);
 
-  // Compare edge-to-edge gaps rather than center-to-center deltas.
-  // This ensures handles are placed on the sides closest to each other,
-  // even when nodes are offset on the opposite axis.
-  const sourceBottom = sourceRect.y + sourceRect.height;
-  const sourceRight = sourceRect.x + sourceRect.width;
-  const targetBottom = targetRect.y + targetRect.height;
-  const targetRight = targetRect.x + targetRect.width;
+  const horizontalSourcePos = useRight ? Position.Right : Position.Left;
+  const horizontalTargetPos = useRight ? Position.Left : Position.Right;
+  const verticalSourcePos = useBottom ? Position.Bottom : Position.Top;
+  const verticalTargetPos = useBottom ? Position.Top : Position.Bottom;
 
-  const gapBottomToTop = targetRect.y - sourceBottom;   // positive if target is below
-  const gapTopToBottom = sourceRect.y - targetBottom;   // positive if target is above
-  const gapRightToLeft = targetRect.x - sourceRight;    // positive if target is to the right
-  const gapLeftToRight = sourceRect.x - targetRight;    // positive if target is to the left
+  const hsh = getHandleCoordinate(sourceRect, horizontalSourcePos);
+  const hth = getHandleCoordinate(targetRect, horizontalTargetPos);
+  const horizontalDist = Math.abs(hth.x - hsh.x) + Math.abs(hth.y - hsh.y);
 
-  const vertGap = Math.max(gapBottomToTop, gapTopToBottom);
-  const horizGap = Math.max(gapRightToLeft, gapLeftToRight);
+  const vsh = getHandleCoordinate(sourceRect, verticalSourcePos);
+  const vth = getHandleCoordinate(targetRect, verticalTargetPos);
+  const verticalDist = Math.abs(vth.x - vsh.x) + Math.abs(vth.y - vsh.y);
 
-  if (vertGap < 0 && horizGap < 0) {
-    // Both axes overlap — fall back to center-distance comparison
-    if (Math.abs(dy) > Math.abs(dx) / VERTICAL_BIAS) {
-      dominantAxis = 'vertical';
-      if (dy > 0) { sourcePosition = Position.Bottom; targetPosition = Position.Top; }
-      else { sourcePosition = Position.Top; targetPosition = Position.Bottom; }
-    } else {
-      dominantAxis = 'horizontal';
-      if (dx > 0 || (dx === 0 && dy >= 0)) { sourcePosition = Position.Right; targetPosition = Position.Left; }
-      else { sourcePosition = Position.Left; targetPosition = Position.Right; }
-    }
-  } else if (vertGap < 0) {
-    // Vertical overlap — use horizontal handles
-    dominantAxis = 'horizontal';
-    if (dx > 0 || (dx === 0 && dy >= 0)) { sourcePosition = Position.Right; targetPosition = Position.Left; }
-    else { sourcePosition = Position.Left; targetPosition = Position.Right; }
-  } else if (horizGap < 0) {
-    // Horizontal overlap — use vertical handles
-    dominantAxis = 'vertical';
-    if (dy > 0) { sourcePosition = Position.Bottom; targetPosition = Position.Top; }
-    else { sourcePosition = Position.Top; targetPosition = Position.Bottom; }
-  } else {
-    // Both gaps are positive — use the axis with closer facing edges
-    const useVertical = vertGap <= horizGap * VERTICAL_BIAS;
-    dominantAxis = useVertical ? 'vertical' : 'horizontal';
-    if (useVertical) {
-      if (dy > 0) { sourcePosition = Position.Bottom; targetPosition = Position.Top; }
-      else { sourcePosition = Position.Top; targetPosition = Position.Bottom; }
-    } else {
-      if (dx > 0 || (dx === 0 && dy >= 0)) { sourcePosition = Position.Right; targetPosition = Position.Left; }
-      else { sourcePosition = Position.Left; targetPosition = Position.Right; }
-    }
-  }
+  // When distances are essentially equal (within 1e-6), prefer the axis
+  // suggested by center-to-center direction. This guarantees symmetry:
+  // A→B and B→A will reverse correctly when distances tie.
+  const DIST_EPSILON = 1e-6;
+  const useVertical = Math.abs(verticalDist - horizontalDist) > DIST_EPSILON
+    ? verticalDist < horizontalDist
+    : Math.abs(dy) > Math.abs(dx);
+
+  const sourcePosition = useVertical ? verticalSourcePos : horizontalSourcePos;
+  const targetPosition = useVertical ? verticalTargetPos : horizontalTargetPos;
 
   if (debug) {
     logger.info('[DynamicHandles] Calculation:', {
@@ -142,7 +123,6 @@ export function getDynamicHandles(
       },
       dx,
       dy,
-      dominantAxis,
     });
 
     logger.info('[DynamicHandles] Selected handles:', {
@@ -151,6 +131,8 @@ export function getDynamicHandles(
       targetId,
       sourcePosition,
       targetPosition,
+      horizontalDist,
+      verticalDist,
     });
 
     logger.info('[DynamicHandles] Performance:', {
@@ -213,12 +195,13 @@ export function getObstacleAwareHandles(
     return defaultHandles;
   }
 
-  const allPairs: Array<{ source: Position; target: Position }> = [
-    { source: Position.Right, target: Position.Left },
-    { source: Position.Left, target: Position.Right },
-    { source: Position.Top, target: Position.Bottom },
-    { source: Position.Bottom, target: Position.Top },
-  ];
+  const allPositions = [Position.Left, Position.Right, Position.Top, Position.Bottom];
+  const allPairs: Array<{ source: Position; target: Position }> = [];
+  for (const s of allPositions) {
+    for (const t of allPositions) {
+      allPairs.push({ source: s, target: t });
+    }
+  }
 
   const rects = nodeRects!;
   const excluded = excludedNodeIds ?? new Set();
@@ -229,21 +212,17 @@ export function getObstacleAwareHandles(
     const sh = getHandleCoordinate(sourceRect, sp);
     const th = getHandleCoordinate(targetRect, tp);
     const sx = sh.x, sy = sh.y, tx = th.x, ty = th.y;
-    const sourceIsH = sp === Position.Left || sp === Position.Right;
-    const targetIsH = tp === Position.Left || tp === Position.Right;
 
-    let waypoints: Array<{ x: number; y: number }>;
-    if (sourceIsH && targetIsH) {
-      const mx = (sx + tx) / 2;
-      waypoints = [{ x: sx, y: sy }, { x: mx, y: sy }, { x: mx, y: ty }, { x: tx, y: ty }];
-    } else if (!sourceIsH && !targetIsH) {
-      const my = (sy + ty) / 2;
-      waypoints = [{ x: sx, y: sy }, { x: sx, y: my }, { x: tx, y: my }, { x: tx, y: ty }];
-    } else if (sourceIsH) {
-      waypoints = [{ x: sx, y: sy }, { x: tx, y: sy }, { x: tx, y: ty }];
-    } else {
-      waypoints = [{ x: sx, y: sy }, { x: sx, y: ty }, { x: tx, y: ty }];
-    }
+    const waypoints = getCollisionFreeWaypoints({
+      sourceX: sx,
+      sourceY: sy,
+      targetX: tx,
+      targetY: ty,
+      sourcePosition: sp,
+      targetPosition: tp,
+      nodeRects: rects,
+      excludedNodeIds: excluded
+    });
 
     let collisions = 0;
     for (let i = 0; i < waypoints.length - 1; i++) {

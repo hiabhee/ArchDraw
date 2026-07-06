@@ -51,7 +51,7 @@ export function runMermaidPipeline(mermaidText: string): PipelineResult {
   // so handle IDs on the edge are cosmetic metadata only.
 
   // Validation report
-  const report = validateDiagramOutput(sized, layouted.edges)
+  const report = validateDiagramOutput(sized, layouted.edges, parseResult.ast.direction)
   const warnings = report.warnings.map(w => `[${w.type}] ${w.message}`)
 
   return {

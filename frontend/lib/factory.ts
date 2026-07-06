@@ -1,5 +1,5 @@
 import logger from '@/lib/logger';
-import { MarkerType, type Node, type Edge } from 'reactflow';
+import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry } from '@/lib/componentRegistry';
 
 // ─── NODE FACTORY ────────────────────────────────────────────
@@ -73,7 +73,7 @@ export function createEdge(
     animated: true,
     label,
     style: { strokeWidth: 1.5, stroke: '#94a3b8' },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+    markerEnd: { type: 'arrowclosed' as MarkerType, color: '#94a3b8' },
     ...extra,
   };
 }

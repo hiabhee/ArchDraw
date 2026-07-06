@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { Position } from 'reactflow';
 import * as fc from 'fast-check';
-import { getDynamicHandles, getHandleCoordinate, type NodeRect, VERTICAL_BIAS } from './dynamicHandles';
+import { getDynamicHandles, getHandleCoordinate, type NodeRect } from './dynamicHandles';
 
 // Arbitrary generator for valid node rectangles
 const nodeRectArbitrary = fc.record({
@@ -39,69 +39,40 @@ describe('Property-Based Tests: Dynamic Handle Positioning', () => {
     /**
      * **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 3.4, 3.5, 3.6**
      * 
-     * For any two node rectangles, the handle selection should follow spatial rules:
-     * - Horizontal dominance (|dx| >= |dy|): Use left/right handles based on direction
-     * - Vertical dominance (|dy| > |dx|): Use top/bottom handles based on direction
-     * - Tie-breaking: Prefer horizontal handles when distances are equal
+     * For any two node rectangles, the handle selection should pick the pair
+     * (source side + target side) with the shortest Manhattan distance between
+     * handle positions. This automatically routes each edge through the side
+     * closest to its target.
      */
     it('should select handles based on spatial relationship', () => {
       fc.assert(
         fc.property(nodeRectArbitrary, nodeRectArbitrary, (sourceRect, targetRect) => {
           const result = getDynamicHandles(sourceRect, targetRect);
 
-          const sourceRight = sourceRect.x + sourceRect.width;
-          const sourceBottom = sourceRect.y + sourceRect.height;
-          const targetRight = targetRect.x + targetRect.width;
-          const targetBottom = targetRect.y + targetRect.height;
+          // Compute the expected result using the same distance-based logic
+          const candidates: Array<{ source: Position; target: Position }> = [
+            { source: Position.Right, target: Position.Left },
+            { source: Position.Left, target: Position.Right },
+            { source: Position.Top, target: Position.Bottom },
+            { source: Position.Bottom, target: Position.Top },
+          ];
 
-          const gapBottomToTop = targetRect.y - sourceBottom;
-          const gapTopToBottom = sourceRect.y - targetBottom;
-          const gapRightToLeft = targetRect.x - sourceRight;
-          const gapLeftToRight = sourceRect.x - targetRight;
+          let bestDist = Infinity;
 
-          const vertGap = Math.max(gapBottomToTop, gapTopToBottom);
-          const horizGap = Math.max(gapRightToLeft, gapLeftToRight);
-
-          const sourceCX = sourceRect.x + sourceRect.width / 2;
-          const sourceCY = sourceRect.y + sourceRect.height / 2;
-          const targetCX = targetRect.x + targetRect.width / 2;
-          const targetCY = targetRect.y + targetRect.height / 2;
-
-          let dx = targetCX - sourceCX;
-          let dy = targetCY - sourceCY;
-          if (Math.abs(dx) < 1e-9) dx = 0;
-          if (Math.abs(dy) < 1e-9) dy = 0;
-
-          // Replicate the decision logic to determine expected handles
-          let expectedSource: Position;
-          let expectedTarget: Position;
-
-          if (vertGap < 0 && horizGap < 0) {
-            if (Math.abs(dy) > Math.abs(dx) / VERTICAL_BIAS) {
-              expectedSource = dy > 0 ? Position.Bottom : Position.Top;
-              expectedTarget = dy > 0 ? Position.Top : Position.Bottom;
-            } else {
-              expectedSource = (dx > 0 || (dx === 0 && dy >= 0)) ? Position.Right : Position.Left;
-              expectedTarget = (dx > 0 || (dx === 0 && dy >= 0)) ? Position.Left : Position.Right;
-            }
-          } else if (vertGap < 0) {
-            expectedSource = (dx > 0 || (dx === 0 && dy >= 0)) ? Position.Right : Position.Left;
-            expectedTarget = (dx > 0 || (dx === 0 && dy >= 0)) ? Position.Left : Position.Right;
-          } else if (horizGap < 0) {
-            expectedSource = dy > 0 ? Position.Bottom : Position.Top;
-            expectedTarget = dy > 0 ? Position.Top : Position.Bottom;
-          } else {
-            if (vertGap <= horizGap * VERTICAL_BIAS) {
-              expectedSource = dy > 0 ? Position.Bottom : Position.Top;
-              expectedTarget = dy > 0 ? Position.Top : Position.Bottom;
-            } else {
-              expectedSource = (dx > 0 || (dx === 0 && dy >= 0)) ? Position.Right : Position.Left;
-              expectedTarget = (dx > 0 || (dx === 0 && dy >= 0)) ? Position.Left : Position.Right;
+          for (const { source, target } of candidates) {
+            const srcCoord = getHandleCoordinate(sourceRect, source);
+            const tgtCoord = getHandleCoordinate(targetRect, target);
+            const dist = Math.abs(tgtCoord.x - srcCoord.x) + Math.abs(tgtCoord.y - srcCoord.y);
+            if (dist < bestDist) {
+              bestDist = dist;
             }
           }
 
-          expect(result.sourcePosition).toBe(expectedSource);
-          expect(result.targetPosition).toBe(expectedTarget);
+          const selectedSrcCoord = getHandleCoordinate(sourceRect, result.sourcePosition);
+          const selectedTgtCoord = getHandleCoordinate(targetRect, result.targetPosition);
+          const selectedDist = Math.abs(selectedTgtCoord.x - selectedSrcCoord.x) + Math.abs(selectedTgtCoord.y - selectedSrcCoord.y);
+
+          expect(selectedDist).toBeLessThanOrEqual(bestDist + 1e-5);
         }),
         { numRuns: 200 }
       );
@@ -313,8 +284,7 @@ describe('Property-Based Tests: Dynamic Handle Positioning', () => {
         fc.property(
           nodeRectArbitrary,
           nodeRectArbitrary,
-          fc.string(),
-          (sourceRect, targetRect, _unusedLabel) => {
+          (sourceRect, targetRect) => {
             // Function only uses sourceRect and targetRect - extraneous data doesn't matter
             const result = getDynamicHandles(sourceRect, targetRect);
             const validPositions = [Position.Top, Position.Right, Position.Bottom, Position.Left];

@@ -107,10 +107,12 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
     // Subgraph start
     // Matches: subgraph ID ["label"], subgraph ID ['label'], subgraph ID [label], subgraph ID
-    const subgraphMatch = line.match(/^subgraph\s+([A-Za-z0-9_\-]+)(?:\s*(?:\[\s*"(.*?)"\s*\]|\[\s*'(.*?)'\s*\]|\[\s*(.*?)\s*\]))?/i)
+    // ID can contain spaces which we will normalize to underscores
+    const subgraphMatch = line.match(/^subgraph\s+([A-Za-z0-9_\-\s]+?)(?:\s*(?:\[\s*"(.*?)"\s*\]|\[\s*'(.*?)'\s*\]|\[\s*(.*?)\s*\]))?$/i)
     if (subgraphMatch) {
-      const id = subgraphMatch[1]
-      const label = subgraphMatch[2] ?? subgraphMatch[3] ?? subgraphMatch[4] ?? id
+      const rawId = subgraphMatch[1].trim()
+      const label = subgraphMatch[2] ?? subgraphMatch[3] ?? subgraphMatch[4] ?? rawId
+      const id = rawId.replace(/\s+/g, '_')
       const parentId = subgraphStack.length > 0 ? subgraphStack[subgraphStack.length - 1] : undefined
       
       // If a node was already declared with this ID, remove it to avoid duplicate ID issues
@@ -133,40 +135,91 @@ export function parseMermaid(mermaidText: string): ParseResult {
       continue
     }
 
-    // Edge: check for arrow syntax
-    const arrowMatch = line.match(/(<-->|-->|-\.->|===>)/)
-    if (arrowMatch) {
-      const fullArrow = arrowMatch[1]
-      let edgeType: EdgeType = 'arrow'
-      if (fullArrow === '<-->') edgeType = 'arrow'
-      else if (fullArrow === '-.->') edgeType = 'dotted'
-      else if (fullArrow === '===>') edgeType = 'thick'
+    // Edge: check for arrow syntax (supporting chained arrows, e.g. A --> B --> C)
+    const arrowRegex = /(<-->|-->|-\.->|===>)/g
+    const matches = [...line.matchAll(arrowRegex)]
+    if (matches.length > 0) {
+      const segmentNodes: string[] = []
+      const edgeSpecs: Array<{ sourceIdx: number; targetIdx: number; label: string | null; type: EdgeType }> = []
 
-      // Split on the arrow to get source and target sides
-      const arrowIdx = arrowMatch.index!
-      const sourcePart = line.slice(0, arrowIdx).trim()
-      let targetPart = line.slice(arrowIdx + fullArrow.length).trim()
+      let lastIndex = 0
+      for (let mIdx = 0; mIdx < matches.length; mIdx++) {
+        const match = matches[mIdx]
+        const arrowIdx = match.index!
+        const fullArrow = match[1]
 
-      // Extract label from pipe syntax
-      let edgeLabel: string | null = null
-      const pipeLabelMatch = targetPart.match(/^\|"?([^"|]*)"?\|\s*(.*)$/)
-      if (pipeLabelMatch) {
-        edgeLabel = pipeLabelMatch[1]
-        targetPart = pipeLabelMatch[2].trim()
-      }
+        // Segment before this arrow
+        const segment = line.slice(lastIndex, arrowIdx).trim()
+        
+        let edgeType: EdgeType = 'arrow'
+        if (fullArrow === '<-->') edgeType = 'arrow'
+        else if (fullArrow === '-.->') edgeType = 'dotted'
+        else if (fullArrow === '===>') edgeType = 'thick'
 
-      // Ensure source and target nodes exist (auto-create from inline declarations)
-      const sourceId = ensureNode(sourcePart, nodes, nodeIdSet, currentSubgraphId, subgraphs)
-      const targetId = ensureNode(targetPart, nodes, nodeIdSet, currentSubgraphId, subgraphs)
+        // Check if there is an inline label directly on this arrow (only if we're not at the very end)
+        // Wait, standard mermaid can have labels inside pipes, e.g. -->|label|
+        // But since we split, let's see where the label resides.
+        // In A -->|sends| B -->|receives| C:
+        // Match 1 is "-->" at index 2. The text after it starts with "|sends| B"
+        // Let's extract the label from the text following this arrow (before the next arrow if any, or end of line)
+        const nextMatch = matches[mIdx + 1]
+        const nextArrowIdx = nextMatch ? nextMatch.index! : line.length
+        let targetPart = line.slice(arrowIdx + fullArrow.length, nextArrowIdx).trim()
 
-      if (sourceId && targetId) {
-        edges.push({
-          id: `${sourceId}-${targetId}-${edgeLabel ?? 'nolabel'}`,
-          source: sourceId,
-          target: targetId,
+        let edgeLabel: string | null = null
+        const pipeLabelMatch = targetPart.match(/^\|"?([^"|]*)"?\|\s*(.*)$/)
+        if (pipeLabelMatch) {
+          edgeLabel = pipeLabelMatch[1]
+          targetPart = pipeLabelMatch[2].trim()
+        }
+
+        // Register source node (before the arrow)
+        const sourceId = ensureNode(segment, nodes, nodeIdSet, currentSubgraphId, subgraphs)
+        if (sourceId) {
+          segmentNodes.push(sourceId)
+        }
+
+        edgeSpecs.push({
+          sourceIdx: segmentNodes.length - 1,
+          targetIdx: segmentNodes.length, // Will be resolved when final node is added
           label: edgeLabel,
           type: edgeType,
         })
+
+        // Move lastIndex past the arrow and its label (but not past the target node!)
+        // The text we parsed as label was at the start of the next segment.
+        // So lastIndex should point to the target node's text.
+        if (pipeLabelMatch) {
+          // The pipeLabelMatch matched "|label|" at start of targetPart.
+          // The length of "|label|" is pipeLabelMatch[0].length (minus trailing spaces).
+          // We can find where the target node actually starts.
+          const labelOffset = line.slice(arrowIdx + fullArrow.length).indexOf(pipeLabelMatch[2])
+          lastIndex = arrowIdx + fullArrow.length + labelOffset
+        } else {
+          lastIndex = arrowIdx + fullArrow.length
+        }
+      }
+
+      // Final segment after the last arrow
+      const finalSegment = line.slice(lastIndex).trim()
+      const finalNodeId = ensureNode(finalSegment, nodes, nodeIdSet, currentSubgraphId, subgraphs)
+      if (finalNodeId) {
+        segmentNodes.push(finalNodeId)
+      }
+
+      // Build edges between adjacent nodes in the chain
+      for (const spec of edgeSpecs) {
+        const sourceId = segmentNodes[spec.sourceIdx]
+        const targetId = segmentNodes[spec.targetIdx]
+        if (sourceId && targetId) {
+          edges.push({
+            id: `${sourceId}-${targetId}-${spec.label ?? 'nolabel'}`,
+            source: sourceId,
+            target: targetId,
+            label: spec.label,
+            type: spec.type,
+          })
+        }
       }
       continue
     }

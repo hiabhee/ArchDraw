@@ -9,11 +9,10 @@ import {
   Position,
 } from 'reactflow';
 import {
-  getEdgeShiftOffset,
   getNodeCenter,
-  getSimpleEdgePositions,
-  getSimpleHandlePosition,
 } from '@/lib/utils/simpleFloatingEdge';
+import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
+import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { EDGE_TYPE_CONFIGS, getEdgeConfig, type EdgeType } from '@/data/edgeTypes';
 
 interface DiagramPreviewProps {
@@ -167,19 +166,13 @@ export function DiagramPreview({ nodes, edges, width = 280, height = 160 }: Diag
   const generateEdgePath = (edge: Edge, sourceNode: Node, targetNode: Node): string => {
     if (!sourceNode || !targetNode) return '';
 
-    const hydratedSource = previewNodeInternals.get(sourceNode.id) || sourceNode;
-    const hydratedTarget = previewNodeInternals.get(targetNode.id) || targetNode;
-    const sCenter = getNodeCenter(hydratedSource);
-    const tCenter = getNodeCenter(hydratedTarget);
-    const { sourcePos, targetPos } = getSimpleEdgePositions(sCenter.cx, sCenter.cy, tCenter.cx, tCenter.cy);
-    const sourceShift = getEdgeShiftOffset(sourceNode.id, edge.id, sourcePos, edges, previewNodeInternals, 15);
-    const targetShift = getEdgeShiftOffset(targetNode.id, edge.id, targetPos, edges, previewNodeInternals, 15);
-    const sourceHandle = getSimpleHandlePosition(sCenter.x, sCenter.y, sCenter.width, sCenter.height, sourcePos, sourceShift);
-    const targetHandle = getSimpleHandlePosition(tCenter.x, tCenter.y, tCenter.width, tCenter.height, targetPos, targetShift);
+    const nodesList = Array.from(previewNodeInternals.values());
+    const route = computeEdgeRoute(edge, nodesList, edges);
 
-    // Transform to viewBox coordinates
-    const tSource = transform(sourceHandle.x, sourceHandle.y);
-    const tTarget = transform(targetHandle.x, targetHandle.y);
+    const transformPt = (pt: { x: number; y: number }) => transform(pt.x, pt.y);
+
+    const tSource = transformPt(route.sourcePoint);
+    const tTarget = transformPt(route.targetPoint);
     const normalizedPathType = String(edge.data?.pathType || getEdgeConfig(getEdgeType(edge)).pathType || 'Smoothstep').toLowerCase();
 
     if (normalizedPathType === 'straight') {
@@ -202,16 +195,15 @@ export function DiagramPreview({ nodes, edges, width = 280, height = 160 }: Diag
       return path;
     }
 
-    const [path] = getSmoothStepPath({
-      sourceX: tSource.x,
-      sourceY: tSource.y,
-      sourcePosition: sourcePos as Position,
-      targetX: tTarget.x,
-      targetY: tTarget.y,
-      targetPosition: targetPos as Position,
-      borderRadius: 50 * scale,
-    });
-    return path;
+    if (edge.source === edge.target) {
+      const r = 40 * scale;
+      return `M ${tSource.x},${tSource.y} C ${tSource.x},${tSource.y - r} ${tTarget.x + r},${tTarget.y} ${tTarget.x},${tTarget.y}`;
+    }
+
+    const transformedWaypoints = route.waypoints.map(transformPt);
+    const isStep = edge.data?.pathType === 'step';
+    const borderRadius = isStep ? 0 : 40 * scale;
+    return buildSmoothStepSvg(transformedWaypoints, borderRadius);
   };
 
   if (nodeCount === 0) {

@@ -45,11 +45,12 @@ export async function applyLayoutPreset(
     return nodes;
   }
 
-  const groupNodes = nodes.filter(n => n.type === 'group' || n.type === 'groupNode');
-  const leafNodes = nodes.filter(n => n.type !== 'group' && n.type !== 'groupNode');
+  const isGroupNode = (n: Node) => n.type === 'group' || n.type === 'groupNode' || n.type === 'frameNode' || n.type === 'demoGroup' || (n.data as any)?.isGroup === true;
+  const groupNodes = nodes.filter(isGroupNode);
+  const leafNodes = nodes.filter(n => !isGroupNode(n));
 
   const elkNodes = nodes.map(node => {
-    const isGroup = node.type === 'group' || node.type === 'groupNode';
+    const isGroup = isGroupNode(node);
     const serviceType = (node.data as { serviceType?: string })?.serviceType;
     const config = getNodeShapeConfig(serviceType);
     const nodeWidth = node.width ?? (isGroup ? DEFAULT_GROUP_WIDTH : config.width);
@@ -177,7 +178,7 @@ export async function applyLayoutPreset(
       const size = sizeMap.get(node.id);
       if (!newPos) return node;
       
-      const isGroup = node.type === 'group' || node.type === 'groupNode';
+      const isGroup = node.type === 'group' || node.type === 'groupNode' || node.type === 'frameNode' || node.type === 'demoGroup' || (node.data as any)?.isGroup === true;
       
       if (isGroup) {
         const w = size?.width ?? node.width ?? DEFAULT_GROUP_WIDTH;

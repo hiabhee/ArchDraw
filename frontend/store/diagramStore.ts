@@ -86,7 +86,8 @@ export const serializedStorage = {
   },
 };
 
-import { addEdge, applyNodeChanges, applyEdgeChanges, MarkerType } from 'reactflow';
+import { addEdge, applyNodeChanges, applyEdgeChanges, MarkerType, Position } from 'reactflow';
+import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
 import { getSupabaseClient, isSupabaseConfigured, isReachable, type UserCanvasesTable } from '@/lib/supabase';
 import { type Database } from '@/types/supabase';
 import { DEFAULT_EDGE_TYPE, type EdgeType } from '@/data/edgeTypes';
@@ -536,12 +537,67 @@ function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
 
   const normalized = normalizeEdges(edges);
 
-  return normalized.map(edge => ({
-    ...edge,
-    sourceHandle: edge.sourceHandle ?? undefined,
-    targetHandle: edge.targetHandle ?? undefined,
-    type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
-  }));
+  return normalized.map(edge => {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    const targetNode = nodes.find(n => n.id === edge.target);
+
+    let sourceHandle = edge.sourceHandle ?? undefined;
+    let targetHandle = edge.targetHandle ?? undefined;
+
+    if (sourceNode && targetNode) {
+      if (edge.source === edge.target) {
+        sourceHandle = 'source-top';
+        targetHandle = 'target-right';
+      } else {
+        const sPos = getAbsolutePosition(sourceNode);
+        const tPos = getAbsolutePosition(targetNode);
+
+        const sWidth = sourceNode.width ?? (sourceNode.data as any)?.nodeWidth ?? 180;
+        const sHeight = sourceNode.height ?? (sourceNode.data as any)?.nodeHeight ?? 70;
+        const tWidth = targetNode.width ?? (targetNode.data as any)?.nodeWidth ?? 180;
+        const tHeight = targetNode.height ?? (targetNode.data as any)?.nodeHeight ?? 70;
+
+        const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
+        const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
+
+        const intermediateNodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>();
+        const excludedIds = new Set([edge.source, edge.target]);
+
+        for (const node of nodes) {
+          if (excludedIds.has(node.id)) continue;
+          const isGroup =
+            node.type === 'groupNode' ||
+            node.type === 'frameNode' ||
+            node.type === 'group' ||
+            node.type === 'demoGroup' ||
+            (node.data as any)?.isGroup === true;
+          if (isGroup) continue;
+
+          const pos = getAbsolutePosition(node);
+          const w = node.width ?? (node.data as any)?.nodeWidth ?? 180;
+          const h = node.height ?? (node.data as any)?.nodeHeight ?? 70;
+          intermediateNodeRects.set(node.id, { id: node.id, x: pos.x, y: pos.y, w, h });
+        }
+
+        const handles = getObstacleAwareHandles(
+          sourceRect,
+          targetRect,
+          intermediateNodeRects.size > 0 ? intermediateNodeRects : undefined,
+          excludedIds
+        );
+
+        sourceHandle = `source-${handles.sourcePosition}`;
+        targetHandle = `target-${handles.targetPosition}`;
+      }
+    }
+
+    return {
+      ...edge,
+      sourceHandle,
+      targetHandle,
+      type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+    };
+  });
 }
 
 function normalizeEdges(edges: Edge[]): Edge[] {
@@ -558,92 +614,7 @@ function normalizeEdges(edges: Edge[]): Edge[] {
     return { ...edge, id };
   });
 
-  // Merge bidirectional edges
-  const merged: Edge[] = [];
-  const processedIndices = new Set<number>();
-
-  for (let i = 0; i < deduplicated.length; i++) {
-    if (processedIndices.has(i)) continue;
-    const edgeA = deduplicated[i];
-    
-    let foundReverseIndex = -1;
-    for (let j = i + 1; j < deduplicated.length; j++) {
-      if (processedIndices.has(j)) continue;
-      const edgeB = deduplicated[j];
-      
-      // Match bidirectional connection: source A is target B, and target A is source B
-      if (edgeA.source === edgeB.target && edgeA.target === edgeB.source) {
-        foundReverseIndex = j;
-        break;
-      }
-    }
-
-    if (foundReverseIndex !== -1) {
-      processedIndices.add(foundReverseIndex);
-      const edgeB = deduplicated[foundReverseIndex];
-
-      // Merge labelA and labelB
-      const labelA = (typeof edgeA.data?.label === 'string' 
-        ? edgeA.data.label.trim() 
-        : (typeof edgeA.label === 'string' ? edgeA.label.trim() : '')) || '';
-      const labelB = (typeof edgeB.data?.label === 'string' 
-        ? edgeB.data.label.trim() 
-        : (typeof edgeB.label === 'string' ? edgeB.label.trim() : '')) || '';
-      
-      let combinedLabel = '';
-      if (labelA && labelB) {
-        if (labelA === labelB) {
-          combinedLabel = labelA;
-        } else {
-          combinedLabel = `${labelA} / ${labelB}`;
-        }
-      } else {
-        combinedLabel = labelA || labelB;
-      }
-
-      // Determine stroke color for markers
-      const stroke = edgeA.style?.stroke || edgeB.style?.stroke || '#94a3b8';
-      const markerColor = typeof stroke === 'string' ? stroke : '#94a3b8';
-
-      // Set bidirectional markers
-      const markerStart = {
-        type: MarkerType.ArrowClosed,
-        color: markerColor,
-        width: 20,
-        height: 20,
-      };
-      
-      const markerEnd = {
-        type: MarkerType.ArrowClosed,
-        color: markerColor,
-        width: 20,
-        height: 20,
-      };
-
-      const dataA = edgeA.data || {};
-      const dataB = edgeB.data || {};
-      const mergedData = {
-        ...dataB,
-        ...dataA,
-        label: combinedLabel,
-        edgeVariant: dataA.edgeVariant === 'dashed' || dataB.edgeVariant === 'dashed' ? 'dashed' : dataA.edgeVariant,
-      };
-
-      const mergedEdge: Edge = {
-        ...edgeA,
-        label: combinedLabel,
-        data: mergedData,
-        markerStart,
-        markerEnd,
-      };
-
-      merged.push(mergedEdge);
-    } else {
-      merged.push(edgeA);
-    }
-  }
-
-  return merged.map(normalizeEdge);
+  return deduplicated.map(normalizeEdge);
 }
 
 function sanitizeNodes(nodes: Node[]): Node[] {

@@ -7,6 +7,9 @@ import {
   NODE_WIDTH, NODE_HEIGHT, STATUS_COLORS, FONTS 
 } from '@/lib/theme/stylingConstants';
 import { getSimpleEdgePositions, getSimpleHandlePosition, getEdgeShiftOffset, getNodeCenter } from '@/lib/utils/simpleFloatingEdge';
+import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
+import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
+import { getPointOnPath } from '@/lib/utils/edgeLabelDrag';
 
 interface TextLabelNodeData extends NodeData {
   text?: string;
@@ -60,6 +63,7 @@ interface EdgeRenderData {
   data: EdgeData | undefined;
   selected?: boolean;
   isFloating?: boolean;
+  svgPath?: string;
 }
 
 function getTierColorNormalized(layer?: string): string {
@@ -498,8 +502,24 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   const strokeDashArray = dashArray || (isAnimated ? config.dash : '') || 'none';
   const opacity = selected ? 1 : (isDark ? 0.8 : 0.85);
   
-  const pathResult = getPath(pathType, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, isFloating);
-  const d = pathResult.path;
+  let d = edge.svgPath;
+  let labelX = (sourceX + targetX) / 2;
+  let labelY = (sourceY + targetY) / 2;
+
+  if (!d) {
+    const pathResult = getPath(pathType, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, isFloating);
+    d = pathResult.path;
+    labelX = pathResult.labelX;
+    labelY = pathResult.labelY;
+  } else {
+    try {
+      const labelPos = getPointOnPath(d, 0.5);
+      labelX = labelPos.x;
+      labelY = labelPos.y;
+    } catch {
+      // Fallback
+    }
+  }
   
   const isBidirectional = (data as EdgeDataExtended)?.isBidirectional;
 
@@ -524,8 +544,6 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   
   let labelSVG = '';
   if (data?.label && !data?.hideLabel) {
-    const labelX = pathResult.labelX;
-    const labelY = pathResult.labelY;
     const labelText = data.label;
     
     const bg = isDark ? '#1e2235' : '#fefdf8';
@@ -739,46 +757,30 @@ export function generatePureSVG(
     
     if (!sourceNode || !targetNode) continue;
     
-    const sourcePosStr = edge.sourceHandle || 'right';
-    const targetPosStr = edge.targetHandle || 'left';
-    
+    const route = computeEdgeRoute(edge, preparedNodes, processedEdges);
+
+    const sourceX = route.sourcePoint.x - bounds.minX;
+    const sourceY = route.sourcePoint.y - bounds.minY;
+    const targetX = route.targetPoint.x - bounds.minX;
+    const targetY = route.targetPoint.y - bounds.minY;
+    const sourcePos = route.sourcePosition;
+    const targetPos = route.targetPosition;
     const isFloating = edge.type === 'simpleFloating' || (!edge.sourceHandle && !edge.targetHandle);
+
+    const translatedWaypoints = route.waypoints.map(pt => ({
+      x: pt.x - bounds.minX,
+      y: pt.y - bounds.minY
+    }));
+
+    const isStep = edge.data?.pathType === 'step';
+    const borderRadius = isStep ? 0 : 40;
     
-    let sourceX: number;
-    let sourceY: number;
-    let targetX: number;
-    let targetY: number;
-    let sourcePos: Position;
-    let targetPos: Position;
-    
-    if (isFloating) {
-      const sCenter = getNodeCenter(sourceNode);
-      const tCenter = getNodeCenter(targetNode);
-      
-      const positions = getSimpleEdgePositions(sCenter.cx, sCenter.cy, tCenter.cx, tCenter.cy);
-      sourcePos = positions.sourcePos;
-      targetPos = positions.targetPos;
-      
-      const sourceShift = getEdgeShiftOffset(edge.source, edge.id, sourcePos, edges, nodeInternals, 15);
-      const targetShift = getEdgeShiftOffset(edge.target, edge.id, targetPos, edges, nodeInternals, 15);
-      
-      const sourceHandle = getSimpleHandlePosition(sCenter.x, sCenter.y, sCenter.width, sCenter.height, sourcePos, sourceShift);
-      const targetHandle = getSimpleHandlePosition(tCenter.x, tCenter.y, tCenter.width, tCenter.height, targetPos, targetShift);
-      
-      sourceX = sourceHandle.x - bounds.minX;
-      sourceY = sourceHandle.y - bounds.minY;
-      targetX = targetHandle.x - bounds.minX;
-      targetY = targetHandle.y - bounds.minY;
-    } else {
-      const source = getHandlePosition(sourceNode, sourcePosStr);
-      const target = getHandlePosition(targetNode, targetPosStr);
-      
-      sourceX = source.x - bounds.minX;
-      sourceY = source.y - bounds.minY;
-      targetX = target.x - bounds.minX;
-      targetY = target.y - bounds.minY;
-      sourcePos = source.pos;
-      targetPos = target.pos;
+    let svgPath = '';
+    if (edge.source === edge.target) {
+      const r = 40;
+      svgPath = `M ${sourceX},${sourceY} C ${sourceX},${sourceY - r} ${targetX + r},${targetY} ${targetX},${targetY}`;
+    } else if (translatedWaypoints.length > 0) {
+      svgPath = buildSmoothStepSvg(translatedWaypoints, borderRadius);
     }
     
     const edgeData: EdgeRenderData = {
@@ -792,6 +794,7 @@ export function generatePureSVG(
       data: edge.data as EdgeData | undefined,
       selected: edge.selected,
       isFloating,
+      svgPath: svgPath || undefined,
     };
     
     edgeElements.push(renderEdge(edgeData, isDark));

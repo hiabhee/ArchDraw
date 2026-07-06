@@ -64,16 +64,17 @@ describe('getDynamicHandles', () => {
       expect(result.targetPosition).toBe(Position.Left);
     });
 
-    it('should handle identical positions with default Right → Left', () => {
+    it('should pick the shortest handle pair for identical positions', () => {
       const sourceRect: NodeRect = { x: 100, y: 100, width: 100, height: 80 };
       const targetRect: NodeRect = { x: 100, y: 100, width: 100, height: 80 };
 
       const result = getDynamicHandles(sourceRect, targetRect);
 
-      // When nodes are at the same position, dx = 0, dy = 0
-      // |dx| >= |dy| is true (0 >= 0), and dx >= 0 is true
-      expect(result.sourcePosition).toBe(Position.Right);
-      expect(result.targetPosition).toBe(Position.Left);
+      // Node is wider (100) than tall (80), so Top→Bottom (104) is shorter
+      // than Right→Left (124). Picks the side pair with shortest Manhattan
+      // distance between handle positions.
+      expect(result.sourcePosition).toBe(Position.Top);
+      expect(result.targetPosition).toBe(Position.Bottom);
     });
 
     it('should work with different node dimensions when vertically aligned', () => {

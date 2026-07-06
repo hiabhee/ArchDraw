@@ -74,14 +74,7 @@ export function getEdgeShiftOffset(
   const currentEdge = (edges || []).find(e => e.id === edgeId);
   const isSource = currentEdge?.source === nodeId;
 
-  // If multiple edges share the same source+target (same direction), merge their handles.
-  // They have the same origin and destination — no need for parallel offset.
-  if (currentEdge) {
-    const hasSameDirectionSibling = (edges || []).some(e =>
-      e.id !== edgeId && e.source === currentEdge.source && e.target === currentEdge.target
-    );
-    if (hasSameDirectionSibling) return 0;
-  }
+
   
   // Find all edges that connect to this node on the given side
   const connectedEdges = (edges || []).map(e => {

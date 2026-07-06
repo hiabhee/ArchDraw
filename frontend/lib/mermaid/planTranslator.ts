@@ -35,24 +35,7 @@ export interface NodeClassification {
 export function classifyNode(name: string, groupName?: string): NodeClassification {
   const lower = name.toLowerCase()
 
-  // If the planner put it in Client or Data or Gateway layer, use that as primary signal
-  if (groupName) {
-    const g = groupName.toLowerCase()
-    if (g.includes('client')) {
-      return { shape: 'rounded', serviceType: 'client' }
-    }
-    if (g.includes('data') || g.includes('storage') || g.includes('database')) {
-      return { shape: 'cylinder', serviceType: 'database' }
-    }
-    if (g.includes('gateway') || g.includes('lb') || g.includes('load')) {
-      return { shape: 'diamond', serviceType: 'load-balancer' }
-    }
-    if (g.includes('observability') || g.includes('monitor') || g.includes('log')) {
-      return { shape: 'rounded', serviceType: 'observability' }
-    }
-  }
-
-  // Name-based fallback (only used when group is ambiguous or missing)
+  // 1. Name-based primary check (high-confidence visual symbols)
   if (
     lower.includes('database') || lower.includes('db') ||
     lower.includes('cache') || lower.includes('redis') ||
@@ -80,7 +63,6 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('topic') || lower.includes('mq')
   ) return { shape: 'circle', serviceType: 'queue' }
 
-
   if (
     lower.includes('external') || lower.includes('third party') ||
     lower.includes('saas') || lower.includes('cdn') ||
@@ -99,6 +81,24 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('tracing') || lower.includes('alert')
   ) return { shape: 'rounded', serviceType: 'observability' }
 
+  // 2. Group name fallback (if name is ambiguous/generic, e.g. "Auth" or "Billing")
+  if (groupName) {
+    const g = groupName.toLowerCase()
+    if (g.includes('client')) {
+      return { shape: 'rounded', serviceType: 'client' }
+    }
+    if (g.includes('data') || g.includes('storage') || g.includes('database')) {
+      return { shape: 'cylinder', serviceType: 'database' }
+    }
+    if (g.includes('gateway') || g.includes('lb') || g.includes('load')) {
+      return { shape: 'diamond', serviceType: 'load-balancer' }
+    }
+    if (g.includes('observability') || g.includes('monitor') || g.includes('log')) {
+      return { shape: 'rounded', serviceType: 'observability' }
+    }
+  }
+
+  // 3. Absolute fallback
   return { shape: 'rounded', serviceType: 'service' }
 }
 

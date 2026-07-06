@@ -259,11 +259,15 @@ export async function runArchitecturePlanner(
   prompt: string,
   diagramSize: 'small' | 'medium' | 'large' = 'medium',
   model?: string
-): Promise<{ formatConfig: FormatConfig; styleConfig: StyleConfig; mermaidCode: string }> {
+): Promise<{ formatConfig: FormatConfig; styleConfig: StyleConfig; mermaidCode: string; reasoning?: string }> {
   const maxNodes = getMaxNodes(diagramSize);
   const systemPrompt = buildSystemPrompt();
 
   const userPrompt = `Design a practical architecture diagram for: "${prompt}"
+
+Target Diagram Constraints:
+- Size level: ${diagramSize}
+- Maximum nodes: ${maxNodes} total components (subgraphs/layers do not count towards this limit).
 
 Output must conform to this JSON schema:
 {
@@ -345,5 +349,5 @@ Output must conform to this JSON schema:
     theme: styleConfig.theme,
   });
 
-  return { formatConfig, styleConfig, mermaidCode: parsed.mermaidCode };
+  return { formatConfig, styleConfig, mermaidCode: parsed.mermaidCode, reasoning: parsed.reasoning };
 }
