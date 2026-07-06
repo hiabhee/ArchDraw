@@ -1,61 +1,311 @@
 import { Node, Edge } from 'reactflow';
 
 export const archdrawNodes: Node[] = [
-  { id: 'af_edge',         type: 'systemNode', position: { x: 0, y: 135 }, data: { label: 'Vercel Edge Network', category: 'Client & Entry',     color: '#5A5A5A', icon: 'Globe'        } },
-  { id: 'af_browser',      type: 'systemNode', position: { x: 0, y: 315 }, data: { label: 'User Browser',        category: 'Client & Entry',     color: '#5A5A5A', icon: 'Monitor'      } },
-  { id: 'af_cdn',          type: 'systemNode', position: { x: 0, y: 585 }, data: { label: 'Vercel CDN',          category: 'Client & Entry',     color: '#5A5A5A', icon: 'RadioTower'   } },
-  { id: 'af_canvas',       type: 'systemNode', position: { x: 520, y: 0 }, data: { label: 'React + ReactFlow',   category: 'Compute',            color: '#3b82f6', icon: 'Boxes'        } },
-  { id: 'af_approuter',    type: 'systemNode', position: { x: 520, y: 315 }, data: { label: 'Next.js App Router', category: 'Client & Entry',   color: '#5A5A5A', icon: 'Webhook'      } },
-  { id: 'af_analytics',    type: 'systemNode', position: { x: 520, y: 605 }, data: { label: 'Vercel Analytics',  category: 'Observability',      color: '#06b6d4', icon: 'BarChart2'    } },
-  { id: 'af_logs',         type: 'systemNode', position: { x: 520, y: 1010 }, data: { label: 'Vercel Logs',      category: 'Observability',      color: '#06b6d4', icon: 'ScrollText'   } },
-  { id: 'af_sbauth',       type: 'systemNode', position: { x: 835, y: 250 }, data: { label: 'Supabase Auth',     category: 'Auth & Security',    color: '#3b82f6', icon: 'Shield'       } },
-  { id: 'af_apiroutes',    type: 'systemNode', position: { x: 835, y: 465 }, data: { label: 'Next.js API Routes',category: 'Compute',            color: '#3b82f6', icon: 'Server'       } },
-  { id: 'af_exporthandler',type: 'systemNode', position: { x: 835, y: 1010 }, data: { label: 'Export Handler',   category: 'Compute',            color: '#3b82f6', icon: 'Download'     } },
-  { id: 'af_zustand',      type: 'systemNode', position: { x: 1320, y: 0 }, data: { label: 'Zustand State',       category: 'Caching',            color: '#ef4444', icon: 'Layers'       } },
-  { id: 'af_emailmodal',   type: 'systemNode', position: { x: 1320, y: 180 }, data: { label: 'Email Capture Modal',category: 'Compute',           color: '#3b82f6', icon: 'Mail'         } },
-  { id: 'af_otp',          type: 'systemNode', position: { x: 1320, y: 320 }, data: { label: 'Magic Link OTP',    category: 'Auth & Security',    color: '#3b82f6', icon: 'KeyRound'     } },
-  { id: 'af_postgres',     type: 'systemNode', position: { x: 1320, y: 465 }, data: { label: 'Supabase PostgreSQL',category: 'Data Storage',     color: '#334155', icon: 'Database'     } },
-  { id: 'af_sharehandler', type: 'systemNode', position: { x: 1320, y: 690 }, data: { label: 'Share Handler',     category: 'Compute',            color: '#3b82f6', icon: 'Share2'       } },
-  { id: 'af_templates',    type: 'systemNode', position: { x: 1320, y: 850 }, data: { label: 'Template Engine',   category: 'Compute',            color: '#3b82f6', icon: 'LayoutTemplate'} },
-  { id: 'af_htmltoimage',  type: 'systemNode', position: { x: 1320, y: 1010 }, data: { label: 'html-to-image',    category: 'Compute',            color: '#3b82f6', icon: 'Image'        } },
-  { id: 'af_localstorage', type: 'systemNode', position: { x: 1660, y: 0 }, data: { label: 'localStorage',        category: 'Caching',            color: '#ef4444', icon: 'HardDrive'    } },
-  { id: 'af_email',        type: 'systemNode', position: { x: 1680, y: 320 }, data: { label: 'Resend Email',      category: 'Messaging & Events', color: '#f59e0b', icon: 'Send'         } },
-  { id: 'af_user_table',   type: 'systemNode', position: { x: 1680, y: 465 }, data: { label: 'user_canvases',     category: 'Data Storage',       color: '#334155', icon: 'Table'        } },
-  { id: 'af_shared_table', type: 'systemNode', position: { x: 1680, y: 690 }, data: { label: 'shared_canvases',   category: 'Data Storage',       color: '#334155', icon: 'Table'        } },
-  { id: 'af_dagre',        type: 'systemNode', position: { x: 1680, y: 850 }, data: { label: 'Dagre Auto Layout', category: 'Compute',            color: '#3b82f6', icon: 'GitBranch'    } },
-  { id: 'af_pngexport',    type: 'systemNode', position: { x: 1680, y: 1010 }, data: { label: 'PNG Export',       category: 'Data Storage',       color: '#334155', icon: 'FileImage'    } },
+  // Subgraphs
+  {
+    "id": "UI",
+    "type": "groupNode",
+    "position": {
+      "x": 50,
+      "y": 50
+    },
+    "data": {
+      "label": "User Interface",
+      "groupLabel": "User Interface",
+      "isGroup": true,
+      "color": "#06b6d4"
+    },
+    "style": {
+      "width": 1250,
+      "height": 600
+    },
+    "zIndex": -1,
+    "width": 1250,
+    "height": 600
+  },
+  {
+    "id": "AIP",
+    "type": "groupNode",
+    "position": {
+      "x": 440,
+      "y": 750
+    },
+    "data": {
+      "label": "AI Pipeline (Single Stage)",
+      "groupLabel": "AI Pipeline (Single Stage)",
+      "isGroup": true,
+      "color": "#ec4899"
+    },
+    "style": {
+      "width": 300,
+      "height": 220
+    },
+    "zIndex": -1,
+    "width": 300,
+    "height": 220
+  },
+  {
+    "id": "PIP",
+    "type": "groupNode",
+    "position": {
+      "x": 1450,
+      "y": 380
+    },
+    "data": {
+      "label": "Bidirectional Sync & Parsing",
+      "groupLabel": "Bidirectional Sync & Parsing",
+      "isGroup": true,
+      "color": "#14b8a6"
+    },
+    "style": {
+      "width": 300,
+      "height": 220
+    },
+    "zIndex": -1,
+    "width": 300,
+    "height": 220
+  },
+
+  // Nodes inside UI Group
+  {
+    "id": "Web",
+    "type": "shapeNode",
+    "position": {
+      "x": 60,
+      "y": 245
+    },
+    "data": {
+      "label": "Web UI Layer",
+      "subtitle": "",
+      "sublabel": "",
+      "shape": "rounded-rectangle",
+      "nodeWidth": 180,
+      "nodeHeight": 110,
+      "serviceType": "service",
+      "typeId": "service",
+      "color": "#4F46E5",
+      "category": "compute",
+      "icon": "Box"
+    },
+    "width": 180,
+    "height": 110,
+    "parentNode": "UI",
+    "extent": "parent"
+  },
+  {
+    "id": "RFW",
+    "type": "shapeNode",
+    "position": {
+      "x": 600,
+      "y": 80
+    },
+    "data": {
+      "label": "React Flow Canvas",
+      "subtitle": "",
+      "sublabel": "",
+      "shape": "rounded-rectangle",
+      "nodeWidth": 180,
+      "nodeHeight": 110,
+      "serviceType": "service",
+      "typeId": "service",
+      "color": "#4F46E5",
+      "category": "compute",
+      "icon": "Box"
+    },
+    "width": 180,
+    "height": 110,
+    "parentNode": "UI",
+    "extent": "parent"
+  },
+  {
+    "id": "EDT",
+    "type": "shapeNode",
+    "position": {
+      "x": 600,
+      "y": 380
+    },
+    "data": {
+      "label": "Code Editor Panel",
+      "subtitle": "",
+      "sublabel": "",
+      "shape": "rounded-rectangle",
+      "nodeWidth": 180,
+      "nodeHeight": 110,
+      "serviceType": "service",
+      "typeId": "service",
+      "color": "#4F46E5",
+      "category": "compute",
+      "icon": "Box"
+    },
+    "width": 180,
+    "height": 110,
+    "parentNode": "UI",
+    "extent": "parent"
+  },
+  {
+    "id": "ZST",
+    "type": "shapeNode",
+    "position": {
+      "x": 1000,
+      "y": 80
+    },
+    "data": {
+      "label": "Zustand State Store",
+      "subtitle": "",
+      "sublabel": "",
+      "shape": "cylinder",
+      "nodeWidth": 180,
+      "nodeHeight": 110,
+      "serviceType": "database",
+      "typeId": "database",
+      "color": "#1e293b",
+      "category": "data",
+      "icon": "Database"
+    },
+    "width": 180,
+    "height": 110,
+    "parentNode": "UI",
+    "extent": "parent"
+  },
+
+  // Nodes inside AIP Group
+  {
+    "id": "PLN",
+    "type": "shapeNode",
+    "position": {
+      "x": 60,
+      "y": 60
+    },
+    "data": {
+      "label": "Stage 1 Planner",
+      "subtitle": "",
+      "sublabel": "",
+      "shape": "rounded-rectangle",
+      "nodeWidth": 180,
+      "nodeHeight": 110,
+      "serviceType": "service",
+      "typeId": "service",
+      "color": "#4F46E5",
+      "category": "compute",
+      "icon": "Box"
+    },
+    "width": 180,
+    "height": 110,
+    "parentNode": "AIP",
+    "extent": "parent"
+  },
+
+  // Nodes inside PIP Group
+  {
+    "id": "PRS",
+    "type": "shapeNode",
+    "position": {
+      "x": 60,
+      "y": 60
+    },
+    "data": {
+      "label": "Mermaid AST Parser",
+      "subtitle": "",
+      "sublabel": "",
+      "shape": "rounded-rectangle",
+      "nodeWidth": 180,
+      "nodeHeight": 110,
+      "serviceType": "service",
+      "typeId": "service",
+      "color": "#4F46E5",
+      "category": "compute",
+      "icon": "Box"
+    },
+    "width": 180,
+    "height": 110,
+    "parentNode": "PIP",
+    "extent": "parent"
+  }
 ];
 
-const E = (id: string, source: string, target: string, label: string): Edge => ({
-  id, source, target,
-  type: 'default',
-  animated: true,
-  style: { stroke: '#94a3b8', strokeWidth: '1.5px' },
-  label,
-});
-
 export const archdrawEdges: Edge[] = [
-  E('af_e1',  'af_browser',      'af_cdn',          'static assets'),
-  E('af_e2',  'af_browser',      'af_approuter',    'HTTPS requests'),
-  E('af_e3',  'af_edge',         'af_approuter',    'route requests'),
-  E('af_e4',  'af_approuter',    'af_canvas',       'render canvas'),
-  E('af_e5',  'af_approuter',    'af_apiroutes',    'API calls'),
-  E('af_e6',  'af_canvas',       'af_zustand',      'read/write state'),
-  E('af_e7',  'af_zustand',      'af_localstorage', 'persist guest canvas'),
-  E('af_e8',  'af_approuter',    'af_sbauth',       'auth check'),
-  E('af_e9',  'af_sbauth',       'af_otp',          'send magic link'),
-  E('af_e10', 'af_otp',          'af_email',        'deliver email'),
-  E('af_e11', 'af_emailmodal',   'af_sbauth',       'trigger OTP'),
-  E('af_e12', 'af_apiroutes',    'af_sharehandler', 'share request'),
-  E('af_e13', 'af_apiroutes',    'af_exporthandler','export request'),
-  E('af_e14', 'af_apiroutes',    'af_templates',    'load template'),
-  E('af_e15', 'af_sharehandler', 'af_postgres',     'save canvas'),
-  E('af_e16', 'af_sharehandler', 'af_shared_table', 'write share record'),
-  E('af_e17', 'af_exporthandler','af_htmltoimage',  'capture canvas'),
-  E('af_e18', 'af_htmltoimage',  'af_pngexport',    'generate file'),
-  E('af_e19', 'af_templates',    'af_dagre',        'calculate positions'),
-  E('af_e20', 'af_apiroutes',    'af_postgres',     'read/write user data'),
-  E('af_e21', 'af_postgres',     'af_user_table',   'store canvases'),
-  E('af_e22', 'af_approuter',    'af_analytics',    'page events'),
-  E('af_e23', 'af_analytics',    'af_logs',         'track events'),
+  {
+    "id": "Web-PLN-1. Prompts",
+    "source": "Web",
+    "target": "PLN",
+    "sourceHandle": null,
+    "targetHandle": null,
+    "type": "simpleFloating",
+    "label": "1. Prompts",
+    "data": {
+      "label": "1. Prompts",
+      "connectionType": "sync",
+      "edgeVariant": "solid"
+    }
+  },
+  {
+    "id": "PLN-PRS-2. Mermaid Code",
+    "source": "PLN",
+    "target": "PRS",
+    "sourceHandle": null,
+    "targetHandle": null,
+    "type": "simpleFloating",
+    "label": "2. Mermaid Code",
+    "data": {
+      "label": "2. Mermaid Code",
+      "connectionType": "sync",
+      "edgeVariant": "solid"
+    }
+  },
+  {
+    "id": "PRS-ZST-3. Sized & Layouted",
+    "source": "PRS",
+    "target": "ZST",
+    "sourceHandle": null,
+    "targetHandle": null,
+    "type": "simpleFloating",
+    "label": "3. Sized & Layouted",
+    "data": {
+      "label": "3. Sized & Layouted",
+      "connectionType": "sync",
+      "edgeVariant": "solid"
+    }
+  },
+  {
+    "id": "ZST-RFW-4. Nodes & Edges",
+    "source": "ZST",
+    "target": "RFW",
+    "sourceHandle": null,
+    "targetHandle": null,
+    "type": "simpleFloating",
+    "label": "4. Nodes & Edges",
+    "data": {
+      "label": "4. Nodes & Edges",
+      "connectionType": "sync",
+      "edgeVariant": "solid"
+    }
+  },
+  {
+    "id": "EDT-PRS-5. Custom Edits",
+    "source": "EDT",
+    "target": "PRS",
+    "sourceHandle": null,
+    "targetHandle": null,
+    "type": "simpleFloating",
+    "label": "5. Custom Edits",
+    "data": {
+      "label": "5. Custom Edits",
+      "connectionType": "sync",
+      "edgeVariant": "solid"
+    }
+  },
+  {
+    "id": "ZST-EDT-6. Serialized Code",
+    "source": "ZST",
+    "target": "EDT",
+    "sourceHandle": null,
+    "targetHandle": null,
+    "type": "simpleFloating",
+    "label": "6. Serialized Code",
+    "data": {
+      "label": "6. Serialized Code",
+      "connectionType": "sync",
+      "edgeVariant": "solid"
+    }
+  }
 ];

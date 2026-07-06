@@ -227,6 +227,13 @@ export default function EditorPage() {
         importDiagram(processedNodes as unknown as Node[], processedEdges as unknown as Edge[]);
       }
 
+      const generatedDiagramType = result.metadata?.diagramType as string;
+      if (generatedDiagramType === 'graph LR') {
+        store.setActiveLayoutPresetId('layered-lr');
+      } else if (generatedDiagramType === 'graph TD') {
+        store.setActiveLayoutPresetId('layered-tb');
+      }
+
       renameCanvas(store.activeCanvasId, canvasName);
       
       setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);

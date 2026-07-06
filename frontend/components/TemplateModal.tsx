@@ -48,53 +48,56 @@ export function TemplateModal({ onClose }: Props) {
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-50 bg-black/20" onClick={onClose} />
+      <div 
+        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity" 
+        onClick={onClose} 
+      />
 
       {/* Panel */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none"
         onClick={onClose}
       >
         <div
-          className="pointer-events-auto w-full max-w-xl bg-white rounded-2xl flex flex-col overflow-hidden"
-          style={{ maxHeight: '75vh', boxShadow: '0 25px 70px rgba(0,0,0,0.08)' }}
+          className="pointer-events-auto w-full max-w-xl bg-card border border-border/20 rounded-2xl flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+          style={{ maxHeight: '80vh' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center gap-3 px-5 py-4 shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-accent/60 flex items-center justify-center">
-              <LayoutTemplate className="w-5 h-5 text-foreground/70" />
+          <div className="flex items-center gap-3 px-6 py-5 shrink-0 border-b border-border/10">
+            <div className="w-10 h-10 rounded-xl bg-secondary/80 flex items-center justify-center border border-border/10">
+              <LayoutTemplate className="w-5 h-5 text-foreground/80" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground">Templates</p>
-              <p className="text-[11px] text-muted-foreground">Load a pre-built architecture to get started</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Load a pre-built architecture to get started</p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all"
+              className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-200"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Search */}
-          <div className="px-5 pb-3 shrink-0">
+          <div className="px-6 py-4 shrink-0 border-b border-border/5">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 pointer-events-none" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search templates…"
                 autoFocus
-                className="w-full pl-9 pr-4 py-2.5 text-sm bg-accent/50 rounded-xl outline-none focus:ring-2 focus:ring-ring/30 text-foreground placeholder:text-muted-foreground transition-all"
+                className="w-full pl-10 pr-4 py-2.5 text-sm bg-secondary/50 dark:bg-secondary/30 border border-border/10 rounded-xl outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 text-foreground placeholder:text-muted-foreground/50 transition-all duration-200"
               />
             </div>
           </div>
 
           {/* Template list */}
-          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                 <Search className="w-8 h-8 mb-3 opacity-30" />
                 <p className="text-sm">No templates match &quot;{query}&quot;</p>
               </div>
@@ -106,30 +109,35 @@ export function TemplateModal({ onClose }: Props) {
           </div>
         </div>
       </div>
-
     </>
   );
 }
 
 function TemplateRow({ template, onLoad }: { template: Template; onLoad: () => void }) {
   return (
-    <div className="group flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-accent/40 transition-all cursor-default">
+    <div 
+      onClick={onLoad}
+      className="group flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-secondary/40 dark:hover:bg-secondary/25 border border-transparent hover:border-border/15 transition-all duration-200 cursor-pointer"
+    >
       {/* Icon */}
-      <div className="w-10 h-10 shrink-0 rounded-xl bg-accent/50 flex items-center justify-center text-lg">
+      <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary/80 border border-border/10 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition-transform duration-200">
         {template.icon}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{template.name}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1 leading-relaxed">{template.description}</p>
-        <div className="flex items-center gap-1.5 mt-1.5">
+        <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">{template.name}</p>
+        <p className="text-[11px] text-muted-foreground/90 mt-0.5 line-clamp-1 leading-relaxed">{template.description}</p>
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
           {template.tags.map((tag) => (
-            <span key={tag} className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-accent text-muted-foreground">
+            <span 
+              key={tag} 
+              className="px-2 py-0.5 text-[9px] font-medium rounded-md bg-secondary border border-border/10 text-muted-foreground/80"
+            >
               {tag}
             </span>
           ))}
-          <span className="text-[10px] text-muted-foreground/50 ml-auto">
+          <span className="text-[10px] text-muted-foreground/50 ml-auto group-hover:text-muted-foreground transition-colors font-mono">
             {template.nodes.length} nodes
           </span>
         </div>
@@ -137,8 +145,11 @@ function TemplateRow({ template, onLoad }: { template: Template; onLoad: () => v
 
       {/* CTA */}
       <button
-        onClick={onLoad}
-        className="shrink-0 px-4 py-2 text-xs font-medium rounded-xl bg-primary text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:translate-y-0 active:scale-99"
+        onClick={(e) => {
+          e.stopPropagation();
+          onLoad();
+        }}
+        className="shrink-0 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-sm hover:shadow transition-all duration-200 dark:bg-blue-500 dark:hover:bg-blue-600"
       >
         Load
       </button>

@@ -15,14 +15,24 @@ function toNodeId(name: string): string {
     || 'node'
 }
 
+export function getDeterministicColor(str: string): string {
+  const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+
 // ── Unified classification — single source of truth for shape + serviceType ──
 
-interface NodeClassification {
+export interface NodeClassification {
   shape: string
   serviceType: string
 }
 
-function classifyNode(name: string, groupName?: string): NodeClassification {
+export function classifyNode(name: string, groupName?: string): NodeClassification {
   const lower = name.toLowerCase()
 
   // If the planner put it in Client or Data or Gateway layer, use that as primary signal
@@ -59,7 +69,7 @@ function classifyNode(name: string, groupName?: string): NodeClassification {
     lower.includes('load balancer') || lower.includes('lb') ||
     lower.includes('gateway') || lower.includes('api gateway') ||
     lower.includes('proxy') || lower.includes('ingress') ||
-    lower.includes('traff')
+    lower.includes('traff') || lower.includes('gw')
   ) return { shape: 'diamond', serviceType: 'load-balancer' }
 
   if (
@@ -67,8 +77,9 @@ function classifyNode(name: string, groupName?: string): NodeClassification {
     lower.includes('kafka') || lower.includes('rabbitmq') ||
     lower.includes('message bus') || lower.includes('event') ||
     lower.includes('pub/sub') || lower.includes('stream') ||
-    lower.includes('topic')
+    lower.includes('topic') || lower.includes('mq')
   ) return { shape: 'circle', serviceType: 'queue' }
+
 
   if (
     lower.includes('external') || lower.includes('third party') ||
@@ -91,7 +102,7 @@ function classifyNode(name: string, groupName?: string): NodeClassification {
   return { shape: 'rounded', serviceType: 'service' }
 }
 
-const SERVICE_TYPE_META: Record<string, { typeId: string; icon: string; category: string }> = {
+export const SERVICE_TYPE_META: Record<string, { typeId: string; icon: string; category: string }> = {
   'database':         { typeId: 'database',         icon: 'Database',  category: 'data' },
   'load-balancer':    { typeId: 'load-balancer',    icon: 'GitBranch', category: 'networking' },
   'queue':            { typeId: 'queue',             icon: 'Inbox',     category: 'messaging' },
@@ -102,7 +113,7 @@ const SERVICE_TYPE_META: Record<string, { typeId: string; icon: string; category
 }
 
 // Category-based color overrides (applied on top of theme primary color)
-const CATEGORY_COLORS: Record<string, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   'data':           '#1e293b',
   'networking':     '#4F46E5',
   'messaging':      '#0891b2',
@@ -111,6 +122,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'observability':  '#475569',
   'compute':        '#4F46E5',
 }
+
 
 export function translatePlanToReactFlow(
   formatConfig: FormatConfig,
@@ -167,6 +179,8 @@ export function translatePlanToReactFlow(
       nodeToGroupMap.set(member, groupId)
     }
 
+    const deterministicColor = getDeterministicColor(groupId)
+
     rfNodes.push({
       id: groupId,
       type: 'groupNode',
@@ -176,7 +190,7 @@ export function translatePlanToReactFlow(
         groupLabel: groupName,
         isGroup: true,
         typeId: 'group',
-        color: styleConfig.primaryColor,
+        color: deterministicColor,
         category: 'group',
         icon: 'Box',
       },
@@ -296,16 +310,17 @@ export function translatePlanToReactFlow(
   const styledNodes: Node[] = sized.map(node => {
     const isSubgraph = subgraphIds.has(node.id) || node.type === 'groupNode'
     if (isSubgraph) {
+      const deterministicColor = getDeterministicColor(node.id)
       return {
         ...node,
         type: 'frameNode',
         data: {
           ...node.data,
-          groupColor: styleConfig.primaryColor,
+          groupColor: deterministicColor,
           isGroup: true,
           style: {
-            backgroundColor: hexToRgba(styleConfig.primaryColor, 0.08),
-            borderColor: styleConfig.primaryColor,
+            backgroundColor: hexToRgba(deterministicColor, 0.08),
+            borderColor: deterministicColor,
             borderRadius: '12px',
           },
         },

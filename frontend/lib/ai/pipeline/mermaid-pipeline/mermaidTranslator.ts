@@ -8,6 +8,29 @@ function escapeLabel(label: string): string {
   return label.replace(/"/g, '\\"');
 }
 
+function formatNodeWithShape(id: string, label: string, shape?: string): string {
+  const cleanId = sanitizeId(id);
+  const escaped = escapeLabel(label);
+  
+  if (!shape) return `${cleanId}["${escaped}"]`;
+  
+  switch (shape) {
+    case 'cylinder':
+      return `${cleanId}[("${escaped}")]`;
+    case 'diamond':
+      return `${cleanId}{"${escaped}"}`;
+    case 'circle':
+      return `${cleanId}(("${escaped}"))`;
+    case 'rounded-rectangle':
+    case 'rounded':
+      return `${cleanId}("${escaped}")`;
+    case 'parallelogram':
+      return `${cleanId}[/"${escaped}"/]`;
+    default:
+      return `${cleanId}["${escaped}"]`;
+  }
+}
+
 export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD' | 'LR' = 'TD'): string {
   const groupNodes = nodes.filter(n => n.type === 'groupNode' || n.data?.isGroup);
   const groupIds = new Set(groupNodes.map(n => n.id));
@@ -24,9 +47,7 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
 
     const children = regularNodes.filter(n => n.parentNode === group.id || n.data?.parentId === group.id);
     for (const child of children) {
-      const cid = sanitizeId(child.id);
-      const clabel = escapeLabel(String(child.data?.label ?? child.id));
-      lines.push(`    ${cid}["${clabel}"]`);
+      lines.push(`    ${formatNodeWithShape(child.id, String(child.data?.label ?? child.id), child.data?.shape)}`);
     }
 
     lines.push('  end');
@@ -35,9 +56,7 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
 
   const ungrouped = regularNodes.filter(n => !n.parentNode && !n.data?.parentId);
   for (const node of ungrouped) {
-    const nid = sanitizeId(node.id);
-    const nlabel = escapeLabel(String(node.data?.label ?? node.id));
-    lines.push(`  ${nid}["${nlabel}"]`);
+    lines.push(`  ${formatNodeWithShape(node.id, String(node.data?.label ?? node.id), node.data?.shape)}`);
   }
 
   if (ungrouped.length > 0) {
@@ -57,3 +76,4 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
 
   return lines.join('\n');
 }
+

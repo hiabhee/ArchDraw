@@ -1,6 +1,8 @@
+import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor } from './planTranslator'
 import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
-import { NODE_WIDTH, NODE_HEIGHT, SHAPE_TO_NODE_TYPE } from './types'
+import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../utils/nodeSizing'
+
 
 export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
   const nodes: RFNode[] = []
@@ -17,6 +19,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         label: sub.label,
         groupLabel: sub.label,
         isGroup: true,
+        color: getDeterministicColor(sub.id),
       },
       style: {
         width: NODE_WIDTH + 40,
@@ -45,17 +48,38 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     }
 
     const { width, height } = calculateNodeDimensions(label, subtitle)
+    
+    // Find parent group name for classification
+    let parentGroupName: string | undefined
+    if (pNode.subgraphId) {
+      const sub = ast.subgraphs.find(s => s.id === pNode.subgraphId)
+      if (sub) {
+        parentGroupName = sub.label
+      }
+    }
+
+    const { shape: classifiedShape, serviceType } = classifyNode(label, parentGroupName)
+    const finalShape = pNode.shape !== 'rectangle' ? pNode.shape : classifiedShape
+
+    const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service']
+    const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1'
+
     const rfNode: RFNode = {
       id: pNode.id,
-      type: SHAPE_TO_NODE_TYPE[pNode.shape] || 'shapeNode',
+      type: 'shapeNode',
       position: { x: 0, y: 0 },
       data: {
         label,
         subtitle,
         sublabel: subtitle,
-        shape: pNode.shape === 'rounded' ? 'rounded-rectangle' : pNode.shape,
+        shape: finalShape === 'rounded' ? 'rounded-rectangle' : finalShape,
         nodeWidth: width,
         nodeHeight: height,
+        serviceType,
+        typeId: meta.typeId,
+        color: categoryColor,
+        category: meta.category,
+        icon: meta.icon,
       },
       width,
       height,
@@ -68,6 +92,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
 
     nodes.push(rfNode)
   }
+
 
   // Create edges
   for (const pEdge of ast.edges) {

@@ -59,4 +59,5 @@ export interface PipelineResult {
   error?: 'generation_failed';
   diagramScore?: { grade?: string; score?: number };
   diagnostics?: PipelineDiagnostics;
+  diagramType?: string;
 }

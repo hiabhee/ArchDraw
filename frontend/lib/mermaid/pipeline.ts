@@ -11,6 +11,7 @@ export interface PipelineResult {
   edges: RFEdge[]
   warnings: string[]
   success: boolean
+  direction?: Direction
 }
 
 export function runMermaidPipeline(mermaidText: string): PipelineResult {
@@ -58,5 +59,6 @@ export function runMermaidPipeline(mermaidText: string): PipelineResult {
     edges: layouted.edges,
     warnings,
     success: true,
+    direction: parseResult.ast.direction,
   }
 }

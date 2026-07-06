@@ -56,6 +56,7 @@ export async function generateDiagram(
           grade: (result.diagramScore?.grade === 'F' ? 'D' : result.diagramScore?.grade || 'D') as 'A' | 'B' | 'C' | 'D',
           qualityWarnings: qualityWarnings.length > 0 ? qualityWarnings : undefined,
           pipelineDiagnostics: result.diagnostics,
+          diagramType: result.diagramType,
         },
       };
     } catch (error) {

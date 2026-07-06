@@ -97,7 +97,10 @@ export function SequenceDiagramViewer() {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-canvas-bg overflow-auto p-8">
+    <div 
+      className="flex-1 flex items-center justify-center bg-canvas-bg overflow-auto p-8 overscroll-contain"
+      style={{ overscrollBehavior: 'contain' }}
+    >
       <div 
         ref={containerRef}
         className="max-w-full bg-white p-4 sm:p-6 md:p-10 rounded-2xl shadow-xl border border-gray-100"

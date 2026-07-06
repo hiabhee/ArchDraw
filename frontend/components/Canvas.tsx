@@ -325,8 +325,9 @@ function CanvasInner() {
 
   return (
     <div 
-      className="w-full h-full relative transition-colors duration-200 bg-[hsl(var(--canvas-bg))]"
+      className="w-full h-full relative transition-colors duration-200 bg-[hsl(var(--canvas-bg))] overscroll-contain"
       onDragOver={(e) => e.preventDefault()}
+      style={{ overscrollBehavior: 'contain' }}
     >
       <ReactFlow
         nodes={nodes}

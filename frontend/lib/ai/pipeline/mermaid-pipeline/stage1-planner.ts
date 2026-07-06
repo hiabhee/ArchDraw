@@ -6,10 +6,7 @@ import type { FormatConfig, StyleConfig, InventoryConfig, EdgeConfig } from './t
 interface PlannerOutput {
   diagramType: 'graph TD' | 'graph LR';
   theme: string;
-  nodes: string[];
-  groups: string[];
-  nodeGroups: Record<string, string>;
-  edges: Array<{ from: string; to: string; label: string }>;
+  mermaidCode: string;
 }
 
 const THEMES = ['forest-green', 'slate', 'dark-minimal', 'luxury', 'default'] as const;
@@ -21,9 +18,9 @@ type NodeKind = 'client' | 'gateway' | 'data' | 'queue' | 'observability' | 'ser
 function classifyNode(name: string): NodeKind {
   const l = name.toLowerCase();
   if (/^(user|browser|client|mobile|app|developer|end-user)/.test(l)) return 'client';
-  if (/(gateway|lb|load\s*balancer|proxy|reverse\s*proxy|api\s*gateway)/.test(l)) return 'gateway';
+  if (/(gateway|lb|load\s*balancer|proxy|reverse\s*proxy|api\s*gateway|gw)/.test(l)) return 'gateway';
   if (/(database|db|store|cache|storage|warehouse|s3|bucket|archive)/.test(l)) return 'data';
-  if (/(queue|broker|topic|stream|channel|message\s*bus)/.test(l)) return 'queue';
+  if (/(queue|broker|topic|stream|channel|message\s*bus|mq)/.test(l)) return 'queue';
   if (/(log|monitor|observability|metric|tracing|alert)/.test(l)) return 'observability';
   return 'service';
 }
@@ -71,9 +68,9 @@ REAL-WORLD ARCHITECTURE RULES
     - Do NOT create empty groups
 
  4. NODE LABELS:
-    - Use clean, descriptive names: "Load Balancer", not "LB" or "load-balancer-01"
-    - NO technology stack brackets: write "Auth Service" not "AuthService [Express]"
-    - NO abbreviations: "Message Queue" not "MQ"
+    - All node labels MUST be short acronyms or abbreviations that are strictly NOT more than three letters long.
+    - Use standard three-letter (or fewer) acronyms and abbreviations, e.g., "Web", "App", "DB", "LB", "API", "MQ", "VPC", "CDN", "DNS", "CLI", "S3", "GW".
+    - Never write out full names like "Load Balancer" (write "LB"), "Database" (write "DB"), "Application" (write "App"), "Message Queue" (write "MQ"), "API Gateway" (write "GW" or "API"), "Cache" (write "DB" or "Mem"), or "Web Server" (write "Web").
 
  5. EDGE LABELS:
     - Every edge label MUST describe the semantic relationship between the two nodes, not the protocol/transport
@@ -103,19 +100,20 @@ OUTPUT SCHEMA
 {
   "diagramType": "graph TD" | "graph LR",
   "theme": "forest-green" | "slate" | "dark-minimal" | "luxury" | "default",
-  "nodes": ["Node Name 1", "Node Name 2", ...],
-  "groups": ["Group Name 1", "Group Name 2", ...],
-  "nodeGroups": {
-    "Node Name 1": "Group Name 1",
-    "Node Name 2": "Group Name 2"
-  },
-  "edges": [
-    { "from": "Node Name 1", "to": "Node Name 2", "label": "routes user request" },
-    { "from": "Node Name 2", "to": "Node Name 3", "label": "reads/writes data" }
-  ]
+  "mermaidCode": "string"
 }
 
-Every node must appear in nodeGroups. Every edge from/to must reference a node in the "nodes" array. Every group must have at least one node assigned.`;
+The "mermaidCode" field must contain the full, valid Mermaid flowchart syntax describing the architecture.
+Rules for the Mermaid syntax:
+- Start with the diagramType (e.g. graph LR or graph TD)
+- All node labels MUST be short acronyms or abbreviations that are strictly NOT more than three letters long (e.g., Web, App, DB, LB, API, MQ, VPC, CDN, DNS, CLI, S3, GW).
+- Define custom shapes for nodes using correct Mermaid bracket syntax:
+  - Cylinders for databases/storage: node_id[("DB")] or node_id[("S3")]
+  - Diamonds for gateways/load balancers: node_id{"LB"} or node_id{"GW"} or node_id{"API"}
+  - Circles for queues: node_id(("MQ"))
+  - Rounded rectangles for clients/browsers: node_id("Web") or node_id("App")
+- Group nodes into subgraphs for logical tiers (e.g., Client Layer, Gateway/LB Layer, Service Layer, Data Layer).
+- Edge labels must describe the semantic relationship (e.g., "routes user request", "reads/writes data", "queues task").`;
 }
 
 function getMaxNodes(size: 'small' | 'medium' | 'large'): number {
@@ -211,7 +209,7 @@ export async function runArchitecturePlanner(
   prompt: string,
   diagramSize: 'small' | 'medium' | 'large' = 'medium',
   model?: string
-): Promise<{ formatConfig: FormatConfig; styleConfig: StyleConfig; inventoryConfig: InventoryConfig; edgeConfig: EdgeConfig; groupAssignments: Record<string, string> }> {
+): Promise<{ formatConfig: FormatConfig; styleConfig: StyleConfig; mermaidCode: string }> {
   const maxNodes = getMaxNodes(diagramSize);
   const systemPrompt = buildSystemPrompt(maxNodes);
 
@@ -267,75 +265,9 @@ Output must conform to this JSON schema:
     }
   }
 
-  if (!parsed) {
-    logger.error('[ArchitecturePlanner] Failed to parse JSON response:', resultStr);
+  if (!parsed || !parsed.mermaidCode) {
+    logger.error('[ArchitecturePlanner] Failed to parse JSON response or missing mermaidCode:', resultStr);
     throw new Error('Architecture planner: failed to parse JSON response');
-  }
-
-  // Validate and clean
-  const nodes = (parsed.nodes || []).filter((n: unknown) => typeof n === 'string' && n.trim().length > 0);
-  const groups = (parsed.groups || []).filter((g: unknown) => typeof g === 'string' && g.trim().length > 0);
-  const nodeGroups = parsed.nodeGroups || {};
-  const rawEdges = (parsed.edges || []).filter((e: unknown) => e && typeof e === 'object' && (e as any).from && (e as any).to);
-
-  // Cap node count
-  const cappedNodes = nodes.slice(0, maxNodes);
-  const nodeSet = new Set(cappedNodes);
-
-  // Build group assignments using name-based inference for any unmapped nodes
-  const groupAssignments = buildGroupAssignments(cappedNodes, groups, nodeGroups);
-
-  // Filter edges to only valid nodes and reject empty labels
-  const validEdges = rawEdges
-    .filter((e: any) => nodeSet.has(e.from) && nodeSet.has(e.to) && e.from !== e.to)
-    .map((e: any) => ({ from: e.from, to: e.to, label: (e.label || '').trim(), bidirectional: false }))
-    .filter((e) => e.label.length > 0);
-
-  // Remove orphaned nodes (nodes with no edges after truncation)
-  const connectedNodes = new Set<string>();
-  for (const e of validEdges) {
-    connectedNodes.add(e.from);
-    connectedNodes.add(e.to);
-  }
-  const finalNodes = cappedNodes.filter(n => connectedNodes.has(n));
-
-  // Rebuild group assignments for surviving nodes
-  const finalAssignments: Record<string, string> = {};
-  for (const node of finalNodes) {
-    finalAssignments[node] = groupAssignments[node] || inferGroup(node);
-  }
-
-  // Ensure used group list matches actual assignments
-  const usedGroupNames = new Set(Object.values(finalAssignments));
-  const finalGroups = groups.filter(g => usedGroupNames.has(g));
-
-  // If no groups are declared, create from inferred values
-  if (finalGroups.length === 0 && finalNodes.length > 0) {
-    for (const g of usedGroupNames) {
-      finalGroups.push(g);
-    }
-  }
-
-  // Ensure min 2 groups if > 4 nodes (using semantic grouping, not position-based)
-  if (finalNodes.length > 4 && usedGroupNames.size < 2) {
-    // Split by node kind semantics instead of array position
-    const services = finalNodes.filter(n => classifyNode(n) === 'service');
-    const nonServices = finalNodes.filter(n => classifyNode(n) !== 'service');
-    if (services.length > 0 && nonServices.length > 0) {
-      for (const n of nonServices) finalAssignments[n] = inferGroup(n);
-      for (const n of services) finalAssignments[n] = inferGroup(n);
-      // Ensure we reuse existing group name if possible, or add new one
-      const newGroups = new Set(Object.values(finalAssignments));
-      for (const g of newGroups) {
-        if (!finalGroups.includes(g)) finalGroups.push(g);
-      }
-    }
-  }
-
-  // ── Programmatic topology validation (warnings only, no throws) ──
-  const warnings = validateTopology(finalNodes, validEdges, finalAssignments);
-  for (const w of warnings) {
-    logger.warn('[ArchitecturePlanner] Topology warning:', w.message);
   }
 
   // Build configs
@@ -364,25 +296,10 @@ Output must conform to this JSON schema:
     },
   };
 
-  const inventoryConfig: InventoryConfig = {
-    nodes: finalNodes,
-    groups: finalGroups,
-    nodeCount: finalNodes.length,
-  };
-
-  const edgeConfig: EdgeConfig = {
-    edges: validEdges,
-    edgeCount: validEdges.length,
-  };
-
   logger.log('[ArchitecturePlanner] Complete plan:', {
     diagramType: formatConfig.diagramType,
     theme: styleConfig.theme,
-    nodeCount: inventoryConfig.nodeCount,
-    edgeCount: edgeConfig.edges.length,
-    groups: finalGroups.length,
-    warnings: warnings.length,
   });
 
-  return { formatConfig, styleConfig, inventoryConfig, edgeConfig, groupAssignments: finalAssignments };
+  return { formatConfig, styleConfig, mermaidCode: parsed.mermaidCode };
 }
