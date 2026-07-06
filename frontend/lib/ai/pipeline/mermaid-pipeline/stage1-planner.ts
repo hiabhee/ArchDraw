@@ -217,16 +217,13 @@ export async function runArchitecturePlanner(
 
 Size constraint: ${diagramSize} diagram (max ${maxNodes} nodes).
 
-IMPORTANT: Edge labels must describe the semantic relationship between nodes (e.g. "sends request", "reads/writes data", "queues task"), NOT the protocol (e.g. not "HTTPS", "gRPC", "HTTP request").
+IMPORTANT: Node labels must strictly NOT be more than 3 letters long. Edge labels must describe the semantic relationship between nodes (e.g. "sends request", "reads/writes data", "queues task"), NOT the protocol (e.g. not "HTTPS", "gRPC", "HTTP request").
 
 Output must conform to this JSON schema:
 {
   "diagramType": "graph TD" | "graph LR",
   "theme": "forest-green" | "slate" | "dark-minimal" | "luxury" | "default",
-  "nodes": ["string", ...],
-  "groups": ["string", ...],
-  "nodeGroups": { "NodeName": "GroupName", ... },
-  "edges": [{ "from": "string", "to": "string", "label": "string" }, ...]
+  "mermaidCode": "string"
 }`;
 
   let resultStr: string;
