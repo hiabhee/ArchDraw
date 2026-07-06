@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import '@/components/nodes/nodeStyles.css';
@@ -9,7 +9,7 @@ import {
   ArrowRight, Menu, X, Check, ArrowRightLeft, RefreshCw, Clock, 
   Paintbrush, Layers, MousePointer, ShieldCheck, Mail, Database, 
   Server, Zap, Globe, MessageSquare, BookOpen, User, Sparkles, 
-  ChevronDown, CheckCircle2, Send, Lock
+  ChevronDown, CheckCircle2, Send, Lock, Share2, Activity
 } from 'lucide-react';
 
 const outfit = Outfit({ 
@@ -34,14 +34,6 @@ const NAV_LINKS = [
 const TECH_LOGOS = [
   'AWS', 'GCP', 'Kubernetes', 'Node.js', 'PostgreSQL',
   'Redis', 'RabbitMQ', 'React', 'Docker', 'TypeScript',
-];
-
-const AGENT_STEPS = [
-  'Parsing Mermaid syntax...',
-  'Generating 12 nodes...',
-  'Detecting edge connections...',
-  'Applying Dagre auto-layout...',
-  'Rendering React Flow canvas...',
 ];
 
 const FEATURES_GRID = [
@@ -80,6 +72,16 @@ const FEATURES_GRID = [
     desc: 'PNG, SVG, or a live shareable link. Dark theme, clean layout, presentation-ready by default.',
     icon: <Globe className="w-5 h-5 text-accent" />
   },
+  {
+    title: 'Collaborative Syncing',
+    desc: 'Instantly generate and share live, read/write links with teammates. Sync canvas changes in real-time across tabs.',
+    icon: <Share2 className="w-5 h-5 text-accent" />
+  },
+  {
+    title: 'Keyboard Shortcuts',
+    desc: 'Navigate the canvas, connect nodes, delete items, and trigger layouts entirely via keyboard shortcuts.',
+    icon: <Activity className="w-5 h-5 text-accent" />
+  }
 ];
 
 function CodeIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -474,199 +476,112 @@ function ProblemSection() {
 }
 
 function HowItWorksSection() {
-  const [activeStep, setActiveStep] = useState(0);
-  const autoRotateRef = useRef<boolean>(true);
-
-  const steps = [
+  const cards = [
     {
       number: '01',
       title: 'Describe',
-      subtitle: 'Type your system or paste Mermaid',
-      desc: 'Type your architecture in plain English, upload code structures, or paste standard Mermaid code directly into the workspace.'
+      desc: 'Type your architecture in plain English, upload code structures, or paste standard Mermaid code directly into the workspace.',
     },
     {
       number: '02',
       title: 'Generate',
-      subtitle: 'ArchDraw builds & layouts nodes',
-      desc: "Our multi-stage AI pipeline parses your intent, extracts core database dependencies, models edge flows, and layouts nodes with Dagre automatically."
+      desc: 'ArchDraw builds & layouts nodes',
     },
     {
       number: '03',
       title: 'Export',
-      subtitle: 'Download PNG, SVG or share live link',
-      desc: 'Get highly interactive, presentation-ready diagrams instantly. Export in vector SVG/PNG format or share private live edit links with teammates.'
-    }
+      desc: 'Download PNG, SVG or share live link',
+    },
   ];
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (autoRotateRef.current) {
-        setActiveStep((prev) => (prev + 1) % steps.length);
-      }
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleStepClick = (index: number) => {
-    autoRotateRef.current = false;
-    setActiveStep(index);
-  };
-
   return (
-    <section id="how-it-works" className="py-24 px-6 border-t border-[#e4e4df] bg-[#f7f7f5] relative">
+    <section id="how-it-works" className="py-24 px-6 border-t border-[#e4e4df] dark:border-[#202327] bg-[#f7f7f5] dark:bg-[#090b0d] relative">
       <div className="max-w-[1280px] mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className={`text-[13px] font-bold tracking-[1.5px] uppercase text-[#8a8f98] block mb-3 ${outfit.className}`}>Workflow</span>
           <h2
-            className={`text-[#1c1c1a] font-bold leading-[1.10] tracking-tight ${outfit.className}`}
+            className={`text-[#1c1c1a] dark:text-[#f7f8f8] font-bold leading-[1.10] tracking-tight ${outfit.className}`}
             style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}
           >
             From description to diagram in 3 steps
           </h2>
         </div>
 
-        <div className="grid lg:grid-cols-5 gap-12 items-center">
-          <div className="lg:col-span-2 flex flex-col gap-4">
-            {steps.map((step, index) => {
-              const isActive = activeStep === index;
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleStepClick(index)}
-                  className={`text-left p-6 rounded-xl border transition-all duration-200 cursor-pointer ${
-                    isActive 
-                      ? 'bg-white border-accent shadow-[0_4px_20px_rgba(94,106,210,0.05)]' 
-                      : 'bg-transparent border-transparent hover:bg-white/40 hover:border-[#e4e4df]'
-                  }`}
-                >
-                  <div className="flex gap-4 items-start">
-                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
-                      isActive ? 'bg-accent text-white' : 'bg-[#f1f1eb] text-[#575752]'
-                    }`}>
-                      {step.number}
-                    </span>
-                    <div>
-                      <h3 className={`text-lg font-bold text-[#1c1c1a] mb-1 ${outfit.className}`}>{step.title}</h3>
-                      <h4 className={`text-xs text-[#575752] font-semibold mb-2`}>{step.subtitle}</h4>
-                      {isActive && (
-                        <p className="text-sm text-[#575752] leading-relaxed mt-2 animate-fade-in">
-                          {step.desc}
-                        </p>
-                      )}
+        <div className="flex flex-col md:flex-row items-stretch justify-center gap-6 md:gap-0">
+          {cards.map((card, i) => {
+            const rotations = ['md:rotate-[-3deg]', 'md:rotate-0', 'md:rotate-[3deg]'];
+            const isCenter = i === 1;
+
+            return (
+              <div
+                key={i}
+                className={`
+                  group relative w-full md:w-[380px]
+                  bg-white dark:bg-[#1e2235]
+                  border border-[#e4e4df] dark:border-[#202327]
+                  rounded-xl p-6
+                  flex flex-col
+                  transition-all duration-300 ease-out
+                  ${rotations[i]}
+                  ${isCenter ? 'md:relative md:z-10 md:shadow-xl' : 'shadow-sm'}
+                  ${i < 2 ? 'md:-mr-16' : ''}
+                  hover:!rotate-0 hover:-translate-y-2
+                  ${isCenter ? 'hover:z-20' : 'hover:z-10'}
+                `}
+              >
+                {/* Step number badge with spark icon */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs font-bold font-mono text-[#575752] dark:text-[#d0d6e0] tracking-wide">
+                    {card.number}
+                  </span>
+                  <Sparkles size={12} className="text-accent" />
+                </div>
+
+                {/* Step title */}
+                <h3 className={`text-xl font-bold text-[#1c1c1a] dark:text-[#f7f8f8] mb-2 ${outfit.className}`}>
+                  {card.title}
+                </h3>
+
+                {/* Step description */}
+                <p className="text-sm text-[#575752] dark:text-[#d0d6e0] leading-relaxed mb-4">
+                  {card.desc}
+                </p>
+
+                {/* --- Visual preview areas --- */}
+
+                {/* Card 1: Describe — mock text input snippet */}
+                {i === 0 && (
+                  <div className="mt-auto bg-[#f1f1eb] dark:bg-[#141516] rounded-lg p-3">
+                    <div className="font-mono text-xs text-[#575752] dark:text-[#d0d6e0]">
+                      Client <span className="text-[#8a8f98] dark:text-[#62666d]">→</span> Gateway <span className="text-[#8a8f98] dark:text-[#62666d]">→</span> Postgres DB
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                )}
 
-          <div className="lg:col-span-3 bg-white border border-[#e4e4df] rounded-xl overflow-hidden shadow-md min-h-[380px] flex flex-col">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e4e4df] bg-[#f1f1eb]/50">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#eb534b]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#d4a04a]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#27a644]" />
-                <span className="ml-2 text-[11px] text-[#575752] font-mono">console // step_{activeStep + 1}_preview</span>
+                {/* Card 2: Generate — miniature mock diagram */}
+                {i === 1 && (
+                  <div className="mt-auto bg-[#f1f1eb] dark:bg-[#141516] rounded-lg p-3 flex items-center justify-center">
+                    <svg width="120" height="28" viewBox="0 0 120 28" fill="none" className="text-[#8a8f98] dark:text-[#62666d]">
+                      <rect x="0" y="6" width="24" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="24" y1="14" x2="34" y2="14" stroke="currentColor" strokeWidth="1" />
+                      <polygon points="44,0 56,14 44,28 32,14" stroke="#1E90FF" strokeWidth="1.5" fill="rgba(30,144,255,0.1)" />
+                      <line x1="56" y1="14" x2="66" y2="14" stroke="currentColor" strokeWidth="1" />
+                      <rect x="66" y="2" width="38" height="24" rx="12" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Card 3: Export — mock export chips */}
+                {i === 2 && (
+                  <div className="mt-auto bg-[#f1f1eb] dark:bg-[#141516] rounded-lg p-3 flex items-center justify-center gap-2 flex-wrap">
+                    <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-accent text-white">PNG</span>
+                    <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-[#e4e4df] dark:bg-[#23252a] text-[#575752] dark:text-[#d0d6e0]">SVG</span>
+                    <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-[#e4e4df] dark:bg-[#23252a] text-[#575752] dark:text-[#d0d6e0]">Share Link</span>
+                  </div>
+                )}
               </div>
-              <span className="text-[10px] font-mono text-accent">
-                {activeStep === 0 ? 'INPUT' : activeStep === 1 ? 'AI PIPELINE' : 'READY TO SHARE'}
-              </span>
-            </div>
-
-            <div className="flex-1 p-6 flex flex-col justify-center bg-[#f9f9f7] relative min-h-[320px]">
-              {activeStep === 0 && (
-                <div className="w-full max-w-md mx-auto space-y-4 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="text-[11px] font-mono text-[#575752]">Enter system architecture context:</div>
-                  <div className="bg-white border border-[#e4e4df] rounded-lg p-4 font-mono text-xs text-[#1c1c1a] leading-relaxed relative min-h-[120px] shadow-sm">
-                    <span className="text-accent mr-1">Input:</span> 
-                    I want to draw a microservice backend. A client sends events to a Gateway, which forwards valid payloads to a RabbitMQ Broker. An Event Consumer parses it and saves outputs into a PostgreSQL database, while caching lookups in Redis.
-                    <span className="w-2 h-4 bg-accent inline-block animate-pulse absolute bottom-4 right-4" />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-[#8a8f98] font-mono">
-                    <span>Characters: 247</span>
-                    <span className="text-[#27a644] flex items-center gap-1">
-                      <Check size="10" /> Valid Text Context
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {activeStep === 1 && (
-                <div className="w-full max-w-lg mx-auto space-y-4 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="flex flex-col gap-4">
-                    <div className="rounded-lg bg-white border border-[#e4e4df] p-4 shadow-sm">
-                      <div className="grid grid-cols-5 gap-2 items-center justify-center">
-                        <div className="border border-[#e4e4df] bg-white p-2 rounded text-center col-span-1 shadow-sm">
-                          <span className="text-[10px] font-bold text-[#1c1c1a] block">Client</span>
-                        </div>
-                        <div className="text-center font-mono text-[#8a8f98] text-xs font-semibold">→</div>
-                        <div className="border border-accent/70 bg-white p-2 rounded text-center col-span-1 shadow-[0_0_10px_rgba(30,144,255,0.08)]">
-                          <span className="text-[10px] font-bold text-[#1c1c1a] block">Gateway</span>
-                        </div>
-                        <div className="text-center font-mono text-[#8a8f98] text-xs font-semibold">→</div>
-                        <div className="border border-[#ec4899]/70 bg-white p-2 rounded text-center col-span-1 shadow-[0_0_10px_rgba(236,72,153,0.08)]">
-                          <span className="text-[10px] font-bold text-[#1c1c1a] block">RabbitMQ</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-center my-3 text-[#575752] text-[10px] font-mono select-none">
-                        ↓ (Processes asynchronously)
-                      </div>
-
-                      <div className="grid grid-cols-5 gap-2 items-center justify-center">
-                        <div className="col-span-1" />
-                        <div className="col-span-1" />
-                        <div className="border border-[#8b5cf6]/70 bg-white p-2 rounded text-center col-span-1 shadow-sm">
-                          <span className="text-[10px] font-bold text-[#1c1c1a] block">Consumer</span>
-                        </div>
-                        <div className="text-center font-mono text-[#8a8f98] text-xs font-semibold">⇌</div>
-                        <div className="grid grid-rows-2 gap-1.5 col-span-1">
-                          <div className="border border-[#10b981]/50 bg-white p-1 rounded text-center shadow-sm">
-                            <span className="text-[9px] text-[#1c1c1a]">PostgreSQL</span>
-                          </div>
-                          <div className="border border-[#f59e0b]/50 bg-white p-1 rounded text-center shadow-sm">
-                            <span className="text-[9px] text-[#1c1c1a]">Redis Cache</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-[#f1f1eb] border border-[#e4e4df] rounded px-3 py-2 flex items-center justify-between">
-                      <span className="text-[10px] text-[#575752] font-mono">Dagre engine layouts generated: 5 nodes, 5 edges</span>
-                      <span className="text-[10px] text-[#27a644] font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#27a644] animate-ping" />
-                        Generating Layout
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeStep === 2 && (
-                <div className="w-full max-w-sm mx-auto space-y-5 text-center animate-in fade-in zoom-in-95 duration-200">
-                  <div className="w-12 h-12 rounded-full bg-[#27a644]/10 border border-[#27a644]/30 flex items-center justify-center mx-auto mb-2 text-[#27a644]">
-                    <Check size="24" className="animate-bounce" />
-                  </div>
-                  <div>
-                    <h3 className={`text-base font-bold text-[#1c1c1a] ${outfit.className}`}>Diagram successfully built</h3>
-                    <p className="text-xs text-[#575752] mt-1">Ready for document inserts, review slides, or README files</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#1c1c1a] bg-white border border-[#e4e4df] hover:bg-slate-50 p-2.5 rounded-lg cursor-pointer">
-                      Export SVG
-                    </button>
-                    <button className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#1c1c1a] bg-white border border-[#e4e4df] hover:bg-slate-50 p-2.5 rounded-lg cursor-pointer">
-                      Export PNG
-                    </button>
-                    <button className="col-span-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-accent hover:bg-accent-hover p-2.5 rounded-lg cursor-pointer shadow-md">
-                      Copy Live Shareable Link
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
     </section>
