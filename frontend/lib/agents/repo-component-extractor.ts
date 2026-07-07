@@ -30,13 +30,18 @@ function looksLikeEchoedSource(result: string): boolean {
 export async function extractComponents(
   snapshot: RepoSnapshot,
   repoProfile?: RepoProfile,
-  dependencyMap?: DependencyMap
+  dependencyMap?: DependencyMap,
+  summaries?: string[]
 ): Promise<ExtractedNode[]> {
   const fileTreeText = snapshot.fileTree.slice(0, 200).join('\n');
   const sourceFilesBlock = formatSourceFilesForPrompt(snapshot.selectedFiles);
 
   const profileText = repoProfile ? JSON.stringify(repoProfile, null, 2) : '';
   const depMapText = dependencyMap ? JSON.stringify(dependencyMap, null, 2) : '';
+
+  const contextBlock = summaries && summaries.length > 0
+    ? `SUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}`
+    : `SOURCE FILES (reference only — do not copy into your answer):\n${sourceFilesBlock}`;
 
   const userPrompt = `Analyze this repository and list architectural components as JSON.
 
@@ -47,8 +52,7 @@ REPO META:
 ${JSON.stringify(snapshot.repoMeta)}
 
 ${repoProfile ? `REPO PROFILE:\n${profileText}\n` : ''}${dependencyMap ? `DEPENDENCY MAP:\n${depMapText}\n` : ''}
-SOURCE FILES (reference only — do not copy into your answer):
-${sourceFilesBlock}
+${contextBlock}
 
 ${JSON_OUTPUT_REMINDER}
 Required shape: { "nodes": [ { "id", "label", "type", "description", "sourceFiles", "confidence" } ] }`;
@@ -73,7 +77,7 @@ Rules: max 20 nodes, snake_case ids, only components evidenced in the snapshot, 
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 6000,
       })
     );
 

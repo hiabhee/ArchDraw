@@ -17,6 +17,7 @@ import { runArchitecturePlanner } from './stage1-planner';
 import { runMermaidPipeline as parseMermaidToReactFlow } from '@/lib/mermaid/pipeline';
 import { scoreDiagram } from '../stage8-score';
 import { classifyNode } from '@/lib/mermaid/planTranslator';
+import { detectImplicitConceptPrompt, getConceptTemplatePlan } from './conceptTemplates';
 
 function validateReasoningField(reasoning?: string, nodesCount?: number): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -192,15 +193,22 @@ export async function runMermaidPipeline(
 
   // A1.5: Downstream guard check
   const promptLower = prompt.toLowerCase();
+  const implicitConcept = detectImplicitConceptPrompt(prompt);
 
   // STAGE 1: Planner — single LLM call to plan diagram in Mermaid syntax
-  let plan = await runArchitecturePlanner(prompt, diagramSize, userIntent.model);
+  let plan = implicitConcept
+    ? getConceptTemplatePlan(implicitConcept)
+    : await runArchitecturePlanner(prompt, diagramSize, userIntent.model);
   let { formatConfig, styleConfig, mermaidCode, reasoning } = plan;
 
   // Layout override
   const isVerticalRequested = promptLower.includes('vertical') || promptLower.includes('vertically') || promptLower.includes('top-to-bottom') || promptLower.includes('top to bottom') || promptLower.includes('graph td') || promptLower.includes('graph tb') || promptLower.includes('vertical layout');
 
-  if (isVerticalRequested) {
+  if (implicitConcept) {
+    logger.info(`[ConceptTemplate] Using implicit concept compiler: ${implicitConcept.subject} (${implicitConcept.domain})`);
+    formatConfig.diagramType = 'graph TD';
+    mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
+  } else if (isVerticalRequested) {
     logger.info('[DownstreamGuard] Override: vertical layout requested. Forcing graph TD.');
     formatConfig.diagramType = 'graph TD';
     mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');

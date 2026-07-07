@@ -77,6 +77,7 @@ class ApiKeyManager {
       'GROQ_API_KEY_FOR_DESC_7',
       'GROQ_API_KEY_FOR_DESC_8',
       'GROQ_API_KEY_FOR_DESC_9',
+      'GROQ_API_KEY_FOR_DESC_10',
     ];
 
     for (const envVar of groqKeyEnvVars) {
@@ -348,17 +349,16 @@ class ApiKeyManager {
     operation: (groq: Groq) => Promise<T>,
     options?: { maxRetries?: number; provider?: AIProvider }
   ): Promise<T> {
-    const maxRetries = options?.maxRetries ?? 2;
+    const maxRetries = options?.maxRetries ?? 1;
     
     // Count one logical call per executeWithRetry entry (pipeline depth)
     const store = requestContext.getStore();
     if (store) store.logicalCalls++;
     
-    // Strategy: 1. Try Groq keys (9→1) first, 2. Fallback to OpenRouter
+    // Strategy: 1. Try Groq keys (10→1), 2. Early fallback to OpenRouter after 2 rate-limited keys
     
-    // Step 1: Try Groq keys in reverse order (9, 8, 7, ..., 1)
-    // groqKeys is already loaded in order 1-9, so we iterate backwards
     let lastError: Error | null = null;
+    let rateLimitedCount = 0;
     
     for (let keyIndex = this.groqKeys.length - 1; keyIndex >= 0; keyIndex--) {
       const keyState = this.groqKeys[keyIndex];
@@ -398,13 +398,26 @@ class ApiKeyManager {
             break;
           }
           
-          // Rate limit - mark and try next key
+          // Rate limit — back off then try next key
           if (err.status === 429 || (err.message || '').includes('rate limit')) {
             keyState.consecutiveErrors++;
             if (keyState.consecutiveErrors >= 2) {
               keyState.isRateLimited = true;
             }
-            const delay = this.baseDelay * Math.pow(2, Math.min(attempt, 3));
+            rateLimitedCount++;
+            // Fast OpenRouter fallback after 2 rate-limited Groq keys
+            if (rateLimitedCount >= 2 && this.openrouterKeys.length > 0) {
+              logger.log('[ApiKeyManager] 2 Groq keys rate limited, trying OpenRouter early...');
+              try {
+                return await this.executeWithOpenRouter(
+                  (client: OpenRouterClient) => operation(client as any as Groq),
+                  { maxRetries: 1 }
+                );
+              } catch (openrouterError) {
+                logger.log(`[ApiKeyManager] Early OpenRouter also failed: ${(openrouterError as Error).message}`);
+              }
+            }
+            const delay = 3000; // 3s fixed delay per key
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} rate limited (${delay/1000}s delay)...`);
             await this.delay(delay);
           } else if (err.status && err.status >= 500) {

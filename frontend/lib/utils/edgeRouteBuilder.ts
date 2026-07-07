@@ -1,18 +1,110 @@
-import { Edge, Node, Position } from 'reactflow';
-import { getObstacleAwareHandles } from '../features/dynamicHandles';
-import { getEdgeShiftOffset, getSimpleHandlePosition } from './simpleFloatingEdge';
-import { getCollisionFreeWaypoints, segmentIntersectsRect, buildSmoothStepSvg, getCollisionFreeSmoothStepPath } from './collisionFreeEdgePath';
-import type { NodeRect } from './collisionFreeEdgePath';
-import { useDiagramStore } from '@/store/diagramStore';
-import type { EdgeData } from '@/data/edgeTypes';
+import { Edge, Node, Position } from 'reactflow'
+import { planPath, type ObstacleRect } from '../features/pathPlanner'
+import { getObstacleAwareHandles } from '../features/dynamicHandles'
+import { getEdgeShiftOffset, getSimpleHandlePosition } from './simpleFloatingEdge'
+import { buildSmoothStepSvg, getCollisionFreeWaypoints, getCollisionFreeSmoothStepPath, segmentIntersectsRect } from './collisionFreeEdgePath'
+import { useDiagramStore } from '@/store/diagramStore'
 
 export interface EdgeRouteResult {
-  sourcePosition: Position;
-  targetPosition: Position;
-  sourcePoint: { x: number; y: number };
-  targetPoint: { x: number; y: number };
-  waypoints: Array<{ x: number; y: number }>;
-  svgPath: string;
+  sourcePosition: Position
+  targetPosition: Position
+  sourcePoint: { x: number; y: number }
+  targetPoint: { x: number; y: number }
+  waypoints: Array<{ x: number; y: number }>
+  svgPath: string
+}
+
+function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
+  let x = node.position?.x ?? 0
+  let y = node.position?.y ?? 0
+  let current = node
+  const visited = new Set<string>([node.id])
+  while (current.parentId || (current as any).parentNode) {
+    const pId = current.parentId || (current as any).parentNode
+    if (!pId || visited.has(pId)) break
+    visited.add(pId)
+    const parent = nodes.find(n => n.id === pId)
+    if (!parent || !parent.position) break
+    x += parent.position.x
+    y += parent.position.y
+    current = parent
+  }
+  return { x, y }
+}
+
+function getNodeRect(node: Node, nodes: Node[]): ObstacleRect {
+  const pos = getAbsolutePosition(node, nodes)
+  const w = node.width ?? (node as any).measured?.width ?? (node.data as any)?.nodeWidth ?? 160
+  const h = node.height ?? (node as any).measured?.height ?? (node.data as any)?.nodeHeight ?? 80
+  return { x: pos.x, y: pos.y, w, h }
+}
+
+function isGroupNode(node: Node): boolean {
+  return (
+    node.type === 'groupNode' ||
+    node.type === 'frameNode' ||
+    node.type === 'group' ||
+    node.type === 'demoGroup' ||
+    (node.data as any)?.isGroup === true
+  )
+}
+
+function sideToPosition(side: string | undefined): Position | undefined {
+  if (side === 'left') return Position.Left
+  if (side === 'right') return Position.Right
+  if (side === 'top') return Position.Top
+  if (side === 'bottom') return Position.Bottom
+  return undefined
+}
+
+function collectExistingEdgePaths(edges: Edge[], currentEdgeId: string): Array<{ x: number; y: number }[]> {
+  const paths: Array<{ x: number; y: number }[]> = []
+  for (const e of edges) {
+    if (e.id === currentEdgeId) continue
+    const d = e.data as Record<string, unknown> | undefined
+    const pts = d?.__cachedWaypoints as Array<{ x: number; y: number }> | undefined
+    if (pts && pts.length >= 2) {
+      paths.push(pts)
+    }
+  }
+  return paths
+}
+
+function buildBlockingNodeRects(
+  nodes: Node[],
+  excludedIds: Set<string>
+): Map<string, { id: string; x: number; y: number; w: number; h: number }> {
+  const nodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>()
+  for (const node of nodes) {
+    if (excludedIds.has(node.id)) continue
+    if (isGroupNode(node)) continue
+    const rect = getNodeRect(node, nodes)
+    nodeRects.set(node.id, { id: node.id, ...rect })
+  }
+  return nodeRects
+}
+
+function pathCollidesWithRects(
+  waypoints: Array<{ x: number; y: number }>,
+  nodeRects: Map<string, { id: string; x: number; y: number; w: number; h: number }>
+): boolean {
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    for (const [, rect] of nodeRects) {
+      if (segmentIntersectsRect(
+        waypoints[i].x,
+        waypoints[i].y,
+        waypoints[i + 1].x,
+        waypoints[i + 1].y,
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h
+      )) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 export function computeEdgeRoute(
@@ -20,8 +112,8 @@ export function computeEdgeRoute(
   nodes: Node[],
   edges: Edge[]
 ): EdgeRouteResult {
-  const sourceNode = nodes.find(n => n.id === edge.source);
-  const targetNode = nodes.find(n => n.id === edge.target);
+  const sourceNode = nodes.find(n => n.id === edge.source)
+  const targetNode = nodes.find(n => n.id === edge.target)
 
   const defaultResult = {
     sourcePosition: Position.Right,
@@ -30,233 +122,220 @@ export function computeEdgeRoute(
     targetPoint: { x: 0, y: 0 },
     waypoints: [],
     svgPath: '',
-  };
-
-  if (!sourceNode || !targetNode) {
-    return defaultResult;
   }
 
-  // 1. Get absolute positions (respecting parents)
-  const getAbsolutePosition = (node: Node) => {
-    let x = node.position?.x ?? 0;
-    let y = node.position?.y ?? 0;
-    let current = node;
-    const visited = new Set<string>([node.id]);
-    while (current.parentId || (current as any).parentNode) {
-      const pId = current.parentId || (current as any).parentNode;
-      if (!pId || visited.has(pId)) break;
-      visited.add(pId);
-      const parent = nodes.find(n => n.id === pId);
-      if (!parent || !parent.position) break;
-      x += parent.position.x;
-      y += parent.position.y;
-      current = parent;
-    }
-    return { x, y };
-  };
-
-  const sPos = getAbsolutePosition(sourceNode);
-  const tPos = getAbsolutePosition(targetNode);
-
-  // 2. Node sizes
-  const sWidth = sourceNode.width ?? (sourceNode as any).measured?.width ?? (sourceNode.data as any)?.nodeWidth ?? 160;
-  const sHeight = sourceNode.height ?? (sourceNode as any).measured?.height ?? (sourceNode.data as any)?.nodeHeight ?? 80;
-  const tWidth = targetNode.width ?? (targetNode as any).measured?.width ?? (targetNode.data as any)?.nodeWidth ?? 160;
-  const tHeight = targetNode.height ?? (targetNode as any).measured?.height ?? (targetNode.data as any)?.nodeHeight ?? 80;
-
-  const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
-  const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
-
-  // 3. Build intermediate nodes map for obstacle routing (excluding parent containers)
-  const nodeInternals = new Map(nodes.map(n => [n.id, n]));
-  const excludedIds = new Set([edge.source, edge.target]);
-  const nodeRects = new Map<string, NodeRect>();
-
-  for (const [nid, node] of nodeInternals) {
-    if (excludedIds.has(nid)) continue;
-    const isGroup =
-      node.type === 'groupNode' ||
-      node.type === 'frameNode' ||
-      node.type === 'group' ||
-      node.type === 'demoGroup' ||
-      (node.data as any)?.isGroup === true;
-    if (isGroup) continue;
-
-    const pos = getAbsolutePosition(node);
-    const w = node.width ?? (node as any).measured?.width ?? (node.data as any)?.nodeWidth ?? 200;
-    const h = node.height ?? (node as any).measured?.height ?? (node.data as any)?.nodeHeight ?? 80;
-    nodeRects.set(nid, { id: nid, x: pos.x, y: pos.y, w, h });
-  }
-
-  const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined;
-
-  // 4. Resolve handle positions (sides) — geometry first, semantics second
-  const edgeData = edge.data as Record<string, unknown> | undefined;
-  let sourcePosition: Position;
-  let targetPosition: Position;
-
-  const laneSourceSide = edgeData?.laneSourceSide as string | undefined;
-  const laneTargetSide = edgeData?.laneTargetSide as string | undefined;
-
-  // Compute normal handles first, then override with lane assignments if present.
-  // This ensures that when only one endpoint is a lane node, the other side
-  // still uses a geometrically sensible handle rather than defaulting to Bottom.
-  const sHandle = edge.sourceHandle;
-  const tHandle = edge.targetHandle;
-  const hasStoredHandles = sHandle && tHandle && sHandle.startsWith('source-') && tHandle.startsWith('target-');
+  if (!sourceNode || !targetNode) return defaultResult
 
   if (edge.source === edge.target) {
-    sourcePosition = Position.Top;
-    targetPosition = Position.Right;
-  } else if (hasStoredHandles) {
-    const sSide = sHandle.split('-')[1];
-    const tSide = tHandle.split('-')[1];
-    sourcePosition = sSide === 'left' ? Position.Left : sSide === 'right' ? Position.Right : sSide === 'top' ? Position.Top : Position.Bottom;
-    targetPosition = tSide === 'left' ? Position.Left : tSide === 'right' ? Position.Right : tSide === 'top' ? Position.Top : Position.Bottom;
-  } else {
-    const activePreset = useDiagramStore.getState().activeLayoutPresetId;
-    const direction = activePreset === 'layered-tb' ? 'TD' : 'LR';
+    const sRect = getNodeRect(sourceNode, nodes)
+    const cx = sRect.x + sRect.w / 2
+    const top = sRect.y
+    const right = sRect.x + sRect.w
+    const r = 40
+    return {
+      sourcePosition: Position.Top,
+      targetPosition: Position.Right,
+      sourcePoint: { x: cx, y: top },
+      targetPoint: { x: right, y: cx },
+      waypoints: [
+        { x: cx, y: top },
+        { x: cx + r, y: top - r },
+        { x: right + r, y: cx - r },
+        { x: right, y: cx },
+      ],
+      svgPath: `M ${cx},${top} C ${cx},${top - r} ${right + r},${cx - r} ${right},${cx}`,
+    }
+  }
+
+  const sourceRect = getNodeRect(sourceNode, nodes)
+  const targetRect = getNodeRect(targetNode, nodes)
+
+  // Lane edges: use dynamic handle selection (cheaper than planPath) without frozen overrides
+  const edgeData = edge.data as Record<string, unknown> | undefined
+  const laneSourceSide = sideToPosition(edgeData?.laneSourceSide as string)
+  const laneTargetSide = sideToPosition(edgeData?.laneTargetSide as string)
+
+  if (laneSourceSide || laneTargetSide) {
+    const activePreset = useDiagramStore.getState().activeLayoutPresetId
+    const direction = activePreset === 'layered-tb' ? 'TD' : 'LR'
 
     const handles = getObstacleAwareHandles(
-      sourceRect,
-      targetRect,
-      nodeRectParam,
-      excludedIds,
-      edge.id,
-      edge.source,
-      edge.target,
-      edge.data,
-      sourceNode.data?.serviceType,
-      targetNode.data?.serviceType,
-      direction
-    );
-    sourcePosition = handles.sourcePosition;
-    targetPosition = handles.targetPosition;
-  }
+      { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h },
+      { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h },
+      undefined, undefined,
+      edge.id, edge.source, edge.target, edge.data,
+      sourceNode.data?.serviceType, targetNode.data?.serviceType, direction,
+    )
 
-  // Override with lane assignments where present (only the lane node's side is
-  // overridden; the other side keeps the geometrically computed handle).
-  if (laneSourceSide) {
-    sourcePosition = laneSourceSide === 'left' ? Position.Left : laneSourceSide === 'right' ? Position.Right : laneSourceSide === 'top' ? Position.Top : Position.Bottom;
-  }
-  if (laneTargetSide) {
-    targetPosition = laneTargetSide === 'left' ? Position.Left : laneTargetSide === 'right' ? Position.Right : laneTargetSide === 'top' ? Position.Top : Position.Bottom;
-  }
+    const sourcePosition = handles.sourcePosition
+    const targetPosition = handles.targetPosition
 
-  // 5. Shift offsets for parallel routing
-  const sourceShift = getEdgeShiftOffset(edge.source, edge.id, sourcePosition, edges, nodeInternals, 12, nodeRectParam, excludedIds);
-  const targetShift = getEdgeShiftOffset(edge.target, edge.id, targetPosition, edges, nodeInternals, 12, nodeRectParam, excludedIds);
+    const sourceShift = getEdgeShiftOffset(edge.source, edge.id, sourcePosition, edges, new Map(nodes.map(n => [n.id, n])), 12, undefined, undefined)
+    const targetShift = getEdgeShiftOffset(edge.target, edge.id, targetPosition, edges, new Map(nodes.map(n => [n.id, n])), 12, undefined, undefined)
+    const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, sourcePosition, sourceShift)
+    const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, targetPosition, targetShift)
 
-  const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height, sourcePosition, sourceShift);
-  const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.width, targetRect.height, targetPosition, targetShift);
+    const excludedIds = new Set([edge.source, edge.target])
+    const nodeRects = buildBlockingNodeRects(nodes, excludedIds)
+    const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
+    const edgeOffset = (() => {
+      const parallelEdges = edges.filter(
+        (e) => (e.source === edge.source && e.target === edge.target) || (e.source === edge.target && e.target === edge.source)
+      )
+      if (parallelEdges.length <= 1) return 0
+      const index = parallelEdges.findIndex((e) => e.id === edge.id)
+      return index === -1 ? 0 : (index - (parallelEdges.length - 1) / 2) * 20
+    })()
 
-  let startX = sh.x;
-  let startY = sh.y;
-  let endX = th.x;
-  let endY = th.y;
+    const directWaypoints = [
+      { x: sh.x, y: sh.y },
+      { x: (sh.x + th.x) / 2, y: sh.y },
+      { x: (sh.x + th.x) / 2, y: th.y },
+      { x: th.x, y: th.y },
+    ]
+    const waypoints = nodeRectParam && pathCollidesWithRects(directWaypoints, nodeRects)
+      ? getCollisionFreeWaypoints({
+          sourceX: sh.x, sourceY: sh.y,
+          targetX: th.x, targetY: th.y,
+          sourcePosition,
+          targetPosition,
+          borderRadius: 40,
+          edgeOffset,
+          nodeRects: nodeRectParam,
+          excludedNodeIds: excludedIds,
+        })
+      : directWaypoints
+    const svgPath = buildSmoothStepSvg(waypoints, 40)
 
-  // Align axes for straight orthog segments if they are close
-  const pairIsVertical = (sourcePosition === Position.Top || sourcePosition === Position.Bottom) &&
-                         (targetPosition === Position.Top || targetPosition === Position.Bottom);
-  const pairIsHorizontal = (sourcePosition === Position.Left || sourcePosition === Position.Right) &&
-                           (targetPosition === Position.Left || targetPosition === Position.Right);
+    const edgeDataObj = edge.data as Record<string, unknown> || {}
+    edgeDataObj.__cachedWaypoints = waypoints
 
-  if (pairIsVertical && Math.abs(startX - endX) < 16) {
-    endX = startX;
-  } else if (pairIsHorizontal && Math.abs(startY - endY) < 16) {
-    endY = startY;
-  }
-
-  // 6. Find parallel sibling group index for edgeOffset spacing
-  const parallelEdges = edges.filter(
-    (e) =>
-      (e.source === edge.source && e.target === edge.target) ||
-      (e.source === edge.target && e.target === edge.source)
-  );
-
-  let edgeOffset = 0;
-  if (edge.source !== edge.target && parallelEdges.length > 1) {
-    const index = parallelEdges.findIndex((e) => e.id === edge.id);
-    if (index !== -1) {
-      edgeOffset = (index - (parallelEdges.length - 1) / 2) * 20;
+    return {
+      sourcePosition,
+      targetPosition,
+      sourcePoint: sh,
+      targetPoint: th,
+      waypoints,
+      svgPath,
     }
   }
 
-  // 7. Calculate waypoints and svgPath
-  const isStep = (edge.data as any)?.pathType === 'step';
-  const borderRadius = isStep ? 0 : 40;
+  // Build obstacle map — ALL non-group nodes are obstacles, including source/target
+  const obstacleMap = new Map<string, ObstacleRect>()
+  for (const node of nodes) {
+    if (isGroupNode(node)) continue
+    const rect = getNodeRect(node, nodes)
+    obstacleMap.set(node.id, rect)
+  }
 
-  let svgPath = '';
-  let waypoints: Array<{ x: number; y: number }> = [];
+  const existingPaths = collectExistingEdgePaths(edges, edge.id)
 
-  if (edge.source === edge.target) {
-    const r = 40;
-    svgPath = `M ${startX},${startY} C ${startX},${startY - r} ${endX + r},${endY} ${endX},${endY}`;
+  const result = planPath({
+    sourceRect,
+    targetRect,
+    obstacles: obstacleMap,
+    existingEdgePaths: existingPaths,
+    stubLength: 32,
+  })
+
+  if (result && result.nodeCrossings === 0) {
+    // Cache waypoints for edge-edge crossing detection
+    const waypoints = result.points
+    const edgeDataObj = edge.data as Record<string, unknown> || {}
+    edgeDataObj.__cachedWaypoints = waypoints
+
+    return {
+      sourcePosition: result.sourcePort.side,
+      targetPosition: result.targetPort.side,
+      sourcePoint: result.sourcePort.point,
+      targetPoint: result.targetPort.point,
+      waypoints,
+      svgPath: result.svgPath,
+    }
+  }
+
+  // Fallback: use the existing handle-based routing
+  const excludedIds = new Set([edge.source, edge.target])
+  const nodeRects = buildBlockingNodeRects(nodes, excludedIds)
+
+  const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
+
+  const activePreset = useDiagramStore.getState().activeLayoutPresetId
+  const direction = activePreset === 'layered-tb' ? 'TD' : 'LR'
+
+  const handles = getObstacleAwareHandles(
+    { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h },
+    { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h },
+    nodeRectParam, excludedIds,
+    edge.id, edge.source, edge.target, edge.data,
+    sourceNode.data?.serviceType, targetNode.data?.serviceType, direction,
+  )
+
+  const sourceShift = getEdgeShiftOffset(edge.source, edge.id, handles.sourcePosition, edges, new Map(nodes.map(n => [n.id, n])), 12, nodeRectParam, excludedIds)
+  const targetShift = getEdgeShiftOffset(edge.target, edge.id, handles.targetPosition, edges, new Map(nodes.map(n => [n.id, n])), 12, nodeRectParam, excludedIds)
+
+  const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, handles.sourcePosition, sourceShift)
+  const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, handles.targetPosition, targetShift)
+
+  const parallelEdges = edges.filter(
+    (e) => (e.source === edge.source && e.target === edge.target) || (e.source === edge.target && e.target === edge.source)
+  )
+  let edgeOffset = 0
+  if (parallelEdges.length > 1) {
+    const index = parallelEdges.findIndex((e) => e.id === edge.id)
+    if (index !== -1) edgeOffset = (index - (parallelEdges.length - 1) / 2) * 20
+  }
+
+  const borderRadius = 40
+  let waypoints = getCollisionFreeWaypoints({
+    sourceX: sh.x, sourceY: sh.y,
+    targetX: th.x, targetY: th.y,
+    sourcePosition: handles.sourcePosition,
+    targetPosition: handles.targetPosition,
+    borderRadius,
+    edgeOffset,
+    nodeRects: nodeRectParam,
+    excludedNodeIds: excludedIds,
+  })
+
+  const collides = pathCollidesWithRects(waypoints, nodeRects)
+
+  let svgPath: string
+  if (!collides) {
+    svgPath = buildSmoothStepSvg(waypoints, borderRadius)
   } else {
-    waypoints = getCollisionFreeWaypoints({
-      sourceX: startX,
-      sourceY: startY,
-      targetX: endX,
-      targetY: endY,
-      sourcePosition,
-      targetPosition,
+    svgPath = getCollisionFreeSmoothStepPath({
+      sourceX: sh.x, sourceY: sh.y,
+      targetX: th.x, targetY: th.y,
+      sourcePosition: handles.sourcePosition,
+      targetPosition: handles.targetPosition,
       borderRadius,
       edgeOffset,
       nodeRects: nodeRectParam,
       excludedNodeIds: excludedIds,
-    });
-
-    let collides = false;
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      for (const [, nr] of nodeRects) {
-        if (segmentIntersectsRect(waypoints[i].x, waypoints[i].y, waypoints[i + 1].x, waypoints[i + 1].y, nr.x, nr.y, nr.w, nr.h)) {
-          collides = true;
-          break;
-        }
-      }
-      if (collides) break;
-    }
-
-    if (!collides) {
-      svgPath = buildSmoothStepSvg(waypoints, borderRadius);
-    } else {
-      svgPath = getCollisionFreeSmoothStepPath({
-        sourceX: startX,
-        sourceY: startY,
-        targetX: endX,
-        targetY: endY,
-        sourcePosition,
-        targetPosition,
-        borderRadius,
-        edgeOffset,
-        nodeRects: nodeRectParam,
-        excludedNodeIds: excludedIds,
-      });
-      // Synchronize waypoints array for preview/export translation
-      const fallbackWaypoints = getCollisionFreeWaypoints({
-        sourceX: startX,
-        sourceY: startY,
-        targetX: endX,
-        targetY: endY,
-        sourcePosition,
-        targetPosition,
-        borderRadius,
-        edgeOffset,
-        nodeRects: nodeRectParam,
-        excludedNodeIds: excludedIds,
-      });
-      if (fallbackWaypoints) {
-        waypoints = fallbackWaypoints;
-      }
-    }
+    })
+    const fallback = getCollisionFreeWaypoints({
+      sourceX: sh.x, sourceY: sh.y,
+      targetX: th.x, targetY: th.y,
+      sourcePosition: handles.sourcePosition,
+      targetPosition: handles.targetPosition,
+      borderRadius,
+      edgeOffset,
+      nodeRects: nodeRectParam,
+      excludedNodeIds: excludedIds,
+    })
+    if (fallback) waypoints = fallback
   }
 
+  const edgeDataObj = edge.data as Record<string, unknown> || {}
+  edgeDataObj.__cachedWaypoints = waypoints
+
   return {
-    sourcePosition,
-    targetPosition,
-    sourcePoint: { x: startX, y: startY },
-    targetPoint: { x: endX, y: endY },
+    sourcePosition: handles.sourcePosition,
+    targetPosition: handles.targetPosition,
+    sourcePoint: sh,
+    targetPoint: th,
     waypoints,
     svgPath,
-  };
+  }
 }

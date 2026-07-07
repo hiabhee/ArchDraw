@@ -22,8 +22,12 @@ export type RepoSnapshot = {
   repoUrl: string;
   owner: string;
   repo: string;
+  headSha?: string;
+  defaultBranch?: string;
+  treeTruncated?: boolean;
   fileTree: string[];
   selectedFiles: FileEntry[];
+  skippedCounts?: Record<string, number>;
   repoMeta: {
     hasAppDir: boolean;
     hasPagesDir: boolean;
@@ -32,7 +36,6 @@ export type RepoSnapshot = {
     hasEnvExample: boolean;
     packageJson: Record<string, unknown> | null;
   };
-  // New fields
   surfaceClassification: SurfaceClassification;
   phase1Files: FileEntry[];
   phase2Files: FileEntry[];
@@ -218,4 +221,45 @@ export type RepoDiagramApiResponse = {
   dependencyMap: DependencyIntelligence[];
   reviewNotes: string;
   confidence: Confidence;
+};
+
+// ─── Hierarchical Analysis Types ───────────────────────────────
+
+export type Subsystem = {
+  name: string;
+  path: string;
+  type: 'application' | 'library' | 'service' | 'worker' | 'infrastructure' | 'frontend' | 'backend';
+  fileCount: number;
+  files: string[];
+  language: string;
+  detectedFramework: string | null;
+  entryPoints: string[];
+};
+
+export type StaticSignal = {
+  type: 'dependency' | 'route' | 'schema' | 'env_var' | 'docker_service'
+      | 'terraform_resource' | 'kubernetes_resource' | 'queue_topic'
+      | 'sdk_usage' | 'middleware' | 'auth_provider' | 'entry_point';
+  label: string;
+  source: string;
+  details: Record<string, unknown>;
+  confidence: 'high' | 'medium' | 'low';
+};
+
+export type SubsystemSummary = {
+  name: string;
+  path: string;
+  type: Subsystem['type'];
+  fileCount: number;
+  detectedFrameworks: string[];
+  entryPoints: string[];
+  keyFiles: string[];
+  signals: StaticSignal[];
+  summary: string;
+};
+
+export type IntermediateGraph = {
+  type: 'package' | 'service' | 'route' | 'data_flow' | 'external';
+  nodes: { id: string; label: string; type: string }[];
+  edges: { from: string; to: string; type: string; label: string }[];
 };

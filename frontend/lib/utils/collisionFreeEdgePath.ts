@@ -368,6 +368,106 @@ function simplifyOrthogonalPath(points: Array<{ x: number; y: number }>): Array<
   return result;
 }
 
+function getOutwardDirection(position: Position): { dx: number; dy: number } {
+  switch (position) {
+    case Position.Left:
+      return { dx: -1, dy: 0 };
+    case Position.Right:
+      return { dx: 1, dy: 0 };
+    case Position.Top:
+      return { dx: 0, dy: -1 };
+    case Position.Bottom:
+      return { dx: 0, dy: 1 };
+  }
+}
+
+function segmentMatchesDirection(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  direction: { dx: number; dy: number },
+): boolean {
+  const dx = Math.sign(to.x - from.x);
+  const dy = Math.sign(to.y - from.y);
+  return dx === direction.dx && dy === direction.dy;
+}
+
+function enforceTerminalStubs(
+  points: Array<{ x: number; y: number }>,
+  sourcePosition: Position,
+  targetPosition: Position,
+  stubLength: number = 32,
+): Array<{ x: number; y: number }> {
+  if (points.length < 2) return points;
+
+  const result = [...points];
+  const source = result[0];
+  const sourceDir = getOutwardDirection(sourcePosition);
+  const first = result[1];
+  if (!segmentMatchesDirection(source, first, sourceDir)) {
+    const sourceStub = {
+      x: source.x + sourceDir.dx * stubLength,
+      y: source.y + sourceDir.dy * stubLength,
+    };
+    const insert = [sourceStub];
+    if (sourceStub.x !== first.x && sourceStub.y !== first.y) {
+      insert.push({ x: first.x, y: sourceStub.y });
+    }
+    result.splice(1, 0, ...insert);
+  }
+
+  const target = result[result.length - 1];
+  const targetDir = getOutwardDirection(targetPosition);
+  const entryDir = { dx: -targetDir.dx, dy: -targetDir.dy };
+  const beforeTarget = result[result.length - 2];
+  if (!segmentMatchesDirection(beforeTarget, target, entryDir)) {
+    const targetStub = {
+      x: target.x + targetDir.dx * stubLength,
+      y: target.y + targetDir.dy * stubLength,
+    };
+    const insert = [];
+    if (beforeTarget.x !== targetStub.x && beforeTarget.y !== targetStub.y) {
+      insert.push({ x: targetStub.x, y: beforeTarget.y });
+    }
+    insert.push(targetStub);
+    result.splice(result.length - 1, 0, ...insert);
+  }
+
+  return simplifyOrthogonalPath(result);
+}
+
+function orthogonalizeDiagonalSegments(
+  points: Array<{ x: number; y: number }>,
+  nodeRects: Map<string, NodeRect>,
+  excludedIds: Set<string>,
+): Array<{ x: number; y: number }> {
+  if (points.length <= 1) return points;
+
+  const result: Array<{ x: number; y: number }> = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = result[result.length - 1];
+    const next = points[i];
+
+    if (prev.x !== next.x && prev.y !== next.y) {
+      const cornerA = { x: next.x, y: prev.y };
+      const cornerB = { x: prev.x, y: next.y };
+      const pathA = [prev, cornerA, next];
+      const pathB = [prev, cornerB, next];
+
+      if (!pathCollidesWithNodes(pathA, nodeRects, excludedIds)) {
+        result.push(cornerA);
+      } else if (!pathCollidesWithNodes(pathB, nodeRects, excludedIds)) {
+        result.push(cornerB);
+      } else {
+        result.push(cornerA);
+      }
+    }
+
+    result.push(next);
+  }
+
+  return simplifyOrthogonalPath(result);
+}
+
 function findAstFallbackPath(
   sx: number, sy: number,
   tx: number, ty: number,
@@ -513,7 +613,7 @@ function findAstFallbackPath(
   waypoints[0] = { x: sx, y: sy };
   waypoints[waypoints.length - 1] = { x: tx, y: ty };
 
-  return simplifyOrthogonalPath(waypoints);
+  return orthogonalizeDiagonalSegments(waypoints, nodeRects, excludedIds);
 }
 
 function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {
@@ -585,7 +685,7 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
     }
   }
 
-  return waypoints!;
+  return enforceTerminalStubs(waypoints!, sourcePosition, targetPosition);
 }
 
 export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {

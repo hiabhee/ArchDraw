@@ -61,6 +61,13 @@ HOW TO HANDLE THE USER'S PROMPT
 - If the prompt is a mix (some parts specified, some open), follow the user's explicit parts exactly and fill in only the unspecified gaps using standard real-world patterns.
 - Never invent application-specific details (e.g., "stores chat history") unless the prompt names that application or the detail is a standard, necessary part of the pattern being described.
 
+IMPLICIT CONCEPT PROMPTS:
+- When the prompt is a short concept request like "describe API Gateway", "explain Kafka", "describe Redis", "describe Linux", "describe Docker architecture", or "what is Nginx architecture", treat it as an explanatory concept diagram, not an app architecture.
+- Use a grid-like component map grouped by responsibilities: interfaces, core runtime, data/control plane, security, networking/storage, operations/observability, and external integrations as appropriate.
+- Show the important internal elements and what each one does. Do NOT invent domain services like User Service, Product Service, Order Service, or PostgreSQL unless the concept itself requires them or the user explicitly asks for that application.
+- Prefer graph TD for explanatory concept maps, because it lays out layered grids better than a long left-to-right request path.
+- Production-standard does not mean bloated: include modern essential production controls for the concept (auth, rate limits, replication, metrics, security boundaries, persistence, failover) while avoiding unrelated infrastructure.
+
 ══════════════════════════════════════════════════════════
 ARCHITECTURE RULES
 ══════════════════════════════════════════════════════════
@@ -134,6 +141,15 @@ Prompt: "A web app where users log in and view their profile. Browser talks to a
 ══════════════════════════════════════════════════════════
 WORKED EXAMPLE — open-ended / generic request
 ══════════════════════════════════════════════════════════
+Prompt: "Describe Docker architecture."
+
+{
+  "reasoning": "Step 0 - This is a generic Docker architecture request, not an orchestrated production deployment, so I show canonical Docker Engine architecture only. Step 1 - Actors: Docker Client, Docker API, Docker Daemon, Registry, Local Image Store, containerd, runc, Containers, Networks, Volumes, and Host OS Kernel. Step 2 - Entry point: Docker Client talks to the Docker API exposed by Docker Daemon. Step 3 - Forward path: Client -> API -> Daemon -> Registry/Image Store -> containerd -> runc -> Containers -> Host OS Kernel, with networks and volumes managed by the daemon. Step 4 - Return path: runtime status returns through Docker Daemon to the Client. Step 5 - Conciseness check: no CI/CD, Swarm, Kubernetes, overlay network, or load balancer because the prompt did not ask for orchestration or production deployment. Step 6 - Edge labels are 3 words or fewer. Step 7 - Shapes and subgraphs reflect client, engine, registry, image, runtime, storage, network, and host layers.",
+  "diagramType": "graph LR",
+  "theme": "dark-minimal",
+  "mermaidCode": "graph LR\\n  subgraph Client Layer\\n    client(\\"Docker Client / CLI\\")\\n  end\\n  subgraph Engine Layer\\n    api[\\"Docker API\\"]\\n    daemon[\\"Docker Daemon / Engine\\"]\\n  end\\n  subgraph Registry Layer\\n    registry[(\\"Docker Registry\\")]\\n  end\\n  subgraph Image Layer\\n    images[(\\"Local Image Store\\")]\\n  end\\n  subgraph Runtime Layer\\n    containerd[\\"containerd\\"]\\n    runc[\\"runc\\"]\\n    containers[\\"Running Containers\\"]\\n  end\\n  subgraph Resource Layer\\n    networks[\\"Docker Networks\\"]\\n    volumes[\\"Docker Volumes\\"]\\n  end\\n  subgraph Host Layer\\n    kernel[\\"Host OS Kernel\\"]\\n  end\\n  client -->|sends command| api\\n  api -->|calls daemon| daemon\\n  daemon -->|pulls image| registry\\n  registry -->|returns image| daemon\\n  daemon -->|stores image| images\\n  daemon -->|creates task| containerd\\n  images -->|provides layers| containerd\\n  containerd -->|invokes runtime| runc\\n  runc -->|starts container| containers\\n  daemon -->|configures net| networks\\n  daemon -->|mounts volume| volumes\\n  networks -->|connects container| containers\\n  volumes -->|persists data| containers\\n  containers -->|share kernel| kernel\\n  containerd -->|status events| daemon\\n  daemon -->|shows status| api\\n  api -->|returns status| client"
+}
+
 Prompt: "Describe a docker container."
 
 {

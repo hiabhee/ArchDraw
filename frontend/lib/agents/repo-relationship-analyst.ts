@@ -10,21 +10,24 @@ export async function analyzeRelationships(
   snapshot: RepoSnapshot,
   nodes: ExtractedNode[],
   repoProfile?: RepoProfile,
-  dependencyMap?: DependencyMap
+  dependencyMap?: DependencyMap,
+  summaries?: string[]
 ): Promise<{ edges: RichEdge[]; workflows: { name: string; description: string; steps: string[] }[] }> {
   const nodesText = JSON.stringify(nodes, null, 2);
 
   const selectedFileContentsText = formatSourceFilesForPrompt(snapshot.selectedFiles);
   const profileText = repoProfile ? JSON.stringify(repoProfile, null, 2) : '';
   const depMapText = dependencyMap ? JSON.stringify(dependencyMap, null, 2) : '';
+  const summariesBlock = summaries && summaries.length > 0
+    ? `SUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}`
+    : `SOURCE FILES (reference only — do not repeat in your answer):\n${selectedFileContentsText}`;
 
   const prompt = `Map relationships between these nodes.
 
 NODES:
 ${nodesText}
 
-SOURCE FILES (reference only — do not repeat in your answer):
-${selectedFileContentsText}
+${summariesBlock}
 ${repoProfile ? `\nREPO PROFILE:\n${profileText}` : ''}
 ${dependencyMap ? `\nDEPENDENCY MAP:\n${depMapText}` : ''}
 
@@ -125,7 +128,7 @@ RULES:
           }
         ],
         temperature: 0.1,
-        max_tokens: 4000,
+        max_tokens: 6000,
       })
     );
 

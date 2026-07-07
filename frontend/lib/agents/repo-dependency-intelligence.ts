@@ -109,7 +109,7 @@ Include between 3 and 15 dependencies. Quality over quantity.`
           }
         ],
         temperature: 0.1,
-        max_tokens: 4000,
+        max_tokens: 3000,
       })
     );
 

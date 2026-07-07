@@ -6,14 +6,33 @@ import type { RepoSnapshot, RepoProfile, RepoType, ArchitecturePattern, FileEntr
 
 function inferFrameworkFromFiles(files: FileEntry[]): string | null {
   for (const file of files) {
-    if (file.path !== 'requirements.txt' && file.path !== 'package.json') continue;
     const content = file.content.toLowerCase();
-    if (content.includes('fastapi')) return 'FastAPI';
-    if (content.includes('django')) return 'Django';
-    if (content.includes('flask')) return 'Flask';
-    if (content.includes('express')) return 'Express';
-    if (content.includes('"next"') || content.includes("'next'")) return 'Next.js';
-    if (content.includes('nestjs')) return 'NestJS';
+    if (file.path === 'requirements.txt' || file.path === 'pyproject.toml') {
+      if (content.includes('fastapi')) return 'FastAPI';
+      if (content.includes('django')) return 'Django';
+      if (content.includes('flask')) return 'Flask';
+    }
+    if (file.path === 'package.json' || file.path.endsWith('package.json')) {
+      if (content.includes('"next"') || content.includes("'next'")) return 'Next.js';
+      if (content.includes('nestjs') || content.includes('@nestjs/core')) return 'NestJS';
+      if (content.includes('express')) return 'Express';
+      if (content.includes('fastify')) return 'Fastify';
+      if (content.includes('nuxt') || content.includes('nuxt3')) return 'Nuxt';
+      if (content.includes('sveltekit') || content.includes('@sveltejs/kit')) return 'SvelteKit';
+      if (content.includes('remix') || content.includes('@remix-run/react')) return 'Remix';
+      if (content.includes('vue') && !content.includes('nuxt')) return 'Vue';
+      if (content.includes('react') && !content.includes('next')) return 'React';
+    }
+    if (file.path === 'go.mod') {
+      if (content.includes('github.com/gin-gonic/gin')) return 'Gin';
+      if (content.includes('github.com/labstack/echo')) return 'Echo';
+      if (content.includes('github.com/gofiber/fiber')) return 'Fiber';
+    }
+    if (file.path === 'Cargo.toml') {
+      if (content.includes('actix-web')) return 'Actix';
+      if (content.includes('axum')) return 'Axum';
+      if (content.includes('rocket')) return 'Rocket';
+    }
   }
   return null;
 }
@@ -82,6 +101,15 @@ export function buildFallbackRepoProfile(snapshot: RepoSnapshot): RepoProfile {
           ? 'Go'
           : 'unknown';
 
+  const keyDirectories = inferKeyDirectories(paths);
+  const focusAreas: string[] = ['API routes and handlers', 'data models and persistence'];
+
+  if (keyDirectories.includes('prisma') || paths.some((p) => p.match(/prisma\/schema\.(prisma|ts)/))) focusAreas.push('database ORM (Prisma)');
+  if (paths.some((p) => /\/supabase\//.test(p))) focusAreas.push('Supabase integration');
+  if (paths.some((p) => /middleware\.(ts|js|py)$/.test(p))) focusAreas.push('authentication and middleware');
+  if (paths.some((p) => /\/queue\/|worker|bull|celery/.test(p))) focusAreas.push('background workers and queues');
+  if (framework && ['Next.js', 'Remix', 'Nuxt', 'SvelteKit'].includes(framework)) focusAreas.push('framework routing and layouts');
+
   return {
     repoType,
     architecturePattern,
@@ -94,14 +122,10 @@ export function buildFallbackRepoProfile(snapshot: RepoSnapshot): RepoProfile {
     reasoning:
       'Fallback classification from repository file tree and config (LLM response was not valid JSON).',
     extractionStrategy: {
-      keyDirectories: inferKeyDirectories(paths),
+      keyDirectories,
       entryPoints: inferEntryPoints(paths),
       moduleStructure: 'Inferred from top-level directories and common entry files.',
-      focusAreas: [
-        'API routes and handlers',
-        'data models and persistence',
-        'authentication and middleware',
-      ],
+      focusAreas,
     },
   };
 }
@@ -135,7 +159,7 @@ function normalizeRepoProfile(parsed: Record<string, unknown>): RepoProfile {
   };
 }
 
-export async function deepClassify(snapshot: RepoSnapshot): Promise<RepoProfile> {
+export async function deepClassify(snapshot: RepoSnapshot, summaries?: string[]): Promise<RepoProfile> {
   const fileTreeText = snapshot.fileTree.slice(0, 300).join('\n');
   const surfaceText = JSON.stringify(snapshot.surfaceClassification, null, 2);
 
@@ -143,6 +167,10 @@ export async function deepClassify(snapshot: RepoSnapshot): Promise<RepoProfile>
     ...snapshot.phase1Files,
     ...snapshot.phase2Files,
   ]);
+
+  const summariesBlock = summaries && summaries.length > 0
+    ? `SUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}`
+    : `CONFIG AND SOURCE FILES (reference only):\n${sourceFilesBlock}`;
 
   const prompt = `Classify this repository.
 
@@ -152,8 +180,7 @@ ${fileTreeText}
 SURFACE CLASSIFICATION:
 ${surfaceText}
 
-CONFIG AND SOURCE FILES (reference only):
-${sourceFilesBlock}
+${summariesBlock}
 
 ${JSON_OUTPUT_REMINDER}`;
 
@@ -232,7 +259,7 @@ CRITICAL: Reply with a single JSON object only. No markdown fences, no bullet li
           }
         ],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 2000,
       })
     );
 

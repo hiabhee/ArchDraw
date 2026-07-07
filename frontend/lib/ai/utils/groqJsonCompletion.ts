@@ -9,7 +9,8 @@ function isResponseFormatError(error: unknown): boolean {
     msg.includes('response_format') ||
     msg.includes('json_object') ||
     msg.includes('json mode') ||
-    msg.includes('unsupported')
+    msg.includes('unsupported') ||
+    msg.includes('json_validate_failed')
   );
 }
 

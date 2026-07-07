@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { X, GitBranch, Loader2, Check, AlertTriangle, BarChart3, Workflow as WorkflowIcon, Package } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
 import { toast } from 'sonner';
-import { parseRepoNdjsonToReactFlow } from '@/lib/utils/parseRepoNdjson';
+import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
 import type { RepoDiagramApiResponse } from '@/lib/types/repo-diagram';
 import type { DependencyIntelligence, Workflow as RepoWorkflow } from '@/lib/types/repo-diagram';
 
@@ -46,18 +46,17 @@ export function RepoDiagramGenerator({ onClose }: Props) {
   };
 
   const loadDiagram = (ndjson: string) => {
-    const { nodes: rfNodes, edges: rfEdges } = parseRepoNdjsonToReactFlow(ndjson);
-
-    if (rfNodes.length === 0) {
+    const parsed = parseAndValidateRepoDiagram(ndjson);
+    if (!parsed) {
       toast.error('No architectural components could be detected in this repository.');
       return;
     }
 
-    importDiagram(rfNodes, rfEdges);
+    importDiagram(parsed.nodes, parsed.edges);
     const repoName = extractRepoName(repoUrl);
     renameCanvas(activeCanvasId, `${repoName} Architecture`);
     setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
-    toast.success(`Loaded: ${rfNodes.length} nodes, ${rfEdges.length} edges`);
+    toast.success(`Loaded: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
     onClose();
   };
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Plus, Mic, Send, Loader2, ChevronDown, Lightbulb, Clock, Star, Trash2, Code
+  Plus, Mic, Send, Loader2, ChevronDown, Lightbulb, Clock, Star, Trash2, Code, RotateCw
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -19,9 +19,19 @@ interface FloatingAIBarProps {
   showCode: boolean;
   hideCodeButton?: boolean;
   isCanvasEmpty?: boolean;
+  onRegenerate?: () => Promise<void>;
+  hasLastPrompt?: boolean;
 }
 
-export function FloatingAIBar({ onGenerate, onToggleCode, showCode, hideCodeButton, isCanvasEmpty = false }: FloatingAIBarProps) {
+export function FloatingAIBar({ 
+  onGenerate, 
+  onToggleCode, 
+  showCode, 
+  hideCodeButton, 
+  isCanvasEmpty = false,
+  onRegenerate,
+  hasLastPrompt = false
+}: FloatingAIBarProps) {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [, setError] = useState<string | null>(null);
@@ -99,6 +109,20 @@ export function FloatingAIBar({ onGenerate, onToggleCode, showCode, hideCodeButt
     }
   }, [input, onGenerate, diagramSize, addToHistory]);
 
+  const handleRegenerate = useCallback(async () => {
+    if (!onRegenerate) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      await onRegenerate();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Regeneration failed';
+      setError(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [onRegenerate]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -128,11 +152,12 @@ export function FloatingAIBar({ onGenerate, onToggleCode, showCode, hideCodeButt
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="fixed bottom-0 sm:bottom-3 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-2 sm:px-4 safe-area-bottom"
+      className="fixed bottom-0 sm:bottom-3 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-2 sm:px-4 safe-area-bottom flex items-center gap-2"
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key="input"
+      <div className="flex-1 min-w-0">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key="input"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
@@ -331,6 +356,23 @@ export function FloatingAIBar({ onGenerate, onToggleCode, showCode, hideCodeButt
           </div>
         </motion.div>
       </AnimatePresence>
+    </div>
+
+      {hasLastPrompt && onRegenerate && (
+        <button
+          type="button"
+          onClick={handleRegenerate}
+          disabled={isGenerating}
+          className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 rounded-[20px] border border-border/40 bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-150 shadow-soft-3 flex items-center justify-center active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Regenerate diagram"
+        >
+          {isGenerating ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <RotateCw className="w-4 h-4" />
+          )}
+        </button>
+      )}
     </motion.div>
   );
 }

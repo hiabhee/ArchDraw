@@ -11,6 +11,78 @@ const BUNDLE_DEGREE_THRESHOLD = 8;
 const OUTGOING_LANE_SIDES = ['right', 'bottom', 'top', 'left'] as const;
 const INCOMING_LANE_SIDES = ['left', 'top', 'bottom', 'right'] as const;
 
+type GeometrySide = 'right' | 'bottom' | 'top' | 'left';
+
+function computeIdealSide(laneNode: Node, otherNode: Node): GeometrySide {
+  const lCx = laneNode.position.x + (laneNode.width ?? 180) / 2;
+  const lCy = laneNode.position.y + (laneNode.height ?? 70) / 2;
+  const oCx = otherNode.position.x + (otherNode.width ?? 180) / 2;
+  const oCy = otherNode.position.y + (otherNode.height ?? 70) / 2;
+  const dx = oCx - lCx;
+  const dy = oCy - lCy;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? 'right' : 'left';
+  } else {
+    return dy >= 0 ? 'bottom' : 'top';
+  }
+}
+
+function assignGeometrySides(
+  laneNodeId: string,
+  connectedEdges: Edge[],
+  nodes: Node[],
+  isOutgoing: boolean,
+  defaultCycle: string[]
+): string[] {
+  if (connectedEdges.length === 0) return [];
+
+  const laneNode = nodes.find(n => n.id === laneNodeId);
+  if (!laneNode) return connectedEdges.map((_, i) => defaultCycle[i % defaultCycle.length]);
+
+  const allSides: GeometrySide[] = ['right', 'bottom', 'top', 'left'];
+
+  // Compute ideal side for each edge based on relative node positions
+  const idealSides: GeometrySide[] = connectedEdges.map(edge => {
+    const otherNodeId = isOutgoing ? edge.target : edge.source;
+    const otherNode = nodes.find(n => n.id === otherNodeId);
+    if (!otherNode) return defaultCycle[0] as GeometrySide;
+    return computeIdealSide(laneNode, otherNode);
+  });
+
+  // First pass: assign ideal sides, capping at 1 per side
+  const counts: Record<GeometrySide, number> = { right: 0, bottom: 0, top: 0, left: 0 };
+  const result: GeometrySide[] = new Array(connectedEdges.length);
+  const pool: number[] = [];
+
+  for (let i = 0; i < idealSides.length; i++) {
+    const side = idealSides[i];
+    if (counts[side] < 1) {
+      result[i] = side;
+      counts[side]++;
+    } else {
+      pool.push(i);
+    }
+  }
+
+  // Second pass: distribute pooled edges round-robin with dynamic cap
+  const cap = Math.ceil(connectedEdges.length / 4);
+  let si = 0;
+  for (const idx of pool) {
+    while (true) {
+      const side = allSides[si % allSides.length];
+      si++;
+      if (counts[side] < cap) {
+        result[idx] = side;
+        counts[side]++;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagementResult {
   const nodeDegrees = new Map<string, number>();
   for (const edge of edges) {
@@ -46,14 +118,14 @@ export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagem
     }
   }
 
-  // Precompute lane-side assignments for each lane node
+  // Precompute geometry-aware lane-side assignments for each lane node
   const laneOutAssignments = new Map<string, string[]>();
   const laneInAssignments = new Map<string, string[]>();
   for (const nid of laneNodes) {
     const outgoing = edges.filter(e => e.source === nid);
     const incoming = edges.filter(e => e.target === nid);
-    laneOutAssignments.set(nid, outgoing.map((_, i) => OUTGOING_LANE_SIDES[i % OUTGOING_LANE_SIDES.length]));
-    laneInAssignments.set(nid, incoming.map((_, i) => INCOMING_LANE_SIDES[i % INCOMING_LANE_SIDES.length]));
+    laneOutAssignments.set(nid, assignGeometrySides(nid, outgoing, nodes, true, [...OUTGOING_LANE_SIDES]));
+    laneInAssignments.set(nid, assignGeometrySides(nid, incoming, nodes, false, [...INCOMING_LANE_SIDES]));
   }
 
   const finalEdges: Edge[] = [];

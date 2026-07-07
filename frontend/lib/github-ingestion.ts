@@ -1,12 +1,12 @@
 import type { RepoSnapshot, SurfaceClassification, FileEntry } from './types/repo-diagram';
+import { parseGitHubUrl as sharedParseGitHubUrl } from '@/lib/utils/githubUrl';
 
 function parseGithubUrl(url: string): { owner: string; repo: string } {
-  const cleanUrl = url.trim().replace(/\/+$/, '');
-  const match = cleanUrl.match(/^https?:\/\/(?:www\.)?github\.com\/([^\/]+)\/([^\/]+?)(?:\.git)?$/);
-  if (!match) {
+  const parsed = sharedParseGitHubUrl(url);
+  if (!parsed) {
     throw new Error('Invalid GitHub URL');
   }
-  return { owner: match[1], repo: match[2] };
+  return { owner: parsed.owner, repo: parsed.repo };
 }
 
 type RateLimitInfo = {
@@ -76,6 +76,10 @@ async function getBranchHeadSha(owner: string, repo: string, branch: string, hea
 }
 
 async function getRecursiveTree(owner: string, repo: string, sha: string, headers: Record<string, string>): Promise<{ tree: GitTreeItem[]; truncated: boolean }> {
+  const cacheKey = `${owner}/${repo}:${sha}`;
+  const cached = treeCache.get(cacheKey);
+  if (cached) return cached;
+
   const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`, headers);
   if (res.status === 404) throw new Error('Repository not found or is private');
   if (res.status === 403) {
@@ -84,7 +88,9 @@ async function getRecursiveTree(owner: string, repo: string, sha: string, header
     throw new Error('GitHub API access forbidden (possible abuse detection or insufficient permissions).');
   }
   if (!res.ok) throw new Error(`GitHub API returned status ${res.status}`);
-  return await res.json();
+  const data = await res.json();
+  treeCache.set(cacheKey, { tree: data.tree, truncated: data.truncated });
+  return data;
 }
 
 async function promisePool<T, R>(
@@ -117,20 +123,28 @@ interface GitTreeItem {
   url: string;
 }
 
-const isSkipped = (path: string, size?: number): boolean => {
-  if (size && size > 100 * 1024) return true;
+const MAX_FILE_SIZE_BYTES = 100 * 1024;
+
+const SKIPPED_DIRECTORIES = new Set([
+  'node_modules', '.next', 'dist', 'build', 'out', 'public',
+  '__pycache__', '.git', '.cache', '.turbo', '.nyc_output',
+  'coverage', '.vercel', '.serverless', '.webpack',
+  '.svelte-kit', '.nuxt', '.output',
+]);
+
+const ConfigSkipReason = {
+  LARGE_FILE: 'large_file',
+  SKIPPED_DIR: 'skipped_directory',
+  LOCKFILE: 'lockfile',
+  TEST_FILE: 'test_file',
+  BINARY: 'binary',
+} as const;
+
+const isSkipped = (path: string, size?: number): string | null => {
+  if (size && size > MAX_FILE_SIZE_BYTES) return ConfigSkipReason.LARGE_FILE;
   const parts = path.split('/');
-  if (
-    parts.includes('node_modules') ||
-    parts.includes('.next') ||
-    parts.includes('dist') ||
-    parts.includes('build') ||
-    parts.includes('out') ||
-    parts.includes('public') ||
-    parts.includes('__pycache__') ||
-    parts.includes('.git')
-  ) {
-    return true;
+  if (parts.some((p) => SKIPPED_DIRECTORIES.has(p))) {
+    return ConfigSkipReason.SKIPPED_DIR;
   }
   const filename = parts[parts.length - 1];
   if (
@@ -139,17 +153,26 @@ const isSkipped = (path: string, size?: number): boolean => {
     filename === 'yarn.lock' ||
     filename === 'pnpm-lock.yaml'
   ) {
-    return true;
+    return ConfigSkipReason.LOCKFILE;
   }
   if (
     filename.includes('.test.') ||
     filename.includes('.spec.') ||
     parts.includes('__tests__')
   ) {
-    return true;
+    return ConfigSkipReason.TEST_FILE;
   }
-  return false;
+  // Skip binary-looking file extensions
+  if (/\.(png|jpg|jpeg|gif|ico|svg|woff2?|eot|ttf|otf|pdf|zip|tar|gz|br)$/i.test(filename)) {
+    return ConfigSkipReason.BINARY;
+  }
+  return null;
 };
+
+// In-memory caches to avoid re-fetching the same data on re-runs.
+// Content cache keyed by path; tree cache keyed by headSha.
+const fileContentCache = new Map<string, FileEntry | null>();
+const treeCache = new Map<string, { tree: GitTreeItem[]; truncated: boolean }>();
 
 async function fetchFileContent(
   owner: string,
@@ -157,6 +180,11 @@ async function fetchFileContent(
   path: string,
   headers: Record<string, string>
 ): Promise<FileEntry | null> {
+  const cacheKey = `${owner}/${repo}:${path}`;
+  if (fileContentCache.has(cacheKey)) {
+    return fileContentCache.get(cacheKey) ?? null;
+  }
+
   const response = await fetchJson(
     `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
     headers
@@ -171,6 +199,7 @@ async function fetchFileContent(
 
   if (!response.ok) {
     console.warn(`[Ingest] Failed to fetch content for ${path}: Status ${response.status}`);
+    fileContentCache.set(cacheKey, null);
     return null;
   }
   const data = await response.json();
@@ -183,7 +212,9 @@ async function fetchFileContent(
   if (path.toLowerCase() === 'readme.md') {
     content = content.split('\n').slice(0, 200).join('\n');
   }
-  return { path, content };
+  const entry: FileEntry = { path, content };
+  fileContentCache.set(cacheKey, entry);
+  return entry;
 }
 
 function determineSurfaceClassification(treeItems: GitTreeItem[], treeMap: Map<string, GitTreeItem>): SurfaceClassification {
@@ -199,34 +230,41 @@ function determineSurfaceClassification(treeItems: GitTreeItem[], treeMap: Map<s
   const hasTurboJson = treeMap.has('turbo.json');
   const hasNxJson = treeMap.has('nx.json');
   const hasLernaJson = treeMap.has('lerna.json');
+  const hasPyprojectToml = treeMap.has('pyproject.toml');
+  const hasPnpmWorkspace = treeMap.has('pnpm-workspace.yaml');
+  const hasPipfile = treeMap.has('Pipfile');
+  const hasPoetryLock = treeMap.has('poetry.lock');
+  const hasGemfile = treeMap.has('Gemfile');
 
   let primaryLanguage = 'unknown';
   if (hasPackageJson) primaryLanguage = 'JavaScript/TypeScript';
-  else if (hasRequirementsTxt) primaryLanguage = 'Python';
+  else if (hasPyprojectToml || hasRequirementsTxt || hasPipfile || hasPoetryLock) primaryLanguage = 'Python';
   else if (hasGoMod) primaryLanguage = 'Go';
   else if (hasCargoToml) primaryLanguage = 'Rust';
   else if (hasComposerJson) primaryLanguage = 'PHP';
+  else if (hasGemfile) primaryLanguage = 'Ruby';
   else if (allPaths.some((p) => p.endsWith('.tf'))) primaryLanguage = 'Terraform/HCL';
   else if (allPaths.some((p) => p.endsWith('.py'))) primaryLanguage = 'Python';
   else if (allPaths.some((p) => p.endsWith('.html'))) primaryLanguage = 'HTML/CSS/JS';
 
   const detectedFrameworks: string[] = [];
   if (hasPackageJson) {
-    // We'll parse content later, but flag common ones based on paths
     if (allPaths.some((p) => p.startsWith('app/') || p.startsWith('pages/'))) {
       detectedFrameworks.push('Next.js');
     }
   }
 
-  let dockerServiceCount = 0;
-  // We'll refine this after reading docker-compose content
+  // Detect monorepo from multiple sources
+  const hasAppsDir = allPaths.some((p) => p.startsWith('apps/'));
+  const hasPackagesDir = allPaths.some((p) => p.startsWith('packages/'));
+  const isMonorepo = hasTurboJson || hasNxJson || hasLernaJson || hasPnpmWorkspace || (hasAppsDir && hasPackagesDir);
 
   return {
     primaryLanguage,
     detectedFrameworks,
     hasDocker: hasDockerfile || hasDockerCompose,
-    hasMultipleServices: false, // refined after reading docker-compose
-    isMonorepo: hasTurboJson || hasNxJson || hasLernaJson,
+    hasMultipleServices: false,
+    isMonorepo,
     projectType: 'unknown',
   };
 }
@@ -241,6 +279,8 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
 
   if (process.env.GITHUB_TOKEN) {
     headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+  } else {
+    console.warn('[Ingest] No GITHUB_TOKEN configured. Unauthenticated rate limit is 60 req/hr. Set GITHUB_TOKEN in .env for 5000 req/hr.');
   }
 
   console.log(`[Ingest] Resolving default branch for ${owner}/${repo}...`);
@@ -276,6 +316,8 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
 
   const phase1Always: string[] = [
     'package.json', 'requirements.txt', 'go.mod', 'Cargo.toml', 'composer.json',
+    'pyproject.toml', 'Pipfile', 'poetry.lock',
+    'pnpm-workspace.yaml',
     'docker-compose.yml', 'docker-compose.yaml',
     'README.md',
     '.env.example',
@@ -303,7 +345,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   }
 
   console.log(`[Ingest] Phase 1: Fetching ${phase1Candidates.length} files...`);
-  const phase1Fetched = await promisePool(phase1Candidates, 6, async (path) => {
+  const phase1Fetched = await promisePool(phase1Candidates, 3, async (path) => {
     const item = treeMap.get(path);
     if (!item || isSkipped(path, item.size)) return null;
     return fetchFileContent(owner, repo, path, headers);
@@ -318,7 +360,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   }
 
   // Refine surface classification with actual content
-  let surfaceClassification = determineSurfaceClassification(treeItems, treeMap);
+  const surfaceClassification = determineSurfaceClassification(treeItems, treeMap);
 
   // Check docker-compose services count
   const dcEntry = phase1Files.find((f) => f.path === 'docker-compose.yml' || f.path === 'docker-compose.yaml');
@@ -492,6 +534,53 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     jsFiles.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
   }
 
+  // Monorepo support: pick up package.json, configs, AND source files from apps/, packages/, services/
+  if (surfaceClassification.isMonorepo || treeItems.some((i) => i.path.startsWith('apps/') || i.path.startsWith('packages/') || i.path.startsWith('services/'))) {
+    const monoDirs = ['apps', 'packages', 'services'];
+    for (const dir of monoDirs) {
+      // 1) package.json files
+      const subPkg = treeItems
+        .filter((item) => item.type === 'blob' && item.path.startsWith(dir + '/') && item.path.endsWith('package.json') && !isSkipped(item.path, item.size))
+        .slice(0, 6)
+        .map((item) => item.path);
+      subPkg.forEach((p) => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
+      // 2) Root-level configs in subdirectories
+      const dirRootItems = treeItems.filter(
+        (item) => item.type === 'blob' && item.path.startsWith(dir + '/') && !item.path.includes('/', dir.length + 1) && !isSkipped(item.path, item.size)
+      );
+      for (const item of dirRootItems) {
+        if (!phase2Candidates.includes(item.path)) phase2Candidates.push(item.path);
+      }
+      // 3) Source files: per-subsystem, pick routes, pages, entry points, common patterns
+      const sourceExts = ['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs'];
+      for (const subdir of subPkg) {
+        const subPrefix = subdir.replace(/\/package\.json$/, '');
+        if (!subPrefix || subPrefix === dir) continue;
+        // Entry points
+        const entryCandidates = ['main.ts', 'index.ts', 'app.ts', 'server.ts', 'main.py', 'app.py', 'main.go'];
+        for (const entry of entryCandidates) {
+          const entryPath = `${subPrefix}/${entry}`;
+          if (treeMap.has(entryPath) && !phase2Candidates.includes(entryPath)) {
+            phase2Candidates.push(entryPath);
+          }
+        }
+        // Route/page files
+        const routeFiles = treeItems.filter(
+          (item) => item.type === 'blob' && item.path.startsWith(subPrefix + '/') &&
+            (item.path.includes('route.') || item.path.includes('page.') || item.path.includes('controller') || item.path.includes('router')) &&
+            sourceExts.some((ext) => item.path.endsWith(ext)) && !isSkipped(item.path, item.size)
+        ).slice(0, 8).map((item) => item.path);
+        routeFiles.forEach((p) => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
+        // src/ directory files
+        const srcFiles = treeItems.filter(
+          (item) => item.type === 'blob' && item.path.startsWith(`${subPrefix}/src/`) &&
+            sourceExts.some((ext) => item.path.endsWith(ext)) && !isSkipped(item.path, item.size)
+        ).slice(0, 6).map((item) => item.path);
+        srcFiles.forEach((p) => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
+      }
+    }
+  }
+
   // If only markdown/mdx files — documentation repo
   const mdCount = fileTree.filter((p) => p.endsWith('.md') || p.endsWith('.mdx')).length;
   const nonMdCount = fileTree.filter((p) => !p.endsWith('.md') && !p.endsWith('.mdx')).length;
@@ -504,10 +593,10 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   }
 
   // Enforce hard limits
-  let phase2Slice = phase2Candidates.slice(0, Math.min(phase2Candidates.length, totalLimit));
+  const phase2Slice = phase2Candidates.slice(0, Math.min(phase2Candidates.length, totalLimit));
 
   console.log(`[Ingest] Phase 2: Fetching ${phase2Slice.length} files...`);
-  const phase2Fetched = await promisePool(phase2Slice, 6, async (path) => {
+  const phase2Fetched = await promisePool(phase2Slice, 3, async (path) => {
     const item = treeMap.get(path);
     if (!item || isSkipped(path, item.size)) return null;
     if (contentBudget <= 0) return null;
@@ -542,12 +631,26 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     }
   }
 
+  // Count skipped reasons
+  const skippedCounts: Record<string, number> = {};
+  for (const item of treeItems) {
+    if (item.type !== 'blob') continue;
+    const reason = isSkipped(item.path, item.size);
+    if (reason) {
+      skippedCounts[reason] = (skippedCounts[reason] || 0) + 1;
+    }
+  }
+
   return {
     repoUrl,
     owner,
     repo,
+    headSha,
+    defaultBranch,
+    treeTruncated: treeData.truncated || false,
     fileTree,
     selectedFiles,
+    skippedCounts,
     repoMeta: {
       hasAppDir,
       hasPagesDir,
@@ -556,7 +659,6 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
       hasEnvExample,
       packageJson,
     },
-    // New fields
     surfaceClassification,
     phase1Files,
     phase2Files,

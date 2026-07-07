@@ -20,7 +20,8 @@ import { componentRegistry } from '@/lib/componentRegistry';
 import { toast } from 'sonner';
 import type { GenerationProgress } from '@/lib/ai/types';
 import { ContextualSidebar } from '@/components/editor/ContextualSidebar';
-import { parseRepoNdjsonToReactFlow } from '@/lib/utils/parseRepoNdjson';
+import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
+import { isGitHubRepoUrl, parseGitHubUrl } from '@/lib/utils/githubUrl';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
@@ -51,7 +52,7 @@ export default function EditorPage() {
     selectedNodeId, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen, 
     importDiagram, importSequenceDiagram, fitView, renameCanvas, 
     activeCanvasId, sequenceDiagrams, canvases,
-    markPipelineDone, markPipelineError
+    startGeneration, markPipelineDone, markPipelineError
   } = useDiagramStore();
   const { user } = useAuthStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -62,6 +63,8 @@ export default function EditorPage() {
   const [canvasSidebarOpen, setCanvasSidebarOpen] = useState(false);
   const [showRepoIngestModal, setShowRepoIngestModal] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(false);
+  const [lastPrompt, setLastPrompt] = useState<string | null>(null);
+  const [lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
 
@@ -255,25 +258,22 @@ export default function EditorPage() {
     });
   }, [fitView, importDiagram, importSequenceDiagram, renameCanvas]);
 
-  const isGitHubRepoUrl = (value: string): boolean => {
-    const cleaned = value.trim().replace(/\/+$/, '');
-    return /^https?:\/\/(?:www\.)?github\.com\/([a-zA-Z0-9-._]+)\/([a-zA-Z0-9-._]+?)(?:\.git)?$/.test(cleaned);
-  };
-
   const extractRepoName = (url: string): string => {
-    try {
-      const cleanUrl = url.trim().replace(/\/+$/, '');
-      const parts = cleanUrl.split('/');
-      return parts[parts.length - 1] || 'Repository';
-    } catch {
-      return 'Repository';
-    }
+    const parsed = parseGitHubUrl(url);
+    if (parsed) return parsed.repo;
+    const cleanUrl = url.trim().replace(/\/+$/, '');
+    const parts = cleanUrl.split('/');
+    return parts[parts.length - 1] || 'Repository';
   };
 
 
   const handleGenerate = async (description: string, diagramSize?: 'small' | 'medium' | 'large') => {
     const selectedModel = useModelStore.getState().selectedModel;
     setProgress(null);
+    setLastPrompt(description);
+    if (diagramSize) {
+      setLastSize(diagramSize);
+    }
 
     const canvasName = isGitHubRepoUrl(description)
       ? `${extractRepoName(description)} Architecture`
@@ -291,6 +291,8 @@ export default function EditorPage() {
         useDiagramStore.getState().setActiveLayoutPresetId('layered-tb');
       }
     }
+
+    startGeneration();
 
     try {
       // GitHub repo ingest path — same input box, different pipeline
@@ -315,12 +317,12 @@ export default function EditorPage() {
           throw new Error(data.error || 'Repo ingest failed');
         }
 
-        const { nodes: rfNodes, edges: rfEdges } = parseRepoNdjsonToReactFlow(data.ndjson);
-        if (rfNodes.length === 0) {
+        const parsed = parseAndValidateRepoDiagram(data.ndjson);
+        if (!parsed) {
           throw new Error('No architectural components could be detected in this repository.');
         }
 
-        importDiagram(rfNodes, rfEdges);
+        importDiagram(parsed.nodes, parsed.edges);
         renameCanvas(activeCanvasId, canvasName);
         setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
 
@@ -329,11 +331,12 @@ export default function EditorPage() {
           iteration: 0,
           currentAgent: 'complete',
           score: 0,
-          message: `Ingested repo: ${rfNodes.length} nodes`,
+          message: `Ingested repo: ${parsed.nodeCount} nodes`,
           progress: 100,
         });
 
-        toast.success(`Generated repo diagram: ${rfNodes.length} nodes, ${rfEdges.length} edges`);
+        markPipelineDone();
+        toast.success(`Generated repo diagram: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
         return;
       }
 
@@ -446,6 +449,8 @@ export default function EditorPage() {
           showCode={showCodePanel}
           hideCodeButton={isSequenceDiagram}
           isCanvasEmpty={nodes.length === 0}
+          onRegenerate={lastPrompt ? () => handleGenerate(lastPrompt, lastSize) : undefined}
+          hasLastPrompt={!!lastPrompt}
         />
         <AnimatePresence>
           {showCodePanel && !isSequenceDiagram && (

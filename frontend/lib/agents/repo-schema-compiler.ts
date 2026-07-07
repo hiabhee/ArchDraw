@@ -20,6 +20,37 @@ const LAYER_GAP = 80;
 const COL_GAP = 200;
 const START_X = 100;
 
+function cleanNodeLabel(label: string): string {
+  return label
+    .replace(/\s*[ⓘ⚠]\s*$/g, '')
+    .replace(/^root$/i, 'Application')
+    .trim();
+}
+
+function cleanEdgeLabel(label: string, type: string): string {
+  const raw = label.trim();
+  if (!raw) {
+    if (type === 'db_query') return 'queries';
+    if (type === 'external_call') return 'uses';
+    if (type === 'auth_check') return 'auth';
+    if (type === 'guards') return 'guards';
+    if (type === 'publishes') return 'publishes';
+    return 'calls';
+  }
+
+  const lower = raw.toLowerCase();
+  if (lower.includes('external') || lower.startsWith('uses ')) return type === 'external_call' ? 'uses' : 'calls';
+  if (lower.includes('database') || lower.includes('datastore') || lower.includes('query')) return 'queries';
+  if (lower.includes('authenticate')) return 'auth';
+  if (lower.includes('route')) return 'routes';
+  if (lower.length > 22) {
+    if (type === 'external_call') return 'uses';
+    if (type === 'db_query') return 'queries';
+    if (type === 'http_call') return 'calls';
+  }
+  return raw;
+}
+
 function getNodeLayerAndType(node: ExtractedNode): { layer: string; icon: string; serviceType: string } {
   switch (node.type) {
     case 'MIDDLEWARE':
@@ -72,11 +103,12 @@ export function compileToDiagram(
     const y = LAYER_Y[layer] + LAYER_GAP;
     layerCounters[layer]++;
 
-    const { width, height } = calculateNodeDimensions(node.label, node.description);
+    const label = cleanNodeLabel(node.label);
+    const { width, height } = calculateNodeDimensions(label, node.description);
 
     const layouted: LayoutedNode = {
       id: node.id,
-      label: node.label,
+      label,
       subtitle: node.description,
       layer: layer as LayoutedNode['layer'],
       icon,
@@ -86,11 +118,6 @@ export function compileToDiagram(
       width,
       height,
     };
-
-    // Add confidence annotation via note
-    if (node.confidence && node.confidence !== 'high') {
-      layouted.label = node.label + (node.confidence === 'medium' ? ' ⓘ' : ' ⚠');
-    }
 
     return layouted;
   });
@@ -110,9 +137,10 @@ export function compileToDiagram(
   // Output edges (match V1 flow format: { path, label, async, communicationType })
   for (const edge of edges) {
     const isAsync = edge.direction === 'async' || edge.direction === 'event';
+    const label = cleanEdgeLabel(edge.label, edge.type);
     const flowObj: Record<string, unknown> = {
       path: [edge.from, edge.to],
-      label: edge.label,
+      label,
       async: isAsync,
       direction: edge.direction || 'sync',
       protocol: edge.protocol || 'http',
