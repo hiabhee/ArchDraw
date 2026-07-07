@@ -148,8 +148,14 @@ export function buildSmoothStepSvg(
       arcEndY = curr.y;
     }
 
+    const v1x = curr.x - arcStartX;
+    const v1y = curr.y - arcStartY;
+    const v2x = arcEndX - curr.x;
+    const v2y = arcEndY - curr.y;
+    const sweep = (v1x * v2y - v1y * v2x) > 0 ? 1 : 0;
+
     d += ` L ${arcStartX},${arcStartY}`;
-    d += ` Q ${curr.x},${curr.y} ${arcEndX},${arcEndY}`;
+    d += ` A ${r},${r} 0 0,${sweep} ${arcEndX},${arcEndY}`;
   }
 
   d += ` L ${points[points.length - 1].x},${points[points.length - 1].y}`;
