@@ -693,7 +693,7 @@ export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Arra
 }
 
 export function getCollisionFreeSmoothStepPath(params: CollisionFreePathParams): string {
-  const { borderRadius = 40 } = params;
+  const { borderRadius = 12 } = params;
   const waypoints = computeWaypoints(params);
   return buildSmoothStepSvg(waypoints, borderRadius);
 }

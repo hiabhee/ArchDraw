@@ -557,7 +557,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
   if (!best) return null
 
   const labelSeg = findLongestSegment(best.points)
-  const borderRadius = 40
+  const borderRadius = 12
   const svgPath = buildSmoothStepSvg(best.points, borderRadius)
 
   return {

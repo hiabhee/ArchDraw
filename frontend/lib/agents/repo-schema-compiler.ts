@@ -21,10 +21,26 @@ const COL_GAP = 200;
 const START_X = 100;
 
 function cleanNodeLabel(label: string): string {
-  return label
+  let cleaned = label
     .replace(/\s*[ⓘ⚠]\s*$/g, '')
     .replace(/^root$/i, 'Application')
     .trim();
+
+  // If the label is completely UPPERCASE and is longer than 3 characters, normalize it to Title Case
+  if (cleaned.length > 3 && cleaned === cleaned.toUpperCase()) {
+    cleaned = cleaned
+      .split(/[-_\s]+/)
+      .map((word) => {
+        const upperWord = word.toUpperCase();
+        if (['API', 'SDK', 'DB', 'CDN', 'UI', 'AWS', 'URL', 'REST', 'SQL', 'JWT', 'OAUTH'].includes(upperWord)) {
+          return upperWord;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ');
+  }
+
+  return cleaned;
 }
 
 function cleanEdgeLabel(label: string, type: string): string {
@@ -48,7 +64,7 @@ function cleanEdgeLabel(label: string, type: string): string {
     if (type === 'db_query') return 'queries';
     if (type === 'http_call') return 'calls';
   }
-  return raw;
+  return raw.toLowerCase();
 }
 
 function getNodeLayerAndType(node: ExtractedNode): { layer: string; icon: string; serviceType: string } {

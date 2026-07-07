@@ -199,13 +199,13 @@ export function computeEdgeRoute(
           targetX: th.x, targetY: th.y,
           sourcePosition,
           targetPosition,
-          borderRadius: 40,
+          borderRadius: 12,
           edgeOffset,
           nodeRects: nodeRectParam,
           excludedNodeIds: excludedIds,
         })
       : directWaypoints
-    const svgPath = buildSmoothStepSvg(waypoints, 40)
+    const svgPath = buildSmoothStepSvg(waypoints, 12)
 
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
@@ -286,7 +286,7 @@ export function computeEdgeRoute(
     if (index !== -1) edgeOffset = (index - (parallelEdges.length - 1) / 2) * 20
   }
 
-  const borderRadius = 40
+  const borderRadius = 12
   let waypoints = getCollisionFreeWaypoints({
     sourceX: sh.x, sourceY: sh.y,
     targetX: th.x, targetY: th.y,
