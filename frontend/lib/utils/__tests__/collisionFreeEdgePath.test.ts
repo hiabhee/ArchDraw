@@ -204,7 +204,7 @@ describe('V→H→V path (source Bottom, target Top)', () => {
     const pts = parsePathPoints(svg);
     expect(pts[0]).toEqual({ x: 300, y: 600 });
     expect(pts[pts.length - 1]).toEqual({ x: 600, y: 100 });
-    expect(pts.length).toBe(4);
+    expect(pts.length).toBe(6);
   });
 
   it('reroutes around a node blocking only the horizontal mid segment', () => {
@@ -250,10 +250,11 @@ describe('L-shaped path (source Right, target Top)', () => {
     const svg = getCollisionFreeSmoothStepPath({ ...commonParams });
     const pts = parsePathPoints(svg);
     // Default: source → (targetX, sourceY) → target
-    expect(pts.length).toBe(3);
+    expect(pts.length).toBe(4);
     expect(pts[0]).toEqual({ x: 200, y: 300 });
     expect(pts[1]).toEqual({ x: 500, y: 300 }); // corner
-    expect(pts[2]).toEqual({ x: 500, y: 100 });
+    expect(pts[2]).toEqual({ x: 500, y: 80 });
+    expect(pts[3]).toEqual({ x: 500, y: 100 });
   });
 
   it('reroutes around a node at the L-corner', () => {
@@ -274,7 +275,7 @@ describe('L-shaped path (source Right, target Top)', () => {
     expect(waypoints[0]).toEqual({ x: 200, y: 300 });
     expect(waypoints[waypoints.length - 1]).toEqual({ x: 500, y: 100 });
     // Should have 4 waypoints (detour added)
-    expect(waypoints.length).toBe(4);
+    expect(waypoints.length).toBe(6);
   });
 });
 
@@ -294,10 +295,12 @@ describe('L-shaped path (source Bottom, target Right)', () => {
     const svg = getCollisionFreeSmoothStepPath({ ...commonParams });
     const pts = parsePathPoints(svg);
     // Default: source → (sourceX, targetY) → target
-    expect(pts.length).toBe(3);
+    expect(pts.length).toBe(5);
     expect(pts[0]).toEqual({ x: 300, y: 500 });
-    expect(pts[1]).toEqual({ x: 300, y: 200 }); // corner
-    expect(pts[2]).toEqual({ x: 800, y: 200 });
+    expect(pts[1]).toEqual({ x: 300, y: 520 });
+    expect(pts[2]).toEqual({ x: 300, y: 200 }); // corner
+    expect(pts[3]).toEqual({ x: 820, y: 200 });
+    expect(pts[4]).toEqual({ x: 800, y: 200 });
   });
 
   it('reroutes around a node at the L-corner', () => {

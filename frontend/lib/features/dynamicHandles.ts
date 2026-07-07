@@ -289,7 +289,7 @@ export function getObstacleAwareHandles(
     }
   }
 
-  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean } {
+  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean; isMixed: boolean } {
     const sh = getHandleCoordinate(sourceRect, sp);
     const th = getHandleCoordinate(targetRect, tp);
     const sx = sh.x, sy = sh.y, tx = th.x, ty = th.y;
@@ -334,7 +334,9 @@ export function getObstacleAwareHandles(
       pathLen += Math.abs(waypoints[i].x - waypoints[i - 1].x) + Math.abs(waypoints[i].y - waypoints[i - 1].y);
     }
 
-    return { collisions, pathLen, crossesBody };
+    const isMixed = (sp === Position.Left || sp === Position.Right) !== (tp === Position.Left || tp === Position.Right);
+
+    return { collisions, pathLen, crossesBody, isMixed };
   }
 
   const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId);
@@ -355,20 +357,28 @@ export function getObstacleAwareHandles(
     }
   }
 
-  let best = { collisions: Infinity, pathLen: Infinity, crossesBody: true, source: geometryHandles.sourcePosition, target: geometryHandles.targetPosition };
+  let best = {
+    collisions: Infinity,
+    pathLen: Infinity,
+    crossesBody: true,
+    isMixed: true,
+    source: geometryHandles.sourcePosition,
+    target: geometryHandles.targetPosition
+  };
 
   for (const cand of candidates) {
     const score = scorePair(cand.source, cand.target);
     const isBetter =
       score.crossesBody < best.crossesBody ||
       (score.crossesBody === best.crossesBody && score.collisions < best.collisions) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen < best.pathLen);
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.isMixed < best.isMixed) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.isMixed === best.isMixed && score.pathLen < best.pathLen);
 
     if (isBetter) {
       best = { ...score, source: cand.source, target: cand.target };
     }
 
-    if (!score.crossesBody && score.collisions === 0 && cand.label === 'geometry') {
+    if (!score.crossesBody && score.collisions === 0 && !score.isMixed && cand.label === 'geometry') {
       break;
     }
   }

@@ -239,10 +239,11 @@ export function computeEdgeRoute(
   })
 
   if (result && result.nodeCrossings === 0) {
-    // Cache waypoints for edge-edge crossing detection
     const waypoints = result.points
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
+
+    console.log("TEMPLATE PATH MATCH", edge.id, sourceNode.data.label, "->", targetNode.data.label, "sp:", result.sourcePort.side, "tp:", result.targetPort.side, "pts:", waypoints);
 
     return {
       sourcePosition: result.sourcePort.side,
@@ -329,6 +330,8 @@ export function computeEdgeRoute(
 
   const edgeDataObj = edge.data as Record<string, unknown> || {}
   edgeDataObj.__cachedWaypoints = waypoints
+
+  console.log("FALLBACK PATH MATCH", edge.id, sourceNode.data.label, "->", targetNode.data.label, "sp:", handles.sourcePosition, "tp:", handles.targetPosition, "pts:", waypoints);
 
   return {
     sourcePosition: handles.sourcePosition,
