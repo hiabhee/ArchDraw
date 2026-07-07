@@ -632,66 +632,83 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
     excludedNodeIds = new Set(),
   } = params;
 
+  const sourceDir = getOutwardDirection(sourcePosition);
+  const targetDir = getOutwardDirection(targetPosition);
+
+  const dist = Math.abs(sx - tx) + Math.abs(sy - ty);
+  const stubLen = Math.min(20, Math.max(8, dist / 4));
+
+  const ssx = sx + sourceDir.dx * stubLen;
+  const ssy = sy + sourceDir.dy * stubLen;
+  const ttx = tx + targetDir.dx * stubLen;
+  const tty = ty + targetDir.dy * stubLen;
+
   const sourceIsHorizontal = sourcePosition === Position.Left || sourcePosition === Position.Right;
   const targetIsHorizontal = targetPosition === Position.Left || targetPosition === Position.Right;
 
-  let waypoints: Array<{ x: number; y: number }> | null = null;
+  let middleWaypoints: Array<{ x: number; y: number }> | null = null;
 
   if (sourceIsHorizontal && targetIsHorizontal) {
-    waypoints = findSafeHtoHPath(sx, sy, tx, ty, edgeOffset, nodeRects, excludedNodeIds);
-    if (!waypoints && nodeRects) {
-      waypoints = findAstFallbackPath(sx, sy, tx, ty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeHtoHPath(ssx, ssy, ttx, tty, edgeOffset, nodeRects, excludedNodeIds);
+    if (!middleWaypoints && nodeRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
     }
-    if (!waypoints) {
-      const mx = (sx + tx) / 2 + edgeOffset;
-      waypoints = [
-        { x: sx, y: sy },
-        { x: mx, y: sy },
-        { x: mx, y: ty },
-        { x: tx, y: ty },
+    if (!middleWaypoints) {
+      const mx = (ssx + ttx) / 2 + edgeOffset;
+      middleWaypoints = [
+        { x: ssx, y: ssy },
+        { x: mx, y: ssy },
+        { x: mx, y: tty },
+        { x: ttx, y: tty },
       ];
     }
   } else if (!sourceIsHorizontal && !targetIsHorizontal) {
-    waypoints = findSafeVtoVPath(sx, sy, tx, ty, edgeOffset, nodeRects, excludedNodeIds);
-    if (!waypoints && nodeRects) {
-      waypoints = findAstFallbackPath(sx, sy, tx, ty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeVtoVPath(ssx, ssy, ttx, tty, edgeOffset, nodeRects, excludedNodeIds);
+    if (!middleWaypoints && nodeRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
     }
-    if (!waypoints) {
-      const my = (sy + ty) / 2 + edgeOffset;
-      waypoints = [
-        { x: sx, y: sy },
-        { x: sx, y: my },
-        { x: tx, y: my },
-        { x: tx, y: ty },
+    if (!middleWaypoints) {
+      const my = (ssy + tty) / 2 + edgeOffset;
+      middleWaypoints = [
+        { x: ssx, y: ssy },
+        { x: ssx, y: my },
+        { x: ttx, y: my },
+        { x: ttx, y: tty },
       ];
     }
   } else if (sourceIsHorizontal) {
-    waypoints = findSafeLShapePath(sx, sy, tx, ty, true, nodeRects, excludedNodeIds);
-    if (!waypoints && nodeRects) {
-      waypoints = findAstFallbackPath(sx, sy, tx, ty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, true, nodeRects, excludedNodeIds);
+    if (!middleWaypoints && nodeRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
     }
-    if (!waypoints) {
-      waypoints = [
-        { x: sx, y: sy },
-        { x: tx, y: sy },
-        { x: tx, y: ty },
+    if (!middleWaypoints) {
+      middleWaypoints = [
+        { x: ssx, y: ssy },
+        { x: ttx, y: ssy },
+        { x: ttx, y: tty },
       ];
     }
   } else {
-    waypoints = findSafeLShapePath(sx, sy, tx, ty, false, nodeRects, excludedNodeIds);
-    if (!waypoints && nodeRects) {
-      waypoints = findAstFallbackPath(sx, sy, tx, ty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, false, nodeRects, excludedNodeIds);
+    if (!middleWaypoints && nodeRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
     }
-    if (!waypoints) {
-      waypoints = [
-        { x: sx, y: sy },
-        { x: sx, y: ty },
-        { x: tx, y: ty },
+    if (!middleWaypoints) {
+      middleWaypoints = [
+        { x: ssx, y: ssy },
+        { x: ssx, y: tty },
+        { x: ttx, y: tty },
       ];
     }
   }
 
-  return enforceTerminalStubs(waypoints!, sourcePosition, targetPosition);
+  const fullWaypoints = [
+    { x: sx, y: sy },
+    ...middleWaypoints,
+    { x: tx, y: ty }
+  ];
+
+  return simplifyOrthogonalPath(fullWaypoints);
 }
 
 export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {
