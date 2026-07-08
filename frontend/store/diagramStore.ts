@@ -1354,7 +1354,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
       sidebarOpen: true,
       canvasMode: 'empty',
       activeLayoutPresetId: 'layered-lr',
-      detailLevel: 2,
+      detailLevel: 3,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setGuideLines: (lines) => set({ guideLines: lines }),
       setCanvasMode: (mode) => set({ canvasMode: mode }),

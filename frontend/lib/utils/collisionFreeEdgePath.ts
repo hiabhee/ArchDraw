@@ -106,17 +106,30 @@ export function buildSmoothStepSvg(
   points: Array<{ x: number; y: number }>,
   borderRadius: number,
 ): string {
-  if (points.length < 2) return '';
-  if (points.length === 2) {
-    return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`;
+  // Remove consecutive duplicates
+  const cleaned: Array<{ x: number; y: number }> = [];
+  for (const pt of points) {
+    if (cleaned.length === 0) {
+      cleaned.push(pt);
+    } else {
+      const last = cleaned[cleaned.length - 1];
+      if (Math.abs(pt.x - last.x) > 0.01 || Math.abs(pt.y - last.y) > 0.01) {
+        cleaned.push(pt);
+      }
+    }
   }
 
-  let d = `M ${points[0].x},${points[0].y}`;
+  if (cleaned.length < 2) return '';
+  if (cleaned.length === 2) {
+    return `M ${cleaned[0].x},${cleaned[0].y} L ${cleaned[1].x},${cleaned[1].y}`;
+  }
 
-  for (let i = 1; i < points.length - 1; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const next = points[i + 1];
+  let d = `M ${cleaned[0].x},${cleaned[0].y}`;
+
+  for (let i = 1; i < cleaned.length - 1; i++) {
+    const prev = cleaned[i - 1];
+    const curr = cleaned[i];
+    const next = cleaned[i + 1];
 
     const distPrev = Math.abs(curr.x - prev.x) + Math.abs(curr.y - prev.y);
     const distNext = Math.abs(next.x - curr.x) + Math.abs(next.y - curr.y);
@@ -158,7 +171,7 @@ export function buildSmoothStepSvg(
     d += ` A ${r},${r} 0 0,${sweep} ${arcEndX},${arcEndY}`;
   }
 
-  d += ` L ${points[points.length - 1].x},${points[points.length - 1].y}`;
+  d += ` L ${cleaned[cleaned.length - 1].x},${cleaned[cleaned.length - 1].y}`;
   return d;
 }
 
@@ -356,12 +369,26 @@ function findSafeLShapePath(
 }
 
 function simplifyOrthogonalPath(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
-  if (points.length <= 2) return points;
-  const result = [points[0]];
-  for (let i = 1; i < points.length - 1; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const next = points[i + 1];
+  // Remove consecutive duplicates
+  const cleaned: Array<{ x: number; y: number }> = [];
+  for (const pt of points) {
+    if (cleaned.length === 0) {
+      cleaned.push(pt);
+    } else {
+      const last = cleaned[cleaned.length - 1];
+      if (Math.abs(pt.x - last.x) > 0.01 || Math.abs(pt.y - last.y) > 0.01) {
+        cleaned.push(pt);
+      }
+    }
+  }
+
+  if (cleaned.length <= 2) return cleaned;
+
+  const result = [cleaned[0]];
+  for (let i = 1; i < cleaned.length - 1; i++) {
+    const prev = cleaned[i - 1];
+    const curr = cleaned[i];
+    const next = cleaned[i + 1];
     const dx1 = Math.sign(curr.x - prev.x);
     const dy1 = Math.sign(curr.y - prev.y);
     const dx2 = Math.sign(next.x - curr.x);
@@ -370,7 +397,7 @@ function simplifyOrthogonalPath(points: Array<{ x: number; y: number }>): Array<
       result.push(curr);
     }
   }
-  result.push(points[points.length - 1]);
+  result.push(cleaned[cleaned.length - 1]);
   return result;
 }
 
