@@ -2,19 +2,14 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Plus, Mic, Send, Loader2, ChevronDown, Lightbulb, Clock, Star, Trash2, Code, RotateCw
+  Mic, Send, Loader2, Code, RotateCw
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { usePromptHistory, PROMPT_SUGGESTIONS } from '@/store/promptHistory';
+import { usePromptHistory } from '@/store/promptHistory';
 
 interface FloatingAIBarProps {
-  onGenerate: (description: string, diagramSize: 'small' | 'medium' | 'large') => Promise<void>;
+  onGenerate: (description: string, detailLevel: 1 | 2 | 3) => Promise<void>;
   onToggleCode: () => void;
   showCode: boolean;
   hideCodeButton?: boolean;
@@ -35,13 +30,11 @@ export function FloatingAIBar({
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [, setError] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [diagramSize, setDiagramSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [activeTab, setActiveTab] = useState<'inspiration' | 'history'>('inspiration');
+  const [detailLevel, setDetailLevel] = useState<1 | 2 | 3>(2);
   const [isFirstTime, setIsFirstTime] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { history, addToHistory, clearHistory, addToFavorites } = usePromptHistory();
+  const { addToHistory } = usePromptHistory();
   
   // Auto-grow textarea height calculation for thin input (minimum 21px)
   useEffect(() => {
@@ -94,9 +87,11 @@ export function FloatingAIBar({
     setIsGenerating(true);
     setError(null);
 
+    const sizeLabel = detailLevel === 1 ? 'small' : detailLevel === 2 ? 'medium' : 'large';
+
     try {
-      await onGenerate(input, diagramSize);
-      addToHistory(input, diagramSize);
+      await onGenerate(input, detailLevel);
+      addToHistory(input, sizeLabel);
       setInput('');
       localStorage.setItem('archdraw-has-used-canvas', 'true');
       setIsFirstTime(false);
@@ -107,7 +102,7 @@ export function FloatingAIBar({
     } finally {
       setIsGenerating(false);
     }
-  }, [input, onGenerate, diagramSize, addToHistory]);
+  }, [input, onGenerate, detailLevel, addToHistory]);
 
   const handleRegenerate = useCallback(async () => {
     if (!onRegenerate) return;
@@ -133,20 +128,6 @@ export function FloatingAIBar({
     }
   };
 
-  const selectInspiration = (prompt: string) => {
-    setInput(prompt);
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 50);
-  };
-
-  const selectHistoryItem = (item: { prompt: string }) => {
-    setInput(item.prompt);
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 50);
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -169,131 +150,24 @@ export function FloatingAIBar({
         >
           {/* Left Actions */}
           <div className="flex items-center gap-1 shrink-0 pl-0.5">
-            {/* Add Button */}
-            <button
-              className="solid-icon-btn shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-muted/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-150"
-              title="Add component"
-              onClick={() => window.dispatchEvent(new CustomEvent('open-create-component'))}
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Inspiration Dropdown */}
-            <DropdownMenu open={showHistory} onOpenChange={setShowHistory}>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 hover:bg-[#1c1e22] dark:hover:bg-[#141516] text-muted-foreground hover:text-foreground transition-all duration-150 cursor-pointer select-none border border-transparent active:scale-95">
-                  <Lightbulb className="w-3 h-3" />
-                  <span className="hidden sm:inline text-[10px] font-semibold">Inspiration</span>
-                  <ChevronDown className="hidden sm:block w-2 h-2 opacity-60" />
+            {/* Detail Level Toggle */}
+            <div className="flex items-center gap-0.5 bg-muted/20 rounded-full p-0.5 border border-border/10">
+              {([1, 2, 3] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setDetailLevel(level)}
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
+                    detailLevel === level
+                      ? 'bg-primary/20 text-primary shadow-sm'
+                      : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
+                  }`}
+                  title={level === 1 ? 'Simple — only core components' : level === 2 ? 'Moderate — balanced detail' : 'Detailed — full architecture depth'}
+                >
+                  L{level}
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="w-72 sm:w-80 p-0 border border-border bg-card text-card-foreground shadow-2xl rounded-2xl overflow-hidden z-[100]"
-              >
-                <div className="flex border-b border-border">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('inspiration')}
-                    className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
-                      activeTab === 'inspiration' 
-                        ? 'text-primary border-b-2 border-primary bg-primary/5' 
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                    }`}
-                  >
-                    Templates
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('history')}
-                    className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
-                      activeTab === 'history' 
-                        ? 'text-primary border-b-2 border-primary bg-primary/5' 
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                    }`}
-                  >
-                    History ({history.length})
-                  </button>
-                </div>
-                
-                <div className="max-h-96 overflow-y-auto p-2">
-                  {activeTab === 'inspiration' ? (
-                    <>
-                      {PROMPT_SUGGESTIONS.map((category) => (
-                        <div key={category.category} className="mb-4">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-2 py-1">
-                            {category.category}
-                          </p>
-                          {category.prompts.map((item, index) => (
-                            <button
-                              key={index}
-                              type="button"
-                              onClick={() => {
-                                selectInspiration(item.prompt);
-                                setShowHistory(false);
-                              }}
-                              className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors"
-                            >
-                              <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.prompt}</p>
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      {history.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No history yet</p>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => clearHistory()}
-                            className="w-full text-xs text-muted-foreground hover:text-destructive px-3 py-2 text-left flex items-center gap-2 hover:bg-muted/30 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Clear History
-                          </button>
-                          {history.slice(0, 10).map((item) => (
-                            <div
-                              key={item.id}
-                              className="group flex items-start gap-2 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer"
-                              onClick={() => {
-                                selectHistoryItem(item);
-                                setShowHistory(false);
-                              }}
-                            >
-                              <Clock className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
-                              <div className="flex-1 min-w-0 text-left">
-                                <p className="text-sm truncate text-foreground">{item.prompt}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {item.model ? `Size: ${item.model}` : 'Just now'}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToFavorites(item);
-                                  toast.success('Added to favorites');
-                                }}
-                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-background rounded text-muted-foreground hover:text-foreground transition-all"
-                              >
-                                <Star className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              ))}
+            </div>
           </div>
 
           {/* Vertical Divider */}

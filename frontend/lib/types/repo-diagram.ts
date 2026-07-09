@@ -83,6 +83,9 @@ export type RepoProfile = {
     language: string;
     runtime: string;
   };
+  applicationDomain: string;
+  coreCapabilities: string[];
+  primaryUserFlows: string[];
   confidence: Confidence;
   reasoning: string;
   extractionStrategy: {
@@ -239,7 +242,9 @@ export type Subsystem = {
 export type StaticSignal = {
   type: 'dependency' | 'route' | 'schema' | 'env_var' | 'docker_service'
       | 'terraform_resource' | 'kubernetes_resource' | 'queue_topic'
-      | 'sdk_usage' | 'middleware' | 'auth_provider' | 'entry_point';
+      | 'sdk_usage' | 'middleware' | 'auth_provider' | 'entry_point'
+      | 'ml_script' | 'notebook' | 'model_artifact' | 'config'
+      | 'ml_directory' | 'ml_import' | 'data_file' | 'pipeline';
   label: string;
   source: string;
   details: Record<string, unknown>;

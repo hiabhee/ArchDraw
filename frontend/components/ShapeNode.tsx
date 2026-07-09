@@ -2,11 +2,9 @@
 
 import { memo, useEffect, type CSSProperties } from 'react';
 import { Handle, Position, NodeProps, useUpdateNodeInternals } from 'reactflow';
-import { useNodeHandles } from '@/hooks/useNodeHandles';
 import { useCanvasTheme } from '@/lib/theme';
 import { LIGHT_NODE_STYLES, DARK_NODE_STYLES } from '@/lib/theme/stylingConstants';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
-import { useDiagramStore } from '@/store/diagramStore';
 import './nodes/nodeStyles.css';
 
 export type ShapeType =
@@ -54,21 +52,18 @@ const CENTER_HANDLE: React.CSSProperties = {
 };
 
 /**
- * Smart Handles — only renders handles for edge directions that are
- * actually in use on this node. Falls back to a single centered pair
- * when no edges are connected, keeping the DOM minimal.
+ * Node Handles — renders exactly 2 handles per side (one source, one target).
  */
 function Handles({ color, nodeId }: { color: string; nodeId: string }) {
   const updateNodeInternals = useUpdateNodeInternals();
-  const needed = useNodeHandles(nodeId);
   const s = HANDLE_STYLE(color);
 
   useEffect(() => {
     updateNodeInternals(nodeId);
-  }, [nodeId, needed, updateNodeInternals]);
+  }, [nodeId, updateNodeInternals]);
 
   return (
-    <NodeHandles needed={needed} handleStyle={s} />
+    <NodeHandles handleStyle={s} />
   );
 }
 
@@ -295,33 +290,6 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   const backplates = styles.backplates;
 
-  const detailLevel = useDiagramStore((s) => s.detailLevel);
-
-  // Determine node importance level (1, 2, or 3)
-  const serviceType = (data as any).category || (data as any).serviceType || 'service';
-  let nodeLevel = 2; // Default to Level 2 (core)
-  
-  if (serviceType === 'client' || serviceType === 'networking' || serviceType === 'gateway' || serviceType === 'load-balancer') {
-    nodeLevel = 1;
-  } else if (serviceType === 'data' || serviceType === 'database') {
-    nodeLevel = 1;
-  } else if (serviceType === 'compute' || serviceType === 'service') {
-    nodeLevel = 1;
-  } else if (serviceType === 'observability' || serviceType === 'monitor' || serviceType === 'external') {
-    nodeLevel = 3;
-  }
-
-  const isVisible = detailLevel >= nodeLevel;
-  const opacity = isVisible ? 1 : 0.12;
-  const pointerEvents = isVisible ? 'auto' as const : 'none' as const;
-
-  const wrapperStyle: React.CSSProperties = {
-    opacity,
-    pointerEvents,
-    transition: 'opacity 0.3s ease, filter 0.3s ease',
-    filter: isVisible ? 'none' : 'blur(0.5px)',
-  };
-
   const renderShape = () => {
     switch (data.shape) {
       case 'diamond':          return <Diamond id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} />;
@@ -333,7 +301,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     }
   };
 
-  return <div style={wrapperStyle}>{renderShape()}</div>;
+  return renderShape();
 }
 
 export const ShapeNode = memo(ShapeNodeComponent);

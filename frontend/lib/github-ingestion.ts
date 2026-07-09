@@ -90,6 +90,7 @@ async function getRecursiveTree(owner: string, repo: string, sha: string, header
   if (!res.ok) throw new Error(`GitHub API returned status ${res.status}`);
   const data = await res.json();
   treeCache.set(cacheKey, { tree: data.tree, truncated: data.truncated });
+  evictIfNeeded(treeCache);
   return data;
 }
 
@@ -171,8 +172,17 @@ const isSkipped = (path: string, size?: number): string | null => {
 
 // In-memory caches to avoid re-fetching the same data on re-runs.
 // Content cache keyed by path; tree cache keyed by headSha.
+const MAX_CACHE_SIZE = 25;
 const fileContentCache = new Map<string, FileEntry | null>();
 const treeCache = new Map<string, { tree: GitTreeItem[]; truncated: boolean }>();
+
+function evictIfNeeded(cache: Map<string, unknown>) {
+  while (cache.size > MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    cache.delete(oldestKey);
+  }
+}
 
 async function fetchFileContent(
   owner: string,
@@ -200,6 +210,7 @@ async function fetchFileContent(
   if (!response.ok) {
     console.warn(`[Ingest] Failed to fetch content for ${path}: Status ${response.status}`);
     fileContentCache.set(cacheKey, null);
+    evictIfNeeded(fileContentCache);
     return null;
   }
   const data = await response.json();
@@ -214,6 +225,7 @@ async function fetchFileContent(
   }
   const entry: FileEntry = { path, content };
   fileContentCache.set(cacheKey, entry);
+  evictIfNeeded(fileContentCache);
   return entry;
 }
 
@@ -278,7 +290,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   };
 
   if (process.env.GITHUB_TOKEN) {
-    headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+    headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
   } else {
     console.warn('[Ingest] No GITHUB_TOKEN configured. Unauthenticated rate limit is 60 req/hr. Set GITHUB_TOKEN in .env for 5000 req/hr.');
   }
@@ -345,7 +357,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   }
 
   console.log(`[Ingest] Phase 1: Fetching ${phase1Candidates.length} files...`);
-  const phase1Fetched = await promisePool(phase1Candidates, 3, async (path) => {
+  const phase1Fetched = await promisePool(phase1Candidates, 5, async (path) => {
     const item = treeMap.get(path);
     if (!item || isSkipped(path, item.size)) return null;
     return fetchFileContent(owner, repo, path, headers);
@@ -406,8 +418,8 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   console.log(`[Ingest] Phase 2: Stack-guided deep file selection...`);
 
   const phase2Candidates: string[] = [];
-  const totalLimit = 40 - phase1Files.length;
-  let contentBudget = 100 * 1024; // 100KB total
+  const totalLimit = 75 - phase1Files.length;
+  let contentBudget = 280 * 1024; // 280KB total
   const isNode = surfaceClassification.primaryLanguage === 'JavaScript/TypeScript';
   const isPython = surfaceClassification.primaryLanguage === 'Python';
   const isGo = surfaceClassification.primaryLanguage === 'Go';
@@ -420,27 +432,55 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
       const pj = JSON.parse(phase1PackageJsonRaw);
       const deps = { ...(pj.dependencies || {}), ...(pj.devDependencies || {}) };
       const isNextJs = deps['next'];
+      const isNestJs = deps['@nestjs/core'];
       const isExpress = deps['express'] || deps['fastify'] || deps['hapi'];
       const isLibrary = pj.main || pj.exports;
 
       if (isNextJs) {
-        // Next.js: app/ or pages/ routes (V1 behavior)
-        // app routes
+        const routeExt = '(?:tsx?|jsx?|js)';
+        // app router pages
         const appPages = treeItems
-          .filter(item => item.type === 'blob' && /^app\/(?:.+\/)?page\.tsx$/.test(item.path) && !isSkipped(item.path, item.size))
+          .filter(item => item.type === 'blob' && new RegExp(`^app\\/(?:.+\\/)?page\\.${routeExt}$`).test(item.path) && !isSkipped(item.path, item.size))
           .slice(0, 20)
           .map(item => item.path);
         appPages.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
 
         const apiRoutes = treeItems
-          .filter(item => item.type === 'blob' && /^app\/api\/(?:.+\/)?route\.ts$/.test(item.path) && !isSkipped(item.path, item.size))
-          .slice(0, 20)
+          .filter(item => item.type === 'blob' && new RegExp(`^app\\/api\\/(?:.+\\/)?route\\.${routeExt}$`).test(item.path) && !isSkipped(item.path, item.size))
+          .slice(0, 25)
           .map(item => item.path);
         apiRoutes.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
 
-        const otherNextFiles = ['middleware.ts', 'middleware.js', 'app/layout.tsx', 'prisma/schema.prisma', 'next.config.ts', 'next.config.js'];
+        // pages router (legacy Next.js)
+        const pagesRouter = treeItems
+          .filter(item => item.type === 'blob' && /^pages\/(?!_).+\.(tsx?|jsx?|js)$/.test(item.path) && !isSkipped(item.path, item.size))
+          .slice(0, 15)
+          .map(item => item.path);
+        pagesRouter.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
+
+        const pagesApi = treeItems
+          .filter(item => item.type === 'blob' && /^pages\/api\/.+\.(tsx?|jsx?|js)$/.test(item.path) && !isSkipped(item.path, item.size))
+          .slice(0, 15)
+          .map(item => item.path);
+        pagesApi.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
+
+        const otherNextFiles = ['middleware.ts', 'middleware.js', 'app/layout.tsx', 'app/layout.js', 'prisma/schema.prisma', 'next.config.ts', 'next.config.js', 'next.config.mjs'];
         for (const p of otherNextFiles) {
           if (treeMap.has(p) && !phase2Candidates.includes(p)) phase2Candidates.push(p);
+        }
+      } else if (isNestJs) {
+        const nestPatterns = [
+          (p: string) => /^src\/.+\.controller\.(ts|js)$/.test(p),
+          (p: string) => /^src\/.+\.service\.(ts|js)$/.test(p),
+          (p: string) => /^src\/.+\.module\.(ts|js)$/.test(p),
+          (p: string) => /^src\/main\.(ts|js)$/.test(p),
+        ];
+        for (const match of nestPatterns) {
+          const files = treeItems
+            .filter(item => item.type === 'blob' && match(item.path) && !isSkipped(item.path, item.size))
+            .slice(0, 12)
+            .map(item => item.path);
+          files.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
         }
       } else if (isExpress) {
         const expressTargets = ['app.js', 'server.js', 'index.js', 'app.ts', 'server.ts', 'index.ts'];
@@ -592,11 +632,10 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     mdFiles.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
   }
 
-  // Enforce hard limits
   const phase2Slice = phase2Candidates.slice(0, Math.min(phase2Candidates.length, totalLimit));
 
   console.log(`[Ingest] Phase 2: Fetching ${phase2Slice.length} files...`);
-  const phase2Fetched = await promisePool(phase2Slice, 3, async (path) => {
+  const phase2Fetched = await promisePool(phase2Slice, 6, async (path) => {
     const item = treeMap.get(path);
     if (!item || isSkipped(path, item.size)) return null;
     if (contentBudget <= 0) return null;

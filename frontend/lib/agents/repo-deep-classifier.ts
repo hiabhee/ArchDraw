@@ -118,6 +118,9 @@ export function buildFallbackRepoProfile(snapshot: RepoSnapshot): RepoProfile {
       language,
       runtime,
     },
+    applicationDomain: framework ? `${framework} application` : 'Web application',
+    coreCapabilities: [],
+    primaryUserFlows: [],
     confidence: 'low',
     reasoning:
       'Fallback classification from repository file tree and config (LLM response was not valid JSON).',
@@ -142,6 +145,9 @@ function normalizeRepoProfile(parsed: Record<string, unknown>): RepoProfile {
       language: (primaryStack.language as string) || 'unknown',
       runtime: (primaryStack.runtime as string) || 'unknown',
     },
+    applicationDomain: (parsed.applicationDomain as string) || '',
+    coreCapabilities: Array.isArray(parsed.coreCapabilities) ? (parsed.coreCapabilities as string[]) : [],
+    primaryUserFlows: Array.isArray(parsed.primaryUserFlows) ? (parsed.primaryUserFlows as string[]) : [],
     confidence: (parsed.confidence as RepoProfile['confidence']) || 'medium',
     reasoning: (parsed.reasoning as string) || 'Classified from repository analysis.',
     extractionStrategy: {
@@ -169,8 +175,8 @@ export async function deepClassify(snapshot: RepoSnapshot, summaries?: string[])
   ]);
 
   const summariesBlock = summaries && summaries.length > 0
-    ? `SUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}`
-    : `CONFIG AND SOURCE FILES (reference only):\n${sourceFilesBlock}`;
+    ? `SUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}\n\nSOURCE FILES (for verifying classification):\n${sourceFilesBlock}`
+    : `SOURCE FILES:\n${sourceFilesBlock}`;
 
   const prompt = `Classify this repository.
 
@@ -189,7 +195,7 @@ ${JSON_OUTPUT_REMINDER}`;
   try {
     const result = await apiKeyManager.executeWithRetry(async (client) =>
       groqJsonCompletion(client, {
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.3-70b-versatile',  // 70B for accurate repo classification (runs in parallel with extractComponents)
         messages: [
           {
             role: 'system',
@@ -233,6 +239,11 @@ EXTRACTION STRATEGY — tell downstream agents what to focus on:
 - moduleStructure: string — one sentence describing how the code is organized
 - focusAreas: string[] — what the component extractor should pay most attention to
 
+APPLICATION UNDERSTANDING — describe what this application DOES (not just its tech stack):
+- applicationDomain: one sentence describing the application's purpose (e.g. "SaaS dashboard for managing developer tools", "REST API for a food delivery platform", "Open-source library for data visualization"). If it's a library/CLI, describe what it helps developers accomplish.
+- coreCapabilities: 3-6 functional capabilities the application provides (e.g. ["User authentication", "Product catalog", "Payment processing", "Order management"]). These should be things a user or consumer of the system would recognize, not implementation details.
+- primaryUserFlows: 1-3 key user journeys that trace through the system (e.g. "User signs up, authenticates, and views their dashboard", "Customer browses products, adds to cart, and checks out"). If it's a library/CLI, describe the main usage flows.
+
 CRITICAL: Reply with a single JSON object only. No markdown fences, no bullet lists, no text before or after the JSON.
 
 {
@@ -243,6 +254,9 @@ CRITICAL: Reply with a single JSON object only. No markdown fences, no bullet li
     "language": "string",
     "runtime": "string"
   },
+  "applicationDomain": "string",
+  "coreCapabilities": [],
+  "primaryUserFlows": [],
   "confidence": "high | medium | low",
   "reasoning": "two sentences explaining why you classified it this way",
   "extractionStrategy": {

@@ -133,7 +133,8 @@ export function parseAndValidateRepoDiagram(
   const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
     zeroedNodes,
     enrichedEdges,
-    direction
+    direction,
+    { ranksep: 260, nodesep: 150 }
   );
 
   return {

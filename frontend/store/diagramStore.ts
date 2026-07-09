@@ -102,8 +102,8 @@ import { createNode, createEdge } from '@/lib/factory';
 import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
 import { LAYOUT_PRESETS, type LayoutPreset } from '@/lib/canvas/layoutPresets';
 
-const NODE_PADDING = 25;
-const MIN_NODE_SPACING = 25;
+const NODE_PADDING = 40;
+const MIN_NODE_SPACING = 50;
 
 function resolveNodeCollisions(nodes: Node[]): Node[] {
   if (!nodes || !Array.isArray(nodes)) return [];
@@ -540,16 +540,6 @@ function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
       };
     }
 
-    const isFloating = !edge.sourceHandle && !edge.targetHandle;
-    if (isFloating) {
-      return {
-        ...edge,
-        sourceHandle: null,
-        targetHandle: null,
-        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
-      };
-    }
-    
     const targetNode = nodes.find(n => n.id === edge.target);
     if (!targetNode) {
       return {
@@ -1777,14 +1767,10 @@ const useDiagramStoreRaw = create<DiagramState>()(
       importDiagram: (nodes, edges) => {
         get().pushHistory();
         
-        console.log('[importDiagram] nodes before layout:', nodes.map(n => ({ id: n.id, x: n.position?.x, y: n.position?.y, parentId: n.parentId, type: n.type })));
-        
         const normalizedNodes = normalizeNodes(nodes);
         const cleanedNodes = stripReservedLayerNodes(normalizedNodes);
         const validatedNodes = validateAndFixNodes(cleanedNodes);
         const normalizedEdges = normalizeEdges(edges);
-        
-        console.log('[importDiagram] nodes:', validatedNodes.map(n => ({ id: n.id, x: n.position?.x, y: n.position?.y, parentId: n.parentId, type: n.type })));
         
         const { nodes: clarityNodes, edges: clarityEdges, report } = runClarityCompiler(validatedNodes, normalizedEdges);
         
@@ -1799,8 +1785,6 @@ const useDiagramStoreRaw = create<DiagramState>()(
           c.id === get().activeCanvasId ? { ...c, nodes: clarityNodes, edges: edgesWithHandles, updatedAt: Date.now() } : c
         );
         set({ canvases, clarityReport: report });
-        const canvasAfter = get().canvases.find(c => c.id === get().activeCanvasId);
-        console.log('[importDiagram] canvas after set:', canvasAfter?.nodes?.length ?? 0, 'nodes,', canvasAfter?.edges?.length ?? 0, 'edges');
         get().saveCanvasToDB(get().activeCanvasId);
         setTimeout(() => get().fitView(), 80);
       },

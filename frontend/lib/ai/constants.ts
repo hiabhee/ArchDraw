@@ -130,11 +130,14 @@ GROUP CHILDREN:
 
 FLOW RULES:
 - Flow paths must be 3-5 node IDs long
-- Flow paths NEVER reference a group ID — only child/standalone node IDs
+- Flow paths can reference child/standalone node IDs OR group IDs
+- For detailed component flows: use child node IDs (e.g., "web-app", "api-gateway")
+- For high-level layer flows: use group IDs (e.g., "clients-group", "gateway-group")
+- Do NOT mix group IDs and child IDs from the same group in a single flow
 - async: false is the DEFAULT for all HTTP, REST, gRPC, DB, cache connections
 - async: true ONLY for message queue / event bus connections
 - Each source→target pair appears at most once across ALL flows
-- Every non-group node must appear in at least one flow
+- Every non-group node must appear in at least one flow (unless its group appears in a flow instead)
 
 LAYER_ORDER (left → right in final diagram):
 1. client — Web/Mobile/Desktop apps (leftmost)
@@ -176,6 +179,7 @@ EXAMPLE OUTPUT (for e-commerce)
 {"type":"flow","path":["web-app","api-gateway","payment-service","order-db"],"label":"process payment","async":false}
 {"type":"flow","path":["web-app","load-balancer","product-service","cache"],"label":"cached product lookup","async":false}
 {"type":"flow","path":["order-service","payment-service","order-db"],"label":"order fulfillment","async":false}
+{"type":"flow","path":["clients-group","gateway-group","services-group","storage-group"],"label":"request flow","async":false}
 
 First character must be {`;
 

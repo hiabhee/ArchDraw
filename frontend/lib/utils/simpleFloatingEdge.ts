@@ -72,18 +72,17 @@ export function getEdgeShiftOffset(
   if (!node) return 0;
 
   const currentEdge = (edges || []).find(e => e.id === edgeId);
-  const isSource = currentEdge?.source === nodeId;
+  if (!currentEdge) return 0;
+  const isSource = currentEdge.source === nodeId;
 
-
-  
   // Find all edges that connect to this node on the given side
   const connectedEdges = (edges || []).map(e => {
     if (e.source !== nodeId && e.target !== nodeId) return null;
-    
+
     const sNode = nodeInternals.get(e.source);
     const tNode = nodeInternals.get(e.target);
     if (!sNode || !tNode) return null;
-    
+
     const sRect: NodeRect = {
       x: sNode.positionAbsolute?.x ?? sNode.position.x,
       y: sNode.positionAbsolute?.y ?? sNode.position.y,
@@ -96,33 +95,30 @@ export function getEdgeShiftOffset(
       width: tNode.width ?? 160,
       height: tNode.height ?? 80,
     };
-    const sCenter = getNodeCenter(sNode);
-    const tCenter = getNodeCenter(tNode);
-    
-    // Use the same handle-selection logic as SimpleFloatingEdge (getObstacleAwareHandles
-    // wraps getDynamicHandles) to ensure offset calculations stay in sync with
-    // the actual handle positions rendered on the canvas.
+
     const { sourcePosition, targetPosition } = allNodeRects
       ? getObstacleAwareHandles(sRect, tRect, allNodeRects, excludedNodeIds, e.id, e.source, e.target)
       : getDynamicHandles(sRect, tRect);
-    
+
     if (e.source === nodeId && sourcePosition === side) {
-      return { edge: e, otherNodeCenter: tCenter };
+      return { edge: e, isOutgoing: true };
     }
     if (e.target === nodeId && targetPosition === side) {
-      return { edge: e, otherNodeCenter: sCenter };
+      return { edge: e, isOutgoing: false };
     }
-    
+
     return null;
-  }).filter(Boolean) as { edge: Edge; otherNodeCenter: ReturnType<typeof getNodeCenter> }[];
-  
-  const totalNodeEdges = (edges || []).filter(e => e.source === nodeId || e.target === nodeId).length;
-  if (totalNodeEdges <= 1) return 0;
+  }).filter(Boolean) as { edge: Edge; isOutgoing: boolean }[];
 
-  const idx = connectedEdges.findIndex(e => e.edge.id === edgeId);
-  if (idx === -1) return 0;
+  const outgoingCount = connectedEdges.filter(e => e.isOutgoing).length;
+  const incomingCount = connectedEdges.filter(e => !e.isOutgoing).length;
 
-  return (idx - (connectedEdges.length - 1) / 2) * 15;
+  // If only one direction uses this side, center the handle
+  if (outgoingCount === 0 || incomingCount === 0) return 0;
+
+  // Two-handle model: all outgoing edges share one handle, all incoming share another
+  const SEPARATION = 24;
+  return isSource ? -SEPARATION : SEPARATION;
 }
 
 export function getSimpleHandlePosition(

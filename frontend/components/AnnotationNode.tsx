@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Handle, Position, NodeProps, NodeResizer, useReactFlow, useUpdateNodeInternals } from 'reactflow';
-import { useNodeHandles } from '@/hooks/useNodeHandles';
 import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import type { TextSize } from './TextLabelNode';
@@ -58,7 +57,6 @@ function SizeButton({ size, currentSize, onClick }: SizeButtonProps) {
 }
 
 function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNodeData>) {
-  const needed = useNodeHandles(id);
   const updateNodeInternals = useUpdateNodeInternals();
   const { setNodes } = useReactFlow();
   
@@ -265,7 +263,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         }}
       >
         {/* ── Handles — only render directions actually referenced by edges ── */}
-        <NodeHandles needed={needed} handleStyle={{ ...handleStyle, left: -15 }} />
+        <NodeHandles handleStyle={{ ...handleStyle, left: -15 }} />
 
         {editingTitle && (
           <div 

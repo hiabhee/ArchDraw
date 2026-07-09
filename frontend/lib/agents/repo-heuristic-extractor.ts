@@ -42,22 +42,22 @@ function detectDbFromFiles(files: FileEntry[]): { id: string; label: string; pat
   return null;
 }
 
-function detectExternalServices(files: FileEntry[]): { id: string; label: string; type: NodeType; sourceFiles: string[] }[] {
-  const services: { name: string; id: string; label: string; file: string }[] = [];
+function detectExternalServices(files: FileEntry[]): { id: string; label: string; type: NodeType; sourceFiles: string[]; capability: string }[] {
+  const services: { name: string; id: string; label: string; file: string; capability: string }[] = [];
   for (const file of files) {
     const c = file.content.toLowerCase();
-    if (c.includes('stripe') || c.includes('stripe.api_key')) services.push({ name: 'stripe', id: 'stripe_api', label: 'Stripe API', file: file.path });
-    if (c.includes('resend')) services.push({ name: 'resend', id: 'resend', label: 'Resend Email', file: file.path });
+    if (c.includes('stripe') || c.includes('stripe.api_key')) services.push({ name: 'stripe', id: 'stripe_api', label: 'Stripe API', file: file.path, capability: 'Payment processing' });
+    if (c.includes('resend')) services.push({ name: 'resend', id: 'resend', label: 'Resend Email', file: file.path, capability: 'Email notifications' });
     if (c.includes('supabase') || c.includes('createclient') && c.includes('supabase')) {
-      if (!services.some((s) => s.name === 'supabase')) services.push({ name: 'supabase', id: 'supabase', label: 'Supabase', file: file.path });
+      if (!services.some((s) => s.name === 'supabase')) services.push({ name: 'supabase', id: 'supabase', label: 'Supabase', file: file.path, capability: 'Database and authentication backend' });
     }
-    if (c.includes('clerk') || c.includes('@clerk')) services.push({ name: 'clerk', id: 'clerk_auth', label: 'Clerk Auth', file: file.path });
-    if (c.includes('nextauth') || c.includes('next-auth')) services.push({ name: 'nextauth', id: 'next_auth', label: 'NextAuth', file: file.path });
-    if (c.includes('auth0') || c.includes('@auth0')) services.push({ name: 'auth0', id: 'auth0', label: 'Auth0', file: file.path });
-    if (c.includes('firebase')) services.push({ name: 'firebase', id: 'firebase', label: 'Firebase', file: file.path });
-    if (c.includes('openai') || c.includes('@openai')) services.push({ name: 'openai', id: 'openai_api', label: 'OpenAI API', file: file.path });
-    if (c.includes('bullmq') || c.includes('bull')) services.push({ name: 'bullmq', id: 'queue', label: 'Background Queue', file: file.path });
-    if (c.includes('celery')) services.push({ name: 'celery', id: 'celery_worker', label: 'Celery Worker', file: file.path });
+    if (c.includes('clerk') || c.includes('@clerk')) services.push({ name: 'clerk', id: 'clerk_auth', label: 'Clerk Auth', file: file.path, capability: 'User authentication' });
+    if (c.includes('nextauth') || c.includes('next-auth')) services.push({ name: 'nextauth', id: 'next_auth', label: 'NextAuth', file: file.path, capability: 'User authentication' });
+    if (c.includes('auth0') || c.includes('@auth0')) services.push({ name: 'auth0', id: 'auth0', label: 'Auth0', file: file.path, capability: 'User authentication' });
+    if (c.includes('firebase')) services.push({ name: 'firebase', id: 'firebase', label: 'Firebase', file: file.path, capability: 'Backend services and real-time data' });
+    if (c.includes('openai') || c.includes('@openai')) services.push({ name: 'openai', id: 'openai_api', label: 'OpenAI API', file: file.path, capability: 'AI/ML text generation' });
+    if (c.includes('bullmq') || c.includes('bull')) services.push({ name: 'bullmq', id: 'queue', label: 'Background Queue', file: file.path, capability: 'Background job processing' });
+    if (c.includes('celery')) services.push({ name: 'celery', id: 'celery_worker', label: 'Celery Worker', file: file.path, capability: 'Background task processing' });
   }
   // Deduplicate and convert
   const seen = new Set<string>();
@@ -70,6 +70,7 @@ function detectExternalServices(files: FileEntry[]): { id: string; label: string
     label: s.label,
     type: 'EXTERNAL_SERVICE' as NodeType,
     sourceFiles: [s.file],
+    capability: s.capability,
   }));
 }
 
@@ -81,6 +82,8 @@ function inferNodeType(path: string): NodeType {
   if (/model|schema|database|db|repository|dao/.test(p)) return 'DATABASE';
   if (/page\.(tsx|jsx|vue)|^pages\//.test(p)) return 'PAGE';
   if (/service|worker|task/.test(p)) return 'SERVICE';
+  if (/train(ing)?|predict|inference|model\.(py|ipynb)$/.test(p)) return 'SERVICE';
+  if (/notebooks?\/|\.ipynb$/.test(p)) return 'SERVICE';
   return 'SERVICE';
 }
 
@@ -100,6 +103,12 @@ function inferArchitectureNodes(
     auth: [],
     database: [],
     workers: [],
+    // ── ML ──
+    training: [],
+    inference: [],
+    data: [],
+    notebooks: [],
+    models: [],
   };
 
   if (framework.includes('next')) {
@@ -124,6 +133,18 @@ function inferArchitectureNodes(
   fileCluster.auth = paths.filter((p) => /auth\.(py|ts|js)$|auth\//i.test(p)).slice(0, 3);
   fileCluster.database = paths.filter((p) => /schema\.prisma|models?\//i.test(p) || p === 'prisma/schema.prisma').slice(0, 3);
   fileCluster.workers = paths.filter((p) => /worker|queue|task/i.test(p) && (p.endsWith('.py') || p.endsWith('.ts') || p.endsWith('.js'))).slice(0, 3);
+
+  // ── ML clustering ──
+  fileCluster.training = paths.filter((p) => /^train(ing)?\.(py|ipynb)$|^train_/.test(p.split('/').pop() ?? '')).slice(0, 4);
+  fileCluster.inference = paths.filter((p) => /^predict(ion)?\.(py|ipynb)$|^inference\./.test(p.split('/').pop() ?? '')).slice(0, 4);
+  fileCluster.data = paths.filter((p) => /^data(tasets?)?\//.test(p) || /\.(csv|parquet|feather|jsonl)$/.test(p)).slice(0, 6);
+  fileCluster.notebooks = paths.filter((p) => /notebooks?\//.test(p) || p.endsWith('.ipynb')).slice(0, 6);
+  fileCluster.models = paths.filter((p) => /\/models?\//.test(p) && (p.endsWith('.py') || p.endsWith('.ipynb'))).slice(0, 4);
+
+  // If ML files dominate, relabel the app node
+  if (fileCluster.training.length >= 1 || fileCluster.inference.length >= 1) {
+    appNodeLabel = 'ML Pipeline';
+  }
 
   return { appNodeLabel, fileCluster };
 }
@@ -243,7 +264,7 @@ export function extractComponentsHeuristic(
       label: svc.label,
       type: svc.type,
       sourceFiles: svc.sourceFiles,
-      description: `External service integration.`,
+      description: `${svc.capability} integration.`,
     });
   }
 
@@ -256,6 +277,80 @@ export function extractComponentsHeuristic(
       sourceFiles: fileCluster.workers,
       description: 'Background job and task processing.',
     });
+  }
+
+  // ── ML-specific nodes ──
+  if (fileCluster.training.length > 0) {
+    addNode({
+      id: 'training_pipeline',
+      label: 'Training Pipeline',
+      type: 'SERVICE',
+      sourceFiles: fileCluster.training,
+      description: `Model training scripts (${fileCluster.training.length} files).`,
+    });
+  }
+  if (fileCluster.inference.length > 0) {
+    addNode({
+      id: 'inference_pipeline',
+      label: 'Inference Pipeline',
+      type: 'SERVICE',
+      sourceFiles: fileCluster.inference,
+      description: 'Model inference and prediction service.',
+    });
+  }
+  if (fileCluster.notebooks.length > 0) {
+    addNode({
+      id: 'notebooks',
+      label: 'Notebooks',
+      type: 'SERVICE',
+      sourceFiles: fileCluster.notebooks,
+      description: `Jupyter notebooks for experimentation (${fileCluster.notebooks.length} files).`,
+    });
+  }
+  if (fileCluster.data.length > 0) {
+    addNode({
+      id: 'data_pipeline',
+      label: 'Data Pipeline',
+      type: 'SERVICE',
+      sourceFiles: fileCluster.data,
+      description: 'Data ingestion and processing pipeline.',
+    });
+  }
+  if (fileCluster.models.length > 0) {
+    addNode({
+      id: 'model_registry',
+      label: 'Model Registry',
+      type: 'SERVICE',
+      sourceFiles: fileCluster.models,
+      description: 'Model definitions and architecture files.',
+    });
+  }
+
+  // Detect ML-related external services
+  for (const file of files) {
+    const c = file.content.toLowerCase();
+    if (c.includes('huggingface') || c.includes('transformers')) {
+      if (!nodes.some((n) => n.id === 'huggingface')) {
+        addNode({
+          id: 'huggingface',
+          label: 'HuggingFace Hub',
+          type: 'EXTERNAL_SERVICE',
+          sourceFiles: [file.path],
+          description: 'Pre-trained model hub and transformer library.',
+        });
+      }
+    }
+    if (c.includes('wandb') || c.includes('weights and biases')) {
+      if (!nodes.some((n) => n.id === 'wandb')) {
+        addNode({
+          id: 'wandb',
+          label: 'Weights & Biases',
+          type: 'EXTERNAL_SERVICE',
+          sourceFiles: [file.path],
+          description: 'ML experiment tracking and logging.',
+        });
+      }
+    }
   }
 
   // Framework-specific additions
@@ -309,6 +404,12 @@ export function inferRelationshipsHeuristic(nodes: ExtractedNode[]): {
   const externalServices = nodes.filter((n) => n.type === 'EXTERNAL_SERVICE');
   const workers = nodes.filter((n) => n.type === 'WORKER');
   const services = nodes.filter((n) => n.id === 'services');
+  // ── ML nodes ──
+  const training = nodes.find((n) => n.id === 'training_pipeline');
+  const inference = nodes.find((n) => n.id === 'inference_pipeline');
+  const dataPipeline = nodes.find((n) => n.id === 'data_pipeline');
+  const modelRegistry = nodes.find((n) => n.id === 'model_registry');
+  const notebooks = nodes.find((n) => n.id === 'notebooks');
 
   const pushEdge = (from: string, to: string, type: string, label: string, protocol: string, direction: 'sync' | 'async' | 'event' = 'sync') => {
     const key = `${from}->${to}`;
@@ -327,11 +428,13 @@ export function inferRelationshipsHeuristic(nodes: ExtractedNode[]): {
     });
   };
 
-  // Frontend → API
-  for (const page of pages) {
-    if (entry) pushEdge(page.id, entry.id, 'http_call', 'makes request', 'http');
-    for (const route of apiRoutes) {
-      pushEdge(page.id, route.id, 'http_call', 'calls API', 'http');
+  // Frontend → API: connect pages to at most one representative API route
+  const primaryApi = apiRoutes[0];
+  for (const page of pages.slice(0, 4)) {
+    if (primaryApi) {
+      pushEdge(page.id, primaryApi.id, 'http_call', 'calls API', 'http');
+    } else if (entry && page.id !== entry.id) {
+      pushEdge(page.id, entry.id, 'http_call', 'makes request', 'http');
     }
   }
 
@@ -339,35 +442,58 @@ export function inferRelationshipsHeuristic(nodes: ExtractedNode[]): {
   if (middleware && entry) pushEdge(entry.id, middleware.id, 'guards', 'passes through', 'http');
   if (auth && entry) pushEdge(entry.id, auth.id, 'auth_check', 'authenticates', 'http');
 
-  // Entry → API routes
-  for (const route of apiRoutes) {
-    if (entry) pushEdge(entry.id, route.id, 'http_call', 'routes request', 'http');
+  // Entry → API routes (one edge per route, capped)
+  for (const route of apiRoutes.slice(0, 6)) {
+    if (entry && entry.id !== route.id) pushEdge(entry.id, route.id, 'http_call', 'routes request', 'http');
 
-    // API → Services
-    for (const svc of services) {
-      pushEdge(route.id, svc.id, 'http_call', 'calls service', 'http');
-    }
+    // API → Services (at most one)
+    if (services[0]) pushEdge(route.id, services[0].id, 'http_call', 'calls service', 'http');
 
-    // API → Database
-    for (const db of databases) {
-      pushEdge(route.id, db.id, 'db_query', 'queries', 'db');
-    }
+    // API → Database (at most one)
+    if (databases[0]) pushEdge(route.id, databases[0].id, 'db_query', 'queries', 'db');
 
-    // API → External
+    // API → External: only if the route's source files overlap with the external service's source files
     for (const ext of externalServices) {
-      pushEdge(route.id, ext.id, 'external_call', 'calls', 'sdk');
+      const sharesFile = ext.sourceFiles.some((sf) => route.sourceFiles.includes(sf));
+      if (sharesFile) {
+        pushEdge(route.id, ext.id, 'external_call', 'calls', 'sdk');
+      }
     }
   }
 
-  // Entry → External (when no explicit API routes)
+  // Entry → External: connect external services that share source files with the entry node,
+  // or that weren't connected to any API route (fallback to entry)
+  const connectedExternals = new Set(
+    edges.filter((e) => e.type === 'external_call').map((e) => e.to)
+  );
   if (apiRoutes.length === 0 && entry) {
     for (const ext of externalServices) {
-      pushEdge(entry.id, ext.id, 'external_call', 'integrates', 'sdk');
+      const sharesFile = ext.sourceFiles.some((sf) => entry.sourceFiles.includes(sf));
+      if (sharesFile || !connectedExternals.has(ext.id)) {
+        pushEdge(entry.id, ext.id, 'external_call', 'integrates', 'sdk');
+      }
     }
     for (const db of databases) {
       pushEdge(entry.id, db.id, 'db_query', 'queries', 'db');
     }
+  } else if (entry) {
+    // Connect remaining unconnected external services to entry if they share source files
+    for (const ext of externalServices) {
+      if (!connectedExternals.has(ext.id)) {
+        const sharesFile = ext.sourceFiles.some((sf) => entry.sourceFiles.includes(sf));
+        if (sharesFile) {
+          pushEdge(entry.id, ext.id, 'external_call', 'integrates', 'sdk');
+        }
+      }
+    }
   }
+
+  // ── ML edges ──
+  if (dataPipeline && training) pushEdge(dataPipeline.id, training.id, 'data_pipeline', 'feeds training data', 'internal');
+  if (training && modelRegistry) pushEdge(training.id, modelRegistry.id, 'model_persist', 'saves trained model', 'internal');
+  if (modelRegistry && inference) pushEdge(modelRegistry.id, inference.id, 'model_load', 'loads trained model', 'internal');
+  if (notebooks && training) pushEdge(notebooks.id, training.id, 'experiment', 'feeds experiment', 'internal');
+  if (training && externalServices.some((e) => e.id === 'wandb')) pushEdge(training.id, 'wandb', 'log_metrics', 'logs training metrics', 'sdk');
 
   // Workers → Database/External
   for (const worker of workers) {
@@ -375,7 +501,10 @@ export function inferRelationshipsHeuristic(nodes: ExtractedNode[]): {
       pushEdge(worker.id, db.id, 'db_query', 'processes', 'db', 'async');
     }
     for (const ext of externalServices) {
-      pushEdge(worker.id, ext.id, 'external_call', 'calls', 'sdk', 'async');
+      const sharesFile = ext.sourceFiles.some((sf) => worker.sourceFiles.includes(sf));
+      if (sharesFile) {
+        pushEdge(worker.id, ext.id, 'external_call', 'calls', 'sdk', 'async');
+      }
     }
   }
 
@@ -412,5 +541,27 @@ export function inferRelationshipsHeuristic(nodes: ExtractedNode[]): {
     });
   }
 
-  return { edges: edges.slice(0, 40), workflows: workflows.slice(0, 3) };
+  // ── ML workflows ──
+  if (dataPipeline && training && modelRegistry && inference) {
+    workflows.push({
+      name: 'ML Training & Serving Flow',
+      description: 'Data is processed, model is trained, saved, and served for inference.',
+      steps: [dataPipeline.id, training.id, modelRegistry.id, inference.id],
+    });
+  } else if (training && inference) {
+    workflows.push({
+      name: 'ML Pipeline',
+      description: 'Model training and inference pipeline.',
+      steps: [training.id, inference.id],
+    });
+  }
+  if (training && externalServices.some((e) => e.id === 'wandb')) {
+    workflows.push({
+      name: 'Experiment Tracking',
+      description: 'Training metrics logged to Weights & Biases for experiment tracking.',
+      steps: [training.id, 'wandb'],
+    });
+  }
+
+  return { edges: edges.slice(0, 40), workflows: workflows.slice(0, 4) };
 }

@@ -4,6 +4,7 @@ export interface UserIntent {
   complexity: 'low' | 'medium' | 'high';
   model?: string;
   diagramSize?: 'small' | 'medium' | 'large';
+  detailLevel?: 1 | 2 | 3;
   existingContext?: {
     nodes: unknown[];
     edges: unknown[];

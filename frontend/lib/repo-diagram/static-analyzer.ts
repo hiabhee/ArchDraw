@@ -26,6 +26,8 @@ export function extractStaticSignals(
     signals.push(...detectTerraformResources(file, path, allLower));
     signals.push(...detectEntryPoints(file, path, subsystems));
     signals.push(...detectBinEntries(file, path));
+    signals.push(...detectMlFiles(file, path, allLower));
+    signals.push(...detectDataPipeline(file, path, allLower));
   }
 
   return dedupSignals(signals);
@@ -83,6 +85,19 @@ function detectPackageDeps(file: FileEntry, _lower: string): StaticSignal[] {
       }
     }
   }
+
+  if (file.path.endsWith('pyproject.toml')) {
+    const toml = file.content;
+    // PEP 621: dependencies = ["numpy", ...] inside [project]
+    for (const match of toml.matchAll(/"([a-zA-Z][a-zA-Z0-9_.-]*)"/g)) {
+      const name = match[1].toLowerCase();
+      if (name.startsWith('python') || name.startsWith('_')) continue;
+      const cat = categorizePackage(name);
+      if (cat) {
+        signals.push({ type: 'dependency', label: name, source: file.path, details: { category: cat }, confidence: 'high' });
+      }
+    }
+  }
   return signals;
 }
 
@@ -101,6 +116,29 @@ const PACKAGE_CATEGORIES: [RegExp, string][] = [
   [/^(axios|got|undici|node-fetch|superagent)/, 'http_client'],
   [/^(zustand|redux|mobx|pinia|vuex|jotai|valtio)/, 'state_management'],
   [/^(socket\.io|ws$|uWebSockets)/, 'realtime'],
+  // ── Python / ML ecosystem ──────────────────────────────────
+  [/^scikit-learn|^sklearn/, 'ml_framework'],
+  [/^(xgboost|lightgbm|catboost)/, 'ml_framework'],
+  [/^(tensorflow|keras|tf-keras)/, 'ml_framework'],
+  [/^(torch|pytorch|torchvision|torchaudio)/, 'ml_framework'],
+  [/^(transformers|datasets|huggingface|accelerate|sentence-transformers)/, 'ml_framework'],
+  [/^(pandas|numpy|scipy|dask|modin)/, 'data_processing'],
+  [/^(matplotlib|seaborn|plotly|bokeh|altair)/, 'visualization'],
+  [/^(flask|fastapi|streamlit|gradio|dash|nicegui)/, 'web_framework'],
+  [/^(django|wagtail)/, 'web_framework'],
+  [/^(jupyter|ipython|notebook|ipykernel|jupyterlab)/, 'notebook'],
+  [/^(mlflow|kubeflow|zenml|wandb|dvc)/, 'mlops'],
+  [/^(opencv|pillow|Pillow|scikit-image)/, 'image_processing'],
+  [/^(nltk|spacy|gensim|stanza|flair)/, 'nlp'],
+  [/^(pytest|unittest|coverage|tox|nose)/, 'testing'],
+  [/^(joblib|cloudpickle|dill)/, 'model_serialization'],
+  [/^(sqlalchemy|alembic|tortoise-orm|pony)/, 'database'],
+  [/^(httpx|aiohttp|requests|urllib3)/, 'http_client'],
+  [/^(pydantic|marshmallow|attrs)/, 'validation'],
+  [/^(celery|rq|huey|dramatiq|prefect|dagster)/, 'queue'],
+  [/^(gunicorn|uvicorn|waitress|hypercorn)/, 'http_server'],
+  [/^(boto3|moto|google-cloud|azure-)/, 'external_api'],
+  [/^(pydantic-settings|python-dotenv|python-decouple)/, 'config'],
 ];
 
 function categorizePackage(name: string): string | null {
@@ -432,6 +470,107 @@ function detectEntryPoints(file: FileEntry, path: string, subsystems: Subsystem[
       details: { kind: 'dockerfile' },
       confidence: 'high',
     });
+  }
+
+  return signals;
+}
+
+// ── Python / ML File Detection ──────────────────────────────────
+
+function detectMlFiles(file: FileEntry, path: string, allLower: string): StaticSignal[] {
+  const signals: StaticSignal[] = [];
+
+  const fileName = path.split('/').pop() || '';
+
+  // Training / prediction scripts
+  if (/^train(ing)?\.(py|ipynb)$/.test(fileName) || /^train_/.test(fileName)) {
+    signals.push({ type: 'ml_script', label: path, source: path, details: { kind: 'training' }, confidence: 'high' });
+  }
+  if (/^predict(ion)?\.(py|ipynb)$/.test(fileName) || /^predict_/.test(fileName) || /^inference\.(py|ipynb)$/.test(fileName)) {
+    signals.push({ type: 'ml_script', label: path, source: path, details: { kind: 'inference' }, confidence: 'high' });
+  }
+  if (/^model\.(py|ipynb)$/.test(fileName) || /^models?\.(py|ipynb)$/.test(fileName)) {
+    signals.push({ type: 'ml_script', label: path, source: path, details: { kind: 'model_definition' }, confidence: 'high' });
+  }
+  if (/^eval(uate)?\.(py|ipynb)$/.test(fileName) || /^test_model/.test(fileName)) {
+    signals.push({ type: 'ml_script', label: path, source: path, details: { kind: 'evaluation' }, confidence: 'high' });
+  }
+  if (/^dataset?\.(py|ipynb)$/.test(fileName) || /^data_/.test(fileName)) {
+    signals.push({ type: 'ml_script', label: path, source: path, details: { kind: 'data_prep' }, confidence: 'high' });
+  }
+  if (/^feature/.test(fileName) && /\.(py|ipynb)$/.test(fileName)) {
+    signals.push({ type: 'ml_script', label: path, source: path, details: { kind: 'feature_engineering' }, confidence: 'high' });
+  }
+
+  // Jupyter notebooks
+  if (/\.ipynb$/.test(path)) {
+    signals.push({ type: 'notebook', label: path, source: path, details: {}, confidence: 'high' });
+  }
+
+  // Model artifacts
+  if (/\.(pkl|joblib|h5|hdf5|pt|pth|ckpt|onnx|pb|tflite)$/.test(path)) {
+    signals.push({ type: 'model_artifact', label: path, source: path, details: {}, confidence: 'high' });
+  }
+
+  // ML config files (hyperparameters, Conda env, Docker compose with ML services)
+  if (/^(config|hyperparameters?|params)\.(yml|yaml|json|toml)$/.test(fileName)) {
+    // Only flag if file mentions ML terms
+    if (/model|train|predict|data|feature|learning.rate|batch|epoch|classifier|regression|embedding/.test(allLower)) {
+      signals.push({ type: 'config', label: path, source: path, details: { kind: 'ml_config' }, confidence: 'high' });
+    }
+  }
+
+  if (/^(environment|requirements)\.yml$/.test(fileName) && /tensorflow|pytorch|sklearn|xgboost/.test(allLower)) {
+    signals.push({ type: 'dependency', label: fileName, source: path, details: { category: 'ml_environment' }, confidence: 'high' });
+  }
+
+  // Detect ML subdirectories by path pattern
+  if (/\/models?\//.test(path)) {
+    signals.push({ type: 'ml_directory', label: 'models/', source: path, details: { kind: 'model_storage' }, confidence: 'medium' });
+  }
+  if (/\/notebooks?\//.test(path)) {
+    signals.push({ type: 'ml_directory', label: 'notebooks/', source: path, details: { kind: 'experimentation' }, confidence: 'medium' });
+  }
+  if (/\/data(tasets?)?\//.test(path)) {
+    signals.push({ type: 'ml_directory', label: 'data/', source: path, details: { kind: 'dataset_storage' }, confidence: 'medium' });
+  }
+
+  // Python import-level ML detection (catch repos that import ML libs without standard file names)
+  if (/\.(py|ipynb)$/.test(path)) {
+    let mlKind: string | null = null;
+    if (/from\s+sklearn|import\s+sklearn|from\s+sklearn\./.test(allLower)) mlKind = 'ml_framework';
+    else if (/from\s+torch\b|import\s+torch|from\s+torchvision/.test(allLower)) mlKind = 'ml_framework';
+    else if (/from\s+tensorflow|import\s+tensorflow|import\s+keras/.test(allLower)) mlKind = 'ml_framework';
+    else if (/from\s+xgboost|import\s+xgboost|from\s+lightgbm|import\s+lightgbm/.test(allLower)) mlKind = 'ml_framework';
+    else if (/from\s+transformers|import\s+transformers|from\s+datasets|import\s+datasets/.test(allLower)) mlKind = 'ml_framework';
+
+    if (mlKind && !/^train|^predict|^model|^eval|^dataset/.test(fileName)) {
+      signals.push({ type: 'ml_import', label: path, source: path, details: { kind: mlKind }, confidence: 'medium' });
+    }
+  }
+
+  return signals;
+}
+
+// ── Data Pipeline Detection ─────────────────────────────────────
+
+function detectDataPipeline(file: FileEntry, path: string, _allLower: string): StaticSignal[] {
+  const signals: StaticSignal[] = [];
+
+  // Data files (CSV, Parquet, JSONL, Feather)
+  if (/\.(csv|parquet|feather|arrow|jsonl|ndjson|avro)$/.test(path)) {
+    signals.push({ type: 'data_file', label: path, source: path, details: { format: path.split('.').pop() }, confidence: 'high' });
+  }
+
+  // ETL / pipeline scripts
+  const fileName = path.split('/').pop() || '';
+  if (/^(etl|pipeline|process|transform|clean|extract|load)\.(py|ipynb)$/.test(fileName)) {
+    signals.push({ type: 'pipeline', label: path, source: path, details: {}, confidence: 'high' });
+  }
+
+  // SQL / schema files
+  if (/\.(sql|ddl|dml)$/.test(path)) {
+    signals.push({ type: 'schema', label: path, source: path, details: { kind: 'sql' }, confidence: 'high' });
   }
 
   return signals;

@@ -289,7 +289,7 @@ export function getObstacleAwareHandles(
     }
   }
 
-  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean; isMixed: boolean } {
+  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean; isMixed: boolean; sameSide: boolean; flowAligned: boolean } {
     const sh = getHandleCoordinate(sourceRect, sp);
     const th = getHandleCoordinate(targetRect, tp);
     const sx = sh.x, sy = sh.y, tx = th.x, ty = th.y;
@@ -336,17 +336,27 @@ export function getObstacleAwareHandles(
 
     const isMixed = (sp === Position.Left || sp === Position.Right) !== (tp === Position.Left || tp === Position.Right);
 
-    return { collisions, pathLen, crossesBody, isMixed };
+    const sameSide =
+      (sp === Position.Right && tp === Position.Right) ||
+      (sp === Position.Left && tp === Position.Left) ||
+      (sp === Position.Top && tp === Position.Top) ||
+      (sp === Position.Bottom && tp === Position.Bottom);
+
+    const sCx = sourceRect.x + sourceRect.width / 2;
+    const sCy = sourceRect.y + sourceRect.height / 2;
+    const tCx = targetRect.x + targetRect.width / 2;
+    const tCy = targetRect.y + targetRect.height / 2;
+    const flowHorizontal = Math.abs(tCx - sCx) >= Math.abs(tCy - sCy);
+    const sH = sp === Position.Left || sp === Position.Right;
+    const tH = tp === Position.Left || tp === Position.Right;
+    const flowAligned = flowHorizontal ? (sH && tH) : (!sH && !tH);
+
+    return { collisions, pathLen, crossesBody, isMixed, sameSide, flowAligned };
   }
 
   const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId);
 
   const candidates: Array<{ source: Position; target: Position; label: string }> = [];
-
-  if (sourceServiceType && targetServiceType) {
-    const semantic = getSemanticPortSide(sourceServiceType, targetServiceType, edgeData?.portType, direction);
-    candidates.push({ source: semantic.sourceSide, target: semantic.targetSide, label: 'semantic' });
-  }
 
   candidates.push({ source: geometryHandles.sourcePosition, target: geometryHandles.targetPosition, label: 'geometry' });
 
@@ -361,7 +371,8 @@ export function getObstacleAwareHandles(
     collisions: Infinity,
     pathLen: Infinity,
     crossesBody: true,
-    isMixed: true,
+    sameSide: true,
+    flowAligned: false,
     source: geometryHandles.sourcePosition,
     target: geometryHandles.targetPosition
   };
@@ -371,14 +382,15 @@ export function getObstacleAwareHandles(
     const isBetter =
       score.crossesBody < best.crossesBody ||
       (score.crossesBody === best.crossesBody && score.collisions < best.collisions) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.isMixed < best.isMixed) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.isMixed === best.isMixed && score.pathLen < best.pathLen);
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === false && best.sameSide === true) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === true && best.flowAligned === false) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === best.flowAligned && score.pathLen < best.pathLen);
 
     if (isBetter) {
       best = { ...score, source: cand.source, target: cand.target };
     }
 
-    if (!score.crossesBody && score.collisions === 0 && !score.isMixed && cand.label === 'geometry') {
+    if (!score.crossesBody && score.collisions === 0 && !score.sameSide && cand.label === 'geometry') {
       break;
     }
   }

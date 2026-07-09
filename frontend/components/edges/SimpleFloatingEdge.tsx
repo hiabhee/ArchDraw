@@ -71,23 +71,6 @@ export default function SimpleFloatingEdge({
 
   const [isHovered, setIsHovered] = useState(false);
 
-  const detailLevel = useDiagramStore((s) => s.detailLevel);
-  const importance = data?.importance || 'secondary';
-  const isSpine = data?.isSpine || false;
-  const responseLabel = data?.responseLabel;
-  const isReturn = data?.isReturn || false;
-
-  let edgeLevel = 2;
-  if (importance === 'primary' || isSpine) {
-    edgeLevel = 1;
-  } else if (importance === 'diagnostic' || importance === 'optional' || isReturn) {
-    edgeLevel = 3;
-  }
-
-  const isVisible = detailLevel >= edgeLevel;
-  const opacity = isVisible ? (selected || isHovered ? 1 : 0.85) : 0.12;
-  const pointerEvents = isVisible ? 'auto' : 'none';
-  
   const isAsync = data?.edgeVariant === 'dashed' || data?.async || data?.connectionType === 'async';
   const { isDark } = useCanvasTheme();
 
@@ -95,27 +78,16 @@ export default function SimpleFloatingEdge({
     const darkDefault = '#cbd5e1';
     const lightDefault = DIAGRAM_CONSTANTS.edge.stroke;
     let stroke = edgeStyle?.stroke || (isDark ? darkDefault : lightDefault);
-    
-    let baseWidth: number = DIAGRAM_CONSTANTS.edge.strokeWidth;
-    if (importance === 'primary' || isSpine) {
-      baseWidth = 2.5;
-    } else if (importance === 'supporting') {
-      baseWidth = 1.25;
-    } else if (importance === 'diagnostic' || importance === 'optional' || isReturn) {
-      baseWidth = 1.0;
-    }
+    const baseWidth: number = DIAGRAM_CONSTANTS.edge.strokeWidth;
 
     const isDenseBundle = (data as Record<string, unknown>)?.isDenseBundle === true;
     if (data?.isBundle) {
-      baseWidth = isDenseBundle ? 3.5 : 2.5;
       stroke = isDenseBundle ? '#4f46e5' : '#818cf8';
     }
 
     const strokeWidth = selected || isHovered ? baseWidth + 1.0 : baseWidth;
-    let strokeDasharray = isAsync ? DIAGRAM_CONSTANTS.edge.dashArray : undefined;
-    if (importance === 'diagnostic' || importance === 'optional' || isReturn) {
-      strokeDasharray = '3 3';
-    }
+    const strokeDasharray = isAsync ? DIAGRAM_CONSTANTS.edge.dashArray : undefined;
+    const opacity = selected || isHovered ? 1 : 0.85;
 
     return {
       stroke,
@@ -124,7 +96,10 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, importance, isSpine, isReturn, data?.isBundle, data, opacity]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, data?.isBundle, data]);
+
+  const responseLabel = data?.responseLabel;
+  const isReturn = data?.isReturn || false;
 
   const displayLabel = responseLabel
     ? `${label || data?.label || ''} / ${responseLabel}`
@@ -203,10 +178,10 @@ export default function SimpleFloatingEdge({
         strokeWidth={20}
         stroke="transparent"
         className="react-flow__edge-interaction"
-        style={{ cursor: isVisible ? 'pointer' : 'default', pointerEvents }}
-        onContextMenu={isVisible ? handleContextMenu : undefined}
-        onMouseEnter={isVisible ? () => setIsHovered(true) : undefined}
-        onMouseLeave={isVisible ? () => setIsHovered(false) : undefined}
+        style={{ cursor: 'pointer' }}
+        onContextMenu={handleContextMenu}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       />
       <path
         id={id}
@@ -216,11 +191,11 @@ export default function SimpleFloatingEdge({
         markerEnd={markerEnd}
         className="react-flow__edge-path"
         style={strokeStyle}
-        onContextMenu={isVisible ? handleContextMenu : undefined}
-        onMouseEnter={isVisible ? () => setIsHovered(true) : undefined}
-        onMouseLeave={isVisible ? () => setIsHovered(false) : undefined}
+        onContextMenu={handleContextMenu}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       />
-      {displayLabel && isVisible && (
+      {displayLabel && (
         <EdgeLabelRenderer>
           <div
             onMouseDown={handleLabelMouseDown}
@@ -247,7 +222,7 @@ export default function SimpleFloatingEdge({
         </EdgeLabelRenderer>
       )}
 
-      {data?.isBundle && isHovered && isVisible && data.bundledEdges && (
+      {data?.isBundle && isHovered && data.bundledEdges && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -277,7 +252,7 @@ export default function SimpleFloatingEdge({
         </EdgeLabelRenderer>
       )}
 
-      {!isReturn && selected && isVisible && (
+      {!isReturn && selected && (
         <EdgeToolbar
           edgeId={id}
           currentLabel={data?.label}
@@ -288,7 +263,7 @@ export default function SimpleFloatingEdge({
         />
       )}
 
-      {!isReturn && contextMenu && isVisible && ReactDOM.createPortal(
+      {!isReturn && contextMenu && ReactDOM.createPortal(
         <EdgeContextMenu
           edgeId={id}
           position={contextMenu}

@@ -26,6 +26,7 @@ const generateDiagramSchema = z.object({
     { message: `Unsupported model. Supported: ${Array.from(SUPPORTED_MODEL_IDS).join(', ')}` }
   ).optional(),
   diagramSize: z.enum(['small', 'medium', 'large']).optional(),
+  detailLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
 });
 
 type GenerateDiagramInput = z.infer<typeof generateDiagramSchema>;
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { description, systemType, complexity, model, diagramSize } = validatedInput.data as GenerateDiagramInput;
+    const { description, systemType, complexity, model, diagramSize, detailLevel } = validatedInput.data as GenerateDiagramInput;
 
     const userIntent: UserIntent = {
       description: description.trim(),
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
       complexity: complexity ?? inferComplexity(description),
       model,
       diagramSize,
+      detailLevel,
     };
 
     const progressEvents: GenerationProgress[] = [];

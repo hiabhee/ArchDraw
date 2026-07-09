@@ -8,10 +8,11 @@ export interface SemanticGroupMeta {
 
 /** Canonical layer buckets used for auto-grouping in both pipelines. */
 export const SEMANTIC_GROUP_META: Record<string, SemanticGroupMeta> = {
-  client: { label: 'Client / Frontend', color: '#3b82f6', layer: 'client' },
+  client: { label: 'Presentation', color: '#3b82f6', layer: 'client' },
+  presentation: { label: 'Presentation', color: '#3b82f6', layer: 'presentation' },
   edge: { label: 'Edge / CDN', color: '#f59e0b', layer: 'edge' },
-  gateway: { label: 'Gateway', color: '#d97706', layer: 'gateway' },
-  application: { label: 'API / Services', color: '#6366f1', layer: 'application' },
+  gateway: { label: 'Authentication / Security', color: '#d97706', layer: 'gateway' },
+  application: { label: 'Business Services', color: '#6366f1', layer: 'application' },
   queue: { label: 'Async / Messaging', color: '#a855f7', layer: 'queue' },
   data: { label: 'Data Stores', color: '#10b981', layer: 'data' },
   observability: { label: 'Observability', color: '#64748b', layer: 'observability' },

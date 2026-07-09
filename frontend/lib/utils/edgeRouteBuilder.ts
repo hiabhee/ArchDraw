@@ -2,7 +2,7 @@ import { Edge, Node, Position } from 'reactflow'
 import { planPath, type ObstacleRect } from '../features/pathPlanner'
 import { getObstacleAwareHandles } from '../features/dynamicHandles'
 import { getEdgeShiftOffset, getSimpleHandlePosition } from './simpleFloatingEdge'
-import { buildSmoothStepSvg, getCollisionFreeWaypoints, getCollisionFreeSmoothStepPath, segmentIntersectsRect } from './collisionFreeEdgePath'
+import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import { useDiagramStore } from '@/store/diagramStore'
 
 export interface EdgeRouteResult {
@@ -199,13 +199,13 @@ export function computeEdgeRoute(
           targetX: th.x, targetY: th.y,
           sourcePosition,
           targetPosition,
-          borderRadius: 12,
+          borderRadius: 40,
           edgeOffset,
           nodeRects: nodeRectParam,
           excludedNodeIds: excludedIds,
         })
       : directWaypoints
-    const svgPath = buildSmoothStepSvg(waypoints, 12)
+    const svgPath = buildSmoothStepSvg(waypoints, 40)
 
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
@@ -242,8 +242,6 @@ export function computeEdgeRoute(
     const waypoints = result.points
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
-
-    console.log("TEMPLATE PATH MATCH", edge.id, sourceNode.data.label, "->", targetNode.data.label, "sp:", result.sourcePort.side, "tp:", result.targetPort.side, "pts:", waypoints);
 
     return {
       sourcePosition: result.sourcePort.side,
@@ -287,8 +285,8 @@ export function computeEdgeRoute(
     if (index !== -1) edgeOffset = (index - (parallelEdges.length - 1) / 2) * 20
   }
 
-  const borderRadius = 12
-  let waypoints = getCollisionFreeWaypoints({
+  const borderRadius = 40
+  const waypoints = getCollisionFreeWaypoints({
     sourceX: sh.x, sourceY: sh.y,
     targetX: th.x, targetY: th.y,
     sourcePosition: handles.sourcePosition,
@@ -299,39 +297,10 @@ export function computeEdgeRoute(
     excludedNodeIds: excludedIds,
   })
 
-  const collides = pathCollidesWithRects(waypoints, nodeRects)
-
-  let svgPath: string
-  if (!collides) {
-    svgPath = buildSmoothStepSvg(waypoints, borderRadius)
-  } else {
-    svgPath = getCollisionFreeSmoothStepPath({
-      sourceX: sh.x, sourceY: sh.y,
-      targetX: th.x, targetY: th.y,
-      sourcePosition: handles.sourcePosition,
-      targetPosition: handles.targetPosition,
-      borderRadius,
-      edgeOffset,
-      nodeRects: nodeRectParam,
-      excludedNodeIds: excludedIds,
-    })
-    const fallback = getCollisionFreeWaypoints({
-      sourceX: sh.x, sourceY: sh.y,
-      targetX: th.x, targetY: th.y,
-      sourcePosition: handles.sourcePosition,
-      targetPosition: handles.targetPosition,
-      borderRadius,
-      edgeOffset,
-      nodeRects: nodeRectParam,
-      excludedNodeIds: excludedIds,
-    })
-    if (fallback) waypoints = fallback
-  }
+  const svgPath = buildSmoothStepSvg(waypoints, borderRadius)
 
   const edgeDataObj = edge.data as Record<string, unknown> || {}
   edgeDataObj.__cachedWaypoints = waypoints
-
-  console.log("FALLBACK PATH MATCH", edge.id, sourceNode.data.label, "->", targetNode.data.label, "sp:", handles.sourcePosition, "tp:", handles.targetPosition, "pts:", waypoints);
 
   return {
     sourcePosition: handles.sourcePosition,

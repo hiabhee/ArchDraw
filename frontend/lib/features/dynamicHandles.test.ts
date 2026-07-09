@@ -250,10 +250,10 @@ describe('getEdgeShiftOffset', () => {
     const offsetAct = getEdgeShiftOffset('Observe', 'edge-act', Position.Top, edges, nodeInternals, 12);
     const offsetTaskDone = getEdgeShiftOffset('Observe', 'edge-taskdone', Position.Top, edges, nodeInternals, 12);
 
-    // 2 edges on the same side, evenly spaced at 15px centered on the node.
-    // Original order preserved: edge-act first (idx 0 → -7.5), edge-taskdone second (idx 1 → +7.5).
-    expect(offsetAct).toBe(-7.5);
-    expect(offsetTaskDone).toBe(7.5);
+    // Two handles per side: outgoing (source) edges merge to one, incoming (target) merge to another.
+    // edge-act is incoming to Observe → +24, edge-taskdone is outgoing → -24.
+    expect(offsetAct).toBe(24);
+    expect(offsetTaskDone).toBe(-24);
   });
 
   it('should assign stable offsets to bidirectional edges to prevent crossing', () => {
@@ -278,17 +278,13 @@ describe('getEdgeShiftOffset', () => {
     const offsetB_ab = getEdgeShiftOffset('NodeB', 'e-ab', Position.Left, edges, nodeInternals, 12);
     const offsetB_ba = getEdgeShiftOffset('NodeB', 'e-ba', Position.Left, edges, nodeInternals, 12);
 
-    // 2 edges per side, evenly spaced 15px centered on the node.
-    // Order preserves edges array order: e-ab (idx 0 → -7.5), e-ba (idx 1 → +7.5).
-    expect(offsetA_ab).toBe(-7.5);
-    expect(offsetA_ba).toBe(7.5);
+    // Two handles per side: outgoing edges merge to one (-24), incoming merge to another (+24).
+    // On NodeA.Right: e-ab is outgoing → -24, e-ba is incoming → +24.
+    expect(offsetA_ab).toBe(-24);
+    expect(offsetA_ba).toBe(24);
 
-    // Same ordering on NodeB side.
-    expect(offsetB_ab).toBe(-7.5);
-    expect(offsetB_ba).toBe(7.5);
-
-    // Note that because both connect at NodeA.Right (y: cy - 6 / cy + 6) and NodeB.Left (y: cy - 6 / cy + 6),
-    // they run parallel (A.Right_top connects to B.Left_top, A.Right_bottom connects to B.Left_bottom).
-    // No crossing occurs!
+    // On NodeB.Left: e-ab is incoming → +24, e-ba is outgoing → -24.
+    expect(offsetB_ab).toBe(24);
+    expect(offsetB_ba).toBe(-24);
   });
 });

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import '@/components/nodes/nodeStyles.css';
 import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
 import { 
   ArrowRight, Menu, X, Check, ArrowRightLeft, RefreshCw, Clock, 

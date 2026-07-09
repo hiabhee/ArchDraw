@@ -60,12 +60,13 @@ function validateReasoningField(reasoning?: string, nodesCount?: number): Valida
 function validateTopologyAndSize(
   nodes: RFNode[],
   edges: ArchitectureEdge[],
-  diagramSize: 'small' | 'medium' | 'large'
+  diagramSize: 'small' | 'medium' | 'large',
+  detailLevel: 1 | 2 | 3 = 2
 ): { semanticIssues: ValidationIssue[]; mechanicalRepairs: ValidationIssue[] } {
   const semanticIssues: ValidationIssue[] = [];
   const mechanicalRepairs: ValidationIssue[] = [];
 
-  const maxNodes = diagramSize === 'small' ? 7 : diagramSize === 'medium' ? 12 : 15;
+  const maxNodes = detailLevel === 1 ? 7 : detailLevel === 2 ? 12 : 20;
   const leafNodes = nodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode');
 
   // Size limit check
@@ -187,6 +188,7 @@ export async function runMermaidPipeline(
   onProgress?: (step: string, progress: number) => void
 ): Promise<PipelineResult> {
   const diagramSize = userIntent.diagramSize ?? 'medium';
+  const detailLevel = userIntent.detailLevel ?? 2;
   const prompt = userIntent.description;
 
   onProgress?.('Planning architecture', 10);
@@ -198,7 +200,7 @@ export async function runMermaidPipeline(
   // STAGE 1: Planner — single LLM call to plan diagram in Mermaid syntax
   let plan = implicitConcept
     ? getConceptTemplatePlan(implicitConcept)
-    : await runArchitecturePlanner(prompt, diagramSize, userIntent.model);
+    : await runArchitecturePlanner(prompt, diagramSize, detailLevel, userIntent.model);
   let { formatConfig, styleConfig, mermaidCode, reasoning } = plan;
 
   // Layout override
@@ -226,7 +228,7 @@ export async function runMermaidPipeline(
   if (!parseResult.success || parseResult.nodes.length === 0) {
     logger.warn('[Pipeline] Planner failed or returned 0 nodes. Retrying with stronger instructions...');
     const retryPrompt = `${prompt}\n\nIMPORTANT: Generate valid, complete Mermaid flowchart code containing at least 3-6 components.`;
-    plan = await runArchitecturePlanner(retryPrompt, diagramSize, userIntent.model);
+    plan = await runArchitecturePlanner(retryPrompt, diagramSize, detailLevel, userIntent.model);
     ({ formatConfig, styleConfig, mermaidCode, reasoning } = plan);
     if (isVerticalRequested) {
       mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
@@ -266,13 +268,14 @@ export async function runMermaidPipeline(
     nodesRemoved: 0,
     edgesRemoved: 0,
     diagramSize,
+    detailLevel,
     stylePlan,
     prompt: userIntent.description,
   });
 
   // Run validators
   const reasoningIssues = validateReasoningField(reasoning, rfNodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode').length);
-  const topologyIssues = validateTopologyAndSize(rfNodes, rfEdges as any as ArchitectureEdge[], diagramSize);
+  const topologyIssues = validateTopologyAndSize(rfNodes, rfEdges as any as ArchitectureEdge[], diagramSize, detailLevel);
 
   // Layout issues from parser warnings
   const parserSemanticIssues: ValidationIssue[] = [];

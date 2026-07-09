@@ -4,14 +4,12 @@ import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { NodeResizer } from '@reactflow/node-resizer';
 import { useCanvasTheme } from '@/lib/theme';
-import { useNodeHandles } from '@/hooks/useNodeHandles';
 import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import '@reactflow/node-resizer/dist/style.css';
 
 export default function GroupNode({ id, data, selected }: NodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
-  const needed = useNodeHandles(id);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -164,7 +162,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      <NodeHandles needed={needed} />
+      <NodeHandles />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { ExtractedNode, RichEdge } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, RichEdge, Workflow } from '@/lib/types/repo-diagram';
 import {
   applySemanticLayerGroups,
   layoutedNodeToNdjsonRecord,
@@ -7,17 +7,17 @@ import {
 import type { LayoutedNode } from '@/lib/ai/pipeline/types';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 
-// Layer Y positions
+// Layer Y positions — ordered top-to-bottom as story layers
 const LAYER_Y: Record<string, number> = {
-  infrastructure: 0,
-  client: 200,
+  presentation: 0,
+  gateway: 200,
   application: 400,
   data: 600,
   external: 800,
 };
 
 const LAYER_GAP = 80;
-const COL_GAP = 200;
+const COL_GAP = 220;
 const START_X = 100;
 
 function cleanNodeLabel(label: string): string {
@@ -54,34 +54,58 @@ function cleanEdgeLabel(label: string, type: string): string {
     return 'calls';
   }
 
+  // Preserve semantic labels from the LLM — they tell the story
   const lower = raw.toLowerCase();
-  if (lower.includes('external') || lower.startsWith('uses ')) return type === 'external_call' ? 'uses' : 'calls';
-  if (lower.includes('database') || lower.includes('datastore') || lower.includes('query')) return 'queries';
-  if (lower.includes('authenticate')) return 'auth';
-  if (lower.includes('route')) return 'routes';
-  if (lower.length > 22) {
-    if (type === 'external_call') return 'uses';
+  const genericLabels = new Set(['calls', 'uses', 'queries', 'auth', 'guards', 'routes', 'depends on', 'connects to', 'links to', 'talks to', 'sends data', 'syncs']);
+  if (genericLabels.has(lower)) {
     if (type === 'db_query') return 'queries';
-    if (type === 'http_call') return 'calls';
+    if (type === 'external_call') return 'uses';
+    if (type === 'auth_check') return 'auth';
+    return lower;
   }
+
+  // Descriptive semantic labels (3+ words or specific verb-object pairs) — keep them
+  if (raw.length > 3 && raw.length <= 40) {
+    return raw.toLowerCase();
+  }
+
+  // Fallback for very long labels
+  if (raw.length > 40) {
+    const words = raw.split(/\s+/);
+    if (words.length >= 3) {
+      return words.slice(0, 4).join(' ').toLowerCase();
+    }
+    if (type === 'db_query') return 'queries';
+    if (type === 'external_call') return 'uses';
+    return 'calls';
+  }
+
   return raw.toLowerCase();
 }
 
 function getNodeLayerAndType(node: ExtractedNode): { layer: string; icon: string; serviceType: string } {
+  // Use explicit layer from node if set (from LLM enrichment)
+  if (node.layer) {
+    const lc = node.layer.toLowerCase();
+    if (['presentation', 'gateway', 'application', 'data', 'external'].includes(lc)) {
+      return { layer: lc, icon: iconForLayer(lc), serviceType: serviceTypeForLayer(lc) };
+    }
+  }
+
   switch (node.type) {
-    case 'MIDDLEWARE':
-    case 'CDN':
-    case 'API_GATEWAY':
-      return { layer: 'infrastructure', icon: 'shield', serviceType: 'gateway' };
     case 'PAGE':
     case 'UI_COMPONENT':
     case 'STATE_MANAGEMENT':
-      return { layer: 'client', icon: 'monitor', serviceType: 'client' };
+      return { layer: 'presentation', icon: 'monitor', serviceType: 'client' };
+    case 'MIDDLEWARE':
+    case 'AUTH':
+    case 'CDN':
+    case 'API_GATEWAY':
+      return { layer: 'gateway', icon: 'shield', serviceType: 'gateway' };
     case 'API_ROUTE':
     case 'SERVICE':
     case 'CONTROLLER':
     case 'WORKER':
-    case 'AUTH':
     case 'CORE_MODULE':
     case 'PLUGIN_SYSTEM':
       return { layer: 'application', icon: 'webhook', serviceType: 'api' };
@@ -96,6 +120,62 @@ function getNodeLayerAndType(node: ExtractedNode): { layer: string; icon: string
     default:
       return { layer: 'application', icon: 'box', serviceType: 'generic' };
   }
+}
+
+function iconForLayer(layer: string): string {
+  switch (layer) {
+    case 'presentation': return 'monitor';
+    case 'gateway': return 'shield';
+    case 'application': return 'webhook';
+    case 'data': return 'database';
+    case 'external': return 'server';
+    default: return 'box';
+  }
+}
+
+function serviceTypeForLayer(layer: string): string {
+  switch (layer) {
+    case 'presentation': return 'client';
+    case 'gateway': return 'gateway';
+    case 'application': return 'api';
+    case 'data': return 'database';
+    case 'external': return 'service';
+    default: return 'generic';
+  }
+}
+
+/**
+ * Convert a full node description into a short subtitle suitable for display
+ * on the canvas. Strips source-file lists and internal prefixes, then caps at 60 chars.
+ */
+function descriptionToSubtitle(description: string): string {
+  if (!description) return '';
+
+  let subtitle = description
+    // Remove "Detected from repository structure (file1, file2)" boilerplate
+    .replace(/Detected (?:component )?from (?:repository structure|source evidence)[^.]*\./gi, '')
+    // Remove trailing parenthetical source-file lists: (app/api/route.ts, ...)
+    .replace(/\s*\([^)]*\.(?:ts|tsx|js|py|go|rs)[^)]*\)/g, '')
+    // Remove "X files" references
+    .replace(/\(\d+ files?\)/g, '')
+    // Remove "entry: file.ts" references
+    .replace(/,?\s*entry:\s*[\w./,\s]+/gi, '')
+    .trim()
+    // Collapse multiple spaces
+    .replace(/\s+/g, ' ')
+    // Strip trailing period/comma
+    .replace(/[.,]+$/, '')
+    .trim();
+
+  // If nothing useful remains, return empty
+  if (!subtitle || subtitle.length < 3) return '';
+
+  // Cap at 60 characters, break on a word boundary
+  if (subtitle.length > 60) {
+    subtitle = subtitle.slice(0, 60).replace(/\s\S*$/, '').trim() + '…';
+  }
+
+  return subtitle;
 }
 
 export function compileToDiagram(
@@ -120,12 +200,13 @@ export function compileToDiagram(
     layerCounters[layer]++;
 
     const label = cleanNodeLabel(node.label);
-    const { width, height } = calculateNodeDimensions(label, node.description);
+    const subtitle = descriptionToSubtitle(node.description);
+    const { width, height } = calculateNodeDimensions(label, subtitle);
 
     const layouted: LayoutedNode = {
       id: node.id,
       label,
-      subtitle: node.description,
+      subtitle,
       layer: layer as LayoutedNode['layer'],
       icon,
       serviceType: serviceType as LayoutedNode['serviceType'],

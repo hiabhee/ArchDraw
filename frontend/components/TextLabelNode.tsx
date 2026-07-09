@@ -176,7 +176,7 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
       onDoubleClick={startEdit}
       className="text-label-node"
     >
-      <NodeHandles alwaysRender handleStyle={{ ...handleStyle, left: -15 }} />
+      <NodeHandles handleStyle={{ ...handleStyle, left: -15 }} />
 
       {editing && (
         <div

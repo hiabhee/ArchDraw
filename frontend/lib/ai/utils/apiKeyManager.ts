@@ -271,7 +271,8 @@ class ApiKeyManager {
           const delay = this.baseDelay * Math.pow(2, attempt);
           logger.log(`[ApiKeyManager] OpenRouter server error ${status}, waiting ${delay/1000}s...`);
           await this.delay(delay);
-        } else if (status === 401 || status === 403) {
+        } else if (status === 401 || status === 402 || status === 403) {
+          logger.log(`[ApiKeyManager] OpenRouter key ${keyInfo.index + 1} unrecoverable error ${status} — aborting key rotation`);
           throw error;
         } else {
           this.markKeyError('openrouter', keyInfo.index);
@@ -392,6 +393,12 @@ class ApiKeyManager {
           const err = error as { status?: number; message?: string };
           lastError = new Error(err.message || 'Unknown error');
           
+          // Fail fast on unrecoverable errors — no key will fix a bad/oversized request
+          if (err.status === 400 || err.status === 402 || err.status === 413 || err.status === 422) {
+            logger.log(`[ApiKeyManager] Groq key ${keyNumber} unrecoverable error ${err.status}: ${err.message} — aborting key rotation`);
+            throw lastError;
+          }
+          
           // Don't retry on auth errors
           if (err.status === 401 || err.status === 403) {
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} auth failed, skipping...`);
@@ -500,9 +507,25 @@ export class OpenRouterClient {
     };
   };
 
+  private static groqToOpenRouter: Record<string, string> = {
+    'llama-3.3-70b-versatile': 'meta-llama/llama-3.3-70b-instruct',
+    'llama-3.1-8b-instant': 'meta-llama/llama-3.1-8b-instruct',
+    'llama-3.1-70b-versatile': 'meta-llama/llama-3.1-70b-instruct',
+    'llama-3.2-1b-preview': 'meta-llama/llama-3.2-1b-instruct',
+    'llama-3.2-3b-preview': 'meta-llama/llama-3.2-3b-instruct',
+    'gpt-4o-mini': 'openai/gpt-4o-mini',
+    'gpt-4o': 'openai/gpt-4o',
+    'mixtral-8x7b-32768': 'mistralai/mixtral-8x7b-instruct',
+  };
+
+  private static mapModel(model?: string): string | undefined {
+    if (!model) return undefined;
+    return OpenRouterClient.groqToOpenRouter[model] || model;
+  }
+
   constructor(apiKey: string, model?: string) {
     this.apiKey = apiKey;
-    this.model = model || 'anthropic/claude-3.5-sonnet';
+    this.model = OpenRouterClient.mapModel(model) || 'anthropic/claude-3.5-sonnet';
     
     this.chat = {
       completions: {
@@ -533,7 +556,7 @@ export class OpenRouterClient {
           'X-Title': 'ArchDraw',
         },
         body: JSON.stringify({
-          model: options.model || this.model,
+          model: OpenRouterClient.mapModel(options.model) || this.model,
           messages: options.messages,
           temperature: options.temperature ?? 0.7,
           max_tokens: options.max_tokens ?? 4096,
@@ -544,8 +567,10 @@ export class OpenRouterClient {
       clearTimeout(timeout);
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
+        const errorText = await response.text();
+        const error = new Error(`OpenRouter API error: ${response.status} - ${errorText}`) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
       }
 
       return response.json();

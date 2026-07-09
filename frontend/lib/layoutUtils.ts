@@ -20,7 +20,8 @@ function wouldCreateCycle(childId: string, parentId: string, parentMap: Map<stri
 export function getLayoutedElements(
   nodes: Node[],
   edges: Edge[],
-  direction: 'LR' | 'TB' = 'LR'
+  direction: 'LR' | 'TB' = 'LR',
+  spacing?: { ranksep?: number; nodesep?: number }
 ): { nodes: Node[]; edges: Edge[] } {
   const hasAuthoredPositions = nodes.some((node) => node.position.x !== 0 || node.position.y !== 0);
 
@@ -33,8 +34,8 @@ export function getLayoutedElements(
 
   dagreGraph.setGraph({ 
     rankdir: direction,
-    ranksep: 120,
-    nodesep: 80,
+    ranksep: spacing?.ranksep ?? 200,
+    nodesep: spacing?.nodesep ?? 120,
     align: 'DL',
   });
 

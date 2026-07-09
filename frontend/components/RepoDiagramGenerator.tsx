@@ -334,6 +334,12 @@ export function RepoDiagramGenerator({ onClose }: Props) {
             {error && (
               <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive leading-relaxed">
                 {error}
+                {(error.toLowerCase().includes('rate limit') || error.toLowerCase().includes('403') || error.toLowerCase().includes('429')) && (
+                  <p className="mt-1.5 text-destructive/80">
+                    Add a <code className="bg-destructive/10 px-1 rounded">GITHUB_TOKEN</code> to{' '}
+                    <code className="bg-destructive/10 px-1 rounded">.env.local</code> to raise the limit to 5,000 requests/hr.
+                  </p>
+                )}
               </div>
             )}
 

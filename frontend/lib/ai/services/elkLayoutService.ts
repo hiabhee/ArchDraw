@@ -45,6 +45,21 @@ async function getELK(): Promise<ELKInterface> {
 
 const LAYOUT_CACHE = new Map<string, { nodes: ReactFlowNode[]; timestamp: number }>();
 const LAYOUT_CACHE_TTL = 5 * 60 * 1000;
+const MAX_LAYOUT_CACHE_SIZE = 20;
+
+function evictLayoutCache() {
+  const now = Date.now();
+  for (const [key, entry] of LAYOUT_CACHE) {
+    if (now - entry.timestamp >= LAYOUT_CACHE_TTL) {
+      LAYOUT_CACHE.delete(key);
+    }
+  }
+  while (LAYOUT_CACHE.size > MAX_LAYOUT_CACHE_SIZE) {
+    const oldestKey = LAYOUT_CACHE.keys().next().value;
+    if (oldestKey === undefined) break;
+    LAYOUT_CACHE.delete(oldestKey);
+  }
+}
 
 function getTopologySignature(nodes: ArchitectureNode[]): string {
   const layerCounts: Record<string, number> = {};
@@ -400,6 +415,9 @@ export async function computeELKLayout(
       elkGraph: cachedNodes.map(n => ({ id: n.id, x: n.position.x, y: n.position.y })),
     };
   }
+  if (cached) {
+    LAYOUT_CACHE.delete(signature);
+  }
 
   const nodesWithGroupDims = calculateGroupDimensions(nodes);
 
@@ -603,6 +621,7 @@ export async function computeELKLayout(
       nodes: [],
       timestamp: Date.now(),
     });
+    evictLayoutCache();
 
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
@@ -683,6 +702,7 @@ export async function computeELKLayout(
       nodes: columnAlignedNodes,
       timestamp: Date.now(),
     });
+    evictLayoutCache();
 
     return result;
   } catch (error) {

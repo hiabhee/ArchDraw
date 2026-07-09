@@ -40,12 +40,23 @@ interface ExtendedChatMessage {
   reasoning_content?: string | null;
 }
 
+const REASONING_MODEL_PATTERNS = [
+  /^gpt-oss/i,
+  /^deepseek-r1/i,
+  /^o[1-9]/i, // openai o1, o3, o4 series
+];
+
+function modelSupportsReasoning(model?: string): boolean {
+  if (!model) return false;
+  return REASONING_MODEL_PATTERNS.some(p => p.test(model));
+}
+
 /**
  * Groq chat completion with support for reasoning-model parameters.
  *
  * - Uses `response_format: { type: 'json_object' }` by default (falls back
  *   to plain text if the model doesn't support it).
- * - Passes `reasoning_effort` for models like gpt-oss-120b that support it.
+ * - Passes `reasoning_effort` only for models that support it (gpt-oss, deepseek-r1).
  * - Logs reasoning traces (CoT) when available for debugging.
  */
 export async function groqJsonCompletion(
@@ -53,12 +64,13 @@ export async function groqJsonCompletion(
   params: CompletionParams
 ): Promise<string> {
   const { reasoning_effort, json_schema, ...coreParams } = params;
+  const shouldUseReasoning = reasoning_effort && modelSupportsReasoning(coreParams.model);
 
   let body: ChatCompletionCreateParamsNonStreaming = {
     ...coreParams,
     response_format: { type: 'json_object' as const },
     temperature: coreParams.temperature ?? 0.7,
-    ...(reasoning_effort ? { reasoning_effort } : {}),
+    ...(shouldUseReasoning ? { reasoning_effort } : {}),
   };
 
   try {
@@ -82,7 +94,7 @@ export async function groqJsonCompletion(
     const { reasoning_effort: _r, json_schema: _j, response_format: _rf, ...fallbackParams } = params as any;
     const fallbackBody: ChatCompletionCreateParamsNonStreaming = {
       ...fallbackParams,
-      ...(reasoning_effort ? { reasoning_effort } : {}),
+      ...(shouldUseReasoning ? { reasoning_effort } : {}),
       ...(json_schema ? { json_schema } : {}),
     } as any;
 

@@ -36,6 +36,12 @@ const SIZE_NODE_RANGES: Record<'small' | 'medium' | 'large', { ideal: [number, n
   large: { ideal: [10, 20], min: 8 },
 };
 
+const DETAIL_NODE_RANGES: Record<1 | 2 | 3, { ideal: [number, number]; min: number }> = {
+  1: { ideal: [3, 7], min: 2 },
+  2: { ideal: [5, 12], min: 3 },
+  3: { ideal: [8, 20], min: 5 },
+};
+
 export function scoreDiagram(
   nodes: Node[],
   edges: Edge[],
@@ -44,6 +50,7 @@ export function scoreDiagram(
     edgesRemoved?: number;
     groupsRemoved?: number;
     diagramSize?: 'small' | 'medium' | 'large';
+    detailLevel?: 1 | 2 | 3;
     stylePlan?: ArchitectureStylePlan;
     prompt?: string;
   }
@@ -57,6 +64,7 @@ export function scoreDiagram(
   const edgeCount = edges.length;
   const prompt = (options?.prompt || '').toLowerCase();
   const diagramSize = options?.diagramSize ?? 'medium';
+  const detailLevel = options?.detailLevel ?? 2;
   const style = options?.stylePlan?.style ?? 'generic';
 
   const connected = new Set<string>();
@@ -80,8 +88,8 @@ export function scoreDiagram(
 
   let score = 0;
 
-  // 1. Size-appropriate node count (25 pts) — intent fidelity, not fixed 8–12
-  const range = SIZE_NODE_RANGES[diagramSize];
+  // 1. Size-appropriate node count (25 pts) — based on detail level
+  const range = DETAIL_NODE_RANGES[detailLevel];
   const nodeCount = nonGroupNodes.length;
   if (nodeCount >= range.ideal[0] && nodeCount <= range.ideal[1]) {
     score += 25;

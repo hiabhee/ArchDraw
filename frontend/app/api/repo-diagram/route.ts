@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       return errorResponse('Invalid JSON in request body', 400);
     }
 
-    const { repoUrl } = body;
+    const { repoUrl, detailLevel } = body;
 
     if (!repoUrl || typeof repoUrl !== 'string') {
       return errorResponse('Repository URL is required and must be a string', 400);
@@ -34,7 +34,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await generateRepoArchitectureDiagram(parsed.canonical);
+    const resolvedDetail: 1 | 2 | 3 = detailLevel === 1 || detailLevel === 3 ? detailLevel : 2;
+
+    const result = await generateRepoArchitectureDiagram(parsed.canonical, resolvedDetail, req.signal);
 
     const payload: RepoDiagramApiResponse = {
       success: true,

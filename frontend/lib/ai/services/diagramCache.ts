@@ -2,8 +2,14 @@ import type { ArchitectureNode, ArchitectureEdge } from '../types';
 import type { DiagramQualityReport } from '../validation/diagramQualityValidator';
 import type { PipelineResult } from '@/lib/types/repo-diagram';
 
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_TTL_MS = process.env.NODE_ENV === 'development'
+  ? 5 * 60 * 1000   // 5 minutes in dev — avoids stale results during iterative fixes
+  : 30 * 60 * 1000; // 30 minutes in production
 const MAX_CACHE_ENTRIES = 20;
+
+// Bump this string whenever the pipeline logic changes to automatically
+// invalidate all cached results without needing a server restart.
+const PIPELINE_VERSION = 'v6';
 
 export interface CachedDiagram {
   normalizedPrompt: string;
@@ -26,7 +32,7 @@ const repoCache = new Map<string, CachedRepoDiagram>();
 const repoInsertionOrder: string[] = [];
 
 function getRepoCacheKey(repoUrl: string, headSha: string): string {
-  return `${repoUrl}::${headSha}`;
+  return `${PIPELINE_VERSION}::${repoUrl}::${headSha}`;
 }
 
 function isExpired(ts: number): boolean {

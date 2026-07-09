@@ -38,7 +38,7 @@ describe('Dynamic Handles Fixes', () => {
     expect(isOpposite).toBe(false);
   });
 
-  it('should assign distinct lane offsets for parallel same-direction sibling edges', () => {
+  it('should merge parallel same-direction sibling edges into single handle', () => {
     const nodeInternals = new Map<string, Node>([
       ['A', { id: 'A', position: { x: 0, y: 0 }, data: { label: 'A' }, width: 100, height: 50, type: 'shapeNode' }],
       ['B', { id: 'B', position: { x: 200, y: 0 }, data: { label: 'B' }, width: 100, height: 50, type: 'shapeNode' }]
@@ -52,9 +52,8 @@ describe('Dynamic Handles Fixes', () => {
     const offset1 = getEdgeShiftOffset('A', 'edge-1', Position.Right, edges, nodeInternals);
     const offset2 = getEdgeShiftOffset('A', 'edge-2', Position.Right, edges, nodeInternals);
 
-    // Parallel same-direction edges should NOT collapse to 0. They should have distinct offsets.
-    expect(offset1).not.toBe(0);
-    expect(offset2).not.toBe(0);
-    expect(offset1).not.toEqual(offset2);
+    // Single direction on this side (both outgoing) → all edges merge to one centered handle
+    expect(offset1).toBe(0);
+    expect(offset2).toBe(0);
   });
 });

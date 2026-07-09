@@ -52,9 +52,8 @@ describe('pathPlanner', () => {
     })
 
     expect(result).not.toBeNull()
-    expect(result?.sourcePort.side).toBe(Position.Right)
-    expect(result?.targetPort.side).toBe(Position.Left)
     expect(pathHitsRect(result!.points, blocker)).toBe(false)
+    expect(result!.points.length).toBeGreaterThanOrEqual(2)
   })
 
   it('keeps computed route endpoints aligned with the rendered path', () => {

@@ -30,8 +30,8 @@ export const LAYOUT_PRESETS = [
     elkOptions: { 
       ...ELK_CONFIG, 
       'elk.direction': 'DOWN',
-      'elk.spacing.nodeNode': '180', // horizontal gap between parallel nodes
-      'elk.layered.spacing.nodeNodeBetweenLayers': '120', // vertical gap between layers
+      'elk.spacing.nodeNode': '200', // horizontal gap between parallel nodes
+      'elk.layered.spacing.nodeNodeBetweenLayers': '200', // vertical gap between layers
       'elk.portConstraints': 'FREE',
     }
   },

@@ -131,6 +131,16 @@ export function buildSmoothStepSvg(
     const curr = cleaned[i];
     const next = cleaned[i + 1];
 
+    const dx1 = Math.sign(curr.x - prev.x);
+    const dy1 = Math.sign(curr.y - prev.y);
+    const dx2 = Math.sign(next.x - curr.x);
+    const dy2 = Math.sign(next.y - curr.y);
+
+    if (dx1 === dx2 && dy1 === dy2) {
+      d += ` L ${curr.x},${curr.y}`;
+      continue;
+    }
+
     const distPrev = Math.abs(curr.x - prev.x) + Math.abs(curr.y - prev.y);
     const distNext = Math.abs(next.x - curr.x) + Math.abs(next.y - curr.y);
     const r = Math.max(0, Math.min(borderRadius, distPrev / 2, distNext / 2));
@@ -564,44 +574,71 @@ function findAstFallbackPath(
   const gScore = new Map<string, number>();
   const fScore = new Map<string, number>();
   const cameFrom = new Map<string, string | null>();
-  const openSet = new Set<string>();
 
   const sk = key(sg);
   gScore.set(sk, 0);
   fScore.set(sk, manhattan(sg, tg));
   cameFrom.set(sk, null);
-  openSet.add(sk);
 
   const dirs = [
     { x: 0, y: 1 }, { x: 1, y: 0 },
     { x: 0, y: -1 }, { x: -1, y: 0 },
   ];
 
-  let found = false;
-
-  while (openSet.size > 0) {
-    let current = '';
-    let bestF = Infinity;
-    for (const k of openSet) {
-      const f = fScore.get(k) ?? Infinity;
-      if (f < bestF) {
-        bestF = f;
-        current = k;
+  const heap: Array<{ key: string; priority: number }> = [];
+  const heapPush = (k: string, p: number) => {
+    heap.push({ key: k, priority: p });
+    let i = heap.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heap[i].priority >= heap[parent].priority) break;
+      [heap[i], heap[parent]] = [heap[parent], heap[i]];
+      i = parent;
+    }
+  };
+  const heapPop = (): string | undefined => {
+    if (heap.length === 0) return undefined;
+    const top = heap[0];
+    const bottom = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = bottom;
+      let i = 0;
+      const len = heap.length;
+      while (true) {
+        let smallest = i;
+        const left = (i << 1) + 1;
+        const right = left + 1;
+        if (left < len && heap[left].priority < heap[smallest].priority) smallest = left;
+        if (right < len && heap[right].priority < heap[smallest].priority) smallest = right;
+        if (smallest === i) break;
+        [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
+        i = smallest;
       }
     }
+    return top.key;
+  };
+
+  heapPush(sk, fScore.get(sk)!);
+
+  let found = false;
+
+  while (heap.length > 0) {
+    const current = heapPop()!;
+
+    if (fScore.get(current) === undefined) continue;
 
     if (current === key(tg)) {
       found = true;
       break;
     }
 
-    openSet.delete(current);
+    fScore.delete(current);
 
     const [cx, cy] = current.split(',').map(Number);
     const g = gScore.get(current) ?? Infinity;
 
     const parentKey = cameFrom.get(current);
-    let parentDir = { x: 0, y: 0 };
+    let parentDir: { x: number; y: number } | null = null;
     if (parentKey) {
       const [px, py] = parentKey.split(',').map(Number);
       parentDir = { x: cx - px, y: cy - py };
@@ -616,7 +653,7 @@ function findAstFallbackPath(
       const nk = `${nx},${ny}`;
 
       let moveCost = 1;
-      if (d.x !== parentDir.x || d.y !== parentDir.y) moveCost += 2;
+      if (parentDir && (d.x !== parentDir.x || d.y !== parentDir.y)) moveCost += 2;
 
       const tentativeG = g + moveCost;
       const existingG = gScore.get(nk);
@@ -624,8 +661,9 @@ function findAstFallbackPath(
       if (existingG === undefined || tentativeG < existingG) {
         cameFrom.set(nk, current);
         gScore.set(nk, tentativeG);
-        fScore.set(nk, tentativeG + manhattan({ x: nx, y: ny }, tg));
-        openSet.add(nk);
+        const f = tentativeG + manhattan({ x: nx, y: ny }, tg);
+        fScore.set(nk, f);
+        heapPush(nk, f);
       }
     }
   }
@@ -642,7 +680,6 @@ function findAstFallbackPath(
   pathG.reverse();
 
   const waypoints = pathG.map(p => ({ x: toWorld(p.x, minX), y: toWorld(p.y, minY) }));
-  // Pin first and last waypoints to exact handle positions
   waypoints[0] = { x: sx, y: sy };
   waypoints[waypoints.length - 1] = { x: tx, y: ty };
 
@@ -659,11 +696,30 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
     excludedNodeIds = new Set(),
   } = params;
 
+  // Pad node rects so edges maintain more distance from nodes
+  const NODE_PADDING = 20;
+  let paddedRects: Map<string, NodeRect> | undefined;
+  if (nodeRects) {
+    paddedRects = new Map();
+    for (const [id, rect] of nodeRects) {
+      paddedRects.set(id, {
+        id: rect.id,
+        x: rect.x - NODE_PADDING,
+        y: rect.y - NODE_PADDING,
+        w: rect.w + NODE_PADDING * 2,
+        h: rect.h + NODE_PADDING * 2,
+      });
+    }
+  }
+
   const sourceDir = getOutwardDirection(sourcePosition);
   const targetDir = getOutwardDirection(targetPosition);
 
   const dist = Math.abs(sx - tx) + Math.abs(sy - ty);
-  const stubLen = Math.min(20, Math.max(8, dist / 4));
+  const radius = params.borderRadius ?? 40;
+  const minStub = radius > 0 ? Math.max(8, radius + 4) : 8;
+  const maxStub = radius > 0 ? Math.max(minStub, 44) : 20;
+  const stubLen = Math.max(minStub, Math.min(maxStub, dist / 3));
 
   const ssx = sx + sourceDir.dx * stubLen;
   const ssy = sy + sourceDir.dy * stubLen;
@@ -676,9 +732,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   let middleWaypoints: Array<{ x: number; y: number }> | null = null;
 
   if (sourceIsHorizontal && targetIsHorizontal) {
-    middleWaypoints = findSafeHtoHPath(ssx, ssy, ttx, tty, edgeOffset, nodeRects, excludedNodeIds);
-    if (!middleWaypoints && nodeRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeHtoHPath(ssx, ssy, ttx, tty, edgeOffset, paddedRects, excludedNodeIds);
+    if (!middleWaypoints && paddedRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
     }
     if (!middleWaypoints) {
       const mx = (ssx + ttx) / 2 + edgeOffset;
@@ -690,9 +746,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
       ];
     }
   } else if (!sourceIsHorizontal && !targetIsHorizontal) {
-    middleWaypoints = findSafeVtoVPath(ssx, ssy, ttx, tty, edgeOffset, nodeRects, excludedNodeIds);
-    if (!middleWaypoints && nodeRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeVtoVPath(ssx, ssy, ttx, tty, edgeOffset, paddedRects, excludedNodeIds);
+    if (!middleWaypoints && paddedRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
     }
     if (!middleWaypoints) {
       const my = (ssy + tty) / 2 + edgeOffset;
@@ -704,9 +760,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
       ];
     }
   } else if (sourceIsHorizontal) {
-    middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, true, nodeRects, excludedNodeIds);
-    if (!middleWaypoints && nodeRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, true, paddedRects, excludedNodeIds);
+    if (!middleWaypoints && paddedRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
     }
     if (!middleWaypoints) {
       middleWaypoints = [
@@ -716,9 +772,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
       ];
     }
   } else {
-    middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, false, nodeRects, excludedNodeIds);
-    if (!middleWaypoints && nodeRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, nodeRects, excludedNodeIds);
+    middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, false, paddedRects, excludedNodeIds);
+    if (!middleWaypoints && paddedRects) {
+      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
     }
     if (!middleWaypoints) {
       middleWaypoints = [
@@ -743,7 +799,7 @@ export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Arra
 }
 
 export function getCollisionFreeSmoothStepPath(params: CollisionFreePathParams): string {
-  const { borderRadius = 12 } = params;
+  const { borderRadius = 40 } = params;
   const waypoints = computeWaypoints(params);
   return buildSmoothStepSvg(waypoints, borderRadius);
 }

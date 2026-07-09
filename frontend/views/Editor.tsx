@@ -267,13 +267,14 @@ export default function EditorPage() {
   };
 
 
-  const handleGenerate = async (description: string, diagramSize?: 'small' | 'medium' | 'large') => {
+  const handleGenerate = async (description: string, detailLevelOrSize?: 1 | 2 | 3 | 'small' | 'medium' | 'large') => {
     const selectedModel = useModelStore.getState().selectedModel;
     setProgress(null);
     setLastPrompt(description);
-    if (diagramSize) {
-      setLastSize(diagramSize);
-    }
+    const resolvedDetailLevel = typeof detailLevelOrSize === 'number' ? detailLevelOrSize : detailLevelOrSize === 'small' ? 1 : detailLevelOrSize === 'medium' ? 2 : 3;
+    const detailLevel = resolvedDetailLevel;
+    const diagramSize = detailLevel === 1 ? 'small' : detailLevel === 2 ? 'medium' : 'large';
+    setLastSize(diagramSize);
 
     const canvasName = isGitHubRepoUrl(description)
       ? `${extractRepoName(description)} Architecture`
@@ -343,9 +344,10 @@ export default function EditorPage() {
       const payload: {
         description: string;
         diagramSize?: 'small' | 'medium' | 'large';
+        detailLevel?: 1 | 2 | 3;
         model?: string;
         stream: boolean;
-      } = { description, diagramSize, model: selectedModel, stream: true };
+      } = { description, diagramSize, detailLevel: detailLevel, model: selectedModel, stream: true };
 
       // Use standard JSON endpoint
       const response = await fetch('/api/generate-diagram', {

@@ -31,3 +31,4 @@ logs/
 # Test results
 test-results/
 frontend/test-results/
+.qoder/

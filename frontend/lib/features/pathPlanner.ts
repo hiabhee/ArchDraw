@@ -154,26 +154,21 @@ function angleDeg(a: Point, b: Point): number {
   return Math.atan2(b.y - a.y, b.x - a.x) * (180 / Math.PI)
 }
 
-function facingSidePenalty(
+function flowDirectionPenalty(
   sourceRect: ObstacleRect,
   targetRect: ObstacleRect,
   sourceSide: Position,
   targetSide: Position,
 ): number {
-  const sourceCx = sourceRect.x + sourceRect.w / 2
-  const sourceCy = sourceRect.y + sourceRect.h / 2
-  const targetCx = targetRect.x + targetRect.w / 2
-  const targetCy = targetRect.y + targetRect.h / 2
-  const horizontal = Math.abs(targetCx - sourceCx) >= Math.abs(targetCy - sourceCy)
-  const preferredSource = horizontal
-    ? (targetCx >= sourceCx ? Position.Right : Position.Left)
-    : (targetCy >= sourceCy ? Position.Bottom : Position.Top)
-  const preferredTarget = horizontal
-    ? (targetCx >= sourceCx ? Position.Left : Position.Right)
-    : (targetCy >= sourceCy ? Position.Top : Position.Bottom)
-
-  return (sourceSide === preferredSource ? 0 : 10000) +
-    (targetSide === preferredTarget ? 0 : 10000)
+  const sCx = sourceRect.x + sourceRect.w / 2
+  const sCy = sourceRect.y + sourceRect.h / 2
+  const tCx = targetRect.x + targetRect.w / 2
+  const tCy = targetRect.y + targetRect.h / 2
+  const horizontal = Math.abs(tCx - sCx) >= Math.abs(tCy - sCy)
+  const sH = sourceSide === Position.Left || sourceSide === Position.Right
+  const tH = targetSide === Position.Left || targetSide === Position.Right
+  const aligned = horizontal ? (sH && tH) : (!sH && !tH)
+  return aligned ? 0 : 500
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -465,6 +460,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
         const bends = countBends(pts) + (tmpl.extraBends || 0)
         const len = pathLength(pts)
         const edgeCrossings = countEdgeCrossings(pts, existingEdgePaths)
+        const flowPen = flowDirectionPenalty(sourceRect, targetRect, sp, tp)
 
         // Score: lower is better
         const BEND_PENALTY = 100
@@ -474,7 +470,8 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
         const score =
           BEND_PENALTY * bends +
           LENGTH_PENALTY * len +
-          EDGE_CROSS_PENALTY * edgeCrossings
+          EDGE_CROSS_PENALTY * edgeCrossings +
+          flowPen
 
         const isBetter =
           !best ||
@@ -527,11 +524,12 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
         const bends = countBends(pts) + 2
         const len = pathLength(pts)
         const edgeCrossings = countEdgeCrossings(pts, existingEdgePaths)
+        const flowPen = flowDirectionPenalty(sourceRect, targetRect, sp, tp)
         const score =
           100 * bends +
           len +
           50 * edgeCrossings +
-          facingSidePenalty(sourceRect, targetRect, sp, tp)
+          flowPen
 
         const isBetter =
           !best ||
@@ -557,7 +555,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
   if (!best) return null
 
   const labelSeg = findLongestSegment(best.points)
-  const borderRadius = 12
+  const borderRadius = 40
   const svgPath = buildSmoothStepSvg(best.points, borderRadius)
 
   return {

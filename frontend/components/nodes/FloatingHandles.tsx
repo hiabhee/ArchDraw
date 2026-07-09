@@ -1,7 +1,10 @@
 'use client';
 
-import { Handle, Position, useNodeId } from 'reactflow';
-import { useNodeHandles } from '@/hooks/useNodeHandles';
+import { Handle, Position } from 'reactflow';
+
+type Side = 'left' | 'right' | 'top' | 'bottom';
+const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
+const TYPES = ['target', 'source'] as const;
 
 const ghost: React.CSSProperties = {
   opacity: 0,
@@ -12,109 +15,52 @@ const ghost: React.CSSProperties = {
   pointerEvents: 'none',
   minWidth: 0,
   minHeight: 0,
+  position: 'absolute',
 };
 
+interface FloatingHandleProps {
+  side: Side;
+  type: 'source' | 'target';
+}
 
-/**
- * FloatingHandles — minimal, centered-by-default handle rendering.
- *
- * Rules:
- *  • Default: 4 ghost handles (one centered per side: top/right/bottom/left).
- *    Allows new connections to be dragged from any side.
- *  • A fallback handle is hidden when that side already has an explicit edge-driven
- *    handle — preventing duplicates and keeping the count at exactly 4.
- *  • 2 edges on a side (source + target both used) → offset ±12px so they don't overlap.
- *    In this case the fallback for that side is already suppressed.
- */
+function SingleFloatingHandle({ side, type }: FloatingHandleProps) {
+  const id = `${type}-${side}`;
+  const offset = type === 'target' ? 'calc(50% - 12px)' : 'calc(50% + 12px)';
+
+  const isHorizontal = side === 'left' || side === 'right';
+  const pos = side === 'left' ? Position.Left : side === 'right' ? Position.Right : side === 'top' ? Position.Top : Position.Bottom;
+
+  const style: React.CSSProperties = {
+    ...ghost,
+    ...(isHorizontal
+      ? {
+          left: side === 'left' ? 0 : undefined,
+          right: side === 'right' ? 0 : undefined,
+          top: offset,
+          transform: 'translateY(-50%)',
+        }
+      : {
+          top: side === 'top' ? 0 : undefined,
+          bottom: side === 'bottom' ? 0 : undefined,
+          left: offset,
+          transform: 'translateX(-50%)',
+        }),
+  };
+
+  return <Handle type={type} position={pos} id={id} style={style} />;
+}
+
 export function FloatingHandles() {
-  const nodeId = useNodeId() ?? '';
-  const needed = useNodeHandles(nodeId);
-
-  // Per-side: do we need BOTH source and target? If so, we offset; otherwise center.
-  const bothLeft   = needed.has('target-left')   && needed.has('source-left');
-  const bothRight  = needed.has('target-right')  && needed.has('source-right');
-  const bothTop    = needed.has('target-top')    && needed.has('source-top');
-  const bothBottom = needed.has('target-bottom') && needed.has('source-bottom');
-
   return (
     <>
-      {/* ── Default: 4 centered fallback handles (one per side) ────────── */}
-      {/* Suppressed per-side once an explicit edge-driven handle covers it. */}
-      {!needed.has('target-top')    && !needed.has('source-top')    && <Handle type="source" position={Position.Top}    style={{ ...ghost, top: 0,    left: '50%', transform: 'translate(-50%, -50%)' }} />}
-      {!needed.has('target-right')  && !needed.has('source-right')  && <Handle type="source" position={Position.Right}  style={{ ...ghost, right: 0,  top: '50%',  transform: 'translate(50%, -50%)' }}  />}
-      {!needed.has('target-bottom') && !needed.has('source-bottom') && <Handle type="source" position={Position.Bottom} style={{ ...ghost, bottom: 0, left: '50%', transform: 'translate(-50%, 50%)' }}  />}
-      {!needed.has('target-left')   && !needed.has('source-left')   && <Handle type="source" position={Position.Left}   style={{ ...ghost, left: 0,   top: '50%',  transform: 'translate(-50%, -50%)' }} />}
-
-      {/* ── Left ─────────────────────────────────────────────────────────── */}
-      {needed.has('target-left') && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="target-left"
-          style={{ ...ghost, left: 0, top: bothLeft ? 'calc(50% - 12px)' : '50%', transform: 'translate(-50%, -50%)' }}
-        />
-      )}
-      {needed.has('source-left') && (
-        <Handle
-          type="source"
-          position={Position.Left}
-          id="source-left"
-          style={{ ...ghost, left: 0, top: bothLeft ? 'calc(50% + 12px)' : '50%', transform: 'translate(-50%, -50%)' }}
-        />
-      )}
-
-      {/* ── Right ────────────────────────────────────────────────────────── */}
-      {needed.has('target-right') && (
-        <Handle
-          type="target"
-          position={Position.Right}
-          id="target-right"
-          style={{ ...ghost, right: 0, top: bothRight ? 'calc(50% - 12px)' : '50%', transform: 'translate(50%, -50%)' }}
-        />
-      )}
-      {needed.has('source-right') && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="source-right"
-          style={{ ...ghost, right: 0, top: bothRight ? 'calc(50% + 12px)' : '50%', transform: 'translate(50%, -50%)' }}
-        />
-      )}
-
-      {/* ── Top ──────────────────────────────────────────────────────────── */}
-      {needed.has('target-top') && (
-        <Handle
-          type="target"
-          position={Position.Top}
-          id="target-top"
-          style={{ ...ghost, top: 0, left: bothTop ? 'calc(50% - 12px)' : '50%', transform: 'translate(-50%, -50%)' }}
-        />
-      )}
-      {needed.has('source-top') && (
-        <Handle
-          type="source"
-          position={Position.Top}
-          id="source-top"
-          style={{ ...ghost, top: 0, left: bothTop ? 'calc(50% + 12px)' : '50%', transform: 'translate(-50%, -50%)' }}
-        />
-      )}
-
-      {/* ── Bottom ───────────────────────────────────────────────────────── */}
-      {needed.has('target-bottom') && (
-        <Handle
-          type="target"
-          position={Position.Bottom}
-          id="target-bottom"
-          style={{ ...ghost, bottom: 0, left: bothBottom ? 'calc(50% - 12px)' : '50%', transform: 'translate(-50%, 50%)' }}
-        />
-      )}
-      {needed.has('source-bottom') && (
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="source-bottom"
-          style={{ ...ghost, bottom: 0, left: bothBottom ? 'calc(50% + 12px)' : '50%', transform: 'translate(-50%, 50%)' }}
-        />
+      {SIDES.map((side) =>
+        TYPES.map((type) => (
+          <SingleFloatingHandle
+            key={`${type}-${side}`}
+            side={side}
+            type={type}
+          />
+        ))
       )}
     </>
   );

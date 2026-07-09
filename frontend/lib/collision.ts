@@ -1,6 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 
-export const COLLISION_MARGIN = 25;
+export const COLLISION_MARGIN = 40;
 export const NODE_DEFAULT_WIDTH = 160;
 export const NODE_DEFAULT_HEIGHT = 110;
 export const EDGE_HITBOX = 8;

@@ -1,5 +1,6 @@
 import { ingestRepo } from './github-ingestion';
-import { deepClassify } from './agents/repo-deep-classifier';
+import { buildStaticDetectionReport, formatDetectionReport } from './repo-diagram/static-detector';
+import { classifyRepository } from './agents/repo-classifier';
 import { extractComponents } from './agents/repo-component-extractor';
 import { analyzeRelationships } from './agents/repo-relationship-analyst';
 
@@ -9,7 +10,12 @@ import { getRepoDiagram, setRepoDiagram } from '@/lib/ai/services/diagramCache';
 import { detectSubsystems, summarizeSubsystem } from './repo-diagram/subsystem-detector';
 import { extractStaticSignals } from './repo-diagram/static-analyzer';
 import { buildSubsystemGraph, intermediateToArchitecture } from './repo-diagram/intermediate-graphs';
-import type { ExtractedNode, RichEdge, PipelineResult, RepoSnapshot, RepoProfile, Subsystem, StaticSignal, DependencyIntelligence } from './types/repo-diagram';
+import {
+  collectGroundedNodeIds,
+  deduplicateNodes,
+  pruneNoisyEdges,
+} from './repo-diagram/graph-quality';
+import type { ExtractedNode, RichEdge, PipelineResult, RepoSnapshot, RepoProfile, Subsystem, StaticSignal, DependencyIntelligence, Workflow } from './types/repo-diagram';
 
 function normalizeId(id: string): string {
   return id
@@ -22,9 +28,9 @@ function normalizeId(id: string): string {
 
 function sanitizeRepoGraph(
   nodes: ExtractedNode[],
-  edges: RichEdge[]
+  edges: RichEdge[],
+  groundedIds?: Set<string>
 ): { nodes: ExtractedNode[]; edges: RichEdge[] } {
-  // Normalize all node IDs
   const idMap = new Map<string, string>();
   const normalizedNodes = nodes.map((n) => {
     const normalized = normalizeId(n.id);
@@ -32,7 +38,6 @@ function sanitizeRepoGraph(
     return { ...n, id: normalized };
   });
 
-  // Normalize edge IDs
   const normalizedEdges = edges.map((e) => ({
     ...e,
     from: idMap.get(e.from) || normalizeId(e.from),
@@ -58,17 +63,19 @@ function sanitizeRepoGraph(
     connected.add(edge.to);
   }
 
-  const importantTypes = new Set(['SERVICE', 'API_ROUTE', 'PAGE', 'WORKER', 'AUTH', 'MIDDLEWARE', 'INFRASTRUCTURE']);
+  const importantTypes = new Set(['SERVICE', 'API_ROUTE', 'PAGE', 'WORKER', 'AUTH', 'MIDDLEWARE', 'INFRASTRUCTURE', 'DATABASE', 'EXTERNAL_SERVICE', 'CACHE', 'QUEUE']);
   let keptNodes = normalizedNodes.filter((n) =>
-    connected.has(n.id) || importantTypes.has(n.type)
+    connected.has(n.id) ||
+    importantTypes.has(n.type) ||
+    (groundedIds?.has(n.id) ?? false) ||
+    n.sourceFiles.length > 0
   );
   if (keptNodes.length === 0) {
     keptNodes = normalizedNodes.slice(0, Math.min(normalizedNodes.length, 2));
   }
 
-  // Cap output
-  const MAX_NODES = 30;
-  const MAX_EDGES = 40;
+  const MAX_NODES = 40;
+  const MAX_EDGES = 60;
   const typePriority: Record<string, number> = {
     SERVICE: 0,
     API_ROUTE: 1,
@@ -107,24 +114,18 @@ function sanitizeRepoGraph(
   };
 }
 
-/**
- * Build a deterministic architecture baseline from the repo snapshot.
- * No LLM calls — subsystem detection + static signals + graph composition.
- */
 function buildDeterministicBaseline(
   snapshot: RepoSnapshot,
   subsystems: Subsystem[],
   signals: StaticSignal[]
-): { nodes: ExtractedNode[]; edges: RichEdge[]; workflows: { name: string; description: string; steps: string[] }[] } {
+): { nodes: ExtractedNode[]; edges: RichEdge[]; workflows: Workflow[] } {
   const graph = buildSubsystemGraph(subsystems, snapshot.selectedFiles, signals);
   const { nodes, edges } = intermediateToArchitecture(graph, subsystems);
-  const sanitized = sanitizeRepoGraph(nodes, edges);
+  const grounded = collectGroundedNodeIds(nodes, signals);
+  const sanitized = sanitizeRepoGraph(nodes, edges, grounded);
   return { nodes: sanitized.nodes, edges: sanitized.edges, workflows: [] };
 }
 
-/**
- * Build compact subsystem summaries for LLM consumption, replacing raw source feeding.
- */
 function buildSummariesForLLM(subsystems: Subsystem[], signals: StaticSignal[]): string[] {
   return subsystems.map((sub) => {
     const subSignals = signals.filter((s) =>
@@ -140,148 +141,82 @@ function buildSummariesForLLM(subsystems: Subsystem[], signals: StaticSignal[]):
   });
 }
 
-/**
- * Merge LLM-refined nodes into the deterministic baseline.
- * Baseline nodes are the grounded source of truth — the LLM may enrich,
- * rename, merge, or add evidence-backed nodes, but must not replace nodes
- * that the deterministic analysis produced.
- *
- * Matching priority:
- *   1. Normalized ID
- *   2. Normalized label + type
- *   3. Overlapping sourceFiles
- *
- * New LLM-only nodes are only kept when backed by static signals or
- * when they carry high/medium confidence with a concrete type.
- */
 function mergeLlmIntoBaseline(
   baseline: ExtractedNode[],
-  llmNodes: ExtractedNode[],
-  signals: StaticSignal[]
+  llmNodes: ExtractedNode[]
 ): ExtractedNode[] {
   if (llmNodes.length === 0) return baseline;
 
-  // Build a set of signal-derived labels for validating new LLM nodes
-  const signalLabels = new Set(signals.map((s) => s.label.toLowerCase()));
-
   const merged = new Map<string, ExtractedNode>();
-  for (const n of baseline) merged.set(n.id, { ...n });
 
   for (const llm of llmNodes) {
-    const llmId = normalizeId(llm.id);
-    const llmLabel = llm.label.toLowerCase().trim();
-    const llmType = llm.type;
+    const id = normalizeId(llm.id);
+    const isGenericExternalDesc = llm.type === 'EXTERNAL_SERVICE' &&
+      /^(external\s+service\s+integration|external\s+service)$/i.test(llm.description?.trim() || '');
+    if (isGenericExternalDesc) continue;
+    merged.set(id, { ...llm, id });
+  }
 
-    // (1) Try normalized ID match
-    if (merged.has(llmId)) {
-      const existing = merged.get(llmId)!;
-      merged.set(llmId, {
-        ...existing,
-        description: llm.description || existing.description,
-        confidence: llm.confidence === 'high' ? llm.confidence : existing.confidence,
-        sourceFiles: [...new Set([...existing.sourceFiles, ...llm.sourceFiles])],
-      });
+  const llmSourceFiles = new Set(llmNodes.flatMap((n) => n.sourceFiles));
+  const llmLabels = new Set(llmNodes.map((n) => n.label.toLowerCase().trim()));
+
+  for (const base of baseline) {
+    const baseId = normalizeId(base.id);
+    if (merged.has(baseId)) {
+      const existing = merged.get(baseId)!;
+      existing.sourceFiles = [...new Set([...existing.sourceFiles, ...base.sourceFiles])];
       continue;
     }
 
-    // (2) Try label + type match
-    const labelTypeMatch = Array.from(merged.values()).find(
-      (n) => n.label.toLowerCase().trim() === llmLabel && n.type === llmType
-    );
-    if (labelTypeMatch) {
-      merged.set(labelTypeMatch.id, {
-        ...labelTypeMatch,
-        description: llm.description || labelTypeMatch.description,
-        confidence: llm.confidence === 'high' ? llm.confidence : labelTypeMatch.confidence,
-        sourceFiles: [...new Set([...labelTypeMatch.sourceFiles, ...llm.sourceFiles])],
-      });
-      continue;
-    }
+    const overlapsSource = base.sourceFiles.some((sf) => llmSourceFiles.has(sf));
+    const overlapsLabel = llmLabels.has(base.label.toLowerCase().trim());
+    if (overlapsSource || overlapsLabel) continue;
 
-    // (3) Try label-only match
-    const labelMatch = Array.from(merged.values()).find(
-      (n) => n.label.toLowerCase().trim() === llmLabel
-    );
-    if (labelMatch) {
-      merged.set(labelMatch.id, {
-        ...labelMatch,
-        description: llm.description || labelMatch.description,
-        confidence: llm.confidence === 'high' ? llm.confidence : labelMatch.confidence,
-        sourceFiles: [...new Set([...labelMatch.sourceFiles, ...llm.sourceFiles])],
-      });
-      continue;
-    }
-
-    // (4) Try overlapping source files
-    if (llm.sourceFiles.length > 0) {
-      const sourceMatch = Array.from(merged.values()).find((n) =>
-        n.sourceFiles.some((sf) => llm.sourceFiles.includes(sf)) &&
-        (n.type === llmType || llmType === 'SERVICE' || n.type === 'SERVICE')
-      );
-      if (sourceMatch) {
-        merged.set(sourceMatch.id, {
-          ...sourceMatch,
-          description: llm.description || sourceMatch.description,
-          confidence: llm.confidence === 'high' ? llm.confidence : sourceMatch.confidence,
-          sourceFiles: [...new Set([...sourceMatch.sourceFiles, ...llm.sourceFiles])],
-        });
-        continue;
-      }
-    }
-
-    // (5) New node — only keep if backed by signal evidence
-    const isBackedBySignal = signalLabels.has(llmLabel) ||
-      llm.sourceFiles.some((sf) =>
-        signals.some((s) => s.source === sf || s.label.toLowerCase() === llmLabel)
-      );
-    const isValidType = !['PAGE', 'API_ROUTE', 'UI_COMPONENT'].includes(llmType) ||
-      llm.sourceFiles.length > 0;
-    if ((llm.confidence === 'high' || isBackedBySignal) && isValidType) {
-      merged.set(llmId, { ...llm });
-    }
+    merged.set(baseId, { ...base, id: baseId });
   }
 
   return Array.from(merged.values());
 }
 
-/**
- * Build a deterministic dependency intelligence map from static signals.
- */
 function buildDependencyIntelligence(signals: StaticSignal[]): DependencyIntelligence[] {
   const depSignals = signals.filter((s) => s.type === 'dependency');
   const seen = new Set<string>();
   const deps: DependencyIntelligence[] = [];
 
+  const nonArchitecturalCategories = new Set(['ui_framework', 'state_management', 'http_client', 'monitoring']);
+
   for (const s of depSignals) {
+    const category = (s.details.category as string) || 'unknown';
+    if (nonArchitecturalCategories.has(category)) continue;
     if (seen.has(s.label)) continue;
     seen.add(s.label);
     deps.push({
       name: s.label,
-      category: (s.details.category as string) || 'unknown',
-      purpose: `${s.label} — ${s.details.category || 'dependency'}`,
+      category,
+      purpose: `${s.label} — ${category}`,
       usedIn: [s.source],
       usagePattern: 'declared',
-      architecturalRole: s.details.category === 'database' ? 'data_persistence'
-        : s.details.category === 'queue' ? 'async_messaging'
-        : s.details.category === 'auth' ? 'authentication'
-        : s.details.category === 'payments' ? 'payments'
-        : s.details.category === 'email' ? 'notification'
-        : s.details.category === 'ai_ml' ? 'ai_ml'
+      architecturalRole: category === 'database' ? 'data_persistence'
+        : category === 'queue' ? 'async_messaging'
+        : category === 'auth' ? 'authentication'
+        : category === 'payments' ? 'payments'
+        : category === 'email' ? 'notification'
+        : category === 'ai_ml' ? 'ai_ml'
         : 'supporting_infrastructure',
       externalEndpoint: null,
-      isOnCriticalPath: ['database', 'queue', 'auth'].includes(s.details.category as string),
+      isOnCriticalPath: ['database', 'queue', 'auth'].includes(category),
     });
   }
 
   return deps;
 }
 
-export async function generateRepoArchitectureDiagram(repoUrl: string): Promise<PipelineResult> {
-  // Step 1: Ingest
+export async function generateRepoArchitectureDiagram(repoUrl: string, detailLevel?: 1 | 2 | 3, signal?: AbortSignal): Promise<PipelineResult> {
   console.log('[Pipeline] Step 1: Ingesting repo...');
   const snapshot: RepoSnapshot = await ingestRepo(repoUrl);
 
-  // Cache check
+  if (signal?.aborted) throw new Error('Request aborted');
+
   if (snapshot.headSha) {
     const cached = getRepoDiagram(repoUrl, snapshot.headSha);
     if (cached) {
@@ -291,7 +226,6 @@ export async function generateRepoArchitectureDiagram(repoUrl: string): Promise<
     console.log(`[Pipeline] Cache miss for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
   }
 
-  // Step 2: Hierarchical analysis (deterministic, no LLM)
   console.log('[Pipeline] Step 2: Detecting subsystems...');
   const subsystems = detectSubsystems(snapshot);
   console.log(`  Found ${subsystems.length} subsystems`);
@@ -300,67 +234,131 @@ export async function generateRepoArchitectureDiagram(repoUrl: string): Promise<
   const signals = extractStaticSignals(snapshot.selectedFiles, subsystems);
   console.log(`  Extracted ${signals.length} signals (${new Set(signals.map((s) => s.type)).size} types)`);
 
-  // Build deterministic baseline from static analysis
   const baseline = buildDeterministicBaseline(snapshot, subsystems, signals);
   let workingNodes = baseline.nodes;
   let edges = baseline.edges;
   let workflows = baseline.workflows;
   let repoProfile: RepoProfile | null = null;
   const dependencyMapDeps = buildDependencyIntelligence(signals);
-  const reviewNotes = '';
+  let classifyFailed = false;
+  let llmEdgeFailed = false;
 
   const summaries = buildSummariesForLLM(subsystems, signals);
 
-  // Determine whether LLM refinement is worthwhile
-  const hasEnoughFiles = snapshot.phase2Files.length >= 3 || snapshot.selectedFiles.length >= 6;
-  const hasEnoughSignals = signals.length >= 6;
-  const baselineUseful = baseline.nodes.length >= 3;
-  const useLlm = hasEnoughFiles && hasEnoughSignals && baselineUseful;
+  function buildReviewNotes(
+    finalNodes: ExtractedNode[],
+    finalEdges: RichEdge[],
+    usedLlm: boolean,
+    classifyFailed: boolean,
+    edgeFailed: boolean
+  ): string {
+    const notes: string[] = [];
+
+    if (!usedLlm) {
+      notes.push('LLM refinement was skipped because the repository snapshot contained very little source code. The diagram is based on static file-tree analysis only.');
+    } else {
+      if (classifyFailed) {
+        notes.push('Architecture classification fell back to heuristics — the diagram type and pattern may be inaccurate.');
+      }
+      if (edgeFailed) {
+        notes.push('Relationship analysis used heuristic inference — some connections may not reflect real data flows.');
+      }
+    }
+
+    if (snapshot.treeTruncated) {
+      notes.push('The repository file tree was truncated by GitHub (>100k entries). Some subsystems may be missing.');
+    }
+
+    if (finalNodes.length < 4) {
+      notes.push(`Only ${finalNodes.length} architectural component${finalNodes.length === 1 ? '' : 's'} were detected. The repo may be too small, private, or its structure non-standard.`);
+    }
+
+    if (finalEdges.length === 0 && finalNodes.length > 1) {
+      notes.push('No relationships could be inferred between components. Try adding a GITHUB_TOKEN for higher API quota and better file coverage.');
+    }
+
+    const lowConfidenceRatio =
+      finalNodes.filter((n) => n.confidence === 'low').length / Math.max(finalNodes.length, 1);
+    if (lowConfidenceRatio > 0.5) {
+      notes.push('More than half the detected components are low-confidence. Review the diagram before sharing.');
+    }
+
+    if (!process.env.GITHUB_TOKEN) {
+      notes.push('No GITHUB_TOKEN detected — operating at 60 req/hr GitHub rate limit. Set GITHUB_TOKEN in .env.local for 5,000 req/hr and better file coverage.');
+    }
+
+    return notes.join(' ');
+  }
+
+  const hasAnySourceFiles = snapshot.phase2Files.length >= 1 || snapshot.selectedFiles.length >= 4;
+  const hasAnySignals = signals.length >= 3;
+  const useLlm = hasAnySourceFiles || hasAnySignals;
 
   if (!useLlm) {
-    console.log(`[Pipeline] Skipping LLM (files=${snapshot.selectedFiles.length}, signals=${signals.length}, baselineNodes=${baseline.nodes.length})`);
+    console.log(`[Pipeline] Skipping LLM — repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`);
   }
 
   if (useLlm) {
-    // Step 4: LLM classification
-    console.log('[Pipeline] Step 4: Classifying architecture (LLM)...');
+    // Step 4: Build static detection report (deterministic, no LLM)
+    console.log('[Pipeline] Step 4: Building static detection report...');
+    const detectionReport = buildStaticDetectionReport(snapshot, subsystems, signals);
+    const detectionReportText = formatDetectionReport(detectionReport);
+    console.log(`  Detection report: ${detectionReportText.split('\n').length} lines`);
+
+    if (signal?.aborted) throw new Error('Request aborted');
+
+    // Step 5: Architecture classification (tiny LLM call)
+    console.log('[Pipeline] Step 5: Classifying architecture (LLM)...');
     try {
-      repoProfile = await deepClassify(snapshot, summaries);
-      console.log(`  Type: ${repoProfile.repoType}, pattern: ${repoProfile.architecturePattern}`);
-    } catch {
-      console.warn('[Pipeline] LLM classification failed, using fallback');
-      repoProfile = await deepClassify(snapshot);
+      repoProfile = await classifyRepository(snapshot, detectionReportText, summaries);
+      classifyFailed = repoProfile.confidence === 'low';
+      console.log(`  Type: ${repoProfile.repoType}, pattern: ${repoProfile.architecturePattern}, domain: ${repoProfile.applicationDomain || 'N/A'}`);
+    } catch (err) {
+      console.warn('[Pipeline] Classification failed, using fallback:', err);
+      const { buildFallbackRepoProfile } = await import('./agents/repo-deep-classifier');
+      repoProfile = buildFallbackRepoProfile(snapshot);
+      classifyFailed = true;
     }
 
-    // Step 5: LLM component refinement
-    console.log('[Pipeline] Step 5: Refining components (LLM)...');
+    if (signal?.aborted) throw new Error('Request aborted');
+
+    // Step 6: Component extraction (small LLM call, uses static report + classification)
+    console.log('[Pipeline] Step 6: Extracting components (LLM)...');
     try {
-      const llmNodes = await extractComponents(snapshot, repoProfile, undefined, summaries);
+      const llmNodes = await extractComponents(snapshot, repoProfile, detectionReportText, summaries);
       if (llmNodes.length > 0) {
-        workingNodes = mergeLlmIntoBaseline(baseline.nodes, llmNodes, signals);
-        console.log(`  Baseline: ${baseline.nodes.length} nodes, LLM: ${llmNodes.length}, Merged: ${workingNodes.length}`);
+        workingNodes = mergeLlmIntoBaseline(baseline.nodes, llmNodes);
+        console.log(`  Baseline: ${baseline.nodes.length}, LLM: ${llmNodes.length}, Merged: ${workingNodes.length}`);
+      } else {
+        console.log('  No LLM nodes returned, keeping baseline');
       }
-    } catch {
-      console.warn('[Pipeline] LLM component extraction failed, using deterministic baseline');
+    } catch (err) {
+      console.warn('[Pipeline] Component extraction failed, using heuristic fallback:', err);
+      const heuristicNodes = (await import('./agents/repo-heuristic-extractor')).extractComponentsHeuristic(snapshot, repoProfile);
+      if (heuristicNodes.length > 0) {
+        workingNodes = mergeLlmIntoBaseline(baseline.nodes, heuristicNodes);
+      }
     }
 
-    // Step 6: LLM relationship analysis
-    console.log('[Pipeline] Step 6: Analyzing relationships (LLM)...');
-    let llmEdgesProduced = false;
+    const mergedGrounded = collectGroundedNodeIds(workingNodes, signals);
+
+    if (signal?.aborted) throw new Error('Request aborted');
+
+    // Step 7: Workflow-first relationship analysis (LLM)
+    console.log('[Pipeline] Step 7: Analyzing relationships + workflows (LLM)...');
     try {
-      const relOutput = await analyzeRelationships(snapshot, workingNodes, repoProfile, { dependencies: dependencyMapDeps }, summaries);
+      const relOutput = await analyzeRelationships(snapshot, workingNodes, repoProfile ?? undefined, { dependencies: dependencyMapDeps }, summaries, detectionReportText);
       if (relOutput.edges.length > 0) {
         edges = relOutput.edges;
-        llmEdgesProduced = true;
       }
       if (relOutput.workflows.length > 0) workflows = relOutput.workflows;
       console.log(`  Got ${edges.length} edges, ${workflows.length} workflows`);
     } catch {
       console.warn('[Pipeline] LLM relationship analysis failed');
+      llmEdgeFailed = true;
     }
 
-    // Sanitize — heuristic fallback if LLM edges are poor
-    let sanitized = sanitizeRepoGraph(workingNodes, edges);
+    let sanitized = sanitizeRepoGraph(workingNodes, edges, mergedGrounded);
     const needsFallback = sanitized.edges.length === 0 ||
       sanitized.edges.length < Math.min(3, baseline.edges.length) ||
       sanitized.edges.length < Math.floor(baseline.edges.length * 0.6);
@@ -376,20 +374,28 @@ export async function generateRepoArchitectureDiagram(repoUrl: string): Promise<
           }
         }
         if (heuristic.workflows.length > 0) workflows = heuristic.workflows;
-        sanitized = sanitizeRepoGraph(workingNodes, edges);
+        sanitized = sanitizeRepoGraph(workingNodes, edges, mergedGrounded);
         console.log(`  After merge: ${sanitized.edges.length} edges`);
       }
     }
     workingNodes = sanitized.nodes;
     edges = sanitized.edges;
+
+    const deduped = deduplicateNodes(workingNodes, edges);
+    workingNodes = deduped.nodes;
+    edges = pruneNoisyEdges(deduped.nodes, deduped.edges);
+  } else {
+    const deduped = deduplicateNodes(workingNodes, pruneNoisyEdges(workingNodes, edges));
+    workingNodes = deduped.nodes;
+    edges = deduped.edges;
   }
 
-  const finalSanitized = sanitizeRepoGraph(workingNodes, edges);
+  const finalGrounded = collectGroundedNodeIds(workingNodes, signals);
+  const finalSanitized = sanitizeRepoGraph(workingNodes, edges, finalGrounded);
   workingNodes = finalSanitized.nodes;
   edges = finalSanitized.edges;
 
-  // Step 8: Compile (deterministic — always runs)
-  console.log(`[Pipeline] Step 8: Compiling diagram (${workingNodes.length} nodes, ${edges.length} edges, ${workflows.length} workflows)`);
+  console.log(`[Pipeline] Step 8: Generating diagram (${workingNodes.length} nodes, ${edges.length} edges, ${workflows.length} workflows)`);
   const ndjson = compileToDiagram(workingNodes, edges, workflows);
 
   const allConfidences = [
@@ -399,6 +405,8 @@ export async function generateRepoArchitectureDiagram(repoUrl: string): Promise<
   const hasLow = allConfidences.some((c) => c === 'low');
   const allHigh = allConfidences.every((c) => c === 'high');
   const pipelineConfidence: 'high' | 'medium' | 'low' = allHigh ? 'high' : hasLow ? 'low' : 'medium';
+
+  const reviewNotes = buildReviewNotes(workingNodes, edges, useLlm, classifyFailed, llmEdgeFailed);
 
   const result: PipelineResult = {
     ndjson,
@@ -410,6 +418,9 @@ export async function generateRepoArchitectureDiagram(repoUrl: string): Promise<
       repoType: 'unknown',
       architecturePattern: 'unknown',
       primaryStack: { framework: null, language: snapshot.surfaceClassification.primaryLanguage, runtime: '' },
+      applicationDomain: '',
+      coreCapabilities: [],
+      primaryUserFlows: [],
       confidence: 'low',
       reasoning: 'Deterministic baseline',
       extractionStrategy: { keyDirectories: [], entryPoints: [], moduleStructure: '', focusAreas: [] },
