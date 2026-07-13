@@ -208,7 +208,7 @@ Output must conform to this JSON schema:
   const FALLBACK_MODEL = 'llama-3.3-70b-versatile';
   const isGptOss = /^openai\/gpt-oss/i.test(requestedModel);
 
-  let resultStr: string;
+  let resultStr = '';
   const maxAttempts = 2;
 
   // For gpt-oss models with tight TPM limits, try the requested model first,
