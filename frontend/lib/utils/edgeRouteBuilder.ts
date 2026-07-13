@@ -248,7 +248,9 @@ export function computeEdgeRoute(
     obstacles: obstacleMap,
     existingEdgePaths: existingPaths,
     stubLength: 32,
-    preferredPair,
+    preferredPair: preferredPair
+      ? { source: preferredPair.sourcePosition, target: preferredPair.targetPosition }
+      : undefined,
   })
 
   if (result && result.nodeCrossings === 0) {

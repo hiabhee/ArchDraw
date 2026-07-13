@@ -317,6 +317,6 @@ Output must conform to this JSON schema:
     return { formatConfig, styleConfig, mermaidCode: parsed.mermaidCode, reasoning: parsed.reasoning };
   }
 
-  logger.error('[ArchitecturePlanner] Failed to parse JSON response or missing mermaidCode:', resultStr);
+  logger.error('[ArchitecturePlanner] Failed to parse JSON response or missing mermaidCode:', resultStr!);
   throw new Error('Architecture planner: failed to parse JSON response');
 }
