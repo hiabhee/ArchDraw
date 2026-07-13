@@ -107,6 +107,12 @@ function pathCollidesWithRects(
   return false
 }
 
+const portPairCache = new Map<string, { sourcePosition: Position; targetPosition: Position }>()
+
+export function clearPortPairCache(): void {
+  portPairCache.clear()
+}
+
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
@@ -125,6 +131,9 @@ export function computeEdgeRoute(
   }
 
   if (!sourceNode || !targetNode) return defaultResult
+
+  const cacheKey = `${edge.source}|${edge.target}`
+  const preferredPair = portPairCache.get(cacheKey)
 
   if (edge.source === edge.target) {
     const sRect = getNodeRect(sourceNode, nodes)
@@ -165,6 +174,7 @@ export function computeEdgeRoute(
       undefined, undefined,
       edge.id, edge.source, edge.target, edge.data,
       sourceNode.data?.serviceType, targetNode.data?.serviceType, direction,
+      preferredPair,
     )
 
     const sourcePosition = handles.sourcePosition
@@ -210,6 +220,8 @@ export function computeEdgeRoute(
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
 
+    portPairCache.set(cacheKey, { sourcePosition, targetPosition })
+
     return {
       sourcePosition,
       targetPosition,
@@ -236,12 +248,15 @@ export function computeEdgeRoute(
     obstacles: obstacleMap,
     existingEdgePaths: existingPaths,
     stubLength: 32,
+    preferredPair,
   })
 
   if (result && result.nodeCrossings === 0) {
     const waypoints = result.points
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
+
+    portPairCache.set(cacheKey, { sourcePosition: result.sourcePort.side, targetPosition: result.targetPort.side })
 
     return {
       sourcePosition: result.sourcePort.side,
@@ -268,6 +283,7 @@ export function computeEdgeRoute(
     nodeRectParam, excludedIds,
     edge.id, edge.source, edge.target, edge.data,
     sourceNode.data?.serviceType, targetNode.data?.serviceType, direction,
+    preferredPair,
   )
 
   const sourceShift = getEdgeShiftOffset(edge.source, edge.id, handles.sourcePosition, edges, new Map(nodes.map(n => [n.id, n])), 12, nodeRectParam, excludedIds)
@@ -301,6 +317,8 @@ export function computeEdgeRoute(
 
   const edgeDataObj = edge.data as Record<string, unknown> || {}
   edgeDataObj.__cachedWaypoints = waypoints
+
+  portPairCache.set(cacheKey, { sourcePosition: handles.sourcePosition, targetPosition: handles.targetPosition })
 
   return {
     sourcePosition: handles.sourcePosition,

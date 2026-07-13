@@ -80,10 +80,33 @@ export async function groqJsonCompletion(
 
     const msg = completion.choices[0]?.message as ExtendedChatMessage | undefined;
     const content = msg?.content ?? '';
+    const finishReason = completion.choices[0]?.finish_reason;
+    const usage = completion.usage;
 
     // Log reasoning trace for debugging (CoT)
     if (msg?.reasoning_content) {
       logger.log('[groqJsonCompletion] Reasoning trace:', msg.reasoning_content.slice(0, 500));
+    }
+
+    // If content is empty, retry without response_format (some models return empty with json_object mode)
+    if (!content.trim()) {
+      logger.warn(`[groqJsonCompletion] Empty content with response_format (finish_reason=${finishReason}, prompt_tokens=${usage?.prompt_tokens ?? '?'}, completion_tokens=${usage?.completion_tokens ?? '?'}), retrying without...`);
+      const { reasoning_effort: _r2, json_schema: _j2, response_format: _rf2, ...retryParams } = params as CompletionParams & Record<string, unknown>;
+      const retryBody: ChatCompletionCreateParamsNonStreaming = {
+        ...retryParams,
+        ...(shouldUseReasoning ? { reasoning_effort } : {}),
+        ...(json_schema ? { json_schema } : {}),
+      } as ChatCompletionCreateParamsNonStreaming;
+      const retryCompletion = await client.chat.completions.create(retryBody);
+      const retryMsg = retryCompletion.choices[0]?.message as ExtendedChatMessage | undefined;
+      const retryContent = retryMsg?.content ?? '';
+      const retryFinishReason = retryCompletion.choices[0]?.finish_reason;
+      const retryUsage = retryCompletion.usage;
+      if (retryContent.trim()) {
+        logger.log('[groqJsonCompletion] Retry without response_format succeeded');
+        return retryContent;
+      }
+      logger.warn(`[groqJsonCompletion] Retry also empty (finish_reason=${retryFinishReason}, prompt_tokens=${retryUsage?.prompt_tokens ?? '?'}, completion_tokens=${retryUsage?.completion_tokens ?? '?'})`);
     }
 
     return content;

@@ -1,7 +1,7 @@
 'use client';
 
 import ReactFlow, {
-  Background, BackgroundVariant, Controls, MiniMap,
+  Background, BackgroundVariant, MiniMap,
   useReactFlow, ReactFlowProvider,
   NodeMouseHandler, EdgeMouseHandler, NodeDragHandler,
   SelectionMode, ConnectionLineType,
@@ -379,7 +379,6 @@ function CanvasInner() {
           color={isDark ? '#475569' : CANVAS_CONFIG.background.color}
           style={{ opacity: isDark ? 0.6 : 0.4 }}
         />
-        <Controls showInteractive={false} className={`!shadow-sm ${isDark ? '!bg-[#1E2235] !border-gray-800 !text-white' : '!bg-white !border-gray-200 !text-gray-800'}`} />
         <SVGEdgeMarkerDefs />
         <GuideLines />
         

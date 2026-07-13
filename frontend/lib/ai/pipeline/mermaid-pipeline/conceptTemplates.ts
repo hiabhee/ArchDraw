@@ -19,8 +19,7 @@ export type ConceptDomain =
   | 'security'
   | 'search'
   | 'storage'
-  | 'runtime'
-  | 'generic-infrastructure';
+  | 'runtime';
 
 export interface ImplicitConcept {
   subject: string;
@@ -54,7 +53,7 @@ const FORMAT: FormatConfig = {
 };
 
 const CONCEPT_MARKERS = /\b(describe|explain|overview|architecture|diagram|what is|how does)\b/i;
-const DETAIL_MARKERS = /\b(for|where|when|using|use|uses|with my|for my|ecommerce|e-commerce|payment|chat|social|microservice|microservices|frontend|backend|database per|multi-tenant|swarm|kubernetes|k8s|compose|orchestrat|cluster|multi-host|deployment|ci\/cd|cicd)\b/i;
+const DETAIL_MARKERS = /\b(for|where|when|using|use|uses|with my|for my|ecommerce|e-commerce|payment|chat|social|microservice|microservices|frontend|backend|database per|multi-tenant|swarm|kubernetes|k8s|compose|orchestrat|cluster|multi-host|deployment|ci\/cd|cicd|agent|loop|coding|compiler|interpreter|framework|library|module|design pattern|algorithm|state machine|middleware|handler|callback|event loop)\b/i;
 
 export function detectImplicitConceptPrompt(prompt: string): ImplicitConcept | null {
   const lower = prompt.toLowerCase().trim();
@@ -105,7 +104,7 @@ function titleCaseConcept(subject: string): string {
     .join(' ');
 }
 
-function classifyImplicitConcept(subject: string): ImplicitConcept {
+function classifyImplicitConcept(subject: string): ImplicitConcept | null {
   const lower = subject.toLowerCase();
 
   if (/\bdocker\b/.test(lower)) return { subject: 'Docker', domain: 'container-runtime', template: 'docker' };
@@ -124,7 +123,7 @@ function classifyImplicitConcept(subject: string): ImplicitConcept {
   if (/\b(s3|object storage|blob storage|file system|filesystem|storage)\b/.test(lower)) return { subject, domain: 'storage' };
   if (/\b(jvm|nodejs|node.js|python|runtime|react|nextjs|next.js)\b/.test(lower)) return { subject, domain: 'runtime' };
 
-  return { subject, domain: 'generic-infrastructure' };
+  return null;
 }
 
 function buildPlan(mermaidCode: string, reasoning: string): ConceptTemplatePlan {
@@ -173,8 +172,6 @@ function domainMermaid(domain: ConceptDomain, subject: string): string {
       return genericContainerRuntimeMermaid(subject);
     case 'operating-system':
       return linuxMermaid;
-    case 'generic-infrastructure':
-      return genericInfrastructureMermaid(subject);
   }
 }
 
@@ -618,47 +615,6 @@ function genericContainerRuntimeMermaid(subject: string): string {
   volume -->|mounts into| containers
   containers -->|write logs| logs
   containers -->|share kernel| kernel`;
-}
-
-function genericInfrastructureMermaid(subject: string): string {
-  return `graph TD
-  subgraph USERS["Interfaces"]
-    users("Users / Clients")
-    admins("Operators")
-  end
-  subgraph CORE["${subject} Core"]
-    api["Public API"]
-    engine["Core Engine"]
-    state[("State / Metadata")]
-  end
-  subgraph CONTROL["Control Plane"]
-    config["Configuration"]
-    policy["Policy / Rules"]
-    scheduler["Coordination"]
-  end
-  subgraph DATA["Data Plane"]
-    workers["Workers / Executors"]
-    storage[("Persistent Storage")]
-    integrations["External Integrations"]
-  end
-  subgraph OPS["Production Operations"]
-    security["Security Boundary"]
-    metrics["Metrics / Logs"]
-    health["Health / Failover"]
-  end
-  users -->|send request| api
-  admins -->|manage config| config
-  api -->|invokes engine| engine
-  engine -->|reads state| state
-  config -->|updates engine| engine
-  policy -->|guards action| engine
-  scheduler -->|coordinates work| workers
-  engine -->|dispatches work| workers
-  workers -->|persist data| storage
-  workers -->|call external| integrations
-  security -->|protects API| api
-  engine -->|emits metrics| metrics
-  health -->|checks engine| engine`;
 }
 
 const dockerMermaid = `graph TD

@@ -1337,7 +1337,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
       edgeAnimations: true,
       showGrid: true,
       darkMode: (typeof window !== 'undefined' ? (window.localStorage.getItem('archdraw-theme') === 'dark') : false),
-      sidebarOpen: true,
+      sidebarOpen: false,
       canvasMode: 'empty',
       activeLayoutPresetId: 'layered-lr',
       detailLevel: 3,

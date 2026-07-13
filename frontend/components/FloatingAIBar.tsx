@@ -133,7 +133,7 @@ export function FloatingAIBar({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="fixed bottom-0 sm:bottom-3 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-2 sm:px-4 safe-area-bottom flex items-center gap-2"
+      className="fixed bottom-3 sm:bottom-3 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-2 sm:px-4 safe-area-bottom flex items-center gap-2"
     >
       <div className="flex-1 min-w-0">
         <AnimatePresence mode="wait">
@@ -142,7 +142,7 @@ export function FloatingAIBar({
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-          className={`flex items-center gap-1.5 w-full rounded-[20px] border bg-card shadow-soft-3 p-1 pr-1.5 transition-all duration-200 ${
+          className={`flex items-center gap-1.5 w-full rounded-[20px] border bg-card shadow-soft-3 p-1.5 pr-1.5 transition-all duration-200 ${
             isFirstTime && isCanvasEmpty 
               ? 'shiny-input-glow border-[#5e6ad2]/70 focus-within:border-primary/50' 
               : 'border-border/40 focus-within:border-primary/50'

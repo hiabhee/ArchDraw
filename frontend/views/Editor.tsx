@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { Node, Edge } from 'reactflow';
 import dynamic from 'next/dynamic';
 import { Toolbar } from '@/components/Toolbar';
@@ -67,6 +68,7 @@ export default function EditorPage() {
   const [lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
+  const isMobile = useIsMobile();
 
   // Auto-close code panel if entering sequence diagram mode
   useEffect(() => {
@@ -428,20 +430,20 @@ export default function EditorPage() {
           <CanvasSidebar onClose={() => setCanvasSidebarOpen(false)} />
         )}
         
-        {sidebarOpen && (
+        {!isMobile && sidebarOpen && (
           <ComponentSidebar
             onOpenCreateModal={() => setShowCreateModal(true)}
           />
         )}
         
-        {(selectedNodeId && !selectedEdgeId) && (
+        {!isMobile && (selectedNodeId && !selectedEdgeId) && (
           <ContextualSidebar 
             nodeId={selectedNodeId} 
             onClose={() => useDiagramStore.getState().setSelectedNodeId(null)} 
           />
         )}
         
-        {selectedEdgeId && <PropertiesPanel />}
+        {!isMobile && selectedEdgeId && <PropertiesPanel />}
         
         <CommandPalette />
         <OnboardingOverlay />

@@ -42,6 +42,7 @@ export interface PathPlannerConfig {
   stubLength?: number
   minSegmentLength?: number
   minFinalSegment?: number
+  preferredPair?: { source: Position; target: Position }
 }
 
 const PORT_OFFSET = 12
@@ -397,6 +398,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
     stubLength = 32,
     minSegmentLength = 16,
     minFinalSegment = 24,
+    preferredPair,
   } = config
 
   const allPositions: Position[] = [
@@ -462,6 +464,9 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
         const edgeCrossings = countEdgeCrossings(pts, existingEdgePaths)
         const flowPen = flowDirectionPenalty(sourceRect, targetRect, sp, tp)
 
+        const isPreferred = preferredPair && sp === preferredPair.source && tp === preferredPair.target
+        const stabilityBonus = isPreferred ? 600 : 0
+
         // Score: lower is better
         const BEND_PENALTY = 100
         const LENGTH_PENALTY = 1
@@ -471,7 +476,8 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
           BEND_PENALTY * bends +
           LENGTH_PENALTY * len +
           EDGE_CROSS_PENALTY * edgeCrossings +
-          flowPen
+          flowPen -
+          stabilityBonus
 
         const isBetter =
           !best ||
@@ -525,11 +531,16 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
         const len = pathLength(pts)
         const edgeCrossings = countEdgeCrossings(pts, existingEdgePaths)
         const flowPen = flowDirectionPenalty(sourceRect, targetRect, sp, tp)
+
+        const isPreferred = preferredPair && sp === preferredPair.source && tp === preferredPair.target
+        const stabilityBonus = isPreferred ? 600 : 0
+
         const score =
           100 * bends +
           len +
           50 * edgeCrossings +
-          flowPen
+          flowPen -
+          stabilityBonus
 
         const isBetter =
           !best ||

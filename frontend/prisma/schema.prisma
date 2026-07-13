@@ -125,12 +125,15 @@ model TutorialProgress {
 }
 
 model SharedCanvas {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  canvasName String   @map("canvas_name")
-  nodes      Json
-  edges      Json
-  createdAt  DateTime @default(now()) @map("created_at")
-  expiresAt  DateTime @default(dbgenerated("(now() + interval '30 days')")) @map("expires_at")
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  canvasName     String   @map("canvas_name")
+  nodes          Json
+  edges          Json
+  accessType     String   @default("anyone") @map("access_type")
+  linkPermission String   @default("viewer") @map("link_permission")
+  users          Json     @default("[]")
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @default(dbgenerated("(now() + interval '30 days')")) @map("expires_at")
 
   @@map("shared_canvases")
 }

@@ -276,7 +276,8 @@ export function getObstacleAwareHandles(
   edgeData?: Record<string, unknown>,
   sourceServiceType?: string,
   targetServiceType?: string,
-  direction: 'LR' | 'TD' = 'LR'
+  direction: 'LR' | 'TD' = 'LR',
+  preferredPair?: { sourcePosition: Position; targetPosition: Position },
 ): DynamicHandleResult {
   const rects = nodeRects ?? new Map();
   const excluded = excludedNodeIds ?? new Set();
@@ -358,6 +359,10 @@ export function getObstacleAwareHandles(
 
   const candidates: Array<{ source: Position; target: Position; label: string }> = [];
 
+  if (preferredPair) {
+    candidates.push({ source: preferredPair.sourcePosition, target: preferredPair.targetPosition, label: 'preferred' });
+  }
+
   candidates.push({ source: geometryHandles.sourcePosition, target: geometryHandles.targetPosition, label: 'geometry' });
 
   for (const pair of allPairs) {
@@ -374,23 +379,27 @@ export function getObstacleAwareHandles(
     sameSide: true,
     flowAligned: false,
     source: geometryHandles.sourcePosition,
-    target: geometryHandles.targetPosition
+    target: geometryHandles.targetPosition,
+    label: 'geometry' as string,
   };
 
   for (const cand of candidates) {
     const score = scorePair(cand.source, cand.target);
+    const isPreferred = cand.label === 'preferred';
+    const bestIsPreferred = best.label === 'preferred';
     const isBetter =
       score.crossesBody < best.crossesBody ||
       (score.crossesBody === best.crossesBody && score.collisions < best.collisions) ||
       (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === false && best.sameSide === true) ||
       (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === true && best.flowAligned === false) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === best.flowAligned && score.pathLen < best.pathLen);
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === best.flowAligned && score.pathLen < best.pathLen) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === best.flowAligned && Math.abs(score.pathLen - best.pathLen) < 200 && isPreferred && !bestIsPreferred);
 
     if (isBetter) {
-      best = { ...score, source: cand.source, target: cand.target };
+      best = { ...score, source: cand.source, target: cand.target, label: cand.label };
     }
 
-    if (!score.crossesBody && score.collisions === 0 && !score.sameSide && cand.label === 'geometry') {
+    if (!score.crossesBody && score.collisions === 0 && !score.sameSide && cand.label !== 'preferred') {
       break;
     }
   }

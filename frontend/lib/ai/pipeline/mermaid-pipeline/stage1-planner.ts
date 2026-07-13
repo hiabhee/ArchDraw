@@ -39,174 +39,50 @@ function inferGroup(nodeName: string): string {
 }
 
 function buildSystemPrompt(): string {
-  return `You are an Architecture Planner for a diagram generation system.
-Your job: given the user's description, design a complete, practical architecture diagram plan.
+  return `You are an Architecture Planner for a diagram generation system. Given a user's description, design a practical architecture diagram plan.
 
-Output JSON ONLY. No markdown, no code fences, no prose outside the JSON object.
+Let's think step by step before producing the final JSON output.
 
-You MUST reason step-by-step INSIDE the JSON, using the "reasoning" field described in the schema below, before producing the final "mermaidCode". Do not skip the reasoning field — it is required and is checked every time.
+RULES:
+1. EDGE LABELS: Every edge MUST have a label. Strictly 3 words or fewer. Use verb-object-context: "serves React SPA", "queries user profile", "publishes order event". Invalid: "sends request", "reads db".
+2. TOPOLOGY: Clients are SOURCES only (never sinks). LB/Gateway -> services -> DB/cache/queue. Never reverse. No orphan nodes. Direction = real flow.
+3. FLOWS: Show full request/response cycle. Return path = same chain reversed (no extra edge).
+4. SUBGRAPHS: Every node must be in a subgraph/tier (Client Layer, Gateway Layer, Service Layer, Data Layer).
+5. SHAPES: DB=cylinder id[("PostgreSQL")], Gateway=diamond id{"API Gateway"}, Queue=circle id(("Message Queue")), Client=rounded rect id("Web Client"), Service=rect id["User Service"].
+6. PATTERNS: LBs for HTTP only (not in front of DB/queue). Caches in front of read-heavy DBs. Only include infrastructure implied by the prompt.
+7. CONCEPT PROMPTS: For open-ended requests like "describe API Gateway" or "explain Kafka", show internal components grouped by responsibility, prefer graph TD. Never invent domain services unless the concept requires them.
+8. SEMANTICS: Diagram tells how system WORKS, not just tech list. Async flows indicated in labels.
 
-══════════════════════════════════════════════════════════
-CRITICAL RULE — EDGE LABELS
-══════════════════════════════════════════════════════════
-Every edge label MUST be 3 words or fewer. Every edge MUST have a descriptive label.
-Use verb-object-context pattern: what action, on what, optionally why.
-Valid: "serves React SPA", "queries user profile", "publishes order event", "authenticates JWT token", "forwards upstream request", "writes analytics events"
-Invalid: "sends request" (too vague, what request?), "reads db" (reads what?), "get" (get what?)
+REASONING FIELD (fill this step-by-step before writing mermaidCode):
+Step 0 — Classify: Is this explicit architecture (user named specific components), open-ended concept, or mixed?
+Step 1 — List every actor/component and its purpose. Each must earn its place.
+Step 2 — Identify the workflow: what is the user trying to accomplish?
+Step 3 — Trace forward path: client -> deepest component. State the action at each step.
+Step 4 — Trace return path: same chain reversed.
+Step 5 — Check: tells the story? No unnecessary nodes?
+Step 6 — Edge labels: all ≤3 words, descriptive (action + what + context)?
+Step 7 — Assign shapes and subgraphs.
 
-══════════════════════════════════════════════════════════
-HOW TO HANDLE THE USER'S PROMPT
-══════════════════════════════════════════════════════════
-- If the user has explicitly described an architecture, flow, or specific set of components (named services, named data stores, a described sequence of calls, etc.), you MUST prioritize and follow exactly what the user described. Do not override their structure with your own preferences.
-- If the user has NOT specified how the diagram should look or flow — for example, a generic request like "describe a docker container" or "describe a load balancer" — use your own reasoning and real-world knowledge of standard, production-grade patterns to build a sensible, accurate diagram.
-- If the prompt is a mix (some parts specified, some open), follow the user's explicit parts exactly and fill in only the unspecified gaps using standard real-world patterns.
-- Never invent application-specific details (e.g., "stores chat history") unless the prompt names that application or the detail is a standard, necessary part of the pattern being described.
+EXAMPLES:
 
-IMPLICIT CONCEPT PROMPTS:
-- When the prompt is a short concept request like "describe API Gateway", "explain Kafka", "describe Redis", "describe Linux", "describe Docker architecture", or "what is Nginx architecture", treat it as an explanatory concept diagram, not an app architecture.
-- Use a grid-like component map grouped by responsibilities: interfaces, core runtime, data/control plane, security, networking/storage, operations/observability, and external integrations as appropriate.
-- Show the important internal elements and what each one does. Do NOT invent domain services like User Service, Product Service, Order Service, or PostgreSQL unless the concept itself requires them or the user explicitly asks for that application.
-- Prefer graph TD for explanatory concept maps, because it lays out layered grids better than a long left-to-right request path.
-- Production-standard does not mean bloated: include modern essential production controls for the concept (auth, rate limits, replication, metrics, security boundaries, persistence, failover) while avoiding unrelated infrastructure.
-
-══════════════════════════════════════════════════════════
-ARCHITECTURE RULES
-══════════════════════════════════════════════════════════
-1. TOPOLOGY MUST BE CORRECT
-   - Client nodes (User, Browser, Mobile App) are always SOURCES, never sinks.
-   - Load Balancers / API Gateways route traffic to backend services.
-   - Services connect to databases, caches, queues — never the reverse.
-   - Every node must have at least one connection. No orphan nodes.
-   - Edge direction matches real flow: initiator → responder (never reversed).
-
-2. COMPLETE FLOWS
-   - Every diagram shows a full request/response cycle where applicable.
-   - Forward path: Client → Load Balancer → Web Server → Database
-   - Response path: Database → Web Server → Client
-   - The response path is the return leg of the SAME request/response pair — do not add a separate extra edge for it.
-
-3. NODE LABELS
-   - Descriptive but concise: "Web Client", "API Gateway", "User Service", "PostgreSQL DB", "Message Queue".
-   - Node labels have no word limit — only edge labels are restricted.
-
-4. EDGE LABELS (see CRITICAL RULE above)
-   - Strictly 3 words or fewer, every single edge, no exceptions.
-
-5. PRODUCTION PATTERNS
-   - Use standard, real-world topologies, not idealized/academic ones.
-   - Load Balancers are for HTTP traffic only. Never put an LB directly in front of a database, queue, cache, or internal-only service.
-   - Load Balancers route to a pool of individual server nodes.
-   - Databases get a cache in front when the use case implies read-heavy or latency-sensitive access.
-   - Include only the infrastructure the prompt describes or directly implies — do not over-add.
-
-6. NODE COUNT & CONCISENESS
-   - There is no fixed maximum node count — include as many nodes as are genuinely needed to represent the architecture accurately.
-   - However, diagrams must stay CONCISE: never add a node, tier, or edge that isn't clearly implied by the prompt or required by the pattern. More nodes is not better — accuracy and clarity are the goal.
-
-7. SUBGRAPHS ARE MANDATORY
-   - Every node must be assigned to a subgraph/tier (e.g. Client Layer, Gateway Layer, Service Layer, Data Layer) — even if that subgraph contains only a single node.
-   - Never leave a node outside of a subgraph, regardless of how small or simple the diagram is.
-
-8. MERMAID SHAPES
-   - Databases/storage → cylinder: node_id[("PostgreSQL DB")]
-   - Gateways/load balancers → diamond: node_id{"Load Balancer"}
-   - Queues → circle: node_id(("Message Queue"))
-   - Clients/browsers → rounded rectangle: node_id("Web Client")
-   - Generic services/servers → default rectangle: node_id["Web Server"]
-
-9. WORKFLOW & SEMANTICS
-   - The diagram must tell the story of how the system works, not just list technologies.
-   - Every node must represent a meaningful component with a clear purpose — if a component's role is not obvious from its label, include it (e.g. "Auth Server (JWT validation)" rather than just "Auth Server").
-   - Edge labels must describe the actual interaction: what data, command, or event flows. Labels like "sends request" or "reads db" are too vague.
-   - For workflows involving async messaging (queues, events, streams), indicate this in the edge label (e.g. "publishes order.placed event to queue").
-   - If the prompt describes a multi-step process (e.g. user registration, order placement, data pipeline), ensure the diagram captures: (a) the main workflow path, (b) async/background processing, and (c) data persistence where relevant.
-
-10. SUBGRAPH CONNECTIONS (OPTIONAL)
-   - Default: connect individual nodes within subgraphs, not the subgraphs themselves.
-   - When showing high-level layer-to-layer flow, you MAY connect directly to subgraph IDs instead of individual nodes.
-   - Use the subgraph ID (e.g., Client_Layer, Gateway_Layer) as the source or target of an edge.
-   - Do NOT mix: if you connect to a subgraph, do not also connect to individual nodes within that same subgraph in the same flow.
-
-══════════════════════════════════════════════════════════
-HOW TO REASON (fill the "reasoning" field in this order)
-══════════════════════════════════════════════════════════
-Step 0 — Classify the prompt: Explicit architecture, open-ended, or mixed? State which and explain your plan.
-Step 1 — Identify actors and their purpose: List every component and WHAT IT DOES / WHY IT EXISTS. Include the technology or framework if relevant (e.g. "PostgreSQL for user data", "Redis cache for session state", "React frontend served via Nginx"). Every component must earn its place — if it doesn't have a clear purpose, it probably doesn't belong.
-Step 2 — Identify the entry point and the WORKFLOW: What is the user/client trying to accomplish? What process or workflow is being described (e.g. login flow, order placement, data pipeline, API request lifecycle)? Summarize the overall story.
-Step 3 — Trace the forward path: List the chain from client to the deepest backend component. For each step, state the actual action being performed (e.g. "auth server validates credentials against Postgres", NOT just "reads db").
-Step 4 — Trace the return path: Confirm it's the same chain in reverse. Do not invent new edges for the return leg.
-Step 5 — Check conciseness + completeness: Does this diagram tell the story of how the system works, or does it just list technologies? Confirm every important component and workflow step is captured, but no unnecessary nodes added. Ask: "Would someone understand the architecture from this diagram, or just see a tech stack?"
-Step 6 — Check edge labels: Is every label descriptive (action + what + context)? Labels like "sends request" or "reads db" are too vague. Shorten any that exceed 6 words.
-Step 7 — Assign shapes and subgraphs: Match each node to its correct Mermaid shape, and assign every node — even a lone one — to a subgraph/tier.
-Only after completing steps 0–7 in the reasoning field, write the final "mermaidCode".
-
-══════════════════════════════════════════════════════════
-WORKED EXAMPLE — explicit user architecture
-══════════════════════════════════════════════════════════
+1) User describes explicit architecture:
 Prompt: "A web app where users log in and view their profile. Browser talks to a load balancer, which routes to an auth server, which reads from a Postgres user DB."
+Output:
+{"reasoning":"Step 0 - Explicit architecture, follow exactly. Step 1 - Browser (React SPA), Load Balancer (distributes HTTPS), Auth Server (validates credentials, issues JWT), User DB (Postgres for profiles/auth). Step 2 - Login flow: user submits credentials, auth server validates, returns session. Step 3 - Browser->LB(forwards HTTPS)->Auth(authenticates credentials)->DB(queries profile). Step 4 - Return: profile + session token back up chain. Step 5 - Complete login flow, no extra nodes. Step 6 - Labels: 'routes HTTPS traffic', 'authenticates user credentials', 'queries user profile by email', 'returns profile + session'. Step 7 - Browser rounded rect, LB diamond, Auth rect, User DB cylinder. Each in own subgraph.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\\n  subgraph Client_Layer\\n    A(\\"Web Browser (React SPA)\\")\\n  end\\n  subgraph Gateway_Layer\\n    B{\\"Load Balancer\\"}\\n  end\\n  subgraph Service_Layer\\n    C[\\"Auth Server\\"]\\n  end\\n  subgraph Data_Layer\\n    D[(\\"Postgres User DB\\")]\\n  end\\n  A -->|routes HTTPS traffic to auth| B\\n  B -->|authenticates user credentials| C\\n  C -->|queries user profile by email| D\\n  D -->|returns profile + session| C\\n  C -->|returns JWT session token| B\\n  B -->|serves React SPA to user| A"}
 
-{
-  "reasoning": "Step 0 - User explicitly described the architecture, so I follow it exactly. Step 1 - Actors and purpose: Web Browser (React SPA served to users), Load Balancer (distributes incoming HTTPS traffic), Auth Server (validates user credentials and issues JWT sessions), User DB (Postgres storing user profiles and auth data). Step 2 - Workflow: User login flow — user submits credentials via browser, auth server validates against Postgres, returns session token. Step 3 - Forward path: Browser -> Load Balancer (forwards HTTPS request) -> Auth Server (authenticates user credentials) -> User DB (queries user profile by email). Step 4 - Return path: same chain reversed, returning profile data and session token. Step 5 - Completeness check: diagram captures full login + profile view flow without unnecessary components. Step 6 - Edge labels: 'routes HTTPS traffic', 'authenticates user credentials', 'queries user profile by email', 'returns profile + session' — each describes the actual action and context. Step 7 - Shapes: Browser rounded rect, Load Balancer diamond, Auth Server rect, User DB cylinder. Each node assigned its own tier subgraph.",
-  "diagramType": "graph LR",
-  "theme": "slate",
-  "mermaidCode": "graph LR\\n  subgraph Client Layer\\n    A(\\"Web Browser (React SPA)\\")\\n  end\\n  subgraph Gateway Layer\\n    B{\\"Load Balancer\\"}\\n  end\\n  subgraph Service Layer\\n    C[\\"Auth Server\\"]\\n  end\\n  subgraph Data Layer\\n    D[(\\"Postgres User DB\\")]\\n  end\\n  A -->|routes HTTPS traffic to auth| B\\n  B -->|authenticates user credentials| C\\n  C -->|queries user profile by email| D\\n  D -->|returns profile + session| C\\n  C -->|returns JWT session token| B\\n  B -->|serves React SPA to user| A"
-}
-
-══════════════════════════════════════════════════════════
-WORKED EXAMPLE — open-ended / generic request
-══════════════════════════════════════════════════════════
+2) Open-ended concept request (graph TD):
 Prompt: "Describe Docker architecture."
+Output:
+{"reasoning":"Step 0 - Open-ended, show Docker Engine internals. Step 1 - Client/CLI, Docker API, Daemon, Registry, Image Store, containerd, runc, Containers, Networks, Volumes, Host Kernel. Step 2 - Command -> daemon -> container lifecycle -> kernel. Step 3 - Client->API(sends CLI commands)->Daemon(manages lifecycle)->Registry(pulls image)->containerd(supervises)->runc(spawns)->Containers(run on kernel). Networks + Volumes attached by daemon. Step 4 - Status flows back through daemon to client. Step 5 - Full lifecycle captured, no unrelated infra. Step 6 - Labels: 'sends CLI commands via REST API', 'pulls container image from registry', 'creates container runtime task', 'spawns isolated container process', 'attaches container to network', 'mounts persistent data volume', 'shares host OS kernel'. Step 7 - Shapes match roles, each in own subgraph.","diagramType":"graph TD","theme":"dark-minimal","mermaidCode":"graph TD\\n  subgraph Client_Layer\\n    client(\\"Docker Client / CLI\\")\\n  end\\n  subgraph Engine_Layer\\n    api[\\"Docker API\\"]\\n    daemon[\\"Docker Daemon\\"]\\n  end\\n  subgraph Registry_Layer\\n    registry[(\\"Docker Registry\\")]\\n  end\\n  subgraph Image_Layer\\n    images[(\\"Local Image Store\\")]\\n  end\\n  subgraph Runtime_Layer\\n    containerd[\\"containerd\\"]\\n    runc[\\"runc\\"]\\n    containers[\\"Running Containers\\"]\\n  end\\n  subgraph Resource_Layer\\n    networks[\\"Docker Networks\\"]\\n    volumes[\\"Docker Volumes\\"]\\n  end\\n  subgraph Host_Layer\\n    kernel[\\"Host OS Kernel\\"]\\n  end\\n  client -->|sends CLI commands via REST API| api\\n  api -->|forwards to container lifecycle manager| daemon\\n  daemon -->|pulls container image from registry| registry\\n  registry -->|returns image layers to daemon| daemon\\n  daemon -->|caches image layers on disk| images\\n  daemon -->|creates container runtime task| containerd\\n  images -->|provides cached layers to runtime| containerd\\n  containerd -->|spawns isolated container process| runc\\n  runc -->|launches container in own namespace| containers\\n  daemon -->|attaches container to network| networks\\n  daemon -->|mounts persistent data volume| volumes\\n  networks -->|provides network isolation| containers\\n  volumes -->|persists data beyond container| containers\\n  containers -->|shares host OS kernel| kernel\\n  containerd -->|reports container status events| daemon\\n  daemon -->|returns status to API| api\\n  api -->|returns command output to client| client"}
 
-{
-  "reasoning": "Step 0 - Open-ended Docker architecture request, show canonical Docker Engine. Step 1 - Actors and purpose: Docker Client/CLI (user interface for Docker commands), Docker API (REST API exposed by daemon), Docker Daemon (image/container lifecycle management), Registry (remote image storage), Local Image Store (cached images on disk), containerd (container lifecycle supervisor), runc (OCI runtime spawning containers), Containers (isolated processes), Networks (container connectivity), Volumes (persistent data), Host OS Kernel (shared kernel for all containers). Step 2 - Workflow: User runs a Docker command -> daemon pulls/starts a container -> container runs as isolated process sharing kernel. Step 3 - Forward path: Client -> API -> Daemon -> Registry/Image Store -> containerd -> runc -> Containers -> Host OS Kernel, with networks and volumes attached by daemon. Step 4 - Return path: runtime status flows back through daemon to client. Step 5 - Completeness: captures full image pull, container start, runtime, networking, and persistence workflow with no unrelated infrastructure. Step 6 - Edge labels: 'sends CLI commands via REST API', 'pulls container image from registry', 'creates container runtime task', 'spawns isolated container process', 'attaches container to network', 'mounts persistent data volume', 'shares host OS kernel' — each describes the real action. Step 7 - Shapes and subgraphs match each component's role.",
-  "diagramType": "graph LR",
-  "theme": "dark-minimal",
-  "mermaidCode": "graph LR\\n  subgraph Client Layer\\n    client(\\"Docker Client / CLI\\")\\n  end\\n  subgraph Engine Layer\\n    api[\\"Docker API\\"]\\n    daemon[\\"Docker Daemon\\"]\\n  end\\n  subgraph Registry Layer\\n    registry[(\\"Docker Registry\\")]\\n  end\\n  subgraph Image Layer\\n    images[(\\"Local Image Store\\")]\\n  end\\n  subgraph Runtime Layer\\n    containerd[\\"containerd\\"]\\n    runc[\\"runc\\"]\\n    containers[\\"Running Containers\\"]\\n  end\\n  subgraph Resource Layer\\n    networks[\\"Docker Networks\\"]\\n    volumes[\\"Docker Volumes\\"]\\n  end\\n  subgraph Host Layer\\n    kernel[\\"Host OS Kernel\\"]\\n  end\\n  client -->|sends CLI commands via REST API| api\\n  api -->|forwards to container lifecycle manager| daemon\\n  daemon -->|pulls container image from registry| registry\\n  registry -->|returns image layers to daemon| daemon\\n  daemon -->|caches image layers on disk| images\\n  daemon -->|creates container runtime task| containerd\\n  images -->|provides cached layers to runtime| containerd\\n  containerd -->|spawns isolated container process| runc\\n  runc -->|launches container in own namespace| containers\\n  daemon -->|attaches container to network| networks\\n  daemon -->|mounts persistent data volume| volumes\\n  networks -->|provides network isolation| containers\\n  volumes -->|persists data beyond container| containers\\n  containers -->|shares host OS kernel| kernel\\n  containerd -->|reports container status events| daemon\\n  daemon -->|returns status to API| api\\n  api -->|returns command output to client| client"
-}
-
-Prompt: "Describe a docker container."
-
-{
-  "reasoning": "Step 0 - Open-ended request, use standard Docker container deployment pattern. Step 1 - Actors and purpose: Developer Client (sends Docker commands), Docker Host (runs the Docker daemon managing containers), Docker Container (isolated application process), Image Registry (stores container images for distribution). Step 2 - Workflow: Developer runs a container -> host pulls the image from registry -> starts the container -> container runs as an isolated process. Step 3 - Forward path: Client -> Docker Host (sends run command) -> Registry (pulls image) -> Docker Host (starts container). Step 4 - Return path: Container output -> Docker Host -> Client. Step 5 - Completeness: captures full container run lifecycle without unnecessary orchestration infrastructure. Step 6 - Edge labels: 'sends docker run command', 'pulls container image from registry', 'returns image to host', 'launches isolated container', 'streams container logs', 'returns logs to client' — each describes the actual interaction. Step 7 - Shapes: Client rounded rect, Docker Host rect, Container rect, Registry cylinder. Each node in its own subgraph.",
-  "diagramType": "graph LR",
-  "theme": "dark-minimal",
-  "mermaidCode": "graph LR\\n  subgraph Client Layer\\n    A(\\"Developer Client\\")\\n  end\\n  subgraph Host Layer\\n    B[\\"Docker Host\\"]\\n  end\\n  subgraph Runtime Layer\\n    C[\\"Docker Container\\"]\\n  end\\n  subgraph Registry Layer\\n    D[(\\"Image Registry\\")]\\n  end\\n  A -->|sends docker run command| B\\n  B -->|pulls container image from registry| D\\n  D -->|returns image to host| B\\n  B -->|launches isolated container process| C\\n  C -->|streams container logs to host| B\\n  B -->|returns logs to client| A"
-}
-
-══════════════════════════════════════════════════════════
-WORKED EXAMPLE — high-level layer-to-layer flow (subgraph connections)
-══════════════════════════════════════════════════════════
+3) High-level layer-to-layer flow (subgraph connections):
 Prompt: "Show the high-level data flow between layers in a web application."
+Output:
+{"reasoning":"Step 0 - High-level overview, connect subgraphs directly. Step 1 - Client Layer (UI), Gateway Layer (entry), Service Layer (logic), Data Layer (persistence). Step 2 - Request traverses all layers. Step 3 - Client_Layer->Gateway_Layer->Service_Layer->Data_Layer. Step 4 - Return reversed. Step 5 - Essential flow captured. Step 6 - Labels: 'routes requests', 'processes business logic', 'queries and persists data'. Step 7 - Each layer in own subgraph.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\\n  subgraph Client_Layer\\n    A(\\"Web Browser\\")\\n  end\\n  subgraph Gateway_Layer\\n    B{\\"API Gateway\\"}\\n  end\\n  subgraph Service_Layer\\n    C[\\"Auth Service\\"]\\n    D[\\"User Service\\"]\\n  end\\n  subgraph Data_Layer\\n    E[(\\"PostgreSQL\\")]\\n  end\\n  Client_Layer -->|routes requests| Gateway_Layer\\n  Gateway_Layer -->|processes business logic| Service_Layer\\n  Service_Layer -->|queries and persists data| Data_Layer"}
 
-{
-  "reasoning": "Step 0 - User wants a high-level overview, so I will connect subgraphs directly rather than individual nodes. Step 1 - Actors: Client Layer (user interface), Gateway Layer (entry point), Service Layer (business logic), Data Layer (persistence). Step 2 - Workflow: request flows through layers from client to data and back. Step 3 - Forward path: Client_Layer -> Gateway_Layer -> Service_Layer -> Data_Layer. Step 4 - Return path: same chain reversed. Step 5 - Completeness: captures the essential layer-to-layer flow without unnecessary detail. Step 6 - Edge labels: 'routes requests', 'processes business logic', 'queries and persists data'. Step 7 - Shapes and subgraphs match each layer's role.",
-  "diagramType": "graph LR",
-  "theme": "slate",
-  "mermaidCode": "graph LR\\n  subgraph Client_Layer\\n    A(\\"Web Browser\\")\\n  end\\n  subgraph Gateway_Layer\\n    B{\\"API Gateway\\"}\\n  end\\n  subgraph Service_Layer\\n    C[\\"Auth Service\\"]\\n    D[\\"User Service\\"]\\n  end\\n  subgraph Data_Layer\\n    E[(\\"PostgreSQL\\")]\\n  end\\n  Client_Layer -->|routes requests| Gateway_Layer\\n  Gateway_Layer -->|processes business logic| Service_Layer\\n  Service_Layer -->|queries and persists data| Data_Layer"
-}
+SCHEMA: {"reasoning":"string — step-by-step reasoning (Steps 0-7 above)","diagramType":"graph TD"|"graph LR","theme":"forest-green"|"slate"|"dark-minimal"|"luxury"|"default","mermaidCode":"string"}
 
-══════════════════════════════════════════════════════════
-OUTPUT SCHEMA
-══════════════════════════════════════════════════════════
-{
-  "reasoning": "string — your step-by-step reasoning following steps 0-7 above, in plain text, 4-8 sentences",
-  "diagramType": "graph TD" | "graph LR",
-  "theme": "forest-green" | "slate" | "dark-minimal" | "luxury" | "default",
-  "mermaidCode": "string"
-}
-
-Output ONLY this JSON object. Nothing before it, nothing after it.
-
-══════════════════════════════════════════════════════════
-BEFORE YOU OUTPUT — FINAL CHECK
-══════════════════════════════════════════════════════════
-- Did you correctly classify the prompt as explicit-architecture vs. open-ended in Step 0, and follow that approach?
-- Is every edge label descriptive (action + what + context), and 6 words or fewer?
-- Does every node connect to at least one other node?
-- Is every single node — including lone nodes — inside a subgraph?
-- Does the diagram tell the story of how the system works, not just list technologies?
-- Did you avoid adding nodes/edges not implied by the prompt or the standard pattern?
-- Is the output ONLY the JSON object?`;
+OUTPUT: Return ONLY the JSON object. No markdown fences, no prose before or after.`;
 }
 
 function getMaxNodes(size: 'small' | 'medium' | 'large'): number {
@@ -328,77 +204,119 @@ Output must conform to this JSON schema:
   "mermaidCode": "string"
 }`;
 
+  const requestedModel = model || 'llama-3.3-70b-versatile';
+  const FALLBACK_MODEL = 'llama-3.3-70b-versatile';
+  const isGptOss = /^openai\/gpt-oss/i.test(requestedModel);
+
   let resultStr: string;
-  try {
-    resultStr = await apiKeyManager.executeWithRetry(async (groq) => {
-      return await groqJsonCompletion(groq, {
-        model: model || 'llama-3.3-70b-versatile',
-        reasoning_effort: 'medium',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-      });
-    });
-  } catch (err) {
-    logger.error('[ArchitecturePlanner] LLM call failed:', err);
-    throw new Error(`Architecture planner failed: ${err instanceof Error ? err.message : String(err)}`);
+  const maxAttempts = 2;
+
+  // For gpt-oss models with tight TPM limits, try the requested model first,
+  // then fall back to the higher-limit model on 413 errors.
+  const modelsToTry = isGptOss && requestedModel !== FALLBACK_MODEL
+    ? [requestedModel, FALLBACK_MODEL]
+    : [requestedModel];
+
+  let lastError: Error | null = null;
+  let succeeded = false;
+
+  for (const currentModel of modelsToTry) {
+    if (succeeded) break;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        resultStr = await apiKeyManager.executeWithRetry(async (groq) => {
+          const attemptPrompt = attempt > 1
+            ? `${userPrompt}\n\nIMPORTANT: Output ONLY a valid JSON object with keys "reasoning", "diagramType", "theme", and "mermaidCode". No markdown fences, no prose.`
+            : userPrompt;
+          return await groqJsonCompletion(groq, {
+            model: currentModel,
+            reasoning_effort: 'medium',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: attemptPrompt },
+            ],
+            temperature: 0.7,
+            max_tokens: 8192,
+          });
+        });
+        succeeded = true;
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        lastError = new Error(msg);
+
+        // 413 = TPM limit exceeded — fall back to a higher-limit model
+        if (msg.includes('413') || msg.includes('tokens per minute')) {
+          if (currentModel !== FALLBACK_MODEL) {
+            logger.warn(`[ArchitecturePlanner] TPM limit hit on ${currentModel}, falling back to ${FALLBACK_MODEL}`);
+            break; // break inner loop, outer loop picks next model
+          }
+        }
+
+        if (attempt < maxAttempts) continue; // retry same model
+        // else: all attempts exhausted for this model, try next
+      }
+    }
+  }
+
+  if (!succeeded) {
+    logger.error('[ArchitecturePlanner] LLM call failed:', lastError);
+    throw new Error(`Architecture planner failed: ${lastError?.message ?? 'Unknown error'}`);
   }
 
   // Parse JSON with recovery attempts
   let parsed: PlannerOutput | null = null;
   const parseAttempts = [
-    () => JSON.parse(resultStr.trim()),
-    () => JSON.parse(stripJsonFences(resultStr)),
-    () => JSON.parse(repairTruncatedJson(resultStr)),
-    () => JSON.parse(repairTruncatedJson(stripJsonFences(resultStr))),
+    () => JSON.parse(resultStr!.trim()),
+    () => JSON.parse(stripJsonFences(resultStr!)),
+    () => JSON.parse(repairTruncatedJson(resultStr!)),
+    () => JSON.parse(repairTruncatedJson(stripJsonFences(resultStr!))),
   ];
 
-  for (const attempt of parseAttempts) {
+  for (const parseAttempt of parseAttempts) {
     try {
-      parsed = attempt() as PlannerOutput;
+      parsed = parseAttempt() as PlannerOutput;
       break;
     } catch {
       continue;
     }
   }
 
-  if (!parsed || !parsed.mermaidCode) {
-    logger.error('[ArchitecturePlanner] Failed to parse JSON response or missing mermaidCode:', resultStr);
-    throw new Error('Architecture planner: failed to parse JSON response');
+  if (parsed && parsed.mermaidCode) {
+    const formatConfig: FormatConfig = {
+      format: 'mermaid',
+      diagramType: parsed.diagramType === 'graph LR' ? 'graph LR' : 'graph TD',
+      optionalVariants: [],
+    };
+
+    const styleConfig: StyleConfig = {
+      primaryColor: '#2563EB',
+      secondaryColor: '#4F46E5',
+      background: '#F9FAFB',
+      backgroundColor: '#F9FAFB',
+      fontFamily: 'Inter',
+      theme: THEMES.includes(parsed.theme as typeof THEMES[number]) ? parsed.theme : 'default',
+      nodeTypeStyles: {
+        client: '#2563EB',
+        edge: '#4F46E5',
+        gateway: '#4F46E5',
+        application: '#4F46E5',
+        data: '#1e293b',
+        queue: '#1e293b',
+        observability: '#475569',
+        external: '#64748b',
+      },
+    };
+
+    logger.log('[ArchitecturePlanner] Complete plan:', {
+      diagramType: formatConfig.diagramType,
+      theme: styleConfig.theme,
+    });
+
+    return { formatConfig, styleConfig, mermaidCode: parsed.mermaidCode, reasoning: parsed.reasoning };
   }
 
-  // Build configs
-  const formatConfig: FormatConfig = {
-    format: 'mermaid',
-    diagramType: parsed.diagramType === 'graph LR' ? 'graph LR' : 'graph TD',
-    optionalVariants: [],
-  };
-
-  const styleConfig: StyleConfig = {
-    primaryColor: '#2563EB',
-    secondaryColor: '#4F46E5',
-    background: '#F9FAFB',
-    backgroundColor: '#F9FAFB',
-    fontFamily: 'Inter',
-    theme: THEMES.includes(parsed.theme as typeof THEMES[number]) ? parsed.theme : 'default',
-    nodeTypeStyles: {
-      client: '#2563EB',
-      edge: '#4F46E5',
-      gateway: '#4F46E5',
-      application: '#4F46E5',
-      data: '#1e293b',
-      queue: '#1e293b',
-      observability: '#475569',
-      external: '#64748b',
-    },
-  };
-
-  logger.log('[ArchitecturePlanner] Complete plan:', {
-    diagramType: formatConfig.diagramType,
-    theme: styleConfig.theme,
-  });
-
-  return { formatConfig, styleConfig, mermaidCode: parsed.mermaidCode, reasoning: parsed.reasoning };
+  logger.error('[ArchitecturePlanner] Failed to parse JSON response or missing mermaidCode:', resultStr);
+  throw new Error('Architecture planner: failed to parse JSON response');
 }

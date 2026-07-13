@@ -15,11 +15,14 @@ describe('implicit concept diagram generation', () => {
     expect(detectImplicitConceptPrompt('Describe Redis architecture')).toMatchObject({ subject: 'Redis', domain: 'cache' });
     expect(detectImplicitConceptPrompt('Explain PostgreSQL')).toMatchObject({ subject: 'PostgreSQL', domain: 'database' });
     expect(detectImplicitConceptPrompt('What is OpenTelemetry architecture')).toMatchObject({ subject: 'OpenTelemetry', domain: 'observability' });
-    expect(detectImplicitConceptPrompt('Describe WeirdInfra')).toMatchObject({ subject: 'WeirdInfra', domain: 'generic-infrastructure' });
+    expect(detectImplicitConceptPrompt('Describe WeirdInfra')).toBeNull();
 
     expect(detectImplicitConceptPrompt('Describe Docker Swarm architecture')).toBeNull();
     expect(detectImplicitConceptPrompt('Describe API Gateway for my ecommerce backend')).toBeNull();
     expect(detectImplicitConceptPrompt('Kafka architecture for payment events using schema registry')).toBeNull();
+    expect(detectImplicitConceptPrompt('Describe a agent loop in coding agent')).toBeNull();
+    expect(detectImplicitConceptPrompt('Explain middleware handler pattern')).toBeNull();
+    expect(detectImplicitConceptPrompt('Describe compiler framework architecture')).toBeNull();
   });
 
   it('uses canonical Docker Engine components for generic Docker architecture', async () => {
@@ -150,28 +153,5 @@ describe('implicit concept diagram generation', () => {
     expect(labels).not.toContain('Order Service');
     expect(labels).not.toContain('Product Service');
   });
-
-  it('falls back to a structured production grid for unknown implicit concepts', async () => {
-    const result = await runMermaidPipeline({
-      description: 'Describe WeirdInfra',
-      systemType: 'architecture',
-      complexity: 'low',
-      diagramSize: 'medium',
-    });
-
-    const labels = nodeLabels(result);
-
-    expect(labels).toEqual(expect.arrayContaining([
-      'Public API',
-      'Core Engine',
-      'State / Metadata',
-      'Configuration',
-      'Policy / Rules',
-      'Workers / Executors',
-      'Persistent Storage',
-      'Security Boundary',
-      'Metrics / Logs',
-      'Health / Failover',
-    ]));
-  });
+});
 });

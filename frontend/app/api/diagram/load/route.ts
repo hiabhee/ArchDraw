@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import fs from 'fs';
-import path from 'path';
+import prisma from '@/lib/prisma';
 import logger from '@/lib/logger';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 
@@ -13,54 +12,10 @@ export interface ShareUser {
   addedAt: number;
 }
 
-interface DiagramData {
-  nodes: unknown[];
-  edges: unknown[];
-  label?: string;
-  createdAt: number;
-  source?: 'mcp' | 'manual';
-  accessType?: 'restricted' | 'anyone';
-  linkPermission?: 'viewer' | 'editor';
-  users: ShareUser[];
-}
-
-const STORAGE_FILE = path.join(process.cwd(), '.diagram-sessions.json');
-
-function loadStore(): Map<string, DiagramData> {
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf-8'));
-      return new Map(Object.entries(data));
-    }
-  } catch (e) {
-    logger.error('Failed to load diagram store:', e);
-  }
-  return new Map();
-}
-
-function saveStore(store: Map<string, DiagramData>) {
-  try {
-    const data = Object.fromEntries(store.entries());
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    logger.error('Failed to save diagram store:', e);
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    
-    const store = loadStore();
-    const sessionNumbers = Array.from(store.keys())
-      .map(k => {
-        const match = k.match(/^session-(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      })
-      .filter(n => n > 0);
-    const maxSessionNum = sessionNumbers.length > 0 ? Math.max(...sessionNumbers) : 0;
-    const sessionId = `session-${maxSessionNum + 1}`;
-    
+
     let nodes = body.nodes || [];
     let edges = body.edges || [];
     let warnings: string[] = [];
@@ -77,22 +32,19 @@ export async function POST(req: NextRequest) {
       edges = pipelineResult.edges;
       warnings = pipelineResult.warnings;
     }
-    
-    const diagramData: DiagramData = {
-      nodes,
-      edges,
-      label: body.label,
-      createdAt: Date.now(),
-      source: body.source || 'manual',
-      accessType: body.accessType || 'anyone',
-      linkPermission: body.linkPermission || 'viewer',
-      users: body.users || [],
-    };
 
-    store.set(sessionId, diagramData);
-    saveStore(store);
+    const shared = await prisma.sharedCanvas.create({
+      data: {
+        canvasName: body.label || 'Shared Diagram',
+        nodes,
+        edges,
+        accessType: body.accessType || 'anyone',
+        linkPermission: body.linkPermission || 'viewer',
+        users: body.users || [],
+      },
+    });
 
-    return NextResponse.json({ sessionId, nodes, edges, warnings });
+    return NextResponse.json({ sessionId: shared.id, nodes, edges, warnings });
   } catch (error) {
     logger.error('POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -103,20 +55,16 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const { sessionId, accessType, linkPermission } = body;
-    
-    const store = loadStore();
-    const data = store.get(sessionId);
-    
-    if (!data) {
+
+    const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
+    if (!shared) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    store.set(sessionId, {
-      ...data,
-      accessType,
-      linkPermission,
+    await prisma.sharedCanvas.update({
+      where: { id: sessionId },
+      data: { accessType, linkPermission },
     });
-    saveStore(store);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -129,15 +77,13 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const { sessionId, email, name, role } = body;
-    
-    const store = loadStore();
-    const data = store.get(sessionId);
-    
-    if (!data) {
+
+    const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
+    if (!shared) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const users = data.users.filter(u => u.email !== email);
+    const users = (shared.users as unknown as ShareUser[]).filter(u => u.email !== email);
     users.push({
       email,
       name,
@@ -145,8 +91,10 @@ export async function PUT(req: NextRequest) {
       addedAt: Date.now(),
     });
 
-    store.set(sessionId, { ...data, users });
-    saveStore(store);
+    await prisma.sharedCanvas.update({
+      where: { id: sessionId },
+      data: { users: users as unknown as object[] },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -159,18 +107,18 @@ export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
     const { sessionId, email } = body;
-    
-    const store = loadStore();
-    const data = store.get(sessionId);
-    
-    if (!data) {
+
+    const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
+    if (!shared) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const users = data.users.filter(u => u.email !== email);
+    const users = (shared.users as unknown as ShareUser[]).filter(u => u.email !== email);
 
-    store.set(sessionId, { ...data, users });
-    saveStore(store);
+    await prisma.sharedCanvas.update({
+      where: { id: sessionId },
+      data: { users: users as unknown as object[] },
+    });
 
     return NextResponse.json({ success: true, users });
   } catch (error) {

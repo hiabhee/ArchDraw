@@ -20,11 +20,7 @@ const embedHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: [],
-  turbopack: {
-    root: '/Users/abhisheksureshjamdade/Desktop/ArchDraw/frontend',
-  },
   experimental: {
-    turbopackFileSystemCacheForDev: true,
     optimizePackageImports: [
       'lucide-react',
       'zustand',

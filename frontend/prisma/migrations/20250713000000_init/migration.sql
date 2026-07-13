@@ -109,6 +109,9 @@ CREATE TABLE "shared_canvases" (
     "canvas_name" TEXT NOT NULL,
     "nodes" JSONB NOT NULL,
     "edges" JSONB NOT NULL,
+    "access_type" TEXT NOT NULL DEFAULT 'anyone',
+    "link_permission" TEXT NOT NULL DEFAULT 'viewer',
+    "users" JSONB NOT NULL DEFAULT '[]',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "expires_at" TIMESTAMP(3) NOT NULL DEFAULT (now() + interval '30 days'),
 
@@ -139,7 +142,7 @@ CREATE TABLE "component_categories" (
 -- CreateTable
 CREATE TABLE "component_templates" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "category_id" TEXT,
+    "category_id" UUID,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "color" TEXT DEFAULT '#94a3b8',
@@ -169,7 +172,7 @@ CREATE TABLE "visitors" (
 -- CreateTable
 CREATE TABLE "sessions" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "visitor_id" TEXT NOT NULL,
+    "visitor_id" UUID NOT NULL,
     "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "ended_at" TIMESTAMP(3),
     "duration_seconds" INTEGER,
@@ -183,8 +186,8 @@ CREATE TABLE "sessions" (
 -- CreateTable
 CREATE TABLE "events" (
     "id" BIGSERIAL NOT NULL,
-    "session_id" TEXT NOT NULL,
-    "visitor_id" TEXT NOT NULL,
+    "session_id" UUID NOT NULL,
+    "visitor_id" UUID NOT NULL,
     "event_type" TEXT NOT NULL,
     "event_name" TEXT,
     "page_path" TEXT,
