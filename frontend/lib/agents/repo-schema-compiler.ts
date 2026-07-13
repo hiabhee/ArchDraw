@@ -226,7 +226,7 @@ export function compileToDiagram(
   for (const node of grouped) {
     const record = layoutedNodeToNdjsonRecord(node);
     if (node.subtitle && node.subtitle.includes('inferred')) {
-      (record as any).note = 'inferred from config';
+      (record as Record<string, unknown>).note = 'inferred from config';
     }
     lines.push(JSON.stringify(record));
   }

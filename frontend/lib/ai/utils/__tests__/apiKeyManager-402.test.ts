@@ -52,7 +52,7 @@ describe('OpenRouter 402 propagation', () => {
     const groqError = new Error('All Groq keys exhausted');
 
     // Simulate the fixed full fallback logic
-    let lastError: Error | null = groqError;
+    const lastError: Error | null = groqError;
     let thrownError: Error | null = null;
 
     try {

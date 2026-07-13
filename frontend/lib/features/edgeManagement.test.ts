@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { classifyEdge } from '../mermaid/edgeClassifier';
-import type { RFNode } from '../mermaid/types';
+import type { RFNode, RFEdge, ValidationWarning } from '../mermaid/types';
 import { processEdgeManagement } from './edgeManagement';
 import { validateDiagramOutput } from '../mermaid/validation';
 import type { Node, Edge } from 'reactflow';
@@ -63,57 +63,57 @@ describe('Edge Lanes & Bundling service', () => {
 
 describe('Accuracy Guardrails Validator', () => {
   it('should trigger warning for client connecting directly to database', () => {
-    const nodes: any[] = [
+    const nodes = [
       { id: 'client1', data: { label: 'React SPA', serviceType: 'client' }, position: { x: 0, y: 0 } },
       { id: 'db1', data: { label: 'PostgreSQL', serviceType: 'database' }, position: { x: 100, y: 0 } },
-    ];
-    const edges: any[] = [
+    ] as unknown as RFNode[];
+    const edges = [
       { id: 'e1', source: 'client1', target: 'db1', data: { connectionType: 'sync' } },
-    ];
+    ] as unknown as RFEdge[];
 
     const report = validateDiagramOutput(nodes, edges);
     expect(report.passed).toBe(false);
-    expect(report.warnings.some((w: any) => w.type === 'CLIENT_DIRECT_TO_DB')).toBe(true);
+    expect(report.warnings.some((w: ValidationWarning) => w.type === 'CLIENT_DIRECT_TO_DB')).toBe(true);
   });
 
   it('should trigger warning for database initiating requests to service (non-replication/CDC)', () => {
-    const nodes: any[] = [
+    const nodes = [
       { id: 'db1', data: { label: 'PostgreSQL', serviceType: 'database' }, position: { x: 0, y: 0 } },
       { id: 'svc1', data: { label: 'Auth Service', serviceType: 'service' }, position: { x: 100, y: 0 } },
-    ];
-    const edges: any[] = [
+    ] as unknown as RFNode[];
+    const edges = [
       { id: 'e1', source: 'db1', target: 'svc1', data: { label: 'Query Auth' } },
-    ];
+    ] as unknown as RFEdge[];
 
     const report = validateDiagramOutput(nodes, edges);
     expect(report.passed).toBe(false);
-    expect(report.warnings.some((w: any) => w.type === 'DATABASE_INITIATOR')).toBe(true);
+    expect(report.warnings.some((w: ValidationWarning) => w.type === 'DATABASE_INITIATOR')).toBe(true);
   });
 
   it('should NOT trigger warning for database CDC/replication sync flows', () => {
-    const nodes: any[] = [
+    const nodes = [
       { id: 'db1', data: { label: 'PostgreSQL', serviceType: 'database' }, position: { x: 0, y: 0 } },
       { id: 'svc1', data: { label: 'Sync Worker', serviceType: 'service' }, position: { x: 0, y: 200 } },
-    ];
-    const edges: any[] = [
+    ] as unknown as RFNode[];
+    const edges = [
       { id: 'e1', source: 'db1', target: 'svc1', data: { label: 'CDC stream events' } },
-    ];
+    ] as unknown as RFEdge[];
 
     const report = validateDiagramOutput(nodes, edges, 'TD');
     expect(report.passed).toBe(true);
   });
 
   it('should trigger warning for sync connection to Queue', () => {
-    const nodes: any[] = [
+    const nodes = [
       { id: 'svc1', data: { label: 'Order Service', serviceType: 'service' }, position: { x: 0, y: 0 } },
       { id: 'queue1', data: { label: 'RabbitMQ', serviceType: 'queue' }, position: { x: 100, y: 0 } },
-    ];
-    const edges: any[] = [
+    ] as unknown as RFNode[];
+    const edges = [
       { id: 'e1', source: 'svc1', target: 'queue1', data: { connectionType: 'sync' } },
-    ];
+    ] as unknown as RFEdge[];
 
     const report = validateDiagramOutput(nodes, edges);
     expect(report.passed).toBe(false);
-    expect(report.warnings.some((w: any) => w.type === 'SYNC_TO_QUEUE')).toBe(true);
+    expect(report.warnings.some((w: ValidationWarning) => w.type === 'SYNC_TO_QUEUE')).toBe(true);
   });
 });

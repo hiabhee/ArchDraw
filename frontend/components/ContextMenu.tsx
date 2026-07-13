@@ -55,7 +55,7 @@ export function ContextMenu({ menu, onClose }: Props) {
     pushHistory();
     appendNode(createNode(type, (data.label as string) || 'Unnamed', pos, { type, data }));
     onClose();
-  }, [pushHistory, onClose]);
+  }, [pushHistory, onClose, appendNode]);
 
   const addTextLabel = useCallback((fontSize: 'small' | 'medium' | 'large' | 'heading') => {
     addAtPosition('textLabelNode', { text: 'Label', fontSize });
@@ -81,7 +81,7 @@ export function ContextMenu({ menu, onClose }: Props) {
 
     appendNode(newNode);
     onClose();
-  }, [menu.nodeId, nodes, pushHistory, onClose]);
+  }, [menu.nodeId, nodes, pushHistory, onClose, appendNode]);
 
   const deleteNode = useCallback(() => {
     if (menu.nodeId) { setConfirmDelete(true); }
@@ -102,7 +102,7 @@ export function ContextMenu({ menu, onClose }: Props) {
     setSelectedNodeIds(ids);
     createGroup();
     onClose();
-  }, [menu.nodeId, selectedNodeIds, createGroup, onClose]);
+  }, [menu.nodeId, selectedNodeIds, createGroup, onClose, setSelectedNodeIds]);
 
   const addNestedGroup = useCallback(() => {
     if (!menu.nodeId) return;
@@ -112,7 +112,7 @@ export function ContextMenu({ menu, onClose }: Props) {
     setSelectedNodeIds(ids);
     createGroup(node.parentId || node.id);
     onClose();
-  }, [menu.nodeId, nodes, selectedNodeIds, createGroup, onClose]);
+  }, [menu.nodeId, nodes, selectedNodeIds, createGroup, onClose, setSelectedNodeIds]);
 
   const handleUngroup = useCallback(() => {
     if (!menu.nodeId) return;
@@ -149,7 +149,7 @@ export function ContextMenu({ menu, onClose }: Props) {
     const allIds = nodes.map((n) => n.id);
     setSelectedNodeIds(allIds);
     onClose();
-  }, [nodes, onClose]);
+  }, [nodes, onClose, setSelectedNodeIds]);
 
   const resetZoom = useCallback(() => {
     fitView({ padding: 0.1, duration: 300 });

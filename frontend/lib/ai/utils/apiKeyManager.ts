@@ -417,7 +417,7 @@ class ApiKeyManager {
               logger.log('[ApiKeyManager] 2 Groq keys rate limited, trying OpenRouter early...');
               try {
                 return await this.executeWithOpenRouter(
-                  (client: OpenRouterClient) => operation(client as any as Groq),
+                  (client: OpenRouterClient) => operation(client as unknown as Groq),
                   { maxRetries: 1 }
                 );
               } catch (openrouterError) {
@@ -445,7 +445,7 @@ class ApiKeyManager {
       try {
         logger.log('[ApiKeyManager] All Groq keys failed, trying OpenRouter...');
         return await this.executeWithOpenRouter(
-          (client: OpenRouterClient) => operation(client as any as Groq),
+          (client: OpenRouterClient) => operation(client as unknown as Groq),
           { maxRetries: 1 }
         );
       } catch (openrouterError) {

@@ -17,7 +17,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { ReactFlowProvider } from 'reactflow';
-import type { Node } from 'reactflow';
+import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '@/store/diagramStore';
 
 // Hoisted mock controller - allows per-test theme control
@@ -39,7 +39,7 @@ vi.mock('@/lib/theme', () => ({
 }));
 
 vi.mock('@/store/diagramStore', () => ({
-  useDiagramStore: (selector: any) => {
+  useDiagramStore: (selector: unknown) => {
     const mockState = {
       nodes: [],
       canvasDarkMode: true,
@@ -259,7 +259,7 @@ describe('Bug Condition Exploration: Dark Mode Gradient and Missing Backplates',
         },
       ];
 
-      const edges: any[] = [];
+      const edges: Edge[] = [];
 
       // Generate SVG in dark mode
       const svg = generatePureSVG(nodes, edges, true, '#0f172a');
@@ -285,7 +285,7 @@ describe('Bug Condition Exploration: Dark Mode Gradient and Missing Backplates',
         },
       ];
 
-      const edges: any[] = [];
+      const edges: Edge[] = [];
 
       // Generate SVG in dark mode
       const svg = generatePureSVG(nodes, edges, true, '#0f172a');
@@ -315,7 +315,7 @@ describe('Bug Condition Exploration: Dark Mode Gradient and Missing Backplates',
         },
       ];
 
-      const edges: any[] = [];
+      const edges: Edge[] = [];
 
       // Generate SVG in dark mode
       const svg = generatePureSVG(nodes, edges, true, '#0f172a');

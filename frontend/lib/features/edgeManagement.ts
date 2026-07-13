@@ -108,11 +108,11 @@ export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagem
   const parentGroups = new Map<string, Node>();
 
   for (const node of nodes) {
-    const isGroup = node.type === 'groupNode' || (node.data as any)?.isGroup === true;
+    const isGroup = node.type === 'groupNode' || node.data?.isGroup === true;
     if (isGroup) {
       parentGroups.set(node.id, node);
     }
-    const pId = node.parentId || (node as any).parentNode;
+    const pId = node.parentId || node.parentNode;
     if (pId) {
       nodeParents.set(node.id, pId);
     }
@@ -187,7 +187,7 @@ export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagem
 
     finalEdges.push({
       ...edge,
-      data: updatedData as any,
+      data: updatedData as Record<string, unknown>,
       style: undefined,
     });
   }

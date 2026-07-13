@@ -380,7 +380,7 @@ function HeroSection() {
           From idea to architecture diagram in one prompt — not one hour.
         </h1>
         <p className="mt-6 max-w-[650px] text-base md:text-lg text-text-secondary leading-relaxed font-medium">
-          Describe your system in plain English or Mermaid. ArchDraw's AI pipeline handles structure, layout, and styling — so you get a clean, presentation-ready diagram in seconds, not after an hour of dragging boxes in draw.io.
+          Describe your system in plain English or Mermaid. ArchDraw&apos;s AI pipeline handles structure, layout, and styling — so you get a clean, presentation-ready diagram in seconds, not after an hour of dragging boxes in draw.io.
         </p>
         
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-10">
@@ -460,7 +460,7 @@ function ProblemSection() {
 
         <div className="mt-16 flex flex-col items-center text-center p-8 border border-[#e4e4df] bg-white rounded-xl max-w-4xl mx-auto shadow-sm">
           <p className="text-base md:text-lg text-[#1c1c1a] font-medium italic">
-            "ArchDraw skips all of that. Describe the system once. The AI handles the rest."
+            &quot;ArchDraw skips all of that. Describe the system once. The AI handles the rest.&quot;
           </p>
           <a
             href="/dashboard"
@@ -739,19 +739,19 @@ function FounderNote() {
           </div>
           <div>
             <span className={`text-xs font-bold uppercase tracking-wider text-accent block mb-2`}>Developer Note</span>
-            <h3 className={`text-xl font-bold text-[#1c1c1a] mb-4 ${outfit.className}`}>Hey, I'm Abhishek 👋</h3>
+            <h3 className={`text-xl font-bold text-[#1c1c1a] mb-4 ${outfit.className}`}>Hey, I&apos;m Abhishek 👋</h3>
             <div className="space-y-4 text-sm text-[#575752] leading-relaxed font-normal">
               <p>
-                I'm a final-year engineering student, and I built ArchDraw because I kept losing more time formatting a diagram than thinking about the architecture itself.
+                I&apos;m a final-year engineering student, and I built ArchDraw because I kept losing more time formatting a diagram than thinking about the architecture itself.
               </p>
               <p>
-                Every system design interview, every project doc, every README needed a diagram — and every time, I'd open draw.io, drag the same boxes around, and burn 30 minutes I didn't have.
+                Every system design interview, every project doc, every README needed a diagram — and every time, I&apos;d open draw.io, drag the same boxes around, and burn 30 minutes I didn&apos;t have.
               </p>
               <p>
-                So I built an AI pipeline to handle the part that doesn't need a human: layout, styling, alignment. You focus on the system. ArchDraw handles the diagram.
+                So I built an AI pipeline to handle the part that doesn&apos;t need a human: layout, styling, alignment. You focus on the system. ArchDraw handles the diagram.
               </p>
               <p>
-                I'm building this in public as a solo developer. If you try it and something's rough, I'd genuinely want to hear about it.
+                I&apos;m building this in public as a solo developer. If you try it and something&apos;s rough, I&apos;d genuinely want to hear about it.
               </p>
             </div>
             
@@ -770,17 +770,15 @@ function FounderNote() {
 
 function PricingSection() {
   const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(() => {
+    try {
+      return localStorage.getItem('archdraw-waitlist-joined') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
-  useEffect(() => {
-    try {
-      if (localStorage.getItem('archdraw-waitlist-joined') === 'true') {
-        setSubmitted(true);
-      }
-    } catch {}
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -890,7 +888,7 @@ function PricingSection() {
               <div className="bg-[#27a644]/10 border border-[#27a644]/30 rounded-lg p-4 text-center animate-in fade-in zoom-in-95 duration-150">
                 <CheckCircle2 size="24" className="text-[#27a644] mx-auto mb-2" />
                 <h4 className={`text-sm font-bold text-[#1c1c1a] ${outfit.className}`}>Waitlist joined!</h4>
-                <p className="text-xs text-[#575752] mt-1">We've locked in your early adopter discount. We'll notify you on launch!</p>
+                <p className="text-xs text-[#575752] mt-1">We&apos;ve locked in your early adopter discount. We&apos;ll notify you on launch!</p>
               </div>
             )}
           </div>

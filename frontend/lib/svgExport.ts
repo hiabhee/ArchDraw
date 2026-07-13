@@ -499,7 +499,7 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   }
   
   const isAnimated = (data as EdgeDataExtended)?.animated || config.animated;
-  const strokeDashArray = dashArray || (isAnimated ? config.dash : '') || 'none';
+  const strokeDashArray = dashArray || config.dash || 'none';
   const opacity = selected ? 1 : (isDark ? 0.8 : 0.85);
   
   let d = edge.svgPath;

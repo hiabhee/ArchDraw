@@ -10,6 +10,7 @@ import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor
 import { classifyEdge } from '@/lib/mermaid/edgeClassifier';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import type { Node, Edge } from 'reactflow';
+import type { RFNode } from '@/lib/mermaid/types';
 
 export interface ImportRepoDiagramResult {
   nodes: Node[];
@@ -83,7 +84,7 @@ function enrichRepoEdges(edges: Edge[], enrichedNodes: Node[]): Edge[] {
     const arrowType = edge.data?.connectionType === 'async' ? 'dotted' : 'arrow';
 
     const semantics = srcNode && tgtNode
-      ? classifyEdge(srcNode as any, tgtNode as any, label as string, arrowType)
+      ? classifyEdge(srcNode as unknown as RFNode, tgtNode as unknown as RFNode, label as string, arrowType)
       : { importance: 'secondary' as const, syncAsync: 'sync' as const, protocol: 'HTTP' };
 
     return {

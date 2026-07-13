@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { ReactFlowProvider } from 'reactflow';
-import type { Node } from 'reactflow';
+import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '@/store/diagramStore';
 import { fc, test } from '@fast-check/vitest';
 
@@ -38,7 +38,7 @@ vi.mock('@/lib/theme', () => ({
 
 // Mock the diagram store
 vi.mock('@/store/diagramStore', () => ({
-  useDiagramStore: (selector: any) => {
+  useDiagramStore: (selector: unknown) => {
     const mockState = {
       nodes: [],
       canvasDarkMode: false,
@@ -61,6 +61,7 @@ vi.mock('@/store/diagramStore', () => ({
 // Import components after mocks are set up
 const { SystemNode } = await import('@/components/SystemNode');
 const { ShapeNode } = await import('@/components/ShapeNode');
+import type { ShapeType } from '@/components/ShapeNode';
 const { generatePureSVG } = await import('@/lib/svgExport');
 
 describe('Preservation Property: Light Mode Design Unchanged', () => {
@@ -367,7 +368,7 @@ describe('Preservation Property: Light Mode Design Unchanged', () => {
         type: 'shapeNode',
         data: {
           label: 'Test Shape',
-          shape: shape as any,
+          shape: shape as ShapeType,
           color: '#6B7280',
         },
         selected: false,
@@ -405,7 +406,7 @@ describe('Preservation Property: Light Mode Design Unchanged', () => {
         },
       ];
 
-      const edges: any[] = [];
+      const edges: Edge[] = [];
 
       // Generate SVG in light mode (isDark = false)
       const svg = generatePureSVG(nodes, edges, false, '#ffffff');
@@ -430,7 +431,7 @@ describe('Preservation Property: Light Mode Design Unchanged', () => {
         },
       ];
 
-      const edges: any[] = [];
+      const edges: Edge[] = [];
 
       // Generate SVG in light mode
       const svg = generatePureSVG(nodes, edges, false, '#ffffff');
@@ -467,7 +468,7 @@ describe('Preservation Property: Light Mode Design Unchanged', () => {
         } as NodeData,
       }));
 
-      const edges: any[] = [];
+      const edges: Edge[] = [];
 
       // Generate SVG in light mode
       const svg = generatePureSVG(nodes, edges, false, '#ffffff');
@@ -529,7 +530,7 @@ describe('Preservation Property: Light Mode Design Unchanged', () => {
         data: {
           label: 'Service with Status',
           layer: 'compute',
-          status: status as any,
+          status: status as NodeData['status'],
         } as NodeData,
         selected: false,
         isConnectable: true,

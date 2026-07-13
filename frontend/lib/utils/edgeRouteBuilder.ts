@@ -19,8 +19,8 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   let y = node.position?.y ?? 0
   let current = node
   const visited = new Set<string>([node.id])
-  while (current.parentId || (current as any).parentNode) {
-    const pId = current.parentId || (current as any).parentNode
+  while (current.parentId || current.parentNode) {
+    const pId = current.parentId || current.parentNode
     if (!pId || visited.has(pId)) break
     visited.add(pId)
     const parent = nodes.find(n => n.id === pId)
@@ -34,8 +34,8 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
 
 function getNodeRect(node: Node, nodes: Node[]): ObstacleRect {
   const pos = getAbsolutePosition(node, nodes)
-  const w = node.width ?? (node as any).measured?.width ?? (node.data as any)?.nodeWidth ?? 160
-  const h = node.height ?? (node as any).measured?.height ?? (node.data as any)?.nodeHeight ?? 80
+  const w = node.width ?? (node as Node & { measured?: { width?: number } }).measured?.width ?? node.data?.nodeWidth ?? 160
+  const h = node.height ?? (node as Node & { measured?: { height?: number } }).measured?.height ?? node.data?.nodeHeight ?? 80
   return { x: pos.x, y: pos.y, w, h }
 }
 
@@ -45,7 +45,7 @@ function isGroupNode(node: Node): boolean {
     node.type === 'frameNode' ||
     node.type === 'group' ||
     node.type === 'demoGroup' ||
-    (node.data as any)?.isGroup === true
+    node.data?.isGroup === true
   )
 }
 

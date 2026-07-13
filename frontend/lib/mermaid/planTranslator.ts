@@ -356,7 +356,7 @@ export function translatePlanToReactFlow(
       fill: styleConfig.secondaryColor,
       fontWeight: 500,
     },
-  })) as any as Edge[]
+  })) as unknown as Edge[]
 
   return { nodes: styledNodes, edges: styledEdges }
 }

@@ -16,7 +16,7 @@ interface Props {
   labelY: number;
 }
 
-const EDGE_TYPES: EdgeType[] = ['sync', 'async', 'stream', 'event', 'dep'];
+const EDGE_TYPES: EdgeType[] = ['sync', 'async', 'stream', 'event', 'dep', 'dotted'];
 
 export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPathType, labelX, labelY }: Props) {
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
@@ -129,10 +129,15 @@ export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPath
                     }`}
                     style={isActive ? { background: `${cfg.color}20`, color: cfg.color } : {}}
                   >
-                    <span 
-                      className="w-4 h-0.5 rounded"
-                      style={{ background: cfg.color, opacity: cfg.animated ? 0.6 : 1 }}
-                    />
+                    <svg width="16" height="4" viewBox="0 0 16 4" className="rounded">
+                      <line
+                        x1="0" y1="2" x2="16" y2="2"
+                        stroke={cfg.color}
+                        strokeWidth="2"
+                        strokeDasharray={cfg.dash || 'none'}
+                        opacity={cfg.animated ? 0.6 : 1}
+                      />
+                    </svg>
                     {cfg.label}
                   </button>
                 );

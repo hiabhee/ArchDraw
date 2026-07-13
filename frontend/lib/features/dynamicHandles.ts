@@ -273,7 +273,7 @@ export function getObstacleAwareHandles(
   edgeId?: string,
   sourceId?: string,
   targetId?: string,
-  edgeData?: any,
+  edgeData?: Record<string, unknown>,
   sourceServiceType?: string,
   targetServiceType?: string,
   direction: 'LR' | 'TD' = 'LR'

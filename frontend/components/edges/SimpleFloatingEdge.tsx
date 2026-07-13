@@ -20,6 +20,7 @@ import { useCanvasTheme } from '@/lib/theme';
 import { EdgeLabel } from './EdgeLabel';
 import { EdgeToolbar } from './EdgeToolbar';
 import { EdgeContextMenu } from './EdgeContextMenu';
+import { getEdgeConfig } from '@/data/edgeTypes';
 import type { EdgeData } from '@/data/edgeTypes';
 
 export default function SimpleFloatingEdge({
@@ -86,7 +87,22 @@ export default function SimpleFloatingEdge({
     }
 
     const strokeWidth = selected || isHovered ? baseWidth + 1.0 : baseWidth;
-    const strokeDasharray = isAsync ? DIAGRAM_CONSTANTS.edge.dashArray : undefined;
+
+    let strokeDasharray: string | undefined;
+    const edgeVariant = data?.edgeVariant;
+    if (edgeVariant === 'dashed' || isAsync) {
+      strokeDasharray = DIAGRAM_CONSTANTS.edge.dashArray;
+    } else if (edgeVariant === 'dotted') {
+      strokeDasharray = '2,2';
+    } else if (edgeVariant === 'feedback') {
+      strokeDasharray = '12,4,4,4';
+    } else {
+      const edgeTypeConfig = getEdgeConfig(data?.edgeType);
+      if (edgeTypeConfig.dash) {
+        strokeDasharray = edgeTypeConfig.dash;
+      }
+    }
+
     const opacity = selected || isHovered ? 1 : 0.85;
 
     return {
@@ -96,7 +112,7 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, data?.isBundle, data]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, data?.isBundle, data?.edgeVariant, data?.edgeType, data]);
 
   const responseLabel = data?.responseLabel;
   const isReturn = data?.isReturn || false;
@@ -236,7 +252,7 @@ export default function SimpleFloatingEdge({
               <div className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border pb-1 mb-1">
                 Bundled Flows ({data.bundledEdges.length})
               </div>
-              {data.bundledEdges.map((e: any, idx: number) => (
+              {data.bundledEdges.map((e: Edge, idx: number) => (
                 <div key={e.id || idx} className="flex items-center gap-1.5 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                   <span className="font-semibold text-xs">{e.data?.label || e.label || 'request'}</span>

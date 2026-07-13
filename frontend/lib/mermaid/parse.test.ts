@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseMermaid } from './parse';
 import { validateDiagramOutput } from './validation';
 import { classifyNode } from './planTranslator';
+import type { RFNode, RFEdge } from './types';
 
 describe('Mermaid Parser Chained Edges', () => {
   it('should parse chained edges without labels correctly', () => {
@@ -85,13 +86,13 @@ describe('Node Classification Precedence', () => {
 
 describe('Layout Direction Validation', () => {
   it('should validate layout direction correctly for graph LR (horizontal check)', () => {
-    const nodes: any[] = [
+    const nodes = [
       { id: 'A', position: { x: 100, y: 50 }, data: { label: 'A' } },
       { id: 'B', position: { x: 50, y: 50 }, data: { label: 'B' } }
-    ];
-    const edges: any[] = [
+    ] as unknown as RFNode[];
+    const edges = [
       { id: 'A-B', source: 'A', target: 'B' }
-    ];
+    ] as unknown as RFEdge[];
 
     // Source A is at x=100, Target B is at x=50. A is to the right of B.
     // For LR, source must be to the left of target (x_src < x_tgt).
@@ -101,22 +102,22 @@ describe('Layout Direction Validation', () => {
     expect(resLR.warnings[0].type).toBe('LAYOUT_DIRECTION_FAILURE');
 
     // If source is x=50 and target is x=100, it should pass LR.
-    const nodesPass: any[] = [
+    const nodesPass = [
       { id: 'A', position: { x: 50, y: 50 }, data: { label: 'A' } },
       { id: 'B', position: { x: 100, y: 50 }, data: { label: 'B' } }
-    ];
+    ] as unknown as RFNode[];
     const resLRPass = validateDiagramOutput(nodesPass, edges, 'LR');
     expect(resLRPass.passed).toBe(true);
   });
 
   it('should validate layout direction correctly for graph TD (vertical check)', () => {
-    const nodes: any[] = [
+    const nodes = [
       { id: 'A', position: { x: 50, y: 100 }, data: { label: 'A' } },
       { id: 'B', position: { x: 50, y: 50 }, data: { label: 'B' } }
-    ];
-    const edges: any[] = [
+    ] as unknown as RFNode[];
+    const edges = [
       { id: 'A-B', source: 'A', target: 'B' }
-    ];
+    ] as unknown as RFEdge[];
 
     // Source A is at y=100, Target B is at y=50.
     // For TD, source must be above target (y_src < y_tgt).

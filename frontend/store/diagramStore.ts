@@ -552,10 +552,10 @@ function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
     const sPos = getAbsolutePosition(sourceNode, nodes);
     const tPos = getAbsolutePosition(targetNode, nodes);
 
-    const sWidth = sourceNode.width ?? (sourceNode.data as any)?.nodeWidth ?? 180;
-    const sHeight = sourceNode.height ?? (sourceNode.data as any)?.nodeHeight ?? 70;
-    const tWidth = targetNode.width ?? (targetNode.data as any)?.nodeWidth ?? 180;
-    const tHeight = targetNode.height ?? (targetNode.data as any)?.nodeHeight ?? 70;
+    const sWidth = sourceNode.width ?? (sourceNode.data as { nodeWidth?: number })?.nodeWidth ?? 180;
+    const sHeight = sourceNode.height ?? (sourceNode.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+    const tWidth = targetNode.width ?? (targetNode.data as { nodeWidth?: number })?.nodeWidth ?? 180;
+    const tHeight = targetNode.height ?? (targetNode.data as { nodeHeight?: number })?.nodeHeight ?? 70;
 
     const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
     const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
@@ -570,12 +570,12 @@ function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
         node.type === 'frameNode' ||
         node.type === 'group' ||
         node.type === 'demoGroup' ||
-        (node.data as any)?.isGroup === true;
+        (node.data as { isGroup?: boolean })?.isGroup === true;
       if (isGroup) continue;
 
       const pos = getAbsolutePosition(node, nodes);
-      const w = node.width ?? (node.data as any)?.nodeWidth ?? 180;
-      const h = node.height ?? (node.data as any)?.nodeHeight ?? 70;
+      const w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180;
+      const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70;
       intermediateNodeRects.set(node.id, { id: node.id, x: pos.x, y: pos.y, w, h });
     }
 
@@ -2375,13 +2375,13 @@ function deriveNodesAndEdges(state: DiagramState) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zustand store wrapper needs flexible selector/equalityFn types for generic subscriber compatibility
 export const useDiagramStore = Object.assign(
-  (selector?: (state: DiagramState) => any, equalityFn?: any) => {
+  (selector?: (state: DiagramState) => unknown, equalityFn?: (a: unknown, b: unknown) => boolean) => {
     if (selector) {
       const wrappedSelector = (state: DiagramState) => {
         const proxied = deriveNodesAndEdges(state);
         return selector(proxied);
       };
-      return (useDiagramStoreRaw as any)(wrappedSelector, equalityFn);
+      return (useDiagramStoreRaw as (selector: (state: DiagramState) => unknown, equalityFn?: (a: unknown, b: unknown) => boolean) => unknown)(wrappedSelector, equalityFn);
     }
     const state = useDiagramStoreRaw();
     return deriveNodesAndEdges(state);

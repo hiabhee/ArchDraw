@@ -66,7 +66,7 @@ export async function groqJsonCompletion(
   const { reasoning_effort, json_schema, ...coreParams } = params;
   const shouldUseReasoning = reasoning_effort && modelSupportsReasoning(coreParams.model);
 
-  let body: ChatCompletionCreateParamsNonStreaming = {
+  const body: ChatCompletionCreateParamsNonStreaming = {
     ...coreParams,
     response_format: { type: 'json_object' as const },
     temperature: coreParams.temperature ?? 0.7,
@@ -91,12 +91,12 @@ export async function groqJsonCompletion(
     if (!isResponseFormatError(error)) throw error;
 
     // Retry without response_format if JSON mode is unsupported
-    const { reasoning_effort: _r, json_schema: _j, response_format: _rf, ...fallbackParams } = params as any;
+    const { reasoning_effort: _r, json_schema: _j, response_format: _rf, ...fallbackParams } = params as CompletionParams & Record<string, unknown>;
     const fallbackBody: ChatCompletionCreateParamsNonStreaming = {
       ...fallbackParams,
       ...(shouldUseReasoning ? { reasoning_effort } : {}),
       ...(json_schema ? { json_schema } : {}),
-    } as any;
+    } as ChatCompletionCreateParamsNonStreaming;
 
     const completion = await client.chat.completions.create(
       fallbackBody,

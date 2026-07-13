@@ -12,7 +12,7 @@ interface Props {
   currentPathType?: PathType;
 }
 
-const EDGE_TYPES: EdgeType[] = ['sync', 'async', 'stream', 'event', 'dep'];
+const EDGE_TYPES: EdgeType[] = ['sync', 'async', 'stream', 'event', 'dep', 'dotted'];
 
 export function EdgeContextMenu({ edgeId, position, onClose, currentEdgeType, currentPathType }: Props) {
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
@@ -101,10 +101,15 @@ export function EdgeContextMenu({ edgeId, position, onClose, currentEdgeType, cu
                   }`}
                   style={isActive ? { background: `${cfg.color}20` } : {}}
                 >
-                  <span 
-                    className="w-6 h-0.5 rounded"
-                    style={{ background: cfg.color, opacity: cfg.animated ? 0.7 : 1 }}
-                  />
+                  <svg width="24" height="4" viewBox="0 0 24 4" className="rounded">
+                    <line
+                      x1="0" y1="2" x2="24" y2="2"
+                      stroke={cfg.color}
+                      strokeWidth="2"
+                      strokeDasharray={cfg.dash || 'none'}
+                      opacity={cfg.animated ? 0.7 : 1}
+                    />
+                  </svg>
                   {cfg.label}
                 </button>
               );

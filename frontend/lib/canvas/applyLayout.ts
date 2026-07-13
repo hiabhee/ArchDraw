@@ -22,7 +22,7 @@ async function getELK(): Promise<ELKInterface> {
   if (!elkInstance) {
     const ELKModule = await import('elkjs/lib/elk.bundled.js');
     const ELK = ELKModule.default ?? ELKModule;
-    elkInstance = new ELK() as any as ELKInterface;
+    elkInstance = new ELK() as unknown as ELKInterface;
   }
   return elkInstance;
 }
@@ -45,7 +45,7 @@ export async function applyLayoutPreset(
     return nodes;
   }
 
-  const isGroupNode = (n: Node) => n.type === 'group' || n.type === 'groupNode' || n.type === 'frameNode' || n.type === 'demoGroup' || (n.data as any)?.isGroup === true;
+  const isGroupNode = (n: Node) => n.type === 'group' || n.type === 'groupNode' || n.type === 'frameNode' || n.type === 'demoGroup' || (n.data as Record<string, unknown>)?.isGroup === true;
   const groupNodes = nodes.filter(isGroupNode);
   const leafNodes = nodes.filter(n => !isGroupNode(n));
 
@@ -178,7 +178,7 @@ export async function applyLayoutPreset(
       const size = sizeMap.get(node.id);
       if (!newPos) return node;
       
-      const isGroup = node.type === 'group' || node.type === 'groupNode' || node.type === 'frameNode' || node.type === 'demoGroup' || (node.data as any)?.isGroup === true;
+      const isGroup = node.type === 'group' || node.type === 'groupNode' || node.type === 'frameNode' || node.type === 'demoGroup' || (node.data as Record<string, unknown>)?.isGroup === true;
       
       if (isGroup) {
         const w = size?.width ?? node.width ?? DEFAULT_GROUP_WIDTH;

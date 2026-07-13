@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import type { PipelineResult, PipelineState } from './types';
 import type { RFNode } from '@/lib/mermaid/types';
+import type { Node as RFNodeType, Edge as RFEdgeType } from 'reactflow';
 import { runArchitecturePlanner } from './stage1-planner';
 import { runMermaidPipeline as parseMermaidToReactFlow } from '@/lib/mermaid/pipeline';
 import { scoreDiagram } from '../stage8-score';
@@ -264,7 +265,7 @@ export async function runMermaidPipeline(
 
   onProgress?.('Complete', 100);
 
-  const diagramScore = scoreDiagram(rfNodes as any, rfEdges as any, {
+  const diagramScore = scoreDiagram(rfNodes as unknown as RFNodeType[], rfEdges as unknown as RFEdgeType[], {
     nodesRemoved: 0,
     edgesRemoved: 0,
     diagramSize,
@@ -275,7 +276,7 @@ export async function runMermaidPipeline(
 
   // Run validators
   const reasoningIssues = validateReasoningField(reasoning, rfNodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode').length);
-  const topologyIssues = validateTopologyAndSize(rfNodes, rfEdges as any as ArchitectureEdge[], diagramSize, detailLevel);
+  const topologyIssues = validateTopologyAndSize(rfNodes, rfEdges as unknown as ArchitectureEdge[], diagramSize, detailLevel);
 
   // Layout issues from parser warnings
   const parserSemanticIssues: ValidationIssue[] = [];
@@ -319,7 +320,7 @@ export async function runMermaidPipeline(
 
   // PipelineState & Diagnostics for compatibility
   const pipelineDiagnostics: PipelineDiagnostics = {
-    style: styleConfig.theme as any,
+    style: styleConfig.theme as ArchitectureStyle,
     productionDepth: 'conceptual',
     semanticIssues,
     mechanicalRepairs,
@@ -355,7 +356,7 @@ export async function runMermaidPipeline(
       height: 70,
       metadata: {},
     })),
-    edges: rfEdges as any as ArchitectureEdge[],
+    edges: rfEdges as unknown as ArchitectureEdge[],
     reactFlowNodes: rfNodes as ReactFlowNode[],
     graph: null,
     score: diagramScore.score,
@@ -370,7 +371,7 @@ export async function runMermaidPipeline(
   return {
     success: true,
     nodes: rfNodes as ReactFlowNode[],
-    edges: rfEdges as any as ArchitectureEdge[],
+    edges: rfEdges as unknown as ArchitectureEdge[],
     state,
     score: diagramScore.score,
     diagramScore: diagramScore as DiagramScore,

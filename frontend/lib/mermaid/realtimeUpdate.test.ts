@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useDiagramStore } from '@/store/diagramStore';
 import { runMermaidPipeline } from './pipeline';
 import { getDeterministicColor } from './planTranslator';
+import type { Node, Edge } from 'reactflow';
 
 describe('Mermaid Editor Real-time Updates', () => {
   beforeEach(() => {
-    const store = useDiagramStore.getState() as any;
+    const store = useDiagramStore.getState();
     if (store.clearDiagram) {
       store.clearDiagram();
     }
@@ -22,7 +23,7 @@ describe('Mermaid Editor Real-time Updates', () => {
     expect(res.edges.length).toBeGreaterThan(0);
 
     const store = useDiagramStore.getState();
-    store.importDiagram(res.nodes as any, res.edges as any);
+    store.importDiagram(res.nodes as Node[], res.edges as Edge[]);
 
     // Deriving nodes and edges from store should return the imported elements
     const updatedNodes = useDiagramStore.getState().nodes;

@@ -22,8 +22,10 @@ interface DashboardClientProps {
 
 export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { initialized } = useAuthStore();
   const { canvases, addCanvas, switchCanvas } = useDiagramStore();
+  const [now] = useState(() => Date.now());
 
   const handleNewCanvas = (fromTemplate?: string) => {
     if (fromTemplate) {
@@ -46,8 +48,6 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
       </div>
     );
   }
-
-  const searchParams = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
 
   // Compute actual canvas metrics
@@ -69,7 +69,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
   // Dynamic formatting for relative time
   const getRelativeTime = (timestamp?: number) => {
     if (!timestamp) return 'Just now';
-    const diff = Date.now() - timestamp;
+    const diff = now - timestamp;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     if (minutes < 1) return 'Just now';

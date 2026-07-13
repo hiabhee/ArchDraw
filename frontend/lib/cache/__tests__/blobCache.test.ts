@@ -12,6 +12,7 @@ import {
 } from '../blobCache';
 import type { CodeGraph } from '../../repo-diagram/code-graph';
 import type { CompactFileSummary } from '../../repo-diagram/symbol-summarizer';
+import type { RepoProfile } from '../../types/repo-diagram';
 
 // Helper to create a mock CodeGraph
 function mockGraph(): CodeGraph {
@@ -110,7 +111,7 @@ describe('blobCache', () => {
         confidence: 'high',
         reasoning: 'test',
         extractionStrategy: { keyDirectories: [], entryPoints: [], moduleStructure: '', focusAreas: [] },
-      } as any;
+      } as RepoProfile;
       setCachedProfile('repo-url-1', profile);
       expect(getCachedProfile('repo-url-1')).toBe(profile);
       expect(getCachedProfile('missing-url')).toBeNull();
