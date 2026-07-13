@@ -21,8 +21,6 @@ import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
-import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -978,19 +976,10 @@ function LayoutToggleButton() {
 
   const isVertical = activeLayoutPresetId === 'layered-tb';
   const nextLabel = isVertical ? 'Left → Right' : 'Top → Bottom';
-  const nextDirection = isVertical ? 'LR' : 'TD';
 
   const handleToggle = () => {
     const store = useDiagramStore.getState();
-    const { nodes, edges } = store;
-    const nextMermaid = reactFlowToMermaid(nodes, edges, nextDirection);
-    const result = runMermaidPipeline(nextMermaid);
-    if (!result.success) {
-      toast.error(`Layout toggle failed: ${result.warnings.join('; ')}`);
-      return;
-    }
-    store.importDiagram(result.nodes, result.edges);
-    store.setActiveLayoutPresetId(nextDirection === 'LR' ? 'layered-lr' : 'layered-tb');
+    store.toggleLayoutDirection();
   };
 
   return (
