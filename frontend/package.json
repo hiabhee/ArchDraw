@@ -6,6 +6,7 @@
     "dev": "NODE_OPTIONS=--max-old-space-size=4096 next dev",
     "dev:frontend": "next dev",
     "dev:mcp": "cd ../mcp-server && npx tsx src/index.ts",
+    "postinstall": "prisma generate",
     "prebuild": "npm run mcp:build && npx tsx scripts/generateTutorialCache.ts",
     "build": "next build",
     "build:all": "npm run build && npm run mcp:build",
