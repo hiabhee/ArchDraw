@@ -5,7 +5,7 @@ import servicesData from '@/data/services-components.json';
 import logger from '@/lib/logger';
 import { STORAGE_KEYS } from '@/lib/config';
 import type { Node } from 'reactflow';
-import { getSupabaseClient, isSupabaseConfigured, isReachable } from '@/lib/supabase';
+import { fetchComponentTemplatesByIds, fetchAllComponentTemplates } from '@/lib/api-client';
 
 
 export interface ComponentDefinition {
@@ -38,7 +38,7 @@ interface TemplateRow {
   color: string | null;
   icon: string | null;
   technology: string | null;
-  component_categories: { name: string } | null;
+  category: { name: string } | null;
 }
 
 class ComponentRegistry {
@@ -108,20 +108,16 @@ class ComponentRegistry {
     });
 
     const idList = Array.from(ids);
-    if (idList.length > 0 && isSupabaseConfigured && isReachable) {
+    if (idList.length > 0 && process.env.DATABASE_URL) {
       try {
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-          .from('component_templates')
-          .select('id, name, description, color, icon, technology, component_categories(name)')
-          .in('id', idList);
+        const data = await fetchComponentTemplatesByIds(idList);
         
         if (data && data.length > 0) {
           (data as TemplateRow[]).forEach((row) => {
             const comp: ComponentDefinition = {
               id: row.id,
               label: row.name,
-              category: row.component_categories?.name || 'Other',
+              category: row.category?.name || 'Other',
               color: row.color || '#94a3b8',
               icon: row.icon || undefined,
               technology: row.technology || undefined,
@@ -140,7 +136,7 @@ class ComponentRegistry {
 
   async backgroundRefresh() {
     if (typeof window === 'undefined') return;
-    if (!isSupabaseConfigured || !isReachable) return;
+    if (!process.env.DATABASE_URL) return;
     
     const age = Date.now() - (this.syncedAt || 0);
     if (age < 24 * 60 * 60 * 1000) {
@@ -148,17 +144,14 @@ class ComponentRegistry {
     }
 
     try {
-      const supabase = getSupabaseClient();
-      const { data, error } = await supabase
-        .from('component_templates')
-        .select('id, name, description, color, icon, technology, component_categories(name)');
+      const data = await fetchAllComponentTemplates();
       
       if (data && data.length > 0) {
         (data as TemplateRow[]).forEach((row) => {
           const comp: ComponentDefinition = {
             id: row.id,
             label: row.name,
-            category: row.component_categories?.name || 'Other',
+            category: row.category?.name || 'Other',
             color: row.color || '#94a3b8',
             icon: row.icon || undefined,
             technology: row.technology || undefined,

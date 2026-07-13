@@ -43,3 +43,5 @@ next-env.d.ts
 # local diagram sessions (runtime storage)
 .diagram-sessions.json
 logs/feedback.jsonl
+
+/src/generated/prisma

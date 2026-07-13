@@ -13,6 +13,12 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
+  useEffect(() => {
+    const handler = () => setAuthModalOpen(true);
+    window.addEventListener('open-auth-modal', handler);
+    return () => window.removeEventListener('open-auth-modal', handler);
+  }, []);
+
   return (
     <>
       <header

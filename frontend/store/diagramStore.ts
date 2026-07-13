@@ -90,8 +90,7 @@ import { addEdge, applyNodeChanges, applyEdgeChanges, MarkerType, Position } fro
 import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
 import { processEdgeManagement } from '@/lib/features/edgeManagement';
 import { runClarityCompiler } from '@/lib/features/clarityCompiler';
-import { getSupabaseClient, isSupabaseConfigured, isReachable, type UserCanvasesTable } from '@/lib/supabase';
-import { type Database } from '@/types/supabase';
+import { saveUserCanvas as apiSaveUserCanvas, deleteUserCanvasApi as apiDeleteUserCanvas, fetchUserCanvases as apiGetUserCanvases } from '@/lib/api-client';
 import { DEFAULT_EDGE_TYPE, type EdgeType } from '@/data/edgeTypes';
 import { getNodeShape } from '@/lib/nodeShapes';
 import { getStrictPortConfig } from '@/lib/componentPorts';
@@ -739,21 +738,18 @@ function mergeCanvases(localCanvases: CanvasTab[], dbCanvases: CanvasTab[]): Can
 }
 // ── Debounced DB save (module-level so it's shared across calls) ──────────────
 const _debouncedSave = debounce(async (canvasId: string, get: () => DiagramState) => {
-  if (!isSupabaseConfigured || !isReachable) return;
+  if (!process.env.DATABASE_URL) return;
   const state = get();
   if (!state.userProfile || state.userProfile.id === 'guest') return;
   const canvas = state.canvases.find((c) => c.id === canvasId);
   if (!canvas) return;
   state.setSavingState('saving');
   try {
-    const supabase = getSupabaseClient();
-    await (supabase.from('user_canvases') as any as UserCanvasesTable).upsert({
+    await apiSaveUserCanvas({
       id: canvasId,
-      user_id: state.userProfile.id,
       name: canvas.name,
-      nodes: canvas.nodes as any as import('@/types/supabase').Json,
-      edges: canvas.edges as any as import('@/types/supabase').Json,
-      updated_at: new Date().toISOString(),
+      nodes: canvas.nodes as object,
+      edges: canvas.edges as object,
     });
     state.setSavingState('saved');
     // Reset to idle after 2s
@@ -765,14 +761,13 @@ const _debouncedSave = debounce(async (canvasId: string, get: () => DiagramState
   }
 }, 1500);
 
-// Delete canvas from Supabase
+// Delete canvas from DB
 async function deleteCanvasFromDB(canvasId: string, get: () => DiagramState): Promise<void> {
-  if (!isSupabaseConfigured || !isReachable) return;
+  if (!process.env.DATABASE_URL) return;
   const state = get();
   if (!state.userProfile || state.userProfile.id === 'guest') return;
   try {
-    const supabase = getSupabaseClient();
-    await (supabase.from('user_canvases') as any as UserCanvasesTable).delete().eq('id', canvasId);
+    await apiDeleteUserCanvas(canvasId);
   } catch {
     // Silently fail - canvas is already removed from local state
   }
@@ -1008,7 +1003,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
           future: [] 
         });
         
-        // Delete from Supabase
+        // Delete from DB
         deleteCanvasFromDB(id, get);
       },
 
@@ -1264,25 +1259,26 @@ const useDiagramStoreRaw = create<DiagramState>()(
       setSavingState: (s) => set({ savingState: s }),
 
       loadCanvasesFromDB: async () => {
-        if (!isSupabaseConfigured || !isReachable) return;
+        if (!process.env.DATABASE_URL) return;
         const { activeCanvasId, canvases: localCanvases } = get();
         try {
-          const supabase = getSupabaseClient();
-          const { data } = await (supabase.from('user_canvases') as any as UserCanvasesTable)
-            .select('*')
-            .order('updated_at', { ascending: false });
-          if (data && data.length > 0) {
-            const dbCanvases: CanvasTab[] = data.map((d: Database['public']['Tables']['user_canvases']['Row']) => {
-              const rawNodes = normalizeNodes((d.nodes as any as Node[]) ?? []);
+          const { useAuthStore } = await import('@/store/authStore');
+          const { user } = useAuthStore.getState();
+          if (!user || user.id === 'guest') return;
+
+          const rows = await apiGetUserCanvases();
+          if (rows && rows.length > 0) {
+            const dbCanvases: CanvasTab[] = rows.map((d: { id: string; name: string; nodes: unknown; edges: unknown; updatedAt: Date | null }) => {
+              const rawNodes = normalizeNodes((d.nodes as unknown as Node[]) ?? []);
               const sortedNodes = validateAndFixNodes(rawNodes);
               return {
                 id: d.id,
                 name: d.name,
                 nodes: sortedNodes,
-                edges: normalizeEdges((d.edges as any as Edge[]) ?? []),
-                updatedAt: d.updated_at ? new Date(d.updated_at).getTime() : Date.now(),
+                edges: normalizeEdges((d.edges as unknown as Edge[]) ?? []),
+                updatedAt: d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now(),
                 isOpen: true,
-                lastAccessedAt: d.updated_at ? new Date(d.updated_at).getTime() : Date.now(),
+                lastAccessedAt: d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now(),
               };
             });
 

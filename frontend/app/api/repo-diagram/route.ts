@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateRepoArchitectureDiagram } from '@/lib/repo-diagram-pipeline';
 import type { RepoDiagramApiResponse } from '@/lib/types/repo-diagram';
 import { parseGitHubUrl } from '@/lib/utils/githubUrl';
+import { clear } from '@/lib/ai/services/diagramCache';
+import { clearBlobCaches } from '@/lib/cache/blobCache';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
@@ -70,5 +72,17 @@ export async function POST(req: NextRequest) {
       return errorResponse(message, 400);
     }
     return errorResponse(message, 500);
+  }
+}
+
+export async function DELETE() {
+  try {
+    clear();
+    clearBlobCaches();
+    logger.info('[API] Repo diagram caches cleared');
+    return NextResponse.json({ success: true, message: 'Repo diagram caches cleared' });
+  } catch (error) {
+    logger.error('[API] Failed to clear caches:', error);
+    return errorResponse('Failed to clear caches', 500);
   }
 }

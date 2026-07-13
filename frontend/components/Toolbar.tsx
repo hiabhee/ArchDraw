@@ -238,9 +238,6 @@ export function Toolbar() {
 
   const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
-  const wasEmailModalDismissed = () =>
-    typeof window !== 'undefined' && sessionStorage.getItem('emailModalDismissed') === 'true';
-
   const downloadFile = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -419,7 +416,7 @@ export function Toolbar() {
   };
 
   const handleExport = (format: ExportFormat) => {
-    if (isGuest && !wasEmailModalDismissed() && format !== 'json') {
+    if (isGuest && format !== 'json') {
       setEmailCapture('download');
       return;
     }
@@ -448,7 +445,7 @@ export function Toolbar() {
   const doShare = async () => {
     const currentUser = useAuthStore.getState().user;
     const userEmail = currentUser?.email || 'owner@local';
-    const userName = currentUser?.user_metadata?.name || currentUser?.email?.split('@')[0] || 'Owner';
+    const userName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Owner';
     
     setIsSharing(true);
     try {
@@ -493,7 +490,7 @@ export function Toolbar() {
   };
 
   const handleShare = () => {
-    if (isGuest && !wasEmailModalDismissed()) {
+    if (isGuest) {
       setEmailCapture('share');
       return;
     }

@@ -7,7 +7,7 @@ import {
   setCache,
   compressHistory,
 } from '@/lib/tutorialCache';
-import { getSupabaseClient, isSupabaseConfigured, type TutorialResponseCacheTable } from '@/lib/supabase';
+import { getCachedResponse, cacheResponse } from '@/lib/db';
 import { redis, redisKeys } from '@/lib/redis';
 import staticCacheData from '@/data/tutorialCache.json';
 import { z } from 'zod';
@@ -145,32 +145,23 @@ function tryKeywordMatch(
   return (staticCacheData as Record<string, string>)[teachingKey] ?? null;
 }
 
-/** Persist a free-text response to Supabase (fire-and-forget). */
-function persistToSupabase(questionHash: string, response: string): void {
-  if (!isSupabaseConfigured) return;
+/** Persist a free-text response to DB (fire-and-forget). */
+function persistToDB(questionHash: string, response: string): void {
+  if (!process.env.DATABASE_URL) return;
   try {
-    const supabase = getSupabaseClient();
-    (supabase.from('tutorial_response_cache') as unknown as TutorialResponseCacheTable)
-      .upsert({ question_hash: questionHash, response })
-      .then(({ error }) => {
-        if (error) logger.error('[API] Supabase persist error:', error.message);
-      });
+    cacheResponse(questionHash, response).catch((err) => {
+      logger.error('[API] DB persist error:', err);
+    });
   } catch {
     // Non-critical — ignore
   }
 }
 
-/** Look up a free-text question hash in Supabase. */
-async function lookupSupabase(questionHash: string): Promise<string | null> {
-  if (!isSupabaseConfigured) return null;
+/** Look up a free-text question hash in the DB. */
+async function lookupDB(questionHash: string): Promise<string | null> {
+  if (!process.env.DATABASE_URL) return null;
   try {
-    const supabase = getSupabaseClient();
-    const { data, error } = await (supabase.from('tutorial_response_cache') as unknown as TutorialResponseCacheTable)
-      .select('response')
-      .eq('question_hash', questionHash)
-      .single();
-    if (error || !data) return null;
-    return data.response ?? null;
+    return await getCachedResponse(questionHash);
   } catch {
     return null;
   }
@@ -292,11 +283,11 @@ export async function POST(req: NextRequest) {
         return streamString(keywordHit, 'KEYWORD-HIT');
       }
 
-      // ── 5. Supabase persistent cache for free-text ──────────────────────────
-      const supabaseHit = await lookupSupabase(qHash);
-      if (supabaseHit) {
-        logger.log(`[API] SUPABASE-HIT hash=${qHash}`);
-        return streamString(supabaseHit, 'SUPABASE-HIT');
+      // ── 5. DB persistent cache for free-text ──────────────────────────
+      const dbHit = await lookupDB(qHash);
+      if (dbHit) {
+        logger.log(`[API] DB-HIT hash=${qHash}`);
+        return streamString(dbHit, 'DB-HIT');
       }
     }
 
@@ -342,8 +333,8 @@ export async function POST(req: NextRequest) {
             redis.set(redisKey, finalText, ttl ? { ex: ttl } : {}).catch(err =>
               logger.warn('[API] Redis write failed:', err)
             );
-            // Save free-text responses to Supabase (fire-and-forget)
-            if (isFreeText) persistToSupabase(qHash, finalText);
+            // Save free-text responses to DB (fire-and-forget)
+            if (isFreeText) persistToDB(qHash, finalText);
           }
 
           controller.close();

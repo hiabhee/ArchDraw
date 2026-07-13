@@ -123,7 +123,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
     if (userProfile?.name) setDisplayName(userProfile.name);
   }
 
-  const profile = userProfile ?? (user ? { id: user.id, email: user.email ?? undefined, name: user.user_metadata?.name } : null);
+  const profile = userProfile ?? (user ? { id: user.id, email: user.email ?? undefined, name: user.name } : null);
   if (!profile) return null;
 
   const initials = (profile.name?.[0] ?? profile.email?.[0] ?? '?').toUpperCase();
@@ -554,7 +554,7 @@ export function UserAvatar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [closeProfile]);
 
-  const profile = userProfile ?? (user ? { id: user.id, email: user.email ?? undefined, name: user.user_metadata?.name } : null);
+  const profile = userProfile ?? (user ? { id: user.id, email: user.email ?? undefined, name: user.name } : null);
   if (!profile) return null;
 
   const initials = (profile.name?.[0] ?? profile.email?.[0] ?? '?').toUpperCase();

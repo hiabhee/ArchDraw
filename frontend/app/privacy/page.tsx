@@ -36,7 +36,7 @@ export default function PrivacyPage() {
             <h2 className="text-2xl font-bold text-slate-900 mb-3">How We Use Your Information</h2>
             <ul className="list-disc pl-6 space-y-2">
               <li>To save and sync your diagrams across devices</li>
-              <li>To send magic link authentication emails</li>
+              <li>To authenticate and manage your account</li>
               <li>To generate shareable diagram links</li>
               <li>To improve the product based on usage patterns</li>
             </ul>
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">Data Storage</h2>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Stored in Supabase (PostgreSQL) hosted on AWS</li>
+              <li>Stored in Neon (PostgreSQL) hosted on AWS</li>
               <li>Guest data stored in browser localStorage only — never sent to our servers</li>
               <li>Shared diagrams stored for 30 days then auto-deleted</li>
             </ul>
@@ -54,7 +54,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">Third Party Services</h2>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Supabase — database and authentication</li>
+              <li>Neon — PostgreSQL database</li>
+              <li>Better Auth — authentication</li>
               <li>Vercel — hosting and analytics</li>
               <li>Resend — transactional email delivery</li>
               <li>Google OAuth / GitHub OAuth — optional sign-in providers</li>

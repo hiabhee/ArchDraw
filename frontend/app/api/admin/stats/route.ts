@@ -1,129 +1,154 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import prisma from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-function getAdminClient() {
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
 export async function GET(req: NextRequest) {
-  if (!supabaseServiceKey) {
-    return NextResponse.json({ error: 'Service key not configured' }, { status: 500 });
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
   const { searchParams } = new URL(req.url);
   const includeInternal = searchParams.get('internal') === 'include';
-  const excludeInternal = !includeInternal;
   const days = parseInt(searchParams.get('days') || '30', 10);
 
-  const db = getAdminClient();
+  const internalFilter = includeInternal ? {} : { isInternal: false };
 
-  // Get stats from the RPC function
-  const { data: stats } = await db.rpc('get_visitor_stats', {
-    p_exclude_internal: excludeInternal,
-  });
+  // Get visitor stats (replaces RPC function)
+  const [totalVisitors, guestVisitors, authVisitors, totalSessions, totalEvents, avgDuration, promptsSubmitted, exportsCompleted, diagramsGenerated] = await Promise.all([
+    prisma.visitor.count({ where: internalFilter }),
+    prisma.visitor.count({ where: { ...internalFilter, userId: null } }),
+    prisma.visitor.count({ where: { ...internalFilter, userId: { not: null } } }),
+    prisma.visitorSession.count({ where: { visitor: internalFilter } }),
+    prisma.event.count({ where: { visitor: internalFilter } }),
+    prisma.visitorSession.aggregate({ where: { visitor: internalFilter, durationSeconds: { not: null } }, _avg: { durationSeconds: true } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'prompt_submitted' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'export' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'diagram_generated' } }),
+  ]);
 
-  // Get daily active visitors
-  let dailyQuery = db.from('daily_active_visitors').select('*').order('day', { ascending: false });
-  if (days) {
-    const since = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-    dailyQuery = dailyQuery.gte('day', since);
-  }
-  const { data: daily } = await dailyQuery;
+  const stats = {
+    total_visitors: totalVisitors,
+    guest_visitors: guestVisitors,
+    auth_visitors: authVisitors,
+    total_sessions: totalSessions,
+    total_events: totalEvents,
+    avg_session_duration: Math.round(avgDuration._avg.durationSeconds ?? 0),
+    prompts_submitted: promptsSubmitted,
+    exports_completed: exportsCompleted,
+    diagrams_generated: diagramsGenerated,
+  };
+
+  // Get daily active visitors — count distinct visitor_id per day
+  const since = new Date(Date.now() - days * 86400000);
+  const dailyRaw = await prisma.$queryRaw<{ day: string; visitors: bigint }[]>`
+    SELECT date_trunc('day', created_at)::date as day, count(distinct visitor_id) as visitors
+    FROM events
+    WHERE created_at >= ${since}
+    GROUP BY 1
+    ORDER BY 1 DESC
+  `;
+  const daily = dailyRaw.map(r => ({ day: String(r.day), visitors: Number(r.visitors) }));
 
   // Get top pages
   let topPages;
   if (includeInternal) {
-    const { data: allPages } = await db
-      .from('events')
-      .select('page_path')
-      .eq('event_type', 'page_view');
+    const allPages = await prisma.event.findMany({
+      where: { eventType: 'page_view' },
+      select: { pagePath: true },
+    });
     const counts = new Map<string, number>();
-    for (const row of allPages || []) {
-      counts.set(row.page_path, (counts.get(row.page_path) || 0) + 1);
+    for (const row of allPages) {
+      if (row.pagePath) counts.set(row.pagePath, (counts.get(row.pagePath) || 0) + 1);
     }
-    topPages = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([page_path, views]) => ({ page_path, views }));
+    topPages = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([page_path, views]) => ({ page_path, views }));
   } else {
-    const { data } = await db.from('top_pages').select('*').limit(10);
-    topPages = data || [];
+    const pageCounts = await prisma.event.groupBy({
+      by: ['pagePath'],
+      where: { eventType: 'page_view', visitor: internalFilter, pagePath: { not: null } },
+      _count: true,
+      orderBy: { _count: { pagePath: 'desc' } },
+      take: 10,
+    });
+    topPages = pageCounts.map((r: typeof pageCounts[number]) => ({ page_path: r.pagePath, views: r._count }));
   }
 
   // Get top clicks
   let topClicks;
   if (includeInternal) {
-    const { data: allClicks } = await db
-      .from('events')
-      .select('event_name')
-      .eq('event_type', 'click')
-      .not('event_name', 'is', null);
+    const allClicks = await prisma.event.findMany({
+      where: { eventType: 'click', eventName: { not: null } },
+      select: { eventName: true },
+    });
     const counts = new Map<string, number>();
-    for (const row of allClicks || []) {
-      counts.set(row.event_name, (counts.get(row.event_name) || 0) + 1);
+    for (const row of allClicks) {
+      if (row.eventName) counts.set(row.eventName, (counts.get(row.eventName) || 0) + 1);
     }
-    topClicks = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([event_name, clicks]) => ({ event_name, clicks }));
+    topClicks = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([event_name, clicks]) => ({ event_name, clicks }));
   } else {
-    const { data } = await db.from('top_click_elements').select('*').limit(10);
-    topClicks = data || [];
+    const clickCounts = await prisma.event.groupBy({
+      by: ['eventName'],
+      where: { eventType: 'click', visitor: internalFilter, eventName: { not: null } },
+      _count: true,
+      orderBy: { _count: { eventName: 'desc' } },
+      take: 10,
+    });
+    topClicks = clickCounts.map((r: typeof clickCounts[number]) => ({ event_name: r.eventName, clicks: r._count }));
   }
 
   // Get export breakdown
   let exportBreakdown;
   if (includeInternal) {
-    const { data: allExports } = await db
-      .from('events')
-      .select('payload')
-      .eq('event_type', 'export');
+    const allExports = await prisma.event.findMany({
+      where: { eventType: 'export' },
+      select: { payload: true },
+    });
     const counts = new Map<string, { count: number; success: number }>();
-    for (const row of allExports || []) {
-      const format = String(row.payload?.format || 'unknown');
-      const success = Boolean(row.payload?.success ?? true);
+    for (const row of allExports) {
+      const p = row.payload as Record<string, unknown>;
+      const format = String(p?.format || 'unknown');
+      const success = Boolean(p?.success ?? true);
       const entry = counts.get(format) || { count: 0, success: 0 };
       entry.count++;
       if (success) entry.success++;
       counts.set(format, entry);
     }
-    exportBreakdown = [...counts.entries()]
-      .map(([format, { count, success }]) => ({ format, count, success_count: success }));
+    exportBreakdown = [...counts.entries()].map(([format, { count, success }]) => ({ format, count, success_count: success }));
   } else {
-    const { data } = await db.from('export_breakdown').select('*');
-    exportBreakdown = data || [];
+    // For filtered, use raw query for complex aggregation
+    const exports = await prisma.event.findMany({
+      where: { eventType: 'export', visitor: internalFilter },
+      select: { payload: true },
+    });
+    const counts = new Map<string, { count: number; success: number }>();
+    for (const row of exports) {
+      const p = row.payload as Record<string, unknown>;
+      const format = String(p?.format || 'unknown');
+      const success = Boolean(p?.success ?? true);
+      const entry = counts.get(format) || { count: 0, success: 0 };
+      entry.count++;
+      if (success) entry.success++;
+      counts.set(format, entry);
+    }
+    exportBreakdown = [...counts.entries()].map(([format, { count, success }]) => ({ format, count, success_count: success }));
   }
 
   // Get funnel
-  let funnel;
-  if (includeInternal) {
-    const stages = ['page_view', 'prompt_submitted', 'diagram_generated', 'export'];
-    funnel = [];
-    for (let i = 0; i < stages.length; i++) {
-      const { count } = await db
-        .from('events')
-        .select('visitor_id', { count: 'exact', head: true })
-        .eq('event_type', stages[i]);
-      funnel.push({ stage: stages[i], sort_order: i + 1, unique_visitors: count || 0 });
-    }
-  } else {
-    const { data } = await db.from('funnel_counts').select('*').order('sort_order');
-    funnel = data || [];
+  const stages = ['page_view', 'prompt_submitted', 'diagram_generated', 'export'];
+  const funnel = [];
+  for (let i = 0; i < stages.length; i++) {
+    const count = await prisma.event.count({
+      where: { eventType: stages[i], visitor: internalFilter },
+    });
+    funnel.push({ stage: stages[i], sort_order: i + 1, unique_visitors: count });
   }
 
   return NextResponse.json({
-    stats: stats || {},
-    daily: daily || [],
-    topPages: topPages || [],
-    topClicks: topClicks || [],
-    exportBreakdown: exportBreakdown || [],
-    funnel: funnel || [],
+    stats,
+    daily,
+    topPages,
+    topClicks,
+    exportBreakdown,
+    funnel,
   });
 }

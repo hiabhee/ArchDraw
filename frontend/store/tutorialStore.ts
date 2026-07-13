@@ -6,7 +6,7 @@ import type { Node, Edge } from 'reactflow';
 import type { TutorialDefinition, TutorialSession, PhaseName } from '@/lib/tutorial/schema';
 import type { AnyTutorial } from '@/data/tutorials';
 import * as engine from '@/lib/tutorial/engine';
-import { isSupabaseConfigured, isReachable, type TutorialProgressTable } from '@/lib/supabase';
+import { deleteTutorialProgressApi as apiDeleteTutorialProgress, saveTutorialProgress as apiSaveTutorialProgress, fetchTutorialProgress as apiGetTutorialProgress } from '@/lib/api-client';
 
 function migrateEdgesToSmoothstep(edges: Edge[]): SanitizedEdge[] {
   return edges.map((edge) => {
@@ -157,8 +157,8 @@ interface TutorialStoreState {
   getLevelCanvasState: (level: number) => { nodes: Node[]; edges: Edge[] } | null;
   clearProgress: (tutorialId: string) => void;
   clearAllProgress: () => void;
-  syncToSupabase: (tutorialId: string) => Promise<void>;
-  loadFromSupabase: (tutorialId: string) => Promise<TutorialProgressEntry | null>;
+  syncToDb: (tutorialId: string) => Promise<void>;
+  loadFromDb: (tutorialId: string) => Promise<TutorialProgressEntry | null>;
   setSwitchingTutorial: (v: boolean) => void;
 }
 
@@ -338,19 +338,13 @@ export const useTutorialStore = create<TutorialStoreState>()(
             isLevelComplete: false,
           });
           
-          // Delete from Supabase
-          if (isSupabaseConfigured && isReachable) {
-            import('@/lib/supabase').then(({ getSupabaseClient }) => {
-              import('@/store/authStore').then(({ useAuthStore }) => {
-                const { user } = useAuthStore.getState();
-                if (user && user.id !== 'guest') {
-                  getSupabaseClient()
-                    .from('tutorial_progress')
-                    .delete()
-                    .eq('user_id', user.id)
-                    .eq('tutorial_id', activeTutorial.id);
-                }
-              });
+          // Delete from DB
+          if (process.env.DATABASE_URL) {
+            import('@/store/authStore').then(({ useAuthStore }) => {
+              const { user } = useAuthStore.getState();
+              if (user && user.id !== 'guest') {
+                apiDeleteTutorialProgress(activeTutorial.id);
+              }
             });
           }
         }
@@ -379,7 +373,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
         });
 
         // Step 3: Try to upsert DB with fresh state (with timeout)
-        if (isSupabaseConfigured && isReachable) {
+        if (process.env.DATABASE_URL) {
           try {
             // Create a timeout promise that rejects after 5 seconds
             const timeoutPromise = new Promise<never>((_, reject) => 
@@ -395,28 +389,16 @@ export const useTutorialStore = create<TutorialStoreState>()(
             const { user } = await Promise.race([authPromise, timeoutPromise]) as { user: unknown };
             
             if (user && typeof user === 'object' && 'id' in user && (user as { id: string }).id !== 'guest') {
-              const { getSupabaseClient } = await import('@/lib/supabase');
-              const supabase = getSupabaseClient();
-              
-              const { error } = await (supabase.from('tutorial_progress') as any as TutorialProgressTable)
-                .upsert({
-                  user_id: (user as { id: string }).id,
-                  tutorial_id: tutorial.id,
-                  current_level: 1,
-                  current_step: 1,
-                  current_phase: 'context',
-                  completed_levels: [],
-                  canvas_nodes: [],
-                  canvas_edges: [],
-                  explain_count: 0,
-                  updated_at: new Date().toISOString(),
-                }, { onConflict: 'user_id,tutorial_id' })
-                .select()
-                .single();
-
-              if (error) {
-                logger.warn('[tutorialStore] Supabase upsert failed, continuing locally:', error.message);
-              }
+              await apiSaveTutorialProgress({
+                tutorialId: tutorial.id,
+                currentLevel: 1,
+                currentStep: 1,
+                currentPhase: 'context',
+                completedLevels: [],
+                canvasNodes: [],
+                canvasEdges: [],
+                explainCount: 0,
+              });
             }
           } catch (e) {
             // Timeout or auth error - continue with local-only mode
@@ -424,7 +406,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
           }
         }
 
-        // Start fresh locally (either Supabase not configured, auth timed out, or no user)
+        // Start fresh locally (either DB not configured, auth timed out, or no user)
         const session = engine.initSession(tutorial);
         set({
           activeTutorial: tutorial,
@@ -508,77 +490,62 @@ export const useTutorialStore = create<TutorialStoreState>()(
 
       clearAllProgress: () => set({ richProgress: {} }),
 
-      syncToSupabase: async (tutorialId) => {
+      syncToDb: async (tutorialId) => {
         const progress = get().richProgress[tutorialId];
         if (!progress) return;
         
         try {
-          if (!isSupabaseConfigured || !isReachable) return;
+          if (!process.env.DATABASE_URL) return;
 
           const { user } = (await import('@/store/authStore')).useAuthStore.getState();
           if (!user || user.id === 'guest') return;
 
           set({ isSyncing: true });
-          const { getSupabaseClient } = await import('@/lib/supabase');
-          const supabase = getSupabaseClient();
-          await (supabase.from('tutorial_progress') as any as TutorialProgressTable).upsert({
-            user_id: user.id,
-            tutorial_id: tutorialId,
-            current_level: progress.currentLevel,
-            current_step: progress.currentStep,
-            current_phase: progress.currentPhase,
-            completed_levels: progress.completedLevels,
-            canvas_nodes: progress.canvasNodes as any,
-            canvas_edges: progress.canvasEdges as any,
-            explain_count: progress.explainCount,
-            updated_at: progress.updatedAt,
-          }, { onConflict: 'user_id,tutorial_id' });
+          await apiSaveTutorialProgress({
+            tutorialId,
+            currentLevel: progress.currentLevel,
+            currentStep: progress.currentStep,
+            currentPhase: progress.currentPhase,
+            completedLevels: progress.completedLevels,
+            canvasNodes: progress.canvasNodes as object,
+            canvasEdges: progress.canvasEdges as object,
+            explainCount: progress.explainCount,
+          });
         } catch (e) {
-          logger.error('[tutorialStore] Sync to Supabase failed:', e);
+          logger.error('[tutorialStore] Sync to DB failed:', e);
           return;
         } finally {
           set({ isSyncing: false });
         }
       },
 
-      loadFromSupabase: async (tutorialId) => {
+      loadFromDb: async (tutorialId) => {
         try {
-          if (!isSupabaseConfigured || !isReachable) return null;
+          if (!process.env.DATABASE_URL) return null;
 
           const { user } = (await import('@/store/authStore')).useAuthStore.getState();
           if (!user || user.id === 'guest') return null;
 
-          const { getSupabaseClient } = await import('@/lib/supabase');
-          const supabase = getSupabaseClient();
-          const { data, error } = await (supabase.from('tutorial_progress') as any as TutorialProgressTable)
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('tutorial_id', tutorialId)
-            .maybeSingle();
+          const data = await apiGetTutorialProgress(tutorialId);
 
-          if (error) {
-            logger.error('[tutorialStore] Supabase error:', error.message);
-            return null;
-          }
-
-          if (!data || Array.isArray(data)) return null;
+          if (!data) return null;
 
           const progress: TutorialProgressEntry = {
-            tutorialId: data.tutorial_id,
-            currentLevel: data.current_level,
-            currentStep: data.current_step,
-            currentPhase: data.current_phase,
-            completedLevels: data.completed_levels,
-            canvasNodes: (data.canvas_nodes as any as SanitizedNode[]) ?? [],
-            canvasEdges: migrateEdgesToSmoothstep(data.canvas_edges as any as Edge[]),
-            explainCount: data.explain_count,
-            updatedAt: data.updated_at ?? new Date().toISOString(),
+            tutorialId: data.tutorialId,
+            currentLevel: data.currentLevel,
+            currentStep: data.currentStep,
+            currentPhase: data.currentPhase,
+            completedLevels: data.completedLevels,
+            canvasNodes: (data.canvasNodes as unknown as SanitizedNode[]) ?? [],
+            canvasEdges: migrateEdgesToSmoothstep(data.canvasEdges as unknown as Edge[]),
+            explainCount: data.explainCount,
+            updatedAt: data.updatedAt?.toISOString() ?? new Date().toISOString(),
           };
 
           get().saveProgress(tutorialId, progress);
           return progress;
         } catch (e) {
-          logger.error('[tutorialStore] Load from Supabase failed:', e);
+          logger.error('[tutorialStore] Load from DB failed:', e);
           return null;
         }
       },

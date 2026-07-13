@@ -86,12 +86,6 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   };
 
   const handleDownloadClick = () => {
-    // Check if dismissed this session
-    const dismissed = typeof window !== 'undefined' && sessionStorage.getItem('emailModalDismissed') === 'true';
-    if (dismissed) {
-      doDownload();
-      return;
-    }
     setShowEmailCapture(true);
   };
 
@@ -165,11 +159,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       {showEmailCapture && (
         <EmailCaptureModal
           reason="download"
-          onClose={() => {
-            setShowEmailCapture(false);
-            // After dismissing, allow direct download
-            doDownload();
-          }}
+          onClose={() => setShowEmailCapture(false)}
         />
       )}
     </div>

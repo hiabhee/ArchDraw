@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { redis, redisKeys } from '@/lib/redis';
+import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 import logger from '@/lib/logger';
@@ -126,29 +126,23 @@ export async function GET(
   try {
     data = await redis.get<SharedCanvas>(redisKeys.sharedCanvas(id));
   } catch {
-    // Redis failed, continue to Supabase
+    // Redis failed, continue to Neon
   }
 
-  // Supabase fallback
+  // Neon/Prisma fallback
   if (!data) {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    const { data: row, error } = await supabase
-      .from('shared_canvases')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const row = await prisma.sharedCanvas.findUnique({
+      where: { id },
+    });
 
-    if (error || !row) {
+    if (!row) {
       return NextResponse.json(
         { error: 'Diagram not found' }, 
         { status: 404, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
       );
     }
 
-    data = row as SharedCanvas;
+    data = row as unknown as SharedCanvas;
 
     // Cache to Redis with 24-hour TTL
     try {

@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import prisma from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-function getAdminClient() {
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
 export async function GET(req: NextRequest) {
-  if (!supabaseServiceKey) {
-    return NextResponse.json({ error: 'Service key not configured' }, { status: 500 });
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -26,41 +17,30 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search');
   const includeInternal = searchParams.get('internal') === 'include';
 
-  const db = getAdminClient();
-
-  let query = db
-    .from('events')
-    .select(`
-      id,
-      session_id,
-      visitor_id,
-      event_type,
-      event_name,
-      page_path,
-      payload,
-      created_at,
-      visitors!inner (anon_id, user_id, is_internal),
-      sessions (entry_page, device_type)
-    `)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (eventType) query = query.eq('event_type', eventType);
-  if (sessionId) query = query.eq('session_id', sessionId);
-  if (visitorId) query = query.eq('visitor_id', visitorId);
+  const where: Record<string, unknown> = {};
+  if (eventType) where.eventType = eventType;
+  if (sessionId) where.sessionId = sessionId;
+  if (visitorId) where.visitorId = visitorId;
   if (search) {
-    query = query.or(`event_name.ilike.%${search}%,page_path.ilike.%${search}%`);
+    where.OR = [
+      { eventName: { contains: search, mode: 'insensitive' } },
+      { pagePath: { contains: search, mode: 'insensitive' } },
+    ];
   }
-
-  // Filter out internal traffic unless explicitly requested
   if (!includeInternal) {
-    query = query.eq('visitors.is_internal', false);
+    where.visitor = { isInternal: false };
   }
 
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const data = await prisma.event.findMany({
+    where,
+    include: {
+      visitor: { select: { anonId: true, userId: true, isInternal: true } },
+      session: { select: { entryPage: true, deviceType: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    skip: offset,
+    take: limit,
+  });
 
   return NextResponse.json({ events: data || [] });
 }

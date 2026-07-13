@@ -11,7 +11,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useAuthStore } from '@/store/authStore';
-import { isSupabaseConfigured } from '@/lib/supabase';
+
 
 const ICON: Record<string, string> = {
   Client: '🖥️',
@@ -139,7 +139,7 @@ export default function LandingPage() {
   const { user } = useAuthStore();
 
   useEffect(() => {
-    if (isSupabaseConfigured && user) {
+    if (user && user.id !== 'guest') {
       router.replace('/dashboard');
       return;
     }

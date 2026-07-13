@@ -1,8 +1,6 @@
 import { ImageResponse } from 'next/og';
-import { createClient } from '@supabase/supabase-js';
+import prisma from '@/lib/prisma';
 import type { Node } from 'reactflow';
-
-export const runtime = 'edge';
 
 export async function GET(
   request: Request,
@@ -10,19 +8,13 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // Fetch diagram from Neon via Prisma
+  const diagram = await prisma.sharedCanvas.findUnique({
+    where: { id },
+    select: { canvasName: true, nodes: true },
+  });
 
-  // Fetch diagram from Supabase
-  const { data: diagram, error } = await supabase
-    .from('shared_canvases')
-    .select('canvas_name, nodes')
-    .eq('id', id)
-    .single();
-
-  if (error || !diagram) {
+  if (!diagram) {
     return new ImageResponse(
       (
         <div
@@ -46,7 +38,7 @@ export async function GET(
     );
   }
 
-  const nodes = (diagram.nodes as Node[]) || [];
+  const nodes = (diagram.nodes as unknown as Node[]) || [];
   const nodeCount = nodes.length;
 
   return new ImageResponse(
@@ -101,7 +93,7 @@ export async function GET(
         {/* Title */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ color: '#f1f5f9', fontSize: 36, fontWeight: 700 }}>
-            {diagram.canvas_name || 'Architecture Diagram'}
+            {diagram.canvasName || 'Architecture Diagram'}
           </span>
           <span style={{ color: '#64748b', fontSize: 18, marginTop: 8 }}>
             Interactive system architecture diagram
