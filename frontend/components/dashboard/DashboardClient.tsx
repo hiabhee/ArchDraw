@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
+import { analytics } from '@/lib/analytics';
 import type { Template } from '@/data/templates';
 
 interface DashboardClientProps {
@@ -28,6 +29,12 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
   const [now] = useState(() => Date.now());
 
   const handleNewCanvas = (fromTemplate?: string) => {
+    analytics.track({
+      event_type: 'click',
+      event_name: 'new_canvas',
+      page_path: window.location.pathname,
+      payload: { from_template: fromTemplate || null },
+    });
     if (fromTemplate) {
       router.push(`/editor?template=${fromTemplate}`);
     } else {
@@ -37,6 +44,12 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
   };
 
   const handleOpenCanvas = (id: string) => {
+    analytics.track({
+      event_type: 'click',
+      event_name: 'open_canvas',
+      page_path: window.location.pathname,
+      payload: { canvas_id: id },
+    });
     switchCanvas(id);
     router.push('/editor');
   };

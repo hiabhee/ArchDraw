@@ -19,6 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useOnboarding } from '@/components/onboarding/useOnboarding';
 import { componentRegistry } from '@/lib/componentRegistry';
 import { toast } from 'sonner';
+import { analytics } from '@/lib/analytics';
 import type { GenerationProgress } from '@/lib/ai/types';
 import { ContextualSidebar } from '@/components/editor/ContextualSidebar';
 import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
@@ -273,6 +274,7 @@ export default function EditorPage() {
     const selectedModel = useModelStore.getState().selectedModel;
     setProgress(null);
     setLastPrompt(description);
+    const generationStart = Date.now();
     const resolvedDetailLevel = typeof detailLevelOrSize === 'number' ? detailLevelOrSize : detailLevelOrSize === 'small' ? 1 : detailLevelOrSize === 'medium' ? 2 : 3;
     const detailLevel = resolvedDetailLevel;
     const diagramSize = detailLevel === 1 ? 'small' : detailLevel === 2 ? 'medium' : 'large';
@@ -340,6 +342,19 @@ export default function EditorPage() {
 
         markPipelineDone();
         toast.success(`Generated repo diagram: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
+
+        analytics.track({
+          event_type: 'diagram_generated',
+          page_path: window.location.pathname,
+          payload: {
+            model: 'repo-ingest',
+            diagram_size: 'medium',
+            duration_ms: Date.now() - generationStart,
+            is_repo_url: true,
+            node_count: parsed.nodeCount,
+            edge_count: parsed.edgeCount,
+          },
+        });
         return;
       }
 
@@ -375,6 +390,20 @@ export default function EditorPage() {
       handleGenerationComplete(responseData.data, canvasName);
       markPipelineDone();
 
+      analytics.track({
+        event_type: 'diagram_generated',
+        page_path: window.location.pathname,
+        payload: {
+          model: selectedModel,
+          detail_level: detailLevel,
+          diagram_size: diagramSize,
+          duration_ms: Date.now() - generationStart,
+          is_repo_url: false,
+          node_count: responseData.data?.nodes?.length,
+          edge_count: responseData.data?.edges?.length,
+        },
+      });
+
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Generation failed';
       markPipelineError(message);
@@ -387,6 +416,19 @@ export default function EditorPage() {
         progress: 0,
       });
       toast.error(message);
+
+      analytics.track({
+        event_type: 'diagram_generated',
+        page_path: window.location.pathname,
+        payload: {
+          model: selectedModel,
+          detail_level: detailLevel,
+          diagram_size: diagramSize,
+          duration_ms: Date.now() - generationStart,
+          success: false,
+          error: message,
+        },
+      });
     } finally {
       setTimeout(() => {
         setProgress(null);

@@ -27,6 +27,7 @@ import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
+import { analytics } from '@/lib/analytics';
 
 type ExportFormat = 'png-dark-4x' | 'png-light-4x' | 'png-transparent-4x' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
 
@@ -346,6 +347,12 @@ export function Toolbar() {
             const pngBlob = await dataUrlToBlob(pngDataUrl);
             downloadFile(pngBlob, 'archdraw-export.png');
             toast.warning('SVG too large, exported as PNG instead');
+          analytics.track({
+            event_type: 'export',
+            event_name: 'svg_fallback_png',
+            page_path: window.location.pathname,
+            payload: { format: 'png-fallback', success: true },
+          });
           } catch (error) {
             logger.error('PNG export failed:', error);
             toast.error('Export failed');
@@ -353,6 +360,12 @@ export function Toolbar() {
         } else {
           downloadFile(blob, 'archdraw-export.svg');
           toast.success('Exported as SVG');
+          analytics.track({
+            event_type: 'export',
+            event_name: 'svg',
+            page_path: window.location.pathname,
+            payload: { format: 'svg', success: true },
+          });
         }
         return;
       }
@@ -402,14 +415,31 @@ export function Toolbar() {
         pdf.addImage(dataUrl, 'PNG', 0, 0, img.width, img.height);
         pdf.save('archdraw-export.pdf');
         toast.success('Exported as PDF');
+        analytics.track({
+          event_type: 'export',
+          event_name: 'pdf',
+          page_path: window.location.pathname,
+          payload: { format: 'pdf', success: true },
+        });
       } else {
         const suffix = pixelRatio === 1 ? '' : pixelRatio === 2 ? '@2x' : '@4x';
         downloadFile(await dataUrlToBlob(dataUrl), `archdraw-export${suffix}.png`);
         toast.success(`Exported as PNG ${pixelRatio}x`);
+        analytics.track({
+          event_type: 'export',
+          event_name: 'png',
+          page_path: window.location.pathname,
+          payload: { format: format, pixel_ratio: pixelRatio, success: true },
+        });
       }
     } catch (err) {
       toast.error('Export failed. Please try again.');
       logger.error(err);
+      analytics.track({
+        event_type: 'export',
+        page_path: window.location.pathname,
+        payload: { format: 'unknown', success: false, error: String(err) },
+      });
     } finally {
       setIsExporting(false);
     }
@@ -478,6 +508,13 @@ export function Toolbar() {
         setShareLinkPermission('viewer');
         setSharePeople([{ email: userEmail, name: userName, role: 'owner' }]);
         setShareModalOpen(true);
+
+        analytics.track({
+          event_type: 'share',
+          event_name: 'share_link_created',
+          page_path: window.location.pathname,
+          payload: { node_count: nodes.length, edge_count: edges.length },
+        });
       } else {
         toast.error('Could not generate share link');
       }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/components/AuthProvider';
+import { AnalyticsProvider } from '@/components/AnalyticsProvider';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Analytics } from "@vercel/analytics/react"
@@ -120,7 +121,9 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="archdraw-theme" themes={['dark', 'light']}>
           <AuthProvider>
-            {children}
+            <AnalyticsProvider>
+              {children}
+            </AnalyticsProvider>
             <Toaster position="bottom-right" theme="light" richColors />
           </AuthProvider>
         </ThemeProvider>

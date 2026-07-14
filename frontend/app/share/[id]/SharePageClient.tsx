@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SharedCanvasViewer } from '@/components/SharedCanvasViewer';
+import { analytics } from '@/lib/analytics';
 
 interface ShareUser {
   email: string;
@@ -40,8 +41,20 @@ export default function SharePageClient({ id }: { id: string }) {
       .then(result => {
         if (result.error) {
           setError(result.error);
+          analytics.track({
+            event_type: 'share_view',
+            event_name: 'error',
+            page_path: window.location.pathname,
+            payload: { share_id: id, error: result.error },
+          });
         } else {
           setData(result);
+          analytics.track({
+            event_type: 'share_view',
+            event_name: 'success',
+            page_path: window.location.pathname,
+            payload: { share_id: id, node_count: result.canvas?.nodes?.length },
+          });
         }
       })
       .catch(() => setError('Failed to load diagram'))

@@ -24,10 +24,10 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 const NAV_LINKS = [
-  { label: 'Features', href: '#features' },
-  { label: 'How it works', href: '#how-it-works' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'Docs', href: '/docs' },
+  { label: 'Features', href: '#features', track: 'nav_features' },
+  { label: 'How it works', href: '#how-it-works', track: 'nav_how_it_works' },
+  { label: 'Pricing', href: '#pricing', track: 'nav_pricing' },
+  { label: 'Docs', href: '/docs', track: 'nav_docs' },
 ];
 
 const TECH_LOGOS = [
@@ -149,6 +149,7 @@ function TopNav() {
               <a
                 key={link.href}
                 href={link.href}
+                data-track={link.track}
                 className="px-3 py-1.5 text-sm text-[#575752] hover:text-accent rounded-md transition-colors duration-150 font-medium"
               >
                 {link.label}
@@ -159,12 +160,14 @@ function TopNav() {
         <div className="hidden md:flex items-center gap-3">
           <a
             href="/dashboard"
+            data-track="nav_sign_in"
             className="text-sm text-[#575752] hover:text-[#1c1c1a] px-4 py-1.5 rounded-lg border border-[#e4e4df] bg-white hover:bg-slate-50 transition-all duration-150 font-medium"
           >
             Sign in
           </a>
           <a
             href="/dashboard"
+            data-track="nav_get_started"
             className="text-sm font-semibold text-white bg-accent hover:bg-accent-hover px-4 py-1.5 rounded-lg transition-all duration-150 shadow-[0_4px_12px_rgba(94,106,210,0.2)] hover:shadow-[0_4px_16px_rgba(94,106,210,0.35)] hover:-translate-y-0.5 active:translate-y-0"
           >
             Get started free
@@ -386,12 +389,14 @@ function HeroSection() {
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-10">
           <a
             href="/dashboard"
+            data-track="hero_generate_diagram"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-accent hover:bg-accent-hover px-6 py-3 rounded-lg transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_20px_rgba(94,106,210,0.3)] hover:shadow-[0_4px_25px_rgba(94,106,210,0.45)]"
           >
             Generate my diagram free <ArrowRight size="15" />
           </a>
           <a
             href="/dashboard/templates"
+            data-track="hero_see_examples"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-text-primary bg-surface-panel border border-border hover:bg-surface-page px-6 py-3 rounded-lg transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0"
           >
             See example diagrams
@@ -464,6 +469,7 @@ function ProblemSection() {
           </p>
           <a
             href="/dashboard"
+            data-track="problem_get_started"
             className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-accent hover:text-accent-hover transition-colors"
           >
             Get started now <ArrowRight size="14" className="ml-1" />
@@ -895,6 +901,7 @@ function PricingSection() {
           
           <a
             href="/dashboard"
+            data-track="pricing_get_started"
             className="mt-6 w-full inline-flex items-center justify-center gap-2 text-xs font-bold text-[#1c1c1a] bg-[#f1f1eb] border border-[#e4e4df] hover:bg-slate-100 p-3 rounded-lg transition-colors cursor-pointer"
           >
             Get started free immediately
@@ -1018,12 +1025,14 @@ function CTABanner() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
           <a
             href="/dashboard"
+            data-track="cta_generate_diagram"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-accent hover:bg-accent-hover px-6 py-3 rounded-lg transition-colors shadow-md cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
           >
             Generate my diagram free <ArrowRight size="15" />
           </a>
           <a
             href="/dashboard/templates"
+            data-track="cta_see_examples"
             className="w-full sm:w-auto text-sm font-semibold text-[#1c1c1a] bg-[#f1f1eb] border border-[#e4e4df] hover:bg-slate-100 px-6 py-3 rounded-lg transition-colors cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
           >
             See example diagrams

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield } from 'lucide-react';
+import { analytics } from '@/lib/analytics';
 
 export default function AdminLoginPage() {
   const [passcode, setPasscode] = useState('');
@@ -31,16 +32,32 @@ export default function AdminLoginPage() {
         const data = await res.json();
         setError(data.error || 'Too many attempts');
         setLoading(false);
+        analytics.track({
+          event_type: 'admin_login',
+          event_name: 'rate_limited',
+          page_path: window.location.pathname,
+        });
         return;
       }
 
       if (!res.ok) {
         setError('Invalid passcode');
         setLoading(false);
+        analytics.track({
+          event_type: 'admin_login',
+          event_name: 'failed',
+          page_path: window.location.pathname,
+        });
         return;
       }
 
       router.replace('/admin');
+
+      analytics.track({
+        event_type: 'admin_login',
+        event_name: 'success',
+        page_path: window.location.pathname,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Connection failed: ${msg}`);

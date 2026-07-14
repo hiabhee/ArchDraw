@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authClient } from '@/lib/auth-client';
+import { analytics } from '@/lib/analytics';
 
 interface AuthUser {
   id: string;
@@ -58,6 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           loading: false,
           initialized: true,
         });
+        analytics.identify(u.id);
       } else {
         set({
           user: { id: 'guest', email: 'guest@local', name: 'Guest User', image: null, emailVerified: false, createdAt: new Date() },

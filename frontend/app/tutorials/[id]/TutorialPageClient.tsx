@@ -12,6 +12,7 @@ import { validateStep } from '@/lib/tutorialValidation';
 import { GuidePanel } from '@/components/tutorial/GuidePanel';
 import { IntroCardFlow } from '@/components/tutorial/IntroCardFlow';
 import { CompletionCardFlow } from '@/components/tutorial/CompletionCardFlow';
+import { analytics } from '@/lib/analytics';
 import logger from '@/lib/logger';
 import type { TutorialData } from '@/data/tutorials';
 import type { Tutorial, TutorialLevel, TutorialStep } from '@/lib/tutorial/types';
@@ -211,6 +212,12 @@ export default function TutorialPage() {
       
       // Successfully started fresh - skip intro since we reset to step 1
       setIntroSkipped(true);
+
+      analytics.track({
+        event_type: 'tutorial_started',
+        page_path: window.location.pathname,
+        payload: { tutorial_id: tutorial.id, tutorial_title: tutorial.title },
+      });
     };
 
     start();
@@ -245,6 +252,12 @@ export default function TutorialPage() {
     if (headerRestartTimer.current) clearTimeout(headerRestartTimer.current);
 
     toast.success('Tutorial restarted');
+
+    analytics.track({
+      event_type: 'tutorial_restarted',
+      page_path: window.location.pathname,
+      payload: { tutorial_id: tutorial.id, tutorial_title: tutorial.title },
+    });
   }, [tutorial, startTutorialFresh]);
 
   const showHeaderConfirm = useCallback(() => {
@@ -259,8 +272,15 @@ export default function TutorialPage() {
     if (!tutorial || !levels.length) return;
     const nextLevelData = levels[currentLevel]; // currentLevel is 1-indexed, levels is 0-indexed
     if (!nextLevelData) return;
+
+    analytics.track({
+      event_type: 'tutorial_level_completed',
+      page_path: window.location.pathname,
+      payload: { tutorial_id: tutorial.id, level: currentLevel, next_level: currentLevel + 1, node_count: nodes.length, edge_count: edges.length },
+    });
+
     advanceLevel(nextLevelData.steps.length);
-  }, [levels, currentLevel, advanceLevel, tutorial]);
+  }, [levels, currentLevel, advanceLevel, tutorial, nodes.length, edges.length]);
 
   const handleSaveAndLeave = useCallback(() => {
     dismissLevelComplete();
@@ -288,6 +308,17 @@ export default function TutorialPage() {
     setShowIntro(false);
     setIntroSkipped(true);
   }, []);
+
+  // Track tutorial completion
+  useEffect(() => {
+    if (isComplete && tutorial) {
+      analytics.track({
+        event_type: 'tutorial_completed',
+        page_path: window.location.pathname,
+        payload: { tutorial_id: tutorial.id, tutorial_title: tutorial.title, total_steps: totalSteps },
+      });
+    }
+  }, [isComplete, tutorial, totalSteps]);
 
   // Calculate component count for intro
   const componentCount = useMemo(() => 

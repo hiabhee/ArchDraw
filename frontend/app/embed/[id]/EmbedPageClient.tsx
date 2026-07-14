@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { EmbedCanvasViewer } from '@/components/embed/EmbedCanvasViewer';
+import { analytics } from '@/lib/analytics';
 import type { Node, Edge } from 'reactflow';
 
 interface DiagramData {
@@ -32,10 +33,22 @@ export default function EmbedPageClient({ id, searchParams }: EmbedPageClientPro
         const response = await fetch(`/api/embed/${id}`);
         if (!response.ok) {
           setError(response.status === 404 ? 'not_found' : 'failed');
+          analytics.track({
+            event_type: 'embed_view',
+            event_name: 'error',
+            page_path: window.location.pathname,
+            payload: { embed_id: id, status: response.status },
+          });
           return;
         }
         const data = await response.json();
         setDiagram(data);
+        analytics.track({
+          event_type: 'embed_view',
+          event_name: 'success',
+          page_path: window.location.pathname,
+          payload: { embed_id: id, node_count: data.nodes?.length },
+        });
       } catch {
         setError('failed');
       } finally {
