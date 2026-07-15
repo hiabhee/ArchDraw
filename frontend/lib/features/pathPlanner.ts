@@ -173,7 +173,7 @@ function flowDirectionPenalty(
   const sH = sourceSide === Position.Left || sourceSide === Position.Right
   const tH = targetSide === Position.Left || targetSide === Position.Right
   const aligned = horizontal ? (sH && tH) : (!sH && !tH)
-  return aligned ? 0 : 50
+  return aligned ? 0 : 150
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -473,7 +473,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
         // Score: lower is better
         const BEND_PENALTY = 100
-        const LENGTH_PENALTY = 10
+        const LENGTH_PENALTY = 3
         const EDGE_CROSS_PENALTY = 50
 
         const score =
@@ -540,7 +540,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
         const score =
           100 * bends +
-          10 * len +
+          3 * len +
           50 * edgeCrossings +
           flowPen -
           stabilityBonus
@@ -569,7 +569,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
   if (!best) return null
 
   const labelSeg = findLongestSegment(best.points)
-  const borderRadius = 12
+  const borderRadius = 24
   const svgPath = buildSmoothStepSvg(best.points, borderRadius)
 
   return {

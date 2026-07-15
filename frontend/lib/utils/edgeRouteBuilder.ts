@@ -262,25 +262,52 @@ export function computeEdgeRoute(
       return index === -1 ? 0 : (index - (parallelEdges.length - 1) / 2) * 20
     })()
 
-    const directWaypoints = [
-      { x: sh.x, y: sh.y },
-      { x: (sh.x + th.x) / 2, y: sh.y },
-      { x: (sh.x + th.x) / 2, y: th.y },
-      { x: th.x, y: th.y },
-    ]
+    const sourceIsH = sourcePosition === Position.Left || sourcePosition === Position.Right
+    const targetIsH = targetPosition === Position.Left || targetPosition === Position.Right
+
+    let directWaypoints: Array<{ x: number; y: number }>
+    if (sourceIsH && targetIsH) {
+      const mx = (sh.x + th.x) / 2
+      directWaypoints = [
+        { x: sh.x, y: sh.y },
+        { x: mx, y: sh.y },
+        { x: mx, y: th.y },
+        { x: th.x, y: th.y },
+      ]
+    } else if (!sourceIsH && !targetIsH) {
+      const my = (sh.y + th.y) / 2
+      directWaypoints = [
+        { x: sh.x, y: sh.y },
+        { x: sh.x, y: my },
+        { x: th.x, y: my },
+        { x: th.x, y: th.y },
+      ]
+    } else if (sourceIsH) {
+      directWaypoints = [
+        { x: sh.x, y: sh.y },
+        { x: th.x, y: sh.y },
+        { x: th.x, y: th.y },
+      ]
+    } else {
+      directWaypoints = [
+        { x: sh.x, y: sh.y },
+        { x: sh.x, y: th.y },
+        { x: th.x, y: th.y },
+      ]
+    }
     const waypoints = nodeRectParam && pathCollidesWithRects(directWaypoints, nodeRects)
       ? getCollisionFreeWaypoints({
           sourceX: sh.x, sourceY: sh.y,
           targetX: th.x, targetY: th.y,
           sourcePosition,
           targetPosition,
-          borderRadius: 12,
+          borderRadius: 24,
           edgeOffset,
           nodeRects: nodeRectParam,
           excludedNodeIds: excludedIds,
         })
       : directWaypoints
-    const svgPath = buildSmoothStepSvg(waypoints, 12)
+    const svgPath = buildSmoothStepSvg(waypoints, 24)
 
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
@@ -370,7 +397,7 @@ export function computeEdgeRoute(
     if (index !== -1) edgeOffset = (index - (parallelEdges.length - 1) / 2) * 20
   }
 
-  const borderRadius = 12
+  const borderRadius = 24
   const waypoints = getCollisionFreeWaypoints({
     sourceX: sh.x, sourceY: sh.y,
     targetX: th.x, targetY: th.y,

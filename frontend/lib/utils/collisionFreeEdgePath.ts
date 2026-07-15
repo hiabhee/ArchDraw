@@ -716,7 +716,7 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   const targetDir = getOutwardDirection(targetPosition);
 
   const dist = Math.abs(sx - tx) + Math.abs(sy - ty);
-  const radius = params.borderRadius ?? 12;
+  const radius = params.borderRadius ?? 24;
   const minStub = radius > 0 ? Math.max(8, radius + 4) : 8;
   const maxStub = radius > 0 ? Math.max(minStub, 44) : 20;
   const stubLen = Math.max(minStub, Math.min(maxStub, dist / 3));
@@ -791,7 +791,8 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
     { x: tx, y: ty }
   ];
 
-  return simplifyOrthogonalPath(fullWaypoints);
+  const simplified = simplifyOrthogonalPath(fullWaypoints);
+  return enforceTerminalStubs(simplified, sourcePosition, targetPosition, stubLen);
 }
 
 export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {
@@ -799,7 +800,7 @@ export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Arra
 }
 
 export function getCollisionFreeSmoothStepPath(params: CollisionFreePathParams): string {
-  const { borderRadius = 12 } = params;
+  const { borderRadius = 24 } = params;
   const waypoints = computeWaypoints(params);
   return buildSmoothStepSvg(waypoints, borderRadius);
 }

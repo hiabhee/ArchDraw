@@ -370,7 +370,7 @@ export function getObstacleAwareHandles(
     return { collisions, pathLen, crossesBody, isMixed, sameSide, flowAligned, dirAligned };
   }
 
-  const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId);
+  const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId, direction);
 
   const candidates: Array<{ source: Position; target: Position; label: string }> = [];
 
