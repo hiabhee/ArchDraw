@@ -117,4 +117,23 @@ describe('pathPlanner', () => {
     expect(previous.x).toBe(target.x)
     expect(previous.y).toBeLessThan(target.y)
   })
+
+  it('uses a normal vertical entry for upper-right to lower-left node routes', () => {
+    const source = makeNode('health-checks', 198, 17, 153, 90)
+    const target = makeNode('load-balancing', 27, 254, 153, 90)
+    const edge = {
+      id: 'edge-health-load-balancing',
+      source: 'health-checks',
+      target: 'load-balancing',
+      data: {},
+    } as Edge
+
+    const route = computeEdgeRoute(edge, [source, target], [edge])
+    const beforeTarget = route.waypoints[route.waypoints.length - 2]
+
+    expect(route.sourcePosition).toBe(Position.Bottom)
+    expect(route.targetPosition).toBe(Position.Top)
+    expect(beforeTarget.x).toBe(route.targetPoint.x)
+    expect(beforeTarget.y).toBeLessThan(route.targetPoint.y)
+  })
 })

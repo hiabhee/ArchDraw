@@ -25,7 +25,7 @@ interface FloatingHandleProps {
 
 function SingleFloatingHandle({ side, type }: FloatingHandleProps) {
   const id = `${type}-${side}`;
-  const offset = type === 'target' ? 'calc(50% - 12px)' : 'calc(50% + 12px)';
+  const offset = '50%';
 
   const isHorizontal = side === 'left' || side === 'right';
   const pos = side === 'left' ? Position.Left : side === 'right' ? Position.Right : side === 'top' ? Position.Top : Position.Bottom;
@@ -35,13 +35,13 @@ function SingleFloatingHandle({ side, type }: FloatingHandleProps) {
     ...(isHorizontal
       ? {
           left: side === 'left' ? 0 : undefined,
-          right: side === 'right' ? 0 : undefined,
+          right: side === 'right' ? -12 : undefined,
           top: offset,
           transform: 'translateY(-50%)',
         }
       : {
           top: side === 'top' ? 0 : undefined,
-          bottom: side === 'bottom' ? 0 : undefined,
+          bottom: side === 'bottom' ? -12 : undefined,
           left: offset,
           transform: 'translateX(-50%)',
         }),

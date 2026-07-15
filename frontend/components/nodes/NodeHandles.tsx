@@ -4,7 +4,7 @@ import { Handle, Position } from 'reactflow';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
-const TYPES = ['target', 'source'] as const; // target = incoming, source = output
+const TYPES = ['target', 'source'] as const;
 
 interface NodeHandleProps {
   side: Side;
@@ -15,9 +15,7 @@ interface NodeHandleProps {
 function SingleHandle({ side, type, style }: NodeHandleProps) {
   const id = `${type}-${side}`;
   
-  // 1 handle for incoming request (target) at -12px, 
-  // 1 handle for output request (source) at +12px
-  const offset = type === 'target' ? 'calc(50% - 12px)' : 'calc(50% + 12px)';
+  const offset = '50%';
 
   const isHorizontal = side === 'left' || side === 'right';
   const pos = side === 'left' ? Position.Left : side === 'right' ? Position.Right : side === 'top' ? Position.Top : Position.Bottom;

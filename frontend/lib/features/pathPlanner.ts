@@ -45,16 +45,20 @@ export interface PathPlannerConfig {
   preferredPair?: { source: Position; target: Position }
 }
 
-const PORT_OFFSET = 12
+type PortType = 'source' | 'target'
 
-function getPortPoint(rect: ObstacleRect, side: Position): Point {
+const PORT_OFFSET = 0
+const HANDLE_AXIS_OFFSET = 0
+
+function getPortPoint(rect: ObstacleRect, side: Position, portType: PortType): Point {
   const cx = rect.x + rect.w / 2
   const cy = rect.y + rect.h / 2
+  const axisOffset = portType === 'source' ? HANDLE_AXIS_OFFSET : -HANDLE_AXIS_OFFSET
   switch (side) {
-    case Position.Top:    return { x: cx, y: rect.y - PORT_OFFSET }
-    case Position.Bottom: return { x: cx, y: rect.y + rect.h + PORT_OFFSET }
-    case Position.Left:   return { x: rect.x - PORT_OFFSET, y: cy }
-    case Position.Right:  return { x: rect.x + rect.w + PORT_OFFSET, y: cy }
+    case Position.Top:    return { x: cx + axisOffset, y: rect.y - PORT_OFFSET }
+    case Position.Bottom: return { x: cx + axisOffset, y: rect.y + rect.h + PORT_OFFSET }
+    case Position.Left:   return { x: rect.x - PORT_OFFSET, y: cy + axisOffset }
+    case Position.Right:  return { x: rect.x + rect.w + PORT_OFFSET, y: cy + axisOffset }
   }
 }
 
@@ -73,9 +77,9 @@ function exitStub(p: Point, side: Position, len: number): Point {
 }
 
 function entryStub(p: Point, side: Position, len: number): Point {
-  // Entry approaches from outside: opposite direction of the side's outward normal
+  // Entry approaches from outside: extend away from the node along the side's outward normal.
   const d = exitDir(side)
-  return { x: p.x - d.dx * len, y: p.y - d.dy * len }
+  return { x: p.x + d.dx * len, y: p.y + d.dy * len }
 }
 
 function isHorizontal(side: Position): boolean {
@@ -169,7 +173,7 @@ function flowDirectionPenalty(
   const sH = sourceSide === Position.Left || sourceSide === Position.Right
   const tH = targetSide === Position.Left || targetSide === Position.Right
   const aligned = horizontal ? (sH && tH) : (!sH && !tH)
-  return aligned ? 0 : 500
+  return aligned ? 0 : 50
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -439,8 +443,8 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
   for (const sp of allPositions) {
     for (const tp of allPositions) {
-      const sPoint = getPortPoint(sourceRect, sp)
-      const tPoint = getPortPoint(targetRect, tp)
+      const sPoint = getPortPoint(sourceRect, sp, 'source')
+      const tPoint = getPortPoint(targetRect, tp, 'target')
 
       for (const tmpl of allTemplates) {
         const pts = tmpl.fn(sPoint, sp, tPoint, tp, stubLength)
@@ -469,7 +473,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
         // Score: lower is better
         const BEND_PENALTY = 100
-        const LENGTH_PENALTY = 1
+        const LENGTH_PENALTY = 10
         const EDGE_CROSS_PENALTY = 50
 
         const score =
@@ -481,8 +485,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
         const isBetter =
           !best ||
-          bends < best.bends ||
-          (bends === best.bends && score < best.score)
+          score < best.score
 
         if (isBetter) {
           best = {
@@ -509,8 +512,8 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
     for (const sp of allPositions) {
       for (const tp of allPositions) {
-        const sPoint = getPortPoint(sourceRect, sp)
-        const tPoint = getPortPoint(targetRect, tp)
+        const sPoint = getPortPoint(sourceRect, sp, 'source')
+        const tPoint = getPortPoint(targetRect, tp, 'target')
         const pts = getCollisionFreeWaypoints({
           sourceX: sPoint.x,
           sourceY: sPoint.y,
@@ -537,7 +540,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
         const score =
           100 * bends +
-          len +
+          10 * len +
           50 * edgeCrossings +
           flowPen -
           stabilityBonus
@@ -566,16 +569,16 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
   if (!best) return null
 
   const labelSeg = findLongestSegment(best.points)
-  const borderRadius = 40
+  const borderRadius = 12
   const svgPath = buildSmoothStepSvg(best.points, borderRadius)
 
   return {
     sourcePort: {
-      point: getPortPoint(sourceRect, best.sourcePos),
+      point: getPortPoint(sourceRect, best.sourcePos, 'source'),
       side: best.sourcePos,
     },
     targetPort: {
-      point: getPortPoint(targetRect, best.targetPos),
+      point: getPortPoint(targetRect, best.targetPos, 'target'),
       side: best.targetPos,
     },
     points: best.points,

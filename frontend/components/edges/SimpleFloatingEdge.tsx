@@ -9,7 +9,6 @@ import {
   useStore,
   ReactFlowState,
   Position,
-  Node,
   Edge,
 } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
@@ -71,6 +70,112 @@ export default function SimpleFloatingEdge({
   } = route;
 
   const [isHovered, setIsHovered] = useState(false);
+
+  // Waypoint editing state
+  const customWaypoints = data?.customWaypoints as Array<{ x: number; y: number }> | undefined
+  const intermediateWaypoints = useMemo(() => {
+    if (route.waypoints.length <= 2) return []
+    // Exclude source (first) and target (last) points
+    return route.waypoints.slice(1, -1)
+  }, [route.waypoints])
+
+  // Convert computed waypoints to custom waypoints when user starts dragging
+  const ensureCustomWaypoints = useCallback(() => {
+    const currentCustom = useDiagramStore.getState().edges.find(e => e.id === id)?.data?.customWaypoints
+    if (currentCustom && (currentCustom as Array<{ x: number; y: number }>).length > 0) return currentCustom as Array<{ x: number; y: number }>
+    // Initialize from computed waypoints (skip source and target)
+    const computed = route.waypoints.slice(1, -1)
+    if (computed.length > 0) {
+      updateEdgeData(id, { customWaypoints: computed })
+      return computed
+    }
+    return []
+  }, [id, route.waypoints, updateEdgeData])
+
+  // Drag a waypoint handle
+  const handleWaypointDrag = useCallback((waypointIndex: number) => {
+    return (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const startCustom = ensureCustomWaypoints() as Array<{ x: number; y: number }>
+      const startIndex = waypointIndex
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const { x: vpX, y: vpY, zoom } = getViewport()
+        const flowX = (ev.clientX - vpX) / zoom
+        const flowY = (ev.clientY - vpY) / zoom
+        // Snap to grid (20px)
+        const snappedX = Math.round(flowX / 20) * 20
+        const snappedY = Math.round(flowY / 20) * 20
+
+        const updated = [...startCustom]
+        updated[startIndex] = { x: snappedX, y: snappedY }
+        updateEdgeData(id, { customWaypoints: updated })
+      }
+
+      const onMouseUp = () => {
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('mouseup', onMouseUp)
+      }
+
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    }
+  }, [ensureCustomWaypoints, getViewport, id, updateEdgeData])
+
+  // Double-click on edge path to add waypoint
+  const handleEdgeDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const { x: vpX, y: vpY, zoom } = getViewport()
+    const flowX = (e.clientX - vpX) / zoom
+    const flowY = (e.clientY - vpY) / zoom
+    const snappedX = Math.round(flowX / 20) * 20
+    const snappedY = Math.round(flowY / 20) * 20
+
+    const currentCustom = (data?.customWaypoints as Array<{ x: number; y: number }> | undefined) || []
+    // Find the closest segment and insert the new waypoint there
+    const points = currentCustom.length > 0
+      ? [route.sourcePoint, ...currentCustom, route.targetPoint]
+      : route.waypoints
+
+    let bestInsertIndex = points.length - 1
+    let bestDist = Infinity
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1]
+      const dx = b.x - a.x, dy = b.y - a.y
+      const len2 = dx * dx + dy * dy
+      let t = len2 > 0 ? ((flowX - a.x) * dx + (flowY - a.y) * dy) / len2 : 0
+      t = Math.max(0, Math.min(1, t))
+      const px = a.x + t * dx, py = a.y + t * dy
+      const dist = (flowX - px) ** 2 + (flowY - py) ** 2
+      if (dist < bestDist) {
+        bestDist = dist
+        bestInsertIndex = i + 1
+      }
+    }
+
+    const newCustom = [...currentCustom]
+    newCustom.splice(bestInsertIndex - (currentCustom.length > 0 ? 0 : 1), 0, { x: snappedX, y: snappedY })
+    updateEdgeData(id, { customWaypoints: newCustom })
+  }, [data?.customWaypoints, getViewport, id, route.sourcePoint, route.targetPoint, route.waypoints, updateEdgeData])
+
+  // Double-click on waypoint handle to remove it
+  const handleWaypointRemove = useCallback((waypointIndex: number) => {
+    return (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const currentCustom = (data?.customWaypoints as Array<{ x: number; y: number }> | undefined) || route.waypoints.slice(1, -1)
+      if (currentCustom.length <= 1) {
+        // Last waypoint: clear all custom waypoints
+        updateEdgeData(id, { customWaypoints: undefined })
+        return
+      }
+      const newCustom = [...currentCustom]
+      newCustom.splice(waypointIndex, 1)
+      updateEdgeData(id, { customWaypoints: newCustom })
+    }
+  }, [data?.customWaypoints, id, route.waypoints, updateEdgeData])
 
   const isAsync = data?.edgeVariant === 'dashed' || data?.async || data?.connectionType === 'async';
   const { isDark } = useCanvasTheme();
@@ -196,6 +301,7 @@ export default function SimpleFloatingEdge({
         className="react-flow__edge-interaction"
         style={{ cursor: 'pointer' }}
         onContextMenu={handleContextMenu}
+        onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       />
@@ -208,9 +314,36 @@ export default function SimpleFloatingEdge({
         className="react-flow__edge-path"
         style={strokeStyle}
         onContextMenu={handleContextMenu}
+        onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       />
+
+      {/* Draggable waypoint handles */}
+      {selected && intermediateWaypoints.length > 0 && intermediateWaypoints.map((wp, idx) => (
+        <g key={`wp-${idx}`}>
+          {/* Larger invisible hit area */}
+          <circle
+            cx={wp.x}
+            cy={wp.y}
+            r={8}
+            fill="transparent"
+            style={{ cursor: 'grab' }}
+            onMouseDown={handleWaypointDrag(idx)}
+            onDoubleClick={handleWaypointRemove(idx)}
+          />
+          {/* Visible handle */}
+          <circle
+            cx={wp.x}
+            cy={wp.y}
+            r={4}
+            fill="#3b82f6"
+            stroke="white"
+            strokeWidth={1.5}
+            style={{ cursor: 'grab', pointerEvents: 'none' }}
+          />
+        </g>
+      ))}
       {displayLabel && (
         <EdgeLabelRenderer>
           <div
@@ -274,6 +407,9 @@ export default function SimpleFloatingEdge({
           currentLabel={data?.label}
           currentEdgeType={data?.edgeType}
           currentPathType={data?.pathType}
+          currentSourceSide={data?.sourceSide}
+          currentTargetSide={data?.targetSide}
+          hasCustomWaypoints={!!customWaypoints && customWaypoints.length > 0}
           labelX={safeLabelPos.x}
           labelY={safeLabelPos.y}
         />
@@ -286,6 +422,9 @@ export default function SimpleFloatingEdge({
           onClose={closeMenu}
           currentEdgeType={data?.edgeType}
           currentPathType={data?.pathType}
+          currentSourceSide={data?.sourceSide}
+          currentTargetSide={data?.targetSide}
+          hasCustomWaypoints={!!customWaypoints && customWaypoints.length > 0}
         />,
         document.body
       )}

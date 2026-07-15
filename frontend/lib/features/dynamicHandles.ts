@@ -46,7 +46,8 @@ export function getDynamicHandles(
   targetRect: NodeRect,
   edgeId?: string,
   sourceId?: string,
-  targetId?: string
+  targetId?: string,
+  direction: 'LR' | 'TD' = 'LR'
 ): DynamicHandleResult {
   const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const debug = process.env.NEXT_PUBLIC_DEBUG_HANDLES === 'true';
@@ -101,13 +102,21 @@ export function getDynamicHandles(
   const vth = getHandleCoordinate(targetRect, verticalTargetPos);
   const verticalDist = Math.abs(vth.x - vsh.x) + Math.abs(vth.y - vsh.y);
 
-  // When distances are essentially equal (within 1e-6), prefer the axis
-  // suggested by center-to-center direction. This guarantees symmetry:
-  // A→B and B→A will reverse correctly when distances tie.
+  // When distances are close (within a tolerance), prefer the axis aligned
+  // with the layout direction. This prevents edges from taking weird sideways
+  // routes when the diagram flows top-down or left-right.
+  // Also guarantees symmetry: A→B and B→A will reverse correctly.
   const DIST_EPSILON = 1e-6;
-  const useVertical = Math.abs(verticalDist - horizontalDist) > DIST_EPSILON
-    ? verticalDist < horizontalDist
-    : Math.abs(dy) > Math.abs(dx);
+  const directionBias = 0.25; // prefer layout direction even if up to 25% longer
+  const isTD = direction === 'TD';
+  const verticalPreferred = isTD;
+  const adjustedVDist = verticalPreferred ? verticalDist * (1 - directionBias) : verticalDist;
+  const adjustedHDist = verticalPreferred ? horizontalDist : horizontalDist * (1 - directionBias);
+  const useVertical = Math.abs(adjustedVDist - adjustedHDist) > DIST_EPSILON
+    ? adjustedVDist < adjustedHDist
+    : isTD
+      ? Math.abs(dy) >= Math.abs(dx) * 0.5
+      : Math.abs(dx) >= Math.abs(dy) * 0.5;
 
   const sourcePosition = useVertical ? verticalSourcePos : horizontalSourcePos;
   const targetPosition = useVertical ? verticalTargetPos : horizontalTargetPos;
@@ -290,7 +299,7 @@ export function getObstacleAwareHandles(
     }
   }
 
-  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean; isMixed: boolean; sameSide: boolean; flowAligned: boolean } {
+  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean; isMixed: boolean; sameSide: boolean; flowAligned: boolean; dirAligned: boolean } {
     const sh = getHandleCoordinate(sourceRect, sp);
     const th = getHandleCoordinate(targetRect, tp);
     const sx = sh.x, sy = sh.y, tx = th.x, ty = th.y;
@@ -352,7 +361,13 @@ export function getObstacleAwareHandles(
     const tH = tp === Position.Left || tp === Position.Right;
     const flowAligned = flowHorizontal ? (sH && tH) : (!sH && !tH);
 
-    return { collisions, pathLen, crossesBody, isMixed, sameSide, flowAligned };
+    // Direction alignment: does this pair match the layout direction?
+    const isTD = direction === 'TD';
+    const isVerticalPair = (sp === Position.Top || sp === Position.Bottom) && (tp === Position.Top || tp === Position.Bottom);
+    const isHorizontalPair = (sp === Position.Left || sp === Position.Right) && (tp === Position.Left || tp === Position.Right);
+    const dirAligned = isTD ? isVerticalPair : isHorizontalPair;
+
+    return { collisions, pathLen, crossesBody, isMixed, sameSide, flowAligned, dirAligned };
   }
 
   const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId);
@@ -378,6 +393,7 @@ export function getObstacleAwareHandles(
     crossesBody: true,
     sameSide: true,
     flowAligned: false,
+    dirAligned: false,
     source: geometryHandles.sourcePosition,
     target: geometryHandles.targetPosition,
     label: 'geometry' as string,
@@ -390,10 +406,11 @@ export function getObstacleAwareHandles(
     const isBetter =
       score.crossesBody < best.crossesBody ||
       (score.crossesBody === best.crossesBody && score.collisions < best.collisions) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === false && best.sameSide === true) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === true && best.flowAligned === false) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === best.flowAligned && score.pathLen < best.pathLen) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.sameSide === best.sameSide && score.flowAligned === best.flowAligned && Math.abs(score.pathLen - best.pathLen) < 200 && isPreferred && !bestIsPreferred);
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen < best.pathLen) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen === best.pathLen && score.dirAligned === true && best.dirAligned === false) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen === best.pathLen && score.dirAligned === best.dirAligned && score.sameSide === false && best.sameSide === true) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen === best.pathLen && score.dirAligned === best.dirAligned && score.sameSide === best.sameSide && score.flowAligned === true && best.flowAligned === false) ||
+      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && Math.abs(score.pathLen - best.pathLen) < 200 && isPreferred && !bestIsPreferred);
 
     if (isBetter) {
       best = { ...score, source: cand.source, target: cand.target, label: cand.label };
@@ -410,20 +427,13 @@ export function getObstacleAwareHandles(
 export function getHandleCoordinate(
   rect: NodeRect,
   position: Position,
-  type?: 'source' | 'target',
-  isBidirectional: boolean = true
+  _type?: 'source' | 'target',
+  _isBidirectional: boolean = true
 ): { x: number; y: number } {
+  void _isBidirectional;
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
-  
-  let offset = 0;
-  if (isBidirectional && type) {
-    if (type === 'source') {
-      offset = 12;
-    } else if (type === 'target') {
-      offset = -12;
-    }
-  }
+  const offset = 0;
 
   switch (position) {
     case Position.Top:    return { x: cx + offset, y: rect.y - OUTER_OFFSET };

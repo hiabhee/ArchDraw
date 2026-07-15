@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, type ElementType } from 'react';
 import { useDiagramStore } from '@/store/diagramStore';
-import { Trash2, GitBranch, Spline, ChevronRight } from 'lucide-react';
-import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType } from '@/data/edgeTypes';
+import { Trash2, GitBranch, ChevronRight, ArrowUp, ArrowRight, ArrowDown, ArrowLeft, RotateCcw, Route } from 'lucide-react';
+import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType, type EdgePortSide } from '@/data/edgeTypes';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface Props {
@@ -10,16 +10,35 @@ interface Props {
   onClose: () => void;
   currentEdgeType?: EdgeType;
   currentPathType?: PathType;
+  currentSourceSide?: EdgePortSide;
+  currentTargetSide?: EdgePortSide;
+  hasCustomWaypoints?: boolean;
 }
 
 const EDGE_TYPES: EdgeType[] = ['sync', 'async', 'stream', 'event', 'dep', 'dotted'];
+const SIDE_OPTIONS: Array<{ value: EdgePortSide | undefined; label: string; icon: ElementType }> = [
+  { value: undefined, label: 'Auto', icon: RotateCcw },
+  { value: 'top', label: 'Top', icon: ArrowUp },
+  { value: 'right', label: 'Right', icon: ArrowRight },
+  { value: 'bottom', label: 'Bottom', icon: ArrowDown },
+  { value: 'left', label: 'Left', icon: ArrowLeft },
+];
 
-export function EdgeContextMenu({ edgeId, position, onClose, currentEdgeType, currentPathType }: Props) {
+export function EdgeContextMenu({
+  edgeId,
+  position,
+  onClose,
+  currentEdgeType,
+  currentPathType,
+  currentSourceSide,
+  currentTargetSide,
+  hasCustomWaypoints,
+}: Props) {
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const menuRef = useRef<HTMLDivElement>(null);
   
-  const [showSubmenu, setShowSubmenu] = useState<'type' | null>(null);
+  const [showSubmenu, setShowSubmenu] = useState<'type' | 'route' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -55,10 +74,19 @@ export function EdgeContextMenu({ edgeId, position, onClose, currentEdgeType, cu
     onClose();
   };
 
+  const handleSideChange = (key: 'sourceSide' | 'targetSide', side: EdgePortSide | undefined) => {
+    updateEdgeData(edgeId, { [key]: side });
+  };
 
+  const handleResetRoute = () => {
+    updateEdgeData(edgeId, { customWaypoints: undefined, sourceSide: undefined, targetSide: undefined });
+    onClose();
+  };
 
   const activeConfig = EDGE_TYPE_CONFIGS[currentEdgeType || 'sync'];
   const activePathType = currentPathType || activeConfig.pathType;
+  const activeSource = SIDE_OPTIONS.find((option) => option.value === currentSourceSide) || SIDE_OPTIONS[0];
+  const activeTarget = SIDE_OPTIONS.find((option) => option.value === currentTargetSide) || SIDE_OPTIONS[0];
 
   return (
     <div
@@ -119,8 +147,76 @@ export function EdgeContextMenu({ edgeId, position, onClose, currentEdgeType, cu
       </div>
 
 
+      <div className="relative">
+        <button
+          onMouseEnter={() => setShowSubmenu('route')}
+          onClick={() => setShowSubmenu(showSubmenu === 'route' ? null : 'route')}
+          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+            showSubmenu === 'route' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <Route size={14} />
+            <span>Route Ports</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold">
+              {activeSource.label} → {activeTarget.label}
+            </span>
+            <ChevronRight size={12} className="text-muted-foreground" />
+          </div>
+        </button>
 
-      <div className="my-1.5 h-px bg-border" />
+        {showSubmenu === 'route' && (
+          <div className="absolute left-full top-0 ml-1 grid min-w-[176px] gap-2 rounded-md border border-border bg-card p-2 shadow-lg">
+            {(['sourceSide', 'targetSide'] as const).map((key) => {
+              const current = key === 'sourceSide' ? currentSourceSide : currentTargetSide;
+              return (
+                <div key={key} className="grid gap-1">
+                  <div className="px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {key === 'sourceSide' ? 'Source' : 'Target'}
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {SIDE_OPTIONS.map((option) => {
+                      const Icon = option.icon;
+                      const active = option.value === current;
+                      return (
+                        <button
+                          key={`${key}-${option.label}`}
+                          onClick={() => handleSideChange(key, option.value)}
+                          title={`${key === 'sourceSide' ? 'Source' : 'Target'} ${option.label}`}
+                          className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+                            active
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                          }`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {hasCustomWaypoints && (
+        <>
+          <button
+            onClick={handleResetRoute}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/50"
+          >
+            <RotateCcw size={14} />
+            <span>Reset Route</span>
+          </button>
+          <div className="my-1.5 h-px bg-border" />
+        </>
+      )}
+
+      {!hasCustomWaypoints && <div className="my-1.5 h-px bg-border" />}
 
       <button
         onClick={handleDelete}

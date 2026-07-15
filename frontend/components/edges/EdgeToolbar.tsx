@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type ElementType } from 'react';
 import { EdgeLabelRenderer } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
-import { Trash2, Edit3, Check, X, ChevronDown, Spline } from 'lucide-react';
-import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType } from '@/data/edgeTypes';
+import { Trash2, Edit3, Check, X, ChevronDown, ArrowUp, ArrowRight, ArrowDown, ArrowLeft, RotateCcw } from 'lucide-react';
+import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType, type EdgePortSide } from '@/data/edgeTypes';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface Props {
@@ -12,22 +12,44 @@ interface Props {
   currentLabel?: string;
   currentEdgeType?: EdgeType;
   currentPathType?: PathType;
+  currentSourceSide?: EdgePortSide;
+  currentTargetSide?: EdgePortSide;
+  hasCustomWaypoints?: boolean;
   labelX: number;
   labelY: number;
 }
 
 const EDGE_TYPES: EdgeType[] = ['sync', 'async', 'stream', 'event', 'dep', 'dotted'];
+const SIDE_OPTIONS: Array<{ value: EdgePortSide | undefined; label: string; icon: ElementType }> = [
+  { value: undefined, label: 'Auto', icon: RotateCcw },
+  { value: 'top', label: 'Top', icon: ArrowUp },
+  { value: 'right', label: 'Right', icon: ArrowRight },
+  { value: 'bottom', label: 'Bottom', icon: ArrowDown },
+  { value: 'left', label: 'Left', icon: ArrowLeft },
+];
 
-export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPathType, labelX, labelY }: Props) {
+export function EdgeToolbar({
+  edgeId,
+  currentLabel,
+  currentEdgeType,
+  currentPathType,
+  currentSourceSide,
+  currentTargetSide,
+  hasCustomWaypoints,
+  labelX,
+  labelY
+}: Props) {
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(currentLabel || '');
   const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const [showRouteMenu, setShowRouteMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const typeMenuRef = useRef<HTMLDivElement>(null);
+  const routeMenuRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -48,6 +70,9 @@ export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPath
       const target = e.target as Node;
       if (typeMenuRef.current && !typeMenuRef.current.contains(target)) {
         setShowTypeMenu(false);
+      }
+      if (routeMenuRef.current && !routeMenuRef.current.contains(target)) {
+        setShowRouteMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -73,17 +98,28 @@ export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPath
     setConfirmDelete(false);
   }, [edgeId, deleteEdge]);
 
+  const handleResetRoute = useCallback(() => {
+    updateEdgeData(edgeId, { customWaypoints: undefined, sourceSide: undefined, targetSide: undefined });
+  }, [edgeId, updateEdgeData]);
+
   const handleEdgeTypeChange = useCallback((type: EdgeType) => {
     updateEdgeData(edgeId, { edgeType: type });
     setShowTypeMenu(false);
   }, [edgeId, updateEdgeData]);
 
-
+  const handleSideChange = useCallback((key: 'sourceSide' | 'targetSide', side: EdgePortSide | undefined) => {
+    updateEdgeData(edgeId, { [key]: side });
+  }, [edgeId, updateEdgeData]);
 
   const activeConfig = useMemo(() => 
     EDGE_TYPE_CONFIGS[currentEdgeType || 'sync'],
     [currentEdgeType]
   );
+
+  const activeSource = SIDE_OPTIONS.find((option) => option.value === currentSourceSide) || SIDE_OPTIONS[0];
+  const activeTarget = SIDE_OPTIONS.find((option) => option.value === currentTargetSide) || SIDE_OPTIONS[0];
+  const ActiveSourceIcon = activeSource.icon;
+  const ActiveTargetIcon = activeTarget.icon;
 
   return (
     <EdgeLabelRenderer>
@@ -146,7 +182,56 @@ export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPath
           )}
         </div>
 
+        <div className="relative">
+          <button
+            onClick={() => setShowRouteMenu(!showRouteMenu)}
+            title="Edit route ports"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          >
+            <ActiveSourceIcon className="w-3 h-3" />
+            <span className="text-[9px]">→</span>
+            <ActiveTargetIcon className="w-3 h-3" />
+            <ChevronDown className="w-3 h-3" />
+          </button>
 
+          {showRouteMenu && (
+            <div
+              ref={routeMenuRef}
+              className="absolute bottom-full left-1/2 mb-1.5 grid min-w-[168px] -translate-x-1/2 gap-1 rounded-lg border border-border bg-card p-2 shadow-lg"
+            >
+              {(['sourceSide', 'targetSide'] as const).map((key) => {
+                const current = key === 'sourceSide' ? currentSourceSide : currentTargetSide;
+                return (
+                  <div key={key} className="grid gap-1">
+                    <div className="px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {key === 'sourceSide' ? 'Source' : 'Target'}
+                    </div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {SIDE_OPTIONS.map((option) => {
+                        const Icon = option.icon;
+                        const active = option.value === current;
+                        return (
+                          <button
+                            key={`${key}-${option.label}`}
+                            onClick={() => handleSideChange(key, option.value)}
+                            title={`${key === 'sourceSide' ? 'Source' : 'Target'} ${option.label}`}
+                            className={`flex h-7 w-7 items-center justify-center rounded border text-xs transition-colors ${
+                              active
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                            }`}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {isEditing ? (
           <>
@@ -182,6 +267,16 @@ export function EdgeToolbar({ edgeId, currentLabel, currentEdgeType, currentPath
               {currentLabel || 'Add label'}
             </span>
           </>
+        )}
+
+        {hasCustomWaypoints && (
+          <button
+            onClick={handleResetRoute}
+            className="text-muted-foreground hover:text-foreground"
+            title="Reset route to auto"
+          >
+            <RotateCcw className="w-3 h-3" />
+          </button>
         )}
 
         <button

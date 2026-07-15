@@ -2,6 +2,7 @@ import { MarkerType, type Edge } from 'reactflow';
 
 export type PathType = 'smooth' | 'Smoothstep' | 'bezier' | 'step' | 'straight';
 export type EdgeType = 'sync' | 'async' | 'stream' | 'event' | 'dep' | 'dotted';
+export type EdgePortSide = 'top' | 'right' | 'bottom' | 'left';
 
 export interface EdgeTypeConfig {
   id: EdgeType;
@@ -97,6 +98,8 @@ export interface EdgeData {
   connectionType?: EdgeType;
   color?: string;
   labelT?: number;
+  sourceSide?: EdgePortSide;
+  targetSide?: EdgePortSide;
   curvature?: number;
   async?: boolean;
   importance?: 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';
@@ -109,6 +112,7 @@ export interface EdgeData {
   isSpine?: boolean;
   isBundle?: boolean;
   bundledEdges?: Edge[];
+  customWaypoints?: Array<{ x: number; y: number }>;
 }
 
 export function getEdgeConfig(edgeType: EdgeType | undefined): EdgeTypeConfig {

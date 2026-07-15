@@ -1,19 +1,13 @@
 import { Edge, Node, Position } from 'reactflow';
-import { getDynamicHandles, getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
-import type { NodeRect } from '@/lib/features/dynamicHandles';
 
 export interface EdgePositions {
   sourcePos: Position;
   targetPos: Position;
 }
 
-// Align with FloatingHandles.tsx defaults for accurate edge attachment
-const HANDLE_OFFSETS = {
-  [Position.Left]: 0,
-  [Position.Right]: 0,
-  [Position.Top]: 0,
-  [Position.Bottom]: 0,
-};
+type HandleType = 'source' | 'target';
+
+const EDGE_ENDPOINT_GAP = 0;
 
 export function getNodeCenter(node: Node) {
   const x = node.positionAbsolute?.x ?? node.position.x;
@@ -59,66 +53,19 @@ export function getSimpleEdgePositions(
 }
 
 export function getEdgeShiftOffset(
-  nodeId: string,
-  edgeId: string,
-  side: Position,
-  edges: Edge[],
-  nodeInternals: Map<string, Node>,
-  spacing: number = 15,
-  allNodeRects?: Map<string, { id: string; x: number; y: number; w: number; h: number }>,
-  excludedNodeIds?: Set<string>,
+  ...args: [
+    nodeId: string,
+    edgeId: string,
+    side: Position,
+    edges: Edge[],
+    nodeInternals: Map<string, Node>,
+    spacing?: number,
+    allNodeRects?: Map<string, { id: string; x: number; y: number; w: number; h: number }>,
+    excludedNodeIds?: Set<string>,
+  ]
 ): number {
-  const node = nodeInternals.get(nodeId);
-  if (!node) return 0;
-
-  const currentEdge = (edges || []).find(e => e.id === edgeId);
-  if (!currentEdge) return 0;
-  const isSource = currentEdge.source === nodeId;
-
-  // Find all edges that connect to this node on the given side
-  const connectedEdges = (edges || []).map(e => {
-    if (e.source !== nodeId && e.target !== nodeId) return null;
-
-    const sNode = nodeInternals.get(e.source);
-    const tNode = nodeInternals.get(e.target);
-    if (!sNode || !tNode) return null;
-
-    const sRect: NodeRect = {
-      x: sNode.positionAbsolute?.x ?? sNode.position.x,
-      y: sNode.positionAbsolute?.y ?? sNode.position.y,
-      width: sNode.width ?? 160,
-      height: sNode.height ?? 80,
-    };
-    const tRect: NodeRect = {
-      x: tNode.positionAbsolute?.x ?? tNode.position.x,
-      y: tNode.positionAbsolute?.y ?? tNode.position.y,
-      width: tNode.width ?? 160,
-      height: tNode.height ?? 80,
-    };
-
-    const { sourcePosition, targetPosition } = allNodeRects
-      ? getObstacleAwareHandles(sRect, tRect, allNodeRects, excludedNodeIds, e.id, e.source, e.target)
-      : getDynamicHandles(sRect, tRect);
-
-    if (e.source === nodeId && sourcePosition === side) {
-      return { edge: e, isOutgoing: true };
-    }
-    if (e.target === nodeId && targetPosition === side) {
-      return { edge: e, isOutgoing: false };
-    }
-
-    return null;
-  }).filter(Boolean) as { edge: Edge; isOutgoing: boolean }[];
-
-  const outgoingCount = connectedEdges.filter(e => e.isOutgoing).length;
-  const incomingCount = connectedEdges.filter(e => !e.isOutgoing).length;
-
-  // If only one direction uses this side, center the handle
-  if (outgoingCount === 0 || incomingCount === 0) return 0;
-
-  // Two-handle model: all outgoing edges share one handle, all incoming share another
-  const SEPARATION = 24;
-  return isSource ? -SEPARATION : SEPARATION;
+  void args;
+  return 0;
 }
 
 export function getSimpleHandlePosition(
@@ -127,23 +74,20 @@ export function getSimpleHandlePosition(
   width: number,
   height: number,
   position: Position,
-  shiftOffset: number = 0
+  shiftOffset: number = 0,
+  handleType: HandleType = 'source'
 ): { x: number; y: number } {
-  const offset = HANDLE_OFFSETS[position] || 0;
-  const outerOffset = 12;
+  void handleType;
+  const axisOffset = shiftOffset;
 
   switch (position) {
     case Position.Left:
-      return { x: nodeX - outerOffset + offset, y: nodeY + height / 2 + shiftOffset };
+      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset };
     case Position.Right:
-      return { x: nodeX + width + outerOffset + offset, y: nodeY + height / 2 + shiftOffset };
+      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset };
     case Position.Top:
-      return { x: nodeX + width / 2 + shiftOffset, y: nodeY - outerOffset + offset };
+      return { x: nodeX + width / 2 + axisOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:
-      return { x: nodeX + width / 2 + shiftOffset, y: nodeY + height + outerOffset + offset };
+      return { x: nodeX + width / 2 + axisOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
   }
-}
-
-export function getHandleOffset(position: Position): number {
-  return HANDLE_OFFSETS[position] || 0;
 }

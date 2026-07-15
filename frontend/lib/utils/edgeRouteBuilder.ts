@@ -14,6 +14,21 @@ export interface EdgeRouteResult {
   svgPath: string
 }
 
+function buildCustomWaypointPath(
+  sourcePoint: { x: number; y: number },
+  targetPoint: { x: number; y: number },
+  customWaypoints: Array<{ x: number; y: number }>,
+  borderRadius: number = 12,
+): { waypoints: Array<{ x: number; y: number }>; svgPath: string } {
+  const allPoints = [
+    sourcePoint,
+    ...customWaypoints,
+    targetPoint,
+  ]
+  const svgPath = buildSmoothStepSvg(allPoints, borderRadius)
+  return { waypoints: allPoints, svgPath }
+}
+
 function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
   let x = node.position?.x ?? 0
   let y = node.position?.y ?? 0
@@ -161,10 +176,60 @@ export function computeEdgeRoute(
 
   // Lane edges: use dynamic handle selection (cheaper than planPath) without frozen overrides
   const edgeData = edge.data as Record<string, unknown> | undefined
+
+  // Custom waypoints: if the user has manually edited the edge path, use their waypoints
+  const customWaypoints = edgeData?.customWaypoints as Array<{ x: number; y: number }> | undefined
+  if (customWaypoints && customWaypoints.length > 0) {
+    const manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
+    const manualTargetSide = sideToPosition(edgeData?.targetSide as string)
+
+    // Determine source/target positions from manual overrides or auto-detect
+    const activePreset = useDiagramStore.getState().activeLayoutPresetId
+    const direction = activePreset === 'layered-tb' ? 'TD' : 'LR'
+
+    let sourcePosition = manualSourceSide
+    let targetPosition = manualTargetSide
+
+    if (!sourcePosition || !targetPosition) {
+      const handles = getObstacleAwareHandles(
+        { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h },
+        { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h },
+        undefined, undefined,
+        edge.id, edge.source, edge.target, edge.data,
+        sourceNode.data?.serviceType, targetNode.data?.serviceType, direction,
+        preferredPair,
+      )
+      sourcePosition = sourcePosition || handles.sourcePosition
+      targetPosition = targetPosition || handles.targetPosition
+    }
+
+    const sourceShift = getEdgeShiftOffset(edge.source, edge.id, sourcePosition, edges, new Map(nodes.map(n => [n.id, n])), 12, undefined, undefined)
+    const targetShift = getEdgeShiftOffset(edge.target, edge.id, targetPosition, edges, new Map(nodes.map(n => [n.id, n])), 12, undefined, undefined)
+    const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, sourcePosition, sourceShift, 'source')
+    const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, targetPosition, targetShift, 'target')
+
+    const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints)
+
+    const edgeDataObj = edge.data as Record<string, unknown> || {}
+    edgeDataObj.__cachedWaypoints = waypoints
+
+    return {
+      sourcePosition,
+      targetPosition,
+      sourcePoint: sh,
+      targetPoint: th,
+      waypoints,
+      svgPath,
+    }
+  }
+  const manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
+  const manualTargetSide = sideToPosition(edgeData?.targetSide as string)
   const laneSourceSide = sideToPosition(edgeData?.laneSourceSide as string)
   const laneTargetSide = sideToPosition(edgeData?.laneTargetSide as string)
+  const forcedSourceSide = manualSourceSide || laneSourceSide
+  const forcedTargetSide = manualTargetSide || laneTargetSide
 
-  if (laneSourceSide || laneTargetSide) {
+  if (forcedSourceSide || forcedTargetSide) {
     const activePreset = useDiagramStore.getState().activeLayoutPresetId
     const direction = activePreset === 'layered-tb' ? 'TD' : 'LR'
 
@@ -177,13 +242,13 @@ export function computeEdgeRoute(
       preferredPair,
     )
 
-    const sourcePosition = handles.sourcePosition
-    const targetPosition = handles.targetPosition
+    const sourcePosition = forcedSourceSide || handles.sourcePosition
+    const targetPosition = forcedTargetSide || handles.targetPosition
 
     const sourceShift = getEdgeShiftOffset(edge.source, edge.id, sourcePosition, edges, new Map(nodes.map(n => [n.id, n])), 12, undefined, undefined)
     const targetShift = getEdgeShiftOffset(edge.target, edge.id, targetPosition, edges, new Map(nodes.map(n => [n.id, n])), 12, undefined, undefined)
-    const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, sourcePosition, sourceShift)
-    const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, targetPosition, targetShift)
+    const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, sourcePosition, sourceShift, 'source')
+    const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, targetPosition, targetShift, 'target')
 
     const excludedIds = new Set([edge.source, edge.target])
     const nodeRects = buildBlockingNodeRects(nodes, excludedIds)
@@ -209,13 +274,13 @@ export function computeEdgeRoute(
           targetX: th.x, targetY: th.y,
           sourcePosition,
           targetPosition,
-          borderRadius: 40,
+          borderRadius: 12,
           edgeOffset,
           nodeRects: nodeRectParam,
           excludedNodeIds: excludedIds,
         })
       : directWaypoints
-    const svgPath = buildSmoothStepSvg(waypoints, 40)
+    const svgPath = buildSmoothStepSvg(waypoints, 12)
 
     const edgeDataObj = edge.data as Record<string, unknown> || {}
     edgeDataObj.__cachedWaypoints = waypoints
@@ -232,9 +297,11 @@ export function computeEdgeRoute(
     }
   }
 
-  // Build obstacle map — ALL non-group nodes are obstacles, including source/target
+  // Build obstacle map from intermediate nodes only. Source and target are
+  // valid endpoints, so treating them as hard obstacles rejects normal routes.
   const obstacleMap = new Map<string, ObstacleRect>()
   for (const node of nodes) {
+    if (node.id === edge.source || node.id === edge.target) continue
     if (isGroupNode(node)) continue
     const rect = getNodeRect(node, nodes)
     obstacleMap.set(node.id, rect)
@@ -291,8 +358,8 @@ export function computeEdgeRoute(
   const sourceShift = getEdgeShiftOffset(edge.source, edge.id, handles.sourcePosition, edges, new Map(nodes.map(n => [n.id, n])), 12, nodeRectParam, excludedIds)
   const targetShift = getEdgeShiftOffset(edge.target, edge.id, handles.targetPosition, edges, new Map(nodes.map(n => [n.id, n])), 12, nodeRectParam, excludedIds)
 
-  const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, handles.sourcePosition, sourceShift)
-  const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, handles.targetPosition, targetShift)
+  const sh = getSimpleHandlePosition(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, handles.sourcePosition, sourceShift, 'source')
+  const th = getSimpleHandlePosition(targetRect.x, targetRect.y, targetRect.w, targetRect.h, handles.targetPosition, targetShift, 'target')
 
   const parallelEdges = edges.filter(
     (e) => (e.source === edge.source && e.target === edge.target) || (e.source === edge.target && e.target === edge.source)
@@ -303,7 +370,7 @@ export function computeEdgeRoute(
     if (index !== -1) edgeOffset = (index - (parallelEdges.length - 1) / 2) * 20
   }
 
-  const borderRadius = 40
+  const borderRadius = 12
   const waypoints = getCollisionFreeWaypoints({
     sourceX: sh.x, sourceY: sh.y,
     targetX: th.x, targetY: th.y,

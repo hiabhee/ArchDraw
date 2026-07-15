@@ -156,15 +156,13 @@ describe('getHandleCoordinate', () => {
     expect(rightCoord.y).toBe(80);  // 50 + 60/2
   });
 
-  it('should apply bidirectional offsets of ±12px correctly', () => {
+  it('should merge source and target coordinates on each side', () => {
     const sourceCoord = getHandleCoordinate(rect, Position.Top, 'source', true);
-    // Source Top handle: (centerX + 12, y - OUTER_OFFSET)
-    expect(sourceCoord.x).toBe(212);
+    expect(sourceCoord.x).toBe(200);
     expect(sourceCoord.y).toBe(188); // 200 - 12
 
     const targetCoord = getHandleCoordinate(rect, Position.Top, 'target', true);
-    // Target Top handle: (centerX - 12, y - OUTER_OFFSET)
-    expect(targetCoord.x).toBe(188);
+    expect(targetCoord.x).toBe(200);
     expect(targetCoord.y).toBe(188); // 200 - 12
   });
 });
@@ -250,10 +248,9 @@ describe('getEdgeShiftOffset', () => {
     const offsetAct = getEdgeShiftOffset('Observe', 'edge-act', Position.Top, edges, nodeInternals, 12);
     const offsetTaskDone = getEdgeShiftOffset('Observe', 'edge-taskdone', Position.Top, edges, nodeInternals, 12);
 
-    // Two handles per side: outgoing (source) edges merge to one, incoming (target) merge to another.
-    // edge-act is incoming to Observe → +24, edge-taskdone is outgoing → -24.
-    expect(offsetAct).toBe(24);
-    expect(offsetTaskDone).toBe(-24);
+    // Incoming and outgoing edges share the same centered port on each side.
+    expect(offsetAct).toBe(0);
+    expect(offsetTaskDone).toBe(0);
   });
 
   it('should assign stable offsets to bidirectional edges to prevent crossing', () => {
@@ -278,13 +275,11 @@ describe('getEdgeShiftOffset', () => {
     const offsetB_ab = getEdgeShiftOffset('NodeB', 'e-ab', Position.Left, edges, nodeInternals, 12);
     const offsetB_ba = getEdgeShiftOffset('NodeB', 'e-ba', Position.Left, edges, nodeInternals, 12);
 
-    // Two handles per side: outgoing edges merge to one (-24), incoming merge to another (+24).
-    // On NodeA.Right: e-ab is outgoing → -24, e-ba is incoming → +24.
-    expect(offsetA_ab).toBe(-24);
-    expect(offsetA_ba).toBe(24);
+    // Rendered bidirectional edges stay centered on the selected node side.
+    expect(offsetA_ab).toBe(0);
+    expect(offsetA_ba).toBe(0);
 
-    // On NodeB.Left: e-ab is incoming → +24, e-ba is outgoing → -24.
-    expect(offsetB_ab).toBe(24);
-    expect(offsetB_ba).toBe(-24);
+    expect(offsetB_ab).toBe(0);
+    expect(offsetB_ba).toBe(0);
   });
 });
