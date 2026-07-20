@@ -14,7 +14,7 @@ interface FloatingAIBarProps {
   showCode: boolean;
   hideCodeButton?: boolean;
   isCanvasEmpty?: boolean;
-  onRegenerate?: () => Promise<void>;
+  onRegenerate?: (detailLevel: 1 | 2 | 3) => Promise<void>;
   hasLastPrompt?: boolean;
 }
 
@@ -109,14 +109,14 @@ export function FloatingAIBar({
     setIsGenerating(true);
     setError(null);
     try {
-      await onRegenerate();
+      await onRegenerate(detailLevel);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Regeneration failed';
       setError(message);
     } finally {
       setIsGenerating(false);
     }
-  }, [onRegenerate]);
+  }, [onRegenerate, detailLevel]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -156,13 +156,18 @@ export function FloatingAIBar({
                 <button
                   key={level}
                   type="button"
-                  onClick={() => setDetailLevel(level)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDetailLevel(level);
+                  }}
                   className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
                     detailLevel === level
                       ? 'bg-primary/20 text-primary shadow-sm'
                       : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
                   }`}
                   title={level === 1 ? 'Simple — only core components' : level === 2 ? 'Moderate — balanced detail' : 'Detailed — full architecture depth'}
+                  aria-pressed={detailLevel === level}
                 >
                   L{level}
                 </button>

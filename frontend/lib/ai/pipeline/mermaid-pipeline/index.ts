@@ -198,9 +198,11 @@ export async function runMermaidPipeline(
   const promptLower = prompt.toLowerCase();
   const implicitConcept = detectImplicitConceptPrompt(prompt);
 
-  // STAGE 1: Planner — single LLM call to plan diagram in Mermaid syntax
-  let plan = implicitConcept
-    ? getConceptTemplatePlan(implicitConcept)
+  // STAGE 1: Planner — concept templates only at L2+; L1 always uses the
+  // scoped planner so the FloatingAIBar detail toggle has a real effect.
+  const useConceptTemplate = Boolean(implicitConcept) && detailLevel >= 2;
+  let plan = useConceptTemplate
+    ? getConceptTemplatePlan(implicitConcept!, detailLevel)
     : await runArchitecturePlanner(prompt, diagramSize, detailLevel, userIntent.model);
   let { formatConfig, styleConfig, mermaidCode, reasoning } = plan;
 

@@ -13,6 +13,7 @@ import {
 } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { getPointOnPath, findClosestT } from '@/lib/utils/edgeLabelDrag';
+import { getNodeCenter, getSimpleEdgePositions } from '@/lib/utils/simpleFloatingEdge';
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { useCanvasTheme } from '@/lib/theme';
@@ -250,6 +251,46 @@ export default function SimpleFloatingEdge({
   const labelOrder = Math.max(0, parallelEdges.findIndex((edge) => edge.id === id));
   const labelT = data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
 
+  // Same-side terminal merge: edges that share this target side land on one
+  // handler. Only the first edge by id draws the arrowhead so the join reads
+  // as a single connection (multiple paths, one tip).
+  const showMergedTargetMarker = useMemo(() => {
+    const siblings = edges
+      .filter((e) => e.target === target)
+      .filter((e) => {
+        if (e.id === id) return true;
+        const srcNode = nodeInternals.get(e.source);
+        const tgtNode = nodeInternals.get(e.target);
+        if (!srcNode || !tgtNode) return false;
+        const sc = getNodeCenter(srcNode);
+        const tc = getNodeCenter(tgtNode);
+        const { targetPos: side } = getSimpleEdgePositions(sc.cx, sc.cy, tc.cx, tc.cy);
+        return side === targetPos;
+      })
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (siblings.length <= 1) return true;
+    return siblings[0]?.id === id;
+  }, [edges, target, targetPos, nodeInternals, id]);
+
+  const showMergedSourceMarker = useMemo(() => {
+    if (!markerStart) return false;
+    const siblings = edges
+      .filter((e) => e.source === source)
+      .filter((e) => {
+        if (e.id === id) return true;
+        const srcNode = nodeInternals.get(e.source);
+        const tgtNode = nodeInternals.get(e.target);
+        if (!srcNode || !tgtNode) return false;
+        const sc = getNodeCenter(srcNode);
+        const tc = getNodeCenter(tgtNode);
+        const { sourcePos: side } = getSimpleEdgePositions(sc.cx, sc.cy, tc.cx, tc.cy);
+        return side === sourcePos;
+      })
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (siblings.length <= 1) return true;
+    return siblings[0]?.id === id;
+  }, [edges, source, sourcePos, nodeInternals, id, markerStart]);
+
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     try {
@@ -347,8 +388,8 @@ export default function SimpleFloatingEdge({
         id={id}
         d={edgePath}
         fill="none"
-        markerStart={markerStart}
-        markerEnd={markerEnd}
+        markerStart={showMergedSourceMarker ? markerStart : undefined}
+        markerEnd={showMergedTargetMarker ? markerEnd : undefined}
         className="react-flow__edge-path"
         style={strokeStyle}
         onContextMenu={handleContextMenu}

@@ -69,19 +69,112 @@ export function detectImplicitConceptPrompt(prompt: string): ImplicitConcept | n
   return classifyImplicitConcept(subject);
 }
 
-export function getConceptTemplatePlan(concept: ImplicitConcept): ConceptTemplatePlan {
+export function getConceptTemplatePlan(
+  concept: ImplicitConcept,
+  detailLevel: 1 | 2 | 3 = 3,
+): ConceptTemplatePlan {
+  let plan: ConceptTemplatePlan;
   switch (concept.template) {
     case 'docker':
-      return buildPlan(dockerMermaid, 'Step 0 - Generic Docker architecture request, so use canonical Docker Engine architecture, not Swarm/Kubernetes/CI/CD. Step 1 - Show Docker Client, Docker API, Docker Daemon, Registry, Local Image Store, containerd, runc, Containers, Networks, Volumes, and Host OS Kernel. Step 2 - Client commands enter through the Docker API. Step 3 - Docker Daemon pulls images, stores layers, configures networking/storage, and starts containers through containerd/runc. Step 4 - Runtime status returns through daemon and API. Step 5 - No orchestration, overlay networking, load balancer, or pipeline is added because the prompt does not request deployment architecture. Step 6 - Labels are concise. Step 7 - The diagram is an explanatory grid of components grouped by responsibility.');
+      plan = buildPlan(dockerMermaid, 'Step 0 - Generic Docker architecture request, so use canonical Docker Engine architecture, not Swarm/Kubernetes/CI/CD. Step 1 - Show Docker Client, Docker API, Docker Daemon, Registry, Local Image Store, containerd, runc, Containers, Networks, Volumes, and Host OS Kernel. Step 2 - Client commands enter through the Docker API. Step 3 - Docker Daemon pulls images, stores layers, configures networking/storage, and starts containers through containerd/runc. Step 4 - Runtime status returns through daemon and API. Step 5 - No orchestration, overlay networking, load balancer, or pipeline is added because the prompt does not request deployment architecture. Step 6 - Labels are concise. Step 7 - The diagram is an explanatory grid of components grouped by responsibility.');
+      break;
     case 'api-gateway':
-      return buildPlan(apiGatewayMermaid, 'Step 0 - Generic API Gateway request, so show a production API gateway capability map rather than inventing an application behind it. Step 1 - Show clients, edge protection, gateway control plane, request processing policies, upstream services, policy data, and observability. Step 2 - Requests enter through DNS/CDN/WAF and reach the gateway listener. Step 3 - The gateway authenticates, authorizes, rate limits, validates, transforms, routes, and proxies traffic to upstream services. Step 4 - Responses and telemetry return through the gateway. Step 5 - Include production-standard controls without app-specific services. Step 6 - Labels are concise. Step 7 - The diagram is grouped as a grid by responsibility.');
+      plan = buildPlan(apiGatewayMermaid, 'Step 0 - Generic API Gateway request, so show a production API gateway capability map rather than inventing an application behind it. Step 1 - Show clients, edge protection, gateway control plane, request processing policies, upstream services, policy data, and observability. Step 2 - Requests enter through DNS/CDN/WAF and reach the gateway listener. Step 3 - The gateway authenticates, authorizes, rate limits, validates, transforms, routes, and proxies traffic to upstream services. Step 4 - Responses and telemetry return through the gateway. Step 5 - Include production-standard controls without app-specific services. Step 6 - Labels are concise. Step 7 - The diagram is grouped as a grid by responsibility.');
+      break;
     case 'kafka':
-      return buildPlan(kafkaMermaid, 'Step 0 - Generic Kafka request, so show Kafka platform architecture rather than a made-up app workflow. Step 1 - Show producers, brokers, topics/partitions, replication, controller quorum, consumers, stream processing, connectors, schema registry, and observability. Step 2 - Producers write records to topic partitions. Step 3 - Brokers persist logs, replicate partitions, coordinate metadata through KRaft controllers, and serve consumers/stream processors. Step 4 - Connectors integrate external systems and observability monitors lag/health. Step 5 - The diagram reflects current production Kafka concepts without forcing unrelated services. Step 6 - Labels are concise. Step 7 - Components are grouped by responsibility.');
+      plan = buildPlan(kafkaMermaid, 'Step 0 - Generic Kafka request, so show Kafka platform architecture rather than a made-up app workflow. Step 1 - Show producers, brokers, topics/partitions, replication, controller quorum, consumers, stream processing, connectors, schema registry, and observability. Step 2 - Producers write records to topic partitions. Step 3 - Brokers persist logs, replicate partitions, coordinate metadata through KRaft controllers, and serve consumers/stream processors. Step 4 - Connectors integrate external systems and observability monitors lag/health. Step 5 - The diagram reflects current production Kafka concepts without forcing unrelated services. Step 6 - Labels are concise. Step 7 - Components are grouped by responsibility.');
+      break;
     case 'linux':
-      return buildPlan(linuxMermaid, 'Step 0 - Generic Linux request, so show operating system architecture as layered internals rather than an application deployment. Step 1 - Show user space, system libraries, system call boundary, kernel subsystems, security, device drivers, and hardware. Step 2 - Applications call libraries and shell utilities. Step 3 - System calls enter the kernel, where scheduler, memory manager, VFS, networking, IPC, security modules, and drivers coordinate hardware. Step 4 - Results return back to user space. Step 5 - Include production-relevant OS concepts without unrelated cloud infrastructure. Step 6 - Labels are concise. Step 7 - The diagram is a layered grid.');
+      plan = buildPlan(linuxMermaid, 'Step 0 - Generic Linux request, so show operating system architecture as layered internals rather than an application deployment. Step 1 - Show user space, system libraries, system call boundary, kernel subsystems, security, device drivers, and hardware. Step 2 - Applications call libraries and shell utilities. Step 3 - System calls enter the kernel, where scheduler, memory manager, VFS, networking, IPC, security modules, and drivers coordinate hardware. Step 4 - Results return back to user space. Step 5 - Include production-relevant OS concepts without unrelated cloud infrastructure. Step 6 - Labels are concise. Step 7 - The diagram is a layered grid.');
+      break;
     default:
-      return buildDomainConceptPlan(concept);
+      plan = buildDomainConceptPlan(concept);
   }
+
+  if (detailLevel < 3) {
+    plan = {
+      ...plan,
+      mermaidCode: trimMermaidByDetailLevel(plan.mermaidCode, detailLevel),
+      reasoning: `${plan.reasoning} Detail level L${detailLevel}: trimmed secondary / ops bands to match the requested scope.`,
+    };
+  }
+  return plan;
+}
+
+/**
+ * Drop trailing subgraphs (typically OPS / observability) so L1/L2 concept
+ * templates stay within the FloatingAIBar detail budgets.
+ */
+export function trimMermaidByDetailLevel(mermaidCode: string, detailLevel: 1 | 2 | 3): string {
+  if (detailLevel >= 3) return mermaidCode;
+
+  const lines = mermaidCode.split('\n');
+  type Block = { start: number; end: number };
+  const blocks: Block[] = [];
+  let depth = 0;
+  let blockStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*subgraph\s+/i.test(lines[i])) {
+      if (depth === 0) blockStart = i;
+      depth += 1;
+    } else if (/^\s*end\s*$/i.test(lines[i])) {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0 && blockStart >= 0) {
+        blocks.push({ start: blockStart, end: i });
+        blockStart = -1;
+      }
+    }
+  }
+  if (blocks.length <= 2) return mermaidCode;
+
+  const keepCount = detailLevel === 1
+    ? Math.min(3, blocks.length)
+    : Math.max(3, blocks.length - 1);
+  if (keepCount >= blocks.length) return mermaidCode;
+
+  const keptBlocks = blocks.slice(0, keepCount);
+  const lastKeptEnd = keptBlocks[keptBlocks.length - 1].end;
+
+  const header: string[] = [];
+  for (let i = 0; i < (blocks[0]?.start ?? 0); i++) header.push(lines[i]);
+
+  const body: string[] = [];
+  for (const b of keptBlocks) {
+    for (let i = b.start; i <= b.end; i++) body.push(lines[i]);
+  }
+
+  const keptIds = new Set<string>();
+  for (const line of body) {
+    const decl = line.match(/^\s*([A-Za-z0-9_]+)\s*[\[\(\{]/);
+    if (decl) keptIds.add(decl[1]);
+  }
+
+  // Edges may appear after all subgraphs — keep only those still valid.
+  const edgeLines: string[] = [];
+  for (let i = lastKeptEnd + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim() || /^\s*subgraph\s+/i.test(line) || /^\s*end\s*$/i.test(line)) continue;
+    const edgeMatch = line.match(
+      /^\s*([A-Za-z0-9_]+)\s*-->\s*(?:\|[^|]*\|\s*)?([A-Za-z0-9_]+)/,
+    );
+    if (edgeMatch && keptIds.has(edgeMatch[1]) && keptIds.has(edgeMatch[2])) {
+      edgeLines.push(line);
+    }
+  }
+
+  // Also scan edges that were interleaved (rare) inside the original after first block
+  for (let i = (blocks[0]?.start ?? 0); i <= lastKeptEnd; i++) {
+    const line = lines[i];
+    const edgeMatch = line.match(
+      /^\s*([A-Za-z0-9_]+)\s*-->\s*(?:\|[^|]*\|\s*)?([A-Za-z0-9_]+)/,
+    );
+    if (edgeMatch && keptIds.has(edgeMatch[1]) && keptIds.has(edgeMatch[2])) {
+      // Already in body if it was between nodes inside a kept subgraph — skip duplicates
+      if (!body.includes(line) && !edgeLines.includes(line)) edgeLines.push(line);
+    }
+  }
+
+  return [...header, ...body, ...edgeLines].join('\n').trim() + '\n';
 }
 
 function extractConceptSubject(prompt: string): string {

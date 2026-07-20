@@ -52,7 +52,8 @@ export function getSimpleEdgePositions(
   return { sourcePos, targetPos };
 }
 
-const INCOMING_OUTGOING_GAP = 6;
+/** Half-gap between dedicated incoming and outgoing handle slots on a side (12px total). */
+export const INCOMING_OUTGOING_GAP = 6;
 
 function getEdgeSideForNode(
   e: Edge,
@@ -76,6 +77,122 @@ function getEdgeSideForNode(
   return e.source === nodeId ? sourcePos : targetPos;
 }
 
+/**
+ * Peer coordinate along the side's tangent axis.
+ * Left/Right sides fan along Y; Top/Bottom fan along X.
+ */
+function peerTangentCoord(
+  peer: Node,
+  side: Position,
+): number {
+  const { cx, cy } = getNodeCenter(peer);
+  return side === Position.Left || side === Position.Right ? cy : cx;
+}
+
+function meanPeerTangent(
+  edges: Edge[],
+  nodeId: string,
+  side: Position,
+  nodeInternals: Map<string, Node>,
+): number | null {
+  if (edges.length === 0) return null;
+  let sum = 0;
+  let count = 0;
+  for (const e of edges) {
+    const peerId = e.source === nodeId ? e.target : e.source;
+    const peer = nodeInternals.get(peerId);
+    if (!peer) continue;
+    sum += peerTangentCoord(peer, side);
+    count += 1;
+  }
+  return count === 0 ? null : sum / count;
+}
+
+/**
+ * Chooses which side of the side-midpoint hosts incoming vs outgoing handles.
+ * Places the group whose peers sit earlier on the tangent axis toward the
+ * negative slot so edges run parallel instead of crossing. When peer means
+ * tie (e.g. bidirectional pair), a stable node-id tie-break assigns opposite
+ * signs on opposite endpoints so the two edges stay uncrossed.
+ *
+ * Returns signs applied to INCOMING_OUTGOING_GAP for each group.
+ */
+export function getIncomingOutgoingSlotSigns(
+  nodeId: string,
+  side: Position,
+  incoming: Edge[],
+  outgoing: Edge[],
+  nodeInternals: Map<string, Node>,
+): { incomingSign: 1 | -1; outgoingSign: 1 | -1 } {
+  const inMean = meanPeerTangent(incoming, nodeId, side, nodeInternals);
+  const outMean = meanPeerTangent(outgoing, nodeId, side, nodeInternals);
+
+  if (inMean !== null && outMean !== null) {
+    const delta = inMean - outMean;
+    if (Math.abs(delta) > 1e-6) {
+      // Peers with smaller tangent coord → negative slot (up / left).
+      return delta < 0
+        ? { incomingSign: -1, outgoingSign: 1 }
+        : { incomingSign: 1, outgoingSign: -1 };
+    }
+  }
+
+  // Tie / missing peers: stable opposite assignment across the connection.
+  const peerIds = [
+    ...incoming.map((e) => (e.source === nodeId ? e.target : e.source)),
+    ...outgoing.map((e) => (e.source === nodeId ? e.target : e.source)),
+  ].sort();
+  const pivot = peerIds[0] ?? '';
+  // Lower node id keeps outgoing on the negative slot (historical default).
+  if (nodeId.localeCompare(pivot) <= 0) {
+    return { incomingSign: 1, outgoingSign: -1 };
+  }
+  return { incomingSign: -1, outgoingSign: 1 };
+}
+
+/**
+ * Per-side slot layout for dedicated source (outgoing) / target (incoming) handles.
+ * Used by FloatingHandles to visually place the two dots, matching edge endpoints.
+ */
+export function getHandleSlotLayout(
+  nodeId: string,
+  side: Position,
+  edges: Edge[],
+  nodeInternals: Map<string, Node>,
+  resolveSide?: EdgeSideResolver,
+): { sourceOffset: number; targetOffset: number } {
+  const onSide = edges.filter((e) => {
+    if (e.source !== nodeId && e.target !== nodeId) return false;
+    const s = resolveSide
+      ? resolveSide(e, nodeId)
+      : getEdgeSideForNode(e, nodeId, nodeInternals, side);
+    return s === side;
+  });
+
+  const incoming = onSide.filter((e) => e.target === nodeId);
+  const outgoing = onSide.filter((e) => e.source === nodeId);
+
+  if (incoming.length === 0 || outgoing.length === 0) {
+    // Default: outgoing (source) above/left, incoming (target) below/right.
+    return {
+      sourceOffset: -INCOMING_OUTGOING_GAP,
+      targetOffset: INCOMING_OUTGOING_GAP,
+    };
+  }
+
+  const { incomingSign, outgoingSign } = getIncomingOutgoingSlotSigns(
+    nodeId,
+    side,
+    incoming,
+    outgoing,
+    nodeInternals,
+  );
+  return {
+    sourceOffset: outgoingSign * INCOMING_OUTGOING_GAP,
+    targetOffset: incomingSign * INCOMING_OUTGOING_GAP,
+  };
+}
+
 export type EdgeSideResolver = (edge: Edge, nodeId: string) => Position;
 
 export function getEdgeShiftOffset(
@@ -93,13 +210,15 @@ export function getEdgeShiftOffset(
 ): number {
   const [nodeId, edgeId, side, edges, nodeInternals, spacing = 24, , , resolveSide] = args;
 
+  // Include all connected edges (persisted sourceHandle/targetHandle must not
+  // disable slot separation — visual handles always sit on dedicated in/out slots).
   const connected = edges.filter(
-    (e) =>
-      (e.source === nodeId || e.target === nodeId) &&
-      (e.sourceHandle ?? null) === null &&
-      (e.targetHandle ?? null) === null,
+    (e) => e.source === nodeId || e.target === nodeId,
   );
-  if (connected.length <= 1) return 0;
+  const self = connected.find((e) => e.id === edgeId);
+  if (!self) return 0;
+
+  const isIncoming = self.target === nodeId;
 
   // Filter to only edges on the same side of this node
   const onSide = connected.filter((e) => {
@@ -110,8 +229,6 @@ export function getEdgeShiftOffset(
     return s === side;
   });
 
-  if (onSide.length <= 1) return 0;
-
   const incoming = onSide
     .filter((e) => e.target === nodeId)
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -119,25 +236,26 @@ export function getEdgeShiftOffset(
     .filter((e) => e.source === nodeId)
     .sort((a, b) => a.id.localeCompare(b.id));
 
-  const isIncoming = incoming.some((e) => e.id === edgeId);
   const group = isIncoming ? incoming : outgoing;
 
-  // We only need the incoming/outgoing separation gap if BOTH incoming and outgoing edges exist on this side
-  const hasIncoming = incoming.length > 0;
-  const hasOutgoing = outgoing.length > 0;
-  const needGap = hasIncoming && hasOutgoing;
-  const gap = needGap ? (isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP) : 0;
-
-  if (group.length <= 1) {
-    return gap;
+  // Always attach to the dedicated in/out slot (matches FloatingHandles).
+  // All edges in the same direction on this side SHARE one terminal point —
+  // no within-group fan-out — so multiple incomings merge visually at one handler.
+  if (incoming.length > 0 && outgoing.length > 0) {
+    const { incomingSign, outgoingSign } = getIncomingOutgoingSlotSigns(
+      nodeId,
+      side,
+      incoming,
+      outgoing,
+      nodeInternals,
+    );
+    return (isIncoming ? incomingSign : outgoingSign) * INCOMING_OUTGOING_GAP;
   }
 
-  const idx = group.findIndex((e) => e.id === edgeId);
-  if (idx === -1) return 0;
-
-  const center = ((group.length - 1) * spacing) / 2;
-  const baseOffset = idx * spacing - center;
-  return baseOffset + gap;
+  // Default layout: outgoing (source) above/left, incoming (target) below/right.
+  void group;
+  void spacing;
+  return isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP;
 }
 
 

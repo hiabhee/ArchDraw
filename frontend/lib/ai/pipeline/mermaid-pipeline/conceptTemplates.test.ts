@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectImplicitConceptPrompt } from './conceptTemplates';
+import { detectImplicitConceptPrompt, trimMermaidByDetailLevel } from './conceptTemplates';
 import { runMermaidPipeline } from './index';
 
 function nodeLabels(result: Awaited<ReturnType<typeof runMermaidPipeline>>): string[] {
@@ -30,7 +30,8 @@ describe('implicit concept diagram generation', () => {
       description: 'Describe Docker architecture',
       systemType: 'architecture',
       complexity: 'low',
-      diagramSize: 'medium',
+      diagramSize: 'large',
+      detailLevel: 3,
     });
 
     const labels = nodeLabels(result);
@@ -59,7 +60,8 @@ describe('implicit concept diagram generation', () => {
       description: 'Describe API Gateway',
       systemType: 'architecture',
       complexity: 'low',
-      diagramSize: 'medium',
+      diagramSize: 'large',
+      detailLevel: 3,
     });
 
     const labels = nodeLabels(result);
@@ -86,7 +88,8 @@ describe('implicit concept diagram generation', () => {
       description: 'Explain Kafka architecture',
       systemType: 'architecture',
       complexity: 'low',
-      diagramSize: 'medium',
+      diagramSize: 'large',
+      detailLevel: 3,
     });
 
     const labels = nodeLabels(result);
@@ -110,7 +113,8 @@ describe('implicit concept diagram generation', () => {
       description: 'Linux architecture overview',
       systemType: 'architecture',
       complexity: 'low',
-      diagramSize: 'medium',
+      diagramSize: 'large',
+      detailLevel: 3,
     });
 
     const labels = nodeLabels(result);
@@ -134,7 +138,8 @@ describe('implicit concept diagram generation', () => {
       description: 'Describe Redis architecture',
       systemType: 'architecture',
       complexity: 'low',
-      diagramSize: 'medium',
+      diagramSize: 'large',
+      detailLevel: 3,
     });
 
     const labels = nodeLabels(result);
@@ -152,6 +157,35 @@ describe('implicit concept diagram generation', () => {
     ]));
     expect(labels).not.toContain('Order Service');
     expect(labels).not.toContain('Product Service');
+  });
+
+  it('trims trailing concept subgraphs for L2 detail', () => {
+    const mermaid = `graph LR
+  subgraph A["A"]
+    a1["A1"]
+  end
+  subgraph B["B"]
+    b1["B1"]
+  end
+  subgraph C["C"]
+    c1["C1"]
+  end
+  subgraph OPS["Operations"]
+    o1["Metrics"]
+  end
+  a1 --> b1
+  b1 --> c1
+  c1 --> o1
+`;
+    const trimmed = trimMermaidByDetailLevel(mermaid, 2);
+    expect(trimmed).toContain('subgraph A');
+    expect(trimmed).toContain('subgraph B');
+    expect(trimmed).toContain('subgraph C');
+    expect(trimmed).not.toContain('subgraph OPS');
+    expect(trimmed).not.toContain('Metrics');
+    expect(trimmed).toContain('a1 --> b1');
+    expect(trimmed).toContain('b1 --> c1');
+    expect(trimmed).not.toContain('c1 --> o1');
   });
 });
 

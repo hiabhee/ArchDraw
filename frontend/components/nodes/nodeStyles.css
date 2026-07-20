@@ -268,23 +268,33 @@
 /* ── Floating Handles (SystemNode) ──────────────────────────────── */
 /* Override React Flow's default handle positioning to push handles
    24px outside the node boundary. Uses CSS specificity (!important)
-   because React Flow applies inline styles. */
+   because React Flow applies inline styles.
+   --rh-slot shifts source/target along the side (dedicated in/out). */
 .node-card .rh.rh--left {
   left: -24px !important;
+  top: calc(50% + var(--rh-slot, 0px)) !important;
+  transform: translateY(-50%) !important;
 }
 .node-card .rh.rh--right {
   left: auto !important;
   right: -24px !important;
+  top: calc(50% + var(--rh-slot, 0px)) !important;
+  transform: translateY(-50%) !important;
 }
 .node-card .rh.rh--top {
   top: -24px !important;
+  left: calc(50% + var(--rh-slot, 0px)) !important;
+  transform: translateX(-50%) !important;
 }
 .node-card .rh.rh--bottom {
   top: auto !important;
   bottom: -24px !important;
+  left: calc(50% + var(--rh-slot, 0px)) !important;
+  transform: translateX(-50%) !important;
 }
 
-/* Show handles on hover with visible dots */
+/* Show handles on hover with visible dots.
+   Tangential top/left offsets (in/out slot separation) come from inline styles. */
 .node-card:hover .rh {
   opacity: 1 !important;
   width: 12px !important;
@@ -296,16 +306,8 @@
   border-radius: 50% !important;
   pointer-events: all !important;
   cursor: crosshair !important;
-  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, top 0.15s ease, left 0.15s ease;
   z-index: 20 !important;
-}
-.node-card:hover .rh--left,
-.node-card:hover .rh--right {
-  transform: translateY(-50%) !important;
-}
-.node-card:hover .rh--top,
-.node-card:hover .rh--bottom {
-  transform: translateX(-50%) !important;
 }
 .node-card:hover .rh:hover {
   box-shadow: 0 0 0 3px var(--node-accent, #0d9488) !important;
@@ -350,16 +352,6 @@
   pointer-events: all !important;
   z-index: 20 !important;
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
-}
-
-.react-flow--connection-drawing .node-card .rh--left,
-.react-flow--connection-drawing .node-card .rh--right {
-  transform: translateY(-50%) !important;
-}
-
-.react-flow--connection-drawing .node-card .rh--top,
-.react-flow--connection-drawing .node-card .rh--bottom {
-  transform: translateX(-50%) !important;
 }
 
 .react-flow--connection-drawing .node-card .rh:hover {

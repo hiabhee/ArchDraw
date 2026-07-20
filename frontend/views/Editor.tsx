@@ -314,7 +314,7 @@ export default function EditorPage() {
         const response = await fetch('/api/repo-diagram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repoUrl: description.trim() }),
+          body: JSON.stringify({ repoUrl: description.trim(), detailLevel }),
         });
 
         const data = await response.json();
@@ -489,13 +489,13 @@ export default function EditorPage() {
         
         <CommandPalette />
         <OnboardingOverlay />
-        <FloatingAIBar 
+          <FloatingAIBar 
           onGenerate={handleGenerate} 
           onToggleCode={() => setShowCodePanel(prev => !prev)}
           showCode={showCodePanel}
           hideCodeButton={isSequenceDiagram}
           isCanvasEmpty={nodes.length === 0}
-          onRegenerate={lastPrompt ? () => handleGenerate(lastPrompt, lastSize) : undefined}
+          onRegenerate={lastPrompt ? (level) => handleGenerate(lastPrompt, level) : undefined}
           hasLastPrompt={!!lastPrompt}
         />
         <AnimatePresence>

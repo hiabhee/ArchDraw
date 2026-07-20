@@ -48,8 +48,8 @@ describe('Dynamic Handles Fixes', () => {
     const offset1 = getEdgeShiftOffset('A', 'edge-1', Position.Right, edges, nodeInternals);
     const offset2 = getEdgeShiftOffset('A', 'edge-2', Position.Right, edges, nodeInternals);
 
-    // 2 outgoing edges, centered: indices 0,1 → offsets -12, 12
-    expect(offset1).toBe(-12);
-    expect(offset2).toBe(12);
+    // 2 outgoing edges merge onto the dedicated source slot (-6)
+    expect(offset1).toBe(-6);
+    expect(offset2).toBe(-6);
   });
 });
