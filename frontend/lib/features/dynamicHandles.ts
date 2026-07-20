@@ -1,21 +1,30 @@
-import logger from '@/lib/logger';
 /**
  * @feature DynamicHandleSelection
  * @protected true
- * @description Dynamically selects edge source/target handles based on 
- *   relative node positions. For each edge, picks the handle pair (from all
- *   4 sides) that minimizes Manhattan distance between the two handle
- *   positions — automatically giving the shortest possible edge path.
- * 
+ * @description Step 1 of the connection pipeline: determines which side of
+ *   each node an edge connects to. Purely geometric — compares the raw
+ *   center-to-center direction (dx, dy) without normalizing by node
+ *   dimensions.  The side with the larger absolute delta wins; ties go
+ *   to the horizontal axis (Left/Right), matching the standard React
+ *   Flow floating-edge convention.
+ *
+ *   This is intentionally simple and dimension-agnostic.  Node size is
+ *   irrelevant to "which side faces the other node" — that is purely
+ *   a directional question.  Routing, clipping, and collision avoidance
+ *   are handled downstream by edgeRouteBuilder.
+ *
  * @do-not-modify Without explicit instruction from the user.
  * @do-not-delete This file implements core edge routing behavior.
  * @affects SimpleFloatingEdge, useAutoLayout, elkLayoutService
- * 
- * @last-updated 2026-07-07
+ *
+ * @last-updated 2026-07-20
  */
 
 import { Position } from 'reactflow';
-import { getCollisionFreeWaypoints } from '../utils/collisionFreeEdgePath';
+import {
+  selectBestHandlerPair,
+  type HandlerRect,
+} from '../utils/handlerPairScorer';
 
 export type HandleSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -32,14 +41,16 @@ export interface DynamicHandleResult {
 }
 
 /**
- * Given two node rects, picks the handle pair (source side + target side)
- * that gives the shortest Manhattan distance between the two handles.
- * This naturally routes each edge through the side closest to its target:
- * - target below  → bottom→top
- * - target above  → top→bottom
- * - target right  → right→left
- * - target left   → left→right
- * — without any gap-ratio heuristic or axis bias.
+ * Step 1 of the connection pipeline — determines which side of each node
+ * an edge connects to.  For each node independently, the raw center-to-
+ * center direction is compared: whichever axis has the larger absolute
+ * delta wins:
+ *   - |dx| > |dy|  →  Left/Right handles  (ties also go here)
+ *   - |dy| > |dx|  →  Top/Bottom handles
+ *
+ * Because the same deterministic rule is applied with negated deltas for
+ * each node, the result is always an opposite pair (Left↔Right,
+ * Top↔Bottom).
  */
 export function getDynamicHandles(
   sourceRect: NodeRect,
@@ -49,108 +60,77 @@ export function getDynamicHandles(
   targetId?: string,
   direction: 'LR' | 'TD' = 'LR'
 ): DynamicHandleResult {
-  const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const debug = process.env.NEXT_PUBLIC_DEBUG_HANDLES === 'true';
+  void direction;
 
-  let dx = 0;
-  let dy = 0;
-  let sourceCX = 0;
-  let sourceCY = 0;
-  let targetCX = 0;
-  let targetCY = 0;
-  
-  try {
-    sourceCX = sourceRect.x + sourceRect.width / 2;
-    sourceCY = sourceRect.y + sourceRect.height / 2;
-    targetCX = targetRect.x + targetRect.width / 2;
-    targetCY = targetRect.y + targetRect.height / 2;
-    
-    if (isNaN(sourceCX) || isNaN(sourceCY) || isNaN(targetCX) || isNaN(targetCY)) {
-      throw new Error('Invalid rect');
-    }
+  const sourceCX = sourceRect.x + sourceRect.width / 2;
+  const sourceCY = sourceRect.y + sourceRect.height / 2;
+  const targetCX = targetRect.x + targetRect.width / 2;
+  const targetCY = targetRect.y + targetRect.height / 2;
 
-    dx = targetCX - sourceCX;
-    dy = targetCY - sourceCY;
+  const dx = targetCX - sourceCX;
+  const dy = targetCY - sourceCY;
 
-    if (Math.abs(dx) < 1e-9) dx = 0;
-    if (Math.abs(dy) < 1e-9) dy = 0;
-  } catch {
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
     return { sourcePosition: Position.Right, targetPosition: Position.Left };
   }
 
-  // Pick the shorter axis by computing actual handle-to-handle Manhattan distance
-  // for two candidates:
-  //   - Horizontal (Right→Left or Left→Right based on dx)
-  //   - Vertical   (Bottom→Top or Top→Bottom based on dy)
-  //
-  // Using center-to-center direction for WHICH pair within an axis guarantees
-  // symmetry (A→B and B→A always reverse correctly), while the distance
-  // comparison between axes picks the truly shorter path.
-  const useRight = dx > 0 || (dx === 0 && dy >= 0);
-  const useBottom = dy > 0 || (dy === 0 && dx > 0);
+  // Post-layout assertion: verify the coordinates we received are sane.
+  // If these fail, getDynamicHandles is being called with pre-layout or
+  // stale node positions — the caller must pass post-layout rects.
+  if (process.env.NODE_ENV !== 'production') {
+    const badSource =
+      !isFinite(sourceRect.x) || !isFinite(sourceRect.y) ||
+      !isFinite(sourceRect.width) || !isFinite(sourceRect.height) ||
+      sourceRect.width < 0 || sourceRect.height < 0;
+    const badTarget =
+      !isFinite(targetRect.x) || !isFinite(targetRect.y) ||
+      !isFinite(targetRect.width) || !isFinite(targetRect.height) ||
+      targetRect.width < 0 || targetRect.height < 0;
+    if (badSource || badTarget) {
+      console.warn(
+        '[getDynamicHandles] INVALID input rects — expected post-layout coordinates. ' +
+        'source=(%d,%d %dx%d) target=(%d,%d %dx%d)',
+        sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height,
+        targetRect.x, targetRect.y, targetRect.width, targetRect.height,
+      );
+    }
+  }
 
-  const horizontalSourcePos = useRight ? Position.Right : Position.Left;
-  const horizontalTargetPos = useRight ? Position.Left : Position.Right;
-  const verticalSourcePos = useBottom ? Position.Bottom : Position.Top;
-  const verticalTargetPos = useBottom ? Position.Top : Position.Bottom;
+  if (process.env.NEXT_PUBLIC_DEBUG_HANDLES === 'true') {
+    console.log('[getDynamicHandles] edge=%s src=%s tgt=%s', edgeId, sourceId, targetId);
+    console.log('[getDynamicHandles] source rect: x=%d y=%d w=%d h=%d', sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
+    console.log('[getDynamicHandles] target rect: x=%d y=%d w=%d h=%d', targetRect.x, targetRect.y, targetRect.width, targetRect.height);
+    console.log('[getDynamicHandles] source center: (%d, %d)  target center: (%d, %d)', sourceCX, sourceCY, targetCX, targetCY);
+    console.log('[getDynamicHandles] dx=%d dy=%d', dx, dy);
+  }
 
-  const hsh = getHandleCoordinate(sourceRect, horizontalSourcePos);
-  const hth = getHandleCoordinate(targetRect, horizontalTargetPos);
-  const horizontalDist = Math.abs(hth.x - hsh.x) + Math.abs(hth.y - hsh.y);
+  const sourcePosition = pickAxisSide(dx, dy);
+  const targetPosition = pickAxisSide(-dx, -dy);
 
-  const vsh = getHandleCoordinate(sourceRect, verticalSourcePos);
-  const vth = getHandleCoordinate(targetRect, verticalTargetPos);
-  const verticalDist = Math.abs(vth.x - vsh.x) + Math.abs(vth.y - vsh.y);
-
-  // When distances are close (within a tolerance), prefer the axis aligned
-  // with the layout direction. This prevents edges from taking weird sideways
-  // routes when the diagram flows top-down or left-right.
-  // Also guarantees symmetry: A→B and B→A will reverse correctly.
-  const DIST_EPSILON = 1e-6;
-  const directionBias = 0.25; // prefer layout direction even if up to 25% longer
-  const isTD = direction === 'TD';
-  const verticalPreferred = isTD;
-  const adjustedVDist = verticalPreferred ? verticalDist * (1 - directionBias) : verticalDist;
-  const adjustedHDist = verticalPreferred ? horizontalDist : horizontalDist * (1 - directionBias);
-  const useVertical = Math.abs(adjustedVDist - adjustedHDist) > DIST_EPSILON
-    ? adjustedVDist < adjustedHDist
-    : isTD
-      ? Math.abs(dy) >= Math.abs(dx) * 0.5
-      : Math.abs(dx) >= Math.abs(dy) * 0.5;
-
-  const sourcePosition = useVertical ? verticalSourcePos : horizontalSourcePos;
-  const targetPosition = useVertical ? verticalTargetPos : horizontalTargetPos;
-
-  if (debug) {
-    logger.info('[DynamicHandles] Calculation:', {
-      edgeId,
-      sourceId,
-      targetId,
-      nodeCenter: {
-        source: { x: sourceCX, y: sourceCY },
-        target: { x: targetCX, y: targetCY },
-      },
-      dx,
-      dy,
-    });
-
-    logger.info('[DynamicHandles] Selected handles:', {
-      edgeId,
-      sourceId,
-      targetId,
-      sourcePosition,
-      targetPosition,
-      horizontalDist,
-      verticalDist,
-    });
-
-    logger.info('[DynamicHandles] Performance:', {
-      edgeId,
-      elapsedMs: (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start,
-    });
+  if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
+    console.log('[EdgeDebug:1-Geometric] edge=%s  src=%s→%s  tgt=%s→%s  dx=%d dy=%d',
+      edgeId, sourceId, sourcePosition, targetId, targetPosition, dx, dy);
   }
 
   return { sourcePosition, targetPosition };
+}
+
+/**
+ * Picks a handle side from the raw center-to-center direction vector.
+ * Whichever axis has the larger absolute delta wins; ties go to the
+ * horizontal axis (Left/Right), matching the standard React Flow
+ * floating-edge convention.
+ *
+ * This is intentionally dimension-agnostic.  Node width/height are
+ * irrelevant to "which side faces the other node" — that is purely a
+ * directional question.  The node's bounding box size matters only for
+ * anchor computation (step 3) and clipping (step 5), not side selection.
+ */
+function pickAxisSide(dx: number, dy: number): Position {
+  if (Math.abs(dy) > Math.abs(dx)) {
+    return dy > 0 ? Position.Bottom : Position.Top;
+  }
+  return dx > 0 ? Position.Right : Position.Left;
 }
 
 /**
@@ -158,36 +138,7 @@ export function getDynamicHandles(
  * Right and Bottom handles are shifted outward (12px) for cleaner edge routing.
  * Used by SimpleFloatingEdge to compute exact edge start/end points.
  */
-const OUTER_OFFSET = 12;
-
-function lineIntersectsRect(
-  x1: number, y1: number,
-  x2: number, y2: number,
-  rx: number, ry: number, rw: number, rh: number,
-): boolean {
-  const INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
-  const code = (x: number, y: number) => {
-    let c = INSIDE;
-    if (x < rx) c |= LEFT;
-    else if (x > rx + rw) c |= RIGHT;
-    if (y < ry) c |= TOP;
-    else if (y > ry + rh) c |= BOTTOM;
-    return c;
-  };
-  let c1 = code(x1, y1), c2 = code(x2, y2);
-  while (true) {
-    if (!(c1 | c2)) return true;
-    if (c1 & c2) return false;
-    const c = c1 || c2;
-    let x = 0, y = 0;
-    if (c & BOTTOM) { x = x1 + (x2 - x1) * (ry + rh - y1) / (y2 - y1); y = ry + rh; }
-    else if (c & TOP) { x = x1 + (x2 - x1) * (ry - y1) / (y2 - y1); y = ry; }
-    else if (c & RIGHT) { y = y1 + (y2 - y1) * (rx + rw - x1) / (x2 - x1); x = rx + rw; }
-    else if (c & LEFT) { y = y1 + (y2 - y1) * (rx - x1) / (x2 - x1); x = rx; }
-    if (c === c1) { x1 = x; y1 = y; c1 = code(x1, y1); }
-    else { x2 = x; y2 = y; c2 = code(x2, y2); }
-  }
-}
+const OUTER_OFFSET = 24;
 
 export function getSemanticPortSide(
   sourceServiceType: string,
@@ -249,31 +200,18 @@ export function getSemanticPortSide(
   }
 }
 
-/**
- * Returns true if any segment of the waypoint path crosses the given rect,
- * excluding segments that lie entirely within a small tolerance of the
- * rect's edge (to avoid flagging the handle connection point itself).
- */
-function waypointsCrossRect(
-  waypoints: Array<{ x: number; y: number }>,
-  rx: number, ry: number, rw: number, rh: number,
-  tolerance: number = 4
-): boolean {
-  const inset = (v: number, lo: number, hi: number) => v >= lo - tolerance && v <= hi + tolerance;
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const a = waypoints[i], b = waypoints[i + 1];
-    if (
-      lineIntersectsRect(a.x, a.y, b.x, b.y, rx - tolerance, ry - tolerance, rw + tolerance * 2, rh + tolerance * 2)
-    ) {
-      const aInside = inset(a.x, rx, rx + rw) && inset(a.y, ry, ry + rh);
-      const bInside = inset(b.x, rx, rx + rw) && inset(b.y, ry, ry + rh);
-      if (aInside && bInside) continue;
-      return true;
-    }
-  }
-  return false;
+function sideFromData(value: unknown): Position | undefined {
+  if (value === 'left' || value === Position.Left) return Position.Left;
+  if (value === 'right' || value === Position.Right) return Position.Right;
+  if (value === 'top' || value === Position.Top) return Position.Top;
+  if (value === 'bottom' || value === Position.Bottom) return Position.Bottom;
+  return undefined;
 }
 
+/**
+ * Obstacle-aware handle selection — same scorer as computeEdgeRoute so
+ * persisted sourceHandle/targetHandle match the rendered edge sides.
+ */
 export function getObstacleAwareHandles(
   sourceRect: NodeRect,
   targetRect: NodeRect,
@@ -288,140 +226,44 @@ export function getObstacleAwareHandles(
   direction: 'LR' | 'TD' = 'LR',
   preferredPair?: { sourcePosition: Position; targetPosition: Position },
 ): DynamicHandleResult {
-  const rects = nodeRects ?? new Map();
-  const excluded = excludedNodeIds ?? new Set();
+  void edgeId;
+  void sourceId;
+  void targetId;
+  void sourceServiceType;
+  void targetServiceType;
 
-  const allPositions = [Position.Left, Position.Right, Position.Top, Position.Bottom];
-  const allPairs: Array<{ source: Position; target: Position }> = [];
-  for (const s of allPositions) {
-    for (const t of allPositions) {
-      allPairs.push({ source: s, target: t });
+  const obstacles = new Map<string, HandlerRect>();
+  if (nodeRects) {
+    for (const [id, r] of nodeRects) {
+      obstacles.set(id, { x: r.x, y: r.y, width: r.w, height: r.h });
     }
   }
 
-  function scorePair(sp: Position, tp: Position): { collisions: number; pathLen: number; crossesBody: boolean; isMixed: boolean; sameSide: boolean; flowAligned: boolean; dirAligned: boolean } {
-    const sh = getHandleCoordinate(sourceRect, sp);
-    const th = getHandleCoordinate(targetRect, tp);
-    const sx = sh.x, sy = sh.y, tx = th.x, ty = th.y;
+  const manualSource =
+    preferredPair?.sourcePosition ??
+    sideFromData(edgeData?.sourceSide);
+  const manualTarget =
+    preferredPair?.targetPosition ??
+    sideFromData(edgeData?.targetSide);
+  const laneSource = sideFromData(edgeData?.laneSourceSide);
+  const laneTarget = sideFromData(edgeData?.laneTargetSide);
 
-    const waypoints = getCollisionFreeWaypoints({
-      sourceX: sx,
-      sourceY: sy,
-      targetX: tx,
-      targetY: ty,
-      sourcePosition: sp,
-      targetPosition: tp,
-      nodeRects: rects,
-      excludedNodeIds: excluded
-    });
+  const pair = selectBestHandlerPair(
+    sourceRect,
+    targetRect,
+    direction,
+    obstacles.size > 0 ? obstacles : undefined,
+    excludedNodeIds,
+    manualSource,
+    manualTarget,
+    laneSource,
+    laneTarget,
+  );
 
-    let crossesBody = false;
-    if (waypoints.length >= 2) {
-      if (
-        waypointsCrossRect(waypoints, sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height)
-      ) {
-        crossesBody = true;
-      }
-      if (
-        waypointsCrossRect(waypoints, targetRect.x, targetRect.y, targetRect.width, targetRect.height)
-      ) {
-        crossesBody = true;
-      }
-    }
-
-    let collisions = 0;
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      for (const [nid, rect] of rects) {
-        if (excluded.has(nid)) continue;
-        if (lineIntersectsRect(waypoints[i].x, waypoints[i].y, waypoints[i + 1].x, waypoints[i + 1].y, rect.x, rect.y, rect.w, rect.h)) {
-          collisions++;
-        }
-      }
-    }
-
-    let pathLen = 0;
-    for (let i = 1; i < waypoints.length; i++) {
-      pathLen += Math.abs(waypoints[i].x - waypoints[i - 1].x) + Math.abs(waypoints[i].y - waypoints[i - 1].y);
-    }
-
-    const isMixed = (sp === Position.Left || sp === Position.Right) !== (tp === Position.Left || tp === Position.Right);
-
-    const sameSide =
-      (sp === Position.Right && tp === Position.Right) ||
-      (sp === Position.Left && tp === Position.Left) ||
-      (sp === Position.Top && tp === Position.Top) ||
-      (sp === Position.Bottom && tp === Position.Bottom);
-
-    const sCx = sourceRect.x + sourceRect.width / 2;
-    const sCy = sourceRect.y + sourceRect.height / 2;
-    const tCx = targetRect.x + targetRect.width / 2;
-    const tCy = targetRect.y + targetRect.height / 2;
-    const flowHorizontal = Math.abs(tCx - sCx) >= Math.abs(tCy - sCy);
-    const sH = sp === Position.Left || sp === Position.Right;
-    const tH = tp === Position.Left || tp === Position.Right;
-    const flowAligned = flowHorizontal ? (sH && tH) : (!sH && !tH);
-
-    // Direction alignment: does this pair match the layout direction?
-    const isTD = direction === 'TD';
-    const isVerticalPair = (sp === Position.Top || sp === Position.Bottom) && (tp === Position.Top || tp === Position.Bottom);
-    const isHorizontalPair = (sp === Position.Left || sp === Position.Right) && (tp === Position.Left || tp === Position.Right);
-    const dirAligned = isTD ? isVerticalPair : isHorizontalPair;
-
-    return { collisions, pathLen, crossesBody, isMixed, sameSide, flowAligned, dirAligned };
-  }
-
-  const geometryHandles = getDynamicHandles(sourceRect, targetRect, edgeId, sourceId, targetId, direction);
-
-  const candidates: Array<{ source: Position; target: Position; label: string }> = [];
-
-  if (preferredPair) {
-    candidates.push({ source: preferredPair.sourcePosition, target: preferredPair.targetPosition, label: 'preferred' });
-  }
-
-  candidates.push({ source: geometryHandles.sourcePosition, target: geometryHandles.targetPosition, label: 'geometry' });
-
-  for (const pair of allPairs) {
-    const already = candidates.some(c => c.source === pair.source && c.target === pair.target);
-    if (!already) {
-      candidates.push({ source: pair.source, target: pair.target, label: 'bruteforce' });
-    }
-  }
-
-  let best = {
-    collisions: Infinity,
-    pathLen: Infinity,
-    crossesBody: true,
-    sameSide: true,
-    flowAligned: false,
-    dirAligned: false,
-    source: geometryHandles.sourcePosition,
-    target: geometryHandles.targetPosition,
-    label: 'geometry' as string,
+  return {
+    sourcePosition: pair.sourceSide,
+    targetPosition: pair.targetSide,
   };
-
-  for (const cand of candidates) {
-    const score = scorePair(cand.source, cand.target);
-    const isPreferred = cand.label === 'preferred';
-    const bestIsPreferred = best.label === 'preferred';
-    const isBetter =
-      score.crossesBody < best.crossesBody ||
-      (score.crossesBody === best.crossesBody && score.collisions < best.collisions) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen < best.pathLen) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen === best.pathLen && score.dirAligned === true && best.dirAligned === false) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen === best.pathLen && score.dirAligned === best.dirAligned && score.sameSide === false && best.sameSide === true) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && score.pathLen === best.pathLen && score.dirAligned === best.dirAligned && score.sameSide === best.sameSide && score.flowAligned === true && best.flowAligned === false) ||
-      (score.crossesBody === best.crossesBody && score.collisions === best.collisions && Math.abs(score.pathLen - best.pathLen) < 200 && isPreferred && !bestIsPreferred);
-
-    if (isBetter) {
-      best = { ...score, source: cand.source, target: cand.target, label: cand.label };
-    }
-
-    if (!score.crossesBody && score.collisions === 0 && !score.sameSide && cand.label !== 'preferred') {
-      break;
-    }
-  }
-
-  return { sourcePosition: best.source, targetPosition: best.target };
 }
 
 export function getHandleCoordinate(

@@ -6,12 +6,12 @@ export function validateAST(ast: MermaidAST): { ok: true; ast: MermaidAST } | { 
   const nodeMap = new Map(ast.nodes.map(n => [n.id, n]))
   const subgraphMap = new Map(ast.subgraphs.map(s => [s.id, s]))
 
-  // Every edge source and target must exist
+  // Every edge source and target must exist as a node or subgraph
   for (const edge of ast.edges) {
-    if (!nodeMap.has(edge.source)) {
+    if (!nodeMap.has(edge.source) && !subgraphMap.has(edge.source)) {
       errors.push({ type: 'EDGE_SOURCE_NOT_FOUND', edgeId: edge.id, message: `Edge ${edge.id} source '${edge.source}' not found as a node id` })
     }
-    if (!nodeMap.has(edge.target)) {
+    if (!nodeMap.has(edge.target) && !subgraphMap.has(edge.target)) {
       errors.push({ type: 'EDGE_TARGET_NOT_FOUND', edgeId: edge.id, message: `Edge ${edge.id} target '${edge.target}' not found as a node id` })
     }
   }

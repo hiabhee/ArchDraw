@@ -1,5 +1,11 @@
 import { Position } from 'reactflow';
 
+const DEFAULT_BORDER_RADIUS = 24;
+
+export function terminalStubLength(borderRadius: number = DEFAULT_BORDER_RADIUS): number {
+  return Math.max(20, borderRadius + 8);
+}
+
 export interface NodeRect {
   id: string;
   x: number;
@@ -70,20 +76,44 @@ function pathCollidesWithNodes(
   return false;
 }
 
-function getIntersectingNodes(
-  x1: number, y1: number,
-  x2: number, y2: number,
+/**
+ * Checks if any segment enters a node's interior using proper segment–rect
+ * intersection (Cohen–Sutherland clipping), not the common-outside-bit shortcut
+ * which false-positives on diagonal segments.
+ */
+function pathEntersNodeInterior(
+  waypoints: Array<{ x: number; y: number }>,
   nodeRects: Map<string, NodeRect>,
   excludedIds: Set<string>,
-): NodeRect[] {
-  const result: NodeRect[] = [];
-  for (const [id, rect] of nodeRects) {
-    if (excludedIds.has(id)) continue;
-    if (segmentIntersectsRect(x1, y1, x2, y2, rect.x, rect.y, rect.w, rect.h)) {
-      result.push(rect);
+): boolean {
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const p1 = waypoints[i];
+    const p2 = waypoints[i + 1];
+    for (const [id, rect] of nodeRects) {
+      if (excludedIds.has(id)) continue;
+      if (segmentIntersectsRect(p1.x, p1.y, p2.x, p2.y, rect.x, rect.y, rect.w, rect.h)) {
+        return true;
+      }
     }
   }
-  return result;
+  return false;
+}
+
+export function pathSelfIntersects(points: Array<{ x: number; y: number }>): boolean {
+  for (let i = 0; i < points.length - 1; i++) {
+    for (let j = i + 2; j < points.length - 1; j++) {
+      const a = points[i], b = points[i + 1];
+      const c = points[j], d = points[j + 1];
+      const d1x = b.x - a.x, d1y = b.y - a.y;
+      const d2x = d.x - c.x, d2y = d.y - c.y;
+      const cross = d1x * d2y - d1y * d2x;
+      if (Math.abs(cross) < 1e-10) continue;
+      const t = ((c.x - a.x) * d2y - (c.y - a.y) * d2x) / cross;
+      const u = ((c.x - a.x) * d1y - (c.y - a.y) * d1x) / cross;
+      if (t > 0 && t < 1 && u > 0 && u < 1) return true;
+    }
+  }
+  return false;
 }
 
 function generateCandidates(
@@ -185,6 +215,71 @@ export function buildSmoothStepSvg(
   return d;
 }
 
+function countPathBends(points: Array<{ x: number; y: number }>): number {
+  if (points.length <= 2) return 0;
+  let n = 0;
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    const dx1 = Math.sign(curr.x - prev.x);
+    const dy1 = Math.sign(curr.y - prev.y);
+    const dx2 = Math.sign(next.x - curr.x);
+    const dy2 = Math.sign(next.y - curr.y);
+    if (dx1 !== dx2 || dy1 !== dy2) n++;
+  }
+  return n;
+}
+
+function pathManhattanLength(points: Array<{ x: number; y: number }>): number {
+  let len = 0;
+  for (let i = 1; i < points.length; i++) {
+    len += Math.abs(points[i].x - points[i - 1].x) + Math.abs(points[i].y - points[i - 1].y);
+  }
+  return len;
+}
+
+/** Prefer fewer bends, then shorter length — avoids gratuitous S-patterns. */
+function pickLowestBendPath(
+  candidates: Array<Array<{ x: number; y: number }>>,
+  nodeRects: Map<string, NodeRect>,
+  excludedIds: Set<string>,
+): Array<{ x: number; y: number }> | null {
+  let best: Array<{ x: number; y: number }> | null = null;
+  let bestBends = Infinity;
+  let bestLen = Infinity;
+
+  for (const raw of candidates) {
+    const path = simplifyOrthogonalPath(raw);
+    if (path.length < 2) continue;
+    if (pathEntersNodeInterior(path, nodeRects, excludedIds)) continue;
+    const bends = countPathBends(path);
+    const len = pathManhattanLength(path);
+    if (bends < bestBends || (bends === bestBends && len < bestLen)) {
+      best = path;
+      bestBends = bends;
+      bestLen = len;
+    }
+  }
+
+  return best;
+}
+
+function collectObstacleMargins(
+  nodeRects: Map<string, NodeRect>,
+  excludedIds: Set<string>,
+  margin: number = 20,
+): { xs: number[]; ys: number[] } {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const [, rect] of nodeRects) {
+    if (excludedIds.has(rect.id)) continue;
+    xs.push(rect.x - margin, rect.x + rect.w + margin);
+    ys.push(rect.y - margin, rect.y + rect.h + margin);
+  }
+  return { xs, ys };
+}
+
 function findSafeHtoHPath(
   sx: number, sy: number,
   tx: number, ty: number,
@@ -195,41 +290,49 @@ function findSafeHtoHPath(
   if (!nodeRects || nodeRects.size === 0) return null;
 
   const originalMx = (sx + tx) / 2 + edgeOffset;
-  const _minX = Math.min(sx, tx) - 200;
-  const _maxX = Math.max(sx, tx) + 200;
+  const minX = Math.min(sx, tx) - 200;
+  const maxX = Math.max(sx, tx) + 200;
+  const { xs, ys } = collectObstacleMargins(nodeRects, excludedIds);
 
-  const nodeEdgeCandidates: number[] = [];
-  for (const [, rect] of nodeRects) {
-    if (excludedIds.has(rect.id)) continue;
-    const margin = 20;
-    nodeEdgeCandidates.push(rect.x - margin);
-    nodeEdgeCandidates.push(rect.x + rect.w + margin);
-  }
+  const candidates: Array<Array<{ x: number; y: number }>> = [];
 
-  const candidates = [
-    ...generateCandidates(originalMx, _minX, _maxX, 40),
-    ...nodeEdgeCandidates,
-  ];
-
-  const checked = new Set<number>();
-  for (const mx of candidates) {
+  // Z-shapes (2 bends) via vertical mid corridor
+  const mxCandidates = [...generateCandidates(originalMx, minX, maxX, 40), ...xs];
+  const checkedMx = new Set<number>();
+  for (const mx of mxCandidates) {
     const rounded = Math.round(mx / 5) * 5;
-    if (checked.has(rounded)) continue;
-    checked.add(rounded);
-
-    const waypoints = [
+    if (checkedMx.has(rounded)) continue;
+    checkedMx.add(rounded);
+    candidates.push([
       { x: sx, y: sy },
       { x: mx, y: sy },
       { x: mx, y: ty },
       { x: tx, y: ty },
-    ];
-
-    if (!pathCollidesWithNodes(waypoints, nodeRects, excludedIds)) {
-      return waypoints;
-    }
+    ]);
   }
 
-  return null;
+  // U-wraps above/below (2 bends) — prefer these over A* S-routes when Z fails
+  const wrapYs = [
+    ...ys,
+    Math.min(sy, ty) - 80,
+    Math.max(sy, ty) + 80,
+    Math.min(sy, ty) - 160,
+    Math.max(sy, ty) + 160,
+  ];
+  const checkedMy = new Set<number>();
+  for (const my of wrapYs) {
+    const rounded = Math.round(my / 5) * 5;
+    if (checkedMy.has(rounded)) continue;
+    checkedMy.add(rounded);
+    candidates.push([
+      { x: sx, y: sy },
+      { x: sx, y: my },
+      { x: tx, y: my },
+      { x: tx, y: ty },
+    ]);
+  }
+
+  return pickLowestBendPath(candidates, nodeRects, excludedIds);
 }
 
 function findSafeVtoVPath(
@@ -242,41 +345,47 @@ function findSafeVtoVPath(
   if (!nodeRects || nodeRects.size === 0) return null;
 
   const originalMy = (sy + ty) / 2 + edgeOffset;
-  const _minY = Math.min(sy, ty) - 200;
-  const _maxY = Math.max(sy, ty) + 200;
+  const minY = Math.min(sy, ty) - 200;
+  const maxY = Math.max(sy, ty) + 200;
+  const { xs, ys } = collectObstacleMargins(nodeRects, excludedIds);
 
-  const nodeEdgeCandidates: number[] = [];
-  for (const [, rect] of nodeRects) {
-    if (excludedIds.has(rect.id)) continue;
-    const margin = 20;
-    nodeEdgeCandidates.push(rect.y - margin);
-    nodeEdgeCandidates.push(rect.y + rect.h + margin);
-  }
+  const candidates: Array<Array<{ x: number; y: number }>> = [];
 
-  const candidates = [
-    ...generateCandidates(originalMy, _minY, _maxY, 40),
-    ...nodeEdgeCandidates,
-  ];
-
-  const checked = new Set<number>();
-  for (const my of candidates) {
+  const myCandidates = [...generateCandidates(originalMy, minY, maxY, 40), ...ys];
+  const checkedMy = new Set<number>();
+  for (const my of myCandidates) {
     const rounded = Math.round(my / 5) * 5;
-    if (checked.has(rounded)) continue;
-    checked.add(rounded);
-
-    const waypoints = [
+    if (checkedMy.has(rounded)) continue;
+    checkedMy.add(rounded);
+    candidates.push([
       { x: sx, y: sy },
       { x: sx, y: my },
       { x: tx, y: my },
       { x: tx, y: ty },
-    ];
-
-    if (!pathCollidesWithNodes(waypoints, nodeRects, excludedIds)) {
-      return waypoints;
-    }
+    ]);
   }
 
-  return null;
+  const wrapXs = [
+    ...xs,
+    Math.min(sx, tx) - 80,
+    Math.max(sx, tx) + 80,
+    Math.min(sx, tx) - 160,
+    Math.max(sx, tx) + 160,
+  ];
+  const checkedMx = new Set<number>();
+  for (const mx of wrapXs) {
+    const rounded = Math.round(mx / 5) * 5;
+    if (checkedMx.has(rounded)) continue;
+    checkedMx.add(rounded);
+    candidates.push([
+      { x: sx, y: sy },
+      { x: mx, y: sy },
+      { x: mx, y: ty },
+      { x: tx, y: ty },
+    ]);
+  }
+
+  return pickLowestBendPath(candidates, nodeRects, excludedIds);
 }
 
 function findSafeLShapePath(
@@ -293,89 +402,39 @@ function findSafeLShapePath(
     ? [{ x: sx, y: sy }, { x: tx, y: sy }, { x: tx, y: ty }]
     : [{ x: sx, y: sy }, { x: sx, y: ty }, { x: tx, y: ty }];
 
-  if (!pathCollidesWithNodes(defaultWaypoints, nodeRects, excludedIds)) {
-    return null;
+  // Default L is fine — return it so callers don't fall through to A*.
+  if (!pathEntersNodeInterior(defaultWaypoints, nodeRects, excludedIds)) {
+    return defaultWaypoints;
   }
 
-  if (cornerFirstHorizontal) {
-    const blocking = getIntersectingNodes(sx, sy, tx, sy, nodeRects, excludedIds);
-    if (blocking.length > 0) {
-      const blockedYs = blocking.map(r => ({ top: r.y, bot: r.y + r.h }));
-      const allTopYs = blockedYs.map(b => b.top - margin);
-      const allBotYs = blockedYs.map(b => b.bot + margin);
+  const candidates: Array<Array<{ x: number; y: number }>> = [defaultWaypoints];
+  const { xs, ys } = collectObstacleMargins(nodeRects, excludedIds, margin);
 
-      for (const detourY of [...allTopYs, ...allBotYs]) {
-        const waypoints = [
-          { x: sx, y: sy },
-          { x: sx, y: detourY },
-          { x: tx, y: detourY },
-          { x: tx, y: ty },
-        ];
-        if (!pathCollidesWithNodes(waypoints, nodeRects, excludedIds)) {
-          return waypoints;
-        }
-      }
-    }
-
-    const verticalBlocking = getIntersectingNodes(tx, sy, tx, ty, nodeRects, excludedIds);
-    if (verticalBlocking.length > 0) {
-      const blockedXs = verticalBlocking.map(r => ({ left: r.x, right: r.x + r.w }));
-      const allLeftXs = blockedXs.map(b => b.left - margin);
-      const allRightXs = blockedXs.map(b => b.right + margin);
-
-      for (const detourX of [...allLeftXs, ...allRightXs]) {
-        const waypoints = [
-          { x: sx, y: sy },
-          { x: detourX, y: sy },
-          { x: detourX, y: ty },
-          { x: tx, y: ty },
-        ];
-        if (!pathCollidesWithNodes(waypoints, nodeRects, excludedIds)) {
-          return waypoints;
-        }
-      }
-    }
-  } else {
-    const blocking = getIntersectingNodes(sx, sy, sx, ty, nodeRects, excludedIds);
-    if (blocking.length > 0) {
-      const blockedXs = blocking.map(r => ({ left: r.x, right: r.x + r.w }));
-      const allLeftXs = blockedXs.map(b => b.left - margin);
-      const allRightXs = blockedXs.map(b => b.right + margin);
-
-      for (const detourX of [...allLeftXs, ...allRightXs]) {
-        const waypoints = [
-          { x: sx, y: sy },
-          { x: detourX, y: sy },
-          { x: detourX, y: ty },
-          { x: tx, y: ty },
-        ];
-        if (!pathCollidesWithNodes(waypoints, nodeRects, excludedIds)) {
-          return waypoints;
-        }
-      }
-    }
-
-    const horizontalBlocking = getIntersectingNodes(sx, ty, tx, ty, nodeRects, excludedIds);
-    if (horizontalBlocking.length > 0) {
-      const blockedYs = horizontalBlocking.map(r => ({ top: r.y, bot: r.y + r.h }));
-      const allTopYs = blockedYs.map(b => b.top - margin);
-      const allBotYs = blockedYs.map(b => b.bot + margin);
-
-      for (const detourY of [...allTopYs, ...allBotYs]) {
-        const waypoints = [
-          { x: sx, y: sy },
-          { x: sx, y: detourY },
-          { x: tx, y: detourY },
-          { x: tx, y: ty },
-        ];
-        if (!pathCollidesWithNodes(waypoints, nodeRects, excludedIds)) {
-          return waypoints;
-        }
-      }
-    }
+  // U-wrap style detours (2 bends) around the blocked L-corner
+  for (const my of ys) {
+    candidates.push([
+      { x: sx, y: sy },
+      { x: sx, y: my },
+      { x: tx, y: my },
+      { x: tx, y: ty },
+    ]);
+  }
+  for (const mx of xs) {
+    candidates.push([
+      { x: sx, y: sy },
+      { x: mx, y: sy },
+      { x: mx, y: ty },
+      { x: tx, y: ty },
+    ]);
   }
 
-  return null;
+  // Also try opposite-corner L (still 1 bend)
+  const altL = cornerFirstHorizontal
+    ? [{ x: sx, y: sy }, { x: sx, y: ty }, { x: tx, y: ty }]
+    : [{ x: sx, y: sy }, { x: tx, y: sy }, { x: tx, y: ty }];
+  candidates.push(altL);
+
+  return pickLowestBendPath(candidates, nodeRects, excludedIds);
 }
 
 function simplifyOrthogonalPath(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
@@ -424,58 +483,186 @@ function getOutwardDirection(position: Position): { dx: number; dy: number } {
   }
 }
 
-function segmentMatchesDirection(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  direction: { dx: number; dy: number },
-): boolean {
-  const dx = Math.sign(to.x - from.x);
-  const dy = Math.sign(to.y - from.y);
-  return dx === direction.dx && dy === direction.dy;
+/**
+ * Ensure the path leaves/enters along handle normals without introducing
+ * local S-patterns. Joins stubs with at most one orthogonal corner each.
+ */
+function ensureCleanTerminalStubs(
+  points: Array<{ x: number; y: number }>,
+  sourcePosition: Position,
+  targetPosition: Position,
+  stubLength: number = terminalStubLength(),
+): Array<{ x: number; y: number }> {
+  if (points.length < 2) return points;
+
+  const source = points[0];
+  const target = points[points.length - 1];
+  const sourceDir = getOutwardDirection(sourcePosition);
+  const targetDir = getOutwardDirection(targetPosition);
+
+  const sourceStub = {
+    x: source.x + sourceDir.dx * stubLength,
+    y: source.y + sourceDir.dy * stubLength,
+  };
+  const targetStub = {
+    x: target.x + targetDir.dx * stubLength,
+    y: target.y + targetDir.dy * stubLength,
+  };
+
+  // Middle of the path (drop existing near-terminal wiggles)
+  let middle = points.slice(1, -1);
+  // Drop points that sit on the stub segment or reverse back toward the node
+  middle = middle.filter((p, i) => {
+    if (i === 0 && Math.abs(p.x - sourceStub.x) < 1 && Math.abs(p.y - sourceStub.y) < 1) {
+      return false;
+    }
+    if (
+      i === middle.length - 1 &&
+      Math.abs(p.x - targetStub.x) < 1 &&
+      Math.abs(p.y - targetStub.y) < 1
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  // Strip leading points that reverse against the exit direction (S at start)
+  while (middle.length > 0) {
+    const p = middle[0];
+    const along =
+      sourceDir.dx !== 0
+        ? (p.x - source.x) * sourceDir.dx
+        : (p.y - source.y) * sourceDir.dy;
+    if (along >= stubLength * 0.5) break;
+    middle.shift();
+  }
+
+  // Strip trailing points that reverse against the entry approach (S at end)
+  while (middle.length > 0) {
+    const p = middle[middle.length - 1];
+    const along =
+      targetDir.dx !== 0
+        ? (p.x - target.x) * targetDir.dx
+        : (p.y - target.y) * targetDir.dy;
+    // Entry approaches from outside: points should be on the outward side
+    if (along >= stubLength * 0.5) break;
+    middle.pop();
+  }
+
+  const joinOrth = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    preferHorizontalFirst: boolean,
+  ): Array<{ x: number; y: number }> => {
+    if (Math.abs(from.x - to.x) < 0.5 && Math.abs(from.y - to.y) < 0.5) return [];
+    if (Math.abs(from.x - to.x) < 0.5 || Math.abs(from.y - to.y) < 0.5) {
+      return [to];
+    }
+    if (preferHorizontalFirst) {
+      return [{ x: to.x, y: from.y }, to];
+    }
+    return [{ x: from.x, y: to.y }, to];
+  };
+
+  const sourceIsH = sourcePosition === Position.Left || sourcePosition === Position.Right;
+  const targetIsH = targetPosition === Position.Left || targetPosition === Position.Right;
+
+  const result: Array<{ x: number; y: number }> = [source, sourceStub];
+
+  if (middle.length === 0) {
+    result.push(...joinOrth(sourceStub, targetStub, sourceIsH));
+  } else {
+    const firstMid = middle[0];
+    // Continue along exit axis when possible to avoid an immediate extra bend
+    const exitJoinPreferH = sourceIsH;
+    result.push(...joinOrth(sourceStub, firstMid, exitJoinPreferH).slice(0, -1));
+    result.push(...middle);
+    const lastMid = middle[middle.length - 1];
+    const entryJoinPreferH = !targetIsH; // vertical target → horizontal join first often cleaner
+    const toStub = joinOrth(lastMid, targetStub, targetIsH ? false : entryJoinPreferH);
+    // Avoid duplicating lastMid
+    result.push(...toStub.filter((p, i) => {
+      if (i === 0 && Math.abs(p.x - lastMid.x) < 0.5 && Math.abs(p.y - lastMid.y) < 0.5) return false;
+      return true;
+    }));
+  }
+
+  result.push(target);
+  return simplifyOrthogonalPath(result);
+}
+
+/**
+ * Collapse local S / Z wiggles near terminals: a short reverse on the same axis
+ * followed by a correction (classic stub S-pattern).
+ */
+function collapseLocalSPatterns(
+  points: Array<{ x: number; y: number }>,
+): Array<{ x: number; y: number }> {
+  if (points.length < 4) return points;
+
+  let result = [...points];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < result.length - 3; i++) {
+      const a = result[i];
+      const b = result[i + 1];
+      const c = result[i + 2];
+      const d = result[i + 3];
+
+      const abx = Math.sign(b.x - a.x);
+      const aby = Math.sign(b.y - a.y);
+      const bcx = Math.sign(c.x - b.x);
+      const bcy = Math.sign(c.y - b.y);
+      const cdx = Math.sign(d.x - c.x);
+      const cdy = Math.sign(d.y - c.y);
+
+      // S on horizontal: → then ↓/↑ then ← (or mirror), with short reverse
+      const horizS =
+        aby === 0 && cdy === 0 && abx !== 0 && cdx !== 0 && abx === -cdx && bcx === 0 && bcy !== 0;
+      const vertS =
+        abx === 0 && cdx === 0 && aby !== 0 && cdy !== 0 && aby === -cdy && bcy === 0 && bcx !== 0;
+
+      if (!horizS && !vertS) continue;
+
+      const reverseLen = horizS
+        ? Math.abs(d.x - c.x)
+        : Math.abs(d.y - c.y);
+      const legLen = horizS
+        ? Math.abs(c.y - b.y)
+        : Math.abs(c.x - b.x);
+
+      // Only collapse small terminal-style S wiggles, not intentional U-wraps
+      if (reverseLen > 80 || legLen > 100) continue;
+
+      // Replace a→b→c→d with a direct orthognal a→…→d (drop the reverse)
+      const replacement = horizS
+        ? [a, { x: a.x, y: d.y }, d]
+        : [a, { x: d.x, y: a.y }, d];
+
+      // Keep endpoints of the span; rebuild
+      result = [
+        ...result.slice(0, i),
+        ...replacement,
+        ...result.slice(i + 4),
+      ];
+      result = simplifyOrthogonalPath(result);
+      changed = true;
+      break;
+    }
+  }
+
+  return result;
 }
 
 function enforceTerminalStubs(
   points: Array<{ x: number; y: number }>,
   sourcePosition: Position,
   targetPosition: Position,
-  stubLength: number = 32,
+  stubLength: number = terminalStubLength(),
 ): Array<{ x: number; y: number }> {
-  if (points.length < 2) return points;
-
-  const result = [...points];
-  const source = result[0];
-  const sourceDir = getOutwardDirection(sourcePosition);
-  const first = result[1];
-  if (!segmentMatchesDirection(source, first, sourceDir)) {
-    const sourceStub = {
-      x: source.x + sourceDir.dx * stubLength,
-      y: source.y + sourceDir.dy * stubLength,
-    };
-    const insert = [sourceStub];
-    if (sourceStub.x !== first.x && sourceStub.y !== first.y) {
-      insert.push({ x: first.x, y: sourceStub.y });
-    }
-    result.splice(1, 0, ...insert);
-  }
-
-  const target = result[result.length - 1];
-  const targetDir = getOutwardDirection(targetPosition);
-  const entryDir = { dx: -targetDir.dx, dy: -targetDir.dy };
-  const beforeTarget = result[result.length - 2];
-  if (!segmentMatchesDirection(beforeTarget, target, entryDir)) {
-    const targetStub = {
-      x: target.x + targetDir.dx * stubLength,
-      y: target.y + targetDir.dy * stubLength,
-    };
-    const insert = [];
-    if (beforeTarget.x !== targetStub.x && beforeTarget.y !== targetStub.y) {
-      insert.push({ x: targetStub.x, y: beforeTarget.y });
-    }
-    insert.push(targetStub);
-    result.splice(result.length - 1, 0, ...insert);
-  }
-
-  return simplifyOrthogonalPath(result);
+  const cleaned = ensureCleanTerminalStubs(points, sourcePosition, targetPosition, stubLength);
+  return collapseLocalSPatterns(cleaned);
 }
 
 function orthogonalizeDiagonalSegments(
@@ -653,7 +840,8 @@ function findAstFallbackPath(
       const nk = `${nx},${ny}`;
 
       let moveCost = 1;
-      if (parentDir && (d.x !== parentDir.x || d.y !== parentDir.y)) moveCost += 2;
+      // Heavy turn penalty — prefer long straight corridors over S-routes
+      if (parentDir && (d.x !== parentDir.x || d.y !== parentDir.y)) moveCost += 8;
 
       const tentativeG = g + moveCost;
       const existingG = gScore.get(nk);
@@ -716,10 +904,8 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   const targetDir = getOutwardDirection(targetPosition);
 
   const dist = Math.abs(sx - tx) + Math.abs(sy - ty);
-  const radius = params.borderRadius ?? 24;
-  const minStub = radius > 0 ? Math.max(8, radius + 4) : 8;
-  const maxStub = radius > 0 ? Math.max(minStub, 44) : 20;
-  const stubLen = Math.max(minStub, Math.min(maxStub, dist / 3));
+  const radius = params.borderRadius ?? DEFAULT_BORDER_RADIUS;
+  const stubLen = Math.min(terminalStubLength(radius), Math.max(24, dist / 3));
 
   const ssx = sx + sourceDir.dx * stubLen;
   const ssy = sy + sourceDir.dy * stubLen;
@@ -792,7 +978,100 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   ];
 
   const simplified = simplifyOrthogonalPath(fullWaypoints);
-  return enforceTerminalStubs(simplified, sourcePosition, targetPosition, stubLen);
+  const withStubs = enforceTerminalStubs(simplified, sourcePosition, targetPosition, stubLen);
+
+  // Prefer a low-bend rebuild when stub cleanup still left an S-heavy path
+  const rebuilt = preferLowBendReroute(
+    withStubs,
+    sx, sy, tx, ty,
+    sourcePosition, targetPosition,
+    edgeOffset,
+    paddedRects,
+    excludedNodeIds,
+    stubLen,
+  );
+
+  const candidate = rebuilt ?? withStubs;
+
+  if (!pathSelfIntersects(candidate)) {
+    return candidate;
+  }
+
+  const shift = 60;
+  for (const delta of [shift, -shift, shift * 2, -shift * 2]) {
+    const shifted = candidate.map((pt, i) => {
+      if (i === 0 || i === candidate.length - 1) return pt;
+      if (sourceIsHorizontal && targetIsHorizontal) {
+        return { x: pt.x + delta, y: pt.y };
+      } else if (!sourceIsHorizontal && !targetIsHorizontal) {
+        return { x: pt.x, y: pt.y + delta };
+      } else {
+        return { x: pt.x + delta, y: pt.y + delta };
+      }
+    });
+    const cleaned = simplifyOrthogonalPath(shifted);
+    const fixed = enforceTerminalStubs(cleaned, sourcePosition, targetPosition, stubLen);
+    if (!pathSelfIntersects(fixed)) {
+      return fixed;
+    }
+  }
+
+  return candidate;
+}
+
+/**
+ * If the path has many bends, try a fresh low-bend U/Z candidate set and keep
+ * it when it is collision-free and simpler.
+ */
+function preferLowBendReroute(
+  current: Array<{ x: number; y: number }>,
+  sx: number, sy: number,
+  tx: number, ty: number,
+  sourcePosition: Position,
+  targetPosition: Position,
+  edgeOffset: number,
+  nodeRects: Map<string, NodeRect> | undefined,
+  excludedIds: Set<string>,
+  stubLen: number,
+): Array<{ x: number; y: number }> | null {
+  if (!nodeRects || nodeRects.size === 0) return null;
+
+  const currentBends = countPathBends(current);
+  if (currentBends <= 2) return null;
+
+  const sourceDir = getOutwardDirection(sourcePosition);
+  const targetDir = getOutwardDirection(targetPosition);
+  const ssx = sx + sourceDir.dx * stubLen;
+  const ssy = sy + sourceDir.dy * stubLen;
+  const ttx = tx + targetDir.dx * stubLen;
+  const tty = ty + targetDir.dy * stubLen;
+
+  const sourceIsHorizontal = sourcePosition === Position.Left || sourcePosition === Position.Right;
+  const targetIsHorizontal = targetPosition === Position.Left || targetPosition === Position.Right;
+
+  let simple: Array<{ x: number; y: number }> | null = null;
+  if (sourceIsHorizontal && targetIsHorizontal) {
+    simple = findSafeHtoHPath(ssx, ssy, ttx, tty, edgeOffset, nodeRects, excludedIds);
+  } else if (!sourceIsHorizontal && !targetIsHorizontal) {
+    simple = findSafeVtoVPath(ssx, ssy, ttx, tty, edgeOffset, nodeRects, excludedIds);
+  } else {
+    simple = findSafeLShapePath(ssx, ssy, ttx, tty, sourceIsHorizontal, nodeRects, excludedIds);
+  }
+
+  if (!simple) return null;
+
+  const full = simplifyOrthogonalPath([
+    { x: sx, y: sy },
+    ...simple,
+    { x: tx, y: ty },
+  ]);
+  const withStubs = enforceTerminalStubs(full, sourcePosition, targetPosition, stubLen);
+  const bends = countPathBends(withStubs);
+
+  if (bends < currentBends && !pathEntersNodeInterior(withStubs, nodeRects, excludedIds)) {
+    return withStubs;
+  }
+  return null;
 }
 
 export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {
@@ -800,7 +1079,7 @@ export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Arra
 }
 
 export function getCollisionFreeSmoothStepPath(params: CollisionFreePathParams): string {
-  const { borderRadius = 24 } = params;
+  const { borderRadius = DEFAULT_BORDER_RADIUS } = params;
   const waypoints = computeWaypoints(params);
   return buildSmoothStepSvg(waypoints, borderRadius);
 }

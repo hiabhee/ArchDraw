@@ -23,6 +23,17 @@ function parsePathPoints(svgPath: string): Array<{ x: number; y: number }> {
   return points;
 }
 
+function countBends(pts: Array<{ x: number; y: number }>): number {
+  let n = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+    if (Math.sign(b.x - a.x) !== Math.sign(c.x - b.x) || Math.sign(b.y - a.y) !== Math.sign(c.y - b.y)) {
+      n++;
+    }
+  }
+  return n;
+}
+
 // Check if a point is inside a rect (with margin)
 function pointInRect(px: number, py: number, rx: number, ry: number, rw: number, rh: number): boolean {
   return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
@@ -132,9 +143,10 @@ describe('H→V→H path (source Right, target Left)', () => {
       excludedNodeIds: new Set(['source']),
     });
 
-    // Should fall back to default (source excluded)
-    const defaultMidX = (200 + 800) / 2;
-    expect(waypoints[1].x).toBe(defaultMidX);
+    // Source is excluded, so no need to wrap — keep a simple 2-bend Z corridor
+    expect(waypoints[0]).toEqual({ x: 200, y: 100 });
+    expect(waypoints[waypoints.length - 1]).toEqual({ x: 800, y: 400 });
+    expect(countBends(waypoints)).toBeLessThanOrEqual(2);
   });
 
   it('handles multiple blocking nodes along the vertical axis', () => {
@@ -204,7 +216,10 @@ describe('V→H→V path (source Bottom, target Top)', () => {
     const pts = parsePathPoints(svg);
     expect(pts[0]).toEqual({ x: 300, y: 600 });
     expect(pts[pts.length - 1]).toEqual({ x: 600, y: 100 });
-    expect(pts.length).toBe(6);
+    // Clean orthogonal path with stubs — few bends, no S-patterns
+    expect(countBends(pts)).toBeLessThanOrEqual(3);
+    expect(pts.length).toBeGreaterThanOrEqual(4);
+    expect(pts.length).toBeLessThanOrEqual(6);
   });
 
   it('reroutes around a node blocking only the horizontal mid segment', () => {
@@ -274,8 +289,10 @@ describe('L-shaped path (source Right, target Top)', () => {
     // Should still connect source to target
     expect(waypoints[0]).toEqual({ x: 200, y: 300 });
     expect(waypoints[waypoints.length - 1]).toEqual({ x: 500, y: 100 });
-    // Should have 4 waypoints (detour added)
-    expect(waypoints.length).toBe(6);
+    // Detour should stay low-bend (U/Z), not an S-heavy A* route
+    expect(countBends(waypoints)).toBeLessThanOrEqual(3);
+    expect(waypoints.length).toBeGreaterThanOrEqual(4);
+    expect(waypoints.length).toBeLessThanOrEqual(6);
   });
 });
 

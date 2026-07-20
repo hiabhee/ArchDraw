@@ -229,9 +229,16 @@ export default function SimpleFloatingEdge({
     };
   }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle]);
 
-  const displayLabel = responseLabel
+  const rawLabel = responseLabel
     ? `${label || data?.label || ''} / ${responseLabel}`
     : (typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : ''));
+
+  const displayLabel = useMemo(() => {
+    if (!rawLabel) return '';
+    const words = rawLabel.split(/\s+/).filter(Boolean);
+    if (words.length <= 3) return rawLabel.trim();
+    return words.slice(0, 3).join(' ');
+  }, [rawLabel]);
 
   const parallelEdges = useMemo(
     () => edges.filter((edge) =>
@@ -330,7 +337,7 @@ export default function SimpleFloatingEdge({
         strokeWidth={20}
         stroke="transparent"
         className="react-flow__edge-interaction"
-        style={{ cursor: 'pointer', pointerEvents: selected ? 'none' : 'all' }}
+        style={{ cursor: 'pointer' }}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}

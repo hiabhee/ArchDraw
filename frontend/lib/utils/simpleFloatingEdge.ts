@@ -54,6 +54,30 @@ export function getSimpleEdgePositions(
 
 const INCOMING_OUTGOING_GAP = 6;
 
+function getEdgeSideForNode(
+  e: Edge,
+  nodeId: string,
+  nodeInternals: Map<string, Node> | undefined,
+  side: Position
+): Position {
+  if (!nodeInternals) return side;
+  const sourceNode = nodeInternals.get(e.source);
+  const targetNode = nodeInternals.get(e.target);
+  if (!sourceNode || !targetNode) return side;
+
+  const srcCenter = getNodeCenter(sourceNode);
+  const tgtCenter = getNodeCenter(targetNode);
+  const { sourcePos, targetPos } = getSimpleEdgePositions(
+    srcCenter.cx,
+    srcCenter.cy,
+    tgtCenter.cx,
+    tgtCenter.cy
+  );
+  return e.source === nodeId ? sourcePos : targetPos;
+}
+
+export type EdgeSideResolver = (edge: Edge, nodeId: string) => Position;
+
 export function getEdgeShiftOffset(
   ...args: [
     nodeId: string,
@@ -64,9 +88,10 @@ export function getEdgeShiftOffset(
     spacing?: number,
     allNodeRects?: Map<string, { id: string; x: number; y: number; w: number; h: number }>,
     excludedNodeIds?: Set<string>,
+    resolveSide?: EdgeSideResolver,
   ]
 ): number {
-  const [nodeId, edgeId, side, edges, , spacing = 24] = args;
+  const [nodeId, edgeId, side, edges, nodeInternals, spacing = 24, , , resolveSide] = args;
 
   const connected = edges.filter(
     (e) =>
@@ -76,17 +101,35 @@ export function getEdgeShiftOffset(
   );
   if (connected.length <= 1) return 0;
 
-  const incoming = connected
+  // Filter to only edges on the same side of this node
+  const onSide = connected.filter((e) => {
+    if (e.id === edgeId) return true;
+    const s = resolveSide
+      ? resolveSide(e, nodeId)
+      : getEdgeSideForNode(e, nodeId, nodeInternals, side);
+    return s === side;
+  });
+
+  if (onSide.length <= 1) return 0;
+
+  const incoming = onSide
     .filter((e) => e.target === nodeId)
     .sort((a, b) => a.id.localeCompare(b.id));
-  const outgoing = connected
+  const outgoing = onSide
     .filter((e) => e.source === nodeId)
     .sort((a, b) => a.id.localeCompare(b.id));
 
   const isIncoming = incoming.some((e) => e.id === edgeId);
   const group = isIncoming ? incoming : outgoing;
+
+  // We only need the incoming/outgoing separation gap if BOTH incoming and outgoing edges exist on this side
+  const hasIncoming = incoming.length > 0;
+  const hasOutgoing = outgoing.length > 0;
+  const needGap = hasIncoming && hasOutgoing;
+  const gap = needGap ? (isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP) : 0;
+
   if (group.length <= 1) {
-    return isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP;
+    return gap;
   }
 
   const idx = group.findIndex((e) => e.id === edgeId);
@@ -94,8 +137,9 @@ export function getEdgeShiftOffset(
 
   const center = ((group.length - 1) * spacing) / 2;
   const baseOffset = idx * spacing - center;
-  return baseOffset + (isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP);
+  return baseOffset + gap;
 }
+
 
 /**
  * Computes an anchor point 24px outside the node boundary for a given side.

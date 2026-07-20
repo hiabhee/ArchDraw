@@ -154,4 +154,4 @@ describe('implicit concept diagram generation', () => {
     expect(labels).not.toContain('Product Service');
   });
 });
-});
+

@@ -99,7 +99,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
     const commentIdx = rawLine.indexOf('%%')
     const cleanLine = commentIdx !== -1 ? rawLine.slice(0, commentIdx) : rawLine
     const line = cleanLine.trim()
-    if (!line || line.startsWith('graph') || line.startsWith('flowchart')) {
+    if (!line || line.startsWith('graph') || line.startsWith('flowchart') || /^direction\s+(TD|LR|BT|RL|TB)\b/i.test(line)) {
       continue
     }
 

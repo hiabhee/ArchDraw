@@ -162,7 +162,13 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
     };
   }, [editing, commitEdit]);
 
-  const handleStyle = { width: 12, height: 12, pointerEvents: 'none' as const };
+  const handleStyle = {
+    width: 12,
+    height: 12,
+    background: 'var(--node-card-bg, #ffffff)',
+    border: '2px solid var(--node-accent, #0d9488)',
+    borderRadius: '50%',
+  };
 
   return (
     <div
@@ -176,7 +182,7 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
       onDoubleClick={startEdit}
       className="text-label-node"
     >
-      <NodeHandles handleStyle={{ ...handleStyle, left: -15 }} />
+      <NodeHandles handleStyle={handleStyle} />
 
       {editing && (
         <div

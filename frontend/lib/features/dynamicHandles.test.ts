@@ -64,17 +64,16 @@ describe('getDynamicHandles', () => {
       expect(result.targetPosition).toBe(Position.Left);
     });
 
-    it('should pick the shortest handle pair for identical positions', () => {
+    it('should pick default handles for identical positions', () => {
       const sourceRect: NodeRect = { x: 100, y: 100, width: 100, height: 80 };
       const targetRect: NodeRect = { x: 100, y: 100, width: 100, height: 80 };
 
       const result = getDynamicHandles(sourceRect, targetRect);
 
-      // Node is wider (100) than tall (80), so Top→Bottom (104) is shorter
-      // than Right→Left (124). Picks the side pair with shortest Manhattan
-      // distance between handle positions.
-      expect(result.sourcePosition).toBe(Position.Top);
-      expect(result.targetPosition).toBe(Position.Bottom);
+      // When both nodes are at the exact same position, the direction vector
+      // is degenerate (0,0). The intersection approach defaults to Right/Left.
+      expect(result.sourcePosition).toBe(Position.Right);
+      expect(result.targetPosition).toBe(Position.Left);
     });
 
     it('should work with different node dimensions when vertically aligned', () => {
@@ -107,6 +106,85 @@ describe('getDynamicHandles', () => {
       expect(resultBelow.targetPosition).toBe(Position.Top);
     });
   });
+
+  describe('regression: wide target upper-right should not pick bottom handle', () => {
+    it('should select left target handle when wide target is right of source with small vertical offset', () => {
+      // Simulates the "Health Checks → Load Balancing" pattern:
+      // Target is clearly to the right, with a small vertical offset.
+      // The old intersection-based algorithm would pick Bottom for the
+      // target because width >> height stretched the intersection.
+      const sourceRect: NodeRect = { x: 100, y: 250, width: 160, height: 80 };
+      const targetRect: NodeRect = { x: 500, y: 150, width: 220, height: 80 };
+
+      const result = getDynamicHandles(sourceRect, targetRect);
+
+      // Horizontal gap dominates: dx=430/avgW190=2.26 > dy=100/avgH80=1.25
+      expect(result.sourcePosition).toBe(Position.Right);
+      expect(result.targetPosition).toBe(Position.Left);
+    });
+
+    it('should not cross under target when target is wide and slightly above', () => {
+      // Wide target positioned slightly above and to the right.
+      // The old algorithm would intersect the bottom edge of the
+      // target because width >> height stretches the intersection.
+      const sourceRect: NodeRect = { x: 0, y: 200, width: 160, height: 80 };
+      const targetRect: NodeRect = { x: 300, y: 100, width: 240, height: 80 };
+
+      const result = getDynamicHandles(sourceRect, targetRect);
+
+      // Horizontal gap dominates: dx=340/avgW200=1.7 > dy=100/avgH80=1.25
+      expect(result.sourcePosition).toBe(Position.Right);
+      expect(result.targetPosition).toBe(Position.Left);
+    });
+
+    it('should handle extreme aspect ratio: very wide target to the right', () => {
+      const sourceRect: NodeRect = { x: 100, y: 400, width: 120, height: 80 };
+      const targetRect: NodeRect = { x: 600, y: 300, width: 400, height: 60 };
+
+      const result = getDynamicHandles(sourceRect, targetRect);
+
+      // dx=640/avgW260=2.46 > dy=110/avgH70=1.57 → horizontal wins
+      expect(result.sourcePosition).toBe(Position.Right);
+      expect(result.targetPosition).toBe(Position.Left);
+    });
+
+    it('should handle source right of wide target (reverse scenario)', () => {
+      // Source is to the right, target is lower-left and wide
+      const sourceRect: NodeRect = { x: 500, y: 100, width: 160, height: 80 };
+      const targetRect: NodeRect = { x: 50, y: 200, width: 240, height: 80 };
+
+      const result = getDynamicHandles(sourceRect, targetRect);
+
+      // dx=-410, dy=100, avgW=200, avgH=80
+      // normDx=410/200=2.05 > normDy=100/80=1.25 → horizontal
+      expect(result.sourcePosition).toBe(Position.Left);
+      expect(result.targetPosition).toBe(Position.Right);
+    });
+
+    it('should select horizontal handles when horizontal gap dominates (raw comparison)', () => {
+      // Target is above-right but horizontal gap is larger in raw terms
+      const sourceRect: NodeRect = { x: 100, y: 300, width: 160, height: 80 };
+      const targetRect: NodeRect = { x: 400, y: 150, width: 220, height: 80 };
+
+      const result = getDynamicHandles(sourceRect, targetRect);
+
+      // dx=330, dy=-150 → |dx|>|dy| → horizontal wins
+      expect(result.sourcePosition).toBe(Position.Right);
+      expect(result.targetPosition).toBe(Position.Left);
+    });
+
+    it('should produce correct handles for nodes with 4:1 width ratio', () => {
+      // Target is 4x wider than tall, positioned to the right
+      const sourceRect: NodeRect = { x: 0, y: 200, width: 160, height: 80 };
+      const targetRect: NodeRect = { x: 400, y: 180, width: 320, height: 80 };
+
+      const result = getDynamicHandles(sourceRect, targetRect);
+
+      // dx=440/avgW240=1.83 > dy=20/avgH80=0.25 → horizontal wins
+      expect(result.sourcePosition).toBe(Position.Right);
+      expect(result.targetPosition).toBe(Position.Left);
+    });
+  });
 });
 
 describe('getHandleCoordinate', () => {
@@ -117,7 +195,7 @@ describe('getHandleCoordinate', () => {
     
     // Top handle: (centerX, y - OUTER_OFFSET)
     expect(coord.x).toBe(200); // 100 + 200/2
-    expect(coord.y).toBe(188); // 200 - 12
+    expect(coord.y).toBe(176); // 200 - 24
   });
 
   it('should calculate Bottom handle coordinate correctly', () => {
@@ -125,14 +203,14 @@ describe('getHandleCoordinate', () => {
     
     // Bottom handle: (centerX, y + height + OUTER_OFFSET)
     expect(coord.x).toBe(200); // 100 + 200/2
-    expect(coord.y).toBe(292); // 200 + 80 + 12
+    expect(coord.y).toBe(304); // 200 + 80 + 24
   });
 
   it('should calculate Left handle coordinate correctly', () => {
     const coord = getHandleCoordinate(rect, Position.Left);
     
     // Left handle: (x - OUTER_OFFSET, centerY)
-    expect(coord.x).toBe(88);  // 100 - 12
+    expect(coord.x).toBe(76);  // 100 - 24
     expect(coord.y).toBe(240); // 200 + 80/2
   });
 
@@ -140,7 +218,7 @@ describe('getHandleCoordinate', () => {
     const coord = getHandleCoordinate(rect, Position.Right);
     
     // Right handle: (x + width + OUTER_OFFSET, centerY)
-    expect(coord.x).toBe(312); // 100 + 200 + 12
+    expect(coord.x).toBe(324); // 100 + 200 + 24
     expect(coord.y).toBe(240); // 200 + 80/2
   });
 
@@ -149,21 +227,21 @@ describe('getHandleCoordinate', () => {
     
     const topCoord = getHandleCoordinate(smallRect, Position.Top);
     expect(topCoord.x).toBe(100); // 50 + 100/2
-    expect(topCoord.y).toBe(38);  // 50 - 12
+    expect(topCoord.y).toBe(26);  // 50 - 24
 
     const rightCoord = getHandleCoordinate(smallRect, Position.Right);
-    expect(rightCoord.x).toBe(162); // 50 + 100 + 12
+    expect(rightCoord.x).toBe(174); // 50 + 100 + 24
     expect(rightCoord.y).toBe(80);  // 50 + 60/2
   });
 
   it('should merge source and target coordinates on each side', () => {
     const sourceCoord = getHandleCoordinate(rect, Position.Top, 'source', true);
     expect(sourceCoord.x).toBe(200);
-    expect(sourceCoord.y).toBe(188); // 200 - 12
+    expect(sourceCoord.y).toBe(176); // 200 - 24
 
     const targetCoord = getHandleCoordinate(rect, Position.Top, 'target', true);
     expect(targetCoord.x).toBe(200);
-    expect(targetCoord.y).toBe(188); // 200 - 12
+    expect(targetCoord.y).toBe(176); // 200 - 24
   });
 });
 
@@ -229,7 +307,7 @@ describe('getEdgeShiftOffset', () => {
       { id: 'edge1', source: 'Observe', target: 'TaskDone' }
     ];
     
-    const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 12);
+    const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24);
     expect(offset).toBe(0);
   });
 
@@ -239,26 +317,72 @@ describe('getEdgeShiftOffset', () => {
       { id: 'edge-taskdone', source: 'Observe', target: 'TaskDone' } // Observe -> TaskDone (left)
     ];
 
-    // Both edges connect to Observe's Top side:
-    // - Act center is (310, 90). Observe center is (280, 240).
-    //   dy = 150 > dx = 30 -> targetPos = Top, sourcePos = Bottom
-    // - TaskDone center is (170, 90). Observe center is (280, 240).
-    //   dy = -150, dx = -110 -> |dy| > |dx| -> sourcePos = Top, targetPos = Bottom
+    // Incoming and outgoing edges are separate groups.
+    // edge-act is incoming (target=Observe), edge-taskdone is outgoing (source=Observe).
+    // Each group has only 1 edge, and since both are on Position.Top, they are separated by 12px (offsets 6 and -6).
+    const offsetAct = getEdgeShiftOffset('Observe', 'edge-act', Position.Top, edges, nodeInternals, 24);
+    const offsetTaskDone = getEdgeShiftOffset('Observe', 'edge-taskdone', Position.Top, edges, nodeInternals, 24);
 
-    const offsetAct = getEdgeShiftOffset('Observe', 'edge-act', Position.Top, edges, nodeInternals, 12);
-    const offsetTaskDone = getEdgeShiftOffset('Observe', 'edge-taskdone', Position.Top, edges, nodeInternals, 12);
+    expect(offsetAct).toBe(6);
+    expect(offsetTaskDone).toBe(-6);
+  });
 
-    // Incoming and outgoing edges share the same centered port on each side.
-    expect(offsetAct).toBe(0);
-    expect(offsetTaskDone).toBe(0);
+  it('should offset multiple incoming edges on the same side', () => {
+    const edges: Edge[] = [
+      { id: 'e-a', source: 'Act', target: 'Observe' },
+      { id: 'e-b', source: 'TaskDone', target: 'Observe' },
+      { id: 'e-c', source: 'NodeA', target: 'Observe' },
+    ];
+
+    const offsetA = getEdgeShiftOffset('Observe', 'e-a', Position.Top, edges, nodeInternals, 24);
+    const offsetB = getEdgeShiftOffset('Observe', 'e-b', Position.Top, edges, nodeInternals, 24);
+    const offsetC = getEdgeShiftOffset('Observe', 'e-c', Position.Top, edges, nodeInternals, 24);
+
+    // 3 incoming edges, centered: indices 0,1,2 → offsets -24, 0, 24
+    expect(offsetA).toBe(-24);
+    expect(offsetB).toBe(0);
+    expect(offsetC).toBe(24);
+  });
+
+  it('should offset multiple outgoing edges on the same side', () => {
+    const edges: Edge[] = [
+      { id: 'e-1', source: 'Observe', target: 'Act' },
+      { id: 'e-2', source: 'Observe', target: 'TaskDone' },
+    ];
+
+    const offset1 = getEdgeShiftOffset('Observe', 'e-1', Position.Top, edges, nodeInternals, 24);
+    const offset2 = getEdgeShiftOffset('Observe', 'e-2', Position.Top, edges, nodeInternals, 24);
+
+    // 2 outgoing edges, centered: indices 0,1 → offsets -12, 12
+    expect(offset1).toBe(-12);
+    expect(offset2).toBe(12);
+  });
+
+  it('should keep incoming and outgoing groups separate', () => {
+    const edges: Edge[] = [
+      { id: 'e-in1', source: 'Act', target: 'Observe' },
+      { id: 'e-in2', source: 'TaskDone', target: 'Observe' },
+      { id: 'e-out1', source: 'Observe', target: 'Act' },
+      { id: 'e-out2', source: 'Observe', target: 'TaskDone' },
+      { id: 'e-out3', source: 'Observe', target: 'NodeA' },
+    ];
+
+    // Incoming group (2 edges, centered: -12, 12) + gap (6): -6, 18
+    const in1 = getEdgeShiftOffset('Observe', 'e-in1', Position.Top, edges, nodeInternals, 24);
+    const in2 = getEdgeShiftOffset('Observe', 'e-in2', Position.Top, edges, nodeInternals, 24);
+    expect(in1).toBe(-6);
+    expect(in2).toBe(18);
+
+    // Outgoing group (3 edges, centered: -24, 0, 24) + gap (-6): -30, -6, 18
+    const out1 = getEdgeShiftOffset('Observe', 'e-out1', Position.Top, edges, nodeInternals, 24);
+    const out2 = getEdgeShiftOffset('Observe', 'e-out2', Position.Top, edges, nodeInternals, 24);
+    const out3 = getEdgeShiftOffset('Observe', 'e-out3', Position.Top, edges, nodeInternals, 24);
+    expect(out1).toBe(-30);
+    expect(out2).toBe(-6);
+    expect(out3).toBe(18);
   });
 
   it('should assign stable offsets to bidirectional edges to prevent crossing', () => {
-    // Bidirectional edges between Observe and Act:
-    // 1. Observe -> Act
-    // 2. Act -> Observe
-    // Both connect to Observe on Position.Top / Act on Position.Bottom (or horizontal if same level)
-    // Let's force horizontal by putting them on same Y
     nodeInternals.set('NodeA', { id: 'NodeA', position: { x: 100, y: 100 }, positionAbsolute: { x: 100, y: 100 }, width: 100, height: 80 } as Node);
     nodeInternals.set('NodeB', { id: 'NodeB', position: { x: 300, y: 100 }, positionAbsolute: { x: 300, y: 100 }, width: 100, height: 80 } as Node);
 
@@ -267,19 +391,18 @@ describe('getEdgeShiftOffset', () => {
       { id: 'e-ba', source: 'NodeB', target: 'NodeA' }
     ];
 
-    // NodeA is at X=100 (left), NodeB is at X=300 (right).
-    // Edges will connect via NodeA's Position.Right and NodeB's Position.Left.
+    // NodeA has 1 outgoing (e-ab) and 1 incoming (e-ba) on Right side.
+    // Each group has 1 edge, separated by 12px (offsets -6 and 6).
     const offsetA_ab = getEdgeShiftOffset('NodeA', 'e-ab', Position.Right, edges, nodeInternals, 12);
     const offsetA_ba = getEdgeShiftOffset('NodeA', 'e-ba', Position.Right, edges, nodeInternals, 12);
 
     const offsetB_ab = getEdgeShiftOffset('NodeB', 'e-ab', Position.Left, edges, nodeInternals, 12);
     const offsetB_ba = getEdgeShiftOffset('NodeB', 'e-ba', Position.Left, edges, nodeInternals, 12);
 
-    // Rendered bidirectional edges stay centered on the selected node side.
-    expect(offsetA_ab).toBe(0);
-    expect(offsetA_ba).toBe(0);
+    expect(offsetA_ab).toBe(-6);
+    expect(offsetA_ba).toBe(6);
 
-    expect(offsetB_ab).toBe(0);
-    expect(offsetB_ba).toBe(0);
+    expect(offsetB_ab).toBe(6);
+    expect(offsetB_ba).toBe(-6);
   });
 });

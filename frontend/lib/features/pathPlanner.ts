@@ -1,5 +1,5 @@
 import { Position } from 'reactflow'
-import { getCollisionFreeWaypoints, segmentIntersectsRect, buildSmoothStepSvg } from '../utils/collisionFreeEdgePath'
+import { getCollisionFreeWaypoints, segmentIntersectsRect, buildSmoothStepSvg, terminalStubLength, pathSelfIntersects } from '../utils/collisionFreeEdgePath'
 
 export type Side = 'top' | 'right' | 'bottom' | 'left'
 
@@ -48,6 +48,7 @@ export interface PathPlannerConfig {
 type PortType = 'source' | 'target'
 
 const PORT_OFFSET = 0
+const PORT_VISUAL_OFFSET = 24
 const HANDLE_AXIS_OFFSET = 0
 
 function getPortPoint(rect: ObstacleRect, side: Position, portType: PortType): Point {
@@ -55,10 +56,10 @@ function getPortPoint(rect: ObstacleRect, side: Position, portType: PortType): P
   const cy = rect.y + rect.h / 2
   const axisOffset = portType === 'source' ? HANDLE_AXIS_OFFSET : -HANDLE_AXIS_OFFSET
   switch (side) {
-    case Position.Top:    return { x: cx + axisOffset, y: rect.y - PORT_OFFSET }
-    case Position.Bottom: return { x: cx + axisOffset, y: rect.y + rect.h + PORT_OFFSET }
-    case Position.Left:   return { x: rect.x - PORT_OFFSET, y: cy + axisOffset }
-    case Position.Right:  return { x: rect.x + rect.w + PORT_OFFSET, y: cy + axisOffset }
+    case Position.Top:    return { x: cx + axisOffset, y: rect.y - PORT_VISUAL_OFFSET }
+    case Position.Bottom: return { x: cx + axisOffset, y: rect.y + rect.h + PORT_VISUAL_OFFSET }
+    case Position.Left:   return { x: rect.x - PORT_VISUAL_OFFSET, y: cy + axisOffset }
+    case Position.Right:  return { x: rect.x + rect.w + PORT_VISUAL_OFFSET, y: cy + axisOffset }
   }
 }
 
@@ -173,7 +174,7 @@ function flowDirectionPenalty(
   const sH = sourceSide === Position.Left || sourceSide === Position.Right
   const tH = targetSide === Position.Left || targetSide === Position.Right
   const aligned = horizontal ? (sH && tH) : (!sH && !tH)
-  return aligned ? 0 : 150
+  return aligned ? 0 : 45
 }
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -399,7 +400,7 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
   const {
     sourceRect, targetRect, obstacles,
     existingEdgePaths = [],
-    stubLength = 32,
+    stubLength = terminalStubLength(),
     minSegmentLength = 16,
     minFinalSegment = 24,
     preferredPair,
@@ -462,6 +463,9 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
         // Validate: no obstacle crossings
         const crossings = pathCrossesObstacles(pts, hardObstacles, '', '')
         if (crossings.length > 0) continue
+
+        // Validate: no self-intersection
+        if (pathSelfIntersects(pts)) continue
 
         const bends = countBends(pts) + (tmpl.extraBends || 0)
         const len = pathLength(pts)
@@ -529,6 +533,8 @@ export function planPath(config: PathPlannerConfig): PathResult | null {
 
         const crossings = pathCrossesObstacles(pts, hardObstacles, '', '')
         if (crossings.length > 0) continue
+
+        if (pathSelfIntersects(pts)) continue
 
         const bends = countBends(pts) + 2
         const len = pathLength(pts)

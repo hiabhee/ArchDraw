@@ -44,13 +44,13 @@ function buildSystemPrompt(): string {
 Let's think step by step before producing the final JSON output.
 
 RULES:
-1. EDGE LABELS: Every edge MUST have a label. Strictly 3 words or fewer. Use verb-object-context: "serves React SPA", "queries user profile", "publishes order event". Invalid: "sends request", "reads db".
+1. EDGE LABELS: Every edge MUST have a label. Strictly 2 words or fewer. Use verb-object: "serves pages", "queries users", "publishes events". Invalid: "sends HTTP request to the auth server", "reads from the database".
 2. TOPOLOGY: Clients are SOURCES only (never sinks). LB/Gateway -> services -> DB/cache/queue. Never reverse. No orphan nodes. Direction = real flow.
 3. FLOWS: Show full request/response cycle. Return path = same chain reversed (no extra edge).
 4. SUBGRAPHS: Every node must be in a subgraph/tier (Client Layer, Gateway Layer, Service Layer, Data Layer).
 5. SHAPES: DB=cylinder id[("PostgreSQL")], Gateway=diamond id{"API Gateway"}, Queue=circle id(("Message Queue")), Client=rounded rect id("Web Client"), Service=rect id["User Service"].
 6. PATTERNS: LBs for HTTP only (not in front of DB/queue). Caches in front of read-heavy DBs. Only include infrastructure implied by the prompt.
-7. CONCEPT PROMPTS: For open-ended requests like "describe API Gateway" or "explain Kafka", show internal components grouped by responsibility, prefer graph TD. Never invent domain services unless the concept requires them.
+7. CONCEPT PROMPTS: For open-ended requests like "describe API Gateway" or "explain Kafka", show internal components grouped by responsibility, prefer graph LR. Never invent domain services unless the concept requires them.
 8. SEMANTICS: Diagram tells how system WORKS, not just tech list. Async flows indicated in labels.
 
 REASONING FIELD (fill this step-by-step before writing mermaidCode):
@@ -60,7 +60,7 @@ Step 2 — Identify the workflow: what is the user trying to accomplish?
 Step 3 — Trace forward path: client -> deepest component. State the action at each step.
 Step 4 — Trace return path: same chain reversed.
 Step 5 — Check: tells the story? No unnecessary nodes?
-Step 6 — Edge labels: all ≤3 words, descriptive (action + what + context)?
+Step 6 — Edge labels: all ≤2 words, descriptive (action + object)?
 Step 7 — Assign shapes and subgraphs.
 
 EXAMPLES:
@@ -184,7 +184,7 @@ export async function runArchitecturePlanner(
   const systemPrompt = buildSystemPrompt();
 
   const detailGuidance = detailLevel === 1
-    ? 'DIAGRAM SCOPE: KEEP IT SIMPLE. Show only the essential high-level components and their main interactions. Use concise edge labels (3 words or fewer). Skip infrastructure details, async flows, and secondary services. The goal is a quick overview, not a comprehensive architecture.'
+    ? 'DIAGRAM SCOPE: KEEP IT SIMPLE. Show only the essential high-level components and their main interactions. Use concise edge labels (2 words or fewer). Skip infrastructure details, async flows, and secondary services. The goal is a quick overview, not a comprehensive architecture.'
     : detailLevel === 2
     ? 'DIAGRAM SCOPE: MODERATE DETAIL. Show core components and their main interactions. Include edge labels that describe the action and context. Include async flows and infrastructure details only when they are central to the architecture.'
     : 'DIAGRAM SCOPE: FULL DETAIL. Be comprehensive. Include all components, infrastructure, async flows, caches, queues, and supporting services. Edge labels must be descriptive (action + what + context). Show the complete workflow including background processing and data persistence. Include observability and cross-cutting concerns if relevant.';
@@ -286,7 +286,7 @@ Output must conform to this JSON schema:
   if (parsed && parsed.mermaidCode) {
     const formatConfig: FormatConfig = {
       format: 'mermaid',
-      diagramType: parsed.diagramType === 'graph LR' ? 'graph LR' : 'graph TD',
+      diagramType: parsed.diagramType === 'graph TD' ? 'graph TD' : 'graph LR',
       optionalVariants: [],
     };
 

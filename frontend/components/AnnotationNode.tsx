@@ -203,7 +203,13 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
     };
   }, [editingTitle, editingBody, commitTitle, commitBody]);
 
-  const handleStyle = { width: 12, height: 12, pointerEvents: 'none' as const };
+  const handleStyle = {
+    width: 12,
+    height: 12,
+    background: 'var(--node-card-bg, #ffffff)',
+    border: '2px solid var(--node-accent, #0d9488)',
+    borderRadius: '50%',
+  };
 
   const renderSizeToolbar = () => (
     <div 
@@ -247,6 +253,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
 
       <div
         ref={containerRef}
+        className="annotation-node"
         style={{
           width: '100%',
           height: '100%',
@@ -263,7 +270,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         }}
       >
         {/* ── Handles — only render directions actually referenced by edges ── */}
-        <NodeHandles handleStyle={{ ...handleStyle, left: -15 }} />
+        <NodeHandles handleStyle={handleStyle} />
 
         {editingTitle && (
           <div 

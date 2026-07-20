@@ -354,23 +354,27 @@ describe('Performance Tests: Dynamic Handle Positioning', () => {
       const pairs = PerformanceTestHarness.generateNodePairs(20);
 
       // Warm up to compile and stabilize JIT execution
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 20; i++) {
         PerformanceTestHarness.measureBatchCalculation(pairs);
       }
 
       // Run the same calculation multiple times
       const times: number[] = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 10; i++) {
         const time = PerformanceTestHarness.measureBatchCalculation(pairs);
         times.push(time);
       }
 
-      // Times should be relatively consistent (within 10x of each other)
-      const min = Math.min(...times);
-      const max = Math.max(...times);
-      expect(max / min).toBeLessThan(10);
+      // Drop the top and bottom outliers for a more stable comparison
+      times.sort((a, b) => a - b);
+      const trimmed = times.slice(2, -2);
+      const min = trimmed[0];
+      const max = trimmed[trimmed.length - 1];
 
-      console.log(`\nConsistency check (20 edges, 5 runs): ${times.map(t => PerformanceTestHarness.formatTime(t)).join(', ')}`);
+      // Trimmed times should be relatively consistent (within 5x of each other)
+      expect(max / min).toBeLessThan(5);
+
+      console.log(`\nConsistency check (20 edges, 10 runs, trimmed): ${trimmed.map(t => PerformanceTestHarness.formatTime(t)).join(', ')}`);
     });
   });
 });

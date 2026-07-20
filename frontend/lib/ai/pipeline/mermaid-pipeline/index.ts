@@ -209,8 +209,8 @@ export async function runMermaidPipeline(
 
   if (implicitConcept) {
     logger.info(`[ConceptTemplate] Using implicit concept compiler: ${implicitConcept.subject} (${implicitConcept.domain})`);
-    formatConfig.diagramType = 'graph TD';
-    mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
+    formatConfig.diagramType = 'graph LR';
+    mermaidCode = mermaidCode.replace(/^graph TD/m, 'graph LR');
   } else if (isVerticalRequested) {
     logger.info('[DownstreamGuard] Override: vertical layout requested. Forcing graph TD.');
     formatConfig.diagramType = 'graph TD';

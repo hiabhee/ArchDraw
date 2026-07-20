@@ -48,7 +48,7 @@ const BASE_STYLE: StyleConfig = {
 
 const FORMAT: FormatConfig = {
   format: 'mermaid',
-  diagramType: 'graph TD',
+  diagramType: 'graph LR',
   optionalVariants: [],
 };
 
@@ -138,7 +138,7 @@ function buildPlan(mermaidCode: string, reasoning: string): ConceptTemplatePlan 
 function buildDomainConceptPlan(concept: ImplicitConcept): ConceptTemplatePlan {
   const subject = sanitizeLabel(concept.subject);
   const mermaidCode = domainMermaid(concept.domain, subject);
-  const reasoning = `Step 0 - This is a short implicit concept prompt for ${subject}, so build a production-grade explanatory grid rather than inventing an application-specific architecture. Step 1 - Classify ${subject} as ${concept.domain} infrastructure. Step 2 - Show interfaces, core runtime/data plane, control/configuration, security/policy, state/persistence, and operations where relevant. Step 3 - Connect components by responsibility instead of forcing a long request path. Step 4 - Include modern production concerns such as health, metrics, policy, replication, persistence, and safe integration. Step 5 - Avoid domain services or databases that the user did not request. Step 6 - Edge labels are concise. Step 7 - Components are grouped into grid-style responsibility bands.`;
+  const reasoning = `Step 0 - This is a short implicit concept prompt for ${subject}, so build a production-grade explanatory grid rather than inventing an application-specific architecture. Step 1 - Classify ${subject} as ${concept.domain} infrastructure. Step 2 - Show interfaces, core runtime/data plane, control/configuration, security/policy, state/persistence, and operations where relevant. Step 3 - Connect components by responsibility instead of forcing a long request path. Step 4 - Include modern production concerns such as health, metrics, policy, replication, persistence, and safe integration. Step 5 - Avoid domain services or databases that the user did not request. Step 6 - Edge labels are concise (2 words max). Step 7 - Components are grouped into grid-style responsibility bands.`;
   return buildPlan(mermaidCode, reasoning);
 }
 
@@ -176,7 +176,7 @@ function domainMermaid(domain: ConceptDomain, subject: string): string {
 }
 
 function genericApiEdgeMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph CLIENTS["Consumers"]
     clients("Clients")
     partners("Partners")
@@ -221,7 +221,7 @@ function genericApiEdgeMermaid(subject: string): string {
 }
 
 function genericMessagingMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph CLIENTS["Messaging Clients"]
     producers("Producers")
     consumers("Consumers")
@@ -260,7 +260,7 @@ function genericMessagingMermaid(subject: string): string {
 }
 
 function genericDatabaseMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph CLIENTS["Database Clients"]
     apps("Applications")
     admin("Admin Tools")
@@ -301,7 +301,7 @@ function genericDatabaseMermaid(subject: string): string {
 }
 
 function genericCacheMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph CLIENTS["Cache Clients"]
     apps("Applications")
     workers("Workers")
@@ -338,7 +338,7 @@ function genericCacheMermaid(subject: string): string {
 }
 
 function genericOrchestrationMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph USERS["Operators"]
     cli("CLI / API")
     gitops("GitOps / CI")
@@ -379,7 +379,7 @@ function genericOrchestrationMermaid(subject: string): string {
 }
 
 function genericObservabilityMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph SOURCES["Telemetry Sources"]
     apps("Applications")
     infra("Infrastructure")
@@ -421,7 +421,7 @@ function genericObservabilityMermaid(subject: string): string {
 }
 
 function genericSecurityMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph ACTORS["Actors"]
     user("User / Service")
     admin("Admin")
@@ -460,7 +460,7 @@ function genericSecurityMermaid(subject: string): string {
 }
 
 function genericSearchMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph SOURCES["Data Sources"]
     apps("Applications")
     dbs[("Databases")]
@@ -501,7 +501,7 @@ function genericSearchMermaid(subject: string): string {
 }
 
 function genericStorageMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph CLIENTS["Storage Clients"]
     apps("Applications")
     batch("Batch Jobs")
@@ -540,7 +540,7 @@ function genericStorageMermaid(subject: string): string {
 }
 
 function genericRuntimeMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph DEVELOPERS["Developers"]
     source("Source Code")
     config["Runtime Config"]
@@ -579,7 +579,7 @@ function genericRuntimeMermaid(subject: string): string {
 }
 
 function genericContainerRuntimeMermaid(subject: string): string {
-  return `graph TD
+  return `graph LR
   subgraph CLIENT["Client Interface"]
     cli("${subject} Client")
     api["Runtime API"]
@@ -617,7 +617,7 @@ function genericContainerRuntimeMermaid(subject: string): string {
   containers -->|share kernel| kernel`;
 }
 
-const dockerMermaid = `graph TD
+const dockerMermaid = `graph LR
   subgraph CLIENT["Client Interface"]
     client("Docker Client / CLI")
     api["Docker API"]
@@ -657,7 +657,7 @@ const dockerMermaid = `graph TD
   containers -->|share kernel| kernel
   containerd -->|status events| daemon`;
 
-const apiGatewayMermaid = `graph TD
+const apiGatewayMermaid = `graph LR
   subgraph CLIENTS["Consumers"]
     web("Web / Mobile Apps")
     partners("Partner Clients")
@@ -708,7 +708,7 @@ const apiGatewayMermaid = `graph TD
   listener -->|emits logs| logs
   proxy -->|emits metrics| metrics`;
 
-const kafkaMermaid = `graph TD
+const kafkaMermaid = `graph LR
   subgraph CLIENTS["Kafka Clients"]
     producers("Producers")
     consumers("Consumer Groups")
@@ -748,7 +748,7 @@ const kafkaMermaid = `graph TD
   monitoring -->|tracks lag| consumers
   monitoring -->|tracks brokers| brokers`;
 
-const linuxMermaid = `graph TD
+const linuxMermaid = `graph LR
   subgraph USER["User Space"]
     apps("Applications")
     shell["Shell / Utilities"]

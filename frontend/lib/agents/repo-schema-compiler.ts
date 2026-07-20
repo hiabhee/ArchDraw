@@ -64,16 +64,18 @@ function cleanEdgeLabel(label: string, type: string): string {
     return lower;
   }
 
-  // Descriptive semantic labels (3+ words or specific verb-object pairs) — keep them
+  // Descriptive semantic labels — truncate to 2 words max
   if (raw.length > 3 && raw.length <= 40) {
+    const words = raw.split(/\s+/);
+    if (words.length > 2) return words.slice(0, 2).join(' ').toLowerCase();
     return raw.toLowerCase();
   }
 
   // Fallback for very long labels
   if (raw.length > 40) {
     const words = raw.split(/\s+/);
-    if (words.length >= 3) {
-      return words.slice(0, 4).join(' ').toLowerCase();
+    if (words.length >= 2) {
+      return words.slice(0, 2).join(' ').toLowerCase();
     }
     if (type === 'db_query') return 'queries';
     if (type === 'external_call') return 'uses';
