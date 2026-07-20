@@ -270,7 +270,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         }}
       >
         {/* ── Handles — only render directions actually referenced by edges ── */}
-        <NodeHandles handleStyle={handleStyle} />
+        <NodeHandles handleStyle={handleStyle} nodeId={id} />
 
         {editingTitle && (
           <div 

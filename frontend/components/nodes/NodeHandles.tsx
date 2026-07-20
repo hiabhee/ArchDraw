@@ -2,6 +2,7 @@
 
 import { Handle, Position } from 'reactflow';
 import { INCOMING_OUTGOING_GAP } from '@/lib/utils/simpleFloatingEdge';
+import { useDiagramStore } from '@/store/diagramStore';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -48,31 +49,57 @@ function SingleHandle({ side, type, slotOffset, style }: NodeHandleProps) {
   return <Handle type={type} position={pos} id={id} style={base} />;
 }
 
+function useCenteredSides(nodeId?: string): Set<Position> {
+  const edges = useDiagramStore((s) => s.edges);
+  const centered = new Set<Position>();
+  if (!nodeId) return centered;
+
+  const sides: Position[] = [Position.Left, Position.Right, Position.Top, Position.Bottom];
+  for (const side of sides) {
+    let hasIncoming = false;
+    let hasOutgoing = false;
+    for (const e of edges) {
+      if (e.source !== nodeId && e.target !== nodeId) continue;
+      if (e.target === nodeId) hasIncoming = true;
+      else hasOutgoing = true;
+      if (hasIncoming && hasOutgoing) break;
+    }
+    if (!hasIncoming || !hasOutgoing) centered.add(side);
+  }
+  return centered;
+}
+
 interface NodeHandlesProps {
   handleStyle?: React.CSSProperties;
   sides?: Side[];
+  nodeId?: string;
 }
 
 /**
  * Exactly 2 handles per side: source (outgoing, −GAP) and target (incoming, +GAP).
+ * When a side has only incoming or only outgoing edges, both handles are
+ * placed at the midpoint (offset 0).
  */
-export function NodeHandles({ handleStyle, sides = SIDES }: NodeHandlesProps) {
+export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesProps) {
   const sourceOffset = -INCOMING_OUTGOING_GAP;
   const targetOffset = INCOMING_OUTGOING_GAP;
+  const centeredSides = useCenteredSides(nodeId);
 
   return (
     <>
-      {sides.map((side) =>
-        TYPES.map((type) => (
+      {sides.map((side) => {
+        const pos = sideToPosition(side);
+        const centered = centeredSides.has(pos);
+        return TYPES.map((type) => (
           <SingleHandle
             key={`${type}-${side}`}
             side={side}
             type={type}
-            slotOffset={type === 'source' ? sourceOffset : targetOffset}
+            slotOffset={centered ? 0 : type === 'source' ? sourceOffset : targetOffset}
             style={handleStyle}
           />
-        ))
-      )}
+        ));
+      })}
     </>
   );
 }

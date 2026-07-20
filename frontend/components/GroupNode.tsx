@@ -162,7 +162,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      <NodeHandles />
+      <NodeHandles nodeId={id} />
     </div>
   );
 }

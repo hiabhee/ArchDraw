@@ -182,7 +182,7 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
       onDoubleClick={startEdit}
       className="text-label-node"
     >
-      <NodeHandles handleStyle={handleStyle} />
+      <NodeHandles handleStyle={handleStyle} nodeId={id} />
 
       {editing && (
         <div

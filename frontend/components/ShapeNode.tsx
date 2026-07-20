@@ -63,7 +63,7 @@ function Handles({ color, nodeId }: { color: string; nodeId: string }) {
   }, [nodeId, updateNodeInternals]);
 
   return (
-    <NodeHandles handleStyle={s} />
+    <NodeHandles handleStyle={s} nodeId={nodeId} />
   );
 }
 

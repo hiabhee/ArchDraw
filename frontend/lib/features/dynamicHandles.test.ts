@@ -268,7 +268,7 @@ describe('backward compatibility and error handling', () => {
   });
 });
 
-import { getEdgeShiftOffset, INCOMING_OUTGOING_GAP } from '../utils/simpleFloatingEdge';
+import { getEdgeShiftOffset, INCOMING_OUTGOING_GAP, type EdgeSideResolver } from '../utils/simpleFloatingEdge';
 import { Node, Edge } from 'reactflow';
 
 describe('getEdgeShiftOffset', () => {
@@ -311,22 +311,26 @@ describe('getEdgeShiftOffset', () => {
     height: 80
   } as Node);
 
-  it('should attach a single edge to its dedicated in/out slot (not the side midpoint)', () => {
+  it('should center a single edge handle (only one direction on node)', () => {
     const edges: Edge[] = [
       { id: 'edge1', source: 'Observe', target: 'TaskDone' }
     ];
+    const resolveSide: EdgeSideResolver = (e, nodeId) =>
+      e.target === nodeId ? Position.Top : Position.Top;
     
-    // Lone outgoing edge still uses the source handle slot (-GAP), matching visuals.
-    const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24);
-    expect(offset).toBe(-GAP);
+    // Lone outgoing edge, no incoming → centered (0) when resolver confirms single direction
+    const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+    expect(offset).toBe(0);
   });
 
-  it('should attach a single incoming edge to the target handle slot', () => {
+  it('should center a single incoming edge handle (only one direction on node)', () => {
     const edges: Edge[] = [
       { id: 'edge1', source: 'TaskDone', target: 'Observe' }
     ];
-    const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24);
-    expect(offset).toBe(GAP);
+    const resolveSide: EdgeSideResolver = (e, nodeId) =>
+      e.target === nodeId ? Position.Top : Position.Top;
+    const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+    expect(offset).toBe(0);
   });
 
   it('should assign correct offsets to prevent crossing for multi-edge same-side scenario', () => {
@@ -359,7 +363,7 @@ describe('getEdgeShiftOffset', () => {
     expect(offsetIn).not.toBe(offsetOut);
   });
 
-  it('should merge all same-side incomings onto the target handle only', () => {
+  it('should center all same-side incomings (no outgoing on node)', () => {
     // All three sources sit above Observe so each edge lands on Top.
     nodeInternals.set('AboveA', {
       id: 'AboveA',
@@ -389,27 +393,34 @@ describe('getEdgeShiftOffset', () => {
       { id: 'e-c', source: 'AboveC', target: 'Observe' },
     ];
 
-    const offsetA = getEdgeShiftOffset('Observe', 'e-a', Position.Top, edges, nodeInternals, 24);
-    const offsetB = getEdgeShiftOffset('Observe', 'e-b', Position.Top, edges, nodeInternals, 24);
-    const offsetC = getEdgeShiftOffset('Observe', 'e-c', Position.Top, edges, nodeInternals, 24);
+    const resolveSide: EdgeSideResolver = (e, nodeId) =>
+      e.target === nodeId ? Position.Top : Position.Top;
 
-    // Four (three) incomings → one shared target-handle tip
-    expect(offsetA).toBe(GAP);
-    expect(offsetB).toBe(GAP);
-    expect(offsetC).toBe(GAP);
+    const offsetA = getEdgeShiftOffset('Observe', 'e-a', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+    const offsetB = getEdgeShiftOffset('Observe', 'e-b', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+    const offsetC = getEdgeShiftOffset('Observe', 'e-c', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+
+    // All incomings, no outgoings → centered (0)
+    expect(offsetA).toBe(0);
+    expect(offsetB).toBe(0);
+    expect(offsetC).toBe(0);
   });
 
-  it('should merge all same-side outgoings onto the source handle only', () => {
+  it('should center all same-side outgoings (no incoming on node)', () => {
     const edges: Edge[] = [
       { id: 'e-1', source: 'Observe', target: 'Act' },
       { id: 'e-2', source: 'Observe', target: 'TaskDone' },
     ];
 
-    const offset1 = getEdgeShiftOffset('Observe', 'e-1', Position.Top, edges, nodeInternals, 24);
-    const offset2 = getEdgeShiftOffset('Observe', 'e-2', Position.Top, edges, nodeInternals, 24);
+    const resolveSide: EdgeSideResolver = (e, nodeId) =>
+      e.target === nodeId ? Position.Top : Position.Top;
 
-    expect(offset1).toBe(-GAP);
-    expect(offset2).toBe(-GAP);
+    const offset1 = getEdgeShiftOffset('Observe', 'e-1', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+    const offset2 = getEdgeShiftOffset('Observe', 'e-2', Position.Top, edges, nodeInternals, 24, undefined, undefined, resolveSide);
+
+    // All outgoings, no incomings → centered (0)
+    expect(offset1).toBe(0);
+    expect(offset2).toBe(0);
   });
 
   it('should keep incoming and outgoing on opposite dedicated handles (never merge across types)', () => {

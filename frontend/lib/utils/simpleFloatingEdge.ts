@@ -73,12 +73,37 @@ export function getHandleSlotLayout(): { sourceOffset: number; targetOffset: num
 }
 
 /**
+ * When only incoming or only outgoing edges exist on a given side of a node,
+ * the active handle is centered (offset = 0) instead of split to the
+ * dedicated incoming/outgoing slot (+/- GAP).
+ */
+function hasBothDirectionsOnSide(
+  nodeId: string,
+  side: Position,
+  edges: Edge[],
+  resolveSide?: EdgeSideResolver,
+): boolean {
+  if (!resolveSide) return true;
+
+  let hasIncoming = false;
+  let hasOutgoing = false;
+  for (const e of edges) {
+    if (e.source !== nodeId && e.target !== nodeId) continue;
+    if (resolveSide(e, nodeId) !== side) continue;
+    if (e.target === nodeId) hasIncoming = true;
+    else hasOutgoing = true;
+    if (hasIncoming && hasOutgoing) return true;
+  }
+  return false;
+}
+
+/**
  * Terminal attachment for one end of an edge.
  * - Leaving a node  (source end) → outgoing / source handle (−GAP)
  * - Entering a node (target end) → incoming / target handle (+GAP)
  *
- * All same-role edges on a side therefore share one tip (merge by type).
- * Opposite roles stay on opposite tips.
+ * When only one direction (incoming OR outgoing) exists on a side,
+ * the offset is 0 (centered) instead of +/- GAP.
  */
 export function getEdgeShiftOffset(
   ...args: [
@@ -93,16 +118,37 @@ export function getEdgeShiftOffset(
     resolveSide?: EdgeSideResolver,
   ]
 ): number {
-  const [nodeId, edgeId, , edges] = args;
+  const [nodeId, edgeId, side, edges, , , , , resolveSide] = args;
 
   const self = edges.find(
     (e) => e.id === edgeId && (e.source === nodeId || e.target === nodeId),
   );
   if (!self) return 0;
 
+  if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
+
   const isIncoming = self.target === nodeId;
   const { sourceOffset, targetOffset } = getHandleSlotLayout();
   return isIncoming ? targetOffset : sourceOffset;
+}
+
+/**
+ * Determines which sides of a node have only incoming or only outgoing edges.
+ * Returns the set of side positions where the handle should be centered.
+ */
+export function getCenteredSides(
+  nodeId: string,
+  edges: Edge[],
+  resolveSide?: EdgeSideResolver,
+): Set<Position> {
+  const centered = new Set<Position>();
+  const sides: Position[] = [Position.Left, Position.Right, Position.Top, Position.Bottom];
+  for (const side of sides) {
+    if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) {
+      centered.add(side);
+    }
+  }
+  return centered;
 }
 
 
