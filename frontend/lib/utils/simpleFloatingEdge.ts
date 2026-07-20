@@ -7,7 +7,7 @@ export interface EdgePositions {
 
 type HandleType = 'source' | 'target';
 
-const EDGE_ENDPOINT_GAP = 0;
+const EDGE_ENDPOINT_GAP = 24;
 
 export function getNodeCenter(node: Node) {
   const x = node.positionAbsolute?.x ?? node.position.x;
@@ -18,7 +18,7 @@ export function getNodeCenter(node: Node) {
 }
 
 export function getSimpleEdgePositions(
-  sourceX: number,
+  sourceX: number ,
   sourceY: number,
   targetX: number,
   targetY: number
@@ -52,6 +52,8 @@ export function getSimpleEdgePositions(
   return { sourcePos, targetPos };
 }
 
+const INCOMING_OUTGOING_GAP = 6;
+
 export function getEdgeShiftOffset(
   ...args: [
     nodeId: string,
@@ -64,8 +66,60 @@ export function getEdgeShiftOffset(
     excludedNodeIds?: Set<string>,
   ]
 ): number {
-  void args;
-  return 0;
+  const [nodeId, edgeId, side, edges, , spacing = 24] = args;
+
+  const connected = edges.filter(
+    (e) =>
+      (e.source === nodeId || e.target === nodeId) &&
+      (e.sourceHandle ?? null) === null &&
+      (e.targetHandle ?? null) === null,
+  );
+  if (connected.length <= 1) return 0;
+
+  const incoming = connected
+    .filter((e) => e.target === nodeId)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const outgoing = connected
+    .filter((e) => e.source === nodeId)
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  const isIncoming = incoming.some((e) => e.id === edgeId);
+  const group = isIncoming ? incoming : outgoing;
+  if (group.length <= 1) {
+    return isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP;
+  }
+
+  const idx = group.findIndex((e) => e.id === edgeId);
+  if (idx === -1) return 0;
+
+  const center = ((group.length - 1) * spacing) / 2;
+  const baseOffset = idx * spacing - center;
+  return baseOffset + (isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP);
+}
+
+/**
+ * Computes an anchor point 24px outside the node boundary for a given side.
+ * The edge terminates with a gap between the node and the endpoint.
+ * The shiftOffset distributes parallel edges along the side.
+ */
+export function getBoundaryAnchor(
+  nodeX: number,
+  nodeY: number,
+  width: number,
+  height: number,
+  position: Position,
+  shiftOffset: number = 0,
+): { x: number; y: number } {
+  switch (position) {
+    case Position.Left:
+      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset };
+    case Position.Right:
+      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset };
+    case Position.Top:
+      return { x: nodeX + width / 2 + shiftOffset, y: nodeY - EDGE_ENDPOINT_GAP };
+    case Position.Bottom:
+      return { x: nodeX + width / 2 + shiftOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
+  }
 }
 
 export function getSimpleHandlePosition(
