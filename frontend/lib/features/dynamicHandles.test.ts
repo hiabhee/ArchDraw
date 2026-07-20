@@ -268,10 +268,11 @@ describe('backward compatibility and error handling', () => {
   });
 });
 
-import { getEdgeShiftOffset } from '../utils/simpleFloatingEdge';
+import { getEdgeShiftOffset, INCOMING_OUTGOING_GAP } from '../utils/simpleFloatingEdge';
 import { Node, Edge } from 'reactflow';
 
 describe('getEdgeShiftOffset', () => {
+  const GAP = INCOMING_OUTGOING_GAP;
   const nodeInternals = new Map<string, Node>();
   
   // Set up nodes
@@ -317,7 +318,7 @@ describe('getEdgeShiftOffset', () => {
     
     // Lone outgoing edge still uses the source handle slot (-GAP), matching visuals.
     const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24);
-    expect(offset).toBe(-6);
+    expect(offset).toBe(-GAP);
   });
 
   it('should attach a single incoming edge to the target handle slot', () => {
@@ -325,7 +326,7 @@ describe('getEdgeShiftOffset', () => {
       { id: 'edge1', source: 'TaskDone', target: 'Observe' }
     ];
     const offset = getEdgeShiftOffset('Observe', 'edge1', Position.Top, edges, nodeInternals, 24);
-    expect(offset).toBe(6);
+    expect(offset).toBe(GAP);
   });
 
   it('should assign correct offsets to prevent crossing for multi-edge same-side scenario', () => {
@@ -334,18 +335,16 @@ describe('getEdgeShiftOffset', () => {
       { id: 'edge-taskdone', source: 'Observe', target: 'TaskDone' } // Observe -> TaskDone (left)
     ];
 
-    // Incoming peer (Act) sits further right than outgoing peer (TaskDone) on Top's
-    // tangent (X). Incoming takes the positive slot, outgoing the negative — 12px apart.
+    // Fixed slots: incoming → +GAP, outgoing → −GAP (never the same tip)
     const offsetAct = getEdgeShiftOffset('Observe', 'edge-act', Position.Top, edges, nodeInternals, 24);
     const offsetTaskDone = getEdgeShiftOffset('Observe', 'edge-taskdone', Position.Top, edges, nodeInternals, 24);
 
-    expect(offsetAct).toBe(6);
-    expect(offsetTaskDone).toBe(-6);
+    expect(offsetAct).toBe(GAP);
+    expect(offsetTaskDone).toBe(-GAP);
+    expect(offsetAct).not.toBe(offsetTaskDone);
   });
 
-  it('should swap incoming/outgoing slots when peer order would otherwise cross', () => {
-    // Incoming from TaskDone (left) and outgoing to Act (right) on Top —
-    // opposite of the previous case, so slots must swap.
+  it('should keep fixed in/out slots even when peer order is reversed', () => {
     const edges: Edge[] = [
       { id: 'edge-in', source: 'TaskDone', target: 'Observe' },
       { id: 'edge-out', source: 'Observe', target: 'Act' },
@@ -354,11 +353,13 @@ describe('getEdgeShiftOffset', () => {
     const offsetIn = getEdgeShiftOffset('Observe', 'edge-in', Position.Top, edges, nodeInternals, 24);
     const offsetOut = getEdgeShiftOffset('Observe', 'edge-out', Position.Top, edges, nodeInternals, 24);
 
-    expect(offsetIn).toBe(-6);
-    expect(offsetOut).toBe(6);
+    // Fixed: incoming always +GAP, outgoing always −GAP
+    expect(offsetIn).toBe(GAP);
+    expect(offsetOut).toBe(-GAP);
+    expect(offsetIn).not.toBe(offsetOut);
   });
 
-  it('should offset multiple incoming edges on the same side', () => {
+  it('should merge all same-side incomings onto the target handle only', () => {
     // All three sources sit above Observe so each edge lands on Top.
     nodeInternals.set('AboveA', {
       id: 'AboveA',
@@ -392,13 +393,13 @@ describe('getEdgeShiftOffset', () => {
     const offsetB = getEdgeShiftOffset('Observe', 'e-b', Position.Top, edges, nodeInternals, 24);
     const offsetC = getEdgeShiftOffset('Observe', 'e-c', Position.Top, edges, nodeInternals, 24);
 
-    // Same-side incomings merge onto one dedicated target slot (+6)
-    expect(offsetA).toBe(6);
-    expect(offsetB).toBe(6);
-    expect(offsetC).toBe(6);
+    // Four (three) incomings → one shared target-handle tip
+    expect(offsetA).toBe(GAP);
+    expect(offsetB).toBe(GAP);
+    expect(offsetC).toBe(GAP);
   });
 
-  it('should offset multiple outgoing edges on the same side', () => {
+  it('should merge all same-side outgoings onto the source handle only', () => {
     const edges: Edge[] = [
       { id: 'e-1', source: 'Observe', target: 'Act' },
       { id: 'e-2', source: 'Observe', target: 'TaskDone' },
@@ -407,14 +408,11 @@ describe('getEdgeShiftOffset', () => {
     const offset1 = getEdgeShiftOffset('Observe', 'e-1', Position.Top, edges, nodeInternals, 24);
     const offset2 = getEdgeShiftOffset('Observe', 'e-2', Position.Top, edges, nodeInternals, 24);
 
-    // Same-side outgoings merge onto one dedicated source slot (-6)
-    expect(offset1).toBe(-6);
-    expect(offset2).toBe(-6);
+    expect(offset1).toBe(-GAP);
+    expect(offset2).toBe(-GAP);
   });
 
-  it('should keep incoming and outgoing groups on opposite dedicated slots', () => {
-    // Peers all above Observe (Top side). Incoming peers tend right; outgoing tend left
-    // so incoming stays on the positive slot (+6) and outgoing on the negative (-6).
+  it('should keep incoming and outgoing on opposite dedicated handles (never merge across types)', () => {
     nodeInternals.set('InLeft', {
       id: 'InLeft',
       position: { x: 160, y: 40 },
@@ -459,18 +457,24 @@ describe('getEdgeShiftOffset', () => {
       { id: 'e-out3', source: 'Observe', target: 'OutRight' },
     ];
 
-    // All incomings share +6; all outgoings share -6 (merged terminals)
     const in1 = getEdgeShiftOffset('Observe', 'e-in1', Position.Top, edges, nodeInternals, 24);
     const in2 = getEdgeShiftOffset('Observe', 'e-in2', Position.Top, edges, nodeInternals, 24);
-    expect(in1).toBe(6);
-    expect(in2).toBe(6);
-
     const out1 = getEdgeShiftOffset('Observe', 'e-out1', Position.Top, edges, nodeInternals, 24);
     const out2 = getEdgeShiftOffset('Observe', 'e-out2', Position.Top, edges, nodeInternals, 24);
     const out3 = getEdgeShiftOffset('Observe', 'e-out3', Position.Top, edges, nodeInternals, 24);
-    expect(out1).toBe(-6);
-    expect(out2).toBe(-6);
-    expect(out3).toBe(-6);
+
+    // All incomings share the target handle
+    expect(in1).toBe(in2);
+    expect(in1).toBe(GAP);
+
+    // All outgoings share the source handle
+    expect(out1).toBe(out2);
+    expect(out2).toBe(out3);
+    expect(out1).toBe(-GAP);
+
+    // Types stay on opposite tips
+    expect(in1).not.toBe(out1);
+    expect(Math.abs(in1 - out1)).toBe(GAP * 2);
   });
 
   it('should assign stable uncrossed offsets to bidirectional edges', () => {
@@ -481,18 +485,19 @@ describe('getEdgeShiftOffset', () => {
       { id: 'e-ba', source: 'NodeB', target: 'NodeA' }
     ];
 
-    // Same-peer bidirectional: ends use opposite slot signs so the two edges run parallel.
-    // NodeA (lower id) keeps outgoing on the negative slot; NodeB mirrors.
+    // Fixed slots on every node: outgoing −GAP, incoming +GAP
     const offsetA_ab = getEdgeShiftOffset('NodeA', 'e-ab', Position.Right, edges, nodeInternals, 12);
     const offsetA_ba = getEdgeShiftOffset('NodeA', 'e-ba', Position.Right, edges, nodeInternals, 12);
 
     const offsetB_ab = getEdgeShiftOffset('NodeB', 'e-ab', Position.Left, edges, nodeInternals, 12);
     const offsetB_ba = getEdgeShiftOffset('NodeB', 'e-ba', Position.Left, edges, nodeInternals, 12);
 
-    expect(offsetA_ab).toBe(-6);
-    expect(offsetA_ba).toBe(6);
+    expect(offsetA_ab).toBe(-GAP);
+    expect(offsetA_ba).toBe(GAP);
+    expect(offsetA_ab).not.toBe(offsetA_ba);
 
-    expect(offsetB_ab).toBe(-6);
-    expect(offsetB_ba).toBe(6);
+    expect(offsetB_ab).toBe(GAP);  // incoming to B
+    expect(offsetB_ba).toBe(-GAP); // outgoing from B
+    expect(offsetB_ab).not.toBe(offsetB_ba);
   });
 });

@@ -52,149 +52,34 @@ export function getSimpleEdgePositions(
   return { sourcePos, targetPos };
 }
 
-/** Half-gap between dedicated incoming and outgoing handle slots on a side (12px total). */
-export const INCOMING_OUTGOING_GAP = 6;
-
-function getEdgeSideForNode(
-  e: Edge,
-  nodeId: string,
-  nodeInternals: Map<string, Node> | undefined,
-  side: Position
-): Position {
-  if (!nodeInternals) return side;
-  const sourceNode = nodeInternals.get(e.source);
-  const targetNode = nodeInternals.get(e.target);
-  if (!sourceNode || !targetNode) return side;
-
-  const srcCenter = getNodeCenter(sourceNode);
-  const tgtCenter = getNodeCenter(targetNode);
-  const { sourcePos, targetPos } = getSimpleEdgePositions(
-    srcCenter.cx,
-    srcCenter.cy,
-    tgtCenter.cx,
-    tgtCenter.cy
-  );
-  return e.source === nodeId ? sourcePos : targetPos;
-}
-
-/**
- * Peer coordinate along the side's tangent axis.
- * Left/Right sides fan along Y; Top/Bottom fan along X.
- */
-function peerTangentCoord(
-  peer: Node,
-  side: Position,
-): number {
-  const { cx, cy } = getNodeCenter(peer);
-  return side === Position.Left || side === Position.Right ? cy : cx;
-}
-
-function meanPeerTangent(
-  edges: Edge[],
-  nodeId: string,
-  side: Position,
-  nodeInternals: Map<string, Node>,
-): number | null {
-  if (edges.length === 0) return null;
-  let sum = 0;
-  let count = 0;
-  for (const e of edges) {
-    const peerId = e.source === nodeId ? e.target : e.source;
-    const peer = nodeInternals.get(peerId);
-    if (!peer) continue;
-    sum += peerTangentCoord(peer, side);
-    count += 1;
-  }
-  return count === 0 ? null : sum / count;
-}
-
-/**
- * Chooses which side of the side-midpoint hosts incoming vs outgoing handles.
- * Places the group whose peers sit earlier on the tangent axis toward the
- * negative slot so edges run parallel instead of crossing. When peer means
- * tie (e.g. bidirectional pair), a stable node-id tie-break assigns opposite
- * signs on opposite endpoints so the two edges stay uncrossed.
- *
- * Returns signs applied to INCOMING_OUTGOING_GAP for each group.
- */
-export function getIncomingOutgoingSlotSigns(
-  nodeId: string,
-  side: Position,
-  incoming: Edge[],
-  outgoing: Edge[],
-  nodeInternals: Map<string, Node>,
-): { incomingSign: 1 | -1; outgoingSign: 1 | -1 } {
-  const inMean = meanPeerTangent(incoming, nodeId, side, nodeInternals);
-  const outMean = meanPeerTangent(outgoing, nodeId, side, nodeInternals);
-
-  if (inMean !== null && outMean !== null) {
-    const delta = inMean - outMean;
-    if (Math.abs(delta) > 1e-6) {
-      // Peers with smaller tangent coord → negative slot (up / left).
-      return delta < 0
-        ? { incomingSign: -1, outgoingSign: 1 }
-        : { incomingSign: 1, outgoingSign: -1 };
-    }
-  }
-
-  // Tie / missing peers: stable opposite assignment across the connection.
-  const peerIds = [
-    ...incoming.map((e) => (e.source === nodeId ? e.target : e.source)),
-    ...outgoing.map((e) => (e.source === nodeId ? e.target : e.source)),
-  ].sort();
-  const pivot = peerIds[0] ?? '';
-  // Lower node id keeps outgoing on the negative slot (historical default).
-  if (nodeId.localeCompare(pivot) <= 0) {
-    return { incomingSign: 1, outgoingSign: -1 };
-  }
-  return { incomingSign: -1, outgoingSign: 1 };
-}
-
-/**
- * Per-side slot layout for dedicated source (outgoing) / target (incoming) handles.
- * Used by FloatingHandles to visually place the two dots, matching edge endpoints.
- */
-export function getHandleSlotLayout(
-  nodeId: string,
-  side: Position,
-  edges: Edge[],
-  nodeInternals: Map<string, Node>,
-  resolveSide?: EdgeSideResolver,
-): { sourceOffset: number; targetOffset: number } {
-  const onSide = edges.filter((e) => {
-    if (e.source !== nodeId && e.target !== nodeId) return false;
-    const s = resolveSide
-      ? resolveSide(e, nodeId)
-      : getEdgeSideForNode(e, nodeId, nodeInternals, side);
-    return s === side;
-  });
-
-  const incoming = onSide.filter((e) => e.target === nodeId);
-  const outgoing = onSide.filter((e) => e.source === nodeId);
-
-  if (incoming.length === 0 || outgoing.length === 0) {
-    // Default: outgoing (source) above/left, incoming (target) below/right.
-    return {
-      sourceOffset: -INCOMING_OUTGOING_GAP,
-      targetOffset: INCOMING_OUTGOING_GAP,
-    };
-  }
-
-  const { incomingSign, outgoingSign } = getIncomingOutgoingSlotSigns(
-    nodeId,
-    side,
-    incoming,
-    outgoing,
-    nodeInternals,
-  );
-  return {
-    sourceOffset: outgoingSign * INCOMING_OUTGOING_GAP,
-    targetOffset: incomingSign * INCOMING_OUTGOING_GAP,
-  };
-}
+/** Half-gap between dedicated incoming vs outgoing handle slots on a side (32px total). */
+export const INCOMING_OUTGOING_GAP = 16;
 
 export type EdgeSideResolver = (edge: Edge, nodeId: string) => Position;
 
+/**
+ * Per-side slot layout for dedicated source (outgoing) / target (incoming) handles.
+ *
+ * Fixed contract (stable, never swaps):
+ * - `sourceOffset` (−GAP) → ALL outgoing edges on this side share this tip
+ * - `targetOffset` (+GAP) → ALL incoming edges on this side share this tip
+ * - Incoming and outgoing never share a tip (32px apart)
+ */
+export function getHandleSlotLayout(): { sourceOffset: number; targetOffset: number } {
+  return {
+    sourceOffset: -INCOMING_OUTGOING_GAP,
+    targetOffset: INCOMING_OUTGOING_GAP,
+  };
+}
+
+/**
+ * Terminal attachment for one end of an edge.
+ * - Leaving a node  (source end) → outgoing / source handle (−GAP)
+ * - Entering a node (target end) → incoming / target handle (+GAP)
+ *
+ * All same-role edges on a side therefore share one tip (merge by type).
+ * Opposite roles stay on opposite tips.
+ */
 export function getEdgeShiftOffset(
   ...args: [
     nodeId: string,
@@ -208,54 +93,16 @@ export function getEdgeShiftOffset(
     resolveSide?: EdgeSideResolver,
   ]
 ): number {
-  const [nodeId, edgeId, side, edges, nodeInternals, spacing = 24, , , resolveSide] = args;
+  const [nodeId, edgeId, , edges] = args;
 
-  // Include all connected edges (persisted sourceHandle/targetHandle must not
-  // disable slot separation — visual handles always sit on dedicated in/out slots).
-  const connected = edges.filter(
-    (e) => e.source === nodeId || e.target === nodeId,
+  const self = edges.find(
+    (e) => e.id === edgeId && (e.source === nodeId || e.target === nodeId),
   );
-  const self = connected.find((e) => e.id === edgeId);
   if (!self) return 0;
 
   const isIncoming = self.target === nodeId;
-
-  // Filter to only edges on the same side of this node
-  const onSide = connected.filter((e) => {
-    if (e.id === edgeId) return true;
-    const s = resolveSide
-      ? resolveSide(e, nodeId)
-      : getEdgeSideForNode(e, nodeId, nodeInternals, side);
-    return s === side;
-  });
-
-  const incoming = onSide
-    .filter((e) => e.target === nodeId)
-    .sort((a, b) => a.id.localeCompare(b.id));
-  const outgoing = onSide
-    .filter((e) => e.source === nodeId)
-    .sort((a, b) => a.id.localeCompare(b.id));
-
-  const group = isIncoming ? incoming : outgoing;
-
-  // Always attach to the dedicated in/out slot (matches FloatingHandles).
-  // All edges in the same direction on this side SHARE one terminal point —
-  // no within-group fan-out — so multiple incomings merge visually at one handler.
-  if (incoming.length > 0 && outgoing.length > 0) {
-    const { incomingSign, outgoingSign } = getIncomingOutgoingSlotSigns(
-      nodeId,
-      side,
-      incoming,
-      outgoing,
-      nodeInternals,
-    );
-    return (isIncoming ? incomingSign : outgoingSign) * INCOMING_OUTGOING_GAP;
-  }
-
-  // Default layout: outgoing (source) above/left, incoming (target) below/right.
-  void group;
-  void spacing;
-  return isIncoming ? INCOMING_OUTGOING_GAP : -INCOMING_OUTGOING_GAP;
+  const { sourceOffset, targetOffset } = getHandleSlotLayout();
+  return isIncoming ? targetOffset : sourceOffset;
 }
 
 

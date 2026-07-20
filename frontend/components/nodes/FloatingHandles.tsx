@@ -1,7 +1,7 @@
 'use client';
 
-import { Handle, Position, useNodeId, useStore, type ReactFlowState } from 'reactflow';
-import { getHandleSlotLayout, INCOMING_OUTGOING_GAP } from '@/lib/utils/simpleFloatingEdge';
+import { Handle, Position } from 'reactflow';
+import { INCOMING_OUTGOING_GAP } from '@/lib/utils/simpleFloatingEdge';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -47,31 +47,19 @@ function SingleFloatingHandle({ side, type, slotOffset }: FloatingHandleProps) {
   );
 }
 
+/**
+ * 8 handles: 2 per side.
+ * - source-*  (outgoing) at −GAP
+ * - target-*  (incoming) at +GAP
+ * Edges of each role merge onto that dedicated tip.
+ */
 export function FloatingHandles() {
-  const nodeId = useNodeId();
-  const edges = useStore((s: ReactFlowState) => s.edges);
-  const nodeInternals = useStore((s: ReactFlowState) => s.nodeInternals);
-
-  const slots = SIDES.map((side) => {
-    if (!nodeId) {
-      return {
-        side,
-        sourceOffset: -INCOMING_OUTGOING_GAP,
-        targetOffset: INCOMING_OUTGOING_GAP,
-      };
-    }
-    const layout = getHandleSlotLayout(
-      nodeId,
-      sideToPosition(side),
-      edges,
-      nodeInternals,
-    );
-    return { side, ...layout };
-  });
+  const sourceOffset = -INCOMING_OUTGOING_GAP;
+  const targetOffset = INCOMING_OUTGOING_GAP;
 
   return (
     <>
-      {slots.map(({ side, sourceOffset, targetOffset }) =>
+      {SIDES.map((side) =>
         TYPES.map((type) => (
           <SingleFloatingHandle
             key={`${type}-${side}`}

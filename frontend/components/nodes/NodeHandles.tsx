@@ -1,7 +1,7 @@
 'use client';
 
-import { Handle, Position, useNodeId, useStore, type ReactFlowState } from 'reactflow';
-import { getHandleSlotLayout, INCOMING_OUTGOING_GAP } from '@/lib/utils/simpleFloatingEdge';
+import { Handle, Position } from 'reactflow';
+import { INCOMING_OUTGOING_GAP } from '@/lib/utils/simpleFloatingEdge';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -54,35 +54,25 @@ interface NodeHandlesProps {
 }
 
 /**
- * Renders exactly 2 handles per side (one source/outgoing, one target/incoming).
- * Slot positions swap dynamically based on connected peers to reduce edge crossover.
+ * Exactly 2 handles per side: source (outgoing, −GAP) and target (incoming, +GAP).
  */
 export function NodeHandles({ handleStyle, sides = SIDES }: NodeHandlesProps) {
-  const nodeId = useNodeId();
-  const edges = useStore((s: ReactFlowState) => s.edges);
-  const nodeInternals = useStore((s: ReactFlowState) => s.nodeInternals);
+  const sourceOffset = -INCOMING_OUTGOING_GAP;
+  const targetOffset = INCOMING_OUTGOING_GAP;
 
   return (
     <>
-      {sides.map((side) => {
-        const layout =
-          nodeId
-            ? getHandleSlotLayout(nodeId, sideToPosition(side), edges, nodeInternals)
-            : {
-                sourceOffset: -INCOMING_OUTGOING_GAP,
-                targetOffset: INCOMING_OUTGOING_GAP,
-              };
-
-        return TYPES.map((type) => (
+      {sides.map((side) =>
+        TYPES.map((type) => (
           <SingleHandle
             key={`${type}-${side}`}
             side={side}
             type={type}
-            slotOffset={type === 'source' ? layout.sourceOffset : layout.targetOffset}
+            slotOffset={type === 'source' ? sourceOffset : targetOffset}
             style={handleStyle}
           />
-        ));
-      })}
+        ))
+      )}
     </>
   );
 }

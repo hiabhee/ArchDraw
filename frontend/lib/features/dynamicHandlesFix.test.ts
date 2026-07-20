@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getObstacleAwareHandles } from './dynamicHandles';
-import { getEdgeShiftOffset } from '../utils/simpleFloatingEdge';
+import { getEdgeShiftOffset, INCOMING_OUTGOING_GAP } from '../utils/simpleFloatingEdge';
 import { Position, Node, Edge } from 'reactflow';
 
 describe('Dynamic Handles Fixes', () => {
@@ -48,8 +48,8 @@ describe('Dynamic Handles Fixes', () => {
     const offset1 = getEdgeShiftOffset('A', 'edge-1', Position.Right, edges, nodeInternals);
     const offset2 = getEdgeShiftOffset('A', 'edge-2', Position.Right, edges, nodeInternals);
 
-    // 2 outgoing edges merge onto the dedicated source slot (-6)
-    expect(offset1).toBe(-6);
-    expect(offset2).toBe(-6);
+    // 2 outgoing edges merge onto the dedicated source slot
+    expect(offset1).toBe(-INCOMING_OUTGOING_GAP);
+    expect(offset2).toBe(-INCOMING_OUTGOING_GAP);
   });
 });
