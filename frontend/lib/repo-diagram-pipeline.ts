@@ -9,6 +9,7 @@ import { inferRelationshipsHeuristic } from './agents/repo-heuristic-extractor';
 import { getRepoDiagram, setRepoDiagram } from '@/lib/ai/services/diagramCache';
 import { detectSubsystems, summarizeSubsystem } from './repo-diagram/subsystem-detector';
 import { extractStaticSignals } from './repo-diagram/static-analyzer';
+import logger from '@/lib/logger';
 import { buildSubsystemGraph, intermediateToArchitecture } from './repo-diagram/intermediate-graphs';
 import {
   collectGroundedNodeIds,
@@ -212,7 +213,7 @@ function buildDependencyIntelligence(signals: StaticSignal[]): DependencyIntelli
 }
 
 export async function generateRepoArchitectureDiagram(repoUrl: string, detailLevel?: 1 | 2 | 3, signal?: AbortSignal): Promise<PipelineResult> {
-  console.log('[Pipeline] Step 1: Ingesting repo...');
+  logger.info('[Pipeline] Step 1: Ingesting repo...');
   const snapshot: RepoSnapshot = await ingestRepo(repoUrl);
 
   if (signal?.aborted) throw new Error('Request aborted');
@@ -220,19 +221,19 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   if (snapshot.headSha) {
     const cached = getRepoDiagram(repoUrl, snapshot.headSha);
     if (cached) {
-      console.log(`[Pipeline] Cache hit for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
+      logger.info(`[Pipeline] Cache hit for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
       return cached;
     }
-    console.log(`[Pipeline] Cache miss for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
+    logger.info(`[Pipeline] Cache miss for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
   }
 
-  console.log('[Pipeline] Step 2: Detecting subsystems...');
+  logger.info('[Pipeline] Step 2: Detecting subsystems...');
   const subsystems = detectSubsystems(snapshot);
-  console.log(`  Found ${subsystems.length} subsystems`);
+  logger.info(`  Found ${subsystems.length} subsystems`);
 
-  console.log('[Pipeline] Step 3: Extracting static signals...');
+  logger.info('[Pipeline] Step 3: Extracting static signals...');
   const signals = extractStaticSignals(snapshot.selectedFiles, subsystems);
-  console.log(`  Extracted ${signals.length} signals (${new Set(signals.map((s) => s.type)).size} types)`);
+  logger.info(`  Extracted ${signals.length} signals (${new Set(signals.map((s) => s.type)).size} types)`);
 
   const baseline = buildDeterministicBaseline(snapshot, subsystems, signals);
   let workingNodes = baseline.nodes;
@@ -295,15 +296,15 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   const useLlm = hasAnySourceFiles || hasAnySignals;
 
   if (!useLlm) {
-    console.log(`[Pipeline] Skipping LLM — repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`);
+    logger.info(`[Pipeline] Skipping LLM — repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`);
   }
 
   if (useLlm) {
     // Step 4: Build static detection report (deterministic, no LLM)
-    console.log('[Pipeline] Step 4: Building static detection report...');
+    logger.info('[Pipeline] Step 4: Building static detection report...');
     const detectionReport = buildStaticDetectionReport(snapshot, subsystems, signals);
     const detectionReportText = formatDetectionReport(detectionReport);
-    console.log(`  Detection report: ${detectionReportText.split('\n').length} lines`);
+    logger.info(`  Detection report: ${detectionReportText.split('\n').length} lines`);
 
     if (signal?.aborted) throw new Error('Request aborted');
 

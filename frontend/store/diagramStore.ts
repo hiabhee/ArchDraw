@@ -245,6 +245,7 @@ export interface NodeData {
   nodeWidth?: number;
   shape?: string;
   groupLabel?: string;
+  labelManuallyEdited?: boolean;
 }
 
 export interface CanvasTab {
@@ -359,6 +360,11 @@ interface DiagramState {
   updateEdgeData: (id: string, data: Record<string, unknown>) => void;
   deleteEdge: (edgeId: string) => void;
   onReconnect: (oldEdge: Edge, newConnection: Connection) => void;
+  addNodeOnEdgeDrop: (params: {
+    originNodeId: string;
+    originHandleType: 'source' | 'target' | null;
+    position: { x: number; y: number };
+  }) => string;
   importDiagram: (nodes: Node[], edges: Edge[]) => void;
   clearDiagram: () => void;
   deleteSelected: () => void;
@@ -520,6 +526,13 @@ function normalizeEdge(edge: Edge): Edge {
   };
 }
 
+function positionToSide(pos: Position): string {
+  if (pos === Position.Left) return 'left';
+  if (pos === Position.Right) return 'right';
+  if (pos === Position.Top) return 'top';
+  return 'bottom';
+}
+
 function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
   // Run visual edge management (bundling / collapsing)
   const { edges: managedEdges } = processEdgeManagement(nodes, edges);
@@ -598,8 +611,8 @@ function distributeTargetHandles(nodes: Node[], edges: Edge[]): Edge[] {
 
     return {
       ...edge,
-      sourceHandle: `source-${handles.sourcePosition}`,
-      targetHandle: `target-${handles.targetPosition}`,
+      sourceHandle: `source-${positionToSide(handles.sourcePosition)}`,
+      targetHandle: `target-${positionToSide(handles.targetPosition)}`,
       type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
     };
   });
@@ -1616,6 +1629,51 @@ const useDiagramStoreRaw = create<DiagramState>()(
         );
         set({ canvases });
         get().saveCanvasToDB(get().activeCanvasId);
+      },
+
+      addNodeOnEdgeDrop: ({ originNodeId, originHandleType, position }) => {
+        get().pushHistory();
+
+        const newNode = createNode(
+          'service',
+          '',
+          position,
+          {
+            type: 'systemNode',
+            data: {
+              category: 'Compute',
+              color: '#6366f1',
+              icon: 'Box',
+              shape: getNodeShape('Compute'),
+              label: '',
+            },
+          }
+        );
+
+        let source: string;
+        let target: string;
+        if (originHandleType === 'target') {
+          source = newNode.id;
+          target = originNodeId;
+        } else {
+          source = originNodeId;
+          target = newNode.id;
+        }
+
+        const newEdge = createEdge(source, target, '', {
+          sourceHandle: undefined,
+          targetHandle: undefined,
+        });
+
+        const nodes = [...get().nodes, newNode];
+        const rawEdges = addEdge(newEdge, get().edges);
+        const edges = distributeTargetHandles(nodes, rawEdges);
+        const canvases = get().canvases.map((c) =>
+          c.id === get().activeCanvasId ? { ...c, nodes, edges, updatedAt: Date.now() } : c
+        );
+        set({ canvases });
+        get().saveCanvasToDB(get().activeCanvasId);
+        return newNode.id;
       },
 
       addNode: (type, label, category, color, icon, technology, position) => {

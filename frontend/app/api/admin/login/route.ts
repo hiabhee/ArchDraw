@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateAdminConfig } from '@/lib/env-validation';
 
 export const runtime = 'nodejs';
 
@@ -19,15 +20,17 @@ async function hmacSign(data: string, secret: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || '';
-  const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || '';
-
-  if (!ADMIN_PASSCODE || !SESSION_SECRET) {
+  // Validate admin configuration
+  const adminConfig = validateAdminConfig();
+  
+  if (!adminConfig) {
     return NextResponse.json(
-      { error: 'Admin authentication not configured' },
-      { status: 500 },
+      { error: 'Admin authentication not configured. Please set ADMIN_PASSCODE and ADMIN_SESSION_SECRET in your environment.' },
+      { status: 503 },
     );
   }
+
+  const { passcode: ADMIN_PASSCODE, sessionSecret: SESSION_SECRET, userId: ADMIN_USER_ID } = adminConfig;
 
   let body: { passcode?: string };
   try {
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = JSON.stringify({
-    sub: process.env.ADMIN_USER_ID || '',
+    sub: ADMIN_USER_ID || 'admin',
     exp: Date.now() + 60 * 60 * 24,
   });
   const signature = await hmacSign(payload, SESSION_SECRET);

@@ -12,17 +12,21 @@ import ReactFlow, {
   type Edge,
   type NodeChange,
   type ReactFlowInstance,
+  type OnConnectStart,
+  type OnConnectEnd,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useDiagramStore, registerFitViewCallback } from '@/store/diagramStore';
-import { getLayoutedElements } from '@/lib/layoutUtils';
+import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
+import { LAYOUT_PRESETS } from '@/lib/canvas/layoutPresets';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/GuideLines';
 import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/CometTrailCanvas';
 import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
-import { useCallback, useEffect, useRef, DragEvent, useState } from 'react';
+import { useCallback, useEffect, useRef, DragEvent, useState, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
@@ -45,20 +49,38 @@ import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { createNode, createEdge } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { consumePendingEdit } from '@/hooks/useInlineLabelEdit';
 
 function CanvasInner() {
 
+  const nodes = useDiagramStore((s) => s.nodes);
+  const edges = useDiagramStore((s) => s.edges);
+  const pipelineStatus = useDiagramStore((s) => s.pipelineStatus);
+  const isPenModeActive = useDiagramStore((s) => s.isPenModeActive);
+  const showGrid = useDiagramStore((s) => s.showGrid);
+  const pendingLabelEdgeId = useDiagramStore((s) => s.pendingLabelEdgeId);
+  const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
+  const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+
   const {
-    nodes, edges, onNodesChange, onEdgesChange, onConnect, onReconnect,
-    selectedEdgeId,
-    selectedNodeIds,
+    onNodesChange, onEdgesChange, onConnect, onReconnect,
     setSelectedNodeId, setSelectedNodeIds, setSelectedEdgeId,
-    showGrid,
-    pendingLabelEdgeId, setPendingLabelEdgeId, updateEdgeData, setCanvasMode,
-    setNodes,
-    pipelineStatus,
-    isPenModeActive,
-  } = useDiagramStore();
+    setPendingLabelEdgeId, updateEdgeData, setCanvasMode,
+    setNodes, addNodeOnEdgeDrop,
+  } = useDiagramStore(useShallow((s) => ({
+    onNodesChange: s.onNodesChange,
+    onEdgesChange: s.onEdgesChange,
+    onConnect: s.onConnect,
+    onReconnect: s.onReconnect,
+    setSelectedNodeId: s.setSelectedNodeId,
+    setSelectedNodeIds: s.setSelectedNodeIds,
+    setSelectedEdgeId: s.setSelectedEdgeId,
+    setPendingLabelEdgeId: s.setPendingLabelEdgeId,
+    updateEdgeData: s.updateEdgeData,
+    setCanvasMode: s.setCanvasMode,
+    setNodes: s.setNodes,
+    addNodeOnEdgeDrop: s.addNodeOnEdgeDrop,
+  })));
   const { isDark } = useCanvasTheme();
 
   const reactFlowInstance = useReactFlow();
@@ -71,6 +93,14 @@ function CanvasInner() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  // Node-on-edge-drop state
+  const connectStartRef = useRef<{
+    nodeId: string;
+    handleType: 'source' | 'target' | null;
+    startX: number;
+    startY: number;
+  } | null>(null);
   
   // Onboarding state - only show when canvas is empty
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(nodes.length === 0);
@@ -106,25 +136,26 @@ function CanvasInner() {
       // Create a new canvas for the template
       const newCanvasId = addCanvas(template.name);
       
-      // Apply layout to template elements
-      const { nodes: ln, edges: le } = getLayoutedElements(template.nodes, template.edges, 'LR');
-      
-      // Import into diagram store
-      importDiagram(ln, le);
-      
-      // Ensure canvas name is set
-      renameCanvas(newCanvasId, template.name);
-      
-      // Clear template from URL and switch to new canvas
-      router.replace(`/editor?canvas=${newCanvasId}`);
-      toast.success(`Loaded template: ${template.name}`);
-      
-      // Fit view after a short delay to allow nodes to mount
-      setTimeout(() => {
-        if (reactFlowRef.instance) {
-          reactFlowRef.instance.fitView({ padding: 0.1, duration: 400 });
-        }
-      }, 100);
+      // Apply ELK layout (same engine as the layout toggle button)
+      const preset = LAYOUT_PRESETS.find((p) => p.id === 'layered-lr');
+      applyLayoutPreset(template.nodes, template.edges, preset!).then((layoutedNodes) => {
+        // Import into diagram store
+        importDiagram(layoutedNodes, template.edges);
+        
+        // Ensure canvas name is set
+        renameCanvas(newCanvasId, template.name);
+        
+        // Clear template from URL and switch to new canvas
+        router.replace(`/editor?canvas=${newCanvasId}`);
+        toast.success(`Loaded template: ${template.name}`);
+        
+        // Fit view after a short delay to allow nodes to mount
+        setTimeout(() => {
+          if (reactFlowRef.instance) {
+            reactFlowRef.instance.fitView({ padding: 0.1, duration: 400 });
+          }
+        }, 100);
+      });
     } else {
       toast.error('Template not found');
       router.replace('/editor');
@@ -256,6 +287,59 @@ function CanvasInner() {
     [onNodeDragStopSnap, setNodes, saveCanvasToDB, activeCanvasId]
   );
 
+  const onConnectStart: OnConnectStart = useCallback(
+    (_event, params) => {
+      if (!params.nodeId) return;
+      const { clientX, clientY } = 'touches' in _event
+        ? _event.touches[0]
+        : _event;
+      connectStartRef.current = {
+        nodeId: params.nodeId,
+        handleType: params.handleType,
+        startX: clientX,
+        startY: clientY,
+      };
+    },
+    []
+  );
+
+  const onConnectEnd: OnConnectEnd = useCallback(
+    (event) => {
+      const start = connectStartRef.current;
+      connectStartRef.current = null;
+      if (!start) return;
+
+      const { clientX, clientY } = 'changedTouches' in event
+        ? event.changedTouches[0]
+        : event;
+
+      // Minimum drag distance of 5px to avoid accidental triggers from clicks
+      const dx = clientX - start.startX;
+      const dy = clientY - start.startY;
+      if (Math.sqrt(dx * dx + dy * dy) < 5) return;
+
+      // Check if connection was valid (dropped on a handle)
+      const target = event.target as HTMLElement;
+      const handleEl = target.closest?.('.react-flow__handle');
+      if (handleEl) return; // Dropped on a real handle — normal connect handles it
+
+      const flowPos = reactFlowInstance.screenToFlowPosition({
+        x: clientX,
+        y: clientY,
+      });
+
+      // Signal the hook to auto-start editing on the next render
+      // (must happen before the store update triggers React's re-render)
+      const newNodeId = addNodeOnEdgeDrop({
+        originNodeId: start.nodeId,
+        originHandleType: start.handleType,
+        position: flowPos,
+      });
+      consumePendingEdit(newNodeId);
+    },
+    [reactFlowInstance, addNodeOnEdgeDrop]
+  );
+
   const onPaneClick = useCallback(() => {
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
@@ -338,6 +422,8 @@ function CanvasInner() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onReconnect={onReconnect}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}

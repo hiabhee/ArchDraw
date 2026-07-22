@@ -8,7 +8,7 @@ import {
   compressHistory,
 } from '@/lib/tutorialCache';
 import { getCachedResponse, cacheResponse } from '@/lib/db';
-import { redis, redisKeys } from '@/lib/redis';
+import { redis, redisKeys, checkRateLimit } from '@/lib/redis';
 import staticCacheData from '@/data/tutorialCache.json';
 import { z } from 'zod';
 import logger from '@/lib/logger';
@@ -29,39 +29,26 @@ const chatMessageSchema = z.object({
 
 type ChatMessageInput = z.infer<typeof chatMessageSchema>;
 
-// Rate limiting
-const chatRateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const CHAT_RATE_WINDOW_MS = 60 * 1000;
-const MAX_CHAT_REQUESTS = 15;
-
-function getChatRateKey(request: NextRequest): string {
+/**
+ * Get rate limit identifier from request.
+ */
+function getRateLimitIdentifier(request: NextRequest): string {
   const ip = request.headers.get('x-forwarded-for') || 
              request.headers.get('x-real-ip') || 
              'unknown';
-  return `chat:${ip}`;
-}
-
-function checkChatRateLimit(key: string): boolean {
-  const now = Date.now();
-  const record = chatRateLimitMap.get(key);
-  
-  if (!record || now > record.resetTime) {
-    chatRateLimitMap.set(key, { count: 1, resetTime: now + CHAT_RATE_WINDOW_MS });
-    return true;
-  }
-  
-  if (record.count >= MAX_CHAT_REQUESTS) {
-    return false;
-  }
-  
-  record.count++;
-  return true;
+  return `chat:${ip.split(',')[0].trim()}`;
 }
 
 // ── Groq client ───────────────────────────────────────────────────────────────
 let _groq: Groq | null = null;
 function getGroq(): Groq {
-  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  if (!_groq) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      throw new Error('GROQ_API_KEY is not configured. AI features require this environment variable.');
+    }
+    _groq = new Groq({ apiKey });
+  }
   return _groq;
 }
 
@@ -170,13 +157,43 @@ async function lookupDB(questionHash: string): Promise<string | null> {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Rate limiting
-  const rateKey = getChatRateKey(req);
-  if (!checkChatRateLimit(rateKey)) {
-    return NextResponse.json(
-      { error: 'Too many requests. Please wait before sending another message.', code: 'RATE_LIMITED', status: 429 },
-      { status: 429 }
-    );
+  // Rate limiting using Redis (configurable via environment variable)
+  const ENABLE_RATE_LIMITING = process.env.ENABLE_RATE_LIMITING !== 'false'; // enabled by default
+  
+  if (ENABLE_RATE_LIMITING) {
+    const identifier = getRateLimitIdentifier(req);
+    
+    try {
+      const { allowed, remaining, resetAt } = await checkRateLimit(
+        identifier,
+        15, // max 15 requests
+        60  // per 60 seconds
+      );
+      
+      if (!allowed) {
+        const waitSeconds = Math.ceil((resetAt - Math.floor(Date.now() / 1000)));
+        logger.warn(`[API] Chat rate limit exceeded for ${identifier}`);
+        
+        return NextResponse.json(
+          { 
+            error: `Too many messages. Please wait ${waitSeconds} seconds before sending another message.`, 
+            code: 'RATE_LIMITED', 
+            status: 429 
+          },
+          { status: 429 }
+        );
+      }
+      
+      logger.debug(`[API] Chat rate limit check passed: ${remaining} remaining`);
+    } catch (error) {
+      // Rate limit check failed - log and allow request (graceful degradation - Option A)
+      logger.error('[API] Chat rate limit check failed, allowing request (graceful degradation):', error);
+      
+      // Continue processing the request despite rate limit failure
+      // This ensures the application remains functional even if Redis is down
+    }
+  } else {
+    logger.debug('[API] Rate limiting disabled via ENABLE_RATE_LIMITING=false');
   }
 
   try {

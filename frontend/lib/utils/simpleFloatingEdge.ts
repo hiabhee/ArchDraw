@@ -1,4 +1,5 @@
 import { Edge, Node, Position } from 'reactflow';
+import { computeDynamicSlotOffsets } from './handleSlotOrder';
 
 export interface EdgePositions {
   sourcePos: Position;
@@ -7,7 +8,7 @@ export interface EdgePositions {
 
 type HandleType = 'source' | 'target';
 
-const EDGE_ENDPOINT_GAP = 24;
+const EDGE_ENDPOINT_GAP = 12;
 
 export function getNodeCenter(node: Node) {
   const x = node.positionAbsolute?.x ?? node.position.x;
@@ -56,6 +57,27 @@ export function getSimpleEdgePositions(
 export const INCOMING_OUTGOING_GAP = 16;
 
 export type EdgeSideResolver = (edge: Edge, nodeId: string) => Position;
+
+/** Parse a React Flow handle id (`source-top`, `target-left`, …) into a side. */
+export function sideFromHandleId(handleId: string | null | undefined): Position | undefined {
+  if (!handleId) return undefined;
+  if (handleId.endsWith('-left')) return Position.Left;
+  if (handleId.endsWith('-right')) return Position.Right;
+  if (handleId.endsWith('-top')) return Position.Top;
+  if (handleId.endsWith('-bottom')) return Position.Bottom;
+  return undefined;
+}
+
+/** Resolve which side of `nodeId` an edge uses from its stored handle ids. */
+export function resolveSideFromEdgeHandles(edge: Edge, nodeId: string): Position | undefined {
+  if (edge.source === nodeId) {
+    return sideFromHandleId(edge.sourceHandle);
+  }
+  if (edge.target === nodeId) {
+    return sideFromHandleId(edge.targetHandle);
+  }
+  return undefined;
+}
 
 /**
  * Per-side slot layout for dedicated source (outgoing) / target (incoming) handles.
@@ -118,7 +140,7 @@ export function getEdgeShiftOffset(
     resolveSide?: EdgeSideResolver,
   ]
 ): number {
-  const [nodeId, edgeId, side, edges, , , , , resolveSide] = args;
+  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide] = args;
 
   const self = edges.find(
     (e) => e.id === edgeId && (e.source === nodeId || e.target === nodeId),
@@ -127,9 +149,26 @@ export function getEdgeShiftOffset(
 
   if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
 
+  const nodePositions = new Map<string, { x: number; y: number; width: number; height: number }>();
+  if (nodeInternals) {
+    for (const [id, node] of nodeInternals) {
+      const x = node.positionAbsolute?.x ?? node.position.x;
+      const y = node.positionAbsolute?.y ?? node.position.y;
+      nodePositions.set(id, {
+        x,
+        y,
+        width: node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180,
+        height: node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70,
+      });
+    }
+  }
+
+  const { incomingOffset, outgoingOffset } = computeDynamicSlotOffsets(
+    nodeId, side, edges, nodePositions,
+  );
+
   const isIncoming = self.target === nodeId;
-  const { sourceOffset, targetOffset } = getHandleSlotLayout();
-  return isIncoming ? targetOffset : sourceOffset;
+  return isIncoming ? incomingOffset : outgoingOffset;
 }
 
 /**

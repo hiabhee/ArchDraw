@@ -195,7 +195,7 @@ describe('getHandleCoordinate', () => {
     
     // Top handle: (centerX, y - OUTER_OFFSET)
     expect(coord.x).toBe(200); // 100 + 200/2
-    expect(coord.y).toBe(176); // 200 - 24
+    expect(coord.y).toBe(188); // 200 - 12
   });
 
   it('should calculate Bottom handle coordinate correctly', () => {
@@ -203,14 +203,14 @@ describe('getHandleCoordinate', () => {
     
     // Bottom handle: (centerX, y + height + OUTER_OFFSET)
     expect(coord.x).toBe(200); // 100 + 200/2
-    expect(coord.y).toBe(304); // 200 + 80 + 24
+    expect(coord.y).toBe(292); // 200 + 80 + 12
   });
 
   it('should calculate Left handle coordinate correctly', () => {
     const coord = getHandleCoordinate(rect, Position.Left);
     
     // Left handle: (x - OUTER_OFFSET, centerY)
-    expect(coord.x).toBe(76);  // 100 - 24
+    expect(coord.x).toBe(88);  // 100 - 12
     expect(coord.y).toBe(240); // 200 + 80/2
   });
 
@@ -218,7 +218,7 @@ describe('getHandleCoordinate', () => {
     const coord = getHandleCoordinate(rect, Position.Right);
     
     // Right handle: (x + width + OUTER_OFFSET, centerY)
-    expect(coord.x).toBe(324); // 100 + 200 + 24
+    expect(coord.x).toBe(312); // 100 + 200 + 12
     expect(coord.y).toBe(240); // 200 + 80/2
   });
 
@@ -227,21 +227,21 @@ describe('getHandleCoordinate', () => {
     
     const topCoord = getHandleCoordinate(smallRect, Position.Top);
     expect(topCoord.x).toBe(100); // 50 + 100/2
-    expect(topCoord.y).toBe(26);  // 50 - 24
+    expect(topCoord.y).toBe(38);  // 50 - 12
 
     const rightCoord = getHandleCoordinate(smallRect, Position.Right);
-    expect(rightCoord.x).toBe(174); // 50 + 100 + 24
+    expect(rightCoord.x).toBe(162); // 50 + 100 + 12
     expect(rightCoord.y).toBe(80);  // 50 + 60/2
   });
 
   it('should merge source and target coordinates on each side', () => {
     const sourceCoord = getHandleCoordinate(rect, Position.Top, 'source', true);
     expect(sourceCoord.x).toBe(200);
-    expect(sourceCoord.y).toBe(176); // 200 - 24
+    expect(sourceCoord.y).toBe(188); // 200 - 12
 
     const targetCoord = getHandleCoordinate(rect, Position.Top, 'target', true);
     expect(targetCoord.x).toBe(200);
-    expect(targetCoord.y).toBe(176); // 200 - 24
+    expect(targetCoord.y).toBe(188); // 200 - 12
   });
 });
 

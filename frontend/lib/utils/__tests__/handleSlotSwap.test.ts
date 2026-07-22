@@ -5,6 +5,8 @@ import {
   getEdgeShiftOffset,
   getCenteredSides,
   INCOMING_OUTGOING_GAP,
+  sideFromHandleId,
+  resolveSideFromEdgeHandles,
 } from '../simpleFloatingEdge';
 import type { EdgeSideResolver } from '../simpleFloatingEdge';
 
@@ -18,6 +20,28 @@ function node(id: string, x: number, y: number): Node {
     data: {},
   } as Node;
 }
+
+describe('sideFromHandleId', () => {
+  it('parses source and target handle ids', () => {
+    expect(sideFromHandleId('target-top')).toBe(Position.Top);
+    expect(sideFromHandleId('source-left')).toBe(Position.Left);
+    expect(sideFromHandleId('target-right')).toBe(Position.Right);
+    expect(sideFromHandleId('source-bottom')).toBe(Position.Bottom);
+    expect(sideFromHandleId(null)).toBeUndefined();
+  });
+
+  it('resolveSideFromEdgeHandles reads the node end of an edge', () => {
+    const edge: Edge = {
+      id: 'e1',
+      source: 'a',
+      target: 'cdn',
+      sourceHandle: 'source-bottom',
+      targetHandle: 'target-top',
+    };
+    expect(resolveSideFromEdgeHandles(edge, 'cdn')).toBe(Position.Top);
+    expect(resolveSideFromEdgeHandles(edge, 'a')).toBe(Position.Bottom);
+  });
+});
 
 describe('getHandleSlotLayout (fixed dedicated slots)', () => {
   it('always places outgoing on −GAP and incoming on +GAP', () => {

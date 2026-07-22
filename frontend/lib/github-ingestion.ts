@@ -1,5 +1,6 @@
 import type { RepoSnapshot, SurfaceClassification, FileEntry } from './types/repo-diagram';
 import { parseGitHubUrl as sharedParseGitHubUrl } from '@/lib/utils/githubUrl';
+import logger from '@/lib/logger';
 
 function parseGithubUrl(url: string): { owner: string; repo: string } {
   const parsed = sharedParseGitHubUrl(url);
@@ -208,7 +209,7 @@ async function fetchFileContent(
   }
 
   if (!response.ok) {
-    console.warn(`[Ingest] Failed to fetch content for ${path}: Status ${response.status}`);
+    logger.warn(`[Ingest] Failed to fetch content for ${path}: Status ${response.status}`);
     fileContentCache.set(cacheKey, null);
     evictIfNeeded(fileContentCache);
     return null;
@@ -292,14 +293,14 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   if (process.env.GITHUB_TOKEN) {
     headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
   } else {
-    console.warn('[Ingest] No GITHUB_TOKEN configured. Unauthenticated rate limit is 60 req/hr. Set GITHUB_TOKEN in .env for 5000 req/hr.');
+    logger.warn('[Ingest] No GITHUB_TOKEN configured. Unauthenticated rate limit is 60 req/hr. Set GITHUB_TOKEN in .env for 5000 req/hr.');
   }
 
-  console.log(`[Ingest] Resolving default branch for ${owner}/${repo}...`);
+  logger.info(`[Ingest] Resolving default branch for ${owner}/${repo}...`);
   const defaultBranch = await getDefaultBranch(owner, repo, headers);
-  console.log(`[Ingest] Default branch: ${defaultBranch}`);
+  logger.info(`[Ingest] Default branch: ${defaultBranch}`);
 
-  console.log(`[Ingest] Resolving branch HEAD SHA...`);
+  logger.info(`[Ingest] Resolving branch HEAD SHA...`);
   const headSha = await getBranchHeadSha(owner, repo, defaultBranch, headers);
 
   console.log(`[Ingest] Fetching recursive tree for ${owner}/${repo}@${defaultBranch}...`);

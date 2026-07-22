@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis';
 import logger from '@/lib/logger';
+import { validateRedisConfig } from '@/lib/env-validation';
 
 /**
  * Upstash Redis client — initialized once, shared across all API routes.
@@ -10,22 +11,45 @@ import logger from '@/lib/logger';
  *   - Free-text responses: 7-day TTL (604800s).
  *   - Shared canvas: 24-hour TTL (86400s).
  */
-const url = process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 /**
  * Upstash Redis client — initialized conditionally.
- * During static build phases where credentials might be missing,
- * this prevents initialization warnings from the SDK.
+ * If Redis is not configured or only partially configured, gracefully degrades
+ * to a no-op client that logs warnings instead of silently failing.
  */
-export const redis = url && token 
-  ? new Redis({ url, token })
-  : {
-      get: async () => null,
-      set: async () => null,
-      del: async () => null,
-      flushdb: async () => null,
-    } as unknown as Redis;
+const createRedisClient = () => {
+  try {
+    const config = validateRedisConfig();
+    
+    if (!config) {
+      // Redis not configured - return no-op client with logging
+      logger.warn('[Redis] Not configured - using no-op client (caching disabled)');
+      return {
+        get: async () => { logger.debug('[Redis] Skipped GET (not configured)'); return null; },
+        set: async () => { logger.debug('[Redis] Skipped SET (not configured)'); return null; },
+        del: async () => { logger.debug('[Redis] Skipped DEL (not configured)'); return null; },
+        flushdb: async () => { logger.debug('[Redis] Skipped FLUSHDB (not configured)'); return null; },
+        multi: () => ({
+          zremrangebyscore: () => {},
+          zadd: () => {},
+          zcard: () => {},
+          expire: () => {},
+          exec: async () => [0, 0, 0, 0] as [number, number, number, number],
+        }),
+        zremrangebyscore: async () => 0,
+      } as unknown as Redis;
+    }
+    
+    logger.info('[Redis] Successfully initialized');
+    return new Redis({ url: config.url, token: config.token });
+  } catch (error) {
+    // Validation error - Redis misconfigured
+    logger.error('[Redis] Configuration error:', error);
+    throw error;
+  }
+};
+
+export const redis = createRedisClient();
 
 // ── Key builders ──────────────────────────────────────────────────────────────
 
@@ -56,12 +80,22 @@ export async function checkRateLimit(
   const windowStart = now - windowSeconds;
 
   try {
+    // Test if Redis is actually available by attempting the operation
     const multi = redis.multi();
     multi.zremrangebyscore(key, 0, windowStart);
     multi.zadd(key, { score: now, member: `${now}-${Math.random()}` });
     multi.zcard(key);
     multi.expire(key, windowSeconds);
-    const results = await multi.exec<[number, number, number, number]>();
+    
+    // Set a reasonable timeout for Redis operations
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Redis operation timeout')), 3000); // 3 second timeout
+    });
+    
+    const results = await Promise.race([
+      multi.exec<[number, number, number, number]>(),
+      timeoutPromise
+    ]);
 
     const count = results[2] ?? 0;
     const allowed = count <= limit;
@@ -69,12 +103,23 @@ export async function checkRateLimit(
     const resetAt = now + windowSeconds;
 
     if (!allowed) {
-      await redis.zremrangebyscore(key, 0, windowStart);
+      // Clean up old entries when rate limited
+      try {
+        await redis.zremrangebyscore(key, 0, windowStart);
+      } catch (cleanupError) {
+        // Cleanup failure is non-critical
+        logger.debug('[RateLimit] Cleanup failed:', cleanupError);
+      }
     }
 
+    logger.debug(`[RateLimit] Check passed - count: ${count}, limit: ${limit}, allowed: ${allowed}`);
     return { allowed, remaining, resetAt };
   } catch (error) {
-    logger.error('[RateLimit] Redis error, allowing request:', error);
+    // Redis operation failed - allow request with warning (graceful degradation)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.warn(`[RateLimit] Redis error (graceful degradation): ${errorMessage}`);
+    
+    // Return permissive result to allow the request through
     return { allowed: true, remaining: limit, resetAt: now + windowSeconds };
   }
 }

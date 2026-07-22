@@ -1,10 +1,11 @@
 'use client';
 
-import { memo, useEffect, type CSSProperties } from 'react';
+import { memo, useEffect, useRef, type CSSProperties } from 'react';
 import { Handle, Position, NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasTheme } from '@/lib/theme';
 import { LIGHT_NODE_STYLES, DARK_NODE_STYLES } from '@/lib/theme/stylingConstants';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
+import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import './nodes/nodeStyles.css';
 
 export type ShapeType =
@@ -67,10 +68,50 @@ function Handles({ color, nodeId }: { color: string; nodeId: string }) {
   );
 }
 
-function Label({ label, sublabel, color }: { label: string; sublabel?: string; color: string }) {
+function Label({ label, sublabel, color, nodeId }: { label: string; sublabel?: string; color: string; nodeId: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const labelEdit = useInlineLabelEdit({
+    nodeId,
+    currentLabel: label || '',
+    containerRef,
+  });
+
   return (
-    <div className="flex flex-col items-center justify-center text-center px-2 pointer-events-none select-none">
-      <span className="text-[11px] font-semibold text-foreground leading-tight">{label}</span>
+    <div
+      ref={containerRef}
+      className="flex flex-col items-center justify-center text-center px-2 select-none"
+      style={{ width: '100%' }}
+    >
+      {labelEdit.isEditing ? (
+        <input
+          {...labelEdit.inputProps}
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'hsl(var(--foreground))',
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            padding: 0,
+            margin: 0,
+            lineHeight: 1.3,
+            width: '100%',
+            textAlign: 'center',
+            boxSizing: 'border-box',
+            borderRadius: 3,
+            boxShadow: `0 0 0 2px ${color}`,
+            cursor: 'text',
+          }}
+        />
+      ) : (
+        <span
+          className="text-[11px] font-semibold text-foreground leading-tight"
+          onDoubleClick={labelEdit.startEdit}
+          style={{ cursor: 'text' }}
+        >
+          {label}
+        </span>
+      )}
       {sublabel && (
         <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5" style={{ color }}>
           {sublabel}
@@ -137,7 +178,7 @@ function Rectangle({ id, data, selected, rounded, backplates, isDark, styles }: 
           background: `linear-gradient(135deg, ${color}08 0%, transparent 60%)`,
           pointerEvents: 'none',
         }} />
-        <Label label={data.label} sublabel={data.sublabel} color={color} />
+        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
       </div>
       <Handles color={color} nodeId={id} />
     </div>
@@ -171,7 +212,7 @@ function Diamond({ id, data, selected, backplates, isDark }: { id: string; data:
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} />
+        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
       </div>
     </div>
   );
@@ -213,7 +254,7 @@ function Cylinder({ id, data, selected, backplates, isDark }: { id: string; data
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} />
+        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
       </div>
     </div>
   );
@@ -242,7 +283,7 @@ function Circle({ id, data, selected, backplates, isDark }: { id: string; data: 
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} />
+        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
       </div>
     </div>
   );
@@ -277,7 +318,7 @@ function Parallelogram({ id, data, selected, backplates, isDark }: { id: string;
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} />
+        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
       </div>
     </div>
   );

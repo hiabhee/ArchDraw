@@ -74,7 +74,7 @@ describe('Property-Based Tests: Dynamic Handle Positioning', () => {
 
           const centerX = rect.x + rect.width / 2;
           const centerY = rect.y + rect.height / 2;
-          const OUTER_OFFSET = 24;
+          const OUTER_OFFSET = 12;
 
           switch (position) {
             case Position.Top:
@@ -318,7 +318,7 @@ describe('Property-Based Tests: Dynamic Handle Positioning', () => {
           const srcCoord = getHandleCoordinate(sourceRect, result.sourcePosition);
           const tgtCoord = getHandleCoordinate(targetRect, result.targetPosition);
 
-          const OUTER_OFFSET = 24;
+          const OUTER_OFFSET = 12;
 
           // Verify source coordinate coordinates exactly match offset math
           const srcCX = sourceRect.x + sourceRect.width / 2;

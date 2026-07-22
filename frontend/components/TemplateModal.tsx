@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import type { Node, Edge } from 'reactflow';
 import { X, Search, LayoutTemplate } from 'lucide-react';
 import { TEMPLATES, type Template } from '@/data/templates/index';
 import { useDiagramStore } from '@/store/diagramStore';
-import { getLayoutedElements } from '@/lib/layoutUtils';
+import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
+import { LAYOUT_PRESETS } from '@/lib/canvas/layoutPresets';
 import { toast } from 'sonner';
 
 interface Props { onClose: () => void }
@@ -19,8 +21,14 @@ export function TemplateModal({ onClose }: Props) {
     t.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
   );
 
-  const handleLoad = (t: Template) => {
-    const { nodes: ln, edges: le } = getLayoutedElements(t.nodes, t.edges, 'LR');
+  const layoutTemplate = async (t: Template): Promise<{ nodes: Node[]; edges: Edge[] }> => {
+    const preset = LAYOUT_PRESETS.find((p) => p.id === 'layered-lr');
+    const layoutedNodes = await applyLayoutPreset(t.nodes, t.edges, preset!);
+    return { nodes: layoutedNodes, edges: t.edges };
+  };
+
+  const handleLoad = async (t: Template) => {
+    const { nodes: ln, edges: le } = await layoutTemplate(t);
     if (nodes.length > 0) {
       addCanvas();
       setTimeout(() => {
@@ -36,10 +44,11 @@ export function TemplateModal({ onClose }: Props) {
     apply(t, ln, le);
   };
 
-  const apply = (t: Template, ln = getLayoutedElements(t.nodes, t.edges, 'LR').nodes, le = getLayoutedElements(t.nodes, t.edges, 'LR').edges) => {
+  const apply = async (t: Template, ln?: Node[], le?: Edge[]) => {
+    const result = (ln && le) ? { nodes: ln, edges: le } : await layoutTemplate(t);
     const { activeCanvasId } = useDiagramStore.getState();
     renameCanvas(activeCanvasId, t.name);
-    loadTemplate(ln, le);
+    loadTemplate(result.nodes, result.edges);
     setTimeout(() => fitView(), 80);
     toast.success(`"${t.name}" loaded`);
     onClose();

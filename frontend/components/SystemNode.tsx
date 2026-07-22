@@ -1,13 +1,14 @@
 'use client';
 
-import { memo, useCallback } from 'react';
-import { NodeProps } from 'reactflow';
+import { memo, useCallback, useRef } from 'react';
+import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { Activity, Palette, Pencil, Copy, Trash2 } from 'lucide-react';
 import { FloatingHandles } from './nodes/FloatingHandles';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { NodeIcon } from '@/components/NodeIcon';
+import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import './nodes/nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
@@ -87,7 +88,9 @@ function ToolbarButton({
 
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
+  const updateNodeInternals = useUpdateNodeInternals();
   const { isDark } = useCanvasTheme();
+  const nodeCardRef = useRef<HTMLDivElement>(null);
 
   const nodeData = data as NodeData & {
     layer?: string;
@@ -109,6 +112,12 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
   const showStatus = nodeData.status && nodeData.status !== 'healthy';
+
+  const labelEdit = useInlineLabelEdit({
+    nodeId: id,
+    currentLabel: data.label || '',
+    containerRef: nodeCardRef,
+  });
 
   const backplateLayers = selected
     ? [
@@ -199,6 +208,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           />
         ))}
         <div
+          ref={nodeCardRef}
           className={`group node-card${isDatabase ? ' node-card-db' : ''}`}
           style={{
             width: nodeData.nodeWidth || Math.max(NODE_WIDTH, calcNodeWidth(data.label, nodeData.subtitle)),
@@ -229,9 +239,38 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         <div className="node-shine" />
         <div className="node-header">
-          <p className="node-title" title={data.label}>
-            {data.label}
-          </p>
+          {labelEdit.isEditing ? (
+            <input
+              {...labelEdit.inputProps}
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: 'var(--node-title-color)',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                padding: 0,
+                margin: 0,
+                lineHeight: 1.3,
+                width: '100%',
+                minWidth: 0,
+                flex: 1,
+                boxSizing: 'border-box',
+                borderRadius: 3,
+                boxShadow: '0 0 0 2px var(--accent, #0d9488)',
+                cursor: 'text',
+              }}
+            />
+          ) : (
+            <p
+              className="node-title"
+              title={data.label}
+              onDoubleClick={labelEdit.startEdit}
+              style={{ cursor: 'text' }}
+            >
+              {data.label}
+            </p>
+          )}
         </div>
         <div className="node-footer">
           {nodeData.subtitle && (

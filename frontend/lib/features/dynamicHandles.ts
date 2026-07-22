@@ -25,6 +25,7 @@ import {
   selectBestHandlerPair,
   type HandlerRect,
 } from '../utils/handlerPairScorer';
+import logger from '@/lib/logger';
 
 export type HandleSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -87,7 +88,7 @@ export function getDynamicHandles(
       !isFinite(targetRect.width) || !isFinite(targetRect.height) ||
       targetRect.width < 0 || targetRect.height < 0;
     if (badSource || badTarget) {
-      console.warn(
+      logger.warn(
         '[getDynamicHandles] INVALID input rects — expected post-layout coordinates. ' +
         'source=(%d,%d %dx%d) target=(%d,%d %dx%d)',
         sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height,
@@ -97,11 +98,11 @@ export function getDynamicHandles(
   }
 
   if (process.env.NEXT_PUBLIC_DEBUG_HANDLES === 'true') {
-    console.log('[getDynamicHandles] edge=%s src=%s tgt=%s', edgeId, sourceId, targetId);
-    console.log('[getDynamicHandles] source rect: x=%d y=%d w=%d h=%d', sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
-    console.log('[getDynamicHandles] target rect: x=%d y=%d w=%d h=%d', targetRect.x, targetRect.y, targetRect.width, targetRect.height);
-    console.log('[getDynamicHandles] source center: (%d, %d)  target center: (%d, %d)', sourceCX, sourceCY, targetCX, targetCY);
-    console.log('[getDynamicHandles] dx=%d dy=%d', dx, dy);
+    logger.debug('[getDynamicHandles] edge=%s src=%s tgt=%s', edgeId, sourceId, targetId);
+    logger.debug('[getDynamicHandles] source rect: x=%d y=%d w=%d h=%d', sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
+    logger.debug('[getDynamicHandles] target rect: x=%d y=%d w=%d h=%d', targetRect.x, targetRect.y, targetRect.width, targetRect.height);
+    logger.debug('[getDynamicHandles] source center: (%d, %d)  target center: (%d, %d)', sourceCX, sourceCY, targetCX, targetCY);
+    logger.debug('[getDynamicHandles] dx=%d dy=%d', dx, dy);
   }
 
   const sourcePosition = pickAxisSide(dx, dy);
@@ -138,7 +139,7 @@ function pickAxisSide(dx: number, dy: number): Position {
  * Right and Bottom handles are shifted outward (12px) for cleaner edge routing.
  * Used by SimpleFloatingEdge to compute exact edge start/end points.
  */
-const OUTER_OFFSET = 24;
+const OUTER_OFFSET = 12;
 
 export function getSemanticPortSide(
   sourceServiceType: string,

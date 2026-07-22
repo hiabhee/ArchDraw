@@ -4,6 +4,7 @@ import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { extractComponentsHeuristic } from './repo-heuristic-extractor';
 import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
 import type { RepoSnapshot, RepoProfile, ExtractedNode } from '@/lib/types/repo-diagram';
+import logger from '@/lib/logger';
 
 export type { ExtractedNode };
 
@@ -133,7 +134,7 @@ ${keyFilesBlock}
 ${JSON_OUTPUT_REMINDER}
 Required shape: { "nodes": [ { "id": "snake_case_id", "label": "Human Name", "type": "PAGE|API_ROUTE|DATABASE|EXTERNAL_SERVICE|AUTH|MIDDLEWARE|UI_COMPONENT|SERVICE|CONTROLLER|WORKER|QUEUE|CACHE|STORAGE|API_GATEWAY|CDN|CORE_MODULE|INFRASTRUCTURE", "description": "one sentence", "sourceFiles": ["relative/path"], "confidence": "high|medium|low" } ] }`;
 
-  console.log(`[ComponentExtractor] Calling LLM (~${Math.ceil(userPrompt.length / 4)} est tokens, ${keyFiles.length} key files)...`);
+  logger.info(`[ComponentExtractor] Calling LLM (~${Math.ceil(userPrompt.length / 4)} est tokens, ${keyFiles.length} key files)...`);
 
   try {
     const result = await apiKeyManager.executeWithRetry(async (client) =>
@@ -164,7 +165,7 @@ Rules:
     );
 
     if (looksLikeEchoedSource(result)) {
-      console.warn('[ComponentExtractor] LLM echoed source; using heuristic fallback');
+      logger.warn('[ComponentExtractor] LLM echoed source; using heuristic fallback');
       return extractComponentsHeuristic(snapshot, repoProfile);
     }
 
@@ -175,13 +176,13 @@ Rules:
         return nodes;
       }
     } catch (parseErr) {
-      console.warn('[ComponentExtractor] JSON parse failed:', parseErr instanceof Error ? parseErr.message : parseErr);
+      logger.warn('[ComponentExtractor] JSON parse failed:', parseErr instanceof Error ? parseErr.message : parseErr);
     }
 
-    console.warn('[ComponentExtractor] No valid nodes; using heuristic fallback');
+    logger.warn('[ComponentExtractor] No valid nodes; using heuristic fallback');
     return extractComponentsHeuristic(snapshot, repoProfile);
   } catch (err) {
-    console.error('[ComponentExtractor] LLM call failed:', err);
+    logger.error('[ComponentExtractor] LLM call failed:', err);
     const heuristic = extractComponentsHeuristic(snapshot, repoProfile);
     if (heuristic.length > 0) {
       return heuristic;

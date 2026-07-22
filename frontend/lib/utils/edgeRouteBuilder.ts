@@ -1,6 +1,6 @@
 import { Edge, Node, Position } from 'reactflow'
 import { type ObstacleRect } from '../features/pathPlanner'
-import { getBoundaryAnchor, getEdgeShiftOffset } from './simpleFloatingEdge'
+import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
   selectBestHandlerPair,
@@ -283,6 +283,9 @@ function resolveEdgeSideOnNode(
   direction: 'LR' | 'TD',
   allObstacles: Map<string, HandlerRect>,
 ): Position {
+  const fromHandle = resolveSideFromEdgeHandles(e, nodeId)
+  if (fromHandle !== undefined) return fromHandle
+
   const data = e.data as Record<string, unknown> | undefined
   if (e.source === nodeId) {
     const manual = sideToPosition(data?.sourceSide as string)
@@ -372,8 +375,10 @@ export function computeEdgeRoute(
   const activePreset = useDiagramStore.getState().activeLayoutPresetId
   const direction = activePreset === 'layered-tb' ? 'TD' : 'LR'
 
-  const manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
-  const manualTargetSide = sideToPosition(edgeData?.targetSide as string)
+  const manualSourceSide =
+    sideToPosition(edgeData?.sourceSide as string) ?? sideFromHandleId(edge.sourceHandle)
+  const manualTargetSide =
+    sideToPosition(edgeData?.targetSide as string) ?? sideFromHandleId(edge.targetHandle)
   const laneSourcePreference = sideToPosition(edgeData?.laneSourceSide as string)
   const laneTargetPreference = sideToPosition(edgeData?.laneTargetSide as string)
 

@@ -4,6 +4,7 @@ import { AVAILABLE_MODELS } from '@/lib/ai/utils/apiKeyManager';
 import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
 import logger from '@/lib/logger';
 import { z } from 'zod';
+import { checkRateLimit } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -31,43 +32,68 @@ const generateDiagramSchema = z.object({
 
 type GenerateDiagramInput = z.infer<typeof generateDiagramSchema>;
 
-// Rate limiting
-const generateRateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const GENERATE_RATE_WINDOW_MS = 60 * 1000;
-const MAX_GENERATE_REQUESTS = 5;
-
-function getGenerateRateKey(request: NextRequest): string {
+/**
+ * Get rate limit identifier from request.
+ * Uses IP address, falls back to a generic identifier if unavailable.
+ */
+function getRateLimitIdentifier(request: NextRequest): string {
   const ip = request.headers.get('x-forwarded-for') || 
              request.headers.get('x-real-ip') || 
              'unknown';
-  return `generate:${ip}`;
-}
-
-function checkGenerateRateLimit(key: string): boolean {
-  const now = Date.now();
-  const record = generateRateLimitMap.get(key);
-  
-  if (!record || now > record.resetTime) {
-    generateRateLimitMap.set(key, { count: 1, resetTime: now + GENERATE_RATE_WINDOW_MS });
-    return true;
-  }
-  
-  if (record.count >= MAX_GENERATE_REQUESTS) {
-    return false;
-  }
-  
-  record.count++;
-  return true;
+  return ip.split(',')[0].trim(); // Handle comma-separated IPs (proxy chains)
 }
 
 export async function POST(req: NextRequest) {
-  // Rate limiting
-  const rateKey = getGenerateRateKey(req);
-  if (!checkGenerateRateLimit(rateKey)) {
-    return NextResponse.json(
-      { error: 'Too many requests. Please wait before generating another diagram.', code: 'RATE_LIMITED', status: 429 },
-      { status: 429 }
-    );
+  // Rate limiting using Redis (configurable via environment variable)
+  const ENABLE_RATE_LIMITING = process.env.ENABLE_RATE_LIMITING !== 'false'; // enabled by default
+  
+  if (ENABLE_RATE_LIMITING) {
+    const identifier = getRateLimitIdentifier(req);
+    
+    try {
+      const { allowed, remaining, resetAt } = await checkRateLimit(
+        identifier,
+        5,  // max 5 requests
+        60  // per 60 seconds
+      );
+      
+      if (!allowed) {
+        const resetDate = new Date(resetAt * 1000);
+        const waitSeconds = Math.ceil((resetDate.getTime() - Date.now()) / 1000);
+        
+        logger.warn(`[API] Rate limit exceeded for ${identifier}`);
+        
+        return NextResponse.json(
+          { 
+            error: `Too many requests. Please wait ${waitSeconds} seconds before generating another diagram.`, 
+            code: 'RATE_LIMITED', 
+            status: 429,
+            resetAt: resetDate.toISOString(),
+            remaining: 0,
+          },
+          { 
+            status: 429,
+            headers: {
+              'X-RateLimit-Limit': '5',
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': resetAt.toString(),
+              'Retry-After': waitSeconds.toString(),
+            }
+          }
+        );
+      }
+      
+      logger.debug(`[API] Rate limit check passed for ${identifier}: ${remaining} remaining`);
+    } catch (error) {
+      // Rate limit check failed (e.g., Redis unavailable)
+      // Log error but allow request to proceed (graceful degradation - Option A)
+      logger.error('[API] Rate limit check failed, allowing request (graceful degradation):', error);
+      
+      // Continue processing the request despite rate limit failure
+      // This ensures the application remains functional even if Redis is down
+    }
+  } else {
+    logger.debug('[API] Rate limiting disabled via ENABLE_RATE_LIMITING=false');
   }
 
   // Auth check removed - allow unauthenticated diagram generation

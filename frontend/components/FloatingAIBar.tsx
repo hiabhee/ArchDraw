@@ -83,6 +83,7 @@ export function FloatingAIBar({
       toast.error('Please describe your architecture');
       return;
     }
+    if (isGenerating) return;
 
     setIsGenerating(true);
     setError(null);
@@ -102,7 +103,7 @@ export function FloatingAIBar({
     } finally {
       setIsGenerating(false);
     }
-  }, [input, onGenerate, detailLevel, addToHistory]);
+  }, [input, onGenerate, detailLevel, addToHistory, isGenerating]);
 
   const handleRegenerate = useCallback(async () => {
     if (!onRegenerate) return;
@@ -113,6 +114,7 @@ export function FloatingAIBar({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Regeneration failed';
       setError(message);
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }

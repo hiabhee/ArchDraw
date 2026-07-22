@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { authClient } from '@/lib/auth-client';
 import { analytics } from '@/lib/analytics';
+import { isDatabaseConfigured } from '@/lib/env-validation';
+import logger from '@/lib/logger';
 
 interface AuthUser {
   id: string;
@@ -29,7 +31,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await authClient.signOut();
       set({ user: null });
     } catch (err) {
-      console.error('Sign out error:', err);
+      logger.error('[Auth] Sign out error:', err);
     }
   },
 
@@ -37,8 +39,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (get().initialized) return;
 
     const isOffline = typeof window !== 'undefined' && !window.navigator.onLine;
-    if (isOffline || !process.env.DATABASE_URL) {
-      set({ user: { id: 'guest', email: 'guest@local', name: 'Guest User', image: null, emailVerified: false, createdAt: new Date() }, loading: false, initialized: true });
+    
+    // Check if database is configured
+    if (!isDatabaseConfigured()) {
+      logger.warn('[Auth] Database not configured - using guest mode');
+      set({ 
+        user: { 
+          id: 'guest', 
+          email: 'guest@local', 
+          name: 'Guest User', 
+          image: null, 
+          emailVerified: false, 
+          createdAt: new Date() 
+        }, 
+        loading: false, 
+        initialized: true 
+      });
+      return;
+    }
+    
+    if (isOffline) {
+      logger.warn('[Auth] Browser is offline - using guest mode');
+      set({ 
+        user: { 
+          id: 'guest', 
+          email: 'guest@local', 
+          name: 'Guest User (Offline)', 
+          image: null, 
+          emailVerified: false, 
+          createdAt: new Date() 
+        }, 
+        loading: false, 
+        initialized: true 
+      });
       return;
     }
 
@@ -61,15 +94,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         analytics.identify(u.id);
       } else {
+        // No active session - use guest mode
+        logger.info('[Auth] No active session - using guest mode');
         set({
-          user: { id: 'guest', email: 'guest@local', name: 'Guest User', image: null, emailVerified: false, createdAt: new Date() },
+          user: { 
+            id: 'guest', 
+            email: 'guest@local', 
+            name: 'Guest User', 
+            image: null, 
+            emailVerified: false, 
+            createdAt: new Date() 
+          },
           loading: false,
           initialized: true,
         });
       }
-    } catch {
+    } catch (error) {
+      // Auth check failed - log error and fall back to guest mode
+      logger.error('[Auth] Session check failed, falling back to guest mode:', error);
       set({
-        user: { id: 'guest', email: 'guest@local', name: 'Guest User', image: null, emailVerified: false, createdAt: new Date() },
+        user: { 
+          id: 'guest', 
+          email: 'guest@local', 
+          name: 'Guest User', 
+          image: null, 
+          emailVerified: false, 
+          createdAt: new Date() 
+        },
         loading: false,
         initialized: true,
       });

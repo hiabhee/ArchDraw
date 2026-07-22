@@ -78,71 +78,46 @@ export function detectMainSpine(nodes: Node[], edges: Edge[]): SpineResult {
 
   const nodeIdx = new Map<string, number>()
   const allNodes = nodes.filter(n => n.type !== 'groupNode')
+  const spineNodeIds = new Set(allNodes.map(n => n.id))
   allNodes.forEach((n, i) => nodeIdx.set(n.id, i))
 
-  function findLongestPath(from: string, to: string): string[] {
-    const dist = new Map<string, number>()
-    const prev = new Map<string, string | null>()
-    const topoOrder: string[] = []
+  /**
+   * Longest *simple* path between two nodes (no repeated vertices).
+   * Architecture diagrams often contain request/response cycles, so a DAG
+   * longest-path pass would create cyclic `prev` links and hang forever.
+   */
+  function findLongestSimplePath(from: string, to: string): string[] {
+    if (!spineNodeIds.has(from) || !spineNodeIds.has(to)) return []
+    if (from === to) return [from]
 
-    const visited = new Set<string>()
-    function dfs(v: string) {
-      if (visited.has(v)) return
-      visited.add(v)
-      const neighbors = adjacency.get(v) || []
-      for (const w of neighbors) {
-        if (allNodes.some(n => n.id === w)) {
-          dfs(w)
-        }
+    let best: string[] = []
+
+    function dfs(current: string, path: string[], visited: Set<string>) {
+      if (current === to) {
+        if (path.length > best.length) best = [...path]
+        return
       }
-      topoOrder.push(v)
-    }
+      // Simple paths cannot exceed the number of spine nodes.
+      if (path.length >= spineNodeIds.size) return
 
-    if (!visited.has(from)) dfs(from)
-
-    for (const node of allNodes) {
-      if (!visited.has(node.id)) dfs(node.id)
-    }
-
-    topoOrder.reverse()
-
-    for (const v of topoOrder) {
-      dist.set(v, v === from ? 0 : -Infinity)
-      prev.set(v, null)
-    }
-
-    for (const v of topoOrder) {
-      if (dist.get(v) === -Infinity) continue
-      const neighbors = adjacency.get(v) || []
-      for (const w of neighbors) {
-        if (!dist.has(w)) continue
-        const nd = dist.get(v)! + 1
-        if (nd > (dist.get(w) || -Infinity)) {
-          dist.set(w, nd)
-          prev.set(w, v)
-        }
+      for (const next of adjacency.get(current) || []) {
+        if (!spineNodeIds.has(next) || visited.has(next)) continue
+        visited.add(next)
+        path.push(next)
+        dfs(next, path, visited)
+        path.pop()
+        visited.delete(next)
       }
     }
 
-    const path: string[] = []
-    let current: string | null = dist.has(to) ? to : null
-    if (current && dist.get(current)! > -Infinity) {
-      while (current && prev.has(current)) {
-        path.unshift(current)
-        current = prev.get(current) || null
-      }
-      if (path[0] === from || current === from) {
-        if (current) path.unshift(current)
-      }
-    }
-
-    return path
+    dfs(from, [from], new Set([from]))
+    return best
   }
 
   let bestPath: string[] = []
   for (const entry of entryNodes) {
     for (const exit of exitNodes) {
-      const path = findLongestPath(entry, exit)
+      const path = findLongestSimplePath(entry, exit)
       if (path.length > bestPath.length) {
         bestPath = path
       }
@@ -151,25 +126,25 @@ export function detectMainSpine(nodes: Node[], edges: Edge[]): SpineResult {
 
   if (bestPath.length === 0 && entryNodes.length > 0) {
     const entry = entryNodes[0]
-    const visited = new Set<string>()
-    const longest: string[] = []
-    function dfsBFS(start: string) {
-      const queue: string[][] = [[start]]
-      while (queue.length > 0) {
-        const p = queue.shift()!
-        const last = p[p.length - 1]
-        if (p.length > longest.length) longest.push(...p.slice(longest.length))
-        const neighbors = adjacency.get(last) || []
-        for (const w of neighbors) {
-          if (!visited.has(w)) {
-            visited.add(w)
-            queue.push([...p, w])
-          }
+    let longest: string[] = []
+
+    function exploreFrom(start: string) {
+      function dfs(current: string, path: string[], visited: Set<string>) {
+        if (path.length > longest.length) longest = [...path]
+        if (path.length >= spineNodeIds.size) return
+        for (const next of adjacency.get(current) || []) {
+          if (!spineNodeIds.has(next) || visited.has(next)) continue
+          visited.add(next)
+          path.push(next)
+          dfs(next, path, visited)
+          path.pop()
+          visited.delete(next)
         }
       }
+      dfs(start, [start], new Set([start]))
     }
-    visited.add(entry)
-    dfsBFS(entry)
+
+    exploreFrom(entry)
     if (longest.length > bestPath.length) bestPath = longest
   }
 

@@ -35,8 +35,8 @@ function parseBeaconBody(beaconSpy: ReturnType<typeof vi.fn>): any {
 
 function parseFetchBody(fetchSpy: ReturnType<typeof vi.fn>): any {
   const calls = fetchSpy.mock.calls.filter(
-    (c: [string, RequestInit]) => c[0] === '/api/track'
-  );
+    (c: any[]) => c[0] === '/api/track'
+  ) as Array<[string, RequestInit]>;
   expect(calls.length).toBeGreaterThan(0);
   return JSON.parse(calls[calls.length - 1][1].body as string);
 }

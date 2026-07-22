@@ -3,6 +3,7 @@ import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { formatSourceFilesForPrompt, JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
 import type { RepoSnapshot, RepoProfile, RepoType, ArchitecturePattern, FileEntry } from '@/lib/types/repo-diagram';
+import logger from '@/lib/logger';
 
 function inferFrameworkFromFiles(files: FileEntry[]): string | null {
   for (const file of files) {
@@ -190,7 +191,7 @@ ${summariesBlock}
 
 ${JSON_OUTPUT_REMINDER}`;
 
-  console.log(`[DeepClassifier] Calling LLM to classify repository...`);
+  logger.info(`[DeepClassifier] Calling LLM to classify repository...`);
 
   try {
     const result = await apiKeyManager.executeWithRetry(async (client) =>
@@ -281,16 +282,16 @@ CRITICAL: Reply with a single JSON object only. No markdown fences, no bullet li
       const parsed = parseLlmJson<Record<string, unknown>>(result, 'DeepClassifier');
       return normalizeRepoProfile(parsed);
     } catch (parseErr) {
-      console.warn(
+      logger.warn(
         '[DeepClassifier] JSON parse failed, using surface fallback:',
         parseErr instanceof Error ? parseErr.message : parseErr
       );
-      console.warn('[DeepClassifier] Raw preview:', result.slice(0, 200));
+      logger.warn('[DeepClassifier] Raw preview:', result.slice(0, 200));
       return buildFallbackRepoProfile(snapshot);
     }
   } catch (err) {
-    console.error('[DeepClassifier] LLM call failed:', err);
-    console.warn('[DeepClassifier] Using surface fallback after LLM failure');
+    logger.error('[DeepClassifier] LLM call failed:', err);
+    logger.warn('[DeepClassifier] Using surface fallback after LLM failure');
     return buildFallbackRepoProfile(snapshot);
   }
 }

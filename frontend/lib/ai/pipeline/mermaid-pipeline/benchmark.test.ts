@@ -1,6 +1,59 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi, beforeEach } from 'vitest';
 import { runMermaidPipeline } from './index';
 import type { UserIntent } from '../../types';
+
+// Mock the Groq API calls
+vi.mock('../../utils/apiKeyManager', () => ({
+  apiKeyManager: {
+    rotateToNextKey: vi.fn(),
+    getCurrentKey: vi.fn(() => 'mock-api-key'),
+    executeWithRetry: vi.fn(async (fn) => {
+      // Mock Groq client
+      const mockGroq = {} as any;
+      const result = await fn(mockGroq);
+      return result;
+    }),
+  },
+  requestContext: {
+    reset: vi.fn(),
+    recordSuccess: vi.fn(),
+    recordFailure: vi.fn(),
+  },
+}));
+
+vi.mock('../../utils/groqJsonCompletion', () => ({
+  groqJsonCompletion: vi.fn(async () => {
+    // Return a mock architecture plan as JSON string
+    return JSON.stringify({
+      reasoning: 'Step 0: Load balancers distribute traffic. Step 1: Services process requests. Step 2: Databases store data. Step 3: Cache improves performance. Step 4: Queue handles async tasks. Step 5: Monitoring tracks health. Step 6: Gateway routes requests. Step 7: Clients initiate requests.',
+      diagramType: 'graph TD',
+      theme: 'slate',
+      mermaidCode: `graph TD
+        subgraph Client["Client Layer"]
+          client["Web Client"]
+        end
+        subgraph Gateway["Gateway Layer"]
+          lb{"Load Balancer"}
+        end
+        subgraph Service["Service Layer"]
+          api["API Service"]
+          auth["Auth Service"]
+        end
+        subgraph Data["Data Layer"]
+          db[("PostgreSQL")]
+          cache[("Redis Cache")]
+        end
+        
+        client -->|sends request| lb
+        lb -->|routes traffic| api
+        api -->|validates token| auth
+        api -->|queries data| db
+        api -->|checks cache| cache
+        api -->|returns response| lb
+        lb -->|serves response| client`
+    });
+  }),
+}));
 
 const PROMPTS: { name: string; intent: UserIntent }[] = [
   {
@@ -34,6 +87,10 @@ const PROMPTS: { name: string; intent: UserIntent }[] = [
 
 describe('Mermaid Pipeline Benchmark', () => {
   const results: { name: string; durationMs: number; nodes: number; edges: number; success: boolean }[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   for (const { name, intent } of PROMPTS) {
     it(`measures generation time for "${name}"`, async () => {

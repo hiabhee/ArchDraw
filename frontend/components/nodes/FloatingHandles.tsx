@@ -1,8 +1,7 @@
 'use client';
 
 import { Handle, Position } from 'reactflow';
-import { INCOMING_OUTGOING_GAP } from '@/lib/utils/simpleFloatingEdge';
-import { useDiagramStore } from '@/store/diagramStore';
+import { useHandleSlotLayout } from '@/hooks/useHandleSlotLayout';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 const SIDES: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -18,11 +17,11 @@ function sideToPosition(side: Side): Position {
 interface FloatingHandleProps {
   side: Side;
   type: 'source' | 'target';
-  /** Offset along the side tangent from the midpoint (px). */
   slotOffset: number;
+  handleTransition: string;
 }
 
-function SingleFloatingHandle({ side, type, slotOffset }: FloatingHandleProps) {
+function SingleFloatingHandle({ side, type, slotOffset, handleTransition }: FloatingHandleProps) {
   const id = `${type}-${side}`;
   const pos = sideToPosition(side);
 
@@ -33,7 +32,6 @@ function SingleFloatingHandle({ side, type, slotOffset }: FloatingHandleProps) {
       id={id}
       className={`rh rh--${side} rh--${type}`}
       style={{
-        // Tangential slot; applied via CSS var + !important to beat RF defaults.
         ['--rh-slot' as string]: `${slotOffset}px`,
         opacity: 0,
         width: 1,
@@ -43,29 +41,10 @@ function SingleFloatingHandle({ side, type, slotOffset }: FloatingHandleProps) {
         border: 'none',
         background: 'transparent',
         pointerEvents: 'none',
+        transition: handleTransition,
       }}
     />
   );
-}
-
-function useCenteredSides(nodeId?: string): Set<Position> {
-  const edges = useDiagramStore((s) => s.edges);
-  const centered = new Set<Position>();
-  if (!nodeId) return centered;
-
-  const sides: Position[] = [Position.Left, Position.Right, Position.Top, Position.Bottom];
-  for (const side of sides) {
-    let hasIncoming = false;
-    let hasOutgoing = false;
-    for (const e of edges) {
-      if (e.source !== nodeId && e.target !== nodeId) continue;
-      if (e.target === nodeId) hasIncoming = true;
-      else hasOutgoing = true;
-      if (hasIncoming && hasOutgoing) break;
-    }
-    if (!hasIncoming || !hasOutgoing) centered.add(side);
-  }
-  return centered;
 }
 
 interface FloatingHandlesProps {
@@ -73,28 +52,23 @@ interface FloatingHandlesProps {
 }
 
 /**
- * 8 handles: 2 per side.
- * - source-*  (outgoing) at −GAP
- * - target-*  (incoming) at +GAP
- * When a side has only incoming or only outgoing edges, both handles
- * sit at the midpoint (offset 0).
+ * Invisible floating handles for SystemNode. Slot offsets follow per-side
+ * edge direction so incoming-from-above uses a centered top target handle.
  */
 export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
-  const sourceOffset = -INCOMING_OUTGOING_GAP;
-  const targetOffset = INCOMING_OUTGOING_GAP;
-  const centeredSides = useCenteredSides(nodeId);
+  const { getSlotOffset, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
       {SIDES.map((side) => {
         const pos = sideToPosition(side);
-        const centered = centeredSides.has(pos);
         return TYPES.map((type) => (
           <SingleFloatingHandle
             key={`${type}-${side}`}
             side={side}
             type={type}
-            slotOffset={centered ? 0 : type === 'source' ? sourceOffset : targetOffset}
+            slotOffset={getSlotOffset(pos, type)}
+            handleTransition={handleTransition}
           />
         ));
       })}

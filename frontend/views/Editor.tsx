@@ -387,8 +387,8 @@ export default function EditorPage() {
         setProgress(lastProgress);
       }
       
-      handleGenerationComplete(responseData.data, canvasName);
       markPipelineDone();
+      handleGenerationComplete(responseData.data, canvasName);
 
       analytics.track({
         event_type: 'diagram_generated',

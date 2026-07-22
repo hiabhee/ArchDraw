@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useDiagramStore } from '@/store/diagramStore';
 import logger from '@/lib/logger';
+import { sanitizeSVG } from '@/lib/utils/svg-sanitizer';
 
 let mermaidInitialized = false;
 
@@ -58,8 +59,19 @@ export function SequenceDiagramViewer() {
         const mermaid = await import('mermaid');
         const id = `mermaid-${Date.now().toString(36)}`;
         const { svg: rendered } = await mermaid.default.render(id, diagram.mermaidSyntax);
+        
         if (!cancelled) {
-          setSvg(rendered);
+          // Sanitize SVG to prevent XSS attacks
+          const sanitized = sanitizeSVG(rendered);
+          
+          if (!sanitized) {
+            logger.error('[SequenceDiagram] SVG sanitization produced empty result');
+            setError('Failed to render sequence diagram: sanitization failed');
+            setSvg('');
+            return;
+          }
+          
+          setSvg(sanitized);
           setError('');
         }
       } catch (err) {
