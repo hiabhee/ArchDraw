@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { authClient } from '@/lib/auth-client';
 import { analytics } from '@/lib/analytics';
-import { isDatabaseConfigured } from '@/lib/env-validation';
 import logger from '@/lib/logger';
 
 interface AuthUser {
@@ -40,9 +39,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const isOffline = typeof window !== 'undefined' && !window.navigator.onLine;
     
-    // Check if database is configured
-    if (!isDatabaseConfigured()) {
-      logger.warn('[Auth] Database not configured - using guest mode');
+    // Check if auth is enabled via public env var (safe for client-side)
+    const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+    
+    if (!authEnabled) {
+      logger.warn('[Auth] Authentication not enabled - using guest mode');
       set({ 
         user: { 
           id: 'guest', 
@@ -77,6 +78,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const { data: session } = await authClient.getSession();
+      
+      console.log('[Auth] Session check result:', session ? 'Session found' : 'No session');
+      if (session?.user) {
+        console.log('[Auth] User data:', { id: session.user.id, email: session.user.email, name: session.user.name });
+      }
 
       if (session?.user) {
         const u = session.user;

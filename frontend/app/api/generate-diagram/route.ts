@@ -5,6 +5,7 @@ import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
 import logger from '@/lib/logger';
 import { z } from 'zod';
 import { checkRateLimit } from '@/lib/redis';
+import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -44,60 +45,26 @@ function getRateLimitIdentifier(request: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Rate limiting using Redis (configurable via environment variable)
-  const ENABLE_RATE_LIMITING = process.env.ENABLE_RATE_LIMITING !== 'false'; // enabled by default
-  
-  if (ENABLE_RATE_LIMITING) {
-    const identifier = getRateLimitIdentifier(req);
-    
-    try {
-      const { allowed, remaining, resetAt } = await checkRateLimit(
-        identifier,
-        5,  // max 5 requests
-        60  // per 60 seconds
-      );
-      
-      if (!allowed) {
-        const resetDate = new Date(resetAt * 1000);
-        const waitSeconds = Math.ceil((resetDate.getTime() - Date.now()) / 1000);
-        
-        logger.warn(`[API] Rate limit exceeded for ${identifier}`);
-        
-        return NextResponse.json(
-          { 
-            error: `Too many requests. Please wait ${waitSeconds} seconds before generating another diagram.`, 
-            code: 'RATE_LIMITED', 
-            status: 429,
-            resetAt: resetDate.toISOString(),
-            remaining: 0,
-          },
-          { 
-            status: 429,
-            headers: {
-              'X-RateLimit-Limit': '5',
-              'X-RateLimit-Remaining': '0',
-              'X-RateLimit-Reset': resetAt.toString(),
-              'Retry-After': waitSeconds.toString(),
-            }
-          }
-        );
-      }
-      
-      logger.debug(`[API] Rate limit check passed for ${identifier}: ${remaining} remaining`);
-    } catch (error) {
-      // Rate limit check failed (e.g., Redis unavailable)
-      // Log error but allow request to proceed (graceful degradation - Option A)
-      logger.error('[API] Rate limit check failed, allowing request (graceful degradation):', error);
-      
-      // Continue processing the request despite rate limit failure
-      // This ensures the application remains functional even if Redis is down
-    }
-  } else {
-    logger.debug('[API] Rate limiting disabled via ENABLE_RATE_LIMITING=false');
-  }
+  // Tier-aware quota enforcement
+  const quotaCheck = await checkAIGenerationQuota(req);
 
-  // Auth check removed - allow unauthenticated diagram generation
-  // Auth is only required for sharing/exporting
+  if (!quotaCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: quotaCheck.error,
+        code: 'QUOTA_EXCEEDED',
+        status: 429,
+        remaining: quotaCheck.remaining || 0,
+        upgradePrompt: quotaCheck.tier === 'guest' ? 'Sign in for more generations' : undefined,
+      },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Remaining': String(quotaCheck.remaining || 0),
+        },
+      }
+    );
+  }
 
   try {
     // Parse and validate request body with Zod
@@ -131,10 +98,20 @@ export async function POST(req: NextRequest) {
       progressEvents.push(progress);
     });
 
+    // Track usage
+    const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
+    const resolvedUserId = await userId;
+    await incrementAIGeneration(resolvedUserId);
+    await logUsage(resolvedUserId, getGuestId(req), 'ai_generation', {
+      description: description.substring(0, 100),
+      nodeCount: result.nodes?.length || 0,
+    });
+
     return NextResponse.json({
       success: true,
       data: result,
       progress: progressEvents,
+      quotaRemaining: quotaCheck.remaining,
     });
 
   } catch (error) {

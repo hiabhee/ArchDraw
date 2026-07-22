@@ -66,6 +66,32 @@ export function validateRedisConfig(): { url: string; token: string } | null {
 }
 
 /**
+ * Validates GitHub OAuth configuration.
+ * Returns null if not configured (auth will be disabled).
+ * Throws if only partially configured.
+ */
+export function validateGitHubOAuthConfig(): { clientId: string; clientSecret: string } | null {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+  // Both missing = OAuth not configured
+  if (!clientId && !clientSecret) {
+    logger.warn('[EnvValidation] GitHub OAuth not configured - social login disabled');
+    return null;
+  }
+
+  // Only one present = misconfiguration
+  if (!clientId || !clientSecret) {
+    const missing = !clientId ? 'GITHUB_CLIENT_ID' : 'GITHUB_CLIENT_SECRET';
+    const errorMsg = `Partial GitHub OAuth configuration. Missing: ${missing}. Provide both for social login.`;
+    logger.error(`[EnvValidation] ${errorMsg}`);
+    throw new EnvironmentError(errorMsg, missing);
+  }
+
+  return { clientId, clientSecret };
+}
+
+/**
  * Validates Google OAuth configuration.
  * Returns null if not configured (auth will be disabled).
  * Throws if only partially configured.

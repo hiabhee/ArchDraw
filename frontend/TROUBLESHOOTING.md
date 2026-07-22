@@ -10,15 +10,15 @@ Your `.env.local` file should have:
 
 ```bash
 # Make sure this is UNCOMMENTED (no # at the start)
-GROQ_API_KEY=your_groq_api_key_here
+GROQ_API_KEY=gsk_YOUR_API_KEY_HERE
 
 # OR use the fallback key (also works)
-GROQ_API_KEY_FOR_DESC_1=your_groq_api_key_here
+GROQ_API_KEY_FOR_DESC_1=gsk_YOUR_API_KEY_HERE
 ```
 
 **Currently:** Your `GROQ_API_KEY` is commented out in `.env.local`:
 ```bash
-# GROQ_API_KEY=your_groq_api_key_here... ← THIS IS COMMENTED OUT!
+# GROQ_API_KEY=gsk_YOUR_API_KEY_HERE... ← THIS IS COMMENTED OUT!
 ```
 
 **Fix:** Uncomment it or copy the value from `GROQ_API_KEY_FOR_DESC_1`.
@@ -81,7 +81,7 @@ GROQ_API_KEY is not configured
 **Fix:**
 ```bash
 # .env.local
-GROQ_API_KEY=your_groq_api_key_here
+GROQ_API_KEY=gsk_YOUR_API_KEY_HERE
 ```
 
 ### Issue: Redis connection timeout

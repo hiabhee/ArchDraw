@@ -1325,12 +1325,12 @@ body {
 }
 @keyframes shimerGlow {
   0%, 100% {
-    box-shadow: 0 0 8px rgba(94, 106, 210, 0.25), 0 0 2px rgba(94, 106, 210, 0.1);
-    border-color: rgba(94, 106, 210, 0.4);
+    box-shadow: 0 0 8px rgba(30, 144, 255, 0.25), 0 0 2px rgba(30, 144, 255, 0.1);
+    border-color: rgba(30, 144, 255, 0.4);
   }
   50% {
-    box-shadow: 0 0 22px rgba(94, 106, 210, 0.7), 0 0 6px rgba(130, 143, 255, 0.45);
-    border-color: rgba(130, 143, 255, 0.85);
+    box-shadow: 0 0 22px rgba(30, 144, 255, 0.7), 0 0 6px rgba(77, 171, 247, 0.45);
+    border-color: rgba(77, 171, 247, 0.85);
   }
 }
 

@@ -6,7 +6,7 @@ import { STORAGE_KEYS } from '@/lib/config';
 import { toast } from 'sonner';
 
 const isBrowser = typeof window !== 'undefined';
-const MAX_GUEST_CANVASES = 2;
+const MAX_GUEST_CANVASES = 1;
 
 // --- Migration for Problem 1: Duplicate Nodes and Edges ---
 if (isBrowser) {

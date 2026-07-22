@@ -23,6 +23,8 @@ import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCa
 import logger from '@/lib/logger';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
+import { getUserTier, canAccessFeature, isExportFormatAllowed } from '@/lib/userQuotas';
 
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -202,7 +204,8 @@ export function Toolbar() {
   } = useDiagramStore();
 
   const { user } = useAuthStore();
-  const isGuest = !user;
+  const tier = getUserTier(user?.id);
+  const isGuest = tier === 'guest';
   const isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -219,6 +222,7 @@ export function Toolbar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [upgradeModal, setUpgradeModal] = useState<{ feature: string; message: string; benefits: string[] } | null>(null);
 
   const openGuide = useOnboardingStore((s) => s.open);
 
@@ -446,8 +450,12 @@ export function Toolbar() {
   };
 
   const handleExport = (format: ExportFormat) => {
-    if (isGuest && format !== 'json') {
-      setEmailCapture('download');
+    if (!isExportFormatAllowed(tier, format)) {
+      setUpgradeModal({
+        feature: 'export',
+        message: `${format.toUpperCase().replace(/-\d+x$/, '')} export is available for signed-in users.`,
+        benefits: UPGRADE_BENEFITS.export,
+      });
       return;
     }
     doExport(format);
@@ -527,8 +535,12 @@ export function Toolbar() {
   };
 
   const handleShare = () => {
-    if (isGuest) {
-      setEmailCapture('share');
+    if (!canAccessFeature(tier, 'share')) {
+      setUpgradeModal({
+        feature: 'sharing',
+        message: 'Sharing requires a free account.',
+        benefits: UPGRADE_BENEFITS.share,
+      });
       return;
     }
     doShare();
@@ -954,6 +966,15 @@ export function Toolbar() {
         <EmailCaptureModal
           reason={emailCapture}
           onClose={() => setEmailCapture(null)}
+        />
+      )}
+      {upgradeModal && (
+        <UpgradeModal
+          isOpen={!!upgradeModal}
+          onClose={() => setUpgradeModal(null)}
+          feature={upgradeModal.feature}
+          message={upgradeModal.message}
+          benefits={upgradeModal.benefits}
         />
       )}
       {templatesOpen && <TemplateModal onClose={() => setTemplatesOpen(false)} />}

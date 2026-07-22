@@ -3,6 +3,8 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import logger from '@/lib/logger';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
+import { getSessionFromRequest, logUsage } from '@/lib/middleware/quotaCheck';
 
 
 export interface ShareUser {
@@ -14,6 +16,21 @@ export interface ShareUser {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSessionFromRequest(req);
+    const userId = session?.user?.id;
+    const tier = getUserTier(userId);
+
+    if (!canAccessFeature(tier, 'share')) {
+      return NextResponse.json(
+        {
+          error: 'Sign in to share diagrams',
+          code: 'AUTH_REQUIRED',
+          feature: 'sharing',
+        },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     let nodes = body.nodes || [];
@@ -41,7 +58,14 @@ export async function POST(req: NextRequest) {
         accessType: body.accessType || 'anyone',
         linkPermission: body.linkPermission || 'viewer',
         users: body.users || [],
+        ownerId: userId || null,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
+    });
+
+    await logUsage(userId || null, null, 'share_created', {
+      nodeCount: nodes.length,
+      accessType: body.accessType,
     });
 
     return NextResponse.json({ sessionId: shared.id, nodes, edges, warnings });

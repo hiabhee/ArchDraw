@@ -2,19 +2,25 @@
 
 import { useState } from 'react';
 import type { Node, Edge } from 'reactflow';
-import { X, Search, LayoutTemplate } from 'lucide-react';
+import { X, Search, LayoutTemplate, Lock } from 'lucide-react';
 import { TEMPLATES, type Template } from '@/data/templates/index';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useAuthStore } from '@/store/authStore';
 import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
 import { LAYOUT_PRESETS } from '@/lib/canvas/layoutPresets';
 import { toast } from 'sonner';
+import { getUserTier, isTemplateAllowed } from '@/lib/userQuotas';
+import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
 
 interface Props { onClose: () => void }
 
 export function TemplateModal({ onClose }: Props) {
   const [query, setQuery] = useState('');
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const { nodes, loadTemplate, fitView, addCanvas } = useDiagramStore();
   const renameCanvas = useDiagramStore((s) => s.renameCanvas);
+  const { user } = useAuthStore();
+  const tier = getUserTier(user?.id);
 
   const filtered = TEMPLATES.filter((t) =>
     t.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -112,25 +118,48 @@ export function TemplateModal({ onClose }: Props) {
               </div>
             ) : (
               filtered.map((t) => (
-                <TemplateRow key={t.id} template={t} onLoad={() => handleLoad(t)} />
+                <TemplateRow
+                  key={t.id}
+                  template={t}
+                  isLocked={!isTemplateAllowed(tier, t.id)}
+                  onLoad={() => handleLoad(t)}
+                  onUpgrade={() => setShowUpgrade(true)}
+                />
               ))
             )}
           </div>
         </div>
       </div>
+
+      <UpgradeModal
+        isOpen={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        feature="templates"
+        message="Sign in to access all architecture templates"
+        benefits={UPGRADE_BENEFITS.templates}
+      />
     </>
   );
 }
 
-function TemplateRow({ template, onLoad }: { template: Template; onLoad: () => void }) {
+function TemplateRow({ template, isLocked, onLoad, onUpgrade }: { template: Template; isLocked?: boolean; onLoad: () => void; onUpgrade?: () => void }) {
   return (
-    <div 
-      onClick={onLoad}
-      className="group flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-secondary/40 dark:hover:bg-secondary/25 border border-transparent hover:border-border/15 transition-all duration-200 cursor-pointer"
+    <div
+      onClick={() => isLocked ? onUpgrade?.() : onLoad()}
+      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer border border-transparent ${
+        isLocked
+          ? 'opacity-60 hover:bg-secondary/20 hover:border-border/10'
+          : 'hover:bg-secondary/40 dark:hover:bg-secondary/25 hover:border-border/15'
+      }`}
     >
       {/* Icon */}
-      <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary/80 border border-border/10 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition-transform duration-200">
+      <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary/80 border border-border/10 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition-transform duration-200 relative">
         {template.icon}
+        {isLocked && (
+          <div className="absolute -top-1 -right-1 bg-gray-800 rounded-full p-1">
+            <Lock className="w-3 h-3 text-gray-400" />
+          </div>
+        )}
       </div>
 
       {/* Info */}
@@ -139,8 +168,8 @@ function TemplateRow({ template, onLoad }: { template: Template; onLoad: () => v
         <p className="text-[11px] text-muted-foreground/90 mt-0.5 line-clamp-1 leading-relaxed">{template.description}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
           {template.tags.map((tag) => (
-            <span 
-              key={tag} 
+            <span
+              key={tag}
               className="px-2 py-0.5 text-[9px] font-medium rounded-md bg-secondary border border-border/10 text-muted-foreground/80"
             >
               {tag}
@@ -156,11 +185,15 @@ function TemplateRow({ template, onLoad }: { template: Template; onLoad: () => v
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onLoad();
+          isLocked ? onUpgrade?.() : onLoad();
         }}
-        className="shrink-0 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-sm hover:shadow transition-all duration-200 dark:bg-blue-500 dark:hover:bg-blue-600"
+        className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition-all duration-200 ${
+          isLocked
+            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+            : 'bg-[#1E90FF] hover:bg-[#4dabf7] active:scale-98 text-white'
+        }`}
       >
-        Load
+        {isLocked ? 'Sign in' : 'Load'}
       </button>
     </div>
   );

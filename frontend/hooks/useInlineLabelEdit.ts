@@ -17,6 +17,7 @@ const pendingEdits = new Map<string, boolean>();
 const claimedPendingEdits = new Set<string>();
 
 export function consumePendingEdit(nodeId: string) {
+  console.log('[consumePendingEdit] Setting pending edit for node:', nodeId);
   pendingEdits.set(nodeId, true);
 }
 
@@ -27,7 +28,9 @@ export function useInlineLabelEdit({
   onCommit,
 }: UseInlineLabelEditOptions) {
   const [isEditing, setIsEditing] = useState(() => {
-    if (pendingEdits.has(nodeId) && !claimedPendingEdits.has(nodeId)) {
+    const hasPending = pendingEdits.has(nodeId) && !claimedPendingEdits.has(nodeId);
+    console.log('[useInlineLabelEdit] Init for node:', nodeId, 'hasPending:', hasPending, 'pendingEdits:', Array.from(pendingEdits.keys()));
+    if (hasPending) {
       claimedPendingEdits.add(nodeId);
       // Schedule cleanup of the Map entry after this render completes
       queueMicrotask(() => pendingEdits.delete(nodeId));
@@ -39,6 +42,17 @@ export function useInlineLabelEdit({
   const inputRef = useRef<HTMLInputElement>(null);
   const originalLabelRef = useRef(currentLabel);
 
+  // Check for pending edits on mount (in case useState initializer missed it)
+  useEffect(() => {
+    if (!isEditing && pendingEdits.has(nodeId) && !claimedPendingEdits.has(nodeId)) {
+      console.log('[useInlineLabelEdit] Detected pending edit in useEffect for:', nodeId);
+      claimedPendingEdits.add(nodeId);
+      queueMicrotask(() => pendingEdits.delete(nodeId));
+      setIsEditing(true);
+      setDraft(currentLabel);
+    }
+  }, [nodeId, currentLabel, isEditing]);
+
   useEffect(() => {
     if (!isEditing) {
       originalLabelRef.current = currentLabel;
@@ -47,8 +61,25 @@ export function useInlineLabelEdit({
 
   useLayoutEffect(() => {
     if (isEditing && inputRef.current) {
+      // Multiple focus attempts to ensure it works
       inputRef.current.focus();
       inputRef.current.select();
+      
+      // Additional delayed focus attempt for edge-drop case
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      });
+      
+      // One more attempt with setTimeout as fallback
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      }, 50);
     }
   }, [isEditing]);
 

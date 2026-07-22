@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Sparkles,
   Plus,
@@ -15,18 +15,37 @@ import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { analytics } from '@/lib/analytics';
 import type { Template } from '@/data/templates';
+import { getUserTier, getGuestQuotas, getAuthenticatedQuotas } from '@/lib/userQuotas';
+import { SignInButtons } from '@/components/SignInButtons';
 
 interface DashboardClientProps {
   templates: Template[];
   aiPrompts: string[];
 }
 
+interface QuotaData {
+  tier: string;
+  aiGenerations: {
+    used: number;
+    limit: number;
+    window: string;
+    total?: number;
+  };
+  canvases: {
+    current: number;
+    limit: number;
+  };
+}
+
 export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { initialized } = useAuthStore();
+  const { initialized, user } = useAuthStore();
   const { canvases, addCanvas, switchCanvas } = useDiagramStore();
   const [now] = useState(() => Date.now());
+  const [quotaData, setQuotaData] = useState<QuotaData | null>(null);
+  const tier = getUserTier(user?.id);
+  const aiLimit = tier === 'guest' ? getGuestQuotas().aiGenerationsPerHour : getAuthenticatedQuotas().aiGenerationsPerDay;
 
   const handleNewCanvas = (fromTemplate?: string) => {
     analytics.track({
@@ -54,6 +73,13 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
     router.push('/editor');
   };
 
+  useEffect(() => {
+    fetch('/api/user/quota')
+      .then(res => res.json())
+      .then(data => setQuotaData(data))
+      .catch(() => setQuotaData(null));
+  }, []);
+
   if (!initialized) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -61,6 +87,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
       </div>
     );
   }
+
   const searchQuery = searchParams.get('q') || '';
 
   // Compute actual canvas metrics
@@ -177,7 +204,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${getIndicatorColor(nodeCount)}`} />
                         <div className="min-w-0">
-                          <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-accent transition-colors">
+                          <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-[#1E90FF] transition-colors">
                             {canvas.name}
                           </h4>
                           <p className="text-[11px] text-text-muted mt-0.5">
@@ -207,7 +234,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
                 {!searchQuery && (
                   <button
                     onClick={() => handleNewCanvas()}
-                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-[#1E90FF] hover:bg-[#4dabf7] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Create Canvas</span>
@@ -220,7 +247,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
           {/* Long New Canvas Button */}
           <button
             onClick={() => handleNewCanvas()}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-accent/40 bg-accent/5 hover:bg-accent/10 hover:border-accent text-accent text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-[#1E90FF]/40 bg-[#1E90FF]/5 hover:bg-[#1E90FF]/10 hover:border-[#1E90FF] text-[#1E90FF] text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
           >
             <Plus className="w-4 h-4" />
             <span>New Canvas</span>
@@ -256,7 +283,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
                     </div>
                     <button
                       onClick={item.onClick}
-                      className="px-3 py-1 bg-surface-page hover:bg-accent hover:text-white border border-border-default hover:border-accent text-[10px] font-semibold rounded-lg text-text-primary transition-all cursor-pointer select-none shrink-0"
+                      className="px-3 py-1 bg-surface-page hover:bg-[#1E90FF] hover:text-white border border-border-default hover:border-[#1E90FF] text-[10px] font-semibold rounded-lg text-text-primary transition-all cursor-pointer select-none shrink-0"
                     >
                       {item.action}
                     </button>
@@ -278,37 +305,62 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
               <div>
                 <div className="flex items-center justify-between text-[11px] font-medium mb-1.5">
                   <span className="text-text-primary">Canvases Used</span>
-                  <span className="text-text-secondary">{totalCanvases} / 5</span>
+                  <span className="text-text-secondary">
+                    {quotaData?.canvases.current ?? totalCanvases} / {tier === 'guest' ? 1 : 5}
+                  </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
-                    className="h-full bg-accent rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min((totalCanvases / 5) * 100, 100)}%` }}
+                    className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(((quotaData?.canvases.current ?? totalCanvases) / (tier === 'guest' ? 1 : 5)) * 100, 100)}%` }}
                   />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between text-[11px] font-medium mb-1.5">
-                  <span className="text-text-primary">AI Credits</span>
-                  <span className="text-text-secondary">25 / 100</span>
+                  <span className="text-text-primary">AI Generations</span>
+                  <span className="text-text-secondary">
+                    {quotaData?.aiGenerations.used ?? 0} / {aiLimit}
+                    {tier === 'guest' ? ' (hourly)' : ' (daily)'}
+                  </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
-                    className="h-full bg-accent rounded-full transition-all duration-500"
-                    style={{ width: '25%' }}
+                    className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(((quotaData?.aiGenerations.used ?? 0) / aiLimit) * 100, 100)}%` }}
                   />
                 </div>
               </div>
             </div>
 
             <div className="pt-2 border-t border-border-default/60 flex items-center justify-between gap-3">
-              <span className="text-[10px] text-text-muted font-medium">Usage resets next month</span>
-              <button className="px-3.5 py-1.5 bg-accent hover:bg-accent-hover text-white text-[11px] font-semibold rounded-lg transition-all cursor-pointer shadow-sm active:scale-[0.98]">
-                Upgrade
-              </button>
+              <span className="text-[10px] text-text-muted font-medium">
+                {tier === 'guest' ? 'Sign in for higher limits' : 'Resets daily'}
+              </span>
+              {tier === 'guest' && (
+                <SignInButtons compact />
+              )}
             </div>
           </div>
+
+          {/* Guest Upgrade Banner */}
+          {tier === 'guest' && (
+            <div className="border border-[#1E90FF]/30 rounded-xl p-5 bg-[#1E90FF]/5 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-text-primary">Unlock the Full Experience</h3>
+                <p className="text-[11px] text-text-muted mt-0.5">Sign in for free to get more features.</p>
+              </div>
+              <ul className="text-[11px] text-text-secondary space-y-1.5">
+                <li>✅ 10 AI generations per day (vs 3/hour)</li>
+                <li>✅ Save up to 5 canvases (vs 1 session)</li>
+                <li>✅ Export PNG/SVG without watermarks</li>
+                <li>✅ Share diagrams with your team</li>
+                <li>✅ Full tutorial system access</li>
+              </ul>
+              <SignInButtons />
+            </div>
+          )}
         </div>
 
       </div>

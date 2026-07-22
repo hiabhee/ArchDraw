@@ -27,6 +27,8 @@ import { isGitHubRepoUrl, parseGitHubUrl } from '@/lib/utils/githubUrl';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
+import { getUserTier } from '@/lib/userQuotas';
+import { QuotaIndicator } from '@/components/QuotaIndicator';
 
 const CommandPalette = dynamic(() => import('@/components/CommandPalette').then(m => ({ default: m.CommandPalette })), { ssr: false });
 const MermaidCodePanel = dynamic(() => import('@/components/MermaidCodePanel').then(m => ({ default: m.MermaidCodePanel })), { ssr: false });
@@ -57,6 +59,7 @@ export default function EditorPage() {
     startGeneration, markPipelineDone, markPipelineError
   } = useDiagramStore();
   const { user } = useAuthStore();
+  const tier = getUserTier(user?.id);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editComponent, setEditComponent] = useState<ComponentToEdit | null>(null);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
@@ -439,6 +442,7 @@ export default function EditorPage() {
   return (
     <ErrorBoundary>
       <div className="fixed inset-0 overflow-hidden bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation' }}>
+
         {sequenceDiagrams[activeCanvasId] ? (
           <SequenceDiagramViewer />
         ) : (
@@ -545,6 +549,7 @@ export default function EditorPage() {
         {showRepoIngestModal && (
           <RepoDiagramGenerator onClose={() => setShowRepoIngestModal(false)} />
         )}
+        <QuotaIndicator />
       </div>
     </ErrorBoundary>
   );

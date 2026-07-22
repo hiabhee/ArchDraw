@@ -94,7 +94,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       {/* Top banner */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[#0f172a]/95 backdrop-blur-sm border-b border-white/10">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-indigo-600 rounded-md flex items-center justify-center">
+          <div className="w-5 h-5 bg-blue-600 rounded-md flex items-center justify-center">
             <div className="w-2 h-2 border border-white/80 rounded-sm" />
           </div>
           <span className="text-white font-semibold text-sm">Archflow</span>
@@ -124,7 +124,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       {downloaded && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-4 py-2.5 bg-green-500/15 border border-green-500/30 rounded-lg backdrop-blur-sm">
           <span className="text-green-400 text-xs font-medium">✅ Diagram downloaded!</span>
-          <a href="/editor" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors underline underline-offset-2">
+          <a href="/editor" className="text-xs text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2">
             Start designing for free →
           </a>
         </div>

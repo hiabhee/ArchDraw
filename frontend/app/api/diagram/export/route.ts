@@ -3,6 +3,8 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import logger from '@/lib/logger';
+import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
+import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
 
 export interface DiagramData {
   nodes: unknown[];
@@ -45,6 +47,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = ExportSchema.parse(body);
 
+    const session = await getSessionFromRequest(request);
+    const userId = session?.user?.id;
+    const tier = getUserTier(userId);
+
+    if (!isExportFormatAllowed(tier, validated.format)) {
+      return NextResponse.json(
+        {
+          error: `${validated.format.toUpperCase()} export requires sign in`,
+          code: 'FEATURE_RESTRICTED',
+          allowedFormats: getUserQuotas(tier).allowedExportFormats,
+        },
+        { status: 403 }
+      );
+    }
+
     const diagram = diagramStore.get(validated.sessionId);
     if (!diagram) {
       return NextResponse.json(
@@ -64,10 +81,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (format === 'png' || format === 'svg') {
+      const watermark = shouldWatermark(tier, format);
       return NextResponse.json({
         nodes: diagram.nodes,
         edges: diagram.edges,
         format,
+        watermark,
         message: `For ${format.toUpperCase()} export, open the editor URL and use the export button.`,
         editorUrl: `/editor?session=${validated.sessionId}`,
       });

@@ -8,7 +8,8 @@ import { saveTutorialProgress as apiSaveTutorialProgress } from '@/lib/api-clien
 import { STORAGE_KEYS } from '@/lib/config';
 
 async function migrateGuestProgress(userId: string) {
-  if (!process.env.DATABASE_URL) return;
+  const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+  if (!authEnabled) return;
   const { richProgress } = useTutorialStore.getState();
   const entries = Object.entries(richProgress);
   if (entries.length === 0) return;
@@ -47,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!initialized) return;
 
     if (!user) {
+      console.log('[AuthProvider] No user, clearing profile');
       prevUserIdRef.current = null;
       useDiagramStore.getState().setUserProfile(null);
       return;
@@ -58,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { setUserProfile, loadCanvasesFromDB } = useDiagramStore.getState();
 
     if (user.id !== 'guest') {
+      console.log('[AuthProvider] Setting authenticated user profile:', { id: user.id, email: user.email, name: user.name });
       setUserProfile({
         id: user.id,
         email: user.email ?? undefined,
@@ -67,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loadCanvasesFromDB().catch(() => {});
       migrateGuestProgress(user.id).catch(() => {});
     } else {
+      console.log('[AuthProvider] Setting guest user profile');
       setUserProfile({
         id: 'guest',
         email: 'guest@local',
@@ -76,7 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, initialized]);
 
   useEffect(() => {
-    if (!initialized || !process.env.DATABASE_URL) return;
+    const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+    if (!initialized || !authEnabled) return;
 
     const isOffline = typeof window !== 'undefined' && !window.navigator.onLine;
     if (isOffline) return;

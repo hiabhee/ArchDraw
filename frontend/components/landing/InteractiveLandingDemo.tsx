@@ -152,8 +152,8 @@ function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; sele
         ['--node-status-color' as string]: statusColor,
       }}
     >
-      <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-[#5e6ad2] !border-0" style={{ zIndex: 10 }} />
-      <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-[#5e6ad2] !border-0" style={{ zIndex: 10 }} />
+      <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-[#1E90FF] !border-0" style={{ zIndex: 10 }} />
+      <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-[#1E90FF] !border-0" style={{ zIndex: 10 }} />
 
       {backplateLayers.map((layer, i) => (
         <div
@@ -857,7 +857,7 @@ function InteractiveLandingDemoContent() {
             <div className={`px-2 py-1 rounded-lg flex items-center gap-1 text-[11px] font-semibold transition-all cursor-pointer ${
               isDemoDark ? 'bg-[#18191c] text-[#f7f8f8]' : 'bg-[#f1f5f9] text-[#0f172a]'
             }`}>
-              <LayoutDashboard className="w-3.5 h-3.5 text-[#5e6ad2]" />
+              <LayoutDashboard className="w-3.5 h-3.5 text-[#1E90FF]" />
               <span>Dashboard</span>
             </div>
             <ChevronLeft className={`w-3.5 h-3.5 ${isDemoDark ? 'text-[#3f444e]' : 'text-[#cbd5e1]'}`} />
@@ -939,7 +939,7 @@ function InteractiveLandingDemoContent() {
                         toast.success(`Switched model to ${model}`);
                       }}
                       className={`px-3 py-1.5 text-left transition-all hover:bg-slate-100 dark:hover:bg-[#15171a] ${
-                        selectedModel === model ? 'text-[#5e6ad2] font-semibold' : ''
+                        selectedModel === model ? 'text-[#1E90FF] font-semibold' : ''
                       }`}
                     >
                       {model}
@@ -954,7 +954,7 @@ function InteractiveLandingDemoContent() {
             <button
               onClick={() => setIsDemoDark(!isDemoDark)}
               className={`p-1.5 rounded-lg border transition-all ${
-                isDemoDark ? 'border-[#23252a] text-amber-500 hover:bg-[#15171a]' : 'border-[#cbd5e1] text-indigo-500 hover:bg-[#f1f5f9]'
+                isDemoDark ? 'border-[#23252a] text-amber-500 hover:bg-[#15171a]' : 'border-[#cbd5e1] text-blue-500 hover:bg-[#f1f5f9]'
               }`}
               title="Toggle theme"
             >
@@ -1010,7 +1010,7 @@ function InteractiveLandingDemoContent() {
             <button className={`p-2 rounded-xl transition-all ${
               isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
             }`} title="Blocks/Shapes">
-              <LayoutGrid className="w-4.5 h-4.5 text-[#5e6ad2]" />
+              <LayoutGrid className="w-4.5 h-4.5 text-[#1E90FF]" />
             </button>
             <button className={`p-2 rounded-xl transition-all ${
               isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'

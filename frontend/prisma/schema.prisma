@@ -7,47 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Better Auth Models
-// ═══════════════════════════════════════════════════════════════════
-
-model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-
-  // Application relations (repointed from auth.users)
-  profile          Profile?
-  userCanvases     UserCanvas[]
-  tutorialProgress TutorialProgress[]
-  visitor          Visitor?           @relation(fields: [visitorId], references: [id])
-  visitorId        String?            @db.Uuid
-}
-
-model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Account {
-  id                    String    @id @default(cuid())
+  id                    String    @id
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -56,180 +20,198 @@ model Account {
   scope                 String?
   password              String?
   createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  updatedAt             DateTime
+  User                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, providerId])
 }
 
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                     String              @id
+  name                   String
+  email                  String              @unique
+  emailVerified          Boolean             @default(false)
+  image                  String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime
+  visitorId              String?             @db.Uuid
+  daily_generations      Int                 @default(0)
+  daily_generations_date DateTime            @default(now())
+  feature_flags          Json                @default("{}")
+  total_generations      Int                 @default(0)
+  Account                Account[]
+  Session                Session[]
+  visitors               visitors?           @relation(fields: [visitorId], references: [id])
+  profiles               profiles?
+  shared_canvases        shared_canvases[]
+  tutorial_progress      tutorial_progress[]
+  usage_logs             usage_logs[]
+  user_canvases          user_canvases[]
+}
+
 model Verification {
-  id         String   @id @default(cuid())
+  id         String   @id
   identifier String
   value      String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime
 
   @@unique([identifier, value])
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Application Tables
-// ═══════════════════════════════════════════════════════════════════
-
-model Profile {
-  id         String    @id // FK → User.id (Better Auth)
-  email      String?
-  fullName   String?   @map("full_name")
-  avatarUrl  String?   @map("avatar_url")
-  provider   String?
-  createdAt  DateTime  @default(now()) @map("created_at")
-  lastSeenAt DateTime? @map("last_seen_at")
-
-  user User @relation(fields: [id], references: [id], onDelete: Cascade)
-
-  @@map("profiles")
+model component_categories {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  color         String?  @default("#94a3b8")
+  icon          String?
+  display_order Int?     @default(0)
+  created_at    DateTime @default(now())
 }
 
-model UserCanvas {
-  id        String   @id // text PK, not auto-generated
-  userId    String   @map("user_id")
-  name      String   @default("Canvas 1")
-  nodes     Json     @default("[]")
-  edges     Json     @default("[]")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("user_canvases")
-}
-
-model TutorialProgress {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String   @map("user_id")
-  tutorialId      String   @map("tutorial_id")
-  currentLevel    Int      @default(1) @map("current_level")
-  currentStep     Int      @default(1) @map("current_step")
-  currentPhase    String   @default("context") @map("current_phase")
-  completedLevels Int[]    @default([]) @map("completed_levels")
-  canvasNodes     Json     @default("[]") @map("canvas_nodes")
-  canvasEdges     Json     @default("[]") @map("canvas_edges")
-  explainCount    Int      @default(0) @map("explain_count")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, tutorialId])
-  @@map("tutorial_progress")
-}
-
-model SharedCanvas {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  canvasName     String   @map("canvas_name")
-  nodes          Json
-  edges          Json
-  accessType     String   @default("anyone") @map("access_type")
-  linkPermission String   @default("viewer") @map("link_permission")
-  users          Json     @default("[]")
-  createdAt      DateTime @default(now()) @map("created_at")
-  expiresAt      DateTime @default(dbgenerated("(now() + interval '30 days')")) @map("expires_at")
-
-  @@map("shared_canvases")
-}
-
-model TutorialResponseCache {
-  questionHash String   @id @map("question_hash")
-  response     String
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  @@map("tutorial_response_cache")
-}
-
-model ComponentCategory {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String
-  color        String?  @default("#94a3b8")
-  icon         String?
-  displayOrder Int?     @default(0) @map("display_order")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  templates ComponentTemplate[]
-
-  @@map("component_categories")
-}
-
-model ComponentTemplate {
+model component_templates {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  categoryId  String?  @map("category_id")
+  category_id String?
   name        String
   description String?
   color       String?  @default("#94a3b8")
   icon        String?
   technology  String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  created_at  DateTime @default(now())
 
-  category ComponentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  @@index([categoryId])
-  @@map("component_templates")
+  @@index([category_id])
 }
 
-model Visitor {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  anonId        String   @unique @map("anon_id")
-  userId        String?  @map("user_id")
-  firstSeenAt   DateTime @default(now()) @map("first_seen_at")
-  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
-  firstReferrer String?  @map("first_referrer")
-  firstUtm      Json?    @map("first_utm")
-  userAgent     String?  @map("user_agent")
-  country       String?
-  isInternal    Boolean? @default(false) @map("is_internal")
+model events {
+  id         BigInt   @id @default(autoincrement())
+  session_id String
+  visitor_id String
+  event_type String
+  event_name String?
+  page_path  String?
+  payload    Json     @default("{}")
+  created_at DateTime @default(now())
 
-  sessions VisitorSession[]
-  events   Event[]
-  users    User[]
-
-  @@index([anonId])
-  @@index([userId])
-  @@map("visitors")
+  @@index([created_at(sort: Desc)])
+  @@index([event_type, created_at(sort: Desc)])
+  @@index([session_id])
+  @@index([visitor_id])
 }
 
-model VisitorSession {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  visitorId       String    @map("visitor_id")
-  startedAt       DateTime  @default(now()) @map("started_at")
-  endedAt         DateTime? @map("ended_at")
-  durationSeconds Int?      @map("duration_seconds")
-  entryPage       String?   @map("entry_page")
-  exitPage        String?   @map("exit_page")
-  deviceType      String?   @map("device_type")
-
-  visitor Visitor @relation(fields: [visitorId], references: [id])
-  events  Event[]
-
-  @@index([visitorId])
-  @@index([startedAt(sort: Desc)])
-  @@map("sessions")
+model profiles {
+  id           String    @id
+  email        String?
+  full_name    String?
+  avatar_url   String?
+  provider     String?
+  created_at   DateTime  @default(now())
+  last_seen_at DateTime?
+  User         User      @relation(fields: [id], references: [id], onDelete: Cascade)
 }
 
-model Event {
-  id        BigInt   @id @default(autoincrement())
-  sessionId String   @map("session_id")
-  visitorId String   @map("visitor_id")
-  eventType String   @map("event_type")
-  eventName String?  @map("event_name")
-  pagePath  String?  @map("page_path")
-  payload   Json     @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
+model sessions {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visitor_id       String
+  started_at       DateTime  @default(now())
+  ended_at         DateTime?
+  duration_seconds Int?
+  entry_page       String?
+  exit_page        String?
+  device_type      String?
 
-  session VisitorSession @relation(fields: [sessionId], references: [id])
-  visitor Visitor        @relation(fields: [visitorId], references: [id])
+  @@index([started_at(sort: Desc)])
+  @@index([visitor_id])
+}
 
-  @@index([sessionId])
-  @@index([visitorId])
-  @@index([eventType, createdAt(sort: Desc)])
-  @@index([createdAt(sort: Desc)])
-  @@map("events")
+model shared_canvases {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  canvas_name     String
+  nodes           Json
+  edges           Json
+  created_at      DateTime @default(now())
+  expires_at      DateTime @default(dbgenerated("(now() + '30 days'::interval)"))
+  access_type     String   @default("anyone")
+  link_permission String   @default("viewer")
+  users           Json     @default("[]")
+  owner_id        String?
+  User            User?    @relation(fields: [owner_id], references: [id])
+}
+
+model tutorial_progress {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String
+  tutorial_id      String
+  current_level    Int      @default(1)
+  current_step     Int      @default(1)
+  current_phase    String   @default("context")
+  completed_levels Int[]    @default([])
+  canvas_nodes     Json     @default("[]")
+  canvas_edges     Json     @default("[]")
+  explain_count    Int      @default(0)
+  updated_at       DateTime
+  User             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, tutorial_id])
+}
+
+model tutorial_response_cache {
+  question_hash String   @id
+  response      String
+  created_at    DateTime @default(now())
+}
+
+model usage_logs {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?
+  guest_id   String?
+  action     String
+  metadata   Json?
+  created_at DateTime @default(now())
+  User       User?    @relation(fields: [user_id], references: [id])
+
+  @@index([action, created_at])
+  @@index([guest_id, created_at])
+  @@index([user_id, created_at])
+}
+
+model user_canvases {
+  id         String   @id
+  user_id    String
+  name       String   @default("Canvas 1")
+  nodes      Json     @default("[]")
+  edges      Json     @default("[]")
+  created_at DateTime @default(now())
+  updated_at DateTime
+  User       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model visitors {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anon_id        String   @unique
+  user_id        String?
+  first_seen_at  DateTime @default(now())
+  last_seen_at   DateTime @default(now())
+  first_referrer String?
+  first_utm      Json?
+  user_agent     String?
+  country        String?
+  is_internal    Boolean? @default(false)
+  User           User[]
+
+  @@index([anon_id])
+  @@index([user_id])
 }

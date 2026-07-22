@@ -45,7 +45,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
     <button
       onClick={() => onChange(!enabled)}
       className="w-11 h-6 rounded-full transition-colors relative"
-      style={{ background: enabled ? '#1A1A1A' : '#E0E0E0' }}
+      style={{ background: enabled ? '#1E90FF' : '#E0E0E0' }}
     >
       <span 
         className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform"
@@ -173,10 +173,10 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-[12px] transition-all ${
-                  activeTab === tab.id ? 'bg-white shadow-sm' : 'hover:bg-gray-100'
+                  activeTab === tab.id ? 'bg-[#1E90FF]/10 text-[#1E90FF] font-medium' : 'hover:bg-gray-100'
                 }`}
                 style={{ 
-                  color: activeTab === tab.id ? '#1A1A1A' : '#6B6B6B'
+                  color: activeTab === tab.id ? '#1E90FF' : '#6B6B6B'
                 }}
               >
                 <tab.icon className="w-4 h-4" />
@@ -333,7 +333,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 />
               </div>
 
-              <button className="w-full py-3 text-sm font-medium text-white rounded-[14px] hover:opacity-90" style={{ background: '#1A1A1A', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)' }}>
+              <button className="w-full py-3 text-sm font-medium text-white rounded-[14px] hover:opacity-90" style={{ background: '#1E90FF', boxShadow: '0 4px 12px rgba(30, 144, 255, 0.3)' }}>
                 Save changes
               </button>
 
@@ -509,25 +509,78 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SectionDesc>Manage your plan and billing</SectionDesc>
               </div>
 
+              {/* Current Plan */}
               <div className="p-5 rounded-[16px] border-2" style={{ borderColor: '#1A1A1A' }}>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Free plan</span>
+                  <span className="text-sm font-medium" style={{ color: '#1A1A1A' }}>
+                    {userProfile?.id === 'guest' ? 'Guest' : 'Free'} plan
+                  </span>
                   <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#1A1A1A', color: 'white' }}>Current</span>
                 </div>
-                <p className="text-sm mb-4" style={{ color: '#6B6B6B' }}>5 canvases, basic features</p>
-                <button className="w-full py-2.5 text-sm font-medium text-white rounded-[12px] hover:opacity-90" style={{ background: '#1A1A1A' }}>
-                  Upgrade to Pro
-                </button>
+                <p className="text-sm mb-4" style={{ color: '#6B6B6B' }}>
+                  {userProfile?.id === 'guest' ? '1 canvas (session only), 3 AI gens/hour' : '5 canvases, 10 AI gens/day'}
+                </p>
               </div>
 
+              {/* Pro Plan Upgrade */}
+              <div className="p-5 rounded-[16px] border-2" style={{ borderColor: '#1E90FF', background: 'linear-gradient(135deg, #F0F8FF 0%, #E6F3FF 100%)' }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-5 h-5" style={{ color: '#1E90FF' }} />
+                  <span className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>Pro Plan</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#1E90FF', color: 'white' }}>Popular</span>
+                </div>
+                <ul className="space-y-2 mb-4">
+                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
+                    <span style={{ color: '#22C55E' }}>✓</span>
+                    <span>Unlimited canvases</span>
+                  </li>
+                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
+                    <span style={{ color: '#22C55E' }}>✓</span>
+                    <span>Unlimited AI generations</span>
+                  </li>
+                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
+                    <span style={{ color: '#22C55E' }}>✓</span>
+                    <span>Priority support</span>
+                  </li>
+                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
+                    <span style={{ color: '#22C55E' }}>✓</span>
+                    <span>Advanced export options</span>
+                  </li>
+                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
+                    <span style={{ color: '#22C55E' }}>✓</span>
+                    <span>Custom branding</span>
+                  </li>
+                </ul>
+                <a
+                  href="mailto:jamdadeabhishek039@gmail.com?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20upgrading%20to%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AMy%20account%20details%3A%0AName%3A%20%0AEmail%3A%20%0A%0AThank%20you!"
+                  className="w-full py-2.5 text-sm font-medium text-white rounded-[12px] hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  style={{ background: '#1E90FF' }}
+                >
+                  <Mail className="w-4 h-4" />
+                  Contact for Upgrade
+                </a>
+                <p className="text-[10px] text-center mt-2" style={{ color: '#6B6B6B' }}>
+                  Email us to discuss pricing and get started
+                </p>
+              </div>
+
+              {/* Usage Stats */}
               <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Canvases used</p>
-                    <p className="text-xs mt-1" style={{ color: '#6B6B6B' }}>{canvases.length} of 5</p>
+                    <p className="text-xs mt-1" style={{ color: '#6B6B6B' }}>
+                      {canvases.length} of {userProfile?.id === 'guest' ? '1' : '5'}
+                    </p>
                   </div>
                   <div className="w-24 h-2 rounded-full" style={{ background: '#E0E0E0' }}>
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(canvases.length * 20, 100)}%`, background: '#1A1A1A' }} />
+                    <div 
+                      className="h-full rounded-full transition-all" 
+                      style={{ 
+                        width: `${Math.min((canvases.length / (userProfile?.id === 'guest' ? 1 : 5)) * 100, 100)}%`, 
+                        background: canvases.length >= (userProfile?.id === 'guest' ? 1 : 5) ? '#EF4444' : '#1E90FF'
+                      }} 
+                    />
                   </div>
                 </div>
               </div>

@@ -115,7 +115,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
               {knowledge.concepts && knowledge.concepts.length > 0 && (
                 <section>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                    <Layers className="w-3.5 h-3.5 text-blue-500" />
                     <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Key Concepts</h4>
                   </div>
                   <div className="flex flex-wrap gap-1.5">

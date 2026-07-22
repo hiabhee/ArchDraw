@@ -64,7 +64,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">Your Rights</h2>
-            <p>You may request access to, export of, or deletion of your data at any time. Contact us at <a href="mailto:hello@archdraw.app" className="text-indigo-600 hover:underline">hello@archdraw.app</a>.</p>
+            <p>You may request access to, export of, or deletion of your data at any time. Contact us at <a href="mailto:hello@archdraw.app" className="text-blue-600 hover:underline">hello@archdraw.app</a>.</p>
           </section>
 
           <section>
@@ -74,7 +74,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">Contact</h2>
-            <p>Questions? Email us at <a href="mailto:hello@archdraw.app" className="text-indigo-600 hover:underline">hello@archdraw.app</a>.</p>
+            <p>Questions? Email us at <a href="mailto:hello@archdraw.app" className="text-blue-600 hover:underline">hello@archdraw.app</a>.</p>
           </section>
         </div>
       </main>

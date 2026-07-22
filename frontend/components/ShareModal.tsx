@@ -220,7 +220,7 @@ export function ShareModal({
               <button
                 onClick={handleInvite}
                 disabled={!validateEmail(inviteEmail)}
-                className="px-5 py-[10px] text-[14px] font-medium text-white bg-[#111118] rounded-[9999px] hover:bg-[#1F2937] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                className="px-5 py-[10px] text-[14px] font-medium text-white bg-[#1E90FF] rounded-[9999px] hover:bg-[#4dabf7] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
               >
                 Invite
               </button>
@@ -241,11 +241,11 @@ export function ShareModal({
                   onAccessChange?.('restricted', linkPerm === 'can edit' ? 'editor' : 'viewer');
                 }}
                 className={`w-full flex items-center gap-3 p-3 rounded-[10px] transition-all duration-150 ${
-                  accessMode === 'invited' ? 'bg-[#F0F0F2]' : 'hover:bg-[#F9FAFB]'
+                  accessMode === 'invited' ? 'bg-[#1E90FF]/10 border border-[#1E90FF]/30' : 'hover:bg-[#F9FAFB]'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center transition-all duration-150 ${
-                  accessMode === 'invited' ? 'bg-[#111118]' : 'bg-[#F3F4F6]'
+                  accessMode === 'invited' ? 'bg-[#1E90FF]' : 'bg-[#F3F4F6]'
                 }`}>
                   {accessMode === 'invited' ? (
                     <Check className="w-5 h-5 text-white" />
@@ -267,11 +267,11 @@ export function ShareModal({
                   onAccessChange?.('anyone', linkPerm === 'can edit' ? 'editor' : 'viewer');
                 }}
                 className={`w-full flex items-center gap-3 p-3 rounded-[10px] transition-all duration-150 ${
-                  accessMode === 'link' ? 'bg-[#F0F0F2]' : 'hover:bg-[#F9FAFB]'
+                  accessMode === 'link' ? 'bg-[#1E90FF]/10 border border-[#1E90FF]/30' : 'hover:bg-[#F9FAFB]'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center transition-all duration-150 ${
-                  accessMode === 'link' ? 'bg-[#111118]' : 'bg-[#F3F4F6]'
+                  accessMode === 'link' ? 'bg-[#1E90FF]' : 'bg-[#F3F4F6]'
                 }`}>
                   {accessMode === 'link' ? (
                     <Check className="w-5 h-5 text-white" />
@@ -297,7 +297,7 @@ export function ShareModal({
                     onAccessChange?.('anyone', 'viewer');
                   }}
                   className={`px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
-                    linkPerm === 'can view' ? 'bg-[#111118] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    linkPerm === 'can view' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
                   }`}
                 >
                   View
@@ -308,7 +308,7 @@ export function ShareModal({
                     onAccessChange?.('anyone', 'editor');
                   }}
                   className={`px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
-                    linkPerm === 'can edit' ? 'bg-[#111118] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    linkPerm === 'can edit' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
                   }`}
                 >
                   Edit
@@ -434,7 +434,7 @@ export function ShareModal({
               className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-[9999px] text-[14px] font-medium transition-all duration-150
                 ${copied
                   ? 'bg-[#DCFCE7] text-[#22C55E] cursor-default'
-                  : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                  : 'bg-[#1E90FF] text-white hover:bg-[#4dabf7]'
                 }`}
             >
               {copied

@@ -215,7 +215,7 @@ export function PropertiesPanel() {
             onChange={(e) => setLocalLabel(e.target.value)}
             onBlur={commitLabel}
             onKeyDown={(e) => { if (e.key === 'Enter') labelRef.current?.blur(); e.stopPropagation(); }}
-            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
           />
         </div>
 
@@ -285,7 +285,7 @@ export function PropertiesPanel() {
                     const w = parseInt(e.target.value) || 180;
                     updateNodeSize(node.id, { width: w });
                   }}
-                  className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
                 />
               </div>
               <div>
@@ -297,7 +297,7 @@ export function PropertiesPanel() {
                     const h = parseInt(e.target.value) || 100;
                     updateNodeSize(node.id, { height: h });
                   }}
-                  className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+                  className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
                 />
               </div>
             </div>

@@ -328,16 +328,30 @@ function CanvasInner() {
         y: clientY,
       });
 
-      // Signal the hook to auto-start editing on the next render
-      // (must happen before the store update triggers React's re-render)
+      console.log('[onConnectEnd] Creating new node at position:', flowPos);
+      
+      // Create the new node first
       const newNodeId = addNodeOnEdgeDrop({
         originNodeId: start.nodeId,
         originHandleType: start.handleType,
         position: flowPos,
       });
+      
+      console.log('[onConnectEnd] New node created with ID:', newNodeId);
+      
+      // Signal the hook to auto-start editing AFTER node creation
+      // Use setTimeout to ensure it runs after React renders the new node
       consumePendingEdit(newNodeId);
+      
+      console.log('[onConnectEnd] consumePendingEdit called for:', newNodeId);
+      
+      // Also select the new node to ensure it's in focus
+      setTimeout(() => {
+        console.log('[onConnectEnd] Selecting node:', newNodeId);
+        setSelectedNodeId(newNodeId);
+      }, 0);
     },
-    [reactFlowInstance, addNodeOnEdgeDrop]
+    [reactFlowInstance, addNodeOnEdgeDrop, setSelectedNodeId]
   );
 
   const onPaneClick = useCallback(() => {

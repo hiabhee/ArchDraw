@@ -131,7 +131,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                   key={canvas.id}
                   className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     canvas.id === activeCanvasId
-                      ? 'bg-primary/10 text-primary'
+                      ? 'bg-[#1E90FF]/10 text-[#1E90FF]'
                       : 'hover:bg-accent'
                   }`}
                   onClick={() => handleCanvasClick(canvas.id)}

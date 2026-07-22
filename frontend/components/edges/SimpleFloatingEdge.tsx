@@ -464,7 +464,7 @@ export default function SimpleFloatingEdge({
               </div>
               {bundledEdges.map((e: Edge, idx: number) => (
                 <div key={e.id || idx} className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                   <span className="font-semibold text-xs">{e.data?.label || e.label || 'request'}</span>
                   {e.data?.protocol && (
                     <span className="text-[9px] px-1 bg-muted text-muted-foreground rounded font-mono">
