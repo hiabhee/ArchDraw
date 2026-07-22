@@ -70,6 +70,20 @@ export function ShareModal({
   }, []);
 
   const handleCopyLink = async (url: string) => {
+    if (typeof window !== 'undefined') {
+      const { analytics } = require('@/lib/analytics');
+      analytics.track({
+        event_type: 'sharing',
+        event_name: 'share_link_copied',
+        page_path: window.location.pathname,
+        payload: { 
+          access_mode: accessMode,
+          link_permission: linkPerm,
+          session_id: sessionId 
+        }
+      });
+    }
+
     if (externalOnCopyLink) {
       externalOnCopyLink(url);
       setCopied(true);
@@ -112,6 +126,19 @@ export function ShareModal({
       email: inviteEmail,
       role: invitePermission,
     };
+
+    if (typeof window !== 'undefined') {
+      const { analytics } = require('@/lib/analytics');
+      analytics.track({
+        event_type: 'sharing',
+        event_name: 'user_invited',
+        page_path: window.location.pathname,
+        payload: { 
+          permission: invitePermission,
+          session_id: sessionId 
+        }
+      });
+    }
 
     if (onInvite) {
       onInvite(inviteEmail, invitePermission);
@@ -239,6 +266,18 @@ export function ShareModal({
                 onClick={() => {
                   setAccessMode('invited');
                   onAccessChange?.('restricted', linkPerm === 'can edit' ? 'editor' : 'viewer');
+                  if (typeof window !== 'undefined') {
+                    const { analytics } = require('@/lib/analytics');
+                    analytics.track({
+                      event_type: 'sharing',
+                      event_name: 'access_mode_changed',
+                      page_path: window.location.pathname,
+                      payload: { 
+                        mode: 'restricted',
+                        session_id: sessionId 
+                      }
+                    });
+                  }
                 }}
                 className={`w-full flex items-center gap-3 p-3 rounded-[10px] transition-all duration-150 ${
                   accessMode === 'invited' ? 'bg-[#1E90FF]/10 border border-[#1E90FF]/30' : 'hover:bg-[#F9FAFB]'
@@ -265,6 +304,18 @@ export function ShareModal({
                 onClick={() => {
                   setAccessMode('link');
                   onAccessChange?.('anyone', linkPerm === 'can edit' ? 'editor' : 'viewer');
+                  if (typeof window !== 'undefined') {
+                    const { analytics } = require('@/lib/analytics');
+                    analytics.track({
+                      event_type: 'sharing',
+                      event_name: 'access_mode_changed',
+                      page_path: window.location.pathname,
+                      payload: { 
+                        mode: 'anyone_with_link',
+                        session_id: sessionId 
+                      }
+                    });
+                  }
                 }}
                 className={`w-full flex items-center gap-3 p-3 rounded-[10px] transition-all duration-150 ${
                   accessMode === 'link' ? 'bg-[#1E90FF]/10 border border-[#1E90FF]/30' : 'hover:bg-[#F9FAFB]'
@@ -295,6 +346,18 @@ export function ShareModal({
                   onClick={() => {
                     setLinkPerm('can view');
                     onAccessChange?.('anyone', 'viewer');
+                    if (typeof window !== 'undefined') {
+                      const { analytics } = require('@/lib/analytics');
+                      analytics.track({
+                        event_type: 'sharing',
+                        event_name: 'link_permission_changed',
+                        page_path: window.location.pathname,
+                        payload: { 
+                          permission: 'viewer',
+                          session_id: sessionId 
+                        }
+                      });
+                    }
                   }}
                   className={`px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
                     linkPerm === 'can view' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
@@ -306,6 +369,18 @@ export function ShareModal({
                   onClick={() => {
                     setLinkPerm('can edit');
                     onAccessChange?.('anyone', 'editor');
+                    if (typeof window !== 'undefined') {
+                      const { analytics } = require('@/lib/analytics');
+                      analytics.track({
+                        event_type: 'sharing',
+                        event_name: 'link_permission_changed',
+                        page_path: window.location.pathname,
+                        payload: { 
+                          permission: 'editor',
+                          session_id: sessionId 
+                        }
+                      });
+                    }
                   }}
                   className={`px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
                     linkPerm === 'can edit' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'

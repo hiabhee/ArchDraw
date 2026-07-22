@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
   const { searchParams } = new URL(req.url);
   const includeInternal = searchParams.get('internal') === 'include';
-  const days = parseInt(searchParams.get('days') || '30', 10);
+  const days = Math.min(Math.max(parseInt(searchParams.get('days') || '30', 10), 1), 365);
 
   const internalFilter = includeInternal ? {} : { isInternal: false };
 
   // Get visitor stats (replaces RPC function)
-  const [totalVisitors, guestVisitors, authVisitors, totalSessions, totalEvents, avgDuration, promptsSubmitted, exportsCompleted, diagramsGenerated] = await Promise.all([
+  const [
+    totalVisitors, guestVisitors, authVisitors, totalSessions, totalEvents, avgDuration,
+    promptsSubmitted, exportsCompleted, diagramsGenerated,
+    tutorialInteractions, aiGenerations, aiGenerationErrors,
+    sharingEvents, settingsEvents, uiInteractions,
+  ] = await Promise.all([
     prisma.visitor.count({ where: internalFilter }),
     prisma.visitor.count({ where: { ...internalFilter, userId: null } }),
     prisma.visitor.count({ where: { ...internalFilter, userId: { not: null } } }),
@@ -25,7 +34,16 @@ export async function GET(req: NextRequest) {
     prisma.event.count({ where: { visitor: internalFilter, eventType: 'prompt_submitted' } }),
     prisma.event.count({ where: { visitor: internalFilter, eventType: 'export' } }),
     prisma.event.count({ where: { visitor: internalFilter, eventType: 'diagram_generated' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'tutorial_interaction' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'ai_generation' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'ai_generation', eventName: { contains: 'error' } } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'sharing' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'settings_interaction' } }),
+    prisma.event.count({ where: { visitor: internalFilter, eventType: 'ui_interaction' } }),
   ]);
+
+  // AI generation success rate
+  const aiGenerationSuccess = aiGenerations - aiGenerationErrors;
 
   const stats = {
     total_visitors: totalVisitors,
@@ -37,6 +55,13 @@ export async function GET(req: NextRequest) {
     prompts_submitted: promptsSubmitted,
     exports_completed: exportsCompleted,
     diagrams_generated: diagramsGenerated,
+    tutorial_interactions: tutorialInteractions,
+    ai_generations: aiGenerations,
+    ai_generation_errors: aiGenerationErrors,
+    ai_generation_success: aiGenerationSuccess,
+    sharing_events: sharingEvents,
+    settings_events: settingsEvents,
+    ui_interactions: uiInteractions,
   };
 
   // Get daily active visitors — count distinct visitor_id per day
@@ -134,14 +159,52 @@ export async function GET(req: NextRequest) {
   }
 
   // Get funnel
-  const stages = ['page_view', 'prompt_submitted', 'diagram_generated', 'export'];
+  const stages = ['page_view', 'prompt_submitted', 'diagram_generated', 'ai_generation_success', 'export'];
   const funnel = [];
   for (let i = 0; i < stages.length; i++) {
-    const count = await prisma.event.count({
-      where: { eventType: stages[i], visitor: internalFilter },
-    });
+    const where: Record<string, unknown> = { visitor: internalFilter };
+    if (stages[i] === 'ai_generation_success') {
+      where.eventType = 'ai_generation';
+      where.eventName = { not: { contains: 'error' } };
+    } else {
+      where.eventType = stages[i];
+    }
+    const count = await prisma.event.count({ where });
     funnel.push({ stage: stages[i], sort_order: i + 1, unique_visitors: count });
   }
+
+  // Feature usage breakdown - group by event_name for new event types
+  const [tutorialBreakdownRaw, aiBreakdownRaw, sharingBreakdownRaw, settingsBreakdownRaw] = await Promise.all([
+    prisma.event.groupBy({
+      by: ['eventName'],
+      where: { eventType: 'tutorial_interaction', visitor: internalFilter, eventName: { not: null } },
+      _count: true,
+      orderBy: { _count: { eventName: 'desc' } },
+    }),
+    prisma.event.groupBy({
+      by: ['eventName'],
+      where: { eventType: 'ai_generation', visitor: internalFilter, eventName: { not: null } },
+      _count: true,
+      orderBy: { _count: { eventName: 'desc' } },
+    }),
+    prisma.event.groupBy({
+      by: ['eventName'],
+      where: { eventType: 'sharing', visitor: internalFilter, eventName: { not: null } },
+      _count: true,
+      orderBy: { _count: { eventName: 'desc' } },
+    }),
+    prisma.event.groupBy({
+      by: ['eventName'],
+      where: { eventType: 'settings_interaction', visitor: internalFilter, eventName: { not: null } },
+      _count: true,
+      orderBy: { _count: { eventName: 'desc' } },
+    }),
+  ]);
+
+  const tutorialBreakdown = tutorialBreakdownRaw.map(r => ({ event_name: r.eventName, count: r._count }));
+  const aiBreakdown = aiBreakdownRaw.map(r => ({ event_name: r.eventName, count: r._count }));
+  const sharingBreakdown = sharingBreakdownRaw.map(r => ({ event_name: r.eventName, count: r._count }));
+  const settingsBreakdown = settingsBreakdownRaw.map(r => ({ event_name: r.eventName, count: r._count }));
 
   return NextResponse.json({
     stats,
@@ -150,5 +213,9 @@ export async function GET(req: NextRequest) {
     topClicks,
     exportBreakdown,
     funnel,
+    tutorialBreakdown,
+    aiBreakdown,
+    sharingBreakdown,
+    settingsBreakdown,
   });
 }

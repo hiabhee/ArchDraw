@@ -107,6 +107,30 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const [portfolio, setPortfolio] = useState('');
   const [language, setLanguage] = useState('en');
 
+  const trackToggle = (setting: string, value: boolean) => {
+    if (typeof window !== 'undefined') {
+      const { analytics } = require('@/lib/analytics');
+      analytics.track({
+        event_type: 'settings_interaction',
+        event_name: 'setting_toggled',
+        page_path: window.location.pathname,
+        payload: { setting, value }
+      });
+    }
+  };
+
+  const trackDropdownChange = (setting: string, value: string) => {
+    if (typeof window !== 'undefined') {
+      const { analytics } = require('@/lib/analytics');
+      analytics.track({
+        event_type: 'settings_interaction',
+        event_name: 'setting_changed',
+        page_path: window.location.pathname,
+        payload: { setting, value }
+      });
+    }
+  };
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onOpenChange(false);
@@ -171,7 +195,18 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (typeof window !== 'undefined') {
+                    const { analytics } = require('@/lib/analytics');
+                    analytics.track({
+                      event_type: 'settings_interaction',
+                      event_name: 'settings_tab_changed',
+                      page_path: window.location.pathname,
+                      payload: { tab: tab.id }
+                    });
+                  }
+                }}
                 className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-[12px] transition-all ${
                   activeTab === tab.id ? 'bg-[#1E90FF]/10 text-[#1E90FF] font-medium' : 'hover:bg-gray-100'
                 }`}
@@ -239,19 +274,19 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
               <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
                 <SettingRow icon={Clock} title="Auto-save diagrams" desc="Automatically save changes">
-                  <Toggle enabled={autoSave} onChange={setAutoSave} />
+                  <Toggle enabled={autoSave} onChange={(val) => { setAutoSave(val); trackToggle('auto_save', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Grid3X3} title="Show grid on canvas" desc="Display alignment grid">
-                  <Toggle enabled={showGrid} onChange={toggleGrid} />
+                  <Toggle enabled={showGrid} onChange={(val) => { toggleGrid(); trackToggle('show_grid', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Magnet} title="Snap to grid" desc="Align nodes to grid">
-                  <Toggle enabled={snapToGrid} onChange={setSnapToGrid} />
+                  <Toggle enabled={snapToGrid} onChange={(val) => { setSnapToGrid(val); trackToggle('snap_to_grid', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Map} title="Show mini-map" desc="Display navigation minimap">
-                  <Toggle enabled={showMinimap} onChange={setShowMinimap} />
+                  <Toggle enabled={showMinimap} onChange={(val) => { setShowMinimap(val); trackToggle('show_minimap', val); }} />
                 </SettingRow>
               </div>
 
@@ -259,7 +294,10 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SettingRow icon={Globe} title="Default language" desc="UI language">
                   <select 
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                    onChange={(e) => { 
+                      setLanguage(e.target.value); 
+                      trackDropdownChange('language', e.target.value);
+                    }}
                     className="text-sm px-3 py-1.5 rounded-lg border-none outline-none"
                     style={{ background: 'white', color: '#1A1A1A' }}
                   >
@@ -365,19 +403,19 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
               <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
                 <SettingRow icon={Zap} title="Enable smooth connections" desc="Animate edge connections">
-                  <Toggle enabled={edgeAnimations} onChange={() => useDiagramStore.getState().toggleEdgeAnimations()} />
+                  <Toggle enabled={edgeAnimations} onChange={(val) => { useDiagramStore.getState().toggleEdgeAnimations(); trackToggle('edge_animations', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Eye} title="Show node labels" desc="Display component labels">
-                  <Toggle enabled={showLabels} onChange={setShowLabels} />
+                  <Toggle enabled={showLabels} onChange={(val) => { setShowLabels(val); trackToggle('show_labels', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Keyboard} title="Keyboard shortcuts hints" desc="Show shortcut tooltips">
-                  <Toggle enabled={shortcutHints} onChange={setShortcutHints} />
+                  <Toggle enabled={shortcutHints} onChange={(val) => { setShortcutHints(val); trackToggle('shortcut_hints', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Sparkles} title="Drag animations" desc="Animate node dragging">
-                  <Toggle enabled={dragAnimations} onChange={setDragAnimations} />
+                  <Toggle enabled={dragAnimations} onChange={(val) => { setDragAnimations(val); trackToggle('drag_animations', val); }} />
                 </SettingRow>
               </div>
 
@@ -436,11 +474,11 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
               <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
                 <SettingRow icon={Sparkles} title="Auto-generate suggestions" desc="AI suggests improvements">
-                  <Toggle enabled={autoSuggestions} onChange={setAutoSuggestions} />
+                  <Toggle enabled={autoSuggestions} onChange={(val) => { setAutoSuggestions(val); trackToggle('auto_suggestions', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={LayoutGrid} title="AI auto-layout" desc="Automatically arrange nodes">
-                  <Toggle enabled={aiAutoLayout} onChange={setAiAutoLayout} />
+                  <Toggle enabled={aiAutoLayout} onChange={(val) => { setAiAutoLayout(val); trackToggle('ai_auto_layout', val); }} />
                 </SettingRow>
               </div>
             </div>
@@ -488,15 +526,15 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
               <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
                 <SettingRow icon={Mail} title="Email notifications" desc="Receive updates via email">
-                  <Toggle enabled={emailNotifs} onChange={setEmailNotifs} />
+                  <Toggle enabled={emailNotifs} onChange={(val) => { setEmailNotifs(val); trackToggle('email_notifications', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Link2} title="Collaboration invites" desc="Notify when invited to canvas">
-                  <Toggle enabled={collabInvites} onChange={setCollabInvites} />
+                  <Toggle enabled={collabInvites} onChange={(val) => { setCollabInvites(val); trackToggle('collab_invites', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={FolderOpen} title="Shared canvas updates" desc="Notify on shared diagram changes">
-                  <Toggle enabled={sharedUpdates} onChange={setSharedUpdates} />
+                  <Toggle enabled={sharedUpdates} onChange={(val) => { setSharedUpdates(val); trackToggle('shared_updates', val); }} />
                 </SettingRow>
               </div>
             </div>

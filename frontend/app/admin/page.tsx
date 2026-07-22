@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Users, UserCheck, MousePointerClick, Clock, MessageSquare, Download, RefreshCw } from 'lucide-react';
+import { Users, UserCheck, MousePointerClick, Clock, MessageSquare, Download, RefreshCw, BookOpen, Bot, Share2, Settings, AlertTriangle } from 'lucide-react';
 
 type Stats = {
   total_visitors: number;
@@ -14,6 +14,13 @@ type Stats = {
   prompts_submitted: number;
   exports_completed: number;
   diagrams_generated: number;
+  tutorial_interactions: number;
+  ai_generations: number;
+  ai_generation_errors: number;
+  ai_generation_success: number;
+  sharing_events: number;
+  settings_events: number;
+  ui_interactions: number;
 };
 
 type DailyRow = { day: string; visitors: number; authenticated: number; guests: number };
@@ -106,6 +113,10 @@ export default function AdminOverview() {
     topClicks: { event_name: string; clicks: number }[];
     exportBreakdown: { format: string; count: number; success_count: number }[];
     funnel: FunnelRow[];
+    tutorialBreakdown: { event_name: string; count: number }[];
+    aiBreakdown: { event_name: string; count: number }[];
+    sharingBreakdown: { event_name: string; count: number }[];
+    settingsBreakdown: { event_name: string; count: number }[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -177,6 +188,16 @@ export default function AdminOverview() {
         <StatCard label="Exports" value={s.exports_completed ?? 0} icon={Download} />
       </div>
 
+      {/* Feature usage stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <StatCard label="Tutorial Steps" value={s.tutorial_interactions ?? 0} icon={BookOpen} sub="welcome card interactions" />
+        <StatCard label="AI Generations" value={s.ai_generations ?? 0} icon={Bot} sub={`${s.ai_generation_success ?? 0} ok / ${s.ai_generation_errors ?? 0} err`} />
+        <StatCard label="Sharing Actions" value={s.sharing_events ?? 0} icon={Share2} sub="invites, links, access" />
+        <StatCard label="Settings Changes" value={s.settings_events ?? 0} icon={Settings} sub="toggles, dropdowns" />
+        <StatCard label="UI Interactions" value={s.ui_interactions ?? 0} icon={MousePointerClick} sub="code view, etc." />
+        <StatCard label="AI Error Rate" value={s.ai_generations ? `${(((s.ai_generation_errors ?? 0) / s.ai_generations) * 100).toFixed(1)}%` : '0%'} icon={AlertTriangle} sub={`${s.ai_generation_errors ?? 0} of ${s.ai_generations ?? 0}`} />
+      </div>
+
       {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-4">
         {/* Daily visitors */}
@@ -227,6 +248,26 @@ export default function AdminOverview() {
         <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-4">
           <h3 className="text-xs text-[#8a8f98] uppercase tracking-wider mb-3">Export Formats</h3>
           <BarChart data={data?.exportBreakdown || []} labelKey="format" valueKey="count" />
+        </div>
+      </div>
+
+      {/* Feature usage breakdown */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-4">
+          <h3 className="text-xs text-[#8a8f98] uppercase tracking-wider mb-3">Tutorial Engagement</h3>
+          <BarChart data={data?.tutorialBreakdown || []} labelKey="event_name" valueKey="count" />
+        </div>
+        <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-4">
+          <h3 className="text-xs text-[#8a8f98] uppercase tracking-wider mb-3">AI Generation Events</h3>
+          <BarChart data={data?.aiBreakdown || []} labelKey="event_name" valueKey="count" />
+        </div>
+        <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-4">
+          <h3 className="text-xs text-[#8a8f98] uppercase tracking-wider mb-3">Sharing Activity</h3>
+          <BarChart data={data?.sharingBreakdown || []} labelKey="event_name" valueKey="count" />
+        </div>
+        <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-4">
+          <h3 className="text-xs text-[#8a8f98] uppercase tracking-wider mb-3">Settings Changes</h3>
+          <BarChart data={data?.settingsBreakdown || []} labelKey="event_name" valueKey="count" />
         </div>
       </div>
     </div>

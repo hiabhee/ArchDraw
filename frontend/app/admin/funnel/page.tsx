@@ -10,6 +10,7 @@ const STAGE_LABELS: Record<string, string> = {
   page_view: 'Landing',
   prompt_submitted: 'Prompt Submitted',
   diagram_generated: 'Diagram Generated',
+  ai_generation_success: 'AI Generation Success',
   export: 'Exported',
 };
 

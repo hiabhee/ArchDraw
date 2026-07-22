@@ -101,12 +101,30 @@ export function IntroCardFlow({
   const goNext = useCallback(() => {
     if (currentIndex < cards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
+      if (typeof window !== 'undefined') {
+        const { analytics } = require('@/lib/analytics');
+        analytics.track({
+          event_type: 'tutorial_interaction',
+          event_name: 'welcome_card_next',
+          page_path: window.location.pathname,
+          payload: { card_index: currentIndex + 1 }
+        });
+      }
     }
   }, [currentIndex, cards.length]);
 
   const goPrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
+      if (typeof window !== 'undefined') {
+        const { analytics } = require('@/lib/analytics');
+        analytics.track({
+          event_type: 'tutorial_interaction',
+          event_name: 'welcome_card_prev',
+          page_path: window.location.pathname,
+          payload: { card_index: currentIndex - 1 }
+        });
+      }
     }
   }, [currentIndex]);
 
@@ -241,7 +259,18 @@ export function IntroCardFlow({
             <div className="flex items-center gap-3">
               {onSkip && !isLastCard && (
                 <button
-                  onClick={onSkip}
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      const { analytics } = require('@/lib/analytics');
+                      analytics.track({
+                        event_type: 'tutorial_interaction',
+                        event_name: 'welcome_card_skip',
+                        page_path: window.location.pathname,
+                        payload: { skipped_at_card: currentIndex }
+                      });
+                    }
+                    onSkip();
+                  }}
                   className="px-3 py-2 rounded-lg text-sm text-blue-200/60 hover:text-blue-100 transition-colors"
                 >
                   Skip intro
@@ -249,7 +278,18 @@ export function IntroCardFlow({
               )}
 
               <button
-                onClick={isLastCard ? onStart : goNext}
+                onClick={() => {
+                  if (isLastCard && typeof window !== 'undefined') {
+                    const { analytics } = require('@/lib/analytics');
+                    analytics.track({
+                      event_type: 'tutorial_interaction',
+                      event_name: 'welcome_card_start_building',
+                      page_path: window.location.pathname,
+                      payload: { tutorial: tutorialTitle }
+                    });
+                  }
+                  isLastCard ? onStart() : goNext();
+                }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200"
                 style={{ 
                   background: tutorialColor,

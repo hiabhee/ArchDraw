@@ -90,31 +90,102 @@ export function FloatingAIBar({
 
     const sizeLabel = detailLevel === 1 ? 'small' : detailLevel === 2 ? 'medium' : 'large';
 
+    if (typeof window !== 'undefined') {
+      const { analytics } = require('@/lib/analytics');
+      analytics.track({
+        event_type: 'ai_generation',
+        event_name: 'diagram_generation_started',
+        page_path: window.location.pathname,
+        payload: { 
+          detail_level: detailLevel,
+          prompt_length: input.length,
+          is_first_time: isFirstTime
+        }
+      });
+    }
+
     try {
       await onGenerate(input, detailLevel);
       addToHistory(input, sizeLabel);
       setInput('');
       localStorage.setItem('archdraw-has-used-canvas', 'true');
       setIsFirstTime(false);
+      
+      if (typeof window !== 'undefined') {
+        const { analytics } = require('@/lib/analytics');
+        analytics.track({
+          event_type: 'ai_generation',
+          event_name: 'diagram_generation_success',
+          page_path: window.location.pathname,
+          payload: { detail_level: detailLevel }
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Generation failed';
       setError(message);
       toast.error(message);
+      
+      if (typeof window !== 'undefined') {
+        const { analytics } = require('@/lib/analytics');
+        analytics.track({
+          event_type: 'ai_generation',
+          event_name: 'diagram_generation_error',
+          page_path: window.location.pathname,
+          payload: { 
+            detail_level: detailLevel,
+            error_message: message
+          }
+        });
+      }
     } finally {
       setIsGenerating(false);
     }
-  }, [input, onGenerate, detailLevel, addToHistory, isGenerating]);
+  }, [input, onGenerate, detailLevel, addToHistory, isGenerating, isFirstTime]);
 
   const handleRegenerate = useCallback(async () => {
     if (!onRegenerate) return;
     setIsGenerating(true);
     setError(null);
+    
+    if (typeof window !== 'undefined') {
+      const { analytics } = require('@/lib/analytics');
+      analytics.track({
+        event_type: 'ai_generation',
+        event_name: 'diagram_regeneration_started',
+        page_path: window.location.pathname,
+        payload: { detail_level: detailLevel }
+      });
+    }
+    
     try {
       await onRegenerate(detailLevel);
+      
+      if (typeof window !== 'undefined') {
+        const { analytics } = require('@/lib/analytics');
+        analytics.track({
+          event_type: 'ai_generation',
+          event_name: 'diagram_regeneration_success',
+          page_path: window.location.pathname,
+          payload: { detail_level: detailLevel }
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Regeneration failed';
       setError(message);
       toast.error(message);
+      
+      if (typeof window !== 'undefined') {
+        const { analytics } = require('@/lib/analytics');
+        analytics.track({
+          event_type: 'ai_generation',
+          event_name: 'diagram_regeneration_error',
+          page_path: window.location.pathname,
+          payload: { 
+            detail_level: detailLevel,
+            error_message: message
+          }
+        });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -162,6 +233,15 @@ export function FloatingAIBar({
                     e.preventDefault();
                     e.stopPropagation();
                     setDetailLevel(level);
+                    if (typeof window !== 'undefined') {
+                      const { analytics } = require('@/lib/analytics');
+                      analytics.track({
+                        event_type: 'ai_settings',
+                        event_name: 'detail_level_changed',
+                        page_path: window.location.pathname,
+                        payload: { level }
+                      });
+                    }
                   }}
                   className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-95 ${
                     detailLevel === level
@@ -201,7 +281,18 @@ export function FloatingAIBar({
             {!hideCodeButton && (
               <button
                 type="button"
-                onClick={onToggleCode}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    const { analytics } = require('@/lib/analytics');
+                    analytics.track({
+                      event_type: 'ui_interaction',
+                      event_name: 'code_view_toggled',
+                      page_path: window.location.pathname,
+                      payload: { show_code: !showCode }
+                    });
+                  }
+                  onToggleCode();
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-transparent transition-all text-xs font-semibold cursor-pointer active:scale-95 ${
                   showCode 
                     ? 'bg-[#1E90FF]/15 text-[#1E90FF] border-[#1E90FF]/30' 

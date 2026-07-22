@@ -19,18 +19,32 @@ async function hmacSign(data: string, secret: string): Promise<string> {
   return Buffer.from(signature).toString('hex');
 }
 
+const loginRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
 export async function POST(req: NextRequest) {
-  // Validate admin configuration
   const adminConfig = validateAdminConfig();
-  
+
   if (!adminConfig) {
     return NextResponse.json(
-      { error: 'Admin authentication not configured. Please set ADMIN_PASSCODE and ADMIN_SESSION_SECRET in your environment.' },
+      { error: 'Admin authentication not configured.' },
       { status: 503 },
     );
   }
 
   const { passcode: ADMIN_PASSCODE, sessionSecret: SESSION_SECRET, userId: ADMIN_USER_ID } = adminConfig;
+
+  // Rate limit: 5 attempts per IP per 15 minutes
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  const now = Date.now();
+  const rl = loginRateLimitMap.get(ip);
+  if (rl && now < rl.resetAt) {
+    if (rl.count >= 5) {
+      return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
+    }
+    rl.count++;
+  } else {
+    loginRateLimitMap.set(ip, { count: 1, resetAt: now + 15 * 60_000 });
+  }
 
   let body: { passcode?: string };
   try {
@@ -43,7 +57,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Passcode required' }, { status: 400 });
   }
 
-  const success = body.passcode === ADMIN_PASSCODE;
+  // Timing-safe comparison
+  const encoder = new TextEncoder();
+  const passcodeBuf = encoder.encode(body.passcode.padEnd(64, '\0'));
+  const expectedBuf = encoder.encode(ADMIN_PASSCODE.padEnd(64, '\0'));
+  let mismatch = 0;
+  for (let i = 0; i < passcodeBuf.length; i++) {
+    mismatch |= passcodeBuf[i] ^ expectedBuf[i];
+  }
+  const success = mismatch === 0 && body.passcode.length === ADMIN_PASSCODE.length;
 
   if (!success) {
     return NextResponse.json({ error: 'Invalid passcode' }, { status: 401 });

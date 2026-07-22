@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { RefreshCw, Eye, MousePointerClick, MessageSquare, Download, Clock } from 'lucide-react';
+import { RefreshCw, Eye, MousePointerClick, MessageSquare, Download, Clock, BookOpen, Bot, Share2, Settings, ToggleRight } from 'lucide-react';
 
 type Event = {
   id: number;
@@ -23,6 +23,12 @@ const EVENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   click: MousePointerClick,
   prompt_submitted: MessageSquare,
   export: Download,
+  tutorial_interaction: BookOpen,
+  ai_generation: Bot,
+  ai_settings: Bot,
+  sharing: Share2,
+  settings_interaction: Settings,
+  ui_interaction: ToggleRight,
 };
 
 function EventRow({ event }: { event: Event }) {
@@ -39,6 +45,12 @@ function EventRow({ event }: { event: Event }) {
         event.event_type === 'click' ? 'bg-[#f59e0b]/10 text-[#f59e0b]'
         : event.event_type === 'prompt_submitted' ? 'bg-[#8b5cf6]/10 text-[#8b5cf6]'
         : event.event_type === 'export' ? 'bg-[#10b981]/10 text-[#10b981]'
+        : event.event_type === 'tutorial_interaction' ? 'bg-[#f97316]/10 text-[#f97316]'
+        : event.event_type === 'ai_generation' ? 'bg-[#06b6d4]/10 text-[#06b6d4]'
+        : event.event_type === 'ai_settings' ? 'bg-[#06b6d4]/10 text-[#06b6d4]'
+        : event.event_type === 'sharing' ? 'bg-[#ec4899]/10 text-[#ec4899]'
+        : event.event_type === 'settings_interaction' ? 'bg-[#a855f7]/10 text-[#a855f7]'
+        : event.event_type === 'ui_interaction' ? 'bg-[#14b8a6]/10 text-[#14b8a6]'
         : 'bg-[#1E90FF]/10 text-[#1E90FF]'
       }`}>
         {event.event_type}
