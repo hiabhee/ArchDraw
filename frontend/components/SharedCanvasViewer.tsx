@@ -7,6 +7,7 @@ import ReactFlow, {
   Controls,
   MiniMap,
   ReactFlowProvider,
+  useReactFlow,
   ConnectionLineType,
   ConnectionMode,
   type Edge,
@@ -53,10 +54,37 @@ function normalizeEdges(raw: unknown[]): Edge[] {
   });
 }
 
+const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to convert to blob'));
+        }
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+};
+
 function Viewer({ canvas }: { canvas: SharedCanvas }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const { isDark, setTheme } = useTheme();
+  const { fitView } = useReactFlow();
 
   const nodes = useMemo(
     () => normalizeNodes((canvas?.nodes as unknown[]) || []),
@@ -82,11 +110,18 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   }
 
   const doDownload = async () => {
-    const el = document.querySelector('.react-flow') as HTMLElement | null;
-    if (!el) return;
     setIsDownloading(true);
 
     try {
+      fitView({ padding: 0.1, duration: 300 });
+      await new Promise((r) => setTimeout(r, 350));
+
+      const el = document.querySelector('.react-flow') as HTMLElement | null;
+      if (!el) {
+        toast.error('Canvas not ready. Please try again.');
+        return;
+      }
+
       const dataUrl = await toPng(el, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         pixelRatio: 3,
@@ -102,7 +137,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           );
         },
       });
-      const blob = await (await fetch(dataUrl)).blob();
+      const blob = await dataUrlToBlob(dataUrl);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
