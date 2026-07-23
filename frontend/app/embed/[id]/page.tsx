@@ -8,7 +8,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://archdraw.abhishekjamdade.xyz';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://archdraw.hiabhee.online';
   
   return {
     title: 'ArchDraw Diagram',

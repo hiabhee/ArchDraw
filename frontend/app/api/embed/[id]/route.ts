@@ -56,7 +56,7 @@ interface DiagramResponse {
 }
 
 const ALLOWED_ORIGINS = [
-  'https://archdraw.abhishekjamdade.xyz',
+  'https://archdraw.hiabhee.online',
   'http://localhost:3000',
   'http://localhost:3001',
 ];
