@@ -2,19 +2,27 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
-  Background, BackgroundVariant, Controls, MiniMap, ReactFlowProvider,
-  ConnectionLineType, Edge
+  Background,
+  BackgroundVariant,
+  Controls,
+  MiniMap,
+  ReactFlowProvider,
+  ConnectionLineType,
+  ConnectionMode,
+  type Edge,
+  type Node,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Download } from 'lucide-react';
+import { Download, Sun, Moon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
-import { EmailCaptureModal } from '@/components/EmailCaptureModal';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { useDiagramStore } from '@/store/diagramStore';
-import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { assignEdgeColors } from '@/lib/edgeColors';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
+import { useTheme } from '@/lib/theme';
+import '@/components/nodes/nodeStyles.css';
 
 interface SharedCanvas {
   id: string;
@@ -23,25 +31,51 @@ interface SharedCanvas {
   edges: unknown[];
 }
 
+function normalizeNodes(raw: unknown[]): Node[] {
+  return (raw || []).map((n) => {
+    const node = n as Node;
+    return {
+      ...node,
+      selected: false,
+      dragging: false,
+    };
+  });
+}
+
+function normalizeEdges(raw: unknown[]): Edge[] {
+  return (raw || []).map((e) => {
+    const edge = e as Edge;
+    return {
+      ...edge,
+      selected: false,
+      type: edge.type || DEFAULT_EDGE_OPTIONS.type,
+    };
+  });
+}
+
 function Viewer({ canvas }: { canvas: SharedCanvas }) {
-  const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const { isDark, setTheme } = useTheme();
 
+  const nodes = useMemo(
+    () => normalizeNodes((canvas?.nodes as unknown[]) || []),
+    [canvas]
+  );
+  const edges = useMemo(
+    () => normalizeEdges((canvas?.edges as unknown[]) || []),
+    [canvas]
+  );
+  const coloredEdges = useMemo(() => assignEdgeColors(edges, isDark), [edges, isDark]);
 
+  // Sync darkMode in diagram store so node CSS picks up the theme
+  useEffect(() => {
+    useDiagramStore.setState({ darkMode: isDark });
+  }, [isDark]);
 
-  // We must call hooks unconditionally. Compute coloredEdges even if canvas is undefined,
-  // returning an empty array as a safe fallback.
-  const coloredEdges = useMemo(() => {
-    if (!canvas || !canvas.edges) return [];
-    return assignEdgeColors(canvas.edges as Edge[]);
-  }, [canvas]);
-
-  // Now we can safely exit early if the canvas is missing (e.g. invalid share ID)
-  // This prevents the runtime 'Cannot read properties of undefined' error while rendering.
   if (!canvas) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#0f172a] text-white">
+      <div className="flex h-screen w-screen items-center justify-center bg-[hsl(var(--canvas-bg))] text-foreground">
         <p>Canvas not found or has no data.</p>
       </div>
     );
@@ -53,7 +87,6 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     setIsDownloading(true);
 
     try {
-      const isDark = true;
       const dataUrl = await toPng(el, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         pixelRatio: 3,
@@ -73,7 +106,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${canvas.canvas_name}-${Date.now()}.png`;
+      a.download = `${canvas.canvas_name || 'diagram'}-${Date.now()}.png`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Downloaded!');
@@ -86,82 +119,108 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   };
 
   const handleDownloadClick = () => {
-    setShowEmailCapture(true);
+    void doDownload();
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#0f172a' }}>
+    <div className={`${isDark ? 'dark' : ''} w-screen h-screen bg-[hsl(var(--canvas-bg))] text-foreground`}>
       {/* Top banner */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[#0f172a]/95 backdrop-blur-sm border-b border-white/10">
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[hsl(var(--canvas-bg))]/95 backdrop-blur-sm border-b border-border/40">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 bg-blue-600 rounded-md flex items-center justify-center">
             <div className="w-2 h-2 border border-white/80 rounded-sm" />
           </div>
-          <span className="text-white font-semibold text-sm">Archflow</span>
-          <span className="text-white/30 text-sm">·</span>
-          <span className="text-white/60 text-sm truncate max-w-xs">{canvas.canvas_name}</span>
+          <span className="font-semibold text-sm">ArchDraw</span>
+          <span className="text-muted-foreground text-sm">·</span>
+          <span className="text-muted-foreground text-sm truncate max-w-xs">
+            {canvas.canvas_name}
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-white/40 text-xs">View only</span>
+          <span className="text-muted-foreground text-xs">View only</span>
+          <button
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? (
+              <Sun className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
+            ) : (
+              <Moon className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
+            )}
+          </button>
           <button
             onClick={handleDownloadClick}
             disabled={isDownloading}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-white/10 hover:bg-white/15 text-white/80 hover:text-white transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground transition-colors disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
             {isDownloading ? 'Downloading…' : 'Download'}
           </button>
           <a
             href="/editor"
-            className="text-xs bg-gray-600 hover:bg-gray-500 text-white px-3 py-1.5 rounded-md transition-colors font-medium"
+            className="text-xs bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-md transition-colors font-medium"
           >
             Create your own →
           </a>
         </div>
       </div>
 
-      {/* Downloaded banner */}
       {downloaded && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-4 py-2.5 bg-green-500/15 border border-green-500/30 rounded-lg backdrop-blur-sm">
-          <span className="text-green-400 text-xs font-medium">✅ Diagram downloaded!</span>
-          <a href="/editor" className="text-xs text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2">
+          <span className="text-green-400 text-xs font-medium">Diagram downloaded!</span>
+          <a
+            href="/editor"
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
+          >
             Start designing for free →
           </a>
         </div>
       )}
 
-      {/* Canvas */}
-      <ReactFlow
-        nodes={canvas.nodes as never[]}
-        edges={coloredEdges as never[]}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={true}
-        panOnDrag={true}
-        zoomOnScroll={true}
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
-        proOptions={{ hideAttribution: true }}
-        connectionLineType={ConnectionLineType.SmoothStep}
-        defaultEdgeOptions={{
-          type: 'smoothstep',
-          style: { strokeWidth: DIAGRAM_CONSTANTS.edge.strokeWidth },
-        }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#475569" style={{ opacity: 0.6 }} />
-        <Controls showInteractive={false} className="!bg-white !border-gray-200 !text-gray-800 !shadow-sm" />
-        <SVGEdgeMarkerDefs />
-        <MiniMap zoomable pannable className="!bg-card/90 !border !border-border/60 !rounded-lg" maskColor="rgba(0,0,0,0.04)" />
-      </ReactFlow>
-
-      {showEmailCapture && (
-        <EmailCaptureModal
-          reason="download"
-          onClose={() => setShowEmailCapture(false)}
-        />
-      )}
+      <div className="w-full h-full pt-12">
+        <ReactFlow
+          nodes={nodes}
+          edges={coloredEdges}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          panOnDrag
+          panOnScroll
+          zoomOnScroll={false}
+          zoomOnPinch
+          fitView
+          fitViewOptions={{ padding: 0.15 }}
+          proOptions={{ hideAttribution: true }}
+          connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          minZoom={CANVAS_CONFIG.minZoom}
+          maxZoom={CANVAS_CONFIG.maxZoom}
+          defaultMarkerColor="#1E2130"
+          defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={CANVAS_CONFIG.background.gap}
+            size={CANVAS_CONFIG.background.size}
+            color={isDark ? '#475569' : '#cbd5e1'}
+            style={{ opacity: 0.6 }}
+          />
+          <Controls
+            showInteractive={false}
+            className="!bg-card !border-border !text-foreground !shadow-sm"
+          />
+          <SVGEdgeMarkerDefs />
+          <MiniMap
+            zoomable
+            pannable
+            className="!bg-card/90 !border !border-border/60 !rounded-lg"
+            maskColor={isDark ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.06)'}
+          />
+        </ReactFlow>
+      </div>
     </div>
   );
 }

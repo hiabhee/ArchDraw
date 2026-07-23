@@ -83,9 +83,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
     if (!initialized || !authEnabled) return;
 
-    const isOffline = typeof window !== 'undefined' && !window.navigator.onLine;
-    if (isOffline) return;
-
     // Handle pending actions from session storage (share/download after auth)
     const pendingAction = sessionStorage.getItem('pendingAction');
     if (pendingAction) {

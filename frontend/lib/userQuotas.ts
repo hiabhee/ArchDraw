@@ -76,7 +76,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     canDuplicateCanvas: true,
     watermarkExports: false,
     maxVersions: 3,
-    allowEditShare: false,
+    allowEditShare: true,
     allowDashboard: true,
     allowCollaboration: true,
     shareExpiryDays: 7,

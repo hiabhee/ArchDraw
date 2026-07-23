@@ -49,8 +49,6 @@ import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { createNode, createEdge } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
-import { consumePendingEdit } from '@/hooks/useInlineLabelEdit';
-
 function CanvasInner() {
 
   const nodes = useDiagramStore((s) => s.nodes);
@@ -101,6 +99,8 @@ function CanvasInner() {
     startX: number;
     startY: number;
   } | null>(null);
+  // Suppress the pane click that follows the same mouseup as edge-drop create.
+  const suppressPaneClickRef = useRef(false);
   
   // Onboarding state - only show when canvas is empty
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(nodes.length === 0);
@@ -328,33 +328,26 @@ function CanvasInner() {
         y: clientY,
       });
 
-      console.log('[onConnectEnd] Creating new node at position:', flowPos);
-      
-      // Create the new node first
       const newNodeId = addNodeOnEdgeDrop({
         originNodeId: start.nodeId,
         originHandleType: start.handleType,
         position: flowPos,
       });
-      
-      console.log('[onConnectEnd] New node created with ID:', newNodeId);
-      
-      // Signal the hook to auto-start editing AFTER node creation
-      // Use setTimeout to ensure it runs after React renders the new node
-      consumePendingEdit(newNodeId);
-      
-      console.log('[onConnectEnd] consumePendingEdit called for:', newNodeId);
-      
-      // Also select the new node to ensure it's in focus
-      setTimeout(() => {
-        console.log('[onConnectEnd] Selecting node:', newNodeId);
-        setSelectedNodeId(newNodeId);
-      }, 0);
+
+      if (newNodeId) {
+        // Same gesture fires pane click after connect end — ignore it once so
+        // selection/focus aren't cleared while the label input auto-focuses.
+        suppressPaneClickRef.current = true;
+      }
     },
-    [reactFlowInstance, addNodeOnEdgeDrop, setSelectedNodeId]
+    [reactFlowInstance, addNodeOnEdgeDrop]
   );
 
   const onPaneClick = useCallback(() => {
+    if (suppressPaneClickRef.current) {
+      suppressPaneClickRef.current = false;
+      return;
+    }
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
     setContextMenu(null);

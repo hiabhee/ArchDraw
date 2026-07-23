@@ -77,12 +77,24 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const session = await getSessionFromRequest(req);
+    const userId = session?.user?.id;
+    const tier = getUserTier(userId);
+
+    if (!canAccessFeature(tier, 'share')) {
+      return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { sessionId, accessType, linkPermission } = body;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    if (shared.ownerId && shared.ownerId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     await prisma.sharedCanvas.update({
@@ -99,12 +111,24 @@ export async function PATCH(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const session = await getSessionFromRequest(req);
+    const userId = session?.user?.id;
+    const tier = getUserTier(userId);
+
+    if (!canAccessFeature(tier, 'share')) {
+      return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { sessionId, email, name, role } = body;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    if (shared.ownerId && shared.ownerId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const users = (shared.users as unknown as ShareUser[]).filter(u => u.email !== email);
@@ -129,12 +153,24 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const session = await getSessionFromRequest(req);
+    const userId = session?.user?.id;
+    const tier = getUserTier(userId);
+
+    if (!canAccessFeature(tier, 'share')) {
+      return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
+    }
+
     const body = await req.json();
     const { sessionId, email } = body;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    if (shared.ownerId && shared.ownerId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const users = (shared.users as unknown as ShareUser[]).filter(u => u.email !== email);

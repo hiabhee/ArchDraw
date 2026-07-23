@@ -102,6 +102,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     nodeHeight?: number;
     accentColor?: string;
     serviceType?: string;
+    autoStartLabelEdit?: boolean;
   };
 
   const isDatabase = nodeData.shape === 'cylinder' || nodeData.serviceType === 'database';
@@ -117,6 +118,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     nodeId: id,
     currentLabel: data.label || '',
     containerRef: nodeCardRef,
+    autoStart: Boolean(nodeData.autoStartLabelEdit),
   });
 
   const backplateLayers = selected
@@ -264,11 +266,15 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           ) : (
             <p
               className="node-title"
-              title={data.label}
+              title={data.label || 'Double-click to rename'}
               onDoubleClick={labelEdit.startEdit}
-              style={{ cursor: 'text' }}
+              style={{
+                cursor: 'text',
+                minHeight: '1.3em',
+                opacity: data.label ? 1 : 0.45,
+              }}
             >
-              {data.label}
+              {data.label || 'Service'}
             </p>
           )}
         </div>

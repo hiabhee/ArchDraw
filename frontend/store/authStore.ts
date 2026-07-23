@@ -37,8 +37,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialize: async () => {
     if (get().initialized) return;
 
-    const isOffline = typeof window !== 'undefined' && !window.navigator.onLine;
-    
     // Check if auth is enabled via public env var (safe for client-side)
     const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
     
@@ -49,23 +47,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           id: 'guest', 
           email: 'guest@local', 
           name: 'Guest User', 
-          image: null, 
-          emailVerified: false, 
-          createdAt: new Date() 
-        }, 
-        loading: false, 
-        initialized: true 
-      });
-      return;
-    }
-    
-    if (isOffline) {
-      logger.warn('[Auth] Browser is offline - using guest mode');
-      set({ 
-        user: { 
-          id: 'guest', 
-          email: 'guest@local', 
-          name: 'Guest User (Offline)', 
           image: null, 
           emailVerified: false, 
           createdAt: new Date() 

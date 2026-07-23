@@ -534,10 +534,21 @@ export function Toolbar() {
           }],
         }),
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || data?.code === 'AUTH_REQUIRED') {
+        setUpgradeModal({
+          feature: 'sharing',
+          message: data?.error || 'Sign in to share diagrams.',
+          benefits: UPGRADE_BENEFITS.share,
+        });
+        return;
+      }
       
-      if (response.ok) {
-        const data = await response.json();
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+      if (response.ok && data.sessionId) {
+        // Prefer the current origin so local/staging links stay on the same host.
+        const baseUrl = window.location.origin;
         const shareUrl = `${baseUrl}/share/${data.sessionId}`;
         setShareUrl(shareUrl);
         setShareSessionId(data.sessionId);
@@ -553,7 +564,7 @@ export function Toolbar() {
           payload: { node_count: nodes.length, edge_count: edges.length },
         });
       } else {
-        toast.error('Could not generate share link');
+        toast.error(data?.error || 'Could not generate share link');
       }
     } catch (err) {
       logger.error('Share error:', err);

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SharedCanvasViewer } from '@/components/SharedCanvasViewer';
 import { analytics } from '@/lib/analytics';
+import { useTheme } from '@/lib/theme';
 
 interface ShareUser {
   email: string;
@@ -30,32 +31,100 @@ interface ShareData {
   };
 }
 
+function normalizeSharePayload(result: Record<string, unknown>, id: string): ShareData | null {
+  // Preferred shape from /api/share/[id]
+  const canvas = result.canvas as SharedCanvas | undefined;
+  if (canvas && Array.isArray(canvas.nodes) && Array.isArray(canvas.edges)) {
+    return {
+      canvas: {
+        id: canvas.id || id,
+        canvas_name: canvas.canvas_name || 'Shared Diagram',
+        nodes: canvas.nodes,
+        edges: canvas.edges,
+      },
+      access: (result.access as ShareData['access']) || {
+        role: 'viewer',
+        canEdit: false,
+        users: [],
+        accessType: 'anyone',
+        linkPermission: 'viewer',
+      },
+    };
+  }
+
+  // Legacy shape: { success, diagram: { nodes, edges, label, ... } }
+  const diagram = result.diagram as
+    | {
+        nodes?: unknown[];
+        edges?: unknown[];
+        label?: string;
+        users?: ShareUser[];
+        accessType?: string;
+        linkPermission?: string;
+      }
+    | undefined;
+
+  if (diagram && Array.isArray(diagram.nodes) && Array.isArray(diagram.edges)) {
+    return {
+      canvas: {
+        id,
+        canvas_name: diagram.label || 'Shared Diagram',
+        nodes: diagram.nodes,
+        edges: diagram.edges,
+      },
+      access: {
+        role: 'viewer',
+        canEdit: diagram.linkPermission === 'editor',
+        users: diagram.users || [],
+        accessType: diagram.accessType || 'anyone',
+        linkPermission: diagram.linkPermission || 'viewer',
+      },
+    };
+  }
+
+  return null;
+}
+
 export default function SharePageClient({ id }: { id: string }) {
   const [data, setData] = useState<ShareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     fetch(`/api/share/${id}`)
-      .then(res => res.json())
-      .then(result => {
-        if (result.error) {
-          setError(result.error);
+      .then(async (res) => {
+        const result = await res.json();
+        if (!res.ok || result.error) {
+          setError(result.error || 'Diagram not found');
           analytics.track({
             event_type: 'share_view',
             event_name: 'error',
             page_path: window.location.pathname,
             payload: { share_id: id, error: result.error },
           });
-        } else {
-          setData(result);
+          return;
+        }
+
+        const normalized = normalizeSharePayload(result, id);
+        if (!normalized) {
+          setError('Diagram not found');
           analytics.track({
             event_type: 'share_view',
-            event_name: 'success',
+            event_name: 'error',
             page_path: window.location.pathname,
-            payload: { share_id: id, node_count: result.canvas?.nodes?.length },
+            payload: { share_id: id, error: 'invalid_payload' },
           });
+          return;
         }
+
+        setData(normalized);
+        analytics.track({
+          event_type: 'share_view',
+          event_name: 'success',
+          page_path: window.location.pathname,
+          payload: { share_id: id, node_count: normalized.canvas.nodes?.length },
+        });
       })
       .catch(() => setError('Failed to load diagram'))
       .finally(() => setLoading(false));
@@ -63,7 +132,7 @@ export default function SharePageClient({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div suppressHydrationWarning className={`${isDark ? 'dark' : ''} min-h-screen bg-[hsl(var(--canvas-bg))] flex items-center justify-center`}>
         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -71,14 +140,16 @@ export default function SharePageClient({ id }: { id: string }) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div suppressHydrationWarning className={`${isDark ? 'dark' : ''} min-h-screen bg-[hsl(var(--canvas-bg))] flex items-center justify-center`}>
         <div className="text-center space-y-4">
           <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center mx-auto">
             <span className="text-2xl">🔒</span>
           </div>
           <div>
-            <p className="text-white font-semibold text-lg">{error}</p>
-            <p className="text-white/50 text-sm mt-1">This diagram may have expired or requires access.</p>
+            <p className="text-foreground font-semibold text-lg">{error}</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              This diagram may have expired or requires access.
+            </p>
           </div>
           <Link
             href="/"

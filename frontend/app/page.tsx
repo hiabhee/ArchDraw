@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Outfit, Plus_Jakarta_Sans } from 'next/font/google';
+import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { 
   ArrowRight, Menu, X, Check, ArrowRightLeft, RefreshCw, Clock, 
   Paintbrush, Layers, MousePointer, ShieldCheck, Mail, Database, 
@@ -481,28 +482,10 @@ function ProblemSection() {
 }
 
 function HowItWorksSection() {
-  const cards = [
-    {
-      number: '01',
-      title: 'Describe',
-      desc: 'Type your architecture in plain English, upload code structures, or paste standard Mermaid code directly into the workspace.',
-    },
-    {
-      number: '02',
-      title: 'Generate',
-      desc: 'ArchDraw builds & layouts nodes',
-    },
-    {
-      number: '03',
-      title: 'Export',
-      desc: 'Download PNG, SVG or share live link',
-    },
-  ];
-
   return (
-    <section id="how-it-works" className="py-24 px-6 border-t border-[#e4e4df] dark:border-[#202327] bg-[#f7f7f5] dark:bg-[#090b0d] relative">
+    <section id="how-it-works" className="py-24 px-6 border-t border-[#e4e4df] dark:border-[#202327] bg-[#f7f7f5] dark:bg-[#090b0d] relative overflow-hidden">
       <div className="max-w-[1280px] mx-auto">
-        <div className="text-center max-w-2xl mx-auto mb-16">
+        <div className="text-center max-w-2xl mx-auto mb-20">
           <span className={`text-[13px] font-bold tracking-[1.5px] uppercase text-[#8a8f98] block mb-3 ${outfit.className}`}>Workflow</span>
           <h2
             className={`text-[#1c1c1a] dark:text-[#f7f8f8] font-bold leading-[1.10] tracking-tight ${outfit.className}`}
@@ -510,86 +493,254 @@ function HowItWorksSection() {
           >
             From description to diagram in 3 steps
           </h2>
+          <p className="mt-4 text-sm text-[#575752] dark:text-[#d0d6e0] max-w-[480px] mx-auto leading-relaxed">
+            Describe your system in plain English. ArchDraw handles structure, layout, and styling automatically.
+          </p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-stretch justify-center gap-6 md:gap-0">
-          {cards.map((card, i) => {
-            const rotations = ['md:rotate-[-3deg]', 'md:rotate-0', 'md:rotate-[3deg]'];
-            const isCenter = i === 1;
+        <div className="relative">
+          {/* Animated connector line */}
+          <div className="hidden md:block absolute top-[72px] left-[calc(16.67%+40px)] right-[calc(16.67%+40px)] h-[2px]">
+            <div className="w-full h-full bg-gradient-to-r from-[#e4e4df] via-[#d0d0cc] to-[#e4e4df] dark:from-[#202327] dark:via-[#2a2d35] dark:to-[#202327]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent/40 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+          </div>
 
-            return (
-              <div
-                key={i}
-                className={`
-                  group relative w-full md:w-[380px]
-                  bg-white dark:bg-[#1e2235]
-                  border border-[#e4e4df] dark:border-[#202327]
-                  rounded-xl p-6
-                  flex flex-col
-                  transition-all duration-300 ease-out
-                  ${rotations[i]}
-                  ${isCenter ? 'md:relative md:z-10 md:shadow-xl' : 'shadow-sm'}
-                  ${i < 2 ? 'md:-mr-16' : ''}
-                  hover:!rotate-0 hover:-translate-y-2
-                  ${isCenter ? 'hover:z-20' : 'hover:z-10'}
-                `}
-              >
-                {/* Step number badge with spark icon */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold font-mono text-[#575752] dark:text-[#d0d6e0] tracking-wide">
-                    {card.number}
-                  </span>
-                  <Sparkles size={12} className="text-accent" />
-                </div>
-
-                {/* Step title */}
-                <h3 className={`text-xl font-bold text-[#1c1c1a] dark:text-[#f7f8f8] mb-2 ${outfit.className}`}>
-                  {card.title}
-                </h3>
-
-                {/* Step description */}
-                <p className="text-sm text-[#575752] dark:text-[#d0d6e0] leading-relaxed mb-4">
-                  {card.desc}
-                </p>
-
-                {/* --- Visual preview areas --- */}
-
-                {/* Card 1: Describe — mock text input snippet */}
-                {i === 0 && (
-                  <div className="mt-auto bg-[#f1f1eb] dark:bg-[#141516] rounded-lg p-3">
-                    <div className="font-mono text-xs text-[#575752] dark:text-[#d0d6e0]">
-                      Client <span className="text-[#8a8f98] dark:text-[#62666d]">→</span> Gateway <span className="text-[#8a8f98] dark:text-[#62666d]">→</span> Postgres DB
-                    </div>
-                  </div>
-                )}
-
-                {/* Card 2: Generate — miniature mock diagram */}
-                {i === 1 && (
-                  <div className="mt-auto bg-[#f1f1eb] dark:bg-[#141516] rounded-lg p-3 flex items-center justify-center">
-                    <svg width="120" height="28" viewBox="0 0 120 28" fill="none" className="text-[#8a8f98] dark:text-[#62666d]">
-                      <rect x="0" y="6" width="24" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                      <line x1="24" y1="14" x2="34" y2="14" stroke="currentColor" strokeWidth="1" />
-                      <polygon points="44,0 56,14 44,28 32,14" stroke="#1E90FF" strokeWidth="1.5" fill="rgba(30,144,255,0.1)" />
-                      <line x1="56" y1="14" x2="66" y2="14" stroke="currentColor" strokeWidth="1" />
-                      <rect x="66" y="2" width="38" height="24" rx="12" stroke="currentColor" strokeWidth="1.5" />
-                    </svg>
-                  </div>
-                )}
-
-                {/* Card 3: Export — mock export chips */}
-                {i === 2 && (
-                  <div className="mt-auto bg-[#f1f1eb] dark:bg-[#141516] rounded-lg p-3 flex items-center justify-center gap-2 flex-wrap">
-                    <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-accent text-white">PNG</span>
-                    <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-[#e4e4df] dark:bg-[#23252a] text-[#575752] dark:text-[#d0d6e0]">SVG</span>
-                    <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-[#e4e4df] dark:bg-[#23252a] text-[#575752] dark:text-[#d0d6e0]">Share Link</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          <div className="grid md:grid-cols-3 gap-8 md:gap-6 relative">
+            {[
+              {
+                number: '01',
+                title: 'Describe',
+                desc: 'Type your architecture in plain English, paste Mermaid code, or upload code structures. The AI understands your intent.',
+                visual: 'describe',
+              },
+              {
+                number: '02',
+                title: 'Generate',
+                desc: 'ArchDraw validates, enriches, and lays out your diagram with dagre-powered auto-positioning and smart edge routing.',
+                visual: 'generate',
+              },
+              {
+                number: '03',
+                title: 'Export',
+                desc: 'Download as PNG or SVG, or generate a live shareable link. Presentation-ready by default.',
+                visual: 'export',
+              },
+            ].map((card, i) => (
+              <HowItWorksCard key={i} {...card} index={i} />
+            ))}
+          </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function HowItWorksCard({
+  number,
+  title,
+  desc,
+  visual,
+  index,
+}: {
+  number: string;
+  title: string;
+  desc: string;
+  visual: string;
+  index: number;
+}) {
+  const { ref, isVisible } = useScrollReveal<HTMLDivElement>({ threshold: 0.2 });
+
+  return (
+    <div
+      ref={ref}
+      className="relative flex flex-col items-center text-center"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0)' : 'translateY(32px)',
+        transition: `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.15}s, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.15}s`,
+      }}
+    >
+      {/* Step circle */}
+      <div className="relative mb-6">
+        <div
+          className="w-20 h-20 rounded-2xl bg-white dark:bg-[#1e2235] border border-[#e4e4df] dark:border-[#202327] shadow-md flex items-center justify-center relative z-10"
+          style={{
+            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+          }}
+        >
+          <span className={`text-2xl font-extrabold text-accent ${outfit.className}`}>{number}</span>
+        </div>
+        {/* Glow behind circle */}
+        <div
+          className="absolute inset-0 rounded-2xl bg-accent/10 blur-xl -z-0"
+          style={{
+            opacity: isVisible ? 1 : 0,
+            transition: `opacity 0.8s ease ${index * 0.15 + 0.3}s`,
+          }}
+        />
+      </div>
+
+      {/* Title */}
+      <h3 className={`text-xl font-bold text-[#1c1c1a] dark:text-[#f7f8f8] mb-3 ${outfit.className}`}>
+        {title}
+      </h3>
+
+      {/* Description */}
+      <p className="text-sm text-[#575752] dark:text-[#d0d6e0] leading-relaxed mb-6 max-w-[300px]">
+        {desc}
+      </p>
+
+      {/* Visual preview */}
+      <div
+        className="w-full bg-white dark:bg-[#141516] border border-[#e4e4df] dark:border-[#202327] rounded-xl p-4 shadow-sm overflow-hidden"
+        style={{
+          transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
+        }}
+      >
+        {visual === 'describe' && <DescribeVisual isVisible={isVisible} />}
+        {visual === 'generate' && <GenerateVisual isVisible={isVisible} />}
+        {visual === 'export' && <ExportVisual isVisible={isVisible} />}
+      </div>
+    </div>
+  );
+}
+
+function DescribeVisual({ isVisible }: { isVisible: boolean }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2">
+        <div className="w-5 h-5 rounded bg-accent/10 flex items-center justify-center shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        </div>
+        <div
+          className="h-2 rounded-full bg-[#e4e4df] dark:bg-[#23252a] flex-1 overflow-hidden"
+          style={{
+            transition: 'all 0.8s ease 0.3s',
+            width: isVisible ? '100%' : '0%',
+          }}
+        >
+          <div
+            className="h-full bg-gradient-to-r from-accent/40 to-accent/20 rounded-full"
+            style={{ width: '60%' }}
+          />
+        </div>
+      </div>
+      <div className="font-mono text-[10px] text-[#575752] dark:text-[#d0d6e0] bg-[#f1f1eb] dark:bg-[#0f1011] rounded-lg px-3 py-2 text-left leading-relaxed">
+        <span className="text-accent">Client</span>
+        <span className="text-[#8a8f98] mx-1">&rarr;</span>
+        <span className="text-accent">API Gateway</span>
+        <span className="text-[#8a8f98] mx-1">&rarr;</span>
+        <span className="text-accent">Auth</span>
+        <span className="text-[#8a8f98] mx-1">&rarr;</span>
+        <span className="text-accent">Postgres</span>
+      </div>
+    </div>
+  );
+}
+
+function GenerateVisual({ isVisible }: { isVisible: boolean }) {
+  return (
+    <div className="flex items-center justify-center py-1">
+      <svg width="180" height="70" viewBox="0 0 180 70" fill="none" className="w-full h-auto">
+        {/* Node 1 */}
+        <rect
+          x="4" y="20" width="44" height="30" rx="6"
+          stroke={isVisible ? '#6FA8DC' : '#e4e4df'}
+          strokeWidth="1.5"
+          fill={isVisible ? 'rgba(111,168,220,0.08)' : 'transparent'}
+          style={{ transition: 'all 0.5s ease 0.3s' }}
+        />
+        <text x="26" y="39" textAnchor="middle" fill={isVisible ? '#575752' : '#8a8f98'} fontSize="7" fontFamily="monospace" style={{ transition: 'fill 0.5s ease 0.4s' }}>Client</text>
+
+        {/* Arrow 1 */}
+        <line
+          x1="48" y1="35" x2="68" y2="35"
+          stroke={isVisible ? '#8a8f98' : '#e4e4df'}
+          strokeWidth="1"
+          strokeDasharray={isVisible ? '0' : '3 3'}
+          style={{ transition: 'all 0.5s ease 0.5s' }}
+        />
+        <polygon
+          points="66,32 72,35 66,38"
+          fill={isVisible ? '#8a8f98' : '#e4e4df'}
+          style={{ transition: 'fill 0.5s ease 0.5s' }}
+        />
+
+        {/* Node 2 */}
+        <polygon
+          points="72,10 98,35 72,60 46,35"
+          stroke={isVisible ? '#1E90FF' : '#e4e4df'}
+          strokeWidth="1.5"
+          fill={isVisible ? 'rgba(30,144,255,0.08)' : 'transparent'}
+          style={{ transition: 'all 0.5s ease 0.6s' }}
+        />
+        <text x="72" y="38" textAnchor="middle" fill={isVisible ? '#1E90FF' : '#8a8f98'} fontSize="6" fontFamily="monospace" style={{ transition: 'fill 0.5s ease 0.7s' }}>Gateway</text>
+
+        {/* Arrow 2 */}
+        <line
+          x1="98" y1="35" x2="118" y2="35"
+          stroke={isVisible ? '#8a8f98' : '#e4e4df'}
+          strokeWidth="1"
+          strokeDasharray={isVisible ? '0' : '3 3'}
+          style={{ transition: 'all 0.5s ease 0.7s' }}
+        />
+        <polygon
+          points="116,32 122,35 116,38"
+          fill={isVisible ? '#8a8f98' : '#e4e4df'}
+          style={{ transition: 'fill 0.5s ease 0.7s' }}
+        />
+
+        {/* Node 3 */}
+        <ellipse
+          cx="140" cy="35" rx="22" ry="15"
+          stroke={isVisible ? '#34D399' : '#e4e4df'}
+          strokeWidth="1.5"
+          fill={isVisible ? 'rgba(52,211,153,0.08)' : 'transparent'}
+          style={{ transition: 'all 0.5s ease 0.8s' }}
+        />
+        <text x="140" y="38" textAnchor="middle" fill={isVisible ? '#34D399' : '#8a8f98'} fontSize="6" fontFamily="monospace" style={{ transition: 'fill 0.5s ease 0.9s' }}>DB</text>
+
+        {/* Animated pulse on center node */}
+        {isVisible && (
+          <circle cx="72" cy="35" r="20" fill="none" stroke="#1E90FF" strokeWidth="0.5" opacity="0">
+            <animate attributeName="r" from="15" to="30" dur="2s" repeatCount="indefinite" />
+            <animate attributeName="opacity" from="0.4" to="0" dur="2s" repeatCount="indefinite" />
+          </circle>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+function ExportVisual({ isVisible }: { isVisible: boolean }) {
+  const chips = [
+    { label: 'PNG', active: true, delay: 0.3 },
+    { label: 'SVG', active: false, delay: 0.45 },
+    { label: 'Share Link', active: false, delay: 0.6 },
+  ];
+
+  return (
+    <div className="flex items-center justify-center gap-2 py-1">
+      {chips.map((chip) => (
+        <span
+          key={chip.label}
+          className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border transition-all duration-300 ${
+            chip.active
+              ? 'bg-accent text-white border-accent shadow-sm'
+              : 'bg-[#f1f1eb] dark:bg-[#1e2235] text-[#575752] dark:text-[#d0d6e0] border-[#e4e4df] dark:border-[#202327]'
+          }`}
+          style={{
+            opacity: isVisible ? 1 : 0,
+            transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.9)',
+            transition: `all 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${chip.delay}s`,
+          }}
+        >
+          {chip.label}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -1126,6 +1277,19 @@ export default function LandingPage() {
   useEffect(() => {
     document.documentElement.classList.remove('dark');
     try { localStorage.setItem('archdraw-theme', 'light'); } catch {}
+
+    // Redirect returning users to /editor, unless they navigated from within the app
+    try {
+      const hasVisited = localStorage.getItem('archdraw-visited');
+      const fromSameOrigin = document.referrer.startsWith(window.location.origin);
+
+      if (hasVisited && !fromSameOrigin) {
+        window.location.replace('/editor');
+        return;
+      }
+
+      localStorage.setItem('archdraw-visited', 'true');
+    } catch {}
   }, []);
 
   return (

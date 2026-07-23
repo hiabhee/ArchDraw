@@ -248,6 +248,8 @@ export interface NodeData {
   shape?: string;
   groupLabel?: string;
   labelManuallyEdited?: boolean;
+  /** Enter inline label edit when the node mounts (edge-drop create). */
+  autoStartLabelEdit?: boolean;
 }
 
 export interface CanvasTab {
@@ -1646,21 +1648,25 @@ const useDiagramStoreRaw = create<DiagramState>()(
 
         get().pushHistory();
 
-        const newNode = createNode(
-          'service',
-          '',
-          position,
-          {
-            type: 'systemNode',
-            data: {
-              category: 'Compute',
-              color: '#6366f1',
-              icon: 'Box',
-              shape: getNodeShape('Compute'),
-              label: '',
-            },
-          }
-        );
+        const newNode = {
+          ...createNode(
+            'service',
+            '',
+            position,
+            {
+              type: 'systemNode',
+              data: {
+                category: 'Compute',
+                color: '#6366f1',
+                icon: 'Box',
+                shape: getNodeShape('Compute'),
+                label: '',
+                autoStartLabelEdit: true,
+              },
+            }
+          ),
+          selected: true,
+        };
 
         let source: string;
         let target: string;
@@ -1677,13 +1683,17 @@ const useDiagramStoreRaw = create<DiagramState>()(
           targetHandle: undefined,
         });
 
-        const nodes = [...get().nodes, newNode];
+        const nodes = [...get().nodes.map((n) => ({ ...n, selected: false })), newNode];
         const rawEdges = addEdge(newEdge, get().edges);
         const edges = distributeTargetHandles(nodes, rawEdges);
         const canvases = get().canvases.map((c) =>
           c.id === get().activeCanvasId ? { ...c, nodes, edges, updatedAt: Date.now() } : c
         );
-        set({ canvases });
+        set({
+          canvases,
+          selectedNodeId: newNode.id,
+          selectedNodeIds: [newNode.id],
+        });
         get().saveCanvasToDB(get().activeCanvasId);
         return newNode.id;
       },

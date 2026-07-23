@@ -13,6 +13,8 @@ import { FloatingAIBar } from '@/components/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/GenerationProgress';
 import { useDiagramStore } from '@/store/diagramStore';
+import { createNode } from '@/lib/factory';
+import { getViewportCenter } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/lib/ai/utils/modelStore';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -96,9 +98,10 @@ export default function EditorPage() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Prevent all global shortcuts if user is typing in an input
-      const activeTag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea') return;
+      // Prevent all global shortcuts if user is typing in an input or contentEditable
+      const active = document.activeElement as HTMLElement;
+      const activeTag = active?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || active?.getAttribute('contenteditable') === 'true') return;
 
       // f key — fit view
       if (e.key === 'f') {
@@ -106,6 +109,16 @@ export default function EditorPage() {
         if (reactFlowRef.instance?.fitView) {
           reactFlowRef.instance.fitView({ padding: 0.0, duration: 200 });
         }
+        return;
+      }
+
+      // t key — add text label at viewport center
+      if (e.key === 't') {
+        e.preventDefault();
+        const { pushHistory, appendNode } = useDiagramStore.getState();
+        const pos = getViewportCenter();
+        pushHistory();
+        appendNode(createNode('textLabelNode', 'Label', pos, { type: 'textLabelNode', data: { text: 'Label', fontSize: 'medium' } }));
         return;
       }
 

@@ -142,7 +142,13 @@ export async function GET(
       );
     }
 
-    data = row as unknown as SharedCanvas;
+    // Prisma uses canvasName; clients expect canvas_name.
+    data = {
+      id: row.id,
+      canvas_name: row.canvasName,
+      nodes: (row.nodes as unknown[]) ?? [],
+      edges: (row.edges as unknown[]) ?? [],
+    };
 
     // Cache to Redis with 24-hour TTL
     try {
@@ -154,9 +160,9 @@ export async function GET(
 
   const response: DiagramResponse = {
     id: data.id,
-    canvas_name: data.canvas_name,
-    nodes: data.nodes,
-    edges: data.edges,
+    canvas_name: data.canvas_name || 'Shared Diagram',
+    nodes: data.nodes || [],
+    edges: data.edges || [],
   };
 
   return NextResponse.json(response, {

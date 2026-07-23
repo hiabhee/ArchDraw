@@ -11,25 +11,32 @@ export async function GET(
   try {
     const shared = await prisma.sharedCanvas.findUnique({ where: { id } });
 
-    if (shared) {
-      return NextResponse.json({
-        success: true,
-        diagram: {
-          nodes: shared.nodes,
-          edges: shared.edges,
-          label: shared.canvasName,
-          createdAt: shared.createdAt.toISOString(),
-          users: shared.users,
-          accessType: shared.accessType,
-          linkPermission: shared.linkPermission,
-        }
-      });
+    if (!shared) {
+      return NextResponse.json(
+        { error: 'Diagram not found' },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json(
-      { error: 'Diagram not found' },
-      { status: 404 }
-    );
+    const users = Array.isArray(shared.users) ? shared.users : [];
+
+    // Shape must match SharePageClient / SharedCanvasViewer expectations.
+    return NextResponse.json({
+      canvas: {
+        id: shared.id,
+        canvas_name: shared.canvasName,
+        nodes: shared.nodes,
+        edges: shared.edges,
+      },
+      access: {
+        role: 'viewer',
+        canEdit:
+          shared.accessType === 'anyone' && shared.linkPermission === 'editor',
+        users,
+        accessType: shared.accessType,
+        linkPermission: shared.linkPermission,
+      },
+    });
   } catch (error) {
     logger.error('Share GET error:', error);
     return NextResponse.json(

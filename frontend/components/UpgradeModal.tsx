@@ -115,7 +115,7 @@ export const UPGRADE_BENEFITS = {
   ],
   share: [
     'Create shareable links (7-day expiry)',
-    'View-only collaboration',
+    'View or edit collaboration',
     'Control who sees your diagrams',
     '5 saved canvases',
   ],

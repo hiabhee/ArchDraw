@@ -7,51 +7,33 @@ interface UseInlineLabelEditOptions {
   nodeId: string;
   currentLabel: string;
   containerRef?: React.RefObject<HTMLElement | null>;
+  /** When true, enter edit mode on mount (e.g. edge-drop created nodes). */
+  autoStart?: boolean;
   onCommit?: (newLabel: string) => void;
 }
 
-// Module-level map: tracks node IDs that should auto-start editing on mount.
-// Populated by Canvas.tsx before React renders the node, consumed once during
-// the useState initializer (no store update during render).
-const pendingEdits = new Map<string, boolean>();
-const claimedPendingEdits = new Set<string>();
-
-export function consumePendingEdit(nodeId: string) {
-  console.log('[consumePendingEdit] Setting pending edit for node:', nodeId);
-  pendingEdits.set(nodeId, true);
-}
+const AUTO_START_FOCUS_MS = 500;
+const EMPTY_LABEL_FALLBACK = 'Service';
 
 export function useInlineLabelEdit({
   nodeId,
   currentLabel,
   containerRef,
+  autoStart = false,
   onCommit,
 }: UseInlineLabelEditOptions) {
-  const [isEditing, setIsEditing] = useState(() => {
-    const hasPending = pendingEdits.has(nodeId) && !claimedPendingEdits.has(nodeId);
-    console.log('[useInlineLabelEdit] Init for node:', nodeId, 'hasPending:', hasPending, 'pendingEdits:', Array.from(pendingEdits.keys()));
-    if (hasPending) {
-      claimedPendingEdits.add(nodeId);
-      // Schedule cleanup of the Map entry after this render completes
-      queueMicrotask(() => pendingEdits.delete(nodeId));
-      return true;
-    }
-    return false;
-  });
+  const [isEditing, setIsEditing] = useState(autoStart);
   const [draft, setDraft] = useState(currentLabel);
   const inputRef = useRef<HTMLInputElement>(null);
   const originalLabelRef = useRef(currentLabel);
+  const draftRef = useRef(currentLabel);
+  // Prevent Enter→unmount→blur from committing a second time with a stale draft.
+  const isCommittingRef = useRef(false);
+  // autoStart should only open the editor once per mount cycle.
+  const didAutoStartRef = useRef(autoStart);
+  const ignoreBlurUntilRef = useRef(autoStart ? Date.now() + AUTO_START_FOCUS_MS : 0);
 
-  // Check for pending edits on mount (in case useState initializer missed it)
-  useEffect(() => {
-    if (!isEditing && pendingEdits.has(nodeId) && !claimedPendingEdits.has(nodeId)) {
-      console.log('[useInlineLabelEdit] Detected pending edit in useEffect for:', nodeId);
-      claimedPendingEdits.add(nodeId);
-      queueMicrotask(() => pendingEdits.delete(nodeId));
-      setIsEditing(true);
-      setDraft(currentLabel);
-    }
-  }, [nodeId, currentLabel, isEditing]);
+  draftRef.current = draft;
 
   useEffect(() => {
     if (!isEditing) {
@@ -59,54 +41,124 @@ export function useInlineLabelEdit({
     }
   }, [currentLabel, isEditing]);
 
-  useLayoutEffect(() => {
-    if (isEditing && inputRef.current) {
-      // Multiple focus attempts to ensure it works
-      inputRef.current.focus();
-      inputRef.current.select();
-      
-      // Additional delayed focus attempt for edge-drop case
-      requestAnimationFrame(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.select();
-        }
-      });
-      
-      // One more attempt with setTimeout as fallback
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.select();
-        }
-      }, 50);
+  // Only re-enter edit mode for autoStart if we never started (e.g. late prop).
+  // Never reopen after an intentional commit — that resets draft to '' and
+  // looks like the first Enter "erased" the label.
+  useEffect(() => {
+    if (autoStart && !isEditing && !didAutoStartRef.current && !isCommittingRef.current) {
+      didAutoStartRef.current = true;
+      ignoreBlurUntilRef.current = Date.now() + AUTO_START_FOCUS_MS;
+      setDraft(currentLabel);
+      draftRef.current = currentLabel;
+      setIsEditing(true);
     }
+  }, [autoStart, isEditing, currentLabel]);
+
+  useLayoutEffect(() => {
+    if (!isEditing) return;
+
+    const focusInput = (selectText: boolean) => {
+      const el = inputRef.current;
+      if (!el) return;
+      if (document.activeElement !== el) {
+        el.focus({ preventScroll: true });
+      }
+      // Only select when the field is still empty — selecting after the user
+      // has typed can fight with Enter/blur and feel like the text was wiped.
+      if (selectText && !draftRef.current) {
+        el.select();
+      }
+    };
+
+    focusInput(true);
+
+    const reclaim = () => {
+      if (Date.now() < ignoreBlurUntilRef.current && !isCommittingRef.current) {
+        focusInput(false);
+      }
+    };
+
+    const timeouts = [0, 16, 50, 100, 200, 350].map((ms) =>
+      window.setTimeout(() => focusInput(ms === 0), ms)
+    );
+
+    window.addEventListener('pointerup', reclaim, true);
+    window.addEventListener('mouseup', reclaim, true);
+    window.addEventListener('click', reclaim, true);
+
+    const stopListening = window.setTimeout(() => {
+      window.removeEventListener('pointerup', reclaim, true);
+      window.removeEventListener('mouseup', reclaim, true);
+      window.removeEventListener('click', reclaim, true);
+    }, AUTO_START_FOCUS_MS);
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+      clearTimeout(stopListening);
+      window.removeEventListener('pointerup', reclaim, true);
+      window.removeEventListener('mouseup', reclaim, true);
+      window.removeEventListener('click', reclaim, true);
+    };
   }, [isEditing]);
 
   const commit = useCallback(() => {
-    const trimmed = draft.trim();
-    const newLabel = trimmed || originalLabelRef.current;
+    if (isCommittingRef.current) return;
+    isCommittingRef.current = true;
+    // Stop blur-reclaim from fighting the unmount that follows commit.
+    ignoreBlurUntilRef.current = 0;
+
+    const trimmed = draftRef.current.trim();
+    const newLabel = trimmed || originalLabelRef.current || EMPTY_LABEL_FALLBACK;
+    const labelChanged = newLabel !== originalLabelRef.current;
+
     setIsEditing(false);
     setDraft(newLabel);
+    draftRef.current = newLabel;
+    originalLabelRef.current = newLabel;
 
-    if (newLabel !== originalLabelRef.current) {
-      useDiagramStore.getState().updateNodeData(nodeId, {
-        label: newLabel,
-        labelManuallyEdited: true,
-      });
+    useDiagramStore.getState().updateNodeData(nodeId, {
+      label: newLabel,
+      autoStartLabelEdit: false,
+      ...(labelChanged ? { labelManuallyEdited: true } : {}),
+    });
+
+    if (labelChanged) {
       onCommit?.(newLabel);
     }
-  }, [draft, nodeId, onCommit]);
+
+    // Allow a future manual edit session after this commit finishes.
+    queueMicrotask(() => {
+      isCommittingRef.current = false;
+    });
+  }, [nodeId, onCommit]);
 
   const cancel = useCallback(() => {
-    setDraft(originalLabelRef.current);
+    if (isCommittingRef.current) return;
+    isCommittingRef.current = true;
+    ignoreBlurUntilRef.current = 0;
+
+    const restored = originalLabelRef.current || EMPTY_LABEL_FALLBACK;
+    setDraft(restored);
+    draftRef.current = restored;
     setIsEditing(false);
-  }, []);
+
+    useDiagramStore.getState().updateNodeData(nodeId, {
+      label: restored,
+      autoStartLabelEdit: false,
+    });
+
+    queueMicrotask(() => {
+      isCommittingRef.current = false;
+    });
+  }, [nodeId]);
 
   useEffect(() => {
     if (!isEditing) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      if (Date.now() < ignoreBlurUntilRef.current || isCommittingRef.current) {
+        return;
+      }
       const target = e.target as HTMLElement;
       if (containerRef?.current && containerRef.current.contains(target)) {
         return;
@@ -116,7 +168,7 @@ export function useInlineLabelEdit({
 
     const timeoutId = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
+    }, AUTO_START_FOCUS_MS);
 
     return () => {
       clearTimeout(timeoutId);
@@ -126,17 +178,37 @@ export function useInlineLabelEdit({
 
   const startEdit = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (isCommittingRef.current) return;
     originalLabelRef.current = currentLabel;
     setDraft(currentLabel);
+    draftRef.current = currentLabel;
+    ignoreBlurUntilRef.current = Date.now() + 100;
     setIsEditing(true);
   }, [currentLabel]);
+
+  const handleBlur = useCallback(() => {
+    if (isCommittingRef.current) return;
+    if (Date.now() < ignoreBlurUntilRef.current) {
+      requestAnimationFrame(() => {
+        if (isCommittingRef.current) return;
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus({ preventScroll: true });
+      });
+      return;
+    }
+    commit();
+  }, [commit]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
+        e.stopPropagation();
         commit();
       } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
         cancel();
       }
     },
@@ -154,12 +226,17 @@ export function useInlineLabelEdit({
     inputProps: {
       ref: inputRef,
       value: draft,
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value),
-      onBlur: commit,
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+        draftRef.current = e.target.value;
+        setDraft(e.target.value);
+      },
+      onBlur: handleBlur,
       onKeyDown: handleKeyDown,
       onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+      onClick: (e: React.MouseEvent) => e.stopPropagation(),
       autoFocus: true,
-      className: 'nodrag',
+      placeholder: EMPTY_LABEL_FALLBACK,
+      className: 'nodrag nopan',
     } as React.InputHTMLAttributes<HTMLInputElement> & { ref: React.RefObject<HTMLInputElement> },
   };
 }

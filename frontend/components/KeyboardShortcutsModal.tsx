@@ -43,6 +43,7 @@ const SHORTCUTS = [
     { key: 'Drag node',      action: 'Move node' },
     { key: 'Drag port',     action: 'Create connection' },
     { key: 'Right-click',   action: 'Context menu' },
+    { key: 'T',             action: 'Add text label' },
   ]},
   { category: 'Groups', items: [
     { key: '⇧ + Drag',     action: 'Create group rectangle' },

@@ -16,6 +16,8 @@ import { EDGE_TYPE_CONFIGS } from '@/data/edgeTypes';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { assignEdgeColors } from '@/lib/edgeColors';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { useDiagramStore } from '@/store/diagramStore';
+import '@/components/nodes/nodeStyles.css';
 
 interface EmbedCanvasProps {
   nodes: Node[];
@@ -44,6 +46,13 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
   }), []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) root.classList.add('dark');
+    else root.classList.remove('dark');
+    useDiagramStore.setState({ darkMode: isDark });
+  }, [isDark]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       fitView({ padding: 0.15, duration: 300 });
     }, 100);
@@ -53,7 +62,7 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
   const coloredEdges = useMemo(() => assignEdgeColors(edges), [edges]);
 
   return (
-    <div style={{ width: '100%', height: '100%', background: backgroundColor }}>
+    <div className={isDark ? 'dark' : ''} style={{ width: '100%', height: '100%', background: backgroundColor }}>
       <ReactFlow
         nodes={nodes}
         edges={coloredEdges}
@@ -73,7 +82,7 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
         proOptions={{ hideAttribution: true }}
         connectionLineType={ConnectionLineType.SmoothStep}
         defaultEdgeOptions={{
-          type: 'smoothstep',
+          type: 'floating',
           style: { strokeWidth: DIAGRAM_CONSTANTS.edge.strokeWidth },
         }}
       >

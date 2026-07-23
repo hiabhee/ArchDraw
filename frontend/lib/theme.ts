@@ -20,18 +20,10 @@ export function useTheme() {
 
 export function useCanvasTheme() {
   const darkMode = useDiagramStore((s) => s.darkMode);
-  
-  let isDark = darkMode;
-  if (typeof window !== 'undefined') {
-    const path = window.location.pathname;
-    if (path.startsWith('/share') || path.startsWith('/embed')) {
-      isDark = true;
-    }
-  }
-  
+
   return {
-    isDark,
-    resolvedTheme: (isDark ? 'dark' : 'light') as Theme,
+    isDark: darkMode,
+    resolvedTheme: (darkMode ? 'dark' : 'light') as Theme,
   };
 }
 
