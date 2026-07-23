@@ -5,6 +5,7 @@ import { parseGitHubUrl } from '@/lib/utils/githubUrl';
 import { clear } from '@/lib/ai/services/diagramCache';
 import { clearBlobCaches } from '@/lib/cache/blobCache';
 import logger from '@/lib/logger';
+import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // Allows pipeline up to 5 minutes to complete
@@ -14,6 +15,20 @@ function errorResponse(message: string, status: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const quotaCheck = await checkAIGenerationQuota(req);
+  if (!quotaCheck.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: quotaCheck.error,
+        code: 'QUOTA_EXCEEDED',
+        remaining: quotaCheck.remaining || 0,
+        upgradePrompt: quotaCheck.tier === 'guest' ? 'Sign in for more generations' : undefined,
+      },
+      { status: 429 }
+    );
+  }
+
   try {
     let body: Record<string, unknown>;
     try {
@@ -39,6 +54,14 @@ export async function POST(req: NextRequest) {
     const resolvedDetail: 1 | 2 | 3 = detailLevel === 1 || detailLevel === 3 ? detailLevel : 2;
 
     const result = await generateRepoArchitectureDiagram(parsed.canonical, resolvedDetail, req.signal);
+
+    const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
+    const resolvedUserId = await userId;
+    await incrementAIGeneration(resolvedUserId);
+    await logUsage(resolvedUserId, getGuestId(req), 'ai_generation', {
+      description: `repo:${parsed.canonical}`,
+      nodeCount: result.nodeCount || 0,
+    });
 
     const payload: RepoDiagramApiResponse = {
       success: true,

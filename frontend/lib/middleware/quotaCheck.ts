@@ -13,6 +13,27 @@ export async function getSessionFromRequest(req: NextRequest) {
   }
 }
 
+/**
+ * DB-based fallback rate limiter for guests when Redis is unavailable.
+ * Counts ai_generation usage_log entries for the given guest IP in the last hour.
+ */
+async function checkGuestQuotaViaDB(
+  identifier: string,
+  limit: number
+): Promise<{ allowed: boolean; remaining: number }> {
+  const oneHourAgo = new Date(Date.now() - 3600_000);
+  const count = await prisma.usageLog.count({
+    where: {
+      guestId: identifier,
+      action: 'ai_generation',
+      createdAt: { gte: oneHourAgo },
+    },
+  });
+  const allowed = count < limit;
+  const remaining = Math.max(0, limit - count);
+  return { allowed, remaining };
+}
+
 export async function checkAIGenerationQuota(
   req: NextRequest
 ): Promise<{ allowed: boolean; error?: string; remaining?: number; tier: UserTier }> {
@@ -23,21 +44,44 @@ export async function checkAIGenerationQuota(
   if (tier === 'guest') {
     const quotas = getGuestQuotas();
     const identifier = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+    // Try Redis first, fall back to DB
     try {
       const result = await checkRateLimit(
         `guest-ai:${identifier}`,
         quotas.aiGenerationsPerHour,
         3600
       );
+      if (result.allowed) {
+        return { allowed: true, remaining: result.remaining, tier };
+      }
+      // Redis says denied — enforce it
       const authQuotas = getAuthenticatedQuotas();
       return {
-        allowed: result.allowed,
-        error: result.allowed ? undefined : `Guest limit: ${quotas.aiGenerationsPerHour} generations per hour. Sign in for ${authQuotas.aiGenerationsPerDay}/day.`,
-        remaining: result.remaining,
+        allowed: false,
+        error: `Guest limit: ${quotas.aiGenerationsPerHour} generations per hour. Sign in for ${authQuotas.aiGenerationsPerDay}/day.`,
+        remaining: 0,
         tier,
       };
     } catch {
-      return { allowed: true, remaining: quotas.aiGenerationsPerHour, tier };
+      // Redis unavailable — fall back to DB tracking (fail-closed)
+      logger.warn('[Quota] Redis unavailable, falling back to DB rate limit for guest');
+      try {
+        const dbResult = await checkGuestQuotaViaDB(identifier, quotas.aiGenerationsPerHour);
+        if (dbResult.allowed) {
+          return { allowed: true, remaining: dbResult.remaining, tier };
+        }
+        const authQuotas = getAuthenticatedQuotas();
+        return {
+          allowed: false,
+          error: `Guest limit: ${quotas.aiGenerationsPerHour} generations per hour. Sign in for ${authQuotas.aiGenerationsPerDay}/day.`,
+          remaining: 0,
+          tier,
+        };
+      } catch (dbError) {
+        logger.error('[Quota] DB fallback also failed, denying guest request:', dbError);
+        return { allowed: false, error: 'Quota check unavailable. Please try again.', remaining: 0, tier };
+      }
     }
   }
 

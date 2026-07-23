@@ -34,7 +34,7 @@ const createRedisClient = () => {
           zadd: () => {},
           zcard: () => {},
           expire: () => {},
-          exec: async () => [0, 0, 0, 0] as [number, number, number, number],
+          exec: async () => { throw new Error('Redis not configured'); },
         }),
         zremrangebyscore: async () => 0,
       } as unknown as Redis;

@@ -17,7 +17,19 @@ export async function GET(req: NextRequest) {
       const result = await checkRateLimit(`guest-ai:${identifier}`, quotas.aiGenerationsPerHour, 3600);
       used = quotas.aiGenerationsPerHour - result.remaining;
     } catch {
-      used = 0;
+      // Redis unavailable — fall back to DB
+      const oneHourAgo = new Date(Date.now() - 3600_000);
+      try {
+        used = await prisma.usageLog.count({
+          where: {
+            guestId: identifier,
+            action: 'ai_generation',
+            createdAt: { gte: oneHourAgo },
+          },
+        });
+      } catch {
+        used = 0;
+      }
     }
 
     return NextResponse.json({

@@ -24,7 +24,7 @@ import logger from '@/lib/logger';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
-import { getUserTier, canAccessFeature, isExportFormatAllowed } from '@/lib/userQuotas';
+import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
 
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -56,6 +56,28 @@ function escapeXml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+async function addWatermark(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0);
+      const fontSize = Math.max(16, Math.floor(img.width / 50));
+      ctx.font = `${fontSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+      ctx.textAlign = 'right';
+      ctx.fillText('Made with ArchDraw — Sign in to remove', img.width - fontSize, img.height - fontSize);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
@@ -348,7 +370,9 @@ export function Toolbar() {
                 );
               },
             });
-            const pngBlob = await dataUrlToBlob(pngDataUrl);
+            const pngBlob = await dataUrlToBlob(
+              shouldWatermark(tier, 'png') ? await addWatermark(pngDataUrl) : pngDataUrl
+            );
             downloadFile(pngBlob, 'archdraw-export.png');
             toast.warning('SVG too large, exported as PNG instead');
           analytics.track({
@@ -405,18 +429,23 @@ export function Toolbar() {
           );
         },
       });
+
+      let finalDataUrl = dataUrl;
+      if (shouldWatermark(tier, 'png')) {
+        finalDataUrl = await addWatermark(dataUrl);
+      }
       
       if (format.includes('pdf')) {
         const { jsPDF } = await import('jspdf');
         const img = new window.Image();
-        img.src = dataUrl;
+        img.src = finalDataUrl;
         await new Promise<void>((r) => { img.onload = () => r(); });
         const pdf = new jsPDF({
           orientation: img.width > img.height ? 'landscape' : 'portrait',
           unit: 'px',
           format: [img.width, img.height],
         });
-        pdf.addImage(dataUrl, 'PNG', 0, 0, img.width, img.height);
+        pdf.addImage(finalDataUrl, 'PNG', 0, 0, img.width, img.height);
         pdf.save('archdraw-export.pdf');
         toast.success('Exported as PDF');
         analytics.track({
@@ -427,7 +456,7 @@ export function Toolbar() {
         });
       } else {
         const suffix = pixelRatio === 1 ? '' : pixelRatio === 2 ? '@2x' : '@4x';
-        downloadFile(await dataUrlToBlob(dataUrl), `archdraw-export${suffix}.png`);
+        downloadFile(await dataUrlToBlob(finalDataUrl), `archdraw-export${suffix}.png`);
         toast.success(`Exported as PNG ${pixelRatio}x`);
         analytics.track({
           event_type: 'export',

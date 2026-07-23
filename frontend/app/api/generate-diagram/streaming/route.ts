@@ -3,6 +3,7 @@ import { generateDiagram } from '@/lib/ai/services/orchestrator';
 import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
 import logger from '@/lib/logger';
 import { z } from 'zod';
+import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
 
 function inferSystemType(description: string): string {
   const lower = description.toLowerCase();
@@ -41,6 +42,26 @@ const generateDiagramSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const quotaCheck = await checkAIGenerationQuota(req);
+
+  if (!quotaCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: quotaCheck.error,
+        code: 'QUOTA_EXCEEDED',
+        status: 429,
+        remaining: quotaCheck.remaining || 0,
+        upgradePrompt: quotaCheck.tier === 'guest' ? 'Sign in for more generations' : undefined,
+      },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Remaining': String(quotaCheck.remaining || 0),
+        },
+      }
+    );
+  }
+
   try {
     const body = await req.json();
     const validatedInput = generateDiagramSchema.safeParse(body);
@@ -112,6 +133,14 @@ export async function POST(req: NextRequest) {
           // Disabled: Writing to diagramCache was causing repeated diagrams
           // diagramCache.set(description, { ... });
 
+          const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
+          const resolvedUserId = await userId;
+          await incrementAIGeneration(resolvedUserId);
+          await logUsage(resolvedUserId, getGuestId(req), 'ai_generation', {
+            description: description.substring(0, 100),
+            nodeCount: result.nodes?.length || 0,
+          });
+
           sendEvent({ type: 'complete', data: result, progress: 100 });
           controller.close();
 
@@ -165,8 +194,13 @@ async function handleNonStreaming(req: NextRequest, data: z.infer<typeof generat
   try {
     const result = await generateDiagram(userIntent);
 
-    // Disabled: Writing to diagramCache was causing repeated diagrams
-    // diagramCache.set(description, { ... });
+    const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
+    const resolvedUserId = await userId;
+    await incrementAIGeneration(resolvedUserId);
+    await logUsage(resolvedUserId, getGuestId(req), 'ai_generation', {
+      description: description.substring(0, 100),
+      nodeCount: result.nodes?.length || 0,
+    });
 
     return NextResponse.json({
       success: true,

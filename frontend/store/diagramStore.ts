@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 
 const isBrowser = typeof window !== 'undefined';
 const MAX_GUEST_CANVASES = 1;
+const MAX_GUEST_NODES = 25;
+const MAX_AUTH_NODES = 50;
 
 // --- Migration for Problem 1: Duplicate Nodes and Edges ---
 if (isBrowser) {
@@ -1632,6 +1634,16 @@ const useDiagramStoreRaw = create<DiagramState>()(
       },
 
       addNodeOnEdgeDrop: ({ originNodeId, originHandleType, position }) => {
+        const state = get();
+        const isGuest = !state.userProfile || state.userProfile.id === 'guest';
+        const nodeLimit = isGuest ? MAX_GUEST_NODES : MAX_AUTH_NODES;
+        if (state.nodes.length >= nodeLimit) {
+          toast.error(isGuest
+            ? `Guest limit: ${nodeLimit} nodes per canvas. Sign in for ${MAX_AUTH_NODES}.`
+            : `Canvas limit: ${nodeLimit} nodes.`);
+          return '';
+        }
+
         get().pushHistory();
 
         const newNode = createNode(
@@ -1677,6 +1689,16 @@ const useDiagramStoreRaw = create<DiagramState>()(
       },
 
       addNode: (type, label, category, color, icon, technology, position) => {
+        const state = get();
+        const isGuest = !state.userProfile || state.userProfile.id === 'guest';
+        const nodeLimit = isGuest ? MAX_GUEST_NODES : MAX_AUTH_NODES;
+        if (state.nodes.length >= nodeLimit) {
+          toast.error(isGuest
+            ? `Guest limit: ${nodeLimit} nodes per canvas. Sign in for ${MAX_AUTH_NODES}.`
+            : `Canvas limit: ${nodeLimit} nodes.`);
+          return;
+        }
+
         get().pushHistory();
         
         let newNode: Node<NodeData>;
