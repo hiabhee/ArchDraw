@@ -59,7 +59,7 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
     return () => clearTimeout(timer);
   }, [fitView]);
 
-  const coloredEdges = useMemo(() => assignEdgeColors(edges), [edges]);
+  const coloredEdges = useMemo(() => assignEdgeColors(edges, isDark), [edges, isDark]);
 
   return (
     <div className={isDark ? 'dark' : ''} style={{ width: '100%', height: '100%', background: backgroundColor }}>

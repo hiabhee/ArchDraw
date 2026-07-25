@@ -66,11 +66,25 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
   for (const edge of edges) {
     const src = sanitizeId(edge.source);
     const tgt = sanitizeId(edge.target);
-    if (edge.label) {
-      const elabel = escapeLabel(String(edge.label));
-      lines.push(`  ${src} -->|"${elabel}"| ${tgt}`);
+    const edgeVariant = edge.data?.edgeVariant as string | undefined;
+    const connectionType = edge.data?.connectionType as string | undefined;
+    const elabel = edge.label ? escapeLabel(String(edge.label)) : '';
+
+    let arrow: string;
+    if (edgeVariant === 'thick') {
+      arrow = '==>';
+    } else if (edgeVariant === 'dashed' || connectionType === 'async') {
+      arrow = elabel ? `-.${elabel}.->` : '-.->';
+    } else if (edge.data?.markerStart && edge.data?.markerEnd) {
+      arrow = '<-->';
     } else {
-      lines.push(`  ${src} --> ${tgt}`);
+      arrow = '-->';
+    }
+
+    if (elabel && !arrow.includes(elabel)) {
+      lines.push(`  ${src} ${arrow}|"${elabel}"| ${tgt}`);
+    } else {
+      lines.push(`  ${src} ${arrow} ${tgt}`);
     }
   }
 

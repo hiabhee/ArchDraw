@@ -203,7 +203,7 @@ export default function SimpleFloatingEdge({
       stroke = isDenseBundle ? '#4f46e5' : '#818cf8';
     }
 
-    const strokeWidth = selected || isHovered ? baseWidth + 1.0 : baseWidth;
+    const strokeWidth = selected || isHovered ? baseWidth + 1.0 : edgeVariant === 'thick' ? baseWidth + 1.5 : baseWidth;
 
     let strokeDasharray: string | undefined;
     if (edgeVariant === 'dashed' || isAsync) {
