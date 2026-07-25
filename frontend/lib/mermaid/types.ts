@@ -1,6 +1,6 @@
 export type Direction = 'TD' | 'LR' | 'BT' | 'RL'
 export type Shape = 'rectangle' | 'diamond' | 'circle' | 'rounded' | 'cylinder' | 'hexagon' | 'parallelogram'
-export type EdgeType = 'arrow' | 'dotted' | 'thick' | 'open'
+export type EdgeType = 'arrow' | 'dotted' | 'thick' | 'open' | 'bidirectional'
 
 export interface ParsedNode {
   id: string
@@ -22,6 +22,7 @@ export interface ParsedSubgraph {
   label: string
   nodeIds: string[]
   parentId?: string
+  direction?: Direction
 }
 
 export interface MermaidAST {
@@ -73,6 +74,7 @@ export interface RFEdge {
   label?: string
   data?: Record<string, unknown>
   animated?: boolean
+  [key: string]: unknown
 }
 
 export interface RFObjects {

@@ -1,14 +1,37 @@
-import type { MermaidAST, ParsedNode, ParsedEdge, ParsedSubgraph, Direction, Shape, EdgeType, ParseResult } from './types'
+import type { ParsedNode, ParsedEdge, ParsedSubgraph, Direction, Shape, EdgeType, ParseResult } from './types'
+
+const RESERVED_KEYWORDS = new Set(['end', 'graph', 'flowchart', 'subgraph', 'direction'])
 
 function normalizeEdgeLabels(text: string): string {
   return text.split('\n').map(line => {
-    return line.replace(/--\s+([^>]+?)\s*-->/g, '-->|$1|');
-  }).join('\n');
+    line = line.replace(/--\s+"([^"]+)"\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|')
+    line = line.replace(/--\s+(.+?)\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|')
+    return line
+  }).join('\n')
+}
+
+function stripComments(line: string): string {
+  let inQuote = false
+  let quoteChar = ''
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuote) {
+      if (ch === quoteChar && line[i - 1] !== '\\') inQuote = false
+    } else {
+      if (ch === '"' || ch === "'") {
+        inQuote = true
+        quoteChar = ch
+      } else if (ch === '%' && i + 1 < line.length && line[i + 1] === '%') {
+        return line.slice(0, i)
+      }
+    }
+  }
+  return line
 }
 
 function extractId(raw: string): string | null {
-  const m = raw.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)/);
-  return m ? m[1] : null;
+  const m = raw.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)/)
+  return m ? m[1] : null
 }
 
 function ensureNode(
@@ -18,26 +41,30 @@ function ensureNode(
   currentSubgraphId: string | null,
   subgraphs: ParsedSubgraph[],
 ): string | null {
-  const id = extractId(raw);
-  if (!id) return null;
-  if (nodeIdSet.has(id)) return id;
-  // If the ID is a subgraph, we do NOT want to create a duplicate leaf node for it
-  if (subgraphs.some(s => s.id === id)) return id;
-  const label = extractNodeLabel(raw) || id;
-  const shape = detectShape(raw);
-  nodeIdSet.add(id);
-  nodes.push({ id, label, shape, subgraphId: currentSubgraphId });
-  if (currentSubgraphId) {
-    const sub = subgraphs.find(s => s.id === currentSubgraphId);
-    if (sub) sub.nodeIds.push(id);
+  let id = extractId(raw)
+  if (!id) return null
+
+  if (RESERVED_KEYWORDS.has(id.toLowerCase())) {
+    id = id + '_node'
   }
-  return id;
+
+  if (nodeIdSet.has(id)) return id
+  if (subgraphs.some(s => s.id === id)) return id
+  const label = extractNodeLabel(raw) || id
+  const shape = detectShape(raw)
+  nodeIdSet.add(id)
+  nodes.push({ id, label, shape, subgraphId: currentSubgraphId })
+  if (currentSubgraphId) {
+    const sub = subgraphs.find(s => s.id === currentSubgraphId)
+    if (sub) sub.nodeIds.push(id)
+  }
+  return id
 }
 
 function detectDirection(text: string): Direction {
   const lines = text.split('\n')
   for (const rawLine of lines) {
-    const cleanLine = rawLine.includes('%%') ? rawLine.split('%%')[0] : rawLine
+    const cleanLine = stripComments(rawLine)
     const line = cleanLine.trim()
     const m = line.match(/^(?:graph|flowchart)\s+(TD|LR|BT|RL|TB)\b/i)
     if (m) {
@@ -50,33 +77,57 @@ function detectDirection(text: string): Direction {
 }
 
 function detectShape(line: string): Shape {
-  if (line.includes('[(')) return 'cylinder'
-  if (line.includes('((')) return 'circle'
-  if (line.includes('{{')) return 'hexagon'
-  if (line.includes('{')) return 'diamond'
-  if (line.includes('([') || line.includes(')')) return 'rounded'
-  if (line.includes('/"') || line.includes('["/>') || line.includes('[\\')) return 'parallelogram'
-  if (line.includes('[')) return 'rectangle'
+  let afterId = line
+  const idMatch = line.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)/)
+  if (idMatch) {
+    afterId = line.slice(idMatch[0].length).trimStart()
+  }
+
+  if (afterId.startsWith('[(')) return 'cylinder'
+  if (afterId.startsWith('((')) return 'circle'
+  if (afterId.startsWith('{{')) return 'hexagon'
+  if (afterId.startsWith('{')) return 'diamond'
+  if (afterId.startsWith('([')) return 'rounded'
+  if (afterId.startsWith('[/') || afterId.startsWith('[\\')) return 'parallelogram'
+  if (afterId.startsWith('[')) return 'rectangle'
+  if (afterId.startsWith('(')) return 'rounded'
   return 'rectangle'
 }
 
 function extractNodeLabel(line: string): string | null {
-  const patterns = [
-    /\[\(\(\"?([^\"]*)\"?\)\)\]/, // Double circle
-    /\[\(\"?([^\"]*)\"?\)\]/,     // Cylinder (Database/Cache)
-    /\(\(\"?([^\"]*)\"?\)\)/,     // Circle
-    /\(\"?([^\"]*)\"?\)/,         // Rounded
-    /\{\{\"?([^\"]*)\"?\}\}/,     // Hexagon
-    /\{\"?([^\"]*)\"?\}/,         // Diamond
-    /\[\/\"?([^\"]*)\"?\/\]/,     // Parallelogram Left
-    /\[\\\"?([^\"]*)\"?\\\]/,     // Parallelogram Right
-    /\[\"([^\"]*)\"\]/,           // Double-quoted rectangle
-    /\[\"?([^\"]*)\"?\]/,         // Generic rectangle
+  const idMatch = line.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)/)
+  if (!idMatch) return null
+
+  let pos = idMatch[0].length
+  while (pos < line.length && line[pos] === ' ') pos++
+  if (pos >= line.length) return null
+
+  const remaining = line.slice(pos)
+
+  const openers: Array<{ open: string; close: string }> = [
+    { open: '(((', close: ')))' },
+    { open: '[(', close: ')]' },
+    { open: '((', close: '))' },
+    { open: '{{', close: '}}' },
+    { open: '[/', close: '/]' },
+    { open: '[\\', close: '\\]' },
+    { open: '([', close: '])' },
+    { open: '[', close: ']' },
+    { open: '(', close: ')' },
+    { open: '{', close: '}' },
   ]
-  for (const p of patterns) {
-    const m = line.match(p)
-    if (m) return m[1]
+
+  for (const { open, close } of openers) {
+    if (remaining.startsWith(open)) {
+      const afterOpen = remaining.slice(open.length)
+      const closeIdx = afterOpen.indexOf(close)
+      if (closeIdx !== -1) {
+        const content = afterOpen.slice(0, closeIdx)
+        return content.replace(/^["']|["']$/g, '').trim()
+      }
+    }
   }
+
   return null
 }
 
@@ -88,6 +139,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
   const nodes: ParsedNode[] = []
   const edges: ParsedEdge[] = []
   const nodeIdSet = new Set<string>()
+  let edgeCounter = 0
 
   let currentSubgraphId: string | null = null
   const subgraphStack: string[] = []
@@ -95,27 +147,45 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i]
-    // Strip trailing or standalone comments
-    const commentIdx = rawLine.indexOf('%%')
-    const cleanLine = commentIdx !== -1 ? rawLine.slice(0, commentIdx) : rawLine
+    const cleanLine = stripComments(rawLine)
     const line = cleanLine.trim()
-    if (!line || line.startsWith('graph') || line.startsWith('flowchart') || /^direction\s+(TD|LR|BT|RL|TB)\b/i.test(line)) {
+    if (!line || line.startsWith('graph') || line.startsWith('flowchart')) {
       continue
     }
 
-    const lineNum = i + 1
+    const dirMatch = line.match(/^direction\s+(TD|LR|BT|RL|TB)\b/i)
+    if (dirMatch) {
+      if (currentSubgraphId) {
+        const sub = subgraphs.find(s => s.id === currentSubgraphId)
+        if (sub) {
+          const d = dirMatch[1].toUpperCase()
+          sub.direction = (d === 'TB' ? 'TD' : d) as Direction
+        }
+      }
+      continue
+    }
 
-    // Subgraph start
-    // Matches: subgraph ID ["label"], subgraph ID ['label'], subgraph ID [label], subgraph ID
-    // ID can contain spaces which we will normalize to underscores
-    const subgraphMatch = line.match(/^subgraph\s+([A-Za-z0-9_\-\s]+?)(?:\s*(?:\[\s*"(.*?)"\s*\]|\[\s*'(.*?)'\s*\]|\[\s*(.*?)\s*\]))?$/i)
-    if (subgraphMatch) {
-      const rawId = subgraphMatch[1].trim()
-      const label = subgraphMatch[2] ?? subgraphMatch[3] ?? subgraphMatch[4] ?? rawId
+    if (/^(style|classDef|class|linkStyle|click)\s/i.test(line)) {
+      continue
+    }
+
+    const subgraphHeader = line.match(/^subgraph\s+/i)
+    if (subgraphHeader) {
+      const afterKw = line.slice(subgraphHeader[0].length)
+      let rawId: string
+      let label: string | null = null
+
+      const labelMatch = afterKw.match(/\s*\[\s*("(.*?)"|'(.*?)'|(.*?))\s*\]\s*$/)
+      if (labelMatch) {
+        rawId = afterKw.slice(0, afterKw.length - labelMatch[0].length).trim()
+        label = labelMatch[2] ?? labelMatch[3] ?? labelMatch[4] ?? null
+      } else {
+        rawId = afterKw.trim()
+      }
+
       const id = rawId.replace(/\s+/g, '_')
       const parentId = subgraphStack.length > 0 ? subgraphStack[subgraphStack.length - 1] : undefined
-      
-      // If a node was already declared with this ID, remove it to avoid duplicate ID issues
+
       if (nodeIdSet.has(id)) {
         nodeIdSet.delete(id)
         const idx = nodes.findIndex(n => n.id === id)
@@ -124,19 +194,17 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
       subgraphStack.push(id)
       currentSubgraphId = id
-      subgraphs.push({ id, label: label.trim(), nodeIds: [], parentId })
+      subgraphs.push({ id, label: (label ?? rawId).trim(), nodeIds: [], parentId })
       continue
     }
 
-    // Subgraph end
     if (line.toLowerCase() === 'end') {
       subgraphStack.pop()
       currentSubgraphId = subgraphStack.length > 0 ? subgraphStack[subgraphStack.length - 1] : null
       continue
     }
 
-    // Edge: check for arrow syntax (supporting chained arrows, e.g. A --> B --> C)
-    const arrowRegex = /(<-->|-->|-\.->|===>)/g
+    const arrowRegex = /(<-->|==(.+?)==>|-\.[^.]*\.->|-\.->|--+>|==+>|---(?!>)|--x|--o)/g
     const matches = [...line.matchAll(arrowRegex)]
     if (matches.length > 0) {
       const segmentNodes: string[] = []
@@ -148,32 +216,42 @@ export function parseMermaid(mermaidText: string): ParseResult {
         const arrowIdx = match.index!
         const fullArrow = match[1]
 
-        // Segment before this arrow
         const segment = line.slice(lastIndex, arrowIdx).trim()
-        
-        let edgeType: EdgeType = 'arrow'
-        if (fullArrow === '<-->') edgeType = 'arrow'
-        else if (fullArrow === '-.->') edgeType = 'dotted'
-        else if (fullArrow === '===>') edgeType = 'thick'
 
-        // Check if there is an inline label directly on this arrow (only if we're not at the very end)
-        // Wait, standard mermaid can have labels inside pipes, e.g. -->|label|
-        // But since we split, let's see where the label resides.
-        // In A -->|sends| B -->|receives| C:
-        // Match 1 is "-->" at index 2. The text after it starts with "|sends| B"
-        // Let's extract the label from the text following this arrow (before the next arrow if any, or end of line)
+        let edgeType: EdgeType = 'arrow'
+        if (fullArrow === '<-->') edgeType = 'bidirectional'
+        else if (fullArrow.startsWith('-.')) edgeType = 'dotted'
+        else if (fullArrow.startsWith('==')) edgeType = 'thick'
+        else if (fullArrow.match(/^-{3,}$/)) edgeType = 'open'
+        else if (fullArrow === '--x' || fullArrow === '--o') edgeType = 'open'
+
+        let edgeLabel: string | null = null
+
+        const embeddedLabelMatch = fullArrow.match(/^-\.(.+)\.->$/)
+        if (embeddedLabelMatch) {
+          edgeLabel = embeddedLabelMatch[1]
+        }
+
+        if (!edgeLabel) {
+          const thickEmbedded = fullArrow.match(/^==(.+)==>$/)
+          if (thickEmbedded) {
+            edgeLabel = thickEmbedded[1]
+          }
+        }
+
         const nextMatch = matches[mIdx + 1]
         const nextArrowIdx = nextMatch ? nextMatch.index! : line.length
         let targetPart = line.slice(arrowIdx + fullArrow.length, nextArrowIdx).trim()
 
-        let edgeLabel: string | null = null
-        const pipeLabelMatch = targetPart.match(/^\|"?([^"|]*)"?\|\s*(.*)$/)
-        if (pipeLabelMatch) {
-          edgeLabel = pipeLabelMatch[1]
-          targetPart = pipeLabelMatch[2].trim()
+        let pipeLabelMatch: RegExpMatchArray | null = null
+        if (!edgeLabel) {
+          pipeLabelMatch = targetPart.match(/^\s*\|"?([^|"]+)"?\|\s*(.*)$/)
+          if (pipeLabelMatch) {
+            edgeLabel = pipeLabelMatch[1].trim()
+            targetPart = pipeLabelMatch[2].trim()
+          }
         }
 
-        // Register source node (before the arrow)
         const sourceId = ensureNode(segment, nodes, nodeIdSet, currentSubgraphId, subgraphs)
         if (sourceId) {
           segmentNodes.push(sourceId)
@@ -181,18 +259,12 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
         edgeSpecs.push({
           sourceIdx: segmentNodes.length - 1,
-          targetIdx: segmentNodes.length, // Will be resolved when final node is added
+          targetIdx: segmentNodes.length,
           label: edgeLabel,
           type: edgeType,
         })
 
-        // Move lastIndex past the arrow and its label (but not past the target node!)
-        // The text we parsed as label was at the start of the next segment.
-        // So lastIndex should point to the target node's text.
         if (pipeLabelMatch) {
-          // The pipeLabelMatch matched "|label|" at start of targetPart.
-          // The length of "|label|" is pipeLabelMatch[0].length (minus trailing spaces).
-          // We can find where the target node actually starts.
           const labelOffset = line.slice(arrowIdx + fullArrow.length).indexOf(pipeLabelMatch[2])
           lastIndex = arrowIdx + fullArrow.length + labelOffset
         } else {
@@ -200,20 +272,18 @@ export function parseMermaid(mermaidText: string): ParseResult {
         }
       }
 
-      // Final segment after the last arrow
       const finalSegment = line.slice(lastIndex).trim()
       const finalNodeId = ensureNode(finalSegment, nodes, nodeIdSet, currentSubgraphId, subgraphs)
       if (finalNodeId) {
         segmentNodes.push(finalNodeId)
       }
 
-      // Build edges between adjacent nodes in the chain
       for (const spec of edgeSpecs) {
         const sourceId = segmentNodes[spec.sourceIdx]
         const targetId = segmentNodes[spec.targetIdx]
         if (sourceId && targetId) {
           edges.push({
-            id: `${sourceId}-${targetId}-${spec.label ?? 'nolabel'}`,
+            id: `${sourceId}-${targetId}-${spec.label ?? 'nolabel'}-${edgeCounter++}`,
             source: sourceId,
             target: targetId,
             label: spec.label,
@@ -224,7 +294,6 @@ export function parseMermaid(mermaidText: string): ParseResult {
       continue
     }
 
-    // Node declaration
     const idMatch = line.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)\s*(.*)$/)
     if (idMatch) {
       const id = idMatch[1]
@@ -233,8 +302,6 @@ export function parseMermaid(mermaidText: string): ParseResult {
       const shape = rest ? detectShape(rest) : null
 
       if (subgraphs.some(s => s.id === id)) {
-        // ID is already a subgraph. Update the subgraph's label if specified,
-        // but do NOT create a duplicate leaf node.
         const sub = subgraphs.find(s => s.id === id)
         if (sub && label) {
           sub.label = label
@@ -243,8 +310,6 @@ export function parseMermaid(mermaidText: string): ParseResult {
       }
 
       if (nodeIdSet.has(id)) {
-        // Node was already created (e.g. implicitly via an edge).
-        // Update its properties instead of throwing a duplicate error.
         const existingNode = nodes.find(n => n.id === id)
         if (existingNode) {
           if (label) existingNode.label = label

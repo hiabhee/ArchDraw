@@ -3,6 +3,7 @@ import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
 import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../utils/nodeSizing'
 import { classifyEdge } from './edgeClassifier'
+const ARROW_MARKER = 'arrowclosed'
 
 export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
   const nodes: RFNode[] = []
@@ -44,7 +45,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     if (brRegex.test(label)) {
       const parts = label.split(brRegex)
       label = parts[0].trim()
-      subtitle = parts.slice(1).join(' ').trim()
+      subtitle = parts.slice(1).join(' \u00B7 ').trim()
     }
 
     const { width, height } = calculateNodeDimensions(label, subtitle)
@@ -101,6 +102,12 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       ? classifyEdge(srcNode, tgtNode, pEdge.label ?? '', pEdge.type)
       : { importance: 'secondary' as const, syncAsync: 'sync' as const, protocol: 'HTTP' };
 
+    const edgeVariant = pEdge.type === 'dotted' ? 'dashed'
+      : pEdge.type === 'thick' ? 'thick'
+      : pEdge.type === 'open' ? 'dashed'
+      : pEdge.type === 'bidirectional' ? 'bidirectional'
+      : 'solid'
+
     const rfEdge: RFEdge = {
       id: pEdge.id,
       source: pEdge.source,
@@ -109,10 +116,12 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       targetHandle: null,
       type: 'simpleFloating',
       label: pEdge.label ?? undefined,
+      markerStart: pEdge.type === 'bidirectional' ? { type: ARROW_MARKER } : undefined,
+      markerEnd: { type: ARROW_MARKER },
       data: {
         label: pEdge.label ?? undefined,
         connectionType: pEdge.type === 'dotted' ? 'async' : 'sync',
-        edgeVariant: pEdge.type === 'dotted' ? 'dashed' : 'solid',
+        edgeVariant,
         importance: semantics.importance,
         syncAsync: semantics.syncAsync,
         portType: semantics.portType,

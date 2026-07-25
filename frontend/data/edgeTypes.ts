@@ -92,7 +92,7 @@ export interface EdgeData {
   label?: string;
   edgeType?: EdgeType;
   pathType?: PathType;
-  edgeVariant?: 'solid' | 'dashed' | 'dotted' | 'feedback';
+  edgeVariant?: 'solid' | 'dashed' | 'dotted' | 'feedback' | 'thick' | 'bidirectional';
   hideLabel?: boolean;
   communicationType?: 'sync' | 'async' | 'stream' | 'event' | 'dep';
   connectionType?: EdgeType;
