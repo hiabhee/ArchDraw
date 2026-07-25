@@ -63,7 +63,7 @@ const notionTutorial = defineTutorial({
       steps: [
         step({
           component: 'Database',
-          nodeType: 'database',
+          nodeType: 'sql_db',
           parent: 'Block Service',
           phases: {
             context: { heading: 'Level 2: Database', body: 'Notion databases are tables where each row is a page and each column is a block property. They support filtering, sorting, and multiple views (table, board, timeline, calendar).' },
@@ -82,7 +82,7 @@ const notionTutorial = defineTutorial({
       steps: [
         step({
           component: 'Real-time Service',
-          nodeType: 'realtime_service',
+          nodeType: 'crdt_engine',
           parent: 'API Gateway',
           phases: {
             context: { heading: 'Level 3: Real-time Service', body: 'Notion\'s Real-time Service enables 10+ users to edit the same page simultaneously using Operational Transformation (OT) to merge concurrent edits.' },

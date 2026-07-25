@@ -262,7 +262,7 @@ const chatgptTutorial = defineTutorial({
       steps: [
         step({
           component: 'Rate Limiter',
-          nodeType: 'rate_limiter',
+          nodeType: 'token_bucket_limiter',
           parent: 'Auth Service',
           phases: {
             context: { heading: 'Level 3: Step 1', body: 'Adding the Rate Limiter \u2014 enforces API rate limits.' },
@@ -276,7 +276,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'API Docs',
-          nodeType: 'api_docs',
+          nodeType: 'third_party_api',
           parent: 'Rate Limiter',
           phases: {
             context: { heading: 'Level 3: Step 2', body: 'Adding API Docs \u2014 developer documentation.' },
@@ -290,7 +290,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'CDN Cache Invalidation',
-          nodeType: 'cdn_cache_invalidation',
+          nodeType: 'cdn_cache',
           parent: 'CDN',
           phases: {
             context: { heading: 'Level 3: Step 3', body: 'Adding CDN Cache Invalidation \u2014 manages cached responses.' },
@@ -304,7 +304,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'Streaming Service',
-          nodeType: 'streaming_service',
+          nodeType: 'token_streaming',
           parent: 'LLM API',
           phases: {
             context: { heading: 'Level 3: Step 4', body: 'Adding the Streaming Service \u2014 streams LLM tokens in real-time.' },
@@ -318,7 +318,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'WebSocket Server',
-          nodeType: 'websocket_server',
+          nodeType: 'signaling_server',
           parent: 'Streaming Service',
           phases: {
             context: { heading: 'Level 3: Step 5', body: 'Adding the WebSocket Server \u2014 real-time bidirectional communication.' },
@@ -332,7 +332,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'Tracing Collector',
-          nodeType: 'tracing_collector',
+          nodeType: 'otel_collector',
           parent: 'Chat Service',
           phases: {
             context: { heading: 'Level 3: Step 6', body: 'Adding the Tracing Collector \u2014 distributed tracing.' },
@@ -346,7 +346,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'Alerting System',
-          nodeType: 'alerting_system',
+          nodeType: 'alert_manager',
           parent: 'Metrics Collector',
           phases: {
             context: { heading: 'Level 3: Step 7', body: 'Adding the Alerting System \u2014 notifies on incidents.' },
@@ -374,7 +374,7 @@ const chatgptTutorial = defineTutorial({
         }),
         step({
           component: 'Cache Stampede Prevention',
-          nodeType: 'cache_stampede_prevention',
+          nodeType: 'cache_stampede_guard',
           parent: 'In-Memory Cache',
           phases: {
             context: { heading: 'Level 3: Step 9', body: 'Adding Cache Stampede Prevention \u2014 prevents thundering herd.' },

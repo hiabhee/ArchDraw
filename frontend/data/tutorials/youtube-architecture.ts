@@ -58,7 +58,7 @@ const youtubeTutorial = defineTutorial({
         }),
         step({
           component: 'Video Service',
-          nodeType: 'video_service',
+          nodeType: 'media_service',
           parent: 'API Gateway',
           phases: {
             context: { heading: 'Step 4: Video Service', body: 'The Video Service manages the entire video lifecycle — upload, processing, metadata, and playback URL generation.' },
@@ -91,7 +91,7 @@ const youtubeTutorial = defineTutorial({
       steps: [
         step({
           component: 'Transcoding',
-          nodeType: 'transcoding',
+          nodeType: 'transcoding_worker',
           parent: 'Object Storage',
           phases: {
             context: { heading: 'Level 2: Transcoding', body: 'Every uploaded video must be transcoded into 10+ quality formats (144p to 4K, multiple codecs). YouTube transcodes 500 hours of video per minute.' },
@@ -110,7 +110,7 @@ const youtubeTutorial = defineTutorial({
       steps: [
         step({
           component: 'Recommendation',
-          nodeType: 'recommendation',
+          nodeType: 'recommendation_service',
           parent: 'API Gateway',
           phases: {
             context: { heading: 'Level 3: Recommendation Engine', body: 'YouTube\'s recommendation engine drives 70% of all views. It analyzes watch history, engagement signals, and similar user patterns to suggest videos.' },

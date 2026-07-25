@@ -63,7 +63,7 @@ const airbnbTutorial = defineTutorial({
       steps: [
         step({
           component: 'Database',
-          nodeType: 'database',
+          nodeType: 'sql_db',
           parent: 'Search Service',
           phases: {
             context: { heading: 'Level 2: Database', body: 'Airbnb\'s database stores 4 million listings with properties (location, price, amenities, photos), availability calendars, and booking records.' },

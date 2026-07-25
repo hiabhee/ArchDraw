@@ -118,14 +118,14 @@ const netflixTutorial = defineTutorial({
       steps: [
         step({ component: 'User Service', nodeType: 'user_service', parent: 'Auth Service' }),
         step({ component: 'SQL Database', nodeType: 'sql_db', parent: 'User Service' }),
-        step({ component: 'Recommendation Engine', nodeType: 'recommendation_engine', parent: 'User Service' }),
+        step({ component: 'Recommendation Engine',           nodeType: 'recommendation_service', parent: 'User Service' }),
       ],
     }),
     level({
       title: 'Expert Architecture',
       steps: [
-        step({ component: 'Worker', nodeType: 'worker', parent: 'Object Storage' }),
-        step({ component: 'Content Catalog', nodeType: 'content_catalog', parent: 'API Gateway' }),
+        step({ component: 'Worker', nodeType: 'worker_job', parent: 'Object Storage' }),
+        step({ component: 'Content Catalog', nodeType: 'data_catalog', parent: 'API Gateway' }),
       ],
     }),
   ],

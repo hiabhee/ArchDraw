@@ -16,7 +16,7 @@ const stripeTutorial = defineTutorial({
       steps: [
         step({
           component: 'Client',
-          nodeType: 'client',
+          nodeType: 'client_web',
           noConnect: true,
           phases: {
             context: { heading: 'Welcome to Stripe Architecture', body: 'Stripe processes over $1 trillion annually. Every payment must be idempotent (no double charges), compliant (PCI DSS), and available 99.999% of the time.' },
@@ -72,7 +72,7 @@ const stripeTutorial = defineTutorial({
         }),
         step({
           component: 'Ledger',
-          nodeType: 'ledger',
+          nodeType: 'sql_db',
           parent: 'Payment Service',
           phases: {
             context: { heading: 'Step 5: Ledger', body: 'Stripe\'s Ledger is a double-entry accounting system that records every financial event with immutable audit trails.' },
@@ -110,7 +110,7 @@ const stripeTutorial = defineTutorial({
       steps: [
         step({
           component: 'Webhook Handler',
-          nodeType: 'webhook_handler',
+          nodeType: 'webhook_dispatcher',
           parent: 'Payment Service',
           phases: {
             context: { heading: 'Level 3: Webhook Handler', body: 'Webhooks notify merchants when payments succeed, fail, or require action. Stripe retries failed webhooks with exponential backoff for up to 3 days.' },

@@ -58,7 +58,7 @@ const whatsappTutorial = defineTutorial({
         }),
         step({
           component: 'Database',
-          nodeType: 'database',
+          nodeType: 'sql_db',
           parent: 'Message Service',
           phases: {
             context: { heading: 'Step 4: Database', body: 'WhatsApp stores message metadata (sender, timestamp, delivery status) but NOT message content — content is end-to-end encrypted and only exists on devices.' },
@@ -96,7 +96,7 @@ const whatsappTutorial = defineTutorial({
       steps: [
         step({
           component: 'Voice Service',
-          nodeType: 'voice_service',
+          nodeType: 'media_server',
           parent: 'Mobile Client',
           phases: {
             context: { heading: 'Level 3: Voice Service', body: 'WhatsApp voice and video calls use WebRTC for peer-to-peer connections, with TURN relay servers as fallback when direct connections fail.' },

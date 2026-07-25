@@ -88,7 +88,7 @@ const uberTutorial = defineTutorial({
         }),
         step({
           component: 'Maps API',
-          nodeType: 'external_service',
+          nodeType: 'maps_api',
           parent: 'Location Service',
           phases: {
             context: { heading: 'Step 6: Maps API', body: 'The Maps API provides routing, ETA estimation, and map tile rendering for both rider and driver apps.' },
@@ -140,7 +140,7 @@ const uberTutorial = defineTutorial({
       steps: [
         step({
           component: 'Surge Pricing',
-          nodeType: 'surge_pricing',
+          nodeType: 'pricing_engine',
           parent: 'Matching Service',
           phases: {
             context: { heading: 'Level 3: Surge Pricing', body: 'Surge pricing is Uber\'s real-time supply-demand balancing mechanism. When demand exceeds supply, prices increase to attract more drivers and reduce demand.' },

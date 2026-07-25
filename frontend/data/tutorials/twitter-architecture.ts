@@ -96,7 +96,7 @@ const twitterTutorial = defineTutorial({
       steps: [
         step({
           component: 'Cache',
-          nodeType: 'cache',
+          nodeType: 'in_memory_cache',
           parent: 'Timeline Service',
           phases: {
             context: { heading: 'Level 3: Cache', body: 'Twitter caches 80% of timeline reads from Memcached clusters. Without caching, the database would be overwhelmed by timeline read requests.' },
