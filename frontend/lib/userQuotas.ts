@@ -66,7 +66,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     aiGenerationsPerDay: 10,
     maxCanvases: 5,
     maxNodesPerCanvas: 50,
-    allowedExportFormats: ['json', 'png', 'svg'],
+    allowedExportFormats: ['json', 'png', 'svg', 'pdf', 'html-embed'],
     svgExport: true,
     allowSharing: true,
     allowAdvancedTemplates: true,
@@ -136,7 +136,9 @@ export function isTemplateAllowed(userTier: UserTier, templateId: string): boole
 
 export function isExportFormatAllowed(userTier: UserTier, format: string): boolean {
   const quotas = getUserQuotas(userTier);
-  return quotas.allowedExportFormats.includes(format);
+  // Normalize: strip suffixes like "-dark-4x", "-light-4x", "-transparent-4x", "-dark", "-light", "-transparent"
+  const base = format.replace(/-transparent(-\d+x)?$/, '').replace(/-(?:dark|light)(-\d+x)?$/, '');
+  return quotas.allowedExportFormats.includes(base);
 }
 
 export function shouldWatermark(userTier: UserTier, format: string): boolean {

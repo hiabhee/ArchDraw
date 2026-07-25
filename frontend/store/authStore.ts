@@ -12,58 +12,94 @@ interface AuthUser {
   createdAt: Date;
 }
 
+const GUEST_USER: AuthUser = {
+  id: 'guest',
+  email: 'guest@local',
+  name: 'Guest User',
+  image: null,
+  emailVerified: false,
+  createdAt: new Date(),
+};
+
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   initialized: boolean;
+  sessionExpired: boolean;
   signOut: () => Promise<void>;
   initialize: () => Promise<void>;
+  refreshSession: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
   initialized: false,
+  sessionExpired: false,
 
   signOut: async () => {
     try {
       await authClient.signOut();
-      set({ user: null });
+      set({ user: null, sessionExpired: false });
     } catch (err) {
       logger.error('[Auth] Sign out error:', err);
+    }
+  },
+
+  refreshSession: async () => {
+    const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+    if (!authEnabled) return true;
+
+    try {
+      const { data: session } = await authClient.getSession();
+
+      if (session?.user) {
+        const u = session.user;
+        set({
+          user: {
+            id: u.id,
+            email: u.email ?? null,
+            name: u.name ?? null,
+            image: u.image ?? null,
+            emailVerified: u.emailVerified,
+            createdAt: u.createdAt,
+          },
+          sessionExpired: false,
+        });
+        return true;
+      }
+
+      // Session gone — only mark expired if we previously had a real user
+      const prev = get().user;
+      if (prev && prev.id !== 'guest') {
+        logger.warn('[Auth] Session expired — user was:', prev.email);
+        set({ user: GUEST_USER, sessionExpired: true });
+        return false;
+      }
+      return false;
+    } catch (err) {
+      logger.error('[Auth] Session refresh failed:', err);
+      return false;
     }
   },
 
   initialize: async () => {
     if (get().initialized) return;
 
-    // Check if auth is enabled via public env var (safe for client-side)
     const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
-    
+
     if (!authEnabled) {
       logger.warn('[Auth] Authentication not enabled - using guest mode');
-      set({ 
-        user: { 
-          id: 'guest', 
-          email: 'guest@local', 
-          name: 'Guest User', 
-          image: null, 
-          emailVerified: false, 
-          createdAt: new Date() 
-        }, 
-        loading: false, 
-        initialized: true 
+      set({
+        user: GUEST_USER,
+        loading: false,
+        initialized: true,
       });
       return;
     }
 
     try {
       const { data: session } = await authClient.getSession();
-      
-      console.log('[Auth] Session check result:', session ? 'Session found' : 'No session');
-      if (session?.user) {
-        console.log('[Auth] User data:', { id: session.user.id, email: session.user.email, name: session.user.name });
-      }
 
       if (session?.user) {
         const u = session.user;
@@ -78,38 +114,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           },
           loading: false,
           initialized: true,
+          sessionExpired: false,
         });
         analytics.identify(u.id);
       } else {
-        // No active session - use guest mode
         logger.info('[Auth] No active session - using guest mode');
         set({
-          user: { 
-            id: 'guest', 
-            email: 'guest@local', 
-            name: 'Guest User', 
-            image: null, 
-            emailVerified: false, 
-            createdAt: new Date() 
-          },
+          user: GUEST_USER,
           loading: false,
           initialized: true,
+          sessionExpired: false,
         });
       }
     } catch (error) {
-      // Auth check failed - log error and fall back to guest mode
       logger.error('[Auth] Session check failed, falling back to guest mode:', error);
       set({
-        user: { 
-          id: 'guest', 
-          email: 'guest@local', 
-          name: 'Guest User', 
-          image: null, 
-          emailVerified: false, 
-          createdAt: new Date() 
-        },
+        user: GUEST_USER,
         loading: false,
         initialized: true,
+        sessionExpired: false,
       });
     }
   },

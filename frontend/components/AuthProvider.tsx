@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { saveTutorialProgress as apiSaveTutorialProgress } from '@/lib/api-client';
 import { STORAGE_KEYS } from '@/lib/config';
+
+const SESSION_REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 async function migrateGuestProgress(userId: string) {
   const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
@@ -34,21 +37,43 @@ async function migrateGuestProgress(userId: string) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { initialize, user, initialized } = useAuthStore();
+  const { initialize, user, initialized, refreshSession, sessionExpired } = useAuthStore();
   const prevUserIdRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
+  const hadRealUserRef = useRef(false);
 
+  // Initialize once
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
     initialize();
   }, [initialize]);
 
+  // Track whether we ever had a real (non-guest) user
+  useEffect(() => {
+    if (user && user.id !== 'guest') {
+      hadRealUserRef.current = true;
+    }
+  }, [user]);
+
+  // Show toast when session expires
+  useEffect(() => {
+    if (sessionExpired && hadRealUserRef.current) {
+      toast.error('Your session expired. Please sign in again.', {
+        duration: 8000,
+        action: {
+          label: 'Sign in',
+          onClick: () => window.location.reload(),
+        },
+      });
+    }
+  }, [sessionExpired]);
+
+  // Sync user profile to diagram store
   useEffect(() => {
     if (!initialized) return;
 
     if (!user) {
-      console.log('[AuthProvider] No user, clearing profile');
       prevUserIdRef.current = null;
       useDiagramStore.getState().setUserProfile(null);
       return;
@@ -60,7 +85,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { setUserProfile, loadCanvasesFromDB } = useDiagramStore.getState();
 
     if (user.id !== 'guest') {
-      console.log('[AuthProvider] Setting authenticated user profile:', { id: user.id, email: user.email, name: user.name });
       setUserProfile({
         id: user.id,
         email: user.email ?? undefined,
@@ -70,7 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loadCanvasesFromDB().catch(() => {});
       migrateGuestProgress(user.id).catch(() => {});
     } else {
-      console.log('[AuthProvider] Setting guest user profile');
       setUserProfile({
         id: 'guest',
         email: 'guest@local',
@@ -79,11 +102,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, initialized]);
 
+  // Periodic session refresh — keeps the session alive and detects expiration
   useEffect(() => {
     const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
     if (!initialized || !authEnabled) return;
 
-    // Handle pending actions from session storage (share/download after auth)
+    const interval = setInterval(() => {
+      refreshSession();
+    }, SESSION_REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [initialized, refreshSession]);
+
+  // Refresh session when user returns to the tab
+  useEffect(() => {
+    const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+    if (!initialized || !authEnabled) return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshSession();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [initialized, refreshSession]);
+
+  // Handle pending actions from session storage (share/download after auth)
+  useEffect(() => {
+    const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+    if (!initialized || !authEnabled) return;
+
     const pendingAction = sessionStorage.getItem('pendingAction');
     if (pendingAction) {
       sessionStorage.removeItem('pendingAction');

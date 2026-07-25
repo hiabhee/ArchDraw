@@ -27,11 +27,13 @@ const RATE_LIMIT = 100;
 
 export async function POST(req: NextRequest) {
   if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ ok: true, skipped: true }, { status: 200 });
+    console.warn('[Analytics] DATABASE_URL is not set — events are being dropped');
+    return NextResponse.json({ ok: true, skipped: true, reason: 'no_database_url' }, { status: 200 });
   }
 
   const anonId = req.cookies.get('ad_anon')?.value;
   if (!anonId) {
+    console.warn('[Analytics] Missing ad_anon cookie');
     return NextResponse.json({ error: 'Missing anon_id cookie' }, { status: 400 });
   }
 
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = trackSchema.safeParse(body);
   if (!parsed.success) {
+    console.warn('[Analytics] Invalid payload:', parsed.error.flatten());
     return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 });
   }
 
@@ -64,41 +67,42 @@ export async function POST(req: NextRequest) {
   const cfCountry = req.headers.get('cf-ipcountry') || req.headers.get('x-vercel-ip-country') || null;
 
   // Upsert visitor
-  const existingVisitor = await prisma.visitor.findUnique({
-    where: { anonId },
-    select: { id: true, firstReferrer: true },
-  });
-
-  const visitorUpdate: Record<string, unknown> = {
-    lastSeenAt: new Date(),
-    userAgent,
-    isInternal: is_internal || false,
-  };
-
-  if (cfCountry) visitorUpdate.country = cfCountry;
-
-  // Set first_referrer and first_utm only on first visit
-  if (!existingVisitor) {
-    if (referrer) visitorUpdate.firstReferrer = referrer;
-    const utm: Record<string, string> = {};
-    if (utm_source) utm.source = utm_source;
-    if (utm_medium) utm.medium = utm_medium;
-    if (utm_campaign) utm.campaign = utm_campaign;
-    if (Object.keys(utm).length > 0) visitorUpdate.firstUtm = utm;
-  }
-
   let visitor;
   try {
+    const existingVisitor = await prisma.visitor.findUnique({
+      where: { anonId },
+      select: { id: true, firstReferrer: true },
+    });
+
+    const visitorUpdate: Record<string, unknown> = {
+      lastSeenAt: new Date(),
+      userAgent,
+      isInternal: is_internal || false,
+    };
+
+    if (cfCountry) visitorUpdate.country = cfCountry;
+
+    // Set first_referrer and first_utm only on first visit
+    if (!existingVisitor) {
+      if (referrer) visitorUpdate.firstReferrer = referrer;
+      const utm: Record<string, string> = {};
+      if (utm_source) utm.source = utm_source;
+      if (utm_medium) utm.medium = utm_medium;
+      if (utm_campaign) utm.campaign = utm_campaign;
+      if (Object.keys(utm).length > 0) visitorUpdate.firstUtm = utm;
+    }
+
     visitor = await prisma.visitor.upsert({
       where: { anonId },
       create: {
         anonId,
         ...visitorUpdate,
-      } as never, // TypeScript workaround for dynamic create
+      } as never,
       update: visitorUpdate,
       select: { id: true },
     });
-  } catch {
+  } catch (err) {
+    console.error('[Analytics] Failed to upsert visitor:', err);
     return NextResponse.json({ error: 'Failed to upsert visitor' }, { status: 500 });
   }
 
@@ -108,49 +112,59 @@ export async function POST(req: NextRequest) {
     : /tablet|ipad/i.test(ua) ? 'tablet'
     : 'desktop';
 
-  // Check if session already exists
-  const existingSession = await prisma.visitorSession.findUnique({
-    where: { id: session_id },
-    select: { id: true, startedAt: true },
-  });
-
-  if (!existingSession) {
-    const entryPage = events.length > 0 ? events[0].page_path : null;
-    await prisma.visitorSession.create({
-      data: {
-        id: session_id,
-        visitorId: visitor.id,
-        entryPage,
-        deviceType,
-        startedAt: new Date(),
-      },
-    });
-  } else {
-    const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
-    const durationSeconds = Math.round(
-      (Date.now() - new Date(existingSession.startedAt).getTime()) / 1000
-    );
-    await prisma.visitorSession.update({
+  // Upsert session
+  try {
+    const existingSession = await prisma.visitorSession.findUnique({
       where: { id: session_id },
-      data: {
-        endedAt: new Date(),
-        durationSeconds,
-        exitPage,
-      },
+      select: { id: true, startedAt: true },
     });
+
+    if (!existingSession) {
+      const entryPage = events.length > 0 ? events[0].page_path : null;
+      await prisma.visitorSession.create({
+        data: {
+          id: session_id,
+          visitorId: visitor.id,
+          entryPage,
+          deviceType,
+          startedAt: new Date(),
+        },
+      });
+    } else {
+      const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
+      const durationSeconds = Math.round(
+        (Date.now() - new Date(existingSession.startedAt).getTime()) / 1000
+      );
+      await prisma.visitorSession.update({
+        where: { id: session_id },
+        data: {
+          endedAt: new Date(),
+          durationSeconds,
+          exitPage,
+        },
+      });
+    }
+  } catch (err) {
+    console.error('[Analytics] Failed to upsert session:', err);
+    // Continue — events are more important than session metadata
   }
 
   // Batch insert events
-  const rows = events.map((e) => ({
-    sessionId: session_id,
-    visitorId: visitor.id,
-    eventType: e.event_type,
-    eventName: e.event_name || null,
-    pagePath: e.page_path,
-    payload: (e.payload || {}) as object,
-  }));
+  try {
+    const rows = events.map((e) => ({
+      sessionId: session_id,
+      visitorId: visitor.id,
+      eventType: e.event_type,
+      eventName: e.event_name || null,
+      pagePath: e.page_path,
+      payload: (e.payload || {}) as object,
+    }));
 
-  await prisma.event.createMany({ data: rows });
+    await prisma.event.createMany({ data: rows });
+  } catch (err) {
+    console.error('[Analytics] Failed to insert events:', err);
+    return NextResponse.json({ error: 'Failed to insert events' }, { status: 500 });
+  }
 
-  return NextResponse.json({ ok: true }, { status: 200 });
+  return NextResponse.json({ ok: true, recorded: events.length }, { status: 200 });
 }

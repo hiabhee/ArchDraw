@@ -726,7 +726,7 @@ function InteractiveLandingDemoContent() {
   }, [nodes, edges, setNodes, setEdges, pushState]);
 
   return (
-    <div className={`w-full h-[740px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
+    <div className={`w-full h-[400px] sm:h-[560px] lg:h-[740px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
       isDemoDark 
         ? 'dark dark-theme-forced bg-[#090b0d] text-[#f7f8f8] border-[#202327]' 
         : 'light-theme-forced bg-white text-[#0f172a] border-[#cbd5e1]'

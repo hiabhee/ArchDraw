@@ -120,12 +120,16 @@ async function flush(useBeacon = false) {
   }
 
   try {
-    await fetch('/api/track', {
+    const res = await fetch('/api/track', {
       method: 'POST',
       body,
       headers: { 'Content-Type': 'application/json' },
       keepalive: true,
     });
+    if (!res.ok) {
+      logger.warn(`[Analytics] Flush failed: ${res.status} ${res.statusText}`);
+      state.queue.unshift(...batch);
+    }
   } catch (err) {
     // Re-queue on failure (best-effort, don't drop events silently)
     logger.warn('[Analytics] Flush failed, re-queuing:', err);
@@ -191,7 +195,11 @@ function setupClickTracking() {
 }
 
 function track(e: TrackEvent) {
-  if (!state.initialized || !ANALYTICS_ENABLED) return;
+  if (!ANALYTICS_ENABLED) return;
+  if (!state.initialized) {
+    logger.warn('[Analytics] Track called before init — event dropped:', e.event_type);
+    return;
+  }
   state.queue.push(e);
   if (state.queue.length >= FLUSH_BATCH_SIZE) {
     flush();
@@ -204,6 +212,8 @@ function init() {
 
   ensureAnonId();
   ensureSession();
+
+  logger.info('[Analytics] Initialized', { anonId: state.anonId, sessionId: state.sessionId });
 
   state.flushTimer = setInterval(() => flush(), FLUSH_INTERVAL_MS);
 

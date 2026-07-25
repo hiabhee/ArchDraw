@@ -5,6 +5,7 @@ import { X, Keyboard } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -74,6 +75,9 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
             <Keyboard className="w-4 h-4 text-foreground/70" />
           </div>
           <DialogTitle className="text-sm font-semibold">Keyboard Shortcuts</DialogTitle>
+          <DialogDescription className="sr-only">
+            A reference of all available keyboard shortcuts for the canvas editor.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto px-6 py-4">

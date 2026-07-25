@@ -13,6 +13,7 @@ const identifySchema = z.object({
 
 export async function POST(req: NextRequest) {
   if (!process.env.DATABASE_URL) {
+    console.warn('[Analytics] identify: DATABASE_URL is not set');
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
@@ -40,7 +41,8 @@ export async function POST(req: NextRequest) {
         ...(isInternal ? { isInternal: true } : {}),
       },
     });
-  } catch {
+  } catch (err) {
+    console.error('[Analytics] Failed to identify visitor:', err);
     return NextResponse.json({ error: 'Failed to identify' }, { status: 500 });
   }
 

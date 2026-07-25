@@ -29,30 +29,27 @@ if (githubOAuth) {
   };
 }
 
-const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:3001';
+const baseURL = process.env.BETTER_AUTH_URL
+  || process.env.NEXT_PUBLIC_APP_URL
+  || (process.env.NODE_ENV === 'production' ? 'https://archdraw.hiabhee.online' : 'http://localhost:3000');
 
 // Build trusted origins list - include both production and development
-const trustedOrigins = [
+const trustedOrigins = new Set<string>([
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
-];
-if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_APP_URL) {
-  trustedOrigins.push(process.env.NEXT_PUBLIC_APP_URL);
+]);
+if (process.env.NEXT_PUBLIC_APP_URL) {
+  trustedOrigins.add(process.env.NEXT_PUBLIC_APP_URL);
 }
-// Also trust the base URL if different
-if (!trustedOrigins.includes(baseURL)) {
-  trustedOrigins.push(baseURL);
-}
-// Trust the public app URL if set and not already included
-if (process.env.NEXT_PUBLIC_APP_URL && !trustedOrigins.includes(process.env.NEXT_PUBLIC_APP_URL)) {
-  trustedOrigins.push(process.env.NEXT_PUBLIC_APP_URL);
+if (!trustedOrigins.has(baseURL)) {
+  trustedOrigins.add(baseURL);
 }
 
 logger.info('[Auth] Initializing Better Auth', {
   baseURL,
-  trustedOrigins,
+  trustedOrigins: Array.from(trustedOrigins),
   providers: Object.keys(socialProviders),
 });
 
@@ -68,7 +65,7 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
-  trustedOrigins,
+  trustedOrigins: Array.from(trustedOrigins),
   baseURL,
 });
 
