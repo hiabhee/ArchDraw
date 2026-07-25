@@ -8,7 +8,7 @@ import logger from '@/lib/logger';
 
 export type { ExtractedNode };
 
-const KEY_FILE_BUDGET = 8000;
+const KEY_FILE_BUDGET = 16000;
 
 const ARCHITECTURAL_FILE_PATTERNS = [
   /route\.(ts|js|tsx)$/,
@@ -95,6 +95,16 @@ function looksLikeEchoedSource(result: string): boolean {
   return false;
 }
 
+function markHeuristicNodes(nodes: ExtractedNode[]): ExtractedNode[] {
+  return nodes.map((n) => ({
+    ...n,
+    confidence: n.confidence === 'high' ? 'medium' : 'low',
+    description: n.description
+      ? `[Heuristic] ${n.description}`
+      : '[Heuristic] Inferred from file tree — not confirmed by source code.',
+  }));
+}
+
 export async function extractComponents(
   snapshot: RepoSnapshot,
   repoProfile: RepoProfile,
@@ -166,7 +176,7 @@ Rules:
 
     if (looksLikeEchoedSource(result)) {
       logger.warn('[ComponentExtractor] LLM echoed source; using heuristic fallback');
-      return extractComponentsHeuristic(snapshot, repoProfile);
+      return markHeuristicNodes(extractComponentsHeuristic(snapshot, repoProfile));
     }
 
     try {
@@ -180,12 +190,12 @@ Rules:
     }
 
     logger.warn('[ComponentExtractor] No valid nodes; using heuristic fallback');
-    return extractComponentsHeuristic(snapshot, repoProfile);
+    return markHeuristicNodes(extractComponentsHeuristic(snapshot, repoProfile));
   } catch (err) {
     logger.error('[ComponentExtractor] LLM call failed:', err);
     const heuristic = extractComponentsHeuristic(snapshot, repoProfile);
     if (heuristic.length > 0) {
-      return heuristic;
+      return markHeuristicNodes(heuristic);
     }
     throw new Error(`Failed to extract components: ${err instanceof Error ? err.message : String(err)}`);
   }

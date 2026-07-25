@@ -38,35 +38,37 @@ function formatWait(resetEpochSeconds: number | null): string {
   return rem === 0 ? `about ${hours} hours` : `about ${hours}h ${rem}m`;
 }
 
-async function fetchJson(url: string, headers: Record<string, string>): Promise<Response> {
+async function fetchJson(url: string, headers: Record<string, string>, signal?: AbortSignal): Promise<Response> {
   try {
-    return await fetch(url, { headers });
-  } catch {
+    return await fetch(url, { headers, signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') throw err;
     throw new Error('Network error connecting to GitHub API');
   }
 }
 
-async function getDefaultBranch(owner: string, repo: string, headers: Record<string, string>): Promise<string> {
-  const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}`, headers);
+async function getDefaultBranch(owner: string, repo: string, headers: Record<string, string>, signal?: AbortSignal): Promise<{ branch: string; isPrivate: boolean }> {
+  const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}`, headers, signal);
   if (res.status === 404) throw new Error('Repository not found or is private');
   if (res.status === 403) {
     const rl = readRateLimitInfo(res);
-    if (rl.remaining === 0) throw new Error(`GitHub API rate limit reached. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
+    if (rl.remaining === 0) throw new Error(`GitHub API rate limit reached${!headers['Authorization'] ? ' (no token configured — set GITHUB_TOKEN for 5,000 req/hr)' : ''}. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
     throw new Error('GitHub API access forbidden (possible abuse detection or insufficient permissions).');
   }
   if (!res.ok) throw new Error(`GitHub API returned status ${res.status}`);
   const data = await res.json();
   const branch = typeof data?.default_branch === 'string' ? data.default_branch : null;
+  const isPrivate = data.private === true;
   if (!branch) throw new Error('Could not determine default branch for repository');
-  return branch;
+  return { branch, isPrivate };
 }
 
-async function getBranchHeadSha(owner: string, repo: string, branch: string, headers: Record<string, string>): Promise<string> {
-  const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, headers);
+async function getBranchHeadSha(owner: string, repo: string, branch: string, headers: Record<string, string>, signal?: AbortSignal): Promise<string> {
+  const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, headers, signal);
   if (res.status === 404) throw new Error('Default branch ref not found');
   if (res.status === 403) {
     const rl = readRateLimitInfo(res);
-    if (rl.remaining === 0) throw new Error(`GitHub API rate limit reached. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
+    if (rl.remaining === 0) throw new Error(`GitHub API rate limit reached${!headers['Authorization'] ? ' (no token configured — set GITHUB_TOKEN for 5,000 req/hr)' : ''}. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
     throw new Error('GitHub API access forbidden (possible abuse detection or insufficient permissions).');
   }
   if (!res.ok) throw new Error(`GitHub API returned status ${res.status}`);
@@ -76,21 +78,21 @@ async function getBranchHeadSha(owner: string, repo: string, branch: string, hea
   return sha;
 }
 
-async function getRecursiveTree(owner: string, repo: string, sha: string, headers: Record<string, string>): Promise<{ tree: GitTreeItem[]; truncated: boolean }> {
+async function getRecursiveTree(owner: string, repo: string, sha: string, headers: Record<string, string>, signal?: AbortSignal): Promise<{ tree: GitTreeItem[]; truncated: boolean }> {
   const cacheKey = `${owner}/${repo}:${sha}`;
   const cached = treeCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached && Date.now() - cached.ts < CONTENT_CACHE_TTL_MS) return cached;
 
-  const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`, headers);
+  const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`, headers, signal);
   if (res.status === 404) throw new Error('Repository not found or is private');
   if (res.status === 403) {
     const rl = readRateLimitInfo(res);
-    if (rl.remaining === 0) throw new Error(`GitHub API rate limit reached. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
+    if (rl.remaining === 0) throw new Error(`GitHub API rate limit reached${!headers['Authorization'] ? ' (no token configured — set GITHUB_TOKEN for 5,000 req/hr)' : ''}. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
     throw new Error('GitHub API access forbidden (possible abuse detection or insufficient permissions).');
   }
   if (!res.ok) throw new Error(`GitHub API returned status ${res.status}`);
   const data = await res.json();
-  treeCache.set(cacheKey, { tree: data.tree, truncated: data.truncated });
+  treeCache.set(cacheKey, { tree: data.tree, truncated: data.truncated, ts: Date.now() });
   evictIfNeeded(treeCache);
   return data;
 }
@@ -173,11 +175,12 @@ const isSkipped = (path: string, size?: number): string | null => {
 
 // In-memory caches to avoid re-fetching the same data on re-runs.
 // Content cache keyed by path; tree cache keyed by headSha.
+const CONTENT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 25;
-const fileContentCache = new Map<string, FileEntry | null>();
-const treeCache = new Map<string, { tree: GitTreeItem[]; truncated: boolean }>();
+const fileContentCache = new Map<string, { entry: FileEntry | null; ts: number }>();
+const treeCache = new Map<string, { tree: GitTreeItem[]; truncated: boolean; ts: number }>();
 
-function evictIfNeeded(cache: Map<string, unknown>) {
+function evictIfNeeded(cache: Map<string, { ts: number }>) {
   while (cache.size > MAX_CACHE_SIZE) {
     const oldestKey = cache.keys().next().value;
     if (oldestKey === undefined) break;
@@ -189,28 +192,31 @@ async function fetchFileContent(
   owner: string,
   repo: string,
   path: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  signal?: AbortSignal
 ): Promise<FileEntry | null> {
   const cacheKey = `${owner}/${repo}:${path}`;
-  if (fileContentCache.has(cacheKey)) {
-    return fileContentCache.get(cacheKey) ?? null;
+  const cached = fileContentCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CONTENT_CACHE_TTL_MS) {
+    return cached.entry;
   }
 
   const response = await fetchJson(
     `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    headers
+    headers,
+    signal
   );
 
   if (response.status === 403) {
     const rl = readRateLimitInfo(response);
     if (rl.remaining === 0) {
-      throw new Error(`GitHub API rate limit reached. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
+      throw new Error(`GitHub API rate limit reached${!headers['Authorization'] ? ' (no token configured — set GITHUB_TOKEN for 5,000 req/hr)' : ''}. Try again in ${formatWait(rl.resetEpochSeconds)}.`);
     }
   }
 
   if (!response.ok) {
     logger.warn(`[Ingest] Failed to fetch content for ${path}: Status ${response.status}`);
-    fileContentCache.set(cacheKey, null);
+    fileContentCache.set(cacheKey, { entry: null, ts: Date.now() });
     evictIfNeeded(fileContentCache);
     return null;
   }
@@ -225,14 +231,18 @@ async function fetchFileContent(
     content = content.split('\n').slice(0, 200).join('\n');
   }
   const entry: FileEntry = { path, content };
-  fileContentCache.set(cacheKey, entry);
+  fileContentCache.set(cacheKey, { entry, ts: Date.now() });
   evictIfNeeded(fileContentCache);
   return entry;
 }
 
-function determineSurfaceClassification(treeItems: GitTreeItem[], treeMap: Map<string, GitTreeItem>): SurfaceClassification {
+function determineSurfaceClassification(
+  treeItems: GitTreeItem[],
+  treeMap: Map<string, GitTreeItem>,
+  phase1Files?: FileEntry[],
+  phase1PackageJsonRaw?: string | null
+): SurfaceClassification {
   const allPaths = treeItems.map((i) => i.path);
-
   const hasPackageJson = treeMap.has('package.json');
   const hasRequirementsTxt = treeMap.has('requirements.txt');
   const hasGoMod = treeMap.has('go.mod');
@@ -270,7 +280,25 @@ function determineSurfaceClassification(treeItems: GitTreeItem[], treeMap: Map<s
   // Detect monorepo from multiple sources
   const hasAppsDir = allPaths.some((p) => p.startsWith('apps/'));
   const hasPackagesDir = allPaths.some((p) => p.startsWith('packages/'));
-  const isMonorepo = hasTurboJson || hasNxJson || hasLernaJson || hasPnpmWorkspace || (hasAppsDir && hasPackagesDir);
+  const hasAppsOrPackages = hasAppsDir || hasPackagesDir;
+
+  // Check pnpm-workspace.yaml for 'packages:' key
+  const pnpmWorkspaceEntry = phase1Files?.find((f) => f.path === 'pnpm-workspace.yaml');
+  const pnpmConfirmed = !!pnpmWorkspaceEntry?.content.includes('packages:');
+
+  // Check root package.json workspaces field
+  let npmWorkspacesConfirmed = false;
+  if (phase1PackageJsonRaw) {
+    try {
+      const pj = JSON.parse(phase1PackageJsonRaw);
+      npmWorkspacesConfirmed = Array.isArray(pj.workspaces) && pj.workspaces.length > 0;
+    } catch {
+      // ignore parse error
+    }
+  }
+
+  const workspaceToolSignal = hasTurboJson || hasNxJson || hasLernaJson || hasPnpmWorkspace || pnpmConfirmed || npmWorkspacesConfirmed;
+  const isMonorepo = workspaceToolSignal || (hasAppsOrPackages && workspaceToolSignal);
 
   return {
     primaryLanguage,
@@ -282,7 +310,12 @@ function determineSurfaceClassification(treeItems: GitTreeItem[], treeMap: Map<s
   };
 }
 
-export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
+export async function ingestRepo(
+  repoUrl: string,
+  opts?: { fileBudget?: number; contentBudgetKB?: number },
+  signal?: AbortSignal,
+  userGithubToken?: string
+): Promise<RepoSnapshot> {
   const { owner, repo } = parseGithubUrl(repoUrl);
 
   const headers: Record<string, string> = {
@@ -290,21 +323,22 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     'User-Agent': 'ArchDraw-App',
   };
 
-  if (process.env.GITHUB_TOKEN) {
-    headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const token = userGithubToken ?? process.env.GITHUB_TOKEN;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   } else {
     logger.warn('[Ingest] No GITHUB_TOKEN configured. Unauthenticated rate limit is 60 req/hr. Set GITHUB_TOKEN in .env for 5000 req/hr.');
   }
 
   logger.info(`[Ingest] Resolving default branch for ${owner}/${repo}...`);
-  const defaultBranch = await getDefaultBranch(owner, repo, headers);
+  const { branch: defaultBranch, isPrivate } = await getDefaultBranch(owner, repo, headers, signal);
   logger.info(`[Ingest] Default branch: ${defaultBranch}`);
 
   logger.info(`[Ingest] Resolving branch HEAD SHA...`);
-  const headSha = await getBranchHeadSha(owner, repo, defaultBranch, headers);
+  const headSha = await getBranchHeadSha(owner, repo, defaultBranch, headers, signal);
 
   console.log(`[Ingest] Fetching recursive tree for ${owner}/${repo}@${defaultBranch}...`);
-  const treeData = await getRecursiveTree(owner, repo, headSha, headers);
+  const treeData = await getRecursiveTree(owner, repo, headSha, headers, signal);
 
   if (!treeData.tree || !Array.isArray(treeData.tree)) {
     throw new Error('Invalid repository tree received from GitHub');
@@ -361,7 +395,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   const phase1Fetched = await promisePool(phase1Candidates, 5, async (path) => {
     const item = treeMap.get(path);
     if (!item || isSkipped(path, item.size)) return null;
-    return fetchFileContent(owner, repo, path, headers);
+    return fetchFileContent(owner, repo, path, headers, signal);
   });
 
   const phase1Files: FileEntry[] = [];
@@ -373,7 +407,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   }
 
   // Refine surface classification with actual content
-  const surfaceClassification = determineSurfaceClassification(treeItems, treeMap);
+  const surfaceClassification = determineSurfaceClassification(treeItems, treeMap, phase1Files, phase1PackageJsonRaw);
 
   // Check docker-compose services count
   const dcEntry = phase1Files.find((f) => f.path === 'docker-compose.yml' || f.path === 'docker-compose.yaml');
@@ -418,9 +452,14 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
   // ── Phase 2: Stack-Guided Deep Read ───────────────────────
   console.log(`[Ingest] Phase 2: Stack-guided deep file selection...`);
 
+  const totalLimit = (opts?.fileBudget ?? 75) - phase1Files.length;
+  let contentBudget = (opts?.contentBudgetKB ?? 280) * 1024; // 280KB default
+  // Deduct phase1 consumed bytes from the budget
+  for (const entry of phase1Files) {
+    contentBudget -= entry.content.length;
+  }
+  contentBudget = Math.max(contentBudget, 50 * 1024); // keep minimum 50KB floor
   const phase2Candidates: string[] = [];
-  const totalLimit = 75 - phase1Files.length;
-  let contentBudget = 280 * 1024; // 280KB total
   const isNode = surfaceClassification.primaryLanguage === 'JavaScript/TypeScript';
   const isPython = surfaceClassification.primaryLanguage === 'Python';
   const isGo = surfaceClassification.primaryLanguage === 'Go';
@@ -633,7 +672,40 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     mdFiles.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
   }
 
-  const phase2Slice = phase2Candidates.slice(0, Math.min(phase2Candidates.length, totalLimit));
+interface ScoredCandidate { path: string; score: number; }
+
+function scoreCandidate(path: string, treeMap: Map<string, GitTreeItem>): number {
+  let score = 0;
+  const item = treeMap.get(path);
+  const depth = path.split('/').length;
+
+  // Prefer shallower files (more likely entry points)
+  score += Math.max(0, 5 - depth);
+
+  // High-signal file names
+  if (/route\.(ts|js|tsx)$/.test(path)) score += 4;
+  if (/controller\.(ts|js|py)$/.test(path)) score += 4;
+  if (/service\.(ts|js|py)$/.test(path)) score += 3;
+  if (/schema\.prisma$/.test(path)) score += 5;
+  if (/middleware\.(ts|js|py)$/.test(path)) score += 3;
+  if (/main\.(py|ts|go|rs)$|app\.(py|ts|js)$/.test(path)) score += 5;
+  if (/index\.(ts|js)$/.test(path)) score += 2;
+  if (/worker\.(ts|js|py)$|queue\.(ts|js|py)$/.test(path)) score += 3;
+
+  // Small files are cheaper — prefer if equal score
+  const size = item?.size ?? 0;
+  if (size < 5000) score += 1;
+  if (size > 50000) score -= 2;
+
+  return score;
+}
+
+  const scored: ScoredCandidate[] = phase2Candidates.map(path => ({
+    path,
+    score: scoreCandidate(path, treeMap),
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const phase2Slice = scored.slice(0, Math.min(scored.length, totalLimit)).map(s => s.path);
 
   console.log(`[Ingest] Phase 2: Fetching ${phase2Slice.length} files...`);
   const phase2Fetched = await promisePool(phase2Slice, 6, async (path) => {
@@ -642,7 +714,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     if (contentBudget <= 0) return null;
     if ((item.size || 0) > contentBudget) return null;
     contentBudget -= (item.size || 0);
-    return fetchFileContent(owner, repo, path, headers);
+    return fetchFileContent(owner, repo, path, headers, signal);
   });
 
   const phase2Files: FileEntry[] = [];
@@ -687,6 +759,7 @@ export async function ingestRepo(repoUrl: string): Promise<RepoSnapshot> {
     repo,
     headSha,
     defaultBranch,
+    isPrivate,
     treeTruncated: treeData.truncated || false,
     fileTree,
     selectedFiles,

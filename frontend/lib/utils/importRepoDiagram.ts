@@ -117,8 +117,11 @@ export function parseAndValidateRepoDiagram(
     return null;
   }
 
+  // Filter out nodes missing required fields (id or label)
+  const safeNodes = rfNodes.filter(n => n.id && n.data?.label);
+
   // 1. Enrich nodes with shape/color/classification (same as buildReactFlowObjects)
-  const enrichedNodes = enrichRepoNodes(rfNodes);
+  const enrichedNodes = enrichRepoNodes(safeNodes);
 
   // 2. Enrich edges with semantic classification and strip static styling
   const enrichedEdges = enrichRepoEdges(rfEdges, enrichedNodes);
@@ -141,7 +144,7 @@ export function parseAndValidateRepoDiagram(
   return {
     nodes: layoutedNodes,
     edges: layoutedEdges,
-    nodeCount: rfNodes.length,
+    nodeCount: safeNodes.length,
     edgeCount: layoutedEdges.length,
   };
 }

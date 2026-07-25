@@ -24,6 +24,7 @@ export type RepoSnapshot = {
   repo: string;
   headSha?: string;
   defaultBranch?: string;
+  isPrivate?: boolean;
   treeTruncated?: boolean;
   fileTree: string[];
   selectedFiles: FileEntry[];

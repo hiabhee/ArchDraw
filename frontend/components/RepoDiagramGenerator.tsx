@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
 import type { RepoDiagramApiResponse } from '@/lib/types/repo-diagram';
 import type { DependencyIntelligence, Workflow as RepoWorkflow } from '@/lib/types/repo-diagram';
+import { useAuthStore } from '@/store/authStore';
 
 interface GeneratedSummary {
   nodeCount: number;
@@ -32,8 +33,11 @@ export function RepoDiagramGenerator({ onClose }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<GeneratedSummary | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [progressPct, setProgressPct] = useState<number>(0);
 
   const { importDiagram, activeCanvasId, renameCanvas, fitView } = useDiagramStore();
+  const { user: _user } = useAuthStore();
 
   const extractRepoName = (url: string): string => {
     try {
@@ -70,21 +74,55 @@ export function RepoDiagramGenerator({ onClose }: Props) {
     setIsLoading(true);
     setError(null);
     setSummary(null);
+    setProgressMessage('Connecting...');
+    setProgressPct(0);
 
     try {
       const response = await fetch('/api/repo-diagram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl: repoUrl.trim() }),
+        body: JSON.stringify({
+          repoUrl: repoUrl.trim(),
+          userGithubToken: undefined, // TODO: wire to authStore.githubToken when GitHub OAuth is implemented
+        }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to generate diagram');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const result = data as RepoDiagramApiResponse;
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let resultData: RepoDiagramApiResponse | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value);
+        for (const line of text.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === 'progress') {
+              setProgressMessage(event.message);
+              setProgressPct(event.progress);
+            } else if (event.type === 'result') {
+              resultData = event.payload;
+            } else if (event.type === 'error') {
+              throw new Error(event.message);
+            }
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+
+      if (!resultData || !resultData.success) {
+        throw new Error('Failed to generate diagram');
+      }
+
+      const result = resultData;
       const profile = result.repoProfile;
       const stack = profile.primaryStack
         ? [profile.primaryStack.language, profile.primaryStack.framework, profile.primaryStack.runtime]
@@ -327,7 +365,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 className="w-full px-3.5 py-2.5 text-sm bg-accent/40 rounded-xl outline-none border border-border/40 focus:border-primary/50 text-foreground placeholder:text-muted-foreground/60 transition-all shadow-inner"
               />
               <span className="text-[10px] text-muted-foreground/80 mt-1 leading-relaxed">
-                * Public repositories only. Works with any language or framework.
+                * Public repositories only. Pasted a file/branch URL? We&apos;ll extract the repo automatically. Works with any language or framework.
               </span>
             </div>
 
@@ -340,6 +378,21 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                     <code className="bg-destructive/10 px-1 rounded">.env.local</code> to raise the limit to 5,000 requests/hr.
                   </p>
                 )}
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{progressMessage || 'Connecting...'}</span>
+                  <span>{progressPct}%</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-500 ease-out"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
               </div>
             )}
 
@@ -360,7 +413,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Analyzing repository... this may take 20-30 seconds.</span>
+                    <span>{progressMessage || 'Analyzing repository...'}</span>
                   </>
                 ) : (
                   <span>Generate Architecture Diagram</span>

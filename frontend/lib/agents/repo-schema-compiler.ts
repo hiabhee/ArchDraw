@@ -1,4 +1,4 @@
-import type { ExtractedNode, RichEdge, Workflow } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, RichEdge } from '@/lib/types/repo-diagram';
 import {
   applySemanticLayerGroups,
   layoutedNodeToNdjsonRecord,
@@ -6,6 +6,8 @@ import {
 } from '@/lib/ai/pipeline/applySemanticLayerGroups';
 import type { LayoutedNode } from '@/lib/ai/pipeline/types';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { z } from 'zod';
+import logger from '@/lib/logger';
 
 // Layer Y positions — ordered top-to-bottom as story layers
 const LAYER_Y: Record<string, number> = {
@@ -272,5 +274,41 @@ export function compileToDiagram(
     }
   }
 
-  return lines.join('\n');
+  const validatedLines = validateNdjson(lines);
+  return validatedLines.join('\n');
+}
+
+const NodeRecordSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  type: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+});
+
+const EdgeRecordSchema = z.object({
+  path: z.array(z.string()).length(2),
+  label: z.string().optional(),
+  async: z.boolean().optional(),
+});
+
+function validateNdjson(lines: string[]): string[] {
+  const validatedLines = lines.filter((line) => {
+    try {
+      const obj = JSON.parse(line);
+      if (obj.type === 'workflow') return true;
+      if (Array.isArray(obj.path)) {
+        EdgeRecordSchema.parse(obj);
+      } else if (obj.id) {
+        NodeRecordSchema.parse(obj);
+      } else {
+        return true; // group nodes etc — skip validation
+      }
+      return true;
+    } catch {
+      logger.warn('[SchemaCompiler] Dropping invalid NDJSON record:', line.slice(0, 80));
+      return false;
+    }
+  });
+  return validatedLines;
 }

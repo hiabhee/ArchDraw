@@ -3,8 +3,6 @@
  * Keeps frontend and backend validation consistent.
  */
 
-const GITHUB_URL_PATTERN = /^https?:\/\/(?:www\.)?github\.com\/([a-zA-Z0-9-._]+)\/([a-zA-Z0-9-._]+?)(?:\.git)?(?:\/)?$/;
-
 export interface ParsedGitHubUrl {
   owner: string;
   repo: string;
@@ -12,8 +10,14 @@ export interface ParsedGitHubUrl {
 }
 
 export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
-  const cleaned = url.trim().replace(/\/+$/, '');
-  const match = cleaned.match(GITHUB_URL_PATTERN);
+  let cleaned = url.trim().replace(/\/+$/, '');
+  cleaned = cleaned.replace(
+    /^(https?:\/\/(?:www\.)?github\.com\/[a-zA-Z0-9-._]+\/[a-zA-Z0-9-._]+?)(?:\.git)?(\/.*)?$/,
+    '$1',
+  );
+  const match = cleaned.match(
+    /^https?:\/\/(?:www\.)?github\.com\/([a-zA-Z0-9-._]+)\/([a-zA-Z0-9-._]+?)(?:\.git)?$/,
+  );
   if (!match) return null;
   const owner = match[1];
   const repo = match[2].replace(/\.git$/, '');

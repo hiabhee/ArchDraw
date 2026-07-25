@@ -7,6 +7,7 @@ import { analyzeRelationships } from './agents/repo-relationship-analyst';
 import { compileToDiagram } from './agents/repo-schema-compiler';
 import { inferRelationshipsHeuristic } from './agents/repo-heuristic-extractor';
 import { getRepoDiagram, setRepoDiagram } from '@/lib/ai/services/diagramCache';
+import { getRepoDiagramFromRedis, setRepoDiagramInRedis } from '@/lib/ai/services/repoDiagramRedisCache';
 import { detectSubsystems, summarizeSubsystem } from './repo-diagram/subsystem-detector';
 import { extractStaticSignals } from './repo-diagram/static-analyzer';
 import logger from '@/lib/logger';
@@ -17,6 +18,22 @@ import {
   pruneNoisyEdges,
 } from './repo-diagram/graph-quality';
 import type { ExtractedNode, RichEdge, PipelineResult, RepoSnapshot, RepoProfile, Subsystem, StaticSignal, DependencyIntelligence, Workflow } from './types/repo-diagram';
+
+export type PipelineStage =
+  | 'ingesting'
+  | 'detecting_subsystems'
+  | 'extracting_signals'
+  | 'classifying'
+  | 'extracting_components'
+  | 'analyzing_relationships'
+  | 'compiling'
+  | 'done';
+
+export type PipelineProgressEvent = {
+  stage: PipelineStage;
+  message: string;
+  progress: number; // 0-100
+};
 
 function normalizeId(id: string): string {
   return id
@@ -212,14 +229,31 @@ function buildDependencyIntelligence(signals: StaticSignal[]): DependencyIntelli
   return deps;
 }
 
-export async function generateRepoArchitectureDiagram(repoUrl: string, detailLevel?: 1 | 2 | 3, signal?: AbortSignal): Promise<PipelineResult> {
+export async function generateRepoArchitectureDiagram(
+  repoUrl: string,
+  detailLevel?: 1 | 2 | 3,
+  signal?: AbortSignal,
+  userGithubToken?: string,
+  onProgress?: (event: PipelineProgressEvent) => void
+): Promise<PipelineResult> {
   logger.info('[Pipeline] Step 1: Ingesting repo...');
-  const snapshot: RepoSnapshot = await ingestRepo(repoUrl);
+  onProgress?.({ stage: 'ingesting', message: 'Fetching repository...', progress: 5 });
+  const ingestOpts = detailLevel === 3
+    ? { fileBudget: 120, contentBudgetKB: 500 }
+    : undefined;
+  const snapshot: RepoSnapshot = await ingestRepo(repoUrl, ingestOpts, signal, userGithubToken);
 
   if (signal?.aborted) throw new Error('Request aborted');
 
   if (snapshot.headSha) {
-    const cached = getRepoDiagram(repoUrl, snapshot.headSha);
+    let cached = getRepoDiagram(repoUrl, snapshot.headSha); // L1: in-memory
+    if (!cached) {
+      cached = await getRepoDiagramFromRedis(repoUrl, snapshot.headSha); // L2: Redis
+      if (cached) {
+        setRepoDiagram(repoUrl, snapshot.headSha, cached); // warm L1
+        logger.info(`[Pipeline] Redis cache hit for ${repoUrl}`);
+      }
+    }
     if (cached) {
       logger.info(`[Pipeline] Cache hit for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
       return cached;
@@ -230,10 +264,12 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   logger.info('[Pipeline] Step 2: Detecting subsystems...');
   const subsystems = detectSubsystems(snapshot);
   logger.info(`  Found ${subsystems.length} subsystems`);
+  onProgress?.({ stage: 'detecting_subsystems', message: `Found ${subsystems.length} subsystems`, progress: 20 });
 
   logger.info('[Pipeline] Step 3: Extracting static signals...');
   const signals = extractStaticSignals(snapshot.selectedFiles, subsystems);
   logger.info(`  Extracted ${signals.length} signals (${new Set(signals.map((s) => s.type)).size} types)`);
+  onProgress?.({ stage: 'extracting_signals', message: `${signals.length} architectural signals`, progress: 35 });
 
   const baseline = buildDeterministicBaseline(snapshot, subsystems, signals);
   let workingNodes = baseline.nodes;
@@ -243,6 +279,7 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   const dependencyMapDeps = buildDependencyIntelligence(signals);
   let classifyFailed = false;
   let llmEdgeFailed = false;
+  let heuristicComponentFallback = false;
 
   const summaries = buildSummariesForLLM(subsystems, signals);
 
@@ -251,7 +288,8 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
     finalEdges: RichEdge[],
     usedLlm: boolean,
     classifyFailed: boolean,
-    edgeFailed: boolean
+    edgeFailed: boolean,
+    heuristicFallback: boolean
   ): string {
     const notes: string[] = [];
 
@@ -263,6 +301,9 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
       }
       if (edgeFailed) {
         notes.push('Relationship analysis used heuristic inference — some connections may not reflect real data flows.');
+      }
+      if (heuristicFallback) {
+        notes.push('Component extraction fell back to heuristic file-tree analysis. Some components may be missing or incorrectly named.');
       }
     }
 
@@ -293,10 +334,10 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
 
   const hasAnySourceFiles = snapshot.phase2Files.length >= 1 || snapshot.selectedFiles.length >= 4;
   const hasAnySignals = signals.length >= 3;
-  const useLlm = hasAnySourceFiles || hasAnySignals;
+  const useLlm = detailLevel !== 1 && (hasAnySourceFiles || hasAnySignals);
 
   if (!useLlm) {
-    logger.info(`[Pipeline] Skipping LLM — repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`);
+    logger.info(`[Pipeline] Skipping LLM — ${detailLevel === 1 ? 'detailLevel=1 (static-only)' : `repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`}`);
   }
 
   if (useLlm) {
@@ -314,6 +355,7 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
       repoProfile = await classifyRepository(snapshot, detectionReportText, summaries);
       classifyFailed = repoProfile.confidence === 'low';
       console.log(`  Type: ${repoProfile.repoType}, pattern: ${repoProfile.architecturePattern}, domain: ${repoProfile.applicationDomain || 'N/A'}`);
+      onProgress?.({ stage: 'classifying', message: `${repoProfile.repoType} · ${repoProfile.architecturePattern}`, progress: 50 });
     } catch (err) {
       console.warn('[Pipeline] Classification failed, using fallback:', err);
       const { buildFallbackRepoProfile } = await import('./agents/repo-deep-classifier');
@@ -333,8 +375,10 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
       } else {
         console.log('  No LLM nodes returned, keeping baseline');
       }
+      onProgress?.({ stage: 'extracting_components', message: `${workingNodes.length} components`, progress: 65 });
     } catch (err) {
       console.warn('[Pipeline] Component extraction failed, using heuristic fallback:', err);
+      heuristicComponentFallback = true;
       const heuristicNodes = (await import('./agents/repo-heuristic-extractor')).extractComponentsHeuristic(snapshot, repoProfile);
       if (heuristicNodes.length > 0) {
         workingNodes = mergeLlmIntoBaseline(baseline.nodes, heuristicNodes);
@@ -354,6 +398,7 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
       }
       if (relOutput.workflows.length > 0) workflows = relOutput.workflows;
       console.log(`  Got ${edges.length} edges, ${workflows.length} workflows`);
+      onProgress?.({ stage: 'analyzing_relationships', message: `${edges.length} relationships`, progress: 80 });
     } catch {
       console.warn('[Pipeline] LLM relationship analysis failed');
       llmEdgeFailed = true;
@@ -397,6 +442,7 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   edges = finalSanitized.edges;
 
   console.log(`[Pipeline] Step 8: Generating diagram (${workingNodes.length} nodes, ${edges.length} edges, ${workflows.length} workflows)`);
+  onProgress?.({ stage: 'compiling', message: 'Building diagram...', progress: 95 });
   const ndjson = compileToDiagram(workingNodes, edges, workflows);
 
   const allConfidences = [
@@ -407,7 +453,7 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   const allHigh = allConfidences.every((c) => c === 'high');
   const pipelineConfidence: 'high' | 'medium' | 'low' = allHigh ? 'high' : hasLow ? 'low' : 'medium';
 
-  const reviewNotes = buildReviewNotes(workingNodes, edges, useLlm, classifyFailed, llmEdgeFailed);
+  const reviewNotes = buildReviewNotes(workingNodes, edges, useLlm, classifyFailed, llmEdgeFailed, heuristicComponentFallback);
 
   const result: PipelineResult = {
     ndjson,
@@ -433,9 +479,14 @@ export async function generateRepoArchitectureDiagram(repoUrl: string, detailLev
   };
 
   if (snapshot.headSha) {
-    setRepoDiagram(repoUrl, snapshot.headSha, result);
-    console.log(`[Pipeline] Cached result for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
+    const shouldCache = !snapshot.isPrivate;
+    if (shouldCache) {
+      setRepoDiagram(repoUrl, snapshot.headSha, result); // L1
+      await setRepoDiagramInRedis(repoUrl, snapshot.headSha, result); // L2
+      console.log(`[Pipeline] Cached result for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
+    }
   }
 
+  onProgress?.({ stage: 'done', message: 'Complete', progress: 100 });
   return result;
 }

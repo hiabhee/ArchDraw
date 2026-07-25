@@ -16,7 +16,15 @@ function compactNodesForRel(nodes: ExtractedNode[]): string {
 }
 
 function compactSummaries(summaries: string[]): string {
-  return summaries.map(s => s.split('\n').slice(0, 3).join('\n')).join('\n');
+  return summaries.map(s => s.split('\n').slice(0, 2).join('\n')).join('\n');
+}
+
+function trimDetectionReport(report: string, maxLines = 25): string {
+  return report
+    .split('\n')
+    .filter(l => l.trim() && !l.match(/^[-=]{3,}$/))
+    .slice(0, maxLines)
+    .join('\n');
 }
 
 function buildWorkflowExamples(profile: RepoProfile | undefined, detectionReport: string): string {
@@ -93,7 +101,7 @@ APPLICATION PROFILE:
 ${profileCompact || 'Not classified'}
 
 ${summariesCompact ? `STRUCTURAL OVERVIEW:\n${summariesCompact}\n` : ''}
-${staticDetectionReport ? `STATIC DETECTION:\n${staticDetectionReport.split('\n').slice(0, 20).join('\n')}\n` : ''}
+${staticDetectionReport ? `STATIC DETECTION:\n${trimDetectionReport(staticDetectionReport)}\n` : ''}
 ${dependencyMap?.dependencies?.length ? `EXTERNAL DEPS:\n${JSON.stringify(dependencyMap.dependencies.map(d => ({ name: d.name, category: d.category })))}\n` : ''}
 
 TASK 1 — IDENTIFY 3 PRIMARY USER JOURNEYS:
@@ -178,7 +186,7 @@ RULES:
           }
         ],
         temperature: 0.1,
-        max_tokens: 8000,
+        max_tokens: 5000,
       })
     );
 
