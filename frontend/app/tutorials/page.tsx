@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { TUTORIALS, isLiveTutorial, type AnyTutorial } from '@/data/tutorials';
 import { useTutorialStore } from '@/store/tutorialStore';
-import type { Tutorial } from '@/lib/tutorial/types';
+import type { TutorialDefinition } from '@/lib/tutorial/schema';
 import { toast } from 'sonner';
 
 const ICON_MAP: Record<string, React.FC<{ className?: string; style?: React.CSSProperties }>> = {
@@ -48,22 +48,16 @@ const DIFFICULTY_CONFIG = {
 };
 
 function getTutorialMeta(tutorial: AnyTutorial): { nodeCount: number; stepCount: number } {
-  if ('stepCount' in tutorial && 'nodeCount' in tutorial) {
-    return { nodeCount: tutorial.nodeCount, stepCount: tutorial.stepCount };
-  }
-  
-  if ('levels' in tutorial) {
-    const levels = tutorial.levels ?? [];
-    const stepCount = levels.reduce((acc, l) => acc + l.steps.length, 0);
-    const nodeCount = levels.reduce((acc, l) => 
-      acc + l.steps.reduce((sAcc, s) => sAcc + ('requiredNodes' in s ? (s.requiredNodes?.length ?? 0) : 0), 0), 
-      0
-    );
-
-    return { nodeCount, stepCount };
-  }
-
-  return { nodeCount: 0, stepCount: 0 };
+  const levels = tutorial.levels ?? [];
+  const stepCount = levels.reduce((acc, l) => acc + l.steps.length, 0);
+  const nodeCount = levels.reduce((acc, l) =>
+    acc + l.steps.reduce((sAcc, s) => {
+      const nodeRules = s.validation.filter((r) => r.type === 'node_exists' || r.type === 'node_count');
+      return sAcc + nodeRules.length;
+    }, 0),
+    0
+  );
+  return { nodeCount, stepCount };
 }
 
 function TutorialCard({ tutorial }: { tutorial: AnyTutorial }) {
@@ -90,7 +84,7 @@ function TutorialCard({ tutorial }: { tutorial: AnyTutorial }) {
   const accuratePercent = useMemo(() => {
     let percent = completionPercent;
     if (savedProgress && 'levels' in tutorial) {
-      const levels = (tutorial as Tutorial).levels;
+      const levels = tutorial.levels;
       if (levels) {
         const totalSteps = levels.reduce((acc, l) => acc + l.steps.length, 0);
         const currentOverallStep = (savedProgress.currentLevel - 1) * (levels[0]?.steps.length ?? 0) + savedProgress.currentStep;
@@ -117,11 +111,7 @@ function TutorialCard({ tutorial }: { tutorial: AnyTutorial }) {
     });
   }
 
-  const estimatedTime = ('estimatedTime' in tutorial) 
-    ? tutorial.estimatedTime 
-    : ('estimatedMinutes' in tutorial)
-      ? `${tutorial.estimatedMinutes} mins`
-      : '~30 mins';
+  const estimatedTime = `${tutorial.estimatedMinutes} mins`;
 
   return (
     <div

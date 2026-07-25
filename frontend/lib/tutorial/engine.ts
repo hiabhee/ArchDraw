@@ -77,8 +77,16 @@ export function isTutorialComplete(
 }
 
 export function advancePhase(session: TutorialSession, tutorial: TutorialDefinition): TutorialSession {
-  const nextPhase = getNextPhase(session.phase);
-  
+  const currentStep = getCurrentStep(session, tutorial);
+  const skipPhases = (currentStep as TutorialStep & { skipPhases?: string[] })?.skipPhases ?? [];
+
+  let nextPhase = getNextPhase(session.phase);
+
+  // Keep skipping phases marked for auto-advance
+  while (nextPhase !== null && skipPhases.includes(nextPhase)) {
+    nextPhase = getNextPhase(nextPhase);
+  }
+
   if (nextPhase === null) {
     if (session.phase === 'celebration') {
       return moveToNextStep(session, tutorial);

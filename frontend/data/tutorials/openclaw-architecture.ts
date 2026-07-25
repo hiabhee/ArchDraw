@@ -1,18 +1,6 @@
-import type { TutorialDefinition, ValidationRule } from '@/lib/tutorial/schema';
+import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 
-function nodeRule(nodeType: string, label?: string): ValidationRule {
-  return { type: 'node_exists', nodeType, label };
-}
-
-function edgeRule(source: string, target: string): ValidationRule {
-  return { type: 'edge_exists', source, target };
-}
-
-function allOf(...rules: ValidationRule[]): ValidationRule {
-  return { type: 'all_of', rules };
-}
-
-const openclawTutorial: TutorialDefinition = {
+const openclawTutorial = defineTutorial({
   id: 'openclaw-architecture',
   title: 'How to Design OpenClaw Architecture',
   description: 'Build a subscription analytics platform. Learn event ingestion, Kafka streaming, analytics computation, cohort retention, and metrics visualization at scale.',
@@ -23,17 +11,16 @@ const openclawTutorial: TutorialDefinition = {
   color: '#6366F1',
 
   levels: [
-    {
-      id: 'level-1',
+    level({
       title: 'The Foundation',
       steps: [
-        {
-          id: 'step-1',
-          title: 'Add Mobile Client',
+        step({
+          component: 'Mobile Client',
+          nodeType: 'client_mobile',
           phases: {
             context: {
               heading: 'Welcome to OpenClaw Architecture',
-              body: "Let's build OpenClaw from scratch. Level 1 is the foundation — a system that ingests subscription events, stores them durably, and streams them for downstream processing.",
+              body: "Let's build OpenClaw from scratch. Level 1 is the foundation \u2014 a system that ingests subscription events, stores them durably, and streams them for downstream processing.",
             },
             intro: {
               heading: 'Do you know about Mobile Clients?',
@@ -45,7 +32,7 @@ const openclawTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Mobile', and add the mobile client.",
+              body: "Press \u2318K, search for 'Mobile', and add the mobile client.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -56,16 +43,15 @@ const openclawTutorial: TutorialDefinition = {
               body: 'Mobile Client added. Now the Web Client.',
             },
           },
-          validation: [nodeRule('client_mobile', 'Mobile')],
-          hints: ['Press ⌘K to open component search', 'Search for "Mobile"'],
-        },
-        {
-          id: 'step-2',
-          title: 'Add Web Client',
+          hints: ['Press \u2318K to open component search', 'Search for "Mobile"'],
+        }),
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
           phases: {
             context: {
               heading: 'Level 1: Step 2',
-              body: 'Adding the Web Client — the browser-based dashboard.',
+              body: 'Adding the Web Client \u2014 the browser-based dashboard.',
             },
             intro: {
               heading: 'Do you know about Web Clients?',
@@ -77,7 +63,7 @@ const openclawTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Web', and add the web client.",
+              body: "Press \u2318K, search for 'Web', and add the web client.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -88,16 +74,16 @@ const openclawTutorial: TutorialDefinition = {
               body: 'Web Client added. Now the API Gateway.',
             },
           },
-          validation: [nodeRule('client_web', 'Web')],
           hints: ['Search for "Web"'],
-        },
-        {
-          id: 'step-3',
-          title: 'Add API Gateway',
+        }),
+        step({
+          component: 'API Gateway',
+          nodeType: 'api_gateway',
+          parents: ['Mobile Client', 'Web Client'],
           phases: {
             context: {
               heading: 'Level 1: Step 3',
-              body: 'Adding the API Gateway — the single entry point.',
+              body: 'Adding the API Gateway \u2014 the single entry point.',
             },
             intro: {
               heading: 'Do you know about API Gateways?',
@@ -109,29 +95,22 @@ const openclawTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'API Gateway', and add it.",
+              body: "Press \u2318K, search for 'API Gateway', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Mobile Client → API Gateway, then Web Client → API Gateway.',
+              body: 'Connect Mobile Client \u2192 API Gateway, then Web Client \u2192 API Gateway.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'API Gateway added. Tutorial complete! You have built OpenClaw.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('api_gateway', 'API Gateway'),
-              edgeRule('client_mobile', 'api_gateway'),
-              edgeRule('client_web', 'api_gateway')
-            ),
-          ],
           hints: ['Search for "API Gateway"', 'Connect both clients to it'],
-        },
+        }),
       ],
-    },
+    }),
   ],
-};
+});
 
 export default openclawTutorial;

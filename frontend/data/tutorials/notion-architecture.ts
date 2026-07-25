@@ -1,18 +1,6 @@
-import type { TutorialDefinition, ValidationRule } from '@/lib/tutorial/schema';
+import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 
-function nodeRule(nodeType: string, label?: string): ValidationRule {
-  return { type: 'node_exists', nodeType, label };
-}
-
-function edgeRule(source: string, target: string): ValidationRule {
-  return { type: 'edge_exists', source, target };
-}
-
-function allOf(...rules: ValidationRule[]): ValidationRule {
-  return { type: 'all_of', rules };
-}
-
-const notionTutorial: TutorialDefinition = {
+const notionTutorial = defineTutorial({
   id: 'notion-architecture',
   title: 'How to Design Notion Architecture',
   description: 'Build the all-in-one workspace used by millions. Learn about block-based storage, real-time collaboration, and rich text editing.',
@@ -23,95 +11,92 @@ const notionTutorial: TutorialDefinition = {
   color: '#000000',
 
   levels: [
-    {
-      id: 'level-1',
+    level({
       title: 'Workspace Foundation',
       steps: [
-        {
-          id: 'step-1',
-          title: 'Add Client',
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
+          noConnect: true,
           phases: {
-            context: { heading: 'Welcome to Notion Architecture', body: 'Building the all-in-one workspace.' },
-            intro: { heading: 'About Client', body: 'Clients access Notion.' },
-            teaching: { heading: 'Deep dive: Client', body: 'The Client provides the UI.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Web'." },
-            connecting: { heading: 'Connect it up', body: 'First step.' },
-            celebration: { heading: 'Great job!', body: 'Client added.' },
+            context: { heading: 'Welcome to Notion Architecture', body: 'Notion is a block-based workspace where every paragraph, heading, image, and database is an atomic "block." This architecture must handle real-time collaboration where 10+ users edit the same page simultaneously.' },
+            intro: { heading: 'About the Web Client', body: 'The Notion web client is a rich text editor that renders blocks, handles drag-and-drop, and maintains real-time sync via WebSocket.' },
+            teaching: { heading: 'Deep dive: Web Client', body: 'Notion\'s client uses a block-based editor where every piece of content (paragraph, heading, image, toggle, database) is a separate block with a unique ID. When you type, the client sends incremental diffs (not full page snapshots) to the server, reducing bandwidth by 90%. The client also handles offline mode — changes are queued locally and synced when connectivity returns. Without block-based editing, collaborative editing would require locking entire pages, preventing parallel work.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Web', and add the Web Client." },
+            connecting: { heading: 'Connect it up', body: 'First step — no connections yet.' },
+            celebration: { heading: 'Great job!', body: 'Web Client added.' },
           },
-          validation: [nodeRule('client_web', 'Web')],
           hints: ['Search for "Web"'],
-        },
-        {
-          id: 'step-2',
-          title: 'Add API Gateway',
+        }),
+        step({
+          component: 'API Gateway',
+          nodeType: 'api_gateway',
+          parent: 'Web Client',
           phases: {
-            context: { heading: 'Level 1: Step 2', body: 'Adding API Gateway.' },
-            intro: { heading: 'About Gateway', body: 'Gateway handles requests.' },
-            teaching: { heading: 'Deep dive: API Gateway', body: 'API Gateway routes requests.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'API Gateway'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Client → Gateway.' },
-            celebration: { heading: 'Great job!', body: 'Gateway added.' },
+            context: { heading: 'Step 2: API Gateway', body: 'Every Notion operation — create block, move block, edit text, add comment — routes through the API Gateway.' },
+            intro: { heading: 'About API Gateways', body: 'API gateways provide a unified entry point for all client operations, handling authentication and request routing.' },
+            teaching: { heading: 'Deep dive: API Gateway', body: 'Notion\'s API Gateway authenticates user sessions, routes block operations to the Block Service, and manages WebSocket connections for real-time sync. It must handle burst traffic — when a user pastes 100 blocks at once, the gateway batches them into a single API call instead of sending 100 separate requests. Without this batching, pasting large content would create a thundering herd of requests that overwhelms the backend.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'API Gateway', and add it." },
+            connecting: { heading: 'Connect it up', body: 'Connect Web Client \u2192 API Gateway.' },
+            celebration: { heading: 'Great job!', body: 'API Gateway added.' },
           },
-          validation: [allOf(nodeRule('api_gateway', 'API Gateway'), edgeRule('client_web', 'api_gateway'))],
-          hints: ['Search for "API Gateway"'],
-        },
-        {
-          id: 'step-3',
-          title: 'Add Block Service',
+          hints: ['Search for "API Gateway"', 'Connect Web Client to it'],
+        }),
+        step({
+          component: 'Block Service',
+          nodeType: 'block_service',
+          parent: 'API Gateway',
           phases: {
-            context: { heading: 'Level 1: Step 3', body: 'Adding Block Service.' },
-            intro: { heading: 'About Block Service', body: 'Block services manage content.' },
-            teaching: { heading: 'Deep dive: Block Service', body: 'Block Service manages blocks.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Block Service'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Gateway → Block.' },
-            celebration: { heading: 'Level 1 Complete!', body: 'Foundation ready!' },
+            context: { heading: 'Step 3: Block Service', body: 'The Block Service is Notion\'s core engine — it manages the creation, editing, deletion, and movement of every block in the system.' },
+            intro: { heading: 'About Block Services', body: 'Block services manage individual content units (paragraphs, headings, images, databases) with operations like create, update, move, and delete.' },
+            teaching: { heading: 'Deep dive: Block Service', body: 'In Notion, a page is a tree of blocks. When you type a paragraph, you are editing a block with type "paragraph" and content "Hello world." The Block Service stores each block as an independent entity with a parent block ID, position index, and type-specific data. This enables powerful operations: drag a block from one page to another (just change its parent ID), convert a paragraph to a heading (just change its type), or nest toggles infinitely. Without independent blocks, these operations would require rewriting entire page documents.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Microservice', and add the Block Service." },
+            connecting: { heading: 'Connect it up', body: 'Connect API Gateway \u2192 Block Service.' },
+            celebration: { heading: 'Great job!', body: 'Block Service added.' },
           },
-          validation: [allOf(nodeRule('block_service', 'Block Service'), edgeRule('api_gateway', 'block_service'))],
-          hints: ['Search for "Block Service"'],
-        },
+          hints: ['Search for "Microservice"', 'Connect API Gateway to it'],
+        }),
       ],
-    },
-    {
-      id: 'level-2',
+    }),
+    level({
       title: 'Production Ready',
       steps: [
-        {
-          id: 'step-4',
-          title: 'Add Database',
+        step({
+          component: 'Database',
+          nodeType: 'database',
+          parent: 'Block Service',
           phases: {
-            context: { heading: 'Level 2: Step 1', body: 'Adding Database.' },
-            intro: { heading: 'About Database', body: 'Database stores data.' },
-            teaching: { heading: 'Deep dive: Database', body: 'Database stores content.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Database'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Block → Database.' },
-            celebration: { heading: 'Level 2 Complete!', body: 'Production ready!' },
+            context: { heading: 'Level 2: Database', body: 'Notion databases are tables where each row is a page and each column is a block property. They support filtering, sorting, and multiple views (table, board, timeline, calendar).' },
+            intro: { heading: 'About Databases', body: 'Databases store structured block data with properties, enabling filtering, sorting, and relational queries across pages.' },
+            teaching: { heading: 'Deep dive: Database', body: 'Notion\'s Database stores blocks organized as pages with typed properties (text, number, date, select, multi-select, person). Each database supports unlimited views — the same data displayed as a table, Kanban board, timeline, or calendar. The database must handle relations between pages (linking a task to a project), rollups (aggregating task counts per project), and formula properties. Without a dedicated database layer, Notion could not support its most popular feature: databases that function like Airtable.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'SQL Database', and add the Database." },
+            connecting: { heading: 'Connect it up', body: 'Connect Block Service \u2192 Database.' },
+            celebration: { heading: 'Great job!', body: 'Database added.' },
           },
-          validation: [nodeRule('database', 'Database')],
-          hints: ['Search for "Database"'],
-        },
+          hints: ['Search for "SQL Database"', 'Connect Block Service to it'],
+        }),
       ],
-    },
-    {
-      id: 'level-3',
+    }),
+    level({
       title: 'Expert Architecture',
       steps: [
-        {
-          id: 'step-5',
-          title: 'Add Real-time Service',
+        step({
+          component: 'Real-time Service',
+          nodeType: 'realtime_service',
+          parent: 'API Gateway',
           phases: {
-            context: { heading: 'Level 3: Step 1', body: 'Adding Real-time Service.' },
-            intro: { heading: 'About Real-time', body: 'Real-time syncs updates.' },
-            teaching: { heading: 'Deep dive: Real-time', body: 'Real-time service syncs changes.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Real-time'." },
-            connecting: { heading: 'Connect it up', body: 'Connect to Gateway.' },
-            celebration: { heading: 'Expert Complete!', body: "You've designed Notion!" },
+            context: { heading: 'Level 3: Real-time Service', body: 'Notion\'s Real-time Service enables 10+ users to edit the same page simultaneously using Operational Transformation (OT) to merge concurrent edits.' },
+            intro: { heading: 'About Real-time Services', body: 'Real-time services synchronize concurrent edits across multiple users using OT or CRDT algorithms.' },
+            teaching: { heading: 'Deep dive: Real-time Service', body: 'Notion uses Operational Transformation (OT) to merge concurrent edits. When two users type in the same paragraph simultaneously, OT transforms both operations so they can be applied in any order and produce the same result. The Real-time Service manages WebSocket connections for each active page, broadcasts cursor positions (so you can see where collaborators are typing), and handles conflict resolution when two users try to delete the same block. Without OT, collaborative editing would require "locking" the page — only one person could edit at a time.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Message Queue', and add the Real-time Service." },
+            connecting: { heading: 'Connect it up', body: 'Connect API Gateway \u2192 Real-time Service.' },
+            celebration: { heading: 'Great job!', body: 'Real-time Service added. Your Notion architecture is complete!' },
           },
-          validation: [nodeRule('realtime_service', 'Real-time Service')],
-          hints: ['Search for "Real-time"'],
-        },
+          hints: ['Search for "Message Queue"', 'Connect API Gateway to it'],
+        }),
       ],
-    },
+    }),
   ],
-};
+});
 
 export default notionTutorial;

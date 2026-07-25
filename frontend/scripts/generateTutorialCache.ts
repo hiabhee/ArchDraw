@@ -31,7 +31,7 @@ if (targetEnv) {
 
 import { TUTORIALS, isLeveledTutorial } from '../data/tutorials/index';
 import type { TutorialData } from '../data/tutorials';
-import type { Tutorial } from '@/lib/tutorial/types';
+import type { TutorialDefinition } from '@/lib/tutorial/schema';
 
 const SYSTEM_PROMPT = `You are an expert system design tutor guiding users through architecture diagramming. You lead every step — the user follows your cues.
 
@@ -217,24 +217,13 @@ async function main() {
   let errors = 0;
 
   for (const tutorial of TUTORIALS) {
-    const isLeveled = isLeveledTutorial(tutorial.id);
-
-    // Get steps array — leveled tutorials have levels[].steps, others have steps directly
-    let allSteps: unknown[] = [];
-    let totalSteps = 0;
-
-    if (isLeveled) {
-      const leveled = tutorial as Tutorial;
-      totalSteps = leveled.levels?.reduce((sum, l) => sum + l.steps.length, 0) ?? 0;
-      console.log(`\n── ${tutorial.id} (${totalSteps} steps across ${leveled.levels?.length ?? 0} levels) ──`);
-      for (const level of leveled.levels ?? []) {
-        allSteps.push(...(level.steps as unknown[]));
-      }
-    } else {
-      const flat = tutorial as TutorialData;
-      allSteps = flat.steps ?? [];
-      totalSteps = allSteps.length;
-      console.log(`\n── ${tutorial.id} (${totalSteps} steps) ──`);
+    // All tutorials now use leveled format (TutorialDefinition)
+    const leveled = tutorial as TutorialDefinition;
+    const totalSteps = leveled.levels?.reduce((sum, l) => sum + l.steps.length, 0) ?? 0;
+    console.log(`\n── ${tutorial.id} (${totalSteps} steps across ${leveled.levels?.length ?? 0} levels) ──`);
+    const allSteps: unknown[] = [];
+    for (const level of leveled.levels ?? []) {
+      allSteps.push(...(level.steps as unknown[]));
     }
 
     // Non-Netflix tutorials: only generate intro for steps 1-3

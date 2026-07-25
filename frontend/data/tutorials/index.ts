@@ -1,10 +1,11 @@
 // ── Factory Tutorial format (new canonical type) ────────────────────────────────
+/** @deprecated Use TutorialDefinition from '@/lib/tutorial/schema' directly. */
 export type { Tutorial, TutorialStep, TutorialLevel } from '@/lib/tutorial/types';
+/** @deprecated */
 export type { TutorialMessage, StepValidation } from '@/lib/tutorial/types';
 
 // ── Flat Tutorial format (legacy — used by non-refactored tutorials) ────────────
-import type { TutorialStep } from '@/lib/tutorial/types';
-
+/** @deprecated All 22 tutorials now use TutorialDefinition from schema.ts. */
 export type FlatTutorial = {
   id: string;
   title: string;
@@ -17,19 +18,16 @@ export type FlatTutorial = {
   icon: string;
   color: string;
   tags: string[];
-  steps: TutorialStep[];
+  steps: import('@/lib/tutorial/types').TutorialStep[];
 };
 
 // Re-export FlatTutorial as TutorialData for backward compatibility with old flat tutorials
 export type { FlatTutorial as TutorialData };
 
 // ── Union type for the TUTORIALS array ────────────────────────────────────────
-import type { Tutorial } from '@/lib/tutorial/types';
 import type { TutorialDefinition } from '@/lib/tutorial/schema';
 
-type TutorialWithTime = TutorialDefinition & { estimatedMinutes?: number };
-
-export type AnyTutorial = FlatTutorial | Tutorial | TutorialWithTime;
+export type AnyTutorial = TutorialDefinition;
 
 // ── Import all tutorials ────────────────────────────────────────────────────────
 import chatgptTutorial_default from './chatgpt-architecture';
@@ -169,4 +167,10 @@ export const TUTORIALS: AnyTutorial[] = [
 
 export function getTutorialById(id: string): AnyTutorial | undefined {
   return TUTORIALS.find((t) => t.id === id);
+}
+
+if (process.env.NODE_ENV === 'development') {
+  import('@/lib/tutorial/registryCheck').then(({ warnMissingNodeTypes }) =>
+    warnMissingNodeTypes(TUTORIALS as TutorialDefinition[])
+  );
 }

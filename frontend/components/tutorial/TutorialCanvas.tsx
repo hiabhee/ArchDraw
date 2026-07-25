@@ -23,11 +23,12 @@ import { GroupNode } from '@/components/GroupNode';
 import { TextLabelNode } from '@/components/TextLabelNode';
 import { AnnotationNode } from '@/components/AnnotationNode';
 import SimpleFloatingEdge from '@/components/edges/SimpleFloatingEdge';
-import { useTutorialStore, sanitizeNode, sanitizeEdge } from '@/store/tutorialStore';
-import { createNode, createEdge } from '@/lib/factory';
+import { useTutorialStore, useTutorialHelpers, sanitizeNode, sanitizeEdge } from '@/store/tutorialStore';
+import { createNode } from '@/lib/factory';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { DIAGRAM_CONSTANTS, EDGE_MARKER } from '@/constants/diagram';
 import { assignEdgeColors } from '@/lib/edgeColors';
+import { getStepRequirements, isNodeTypeMet, isEdgeMet } from '@/lib/tutorialValidation';
 const EDGE_TYPES = {
   custom: SimpleFloatingEdge,
   simpleFloating: SimpleFloatingEdge,
@@ -64,30 +65,16 @@ function findComponentMeta(label: string): ComponentEntry | undefined {
 
 function TutorialSystemNodeWrapper(props: NodeProps<NodeData>) {
   const meta = findComponentMeta(props.data.label ?? '');
-  const [isHighlighted, setIsHighlighted] = useState<'source' | 'target' | null>(null);
+  const { highlightFrom, highlightTo } = useTutorialStore();
   
   const nodeLabel = props.data.label ?? '';
   const richTooltip = COMPONENT_TOOLTIPS[nodeLabel];
   
-  useEffect(() => {
-    const checkHighlight = () => {
-      const requiredFrom = (window as Window & { __tutorialRequiredFrom?: string }).__tutorialRequiredFrom;
-      const requiredTo = (window as Window & { __tutorialRequiredTo?: string }).__tutorialRequiredTo;
-      const nodeLabelLower = (props.data.label ?? '').toLowerCase().trim();
-      
-      if (requiredFrom && nodeLabelLower.includes(requiredFrom.toLowerCase())) {
-        setIsHighlighted('source');
-      } else if (requiredTo && nodeLabelLower.includes(requiredTo.toLowerCase())) {
-        setIsHighlighted('target');
-      } else {
-        setIsHighlighted(null);
-      }
-    };
-    
-    checkHighlight();
-    const interval = setInterval(checkHighlight, 500);
-    return () => clearInterval(interval);
-  }, [props.data.label]);
+  const nodeLabelLower = (props.data.label ?? '').toLowerCase().trim();
+  const isHighlighted: 'source' | 'target' | null =
+    highlightFrom && nodeLabelLower.includes(highlightFrom.toLowerCase()) ? 'source' :
+    highlightTo && nodeLabelLower.includes(highlightTo.toLowerCase()) ? 'target' :
+    null;
 
   return (
     <NodeTooltip
@@ -206,6 +193,7 @@ function TutorialCanvasInner({
       setTimeout(() => reactFlowInstance.fitView({ maxZoom: 0.7 }), 100);
     }
     initialNodesLoadedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated, tutorialId, getProgress, setNodes, setEdges, setTutorialNodes, setTutorialEdges, reactFlowInstance]);
 
   // Save canvas nodes/edges to richProgress on change (debounced 1s).
@@ -224,6 +212,67 @@ function TutorialCanvasInner({
     };
    
   }, [nodes, edges, tutorialId, saveProgress, isSwitchingTutorial]);
+
+  // ── Real-time step detection ─────────────────────────────────────────────
+  const { currentStep } = useTutorialHelpers();
+  const { session } = useTutorialStore();
+  const prevRequirementsMetRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!currentStep || !session) return;
+    if (session.phase !== 'action' && session.phase !== 'connecting') return;
+
+    const reqs = getStepRequirements(currentStep);
+    const allNodeTypes = reqs.requiredNodeTypes;
+    const allEdges = reqs.requiredEdges;
+
+    // Build a key of current met state
+    const metKey = [
+      ...allNodeTypes.map(nt => isNodeTypeMet(nt, nodes) ? '1' : '0'),
+      ...allEdges.map(er => isEdgeMet(er.source, er.target, nodes, edges) ? '1' : '0'),
+    ].join('');
+
+    const prevKey = prevRequirementsMetRef.current;
+    prevRequirementsMetRef.current = metKey;
+
+    // Skip first render
+    if (!prevKey) return;
+
+    // Detect newly met requirements
+    for (let i = 0; i < allNodeTypes.length; i++) {
+      const wasMet = prevKey[i] === '1';
+      const isMet = metKey[i] === '1';
+      if (!wasMet && isMet) {
+        toast.success(`${allNodeTypes[i].replace(/_/g, ' ')} added!`, {
+          duration: 2000,
+          position: 'bottom-center',
+        });
+      }
+    }
+
+    const nodeOffset = allNodeTypes.length;
+    for (let i = 0; i < allEdges.length; i++) {
+      const wasMet = prevKey[nodeOffset + i] === '1';
+      const isMet = metKey[nodeOffset + i] === '1';
+      if (!wasMet && isMet) {
+        const er = allEdges[i];
+        toast.success(`Connected ${er.sourceLabel} → ${er.targetLabel}!`, {
+          duration: 2000,
+          position: 'bottom-center',
+        });
+      }
+    }
+
+    // Check if ALL requirements are now met (and weren't before)
+    const allMet = metKey.split('').every(c => c === '1');
+    const prevAllMet = prevKey.split('').every(c => c === '1');
+    if (allMet && !prevAllMet && metKey.length > 0) {
+      toast.success('All requirements met! Click "Continue" to proceed.', {
+        duration: 3000,
+        position: 'bottom-center',
+      });
+    }
+  }, [nodes, edges, currentStep, session]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {

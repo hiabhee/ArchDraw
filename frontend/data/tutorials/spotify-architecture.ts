@@ -1,18 +1,6 @@
-import type { TutorialDefinition, ValidationRule } from '@/lib/tutorial/schema';
+import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 
-function nodeRule(nodeType: string, label?: string): ValidationRule {
-  return { type: 'node_exists', nodeType, label };
-}
-
-function edgeRule(source: string, target: string): ValidationRule {
-  return { type: 'edge_exists', source, target };
-}
-
-function allOf(...rules: ValidationRule[]): ValidationRule {
-  return { type: 'all_of', rules };
-}
-
-const spotifyTutorial: TutorialDefinition = {
+const spotifyTutorial = defineTutorial({
   id: 'spotify-architecture',
   title: 'How to Design Spotify Architecture',
   description: 'Build a music streaming platform for 600 million users. Learn audio transcoding, CDN delivery, offline sync, recommendation algorithms, and real-time listening sessions.',
@@ -23,13 +11,12 @@ const spotifyTutorial: TutorialDefinition = {
   color: '#1DB954',
 
   levels: [
-    {
-      id: 'level-1',
+    level({
       title: 'Music Streaming Platform',
       steps: [
-        {
-          id: 'step-1',
-          title: 'Add the Web Client',
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
           phases: {
             context: {
               heading: 'Welcome to Spotify Architecture',
@@ -45,7 +32,7 @@ const spotifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Web', and add the client to the canvas.",
+              body: "Press \u2318K, search for 'Web', and add the client to the canvas.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -56,16 +43,16 @@ const spotifyTutorial: TutorialDefinition = {
               body: 'Web Client added. Now the Audio CDN.',
             },
           },
-          validation: [nodeRule('client_web', 'Web')],
-          hints: ['Press ⌘K to open component search', 'Search for "Web"'],
-        },
-        {
-          id: 'step-2',
-          title: 'Add Audio CDN',
+          hints: ['Press \u2318K to open component search', 'Search for "Web"'],
+        }),
+        step({
+          component: 'Audio CDN',
+          nodeType: 'audio_cdn',
+          parent: 'Web Client',
           phases: {
             context: {
               heading: 'Level 1: Step 2',
-              body: 'Adding the Audio CDN — delivers audio from edge locations.',
+              body: 'Adding the Audio CDN \u2014 delivers audio from edge locations.',
             },
             intro: {
               heading: 'Do you know about Audio CDNs?',
@@ -73,40 +60,35 @@ const spotifyTutorial: TutorialDefinition = {
             },
             teaching: {
               heading: 'Deep dive: Audio CDN',
-              body: "Spotify uses multiple CDN providers simultaneously. A song request goes to whichever CDN has the lowest latency for your location. The top 10,000 songs account for 80% of streams — pre-cached everywhere.",
+              body: "Spotify uses multiple CDN providers simultaneously. A song request goes to whichever CDN has the lowest latency for your location. The top 10,000 songs account for 80% of streams \u2014 pre-cached everywhere.",
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Audio CDN', and add it to the canvas.",
+              body: "Press \u2318K, search for 'Audio CDN', and add it to the canvas.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client → Audio CDN.',
+              body: 'Connect Web Client \u2192 Audio CDN.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Audio CDN added. Now the API Gateway.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('audio_cdn', 'Audio'),
-              edgeRule('client_web', 'audio_cdn')
-            ),
-          ],
           hints: ['Search for "Audio CDN"', 'Connect Web to Audio CDN'],
-        },
-        {
-          id: 'step-3',
-          title: 'Add API Gateway',
+        }),
+        step({
+          component: 'API Gateway',
+          nodeType: 'api_gateway',
+          parent: 'Web Client',
           phases: {
             context: {
               heading: 'Level 1: Step 3',
-              body: 'Adding the API Gateway — handles non-audio requests.',
+              body: 'Adding the API Gateway \u2014 handles non-audio requests.',
             },
             intro: {
               heading: 'Do you know about API Gateways?',
-              body: 'All non-audio requests — search, playlist management, social features — flow through the API Gateway.',
+              body: 'All non-audio requests \u2014 search, playlist management, social features \u2014 flow through the API Gateway.',
             },
             teaching: {
               heading: 'Deep dive: API Gateway',
@@ -114,32 +96,27 @@ const spotifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'API Gateway', and add it.",
+              body: "Press \u2318K, search for 'API Gateway', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client → API Gateway.',
+              body: 'Connect Web Client \u2192 API Gateway.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'API Gateway added. Now the Load Balancer.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('api_gateway', 'API Gateway'),
-              edgeRule('client_web', 'api_gateway')
-            ),
-          ],
           hints: ['Search for "API Gateway"', 'Connect Web to it'],
-        },
-        {
-          id: 'step-4',
-          title: 'Add Load Balancer',
+        }),
+        step({
+          component: 'Load Balancer',
+          nodeType: 'load_balancer',
+          parent: 'API Gateway',
           phases: {
             context: {
               heading: 'Level 1: Step 4',
-              body: 'Adding the Load Balancer — distributes traffic across 800+ services.',
+              body: 'Adding the Load Balancer \u2014 distributes traffic across 800+ services.',
             },
             intro: {
               heading: 'Do you know about Load Balancers?',
@@ -151,32 +128,27 @@ const spotifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Load Balancer', and add it.",
+              body: "Press \u2318K, search for 'Load Balancer', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect API Gateway → Load Balancer.',
+              body: 'Connect API Gateway \u2192 Load Balancer.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Load Balancer added. Now the Auth Service.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('load_balancer', 'Load Balancer'),
-              edgeRule('api_gateway', 'load_balancer')
-            ),
-          ],
           hints: ['Search for "Load Balancer"', 'Connect API Gateway to it'],
-        },
-        {
-          id: 'step-5',
-          title: 'Add Auth Service',
+        }),
+        step({
+          component: 'Auth Service',
+          nodeType: 'auth_service',
+          parent: 'Load Balancer',
           phases: {
             context: {
               heading: 'Level 1: Step 5',
-              body: 'Adding the Auth Service — handles authentication and Spotify Connect.',
+              body: 'Adding the Auth Service \u2014 handles authentication and Spotify Connect.',
             },
             intro: {
               heading: 'Do you know about Auth Services?',
@@ -188,28 +160,22 @@ const spotifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Auth Service', and add it.",
+              body: "Press \u2318K, search for 'Auth Service', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Load Balancer → Auth Service.',
+              body: 'Connect Load Balancer \u2192 Auth Service.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Auth Service added. Tutorial complete! You have built Spotify.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('auth_service', 'Auth'),
-              edgeRule('load_balancer', 'auth_service')
-            ),
-          ],
           hints: ['Search for "Auth Service"', 'Connect Load Balancer to it'],
-        },
+        }),
       ],
-    },
+    }),
   ],
-};
+});
 
 export default spotifyTutorial;

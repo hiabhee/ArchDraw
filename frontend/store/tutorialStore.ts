@@ -111,6 +111,11 @@ interface TutorialStoreState {
   richProgress: Record<string, TutorialProgressEntry>;
   isSyncing: boolean;
 
+  // Highlight state for node/edge requirement indicators
+  highlightFrom: string | null;
+  highlightTo: string | null;
+  setHighlight: (from: string | null, to: string | null) => void;
+
   // Legacy props
   currentStep: number;
   totalSteps: number;
@@ -179,6 +184,10 @@ export const useTutorialStore = create<TutorialStoreState>()(
 
       richProgress: {},
       isSyncing: false,
+
+      highlightFrom: null,
+      highlightTo: null,
+      setHighlight: (from, to) => set({ highlightFrom: from, highlightTo: to }),
 
       currentStep: 1,
       totalSteps: 0,

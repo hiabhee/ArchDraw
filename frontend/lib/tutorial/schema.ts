@@ -7,6 +7,16 @@ export interface PhaseContent {
   heading: string;
   body: string;
   highlightNodeIds?: string[];
+  /**
+   * "Without this component, X breaks." — shown as a callout in teaching phase.
+   * Answers: why does this component exist?
+   */
+  whyItMatters?: string;
+  /**
+   * The key architectural tradeoff or decision point for this component.
+   * e.g. "Redis gives O(1) reads but loses data on restart without AOF."
+   */
+  tradeoff?: string;
 }
 
 export type ValidationRule =
@@ -31,6 +41,12 @@ export interface TutorialStep {
   validation: ValidationRule[];
   hints: string[];
   continueAfterMs?: number;
+  /**
+   * Phases to skip automatically. The engine will advance past these
+   * without user interaction.
+   * Example: ['connecting'] for noConnect steps.
+   */
+  skipPhases?: PhaseName[];
 }
 
 export interface TutorialLevel {

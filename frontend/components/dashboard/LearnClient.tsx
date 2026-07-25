@@ -81,11 +81,7 @@ export function LearnClient({ tutorials }: { tutorials: AnyTutorial[] }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {tutorials.map((tutorial: AnyTutorial) => {
-          const estimatedTime = (('estimatedTime' in tutorial) && tutorial.estimatedTime) 
-            ? tutorial.estimatedTime 
-            : (('estimatedMinutes' in tutorial) && tutorial.estimatedMinutes)
-              ? `${tutorial.estimatedMinutes} mins`
-              : '~30 mins';
+          const estimatedTime = `${tutorial.estimatedMinutes} mins`;
           
           return (
             <TutorialCard

@@ -1,3 +1,4 @@
+/** @deprecated All 22 tutorials use schema.ts + builder.ts. Do not use. */
 import type { Node, Edge } from 'reactflow';
 import type { 
   ArchitectureGraph, 

@@ -1,18 +1,6 @@
-import type { TutorialDefinition, ValidationRule } from '@/lib/tutorial/schema';
+import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 
-function nodeRule(nodeType: string, label?: string): ValidationRule {
-  return { type: 'node_exists', nodeType, label };
-}
-
-function edgeRule(source: string, target: string): ValidationRule {
-  return { type: 'edge_exists', source, target };
-}
-
-function allOf(...rules: ValidationRule[]): ValidationRule {
-  return { type: 'all_of', rules };
-}
-
-const shopifyTutorial: TutorialDefinition = {
+const shopifyTutorial = defineTutorial({
   id: 'shopify-architecture',
   title: 'How to Design Shopify Architecture',
   description: 'Build an e-commerce platform for 2 million merchants processing $235B in annual sales. Learn cart management, inventory locking, checkout flows, payment processing, and Black Friday traffic spikes.',
@@ -23,13 +11,12 @@ const shopifyTutorial: TutorialDefinition = {
   color: '#96BF48',
 
   levels: [
-    {
-      id: 'level-1',
+    level({
       title: 'E-Commerce Platform',
       steps: [
-        {
-          id: 'step-1',
-          title: 'Add the Web Client',
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
           phases: {
             context: {
               heading: 'Welcome to Shopify Architecture',
@@ -37,7 +24,7 @@ const shopifyTutorial: TutorialDefinition = {
             },
             intro: {
               heading: 'Do you know about Web Clients?',
-              body: "Shopify's web client is the storefront — the customer-facing shop handling product browsing, cart management, and checkout.",
+              body: "Shopify's web client is the storefront \u2014 the customer-facing shop handling product browsing, cart management, and checkout.",
             },
             teaching: {
               heading: 'Deep dive: Web Client',
@@ -45,7 +32,7 @@ const shopifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Web', and add the client to the canvas.",
+              body: "Press \u2318K, search for 'Web', and add the client to the canvas.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -56,20 +43,20 @@ const shopifyTutorial: TutorialDefinition = {
               body: 'Web Client added. Now the CDN.',
             },
           },
-          validation: [nodeRule('client_web', 'Web')],
-          hints: ['Press ⌘K to open component search', 'Search for "Web"'],
-        },
-        {
-          id: 'step-2',
-          title: 'Add CDN',
+          hints: ['Press \u2318K to open component search', 'Search for "Web"'],
+        }),
+        step({
+          component: 'CDN',
+          nodeType: 'cdn',
+          parent: 'Web Client',
           phases: {
             context: {
               heading: 'Level 1: Step 2',
-              body: 'Adding the CDN — serves storefront assets from edge locations.',
+              body: 'Adding the CDN \u2014 serves storefront assets from edge locations.',
             },
             intro: {
               heading: 'Do you know about CDNs?',
-              body: "Shopify's CDN serves storefront assets — product images, CSS, JavaScript — from edge locations worldwide.",
+              body: "Shopify's CDN serves storefront assets \u2014 product images, CSS, JavaScript \u2014 from edge locations worldwide.",
             },
             teaching: {
               heading: 'Deep dive: CDN',
@@ -77,36 +64,31 @@ const shopifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'CDN', and add it.",
+              body: "Press \u2318K, search for 'CDN', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client → CDN.',
+              body: 'Connect Web Client \u2192 CDN.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'CDN added. Now the API Gateway.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('cdn', 'CDN'),
-              edgeRule('client_web', 'cdn')
-            ),
-          ],
           hints: ['Search for "CDN"', 'Connect Web to it'],
-        },
-        {
-          id: 'step-3',
-          title: 'Add API Gateway',
+        }),
+        step({
+          component: 'API Gateway',
+          nodeType: 'api_gateway',
+          parent: 'Web Client',
           phases: {
             context: {
               heading: 'Level 1: Step 3',
-              body: 'Adding the API Gateway — handles storefront API requests with per-merchant rate limiting.',
+              body: 'Adding the API Gateway \u2014 handles storefront API requests with per-merchant rate limiting.',
             },
             intro: {
               heading: 'Do you know about API Gateways?',
-              body: "Shopify's API Gateway enforces API rate limits per merchant — a merchant's app can't hammer the API and affect other merchants.",
+              body: "Shopify's API Gateway enforces API rate limits per merchant \u2014 a merchant's app can't hammer the API and affect other merchants.",
             },
             teaching: {
               heading: 'Deep dive: API Gateway',
@@ -114,32 +96,27 @@ const shopifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'API Gateway', and add it.",
+              body: "Press \u2318K, search for 'API Gateway', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client → API Gateway.',
+              body: 'Connect Web Client \u2192 API Gateway.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'API Gateway added. Now the Load Balancer.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('api_gateway', 'API Gateway'),
-              edgeRule('client_web', 'api_gateway')
-            ),
-          ],
           hints: ['Search for "API Gateway"', 'Connect Web to it'],
-        },
-        {
-          id: 'step-4',
-          title: 'Add Load Balancer',
+        }),
+        step({
+          component: 'Load Balancer',
+          nodeType: 'load_balancer',
+          parent: 'API Gateway',
           phases: {
             context: {
               heading: 'Level 1: Step 4',
-              body: 'Adding the Load Balancer — distributes traffic with pre-scaling for Black Friday.',
+              body: 'Adding the Load Balancer \u2014 distributes traffic with pre-scaling for Black Friday.',
             },
             intro: {
               heading: 'Do you know about Load Balancers?',
@@ -147,36 +124,31 @@ const shopifyTutorial: TutorialDefinition = {
             },
             teaching: {
               heading: 'Deep dive: Load Balancer',
-              body: "Shopify pre-scales for Black Friday — they don't wait for traffic to spike before adding capacity. Flash sale drills run throughout the year.",
+              body: "Shopify pre-scales for Black Friday \u2014 they don't wait for traffic to spike before adding capacity. Flash sale drills run throughout the year.",
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Load Balancer', and add it.",
+              body: "Press \u2318K, search for 'Load Balancer', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect API Gateway → Load Balancer.',
+              body: 'Connect API Gateway \u2192 Load Balancer.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Load Balancer added. Now the Cart Service.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('load_balancer', 'Load Balancer'),
-              edgeRule('api_gateway', 'load_balancer')
-            ),
-          ],
           hints: ['Search for "Load Balancer"', 'Connect API Gateway to it'],
-        },
-        {
-          id: 'step-5',
-          title: 'Add Cart Service',
+        }),
+        step({
+          component: 'Cart Service',
+          nodeType: 'cart_service',
+          parent: 'Load Balancer',
           phases: {
             context: {
               heading: 'Level 1: Step 5',
-              body: 'Adding the Cart Service — manages shopping carts in Redis.',
+              body: 'Adding the Cart Service \u2014 manages shopping carts in Redis.',
             },
             intro: {
               heading: 'Do you know about Cart Services?',
@@ -188,28 +160,22 @@ const shopifyTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Cart Service', and add it.",
+              body: "Press \u2318K, search for 'Cart Service', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Load Balancer → Cart Service.',
+              body: 'Connect Load Balancer \u2192 Cart Service.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Cart Service added. Tutorial complete! You have built Shopify.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('cart_service', 'Cart'),
-              edgeRule('load_balancer', 'cart_service')
-            ),
-          ],
           hints: ['Search for "Cart Service"', 'Connect Load Balancer to it'],
-        },
+        }),
       ],
-    },
+    }),
   ],
-};
+});
 
 export default shopifyTutorial;

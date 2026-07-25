@@ -24,8 +24,13 @@ export function evaluateValidationRule(
       const targetLabel = rule.label ? normalize(rule.label) : '';
       const targetType = normalize(rule.nodeType);
       const result = nodes.some(n => {
+        // Exact registry id — always present, most reliable
+        if (n.data?.componentId === rule.nodeType) return true;
         const matchesLabel = !rule.label || normalize(n.data?.label || '') === targetLabel;
-        const matchesType = normalize(n.data?.componentType || n.type || '') === targetType || normalize(n.data?.category || '') === targetType;
+        const matchesType =
+          normalize(n.data?.componentType || n.type || '') === targetType ||
+          normalize(n.data?.category || '') === targetType ||
+          normalize(n.data?.componentId || '') === targetType;
         return matchesLabel && matchesType;
       });
       logger.log('[Detection] node_exists:', { label: rule.label, nodeType: rule.nodeType, result });
@@ -35,6 +40,8 @@ export function evaluateValidationRule(
     case 'node_count': {
       const target = normalize(rule.nodeType);
       const matches = nodes.filter(n => {
+        // Exact registry id match
+        if (n.data?.componentId === rule.nodeType) return true;
         const nType = n.data?.componentType || n.type || '';
         const nCategory = n.data?.category || '';
         return normalize(nType) === target || normalize(nCategory) === target;
@@ -50,11 +57,13 @@ export function evaluateValidationRule(
 
       const sourceNodes = nodes.filter(n => 
         n.id === rule.source ||
+        n.data?.componentId === rule.source ||
         normalize(n.data?.componentType || n.type || '') === srcTarget ||
         normalize(n.data?.label || '') === srcTarget
       );
       const targetNodes = nodes.filter(n => 
         n.id === rule.target ||
+        n.data?.componentId === rule.target ||
         normalize(n.data?.componentType || n.type || '') === tgtTarget ||
         normalize(n.data?.label || '') === tgtTarget
       );

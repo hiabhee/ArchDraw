@@ -1,18 +1,6 @@
-import type { TutorialDefinition, ValidationRule } from '@/lib/tutorial/schema';
+import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 
-function nodeRule(nodeType: string, label?: string): ValidationRule {
-  return { type: 'node_exists', nodeType, label };
-}
-
-function edgeRule(source: string, target: string): ValidationRule {
-  return { type: 'edge_exists', source, target };
-}
-
-function allOf(...rules: ValidationRule[]): ValidationRule {
-  return { type: 'all_of', rules };
-}
-
-const githubTutorial: TutorialDefinition = {
+const githubTutorial = defineTutorial({
   id: 'github-architecture',
   title: 'How to Design GitHub Architecture',
   description: 'Build a code hosting platform for 100 million developers with 420 million repositories. Learn Git object storage, pull request workflows, CI/CD pipelines, code search, and webhook delivery at scale.',
@@ -23,13 +11,12 @@ const githubTutorial: TutorialDefinition = {
   color: '#181717',
 
   levels: [
-    {
-      id: 'level-1',
+    level({
       title: 'Code Hosting Platform',
       steps: [
-        {
-          id: 'step-1',
-          title: 'Add the Web Client',
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
           phases: {
             context: {
               heading: 'Welcome to GitHub Architecture',
@@ -45,7 +32,7 @@ const githubTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Web', and add the client to the canvas.",
+              body: "Press \u2318K, search for 'Web', and add the client to the canvas.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -56,16 +43,16 @@ const githubTutorial: TutorialDefinition = {
               body: 'Web Client added. Now the API Gateway.',
             },
           },
-          validation: [nodeRule('client_web', 'Web')],
-          hints: ['Press ⌘K to open component search', 'Search for "Web"'],
-        },
-        {
-          id: 'step-2',
-          title: 'Add API Gateway',
+          hints: ['Press \u2318K to open component search', 'Search for "Web"'],
+        }),
+        step({
+          component: 'API Gateway',
+          nodeType: 'api_gateway',
+          parent: 'Web Client',
           phases: {
             context: {
               heading: 'Level 1: Step 2',
-              body: 'Adding the API Gateway — handles REST, GraphQL, and Git protocol.',
+              body: 'Adding the API Gateway \u2014 handles REST, GraphQL, and Git protocol.',
             },
             intro: {
               heading: 'Do you know about API Gateways?',
@@ -77,32 +64,27 @@ const githubTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'API Gateway', and add it.",
+              body: "Press \u2318K, search for 'API Gateway', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client → API Gateway.',
+              body: 'Connect Web Client \u2192 API Gateway.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'API Gateway added. Now the Load Balancer.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('api_gateway', 'API Gateway'),
-              edgeRule('client_web', 'api_gateway')
-            ),
-          ],
           hints: ['Search for "API Gateway"', 'Connect Web to it'],
-        },
-        {
-          id: 'step-3',
-          title: 'Add Load Balancer',
+        }),
+        step({
+          component: 'Load Balancer',
+          nodeType: 'load_balancer',
+          parent: 'API Gateway',
           phases: {
             context: {
               heading: 'Level 1: Step 3',
-              body: 'Adding the Load Balancer — distributes Git operations and API requests.',
+              body: 'Adding the Load Balancer \u2014 distributes Git operations and API requests.',
             },
             intro: {
               heading: 'Do you know about Load Balancers?',
@@ -114,32 +96,27 @@ const githubTutorial: TutorialDefinition = {
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Load Balancer', and add it.",
+              body: "Press \u2318K, search for 'Load Balancer', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect API Gateway → Load Balancer.',
+              body: 'Connect API Gateway \u2192 Load Balancer.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Load Balancer added. Now the Auth Service.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('load_balancer', 'Load Balancer'),
-              edgeRule('api_gateway', 'load_balancer')
-            ),
-          ],
           hints: ['Search for "Load Balancer"', 'Connect API Gateway to it'],
-        },
-        {
-          id: 'step-4',
-          title: 'Add Auth Service',
+        }),
+        step({
+          component: 'Auth Service',
+          nodeType: 'auth_service',
+          parent: 'Load Balancer',
           phases: {
             context: {
               heading: 'Level 1: Step 4',
-              body: 'Adding the Auth Service — handles tokens, OAuth, GitHub Apps, and SSH keys.',
+              body: 'Adding the Auth Service \u2014 handles tokens, OAuth, GitHub Apps, and SSH keys.',
             },
             intro: {
               heading: 'Do you know about Auth Services?',
@@ -147,32 +124,26 @@ const githubTutorial: TutorialDefinition = {
             },
             teaching: {
               heading: 'Deep dive: Auth Service',
-              body: "GitHub Apps have repository-level permissions — a CI app only gets read access to your code repo, not your private repos.",
+              body: "GitHub Apps have repository-level permissions \u2014 a CI app only gets read access to your code repo, not your private repos.",
             },
             action: {
               heading: 'Your turn!',
-              body: "Press ⌘K, search for 'Auth Service', and add it.",
+              body: "Press \u2318K, search for 'Auth Service', and add it.",
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Load Balancer → Auth Service.',
+              body: 'Connect Load Balancer \u2192 Auth Service.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'Auth Service added. Tutorial complete! You have built GitHub.',
             },
           },
-          validation: [
-            allOf(
-              nodeRule('auth_service', 'Auth'),
-              edgeRule('load_balancer', 'auth_service')
-            ),
-          ],
           hints: ['Search for "Auth Service"', 'Connect Load Balancer to it'],
-        },
+        }),
       ],
-    },
+    }),
   ],
-};
+});
 
 export default githubTutorial;

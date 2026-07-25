@@ -1,18 +1,6 @@
-import type { TutorialDefinition, ValidationRule } from '@/lib/tutorial/schema';
+import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 
-function nodeRule(nodeType: string, label?: string): ValidationRule {
-  return { type: 'node_exists', nodeType, label };
-}
-
-function edgeRule(source: string, target: string): ValidationRule {
-  return { type: 'edge_exists', source, target };
-}
-
-function allOf(...rules: ValidationRule[]): ValidationRule {
-  return { type: 'all_of', rules };
-}
-
-const stripeTutorial: TutorialDefinition = {
+const stripeTutorial = defineTutorial({
   id: 'stripe-architecture',
   title: 'How to Design Stripe Architecture',
   description: 'Build the payments platform that processes billions of dollars. Learn about payment processing, idempotency, and financial compliance.',
@@ -23,123 +11,120 @@ const stripeTutorial: TutorialDefinition = {
   color: '#635BFF',
 
   levels: [
-    {
-      id: 'level-1',
+    level({
       title: 'Payments Foundation',
       steps: [
-        {
-          id: 'step-1',
-          title: 'Add Client',
+        step({
+          component: 'Client',
+          nodeType: 'client',
+          noConnect: true,
           phases: {
-            context: { heading: 'Welcome to Stripe Architecture', body: 'Building a payments platform processing billions of dollars.' },
-            intro: { heading: 'About Client', body: 'The Client initiates payments.' },
-            teaching: { heading: 'Deep dive: Client', body: 'The Client collects payment information.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Client'." },
-            connecting: { heading: 'Connect it up', body: 'First step.' },
+            context: { heading: 'Welcome to Stripe Architecture', body: 'Stripe processes over $1 trillion annually. Every payment must be idempotent (no double charges), compliant (PCI DSS), and available 99.999% of the time.' },
+            intro: { heading: 'About the Client', body: 'The client is the merchant\'s website or app that integrates Stripe\'s SDK to collect payment information from customers.' },
+            teaching: { heading: 'Deep dive: Client', body: 'Stripe\'s client-side SDK (Stripe.js) tokenizes card information directly in the browser — raw card numbers never touch the merchant\'s server. This eliminates PCI DSS scope for the merchant. The SDK handles card validation, 3D Secure authentication, and error recovery. Without client-side tokenization, every merchant would need to handle raw card data, dramatically increasing security risk and compliance costs.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Mobile', and add the Client." },
+            connecting: { heading: 'Connect it up', body: 'First step — no connections yet.' },
             celebration: { heading: 'Great job!', body: 'Client added.' },
           },
-          validation: [nodeRule('client', 'Client')],
-          hints: ['Search for "Client"'],
-        },
-        {
-          id: 'step-2',
-          title: 'Add API Gateway',
+          hints: ['Search for "Mobile"'],
+        }),
+        step({
+          component: 'API Gateway',
+          nodeType: 'api_gateway',
+          parent: 'Client',
           phases: {
-            context: { heading: 'Level 1: Step 2', body: 'Adding API Gateway.' },
-            intro: { heading: 'About Gateway', body: 'API Gateway handles requests.' },
-            teaching: { heading: 'Deep dive: API Gateway', body: 'The API Gateway handles payment requests.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'API Gateway'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Client → Gateway.' },
-            celebration: { heading: 'Great job!', body: 'Gateway added.' },
+            context: { heading: 'Step 2: API Gateway', body: 'Every Stripe API call — charges, refunds, subscriptions — routes through the API Gateway with idempotency keys to prevent duplicate operations.' },
+            intro: { heading: 'About API Gateways', body: 'API gateways route requests, enforce rate limits, and provide a unified interface to backend payment services.' },
+            teaching: { heading: 'Deep dive: API Gateway', body: 'Stripe\'s API Gateway enforces idempotency — every request includes an idempotency key that ensures the same operation is never executed twice, even if the client retries. It routes charges to the Payment Service, subscription changes to the Billing Service, and webhook delivery to the Webhook Handler. The gateway must maintain 99.999% availability because downtime means merchants cannot process payments.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'API Gateway', and add it." },
+            connecting: { heading: 'Connect it up', body: 'Connect Client \u2192 API Gateway.' },
+            celebration: { heading: 'Great job!', body: 'API Gateway added.' },
           },
-          validation: [allOf(nodeRule('api_gateway', 'API Gateway'), edgeRule('client', 'api_gateway'))],
-          hints: ['Search for "API Gateway"'],
-        },
-        {
-          id: 'step-3',
-          title: 'Add Payment Service',
+          hints: ['Search for "API Gateway"', 'Connect Client to it'],
+        }),
+        step({
+          component: 'Payment Service',
+          nodeType: 'payment_service',
+          parent: 'API Gateway',
           phases: {
-            context: { heading: 'Level 1: Step 3', body: 'Adding Payment Service.' },
-            intro: { heading: 'About Payment Service', body: 'Payment services process payments.' },
-            teaching: { heading: 'Deep dive: Payment Service', body: 'The Payment Service processes transactions.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Payment Service'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Gateway → Payment.' },
+            context: { heading: 'Step 3: Payment Service', body: 'The Payment Service is the core engine — it orchestrates the entire charge lifecycle from authorization to settlement.' },
+            intro: { heading: 'About Payment Services', body: 'Payment services manage the full lifecycle of a transaction: authorization, capture, settlement, and refunds.' },
+            teaching: { heading: 'Deep dive: Payment Service', body: 'When a customer clicks "Pay", the Payment Service: (1) validates the tokenized card, (2) sends an authorization request to the card network (Visa/Mastercard), (3) receives approval/decline, (4) captures the funds, (5) settles with the merchant\'s bank. This entire flow must complete in under 2 seconds. The service handles 500+ payment methods across 195 countries and must retry failed authorizations with exponential backoff without double-charging.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Microservice', and add the Payment Service." },
+            connecting: { heading: 'Connect it up', body: 'Connect API Gateway \u2192 Payment Service.' },
             celebration: { heading: 'Great job!', body: 'Payment Service added.' },
           },
-          validation: [allOf(nodeRule('payment_service', 'Payment Service'), edgeRule('api_gateway', 'payment_service'))],
-          hints: ['Search for "Payment Service"'],
-        },
-        {
-          id: 'step-4',
-          title: 'Add Payment Gateway',
+          hints: ['Search for "Microservice"', 'Connect API Gateway to it'],
+        }),
+        step({
+          component: 'Payment Gateway',
+          nodeType: 'payment_gateway',
+          parent: 'Payment Service',
           phases: {
-            context: { heading: 'Level 1: Step 4', body: 'Adding Payment Gateway for processor connection.' },
-            intro: { heading: 'About Payment Gateway', body: 'Payment gateways connect to processors.' },
-            teaching: { heading: 'Deep dive: Payment Gateway', body: 'The Payment Gateway connects to card networks.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Payment Gateway'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Payment → Gateway.' },
+            context: { heading: 'Step 4: Payment Gateway', body: 'The Payment Gateway communicates with card networks (Visa, Mastercard, Amex) and banks to authorize and settle transactions.' },
+            intro: { heading: 'About Payment Gateways', body: 'Payment gateways are the bridge between your payment system and the traditional banking/card network infrastructure.' },
+            teaching: { heading: 'Deep dive: Payment Gateway', body: 'Stripe\'s Payment Gateway connects to 1,350+ financial institutions worldwide. It translates Stripe\'s internal payment format into each network\'s proprietary protocol (Visa\'s VISANet, Mastercard\'s Banknet). It handles currency conversion in real-time, routes transactions to the cheapest qualifying network (cost optimization), and manages failover between backup processors. Without a multi-processor gateway, Stripe would be dependent on a single bank — if that bank goes down, all payments fail.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Message Queue', and add the Payment Gateway." },
+            connecting: { heading: 'Connect it up', body: 'Connect Payment Service \u2192 Payment Gateway.' },
             celebration: { heading: 'Great job!', body: 'Payment Gateway added.' },
           },
-          validation: [allOf(nodeRule('payment_gateway', 'Payment Gateway'), edgeRule('payment_service', 'payment_gateway'))],
-          hints: ['Search for "Payment Gateway"'],
-        },
-        {
-          id: 'step-5',
-          title: 'Add Ledger',
+          hints: ['Search for "Message Queue"', 'Connect Payment Service to it'],
+        }),
+        step({
+          component: 'Ledger',
+          nodeType: 'ledger',
+          parent: 'Payment Service',
           phases: {
-            context: { heading: 'Level 1: Step 5', body: 'Adding Ledger for financial records.' },
-            intro: { heading: 'About Ledger', body: 'Ledgers track financial transactions.' },
-            teaching: { heading: 'Deep dive: Ledger', body: 'The Ledger tracks every transaction entry.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Ledger'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Payment Service → Ledger.' },
-            celebration: { heading: 'Level 1 Complete!', body: 'Foundation ready!' },
+            context: { heading: 'Step 5: Ledger', body: 'Stripe\'s Ledger is a double-entry accounting system that records every financial event with immutable audit trails.' },
+            intro: { heading: 'About Ledgers', body: 'Double-entry ledgers record every financial transaction as both a debit and credit, ensuring the books always balance.' },
+            teaching: { heading: 'Deep dive: Ledger', body: 'The Ledger uses double-entry bookkeeping: every charge creates a debit on the customer\'s balance and a credit on the merchant\'s balance. This ensures mathematical correctness — the sum of all debits always equals the sum of all credits. The Ledger is append-only (never updated or deleted) for audit compliance. It powers Stripe\'s real-time revenue reporting, balance calculations, and regulatory filings. Without a proper ledger, financial discrepancies would be impossible to detect or audit.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'SQL Database', and add the Ledger." },
+            connecting: { heading: 'Connect it up', body: 'Connect Payment Service \u2192 Ledger.' },
+            celebration: { heading: 'Great job!', body: 'Ledger added.' },
           },
-          validation: [allOf(nodeRule('ledger', 'Ledger'), edgeRule('payment_service', 'ledger'))],
-          hints: ['Search for "Ledger"'],
-        },
+          hints: ['Search for "SQL Database"', 'Connect Payment Service to it'],
+        }),
       ],
-    },
-    {
-      id: 'level-2',
+    }),
+    level({
       title: 'Production Layer',
       steps: [
-        {
-          id: 'step-6',
-          title: 'Add Auth Service',
+        step({
+          component: 'Auth Service',
+          nodeType: 'auth_service',
+          parent: 'API Gateway',
           phases: {
-            context: { heading: 'Level 2: Step 1', body: 'Adding Auth Service.' },
-            intro: { heading: 'About Auth', body: 'Auth validates requests.' },
-            teaching: { heading: 'Deep dive: Auth Service', body: 'The Auth Service validates API keys.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Auth Service'." },
-            connecting: { heading: 'Connect it up', body: 'Connect Gateway → Auth.' },
-            celebration: { heading: 'Level 2 Complete!', body: 'Production layer ready!' },
+            context: { heading: 'Level 2: Auth Service', body: 'Stripe authenticates API keys, manages merchant permissions, and enforces per-account rate limits and transaction caps.' },
+            intro: { heading: 'About Auth Services', body: 'Auth services validate API credentials, enforce permissions, and prevent unauthorized access to payment operations.' },
+            teaching: { heading: 'Deep dive: Auth Service', body: 'The Auth Service validates Stripe API keys (sk_live_xxx, pk_live_xxx), checks merchant permissions (can this key create charges? issue refunds?), and enforces per-account rate limits. It also manages OAuth for Stripe Connect platforms — where a marketplace manages payments on behalf of thousands of sellers. Without proper auth, unauthorized users could create charges or issue refunds on any account.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Auth Service', and add it." },
+            connecting: { heading: 'Connect it up', body: 'Connect API Gateway \u2192 Auth Service.' },
+            celebration: { heading: 'Great job!', body: 'Auth Service added.' },
           },
-          validation: [allOf(nodeRule('auth_service', 'Auth Service'), edgeRule('api_gateway', 'auth_service'))],
-          hints: ['Search for "Auth Service"'],
-        },
+          hints: ['Search for "Auth Service"', 'Connect API Gateway to it'],
+        }),
       ],
-    },
-    {
-      id: 'level-3',
+    }),
+    level({
       title: 'Expert Architecture',
       steps: [
-        {
-          id: 'step-7',
-          title: 'Add Webhook Handler',
+        step({
+          component: 'Webhook Handler',
+          nodeType: 'webhook_handler',
+          parent: 'Payment Service',
           phases: {
-            context: { heading: 'Level 3: Step 1', body: 'Adding Webhook Handler.' },
-            intro: { heading: 'About Webhooks', body: 'Webhooks notify of events.' },
-            teaching: { heading: 'Deep dive: Webhook Handler', body: 'The Webhook Handler sends event notifications.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K and search for 'Webhook Handler'." },
-            connecting: { heading: 'Connect it up', body: 'Connect to Payment Service.' },
-            celebration: { heading: 'Expert Complete!', body: "You've designed Stripe!" },
+            context: { heading: 'Level 3: Webhook Handler', body: 'Webhooks notify merchants when payments succeed, fail, or require action. Stripe retries failed webhooks with exponential backoff for up to 3 days.' },
+            intro: { heading: 'About Webhooks', body: 'Webhooks are HTTP callbacks that notify external systems when events occur in your platform.' },
+            teaching: { heading: 'Deep dive: Webhook Handler', body: 'When a payment completes, the Webhook Handler sends a signed HTTP POST to the merchant\'s endpoint with the payment details. If the merchant\'s server is down, Stripe retries with exponential backoff (1min, 5min, 30min, 2hr, 24hr) for up to 3 days. Each webhook includes a signature so the merchant can verify authenticity. Webhooks are critical for async payment flows — a merchant needs to know when a subscription renews, a dispute is filed, or a payout completes.' },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Serverless Function', and add the Webhook Handler." },
+            connecting: { heading: 'Connect it up', body: 'Connect Payment Service \u2192 Webhook Handler.' },
+            celebration: { heading: 'Great job!', body: 'Webhook Handler added. Your Stripe architecture is complete!' },
           },
-          validation: [nodeRule('webhook_handler', 'Webhook Handler')],
-          hints: ['Search for "Webhook Handler"'],
-        },
+          hints: ['Search for "Serverless Function"', 'Connect Payment Service to it'],
+        }),
       ],
-    },
+    }),
   ],
-};
+});
 
 export default stripeTutorial;
