@@ -30,7 +30,6 @@ import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
 import { getUserTier } from '@/lib/userQuotas';
-import { QuotaIndicator } from '@/components/QuotaIndicator';
 
 const CommandPalette = dynamic(() => import('@/components/CommandPalette').then(m => ({ default: m.CommandPalette })), { ssr: false });
 const MermaidCodePanel = dynamic(() => import('@/components/MermaidCodePanel').then(m => ({ default: m.MermaidCodePanel })), { ssr: false });
@@ -562,7 +561,6 @@ export default function EditorPage() {
         {showRepoIngestModal && (
           <RepoDiagramGenerator onClose={() => setShowRepoIngestModal(false)} />
         )}
-        <QuotaIndicator />
       </div>
     </ErrorBoundary>
   );

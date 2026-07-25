@@ -464,6 +464,7 @@ function CanvasInner() {
         minZoom={CANVAS_CONFIG.minZoom}
         maxZoom={CANVAS_CONFIG.maxZoom}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+        proOptions={{ hideAttribution: true }}
       >
         <Background 
           variant={CANVAS_CONFIG.background.variant as BackgroundVariant} 

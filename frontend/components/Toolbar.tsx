@@ -634,7 +634,7 @@ export function Toolbar() {
                 window.dispatchEvent(new CustomEvent('close-canvas-sidebar'));
               }
             }}
-            className="floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
             <PanelLeftClose className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
@@ -642,7 +642,7 @@ export function Toolbar() {
 
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('toggle-canvas-sidebar'))}
-            className="floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
             title="Toggle canvases"
           >
             <FolderOpen className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
@@ -661,7 +661,7 @@ export function Toolbar() {
         </div>
 
         {/* CENTER: Context info */}
-        <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-muted-foreground">
+        <div className="!hidden sm:flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <span>{nodes.length}</span>
             <span className="hidden sm:inline">nodes</span>
@@ -689,69 +689,73 @@ export function Toolbar() {
 
         {/* RIGHT: Actions */}
         <div className="flex items-center gap-1 sm:gap-2">
-          <button
-            onClick={undo}
-            disabled={!past.length}
-            className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Undo (Cmd+Z)"
-          >
-            <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-          </button>
-          <button
-            onClick={redo}
-            disabled={!future.length}
-            className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Redo (Cmd+Shift+Z)"
-          >
-            <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-          </button>
+          <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={undo}
+              disabled={!past.length}
+              className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Undo (Cmd+Z)"
+            >
+              <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!future.length}
+              className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Redo (Cmd+Shift+Z)"
+            >
+              <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            </button>
 
-          <select
-            value={useModelStore((s) => s.selectedModel)}
-            onChange={(e) => useModelStore.getState().setSelectedModel(e.target.value)}
-            className="hidden sm:block max-w-[130px] truncate px-1.5 py-1 text-[11px] rounded-md bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all border-0 cursor-pointer focus:outline-none"
-            title="Select AI model"
-          >
-            {AVAILABLE_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+            <select
+              value={useModelStore((s) => s.selectedModel)}
+              onChange={(e) => useModelStore.getState().setSelectedModel(e.target.value)}
+              className="max-w-[130px] truncate px-1.5 py-1 text-[11px] rounded-md bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all border-0 cursor-pointer focus:outline-none"
+              title="Select AI model"
+            >
+              {AVAILABLE_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
 
-          <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
+            <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
+          </span>
 
           <ThemeToggle />
 
-          <button
-            onClick={() => setPenModeActive(!isPenModeActive)}
-            className={`p-1 sm:p-1.5 rounded-md transition-all ${
-              isPenModeActive 
-                ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
-            }`}
-            title={isPenModeActive ? "Deactivate Comet Trail Pen" : "Activate Comet Trail Pen"}
-          >
-            <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-          </button>
+          <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={() => setPenModeActive(!isPenModeActive)}
+              className={`p-1 sm:p-1.5 rounded-md transition-all ${
+                isPenModeActive 
+                  ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+              }`}
+              title={isPenModeActive ? "Deactivate Comet Trail Pen" : "Activate Comet Trail Pen"}
+            >
+              <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            </button>
 
-          <LayoutToggleButton />
+            <LayoutToggleButton />
 
-          <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
+            <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 
-          <button
-            onClick={handleDeleteCanvas}
-            className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
-            title="Delete canvas"
-          >
-            <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-          </button>
+            <button
+              onClick={handleDeleteCanvas}
+              className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+              title="Delete canvas"
+            >
+              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            </button>
 
-          <button
-            onClick={handleShare}
-            disabled={isSharing || nodes.length === 0}
-            className="floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
-          >
-            {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
-          </button>
+            <button
+              onClick={handleShare}
+              disabled={isSharing || nodes.length === 0}
+              className="floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
+            >
+              {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+            </button>
+          </span>
 
           <div className="relative">
             <button
@@ -848,7 +852,7 @@ export function Toolbar() {
             )}
           </div>
 
-          <div className="relative">
+          <div className="!hidden sm:block relative">
             <button
               onClick={() => setMoreOpen(!moreOpen)}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-white hover:bg-accent transition-colors"

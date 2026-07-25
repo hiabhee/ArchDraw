@@ -1069,6 +1069,7 @@ function InteractiveLandingDemoContent() {
           connectionLineType={ConnectionLineType.SmoothStep}
           edgesFocusable={false}
           edgesUpdatable={false}
+          proOptions={{ hideAttribution: true }}
         >
           <Background 
             variant={BackgroundVariant.Dots} 
