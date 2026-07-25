@@ -211,6 +211,23 @@ export function FloatingAIBar({
       <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
         {/* Detail Level Toggle + Code — above the input */}
         <div className="flex items-center gap-1.5">
+          {hasLastPrompt && onRegenerate && (
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={isGenerating}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border/10 bg-muted/20 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-all text-[10px] font-semibold cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Regenerate diagram"
+            >
+              {isGenerating ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <RotateCw className="w-3 h-3" />
+              )}
+              <span>Regenerate</span>
+            </button>
+          )}
+
           <div className="flex items-center gap-0.5 bg-muted/20 rounded-full p-0.5 border border-border/10">
             {([1, 2, 3] as const).map((level) => (
               <button
@@ -324,22 +341,6 @@ export function FloatingAIBar({
         </motion.div>
         </AnimatePresence>
       </div>
-
-      {hasLastPrompt && onRegenerate && (
-        <button
-          type="button"
-          onClick={handleRegenerate}
-          disabled={isGenerating}
-          className="shrink-0 h-9 w-9 sm:h-10 sm:w-10 rounded-[16px] border border-border/40 bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-150 shadow-soft-3 flex items-center justify-center active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Regenerate diagram"
-        >
-          {isGenerating ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <RotateCw className="w-3.5 h-3.5" />
-          )}
-        </button>
-      )}
     </motion.div>
   );
 }

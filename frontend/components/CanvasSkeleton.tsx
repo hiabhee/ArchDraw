@@ -117,7 +117,7 @@ export function CanvasSkeleton() {
         </svg>
 
         {/* Bottom status bar */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-5 py-3 rounded-2xl bg-card/90 backdrop-blur-sm border border-border/50 shadow-lg">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-8 flex items-center gap-3 px-5 py-3 rounded-2xl bg-card/90 backdrop-blur-sm border border-border/50 shadow-lg">
           <Loader2 className="w-4 h-4 animate-spin text-primary" />
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-foreground/80">

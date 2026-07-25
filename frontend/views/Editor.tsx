@@ -69,11 +69,21 @@ export default function EditorPage() {
   const [canvasSidebarOpen, setCanvasSidebarOpen] = useState(false);
   const [showRepoIngestModal, setShowRepoIngestModal] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(false);
-  const [lastPrompt, setLastPrompt] = useState<string | null>(null);
+  const [lastPrompt, setLastPrompt] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`archdraw-last-prompt:${activeCanvasId}`);
+    }
+    return null;
+  });
   const [lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
   const isMobile = useIsMobile();
+
+  // Sync lastPrompt when switching canvases
+  useEffect(() => {
+    setLastPrompt(localStorage.getItem(`archdraw-last-prompt:${activeCanvasId}`));
+  }, [activeCanvasId]);
 
   // Auto-close code panel if entering sequence diagram mode
   useEffect(() => {
@@ -289,6 +299,7 @@ export default function EditorPage() {
     const selectedModel = useModelStore.getState().selectedModel;
     setProgress(null);
     setLastPrompt(description);
+    localStorage.setItem(`archdraw-last-prompt:${activeCanvasId}`, description);
     const generationStart = Date.now();
     const resolvedDetailLevel = typeof detailLevelOrSize === 'number' ? detailLevelOrSize : detailLevelOrSize === 'small' ? 1 : detailLevelOrSize === 'medium' ? 2 : 3;
     const detailLevel = resolvedDetailLevel;

@@ -31,7 +31,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
 
-type ExportFormat = 'png-dark-4x' | 'png-light-4x' | 'png-transparent-4x' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
+type ExportFormat = 'png-dark-5x' | 'png-light-5x' | 'png-transparent-5x' | 'png-dark-4x' | 'png-light-4x' | 'png-transparent-4x' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
 
 interface EmbedNode {
   id: string;
@@ -401,6 +401,9 @@ export function Toolbar() {
       const { toPng } = await import('html-to-image');
       
       const pixelRatioMap: Record<string, number> = {
+        'png-dark-5x': 5,
+        'png-light-5x': 5,
+        'png-transparent-5x': 5,
         'png-dark-4x': 4,
         'png-light-4x': 4,
         'png-transparent-4x': 4,
@@ -455,7 +458,7 @@ export function Toolbar() {
           payload: { format: 'pdf', success: true },
         });
       } else {
-        const suffix = pixelRatio === 1 ? '' : pixelRatio === 2 ? '@2x' : '@4x';
+        const suffix = pixelRatio === 1 ? '' : pixelRatio === 2 ? '@2x' : pixelRatio === 4 ? '@4x' : '@5x';
         downloadFile(await dataUrlToBlob(finalDataUrl), `archdraw-export${suffix}.png`);
         toast.success(`Exported as PNG ${pixelRatio}x`);
         analytics.track({
@@ -592,7 +595,7 @@ export function Toolbar() {
     };
     const handleTriggerDownload = () => {
       const currentIsDark = useDiagramStore.getState().darkMode;
-      doExport(currentIsDark ? 'png-dark-4x' : 'png-light-4x');
+      doExport(currentIsDark ? 'png-dark-5x' : 'png-light-5x');
     };
 
     window.addEventListener('trigger-share', handleTriggerShare);
@@ -774,63 +777,35 @@ export function Toolbar() {
                   style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
                 >
                   <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">PNG - Dark</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Image</p>
                   </div>
-                  {([
-                    { label: 'High Quality (4x)', format: 'png-dark-4x' as ExportFormat },
-                  ]).map(({ label, format }) => (
-                    <button
-                      key={format}
-                      onClick={() => handleExport(format)}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">PNG - Light</p>
-                  </div>
-                  {([
-                    { label: 'High Quality (4x)', format: 'png-light-4x' as ExportFormat },
-                  ]).map(({ label, format }) => (
-                    <button
-                      key={format}
-                      onClick={() => handleExport(format)}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">PNG - Transparent</p>
-                  </div>
-                  {([
-                    { label: 'High Quality (4x)', format: 'png-transparent-4x' as ExportFormat },
-                  ]).map(({ label, format }) => (
-                    <button
-                      key={format}
-                      onClick={() => handleExport(format)}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => {
+                      const isDark = useDiagramStore.getState().darkMode;
+                      handleExport(isDark ? 'png-dark-5x' : 'png-light-5x');
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                  >
+                    PNG (Ultra Quality)
+                  </button>
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>
                   </div>
-                  {([
-                    { label: 'Dark background', format: 'svg-dark' },
-                    { label: 'Light background', format: 'svg-light' },
-                    { label: 'Transparent', format: 'svg-transparent' },
-                  ] as { label: string; format: ExportFormat }[]).map(({ label, format }) => (
-                    <button
-                      key={format}
-                      onClick={() => handleExport(format)}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => handleExport('svg-transparent')}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                  >
+                    SVG (No Background)
+                  </button>
+                  <button
+                    onClick={() => {
+                      const isDark = useDiagramStore.getState().darkMode;
+                      handleExport(isDark ? 'svg-dark' : 'svg-light');
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                  >
+                    SVG (With Background)
+                  </button>
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Other</p>
                   </div>
@@ -852,7 +827,7 @@ export function Toolbar() {
             )}
           </div>
 
-          <div className="!hidden sm:block relative">
+          <div className="relative">
             <button
               onClick={() => setMoreOpen(!moreOpen)}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-white hover:bg-accent transition-colors"
