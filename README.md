@@ -12,22 +12,22 @@ AI-assisted system architecture diagramming tool. Describe a system in plain Eng
 - **Templates** — Pre-built architectures (Netflix, Uber, Instagram, etc.)
 - **Tutorials** — 22+ guided tutorials teaching system architecture
 - **Auth** — better-auth (credentials / Google / GitHub OAuth)
-- **Persistence** — Prisma + Neon (PostgreSQL)
+- **Persistence** — Prisma + Neon (PostgreSQL) with better-auth
 - **Share & Embed** — Public share links and embeddable viewers
 - **MCP Server** — Protocol server for AI coding assistants to manipulate diagrams
 - **Export** — JSON, Mermaid, PNG, SVG
 
 ## Tech Stack
 
-Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagre · Groq API · Supabase · Upstash Redis · Tailwind CSS v4 · GSAP + Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11
+Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagre · Groq API · Prisma + Neon (PostgreSQL) · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 20+, npm 10+
+- Node.js 18+, npm 10+
 - Groq API key (for AI generation)
-- Supabase project (optional — auth & persistence)
+- PostgreSQL database (optional — auth & persistence, e.g. Neon)
 - Upstash Redis (optional — caching)
 
 ### Installation
@@ -35,7 +35,7 @@ Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagr
 ```bash
 cd frontend
 npm install
-cd mcp-server && npm install && cd ..
+cd ../mcp-server && npm install && cd ../frontend
 cp .env.example .env.local
 ```
 
@@ -57,13 +57,14 @@ Only `GROQ_API_KEY` is required for AI generation. The app runs locally without 
 
 ### Running
 
+All commands should be run from the `frontend/` directory.
+
 ```bash
-# Start everything (frontend + MCP server)
+# Start Next.js dev server
 npm run dev
 
-# Or run separately:
-npm run dev:frontend   # Next.js on http://localhost:3000
-npm run dev:mcp        # MCP server on stdio
+# MCP server (in a separate terminal)
+npm run dev:mcp
 
 # Tests
 npm test
@@ -84,14 +85,16 @@ frontend/
 ├── app/                  # Next.js App Router pages & API routes
 ├── components/           # React components (Canvas, nodes, edges, panels)
 ├── store/                # Zustand stores (diagram, auth, tutorial, etc.)
-├── lib/                  # Core logic: AI pipeline, Mermaid, canvas, Supabase
+├── lib/                  # Core logic: AI pipeline, Mermaid, canvas
 │   ├── ai/pipeline/      # 8-stage diagram generation pipeline
 │   ├── ai/agents/        # LLM agents
 │   ├── ai/services/      # ELK layout, caching, edge routing
-│   └── mermaid/          # Mermaid parsing/validation
+│   ├── mermaid/          # Mermaid parsing/validation
+│   └── types/            # TypeScript definitions
 ├── data/                 # Templates (15+), tutorials (22+), component library
-├── types/                # TypeScript definitions
-└── mcp-server/           # Standalone MCP server (10+ tools)
+└── src/                  # Generated Prisma types & utilities
+
+mcp-server/               # Standalone MCP server (10+ tools)
 ```
 
 ## AI Pipeline
