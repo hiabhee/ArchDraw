@@ -40,7 +40,7 @@ interface QuotaData {
 export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { initialized, user } = useAuthStore();
+  const { user } = useAuthStore();
   const { canvases, addCanvas, switchCanvas } = useDiagramStore();
   const [now] = useState(() => Date.now());
   const [quotaData, setQuotaData] = useState<QuotaData | null>(null);
@@ -79,14 +79,6 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
       .then(data => setQuotaData(data))
       .catch(() => setQuotaData(null));
   }, []);
-
-  if (!initialized) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   const searchQuery = searchParams.get('q') || '';
 

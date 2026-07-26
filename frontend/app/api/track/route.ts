@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { withRetry } from '@/lib/db-retry';
@@ -75,105 +76,91 @@ export async function POST(req: NextRequest) {
   const userAgent = req.headers.get('user-agent') || '';
   const cfCountry = req.headers.get('cf-ipcountry') || req.headers.get('x-vercel-ip-country') || null;
 
-  // Upsert visitor
-  let visitor;
-  try {
-    const existingVisitor = await prisma.visitor.findUnique({
-      where: { anonId },
-      select: { id: true, firstReferrer: true },
-    });
-
-    const visitorUpdate: Record<string, unknown> = {
-      lastSeenAt: new Date(),
-      userAgent,
-      isInternal: is_internal || false,
-    };
-
-    if (cfCountry) visitorUpdate.country = cfCountry;
-
-    // Set first_referrer and first_utm only on first visit
-    if (!existingVisitor) {
-      if (referrer) visitorUpdate.firstReferrer = referrer;
-      const utm: Record<string, string> = {};
-      if (utm_source) utm.source = utm_source;
-      if (utm_medium) utm.medium = utm_medium;
-      if (utm_campaign) utm.campaign = utm_campaign;
-      if (Object.keys(utm).length > 0) visitorUpdate.firstUtm = utm;
-    }
-
-    visitor = await withRetry(() => prisma.visitor.upsert({
-      where: { anonId },
-      create: {
-        anonId,
-        ...visitorUpdate,
-      } as never,
-      update: visitorUpdate,
-      select: { id: true },
-    }));
-  } catch (err) {
-    console.error('[Analytics] Failed to upsert visitor:', err);
-    return NextResponse.json({ error: 'Failed to upsert visitor' }, { status: 500 });
-  }
-
   // Determine device type
   const ua = userAgent.toLowerCase();
   const deviceType = /mobile|android|iphone|ipad/i.test(ua) ? 'mobile'
     : /tablet|ipad/i.test(ua) ? 'tablet'
     : 'desktop';
 
-  // Upsert session
-  try {
-    const existingSession = await prisma.visitorSession.findUnique({
-      where: { id: session_id },
-      select: { id: true, startedAt: true },
-    });
+  const entryPage = events.length > 0 ? events[0].page_path : null;
+  const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
 
-    if (!existingSession) {
-      const entryPage = events.length > 0 ? events[0].page_path : null;
-      await withRetry(() => prisma.visitorSession.create({
-        data: {
-          id: session_id,
-          visitorId: visitor.id,
-          entryPage,
-          deviceType,
-          startedAt: new Date(),
-        },
+  // Defer DB writes so the calling client never waits on a cold Neon compute.
+  // The response returns immediately; `after()` runs the writes after the
+  // response is flushed (billed to the function's execution time, not the
+  // user's request latency).
+  after(async () => {
+    const visitorUpdate: Record<string, unknown> = {
+      lastSeenAt: new Date(),
+      userAgent,
+      isInternal: is_internal || false,
+    };
+    if (cfCountry) visitorUpdate.country = cfCountry;
+
+    const firstUtm: Record<string, string> = {};
+    if (utm_source) firstUtm.source = utm_source;
+    if (utm_medium) firstUtm.medium = utm_medium;
+    if (utm_campaign) firstUtm.campaign = utm_campaign;
+
+    try {
+      const [visitor, existingSession] = await Promise.all([
+        withRetry(() => prisma.visitor.upsert({
+          where: { anonId },
+          create: {
+            anonId,
+            ...visitorUpdate,
+            ...(referrer ? { firstReferrer: referrer } : {}),
+            ...(Object.keys(firstUtm).length > 0 ? { firstUtm: firstUtm } : {}),
+          } as never,
+          update: visitorUpdate,
+          select: { id: true },
+        })),
+        prisma.visitorSession.findUnique({
+          where: { id: session_id },
+          select: { startedAt: true },
+        }).catch(() => null),
+      ]);
+
+      const sessionWrite = existingSession
+        ? withRetry(() => prisma.visitorSession.update({
+            where: { id: session_id },
+            data: {
+              endedAt: new Date(),
+              durationSeconds: Math.round(
+                (Date.now() - new Date(existingSession.startedAt).getTime()) / 1000
+              ),
+              exitPage,
+            },
+          })).catch((err) => {
+            console.error('[Analytics] Failed to update session:', err);
+          })
+        : withRetry(() => prisma.visitorSession.create({
+            data: {
+              id: session_id,
+              visitorId: visitor.id,
+              entryPage,
+              deviceType,
+              startedAt: new Date(),
+            },
+          })).catch((err) => {
+            console.error('[Analytics] Failed to create session:', err);
+          });
+
+      const rows = events.map((e) => ({
+        sessionId: session_id,
+        visitorId: visitor.id,
+        eventType: e.event_type,
+        eventName: e.event_name || null,
+        pagePath: e.page_path,
+        payload: (e.payload || {}) as object,
       }));
-    } else {
-      const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
-      const durationSeconds = Math.round(
-        (Date.now() - new Date(existingSession.startedAt).getTime()) / 1000
-      );
-      await withRetry(() => prisma.visitorSession.update({
-        where: { id: session_id },
-        data: {
-          endedAt: new Date(),
-          durationSeconds,
-          exitPage,
-        },
-      }));
+      const eventsWrite = withRetry(() => prisma.event.createMany({ data: rows }));
+
+      await Promise.all([sessionWrite, eventsWrite]);
+    } catch (err) {
+      console.error('[Analytics] Background track write failed:', err);
     }
-  } catch (err) {
-    console.error('[Analytics] Failed to upsert session:', err);
-    // Continue — events are more important than session metadata
-  }
-
-  // Batch insert events
-  try {
-    const rows = events.map((e) => ({
-      sessionId: session_id,
-      visitorId: visitor.id,
-      eventType: e.event_type,
-      eventName: e.event_name || null,
-      pagePath: e.page_path,
-      payload: (e.payload || {}) as object,
-    }));
-
-    await withRetry(() => prisma.event.createMany({ data: rows }));
-  } catch (err) {
-    console.error('[Analytics] Failed to insert events:', err);
-    return NextResponse.json({ error: 'Failed to insert events' }, { status: 500 });
-  }
+  });
 
   return NextResponse.json({ ok: true, recorded: events.length }, { status: 200 });
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
@@ -40,19 +41,20 @@ export async function POST(req: NextRequest) {
   const { anon_id, user_id } = parsed.data;
   const isInternal = ADMIN_USER_ID && user_id === ADMIN_USER_ID;
 
-  try {
-    await withRetry(() => prisma.visitor.update({
-      where: { anonId: anon_id },
-      data: {
-        userId: user_id,
-        lastSeenAt: new Date(),
-        ...(isInternal ? { isInternal: true } : {}),
-      },
-    }));
-  } catch (err) {
-    console.error('[Analytics] Failed to identify visitor:', err);
-    return NextResponse.json({ error: 'Failed to identify' }, { status: 500 });
-  }
+  after(async () => {
+    try {
+      await withRetry(() => prisma.visitor.update({
+        where: { anonId: anon_id },
+        data: {
+          userId: user_id,
+          lastSeenAt: new Date(),
+          ...(isInternal ? { isInternal: true } : {}),
+        },
+      }));
+    } catch (err) {
+      console.error('[Analytics] Failed to identify visitor (background):', err);
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

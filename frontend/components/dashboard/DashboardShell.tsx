@@ -143,14 +143,14 @@ function DashboardSearch() {
 
 export function DashboardShell({ children, activePage }: DashboardShellProps) {
   const router = useRouter();
-  const { initialized, user } = useAuthStore();
+  const { user } = useAuthStore();
   const { addCanvas, canvases } = useDiagramStore();
-  
+
   // Use state with initial value from a ref or just skip setMounted if not needed
   const [mounted, setMounted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
@@ -164,7 +164,7 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
   const openCanvases = canvases.filter(c => c.isOpen);
   const stats = `${canvases.length} canvases • ${openCanvases.length} open`;
 
-  if (!mounted || !initialized) {
+  if (!mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-page">
         <div className="w-8 h-8 border-2 border-border-strong border-t-transparent rounded-full animate-spin" />

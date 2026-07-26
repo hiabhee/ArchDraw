@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+
 import type { Node, Edge } from 'reactflow';
 
 interface Template {
@@ -63,19 +63,10 @@ function TemplateCard({
 
 export function TemplatesClient({ templates }: { templates: Template[] }) {
   const router = useRouter();
-  const { initialized } = useAuthStore();
 
   const handleUseTemplate = (templateId: string) => {
     router.push(`/editor?template=${templateId}`);
   };
-
-  if (!initialized) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
