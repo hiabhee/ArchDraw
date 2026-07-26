@@ -11,7 +11,7 @@ const ADMIN_USER_ID = process.env.ADMIN_USER_ID || '';
 
 const identifySchema = z.object({
   anon_id: z.string().min(1),
-  user_id: z.string().uuid(),
+  user_id: z.string().min(1),
 });
 
 export async function POST(req: NextRequest) {
