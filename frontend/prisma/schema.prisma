@@ -103,8 +103,8 @@ model ComponentTemplate {
 
 model Event {
   id        BigInt  @id @default(autoincrement())
-  sessionId String  @map("session_id")
-  visitorId String  @map("visitor_id")
+  sessionId String  @map("session_id") @db.Uuid
+  visitorId String  @map("visitor_id") @db.Uuid
   eventType String  @map("event_type")
   eventName String? @map("event_name")
   pagePath  String? @map("page_path")
@@ -136,7 +136,7 @@ model Profile {
 
 model VisitorSession {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  visitorId       String    @map("visitor_id")
+  visitorId       String    @map("visitor_id") @db.Uuid
   startedAt       DateTime  @default(now()) @map("started_at")
   endedAt         DateTime? @map("ended_at")
   durationSeconds Int?      @map("duration_seconds")

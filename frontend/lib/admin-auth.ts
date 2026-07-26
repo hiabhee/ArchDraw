@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
+import { auth } from '@/lib/auth';
+
+const ALLOWED_ADMIN_EMAIL = process.env.ALLOWED_ADMIN_EMAIL || 'jamdadeabhishek039@gmail.com';
 
 async function hmacVerify(data: string, signature: string, secret: string): Promise<boolean> {
   const encoder = new TextEncoder();
@@ -46,9 +49,20 @@ export async function requireAdmin(req: NextRequest): Promise<Response | null> {
   if (!process.env.DATABASE_URL) {
     return Response.json({ error: 'Database not configured' }, { status: 503 });
   }
+
+  // First try the HMAC admin_session cookie
   const ok = await verifyAdminSession(req);
-  if (!ok) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (ok) return null;
+
+  // Fallback: check better-auth session for the allowed admin email
+  try {
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (session?.user?.email === ALLOWED_ADMIN_EMAIL) {
+      return null;
+    }
+  } catch {
+    // Silently fall through to 401
   }
-  return null;
+
+  return Response.json({ error: 'Unauthorized' }, { status: 401 });
 }

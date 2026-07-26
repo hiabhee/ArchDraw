@@ -143,7 +143,7 @@ function DashboardSearch() {
 
 export function DashboardShell({ children, activePage }: DashboardShellProps) {
   const router = useRouter();
-  const { initialized } = useAuthStore();
+  const { initialized, user } = useAuthStore();
   const { addCanvas, canvases } = useDiagramStore();
   
   // Use state with initial value from a ref or just skip setMounted if not needed
@@ -269,6 +269,13 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
                 active={activePage === 'Blog'}
                 onClick={() => { router.push('/blogs'); setMobileMenuOpen(false); }}
               />
+              {user?.email === 'jamdadeabhishek039@gmail.com' && (
+                <SubmenuItem
+                  label="Admin"
+                  active={activePage === 'Admin'}
+                  onClick={() => { router.push('/admin'); setMobileMenuOpen(false); }}
+                />
+              )}
             </div>
 
             <div>
@@ -372,6 +379,13 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
                 active={activePage === 'Blog'}
                 onClick={() => router.push('/blogs')}
               />
+              {user?.email === 'jamdadeabhishek039@gmail.com' && (
+                <SubmenuItem
+                  label="Admin"
+                  active={activePage === 'Admin'}
+                  onClick={() => router.push('/admin')}
+                />
+              )}
             </div>
 
             {/* AI TOOLS Section */}
@@ -419,6 +433,7 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
                   {activePage === 'Canvases-All' && 'All Canvases'}
                   {activePage === 'Docs' && 'Documentation'}
                   {activePage === 'Blog' && 'Engineering Blog'}
+                  {activePage === 'Admin' && 'Admin Panel'}
                 </h1>
               </div>
               
