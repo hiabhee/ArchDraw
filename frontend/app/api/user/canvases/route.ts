@@ -41,8 +41,15 @@ export async function PUT(req: NextRequest) {
 
   const existingCanvas = await prisma.userCanvas.findUnique({
     where: { id: body.id },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
+
+  // IDOR guard: an existing canvas must belong to the signed-in user before
+  // it can be overwritten. Without this, PUT with a victim's canvas id would
+  // upsert into their record (the delete sibling already scopes by userId).
+  if (existingCanvas && existingCanvas.userId !== userId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const isNewCanvas = !existingCanvas;
 

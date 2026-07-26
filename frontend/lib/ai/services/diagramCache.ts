@@ -1,5 +1,4 @@
 import type { ArchitectureNode, ArchitectureEdge } from '../types';
-import type { DiagramQualityReport } from '../validation/diagramQualityValidator';
 import type { PipelineResult } from '@/lib/types/repo-diagram';
 
 const CACHE_TTL_MS = process.env.NODE_ENV === 'development'
@@ -15,7 +14,6 @@ export interface CachedDiagram {
   normalizedPrompt: string;
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
-  qualityReport: DiagramQualityReport;
   cachedAt: number;
 }
 
@@ -108,7 +106,6 @@ export function set(
   diagram: {
     nodes: ArchitectureNode[];
     edges: ArchitectureEdge[];
-    qualityReport: DiagramQualityReport;
   }
 ): void {
   const normalized = normalizePrompt(prompt);
@@ -121,7 +118,6 @@ export function set(
     normalizedPrompt: normalized,
     nodes: diagram.nodes,
     edges: diagram.edges,
-    qualityReport: diagram.qualityReport,
     cachedAt: Date.now(),
   };
 

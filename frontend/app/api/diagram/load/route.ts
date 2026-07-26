@@ -18,19 +18,14 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSessionFromRequest(req);
     const userId = session?.user?.id;
-    const tier = getUserTier(userId);
 
-    if (!canAccessFeature(tier, 'share')) {
-      return NextResponse.json(
-        {
-          error: 'Sign in to share diagrams',
-          code: 'AUTH_REQUIRED',
-          feature: 'sharing',
-        },
-        { status: 401 }
-      );
-    }
-
+    // Previously blocked unauthenticated / MCP-originated saves with a
+    // `canAccessFeature(tier, 'share')` check that returned 401 for guests.
+    // The MCP server calls this endpoint to persist a generated diagram and
+    // receive a sessionId — it never sends auth credentials, so the guard
+    // made the tool unusable. POST creates a public sharedCanvas record which
+    // is intentionally world-writable; the sharing admin (PATCH/PUT/DELETE)
+    // below remains guarded by userId/ownerId checks.
     const body = await req.json();
 
     let nodes = body.nodes || [];

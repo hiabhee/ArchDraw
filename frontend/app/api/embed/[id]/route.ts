@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis, redisKeys } from '@/lib/redis';
 import prisma from '@/lib/prisma';
-import fs from 'fs';
-import path from 'path';
-import logger from '@/lib/logger';
+import { getClientIP } from '@/lib/server/ip';
 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 20;
 
 function getRateLimitKey(request: NextRequest): string {
-  const ip = request.headers.get('x-forwarded-for') || 
-             request.headers.get('x-real-ip') || 
-             'unknown';
-  return `embed:${ip}`;
+  // Keys on the trusted-proxy-aware client IP. The leftmost X-Forwarded-For
+  // value is client-controllable, so keying on it would let an attacker
+  // rotate the header to bypass the embed throttle.
+  return `embed:${getClientIP(request)}`;
 }
 
 function checkRateLimit(key: string): boolean {
@@ -38,14 +36,6 @@ interface SharedCanvas {
   canvas_name: string;
   nodes: unknown[];
   edges: unknown[];
-}
-
-interface DiagramData {
-  nodes: unknown[];
-  edges: unknown[];
-  label?: string;
-  createdAt: string;
-  source?: 'mcp' | 'manual';
 }
 
 interface DiagramResponse {
@@ -90,38 +80,7 @@ export async function GET(
     );
   }
 
-  // Try local session store first
-  const STORAGE_FILE = path.join(process.cwd(), '.diagram-sessions.json');
-  let sessionData: DiagramData | null = null;
-  
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const store = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf-8')) as Record<string, DiagramData>;
-      sessionData = store[id] || null;
-    }
-  } catch {
-    // Continue to Redis
-  }
-
-  // Return from session store if found
-  if (sessionData) {
-    logger.log(`[Embed] SESSION-STORE-HIT: ${id}`);
-    const response: DiagramResponse = {
-      id,
-      canvas_name: sessionData.label || 'Shared Diagram',
-      nodes: sessionData.nodes,
-      edges: sessionData.edges,
-    };
-    
-    return NextResponse.json(response, {
-      headers: {
-        'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
-        'Access-Control-Allow-Origin': corsOrigin,
-      },
-    });
-  }
-
-  // Try Redis cache second
+  // Try Redis cache first
   let data: SharedCanvas | null = null;
   try {
     data = await redis.get<SharedCanvas>(redisKeys.sharedCanvas(id));
@@ -139,6 +98,13 @@ export async function GET(
       return NextResponse.json(
         { error: 'Diagram not found' }, 
         { status: 404, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
+      );
+    }
+
+    if (row.expiresAt && new Date(row.expiresAt) < new Date()) {
+      return NextResponse.json(
+        { error: 'Share link has expired' }, 
+        { status: 410, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
       );
     }
 

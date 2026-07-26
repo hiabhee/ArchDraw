@@ -63,9 +63,8 @@ function validateTopologyAndSize(
   edges: ArchitectureEdge[],
   diagramSize: 'small' | 'medium' | 'large',
   detailLevel: 1 | 2 | 3 = 2
-): { semanticIssues: ValidationIssue[]; mechanicalRepairs: ValidationIssue[] } {
+): ValidationIssue[] {
   const semanticIssues: ValidationIssue[] = [];
-  const mechanicalRepairs: ValidationIssue[] = [];
 
   const maxNodes = detailLevel === 1 ? 7 : detailLevel === 2 ? 12 : 20;
   const leafNodes = nodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode');
@@ -135,7 +134,7 @@ function validateTopologyAndSize(
     }
   }
 
-  return { semanticIssues, mechanicalRepairs };
+  return semanticIssues;
 }
 
 function generateFallbackPlan(prompt: string) {
@@ -201,9 +200,14 @@ export async function runMermaidPipeline(
   // STAGE 1: Planner — concept templates only at L2+; L1 always uses the
   // scoped planner so the FloatingAIBar detail toggle has a real effect.
   const useConceptTemplate = Boolean(implicitConcept) && detailLevel >= 2;
-  let plan = useConceptTemplate
+  // If the caller supplied an existing diagram, forward it to the planner so
+  // "edit my diagram" flows modify it instead of regenerating from scratch.
+  // Concept templates are disabled in edit mode since they'd ignore the
+  // existing context entirely.
+  const inEditMode = Boolean(userIntent.existingContext && (userIntent.existingContext.nodes?.length || userIntent.existingContext.edges?.length));
+  let plan = (useConceptTemplate && !inEditMode)
     ? getConceptTemplatePlan(implicitConcept!, detailLevel)
-    : await runArchitecturePlanner(prompt, diagramSize, detailLevel, userIntent.model);
+    : await runArchitecturePlanner(prompt, diagramSize, detailLevel, userIntent.model, userIntent.existingContext);
   let { formatConfig, styleConfig, mermaidCode, reasoning } = plan;
 
   // Layout override
@@ -242,8 +246,14 @@ export async function runMermaidPipeline(
   }
 
   // Fallback to default plan if still empty
+  let usedFallback = false;
   if (!parseResult.success || parseResult.nodes.length === 0) {
     logger.warn('[Pipeline] Parser still returned 0 nodes. Using fallback plan.');
+    usedFallback = true;
+    // The hardcoded fallback plan cannot incorporate the caller's existing
+    // diagram, so an edit request that falls through to it loses the user's
+    // diagram. Flag this so the API layer can warn instead of silently
+    // dropping the context.
     plan = generateFallbackPlan(prompt);
     ({ formatConfig, styleConfig, mermaidCode } = plan);
     if (isVerticalRequested) {
@@ -253,6 +263,12 @@ export async function runMermaidPipeline(
     }
     parseResult = parseMermaidToReactFlow(mermaidCode);
   }
+
+  // If the caller gave us an existing diagram but we still ended up serving the
+  // hardcoded fallback (LLM failed twice), we dropped their context. Detect
+  // that so the response can signal the loss rather than returning a fresh
+  // diagram as if it were an edit.
+  const droppedExistingContext = Boolean(usedFallback && inEditMode);
 
   const rfNodes = parseResult.nodes;
   const rfEdges = parseResult.edges;
@@ -312,11 +328,10 @@ export async function runMermaidPipeline(
 
   const semanticIssues = [
     ...reasoningIssues,
-    ...topologyIssues.semanticIssues,
+    ...topologyIssues,
     ...parserSemanticIssues
   ];
   const mechanicalRepairs = [
-    ...topologyIssues.mechanicalRepairs,
     ...parserMechanicalIssues
   ];
 
@@ -379,5 +394,7 @@ export async function runMermaidPipeline(
     diagramScore: diagramScore as DiagramScore,
     diagnostics: pipelineDiagnostics,
     diagramType: formatConfig.diagramType,
+    usedFallback,
+    droppedExistingContext,
   };
 }

@@ -118,7 +118,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         analytics.identify(u.id);
       } else {
-        logger.info('[Auth] No active session - using guest mode');
         set({
           user: GUEST_USER,
           loading: false,
@@ -126,8 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           sessionExpired: false,
         });
       }
-    } catch (error) {
-      logger.error('[Auth] Session check failed, falling back to guest mode:', error);
+    } catch {
       set({
         user: GUEST_USER,
         loading: false,

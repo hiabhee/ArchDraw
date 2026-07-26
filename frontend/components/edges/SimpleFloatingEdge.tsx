@@ -46,6 +46,7 @@ export default function SimpleFloatingEdge({
   const edges = useStore((s: ReactFlowState) => s.edges);
   const { getViewport } = useReactFlow();
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
+  const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
 
   // Extract primitive data values for stable memoization
   const edgeVariant = data?.edgeVariant;
@@ -68,8 +69,13 @@ export default function SimpleFloatingEdge({
       targetHandle: targetHandleId,
       data,
     } as Edge;
-    return computeEdgeRoute(edgeObj, nodes, edges);
-  }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges]);
+    return computeEdgeRoute(
+      edgeObj,
+      nodes,
+      edges,
+      activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
+    );
+  }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges, activeLayoutPresetId]);
 
   const {
     sourcePosition: sourcePos,

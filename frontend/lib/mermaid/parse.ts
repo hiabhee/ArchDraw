@@ -4,9 +4,42 @@ const RESERVED_KEYWORDS = new Set(['end', 'graph', 'flowchart', 'subgraph', 'dir
 
 function normalizeEdgeLabels(text: string): string {
   return text.split('\n').map(line => {
-    line = line.replace(/--\s+"([^"]+)"\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|')
-    line = line.replace(/--\s+(.+?)\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|')
-    return line
+    // Apply the arrow-label rewrite ONLY outside of quoted regions. The previous
+    // implementation ran a global regex over the whole line, so a label like
+    // A["config -- foo --> bar"] had its quoted "-- foo -->" rewritten too,
+    // corrupting the node label. Walk the line, toggling in-quote state, and
+    // only transform segments between quotes.
+    let out = '';
+    let i = 0;
+    let inQuote: '"' | "'" | '' = '';
+    while (i < line.length) {
+      const ch = line[i];
+      if (inQuote) {
+        if (ch === inQuote && line[i - 1] !== '\\') inQuote = '';
+        out += ch;
+        i++;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inQuote = ch;
+        out += ch;
+        i++;
+        continue;
+      }
+      // Find the next quote start so we can transform a whole unquoted chunk
+      // with the same regexes the old code used.
+      let nextQuote = -1;
+      for (let j = i; j < line.length; j++) {
+        if (line[j] === '"' || line[j] === "'") { nextQuote = j; break; }
+      }
+      const chunkEnd = nextQuote === -1 ? line.length : nextQuote;
+      let chunk = line.slice(i, chunkEnd);
+      chunk = chunk.replace(/--\s+"([^"]+)"\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|');
+      chunk = chunk.replace(/--\s+(.+?)\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|');
+      out += chunk;
+      i = chunkEnd;
+    }
+    return out;
   }).join('\n')
 }
 
@@ -343,6 +376,22 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
   if (errors.length > 0) {
     return { ok: false, errors }
+  }
+
+  // Total parse failure: the input had non-trivial, non-directive content but
+  // we extracted zero nodes and zero edges (e.g. the LLM returned prose or
+  // malformed mermaid that no rule matched). Previously `errors` was never
+  // pushed to and this function always returned ok:true, which made the
+  // pipeline's retry-on-parse-failure branch dead for garbage output. Report
+  // a single synthetic error so the caller can retry / fall back.
+  const meaningfulLines = lines
+    .map((l) => stripComments(l).trim())
+    .filter((l) => l.length > 0 && !l.startsWith('graph') && !l.startsWith('flowchart'));
+  if (nodes.length === 0 && edges.length === 0 && meaningfulLines.length > 0) {
+    return {
+      ok: false,
+      errors: [{ line: 1, reason: 'No nodes or edges were parsed from non-empty input.' }],
+    };
   }
 
   return {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
+import { getClientIP } from '@/lib/server/ip';
 
 export const runtime = 'nodejs';
 
@@ -33,8 +34,11 @@ export async function POST(req: NextRequest) {
 
   const { passcode: ADMIN_PASSCODE, sessionSecret: SESSION_SECRET, userId: ADMIN_USER_ID } = adminConfig;
 
-  // Rate limit: 5 attempts per IP per 15 minutes
-  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  // Rate limit: 5 attempts per real client IP per 15 minutes.
+  // Key on the trusted-proxy-aware client IP — leftmost X-Forwarded-For is
+  // client-controllable, so keying on it would let an attacker rotate the
+  // header to bypass the 5-attempt admin passcode lockout.
+  const ip = getClientIP(req);
   const now = Date.now();
   const rl = loginRateLimitMap.get(ip);
   if (rl && now < rl.resetAt) {
@@ -73,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   const payload = JSON.stringify({
     sub: ADMIN_USER_ID || 'admin',
-    exp: Date.now() + 60 * 60 * 24,
+    exp: Date.now() + 60 * 60 * 24 * 1000,
   });
   const signature = await hmacSign(payload, SESSION_SECRET);
   const sessionValue = `${Buffer.from(payload).toString('base64url')}.${signature}`;

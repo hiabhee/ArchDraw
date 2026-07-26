@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { getUserTier, getGuestQuotas, getAuthenticatedQuotas, type UserTier } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/redis';
+import { checkRateLimit, RedisRateLimitError } from '@/lib/redis';
+import { getClientIP } from '@/lib/server/ip';
 import logger from '@/lib/logger';
 
 export async function getSessionFromRequest(req: NextRequest) {
@@ -43,19 +44,22 @@ export async function checkAIGenerationQuota(
 
   if (tier === 'guest') {
     const quotas = getGuestQuotas();
-    const identifier = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    // Use the trusted-proxy-aware client IP. The previous behaviour — the
+    // leftmost X-Forwarded-For value — is client-controlled, so attackers
+    // could rotate it to bypass the guest quota entirely.
+    const identifier = getClientIP(req);
+    const rateLimitKey = `guest-ai:${identifier}`;
 
-    // Try Redis first, fall back to DB
+    // Try Redis first, fall back to DB (fail-closed when both are unavailable).
     try {
       const result = await checkRateLimit(
-        `guest-ai:${identifier}`,
+        rateLimitKey,
         quotas.aiGenerationsPerHour,
-        3600
+        3600,
       );
       if (result.allowed) {
         return { allowed: true, remaining: result.remaining, tier };
       }
-      // Redis says denied — enforce it
       const authQuotas = getAuthenticatedQuotas();
       return {
         allowed: false,
@@ -63,9 +67,16 @@ export async function checkAIGenerationQuota(
         remaining: 0,
         tier,
       };
-    } catch {
-      // Redis unavailable — fall back to DB tracking (fail-closed)
-      logger.warn('[Quota] Redis unavailable, falling back to DB rate limit for guest');
+    } catch (error) {
+      // checkRateLimit throws on any Redis failure (not configured, timeout,
+      // network error). Fall through to the DB-based fail-closed counter so
+      // the guest quota is still enforced — Redis being optional must not
+      // imply unlimited free generations.
+      if (!(error instanceof RedisRateLimitError)) {
+        logger.error('[Quota] Unexpected error from checkRateLimit:', error);
+      } else {
+        logger.warn('[Quota] Redis unavailable, falling back to DB rate limit for guest');
+      }
       try {
         const dbResult = await checkGuestQuotaViaDB(identifier, quotas.aiGenerationsPerHour);
         if (dbResult.allowed) {
@@ -159,5 +170,6 @@ export async function logUsage(
 }
 
 export function getGuestId(req: NextRequest): string | null {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const ip = getClientIP(req);
+  return ip === 'unknown' ? null : ip;
 }

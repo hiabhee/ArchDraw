@@ -7,15 +7,7 @@ import type { TutorialDefinition, TutorialSession, PhaseName } from '@/lib/tutor
 import type { AnyTutorial } from '@/data/tutorials';
 import * as engine from '@/lib/tutorial/engine';
 import { deleteTutorialProgressApi as apiDeleteTutorialProgress, saveTutorialProgress as apiSaveTutorialProgress, fetchTutorialProgress as apiGetTutorialProgress } from '@/lib/api-client';
-
-function migrateEdgesToSmoothstep(edges: Edge[]): SanitizedEdge[] {
-  return edges.map((edge) => {
-    if (edge.data?.pathType === 'smooth') {
-      return { ...edge, data: { ...edge.data, pathType: 'Smoothstep' } } as SanitizedEdge;
-    }
-    return edge as SanitizedEdge;
-  });
-}
+import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
 
 export interface TutorialMessage {
   type: 'guide' | 'user' | 'success' | 'error';
@@ -546,7 +538,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
             currentPhase: data.currentPhase,
             completedLevels: data.completedLevels,
             canvasNodes: (data.canvasNodes as unknown as SanitizedNode[]) ?? [],
-            canvasEdges: migrateEdgesToSmoothstep(data.canvasEdges as unknown as Edge[]),
+            canvasEdges: migrateEdgesToSmoothstep(data.canvasEdges as unknown as Edge[]) as unknown as SanitizedEdge[],
             explainCount: data.explainCount,
             updatedAt: data.updatedAt?.toISOString() ?? new Date().toISOString(),
           };

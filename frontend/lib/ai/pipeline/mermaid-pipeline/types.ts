@@ -61,4 +61,19 @@ export interface PipelineResult {
   diagramScore?: { grade?: string; score?: number };
   diagnostics?: PipelineDiagnostics;
   diagramType?: string;
+  /**
+   * True when the LLM failed twice and the final diagram came from the
+   * hardcoded fallback plan rather than a real generation. Callers surface
+   * this so the UI can distinguish a genuine result from a fallback and avoid
+   * billing it as a successful AI generation. Previously the pipeline
+   * returned success:true unconditionally even when serving the fallback.
+   */
+  usedFallback?: boolean;
+  /**
+   * True when the caller supplied existing diagram context (an "edit my
+   * diagram" flow) but the pipeline ignored it and regenerated from scratch.
+   * Lets the API/error layer warn the user instead of silently dropping their
+   * diagram.
+   */
+  droppedExistingContext?: boolean;
 }

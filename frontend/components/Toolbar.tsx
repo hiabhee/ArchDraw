@@ -31,7 +31,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
 
-type ExportFormat = 'png-dark-5x' | 'png-light-5x' | 'png-transparent-5x' | 'png-dark-4x' | 'png-light-4x' | 'png-transparent-4x' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
+type ExportFormat = 'png-dark' | 'png-light' | 'png-transparent' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
 
 interface EmbedNode {
   id: string;
@@ -265,6 +265,21 @@ export function Toolbar() {
 
   const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
+  const sanitizeFilename = (name: string): string => {
+    return name
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .trim()
+      .substring(0, 50) || 'diagram'; // Limit length and fallback
+  };
+
+  const getExportFilename = (extension: string): string => {
+    const canvasName = activeCanvas?.name;
+    if (!canvasName) return `archdraw-export.${extension}`;
+    return `${sanitizeFilename(canvasName)}.${extension}`;
+  };
+
   const downloadFile = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -304,7 +319,7 @@ export function Toolbar() {
     setExportOpen(false);
     if (format === 'json') {
       const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: 'application/json' });
-      downloadFile(blob, 'diagram.json');
+      downloadFile(blob, getExportFilename('json'));
       toast.success('Exported as JSON');
       return;
     }
@@ -373,7 +388,7 @@ export function Toolbar() {
             const pngBlob = await dataUrlToBlob(
               shouldWatermark(tier, 'png') ? await addWatermark(pngDataUrl) : pngDataUrl
             );
-            downloadFile(pngBlob, 'archdraw-export.png');
+            downloadFile(pngBlob, getExportFilename('png'));
             toast.warning('SVG too large, exported as PNG instead');
           analytics.track({
             event_type: 'export',
@@ -386,7 +401,7 @@ export function Toolbar() {
             toast.error('Export failed');
           }
         } else {
-          downloadFile(blob, 'archdraw-export.svg');
+          downloadFile(blob, getExportFilename('svg'));
           toast.success('Exported as SVG');
           analytics.track({
             event_type: 'export',
@@ -400,16 +415,7 @@ export function Toolbar() {
       
       const { toPng } = await import('html-to-image');
       
-      const pixelRatioMap: Record<string, number> = {
-        'png-dark-5x': 5,
-        'png-light-5x': 5,
-        'png-transparent-5x': 5,
-        'png-dark-4x': 4,
-        'png-light-4x': 4,
-        'png-transparent-4x': 4,
-      };
-      
-      const pixelRatio = pixelRatioMap[format] || 4;
+      const pixelRatio = 5;
       
       const element = document.querySelector('.react-flow') as HTMLElement | null;
       if (!element) return;
@@ -449,7 +455,7 @@ export function Toolbar() {
           format: [img.width, img.height],
         });
         pdf.addImage(finalDataUrl, 'PNG', 0, 0, img.width, img.height);
-        pdf.save('archdraw-export.pdf');
+        pdf.save(getExportFilename('pdf'));
         toast.success('Exported as PDF');
         analytics.track({
           event_type: 'export',
@@ -458,9 +464,8 @@ export function Toolbar() {
           payload: { format: 'pdf', success: true },
         });
       } else {
-        const suffix = pixelRatio === 1 ? '' : pixelRatio === 2 ? '@2x' : pixelRatio === 4 ? '@4x' : '@5x';
-        downloadFile(await dataUrlToBlob(finalDataUrl), `archdraw-export${suffix}.png`);
-        toast.success(`Exported as PNG ${pixelRatio}x`);
+        downloadFile(await dataUrlToBlob(finalDataUrl), getExportFilename('png'));
+        toast.success(`Exported as PNG`);
         analytics.track({
           event_type: 'export',
           event_name: 'png',
@@ -595,7 +600,7 @@ export function Toolbar() {
     };
     const handleTriggerDownload = () => {
       const currentIsDark = useDiagramStore.getState().darkMode;
-      doExport(currentIsDark ? 'png-dark-5x' : 'png-light-5x');
+      doExport(currentIsDark ? 'png-dark' : 'png-light');
     };
 
     window.addEventListener('trigger-share', handleTriggerShare);
@@ -782,11 +787,11 @@ export function Toolbar() {
                   <button
                     onClick={() => {
                       const isDark = useDiagramStore.getState().darkMode;
-                      handleExport(isDark ? 'png-dark-5x' : 'png-light-5x');
+                      handleExport(isDark ? 'png-dark' : 'png-light');
                     }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
                   >
-                    PNG (Ultra Quality)
+                    PNG
                   </button>
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>

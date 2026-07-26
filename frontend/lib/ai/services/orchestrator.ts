@@ -58,6 +58,11 @@ export async function generateDiagram(
           qualityWarnings: qualityWarnings.length > 0 ? qualityWarnings : undefined,
           pipelineDiagnostics: result.diagnostics,
           diagramType: result.diagramType,
+          // Signal whether the result came from the hardcoded fallback or if
+          // the user's existing diagram context was silently dropped, so API
+          // callers can warn rather than silently serving a stale result.
+          usedFallback: result.usedFallback,
+          droppedExistingContext: result.droppedExistingContext,
         },
       };
     } catch (error) {

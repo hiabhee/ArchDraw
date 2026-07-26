@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDiagram } from '@/lib/ai/services/orchestrator';
-import { AVAILABLE_MODELS } from '@/lib/ai/utils/apiKeyManager';
+import { MODELS, isKnownModel } from '@/lib/ai/models';
 import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
 import logger from '@/lib/logger';
 import { z } from 'zod';
-import { checkRateLimit } from '@/lib/redis';
+import { getClientIP } from '@/lib/server/ip';
 import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-// Known model IDs the pipeline can route — serves as a clear rejection for
-// obviously invalid model strings while remaining extensible.
-const SUPPORTED_MODEL_IDS = new Set([
-  ...AVAILABLE_MODELS.map(m => m.name),
-  'llama-4-scout-17b-16e-instruct',
-  'openai/gpt-oss-120b',
-]);
+// Known model IDs the pipeline can route — derived from the single source of
+// truth in lib/ai/models.ts (shared by client and server so the offered
+// dropdown and the accepted wire values can never diverge).
+const SUPPORTED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 
 // Zod validation schema
 const generateDiagramSchema = z.object({
@@ -24,7 +21,7 @@ const generateDiagramSchema = z.object({
   systemType: z.string().optional(),
   complexity: z.enum(['low', 'medium', 'high']).optional(),
   model: z.string().refine(
-    val => !val || SUPPORTED_MODEL_IDS.has(val),
+    val => !val || isKnownModel(val),
     { message: `Unsupported model. Supported: ${Array.from(SUPPORTED_MODEL_IDS).join(', ')}` }
   ).optional(),
   diagramSize: z.enum(['small', 'medium', 'large']).optional(),
@@ -35,13 +32,11 @@ type GenerateDiagramInput = z.infer<typeof generateDiagramSchema>;
 
 /**
  * Get rate limit identifier from request.
- * Uses IP address, falls back to a generic identifier if unavailable.
+ * Uses the trusted-proxy-aware client IP resolver so that a spoofable
+ * leftmost X-Forwarded-For value cannot reset the rate-limit counter.
  */
 function getRateLimitIdentifier(request: NextRequest): string {
-  const ip = request.headers.get('x-forwarded-for') || 
-             request.headers.get('x-real-ip') || 
-             'unknown';
-  return ip.split(',')[0].trim(); // Handle comma-separated IPs (proxy chains)
+  return getClientIP(request);
 }
 
 export async function POST(req: NextRequest) {

@@ -272,6 +272,14 @@ export interface GenerationResult {
     droppedEdgeCount?: number;
     qualityWarnings?: string[];
     pipelineDiagnostics?: import('../pipeline/types').PipelineDiagnostics;
+    /** True when the final diagram came from the hardcoded fallback, not a
+     *  real LLM generation. Previously the pipeline returned success:true
+     *  unconditionally even when serving the fallback. */
+    usedFallback?: boolean;
+    /** True when the caller supplied existing diagram context but the pipeline
+     *  ignored it and regenerated from scratch (e.g. the fallback was used).
+     *  The UI should warn the user that their edits were dropped. */
+    droppedExistingContext?: boolean;
     edgeLayoutMetrics?: {
       pathOptimizationScore: number;
       labelPositioningScore: number;

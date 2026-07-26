@@ -11,7 +11,8 @@ AI-assisted system architecture diagramming tool. Describe a system in plain Eng
 - **Auto-Layout** — ELK + Dagre for hierarchical layouts
 - **Templates** — Pre-built architectures (Netflix, Uber, Instagram, etc.)
 - **Tutorials** — 22+ guided tutorials teaching system architecture
-- **Auth & Persistence** — Supabase Magic Link OTP
+- **Auth** — better-auth (credentials / Google / GitHub OAuth)
+- **Persistence** — Prisma + Neon (PostgreSQL)
 - **Share & Embed** — Public share links and embeddable viewers
 - **MCP Server** — Protocol server for AI coding assistants to manipulate diagrams
 - **Export** — JSON, Mermaid, PNG, SVG
@@ -43,14 +44,16 @@ cp .env.example .env.local
 ```env
 GROQ_API_KEY=your_groq_api_key
 
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+DATABASE_URL=postgresql://...
 
-UPSTASH_REDIS_URL=your_redis_url
-UPSTASH_REDIS_TOKEN=your_redis_token
+UPSTASH_REDIS_REST_URL=your_redis_url
+UPSTASH_REDIS_REST_TOKEN=your_redis_token
+
+BETTER_AUTH_SECRET=your_secret
+BETTER_AUTH_URL=http://localhost:3000
 ```
 
-Only `GROQ_API_KEY` is required for AI generation. The app runs locally without Supabase or Redis (features like auth, persistence, and caching will be unavailable).
+Only `GROQ_API_KEY` is required for AI generation. The app runs locally without Redis (rate limiting degrades gracefully).
 
 ### Running
 

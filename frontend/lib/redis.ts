@@ -70,6 +70,13 @@ export const redisKeys = {
     `ratelimit:diagram:${identifier}`,
 };
 
+export class RedisRateLimitError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'RedisRateLimitError';
+  }
+}
+
 export async function checkRateLimit(
   identifier: string,
   limit: number = 5,
@@ -79,47 +86,52 @@ export async function checkRateLimit(
   const now = Math.floor(Date.now() / 1000);
   const windowStart = now - windowSeconds;
 
+  // NOTE: On any Redis failure (not configured, network error, timeout) we
+  // *throw* RedisRateLimitError instead of returning `{ allowed: true }`.
+  // Returning `allowed: true` made quota enforcement fail open — since Redis
+  // is documented as optional, the default deployment granted unlimited free
+  // Groq generations and defeated the guest quota entirely. Callers that have
+  // a fail-closed fallback (quotaCheck's DB counter) catch this and apply it;
+  // callers with no fallback catch this and degrade as they see fit.
+  const multi = redis.multi();
+  multi.zremrangebyscore(key, 0, windowStart);
+  multi.zadd(key, { score: now, member: `${now}-${Math.random()}` });
+  multi.zcard(key);
+  multi.expire(key, windowSeconds);
+
+  // Set a reasonable timeout for Redis operations
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Redis operation timeout')), 3000); // 3 second timeout
+  });
+
+  let results: [number, number, number, number];
   try {
-    // Test if Redis is actually available by attempting the operation
-    const multi = redis.multi();
-    multi.zremrangebyscore(key, 0, windowStart);
-    multi.zadd(key, { score: now, member: `${now}-${Math.random()}` });
-    multi.zcard(key);
-    multi.expire(key, windowSeconds);
-    
-    // Set a reasonable timeout for Redis operations
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Redis operation timeout')), 3000); // 3 second timeout
-    });
-    
-    const results = await Promise.race([
+    results = await Promise.race([
       multi.exec<[number, number, number, number]>(),
-      timeoutPromise
+      timeoutPromise,
     ]);
-
-    const count = results[2] ?? 0;
-    const allowed = count <= limit;
-    const remaining = Math.max(0, limit - count);
-    const resetAt = now + windowSeconds;
-
-    if (!allowed) {
-      // Clean up old entries when rate limited
-      try {
-        await redis.zremrangebyscore(key, 0, windowStart);
-      } catch (cleanupError) {
-        // Cleanup failure is non-critical
-        logger.debug('[RateLimit] Cleanup failed:', cleanupError);
-      }
-    }
-
-    logger.debug(`[RateLimit] Check passed - count: ${count}, limit: ${limit}, allowed: ${allowed}`);
-    return { allowed, remaining, resetAt };
   } catch (error) {
-    // Redis operation failed - allow request with warning (graceful degradation)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.warn(`[RateLimit] Redis error (graceful degradation): ${errorMessage}`);
-    
-    // Return permissive result to allow the request through
-    return { allowed: true, remaining: limit, resetAt: now + windowSeconds };
+    throw new RedisRateLimitError(
+      error instanceof Error ? error.message : 'Redis rate limit check failed',
+      error,
+    );
   }
+
+  const count = results[2] ?? 0;
+  const allowed = count <= limit;
+  const remaining = Math.max(0, limit - count);
+  const resetAt = now + windowSeconds;
+
+  if (!allowed) {
+    // Clean up old entries when rate limited
+    try {
+      await redis.zremrangebyscore(key, 0, windowStart);
+    } catch (cleanupError) {
+      // Cleanup failure is non-critical
+      logger.debug('[RateLimit] Cleanup failed:', cleanupError);
+    }
+  }
+
+  logger.debug(`[RateLimit] Check passed - count: ${count}, limit: ${limit}, allowed: ${allowed}`);
+  return { allowed, remaining, resetAt };
 }

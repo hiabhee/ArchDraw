@@ -18,6 +18,13 @@ export async function GET(
       );
     }
 
+    if (shared.expiresAt && new Date(shared.expiresAt) < new Date()) {
+      return NextResponse.json(
+        { error: 'Share link has expired' },
+        { status: 410 }
+      );
+    }
+
     const users = Array.isArray(shared.users) ? shared.users : [];
 
     // Shape must match SharePageClient / SharedCanvasViewer expectations.

@@ -1,51 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import logger from '@/lib/logger';
-
-export interface DiagramData {
-  nodes: unknown[];
-  edges: unknown[];
-  label?: string;
-  createdAt: Date;
-  source?: 'mcp' | 'manual';
-}
-
-const STORAGE_FILE = path.join(process.cwd(), '.diagram-sessions.json');
-
-function loadStore(): Map<string, DiagramData> {
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf-8')) as Record<string, DiagramData>;
-      const map = new Map<string, DiagramData>();
-      for (const [key, value] of Object.entries(data)) {
-        map.set(key, {
-          ...value,
-          createdAt: new Date(value.createdAt),
-        });
-      }
-      return map;
-    }
-  } catch (e) {
-    logger.error('Failed to load diagram store:', e);
-  }
-  return new Map();
-}
+import prisma from '@/lib/prisma';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
-  const diagramStore = loadStore();
-  const diagram = diagramStore.get(sessionId);
 
-  if (!diagram) {
+  const shared = await prisma.sharedCanvas.findUnique({
+    where: { id: sessionId },
+    select: { canvasName: true, nodes: true, edges: true, createdAt: true, expiresAt: true },
+  });
+
+  if (!shared) {
     return NextResponse.json(
       { error: 'Session not found' },
       { status: 404 }
     );
   }
 
-  return NextResponse.json(diagram);
+  if (shared.expiresAt && new Date(shared.expiresAt) < new Date()) {
+    return NextResponse.json(
+      { error: 'Session has expired' },
+      { status: 410 }
+    );
+  }
+
+  return NextResponse.json({
+    nodes: shared.nodes,
+    edges: shared.edges,
+    label: shared.canvasName,
+    createdAt: shared.createdAt,
+    source: 'manual',
+  });
 }

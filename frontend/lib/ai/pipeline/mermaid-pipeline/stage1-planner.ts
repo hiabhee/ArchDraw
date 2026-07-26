@@ -1,4 +1,4 @@
-import { apiKeyManager, requestContext } from '../../utils/apiKeyManager';
+import { apiKeyManager } from '../../utils/apiKeyManager';
 import { groqJsonCompletion } from '../../utils/groqJsonCompletion';
 import logger from '@/lib/logger';
 import type { FormatConfig, StyleConfig, InventoryConfig, EdgeConfig } from './types';
@@ -12,30 +12,31 @@ interface PlannerOutput {
 
 const THEMES = ['forest-green', 'slate', 'dark-minimal', 'luxury', 'default'] as const;
 
-// ── Node classification for programmatic validation ──
-
-type NodeKind = 'client' | 'gateway' | 'data' | 'queue' | 'observability' | 'service';
-
-function classifyNode(name: string): NodeKind {
-  const l = name.toLowerCase();
-  if (/^(user|browser|client|mobile|app|developer|end-user)/.test(l)) return 'client';
-  if (/(gateway|lb|load\s*balancer|proxy|reverse\s*proxy|api\s*gateway|gw)/.test(l)) return 'gateway';
-  if (/(database|db|store|cache|storage|warehouse|s3|bucket|archive)/.test(l)) return 'data';
-  if (/(queue|broker|topic|stream|channel|message\s*bus|mq)/.test(l)) return 'queue';
-  if (/(log|monitor|observability|metric|tracing|alert)/.test(l)) return 'observability';
-  return 'service';
-}
-
-function inferGroup(nodeName: string): string {
-  const kind = classifyNode(nodeName);
-  switch (kind) {
-    case 'client': return 'Client Layer';
-    case 'gateway': return 'Gateway Layer';
-    case 'data': return 'Data Layer';
-    case 'queue': return 'Service Layer';
-    case 'observability': return 'Observability Layer';
-    case 'service': return 'Service Layer';
+/**
+ * Render a compact textual inventory of the caller's existing diagram so the
+ * planner prompt can describe it to the LLM. Keeps shape loosely typed since
+ * the API accepts existingContext as generic JSON (`z.any().optional()`).
+ */
+function describeExistingContext(ctx: { nodes?: unknown[]; edges?: unknown[] }): string {
+  const lines: string[] = [];
+  const nodes = (ctx.nodes ?? []) as Array<Record<string, unknown>>;
+  const edges = (ctx.edges ?? []) as Array<Record<string, unknown>>;
+  if (nodes.length > 0) {
+    lines.push('Components:');
+    for (const n of nodes) {
+      const label = (n.data as Record<string, unknown> | undefined)?.label ?? n.label ?? n.id;
+      lines.push(`  - ${String(label ?? n.id ?? 'unknown')}`);
+    }
   }
+  if (edges.length > 0) {
+    lines.push('Connections:');
+    for (const e of edges) {
+      const label = e.label ?? (e.data as Record<string, unknown> | undefined)?.label;
+      const suffix = label ? ` (${String(label)})` : '';
+      lines.push(`  - ${String(e.source ?? '?')} -> ${String(e.target ?? '?')}${suffix}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 function buildSystemPrompt(): string {
@@ -110,75 +111,14 @@ function repairTruncatedJson(raw: string): string {
   return fixed;
 }
 
-// ── Topology validation ──
-
-interface ValidationWarning {
-  message: string;
-}
-
-function validateTopology(
-  nodes: string[],
-  edges: Array<{ from: string; to: string; label: string }>,
-  groupAssignments: Record<string, string>,
-): ValidationWarning[] {
-  const warnings: ValidationWarning[] = [];
-  const nodeKinds = new Map<string, NodeKind>();
-  for (const n of nodes) nodeKinds.set(n, classifyNode(n));
-
-  const edgeSet = new Set<string>();
-  for (const e of edges) {
-    edgeSet.add(e.from);
-    edgeSet.add(e.to);
-
-    // Client should never be a target
-    if (nodeKinds.get(e.to) === 'client') {
-      warnings.push({ message: `Client node "${e.to}" is a target of "${e.from}" — clients should be sources only` });
-    }
-
-    // LB should never connect directly to data/queue nodes
-    if (nodeKinds.get(e.from) === 'gateway' && (nodeKinds.get(e.to) === 'data' || nodeKinds.get(e.to) === 'queue')) {
-      warnings.push({ message: `Gateway/LB "${e.from}" connects directly to "${e.to}" — LBs should only route to services, not data stores or queues` });
-    }
-  }
-
-  // Orphan check
-  for (const n of nodes) {
-    if (!edgeSet.has(n)) {
-      warnings.push({ message: `Node "${n}" has no edges (orphan)` });
-    }
-  }
-
-  return warnings;
-}
-
-// ── Group inference fallback ──
-
-function buildGroupAssignments(
-  nodes: string[],
-  groups: string[],
-  nodeGroups: Record<string, string>,
-): Record<string, string> {
-  const assignments: Record<string, string> = {};
-  const groupSet = new Set(groups);
-
-  for (const node of nodes) {
-    const declared = nodeGroups[node];
-    if (declared && groupSet.has(declared)) {
-      assignments[node] = declared;
-    } else {
-      assignments[node] = inferGroup(node);
-    }
-  }
-  return assignments;
-}
-
 // ── Main function ──
 
 export async function runArchitecturePlanner(
   prompt: string,
   diagramSize: 'small' | 'medium' | 'large' = 'medium',
   detailLevel: 1 | 2 | 3 = 2,
-  model?: string
+  model?: string,
+  existingContext?: { nodes?: unknown[]; edges?: unknown[] }
 ): Promise<{ formatConfig: FormatConfig; styleConfig: StyleConfig; mermaidCode: string; reasoning?: string }> {
   const maxNodes = getMaxNodes(diagramSize);
   const systemPrompt = buildSystemPrompt();
@@ -189,7 +129,19 @@ export async function runArchitecturePlanner(
     ? 'DIAGRAM SCOPE: MODERATE DETAIL. Show core components and their main interactions. Include edge labels that describe the action and context. Include async flows and infrastructure details only when they are central to the architecture.'
     : 'DIAGRAM SCOPE: FULL DETAIL. Be comprehensive. Include all components, infrastructure, async flows, caches, queues, and supporting services. Edge labels must be descriptive (action + what + context). Show the complete workflow including background processing and data persistence. Include observability and cross-cutting concerns if relevant.';
 
-  const userPrompt = `Design a practical architecture diagram for: "${prompt}"
+  // Summarize the caller's existing diagram so "edit my diagram" flows
+  // modify it rather than regenerating from scratch. Build a compact textual
+  // inventory of current components and connections. Without this the
+  // existingContext would be silently dropped and edits would lose the
+  // user's existing diagram.
+  const existingSummary = existingContext && (existingContext.nodes?.length || existingContext.edges?.length)
+    ? describeExistingContext(existingContext)
+    : '';
+  const editDirective = existingSummary
+    ? `\n\nEDIT MODE: The user already has the diagram below. Modify it to satisfy the request — keep existing components that still apply, add/remove/reconnect as needed, and do not discard the whole diagram unless the request explicitly asks for a redesign.\n\nCURRENT DIAGRAM:\n${existingSummary}\n`
+    : '';
+
+  const userPrompt = `Design a practical architecture diagram for: "${prompt}"${editDirective}
 
 Target Diagram Constraints:
 - Size level: ${diagramSize}

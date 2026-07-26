@@ -4,7 +4,7 @@ import { Node, Edge, getSmoothStepPath, getBezierPath, getStraightPath, Position
 import { NodeData } from '@/store/diagramStore';
 import { getEdgeConfig, getEffectivePathType, type EdgeData, type EdgeType, type PathType } from '@/data/edgeTypes';
 import { 
-  NODE_WIDTH, NODE_HEIGHT, STATUS_COLORS, FONTS 
+  NODE_WIDTH, NODE_HEIGHT, STATUS_COLORS
 } from '@/lib/theme/stylingConstants';
 import { getSimpleEdgePositions, getSimpleHandlePosition, getEdgeShiftOffset, getNodeCenter } from '@/lib/utils/simpleFloatingEdge';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
@@ -294,28 +294,24 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
         rx="10" ry="10"
         ${styleAttr}
       />
-      <!-- Header Icon Box -->
       <g transform="translate(10, 8)">
         <rect x="0" y="0" width="24" height="24" rx="6" fill="${iconColor}" fill-opacity="0.07" />
         <rect x="7" y="7" width="10" height="10" rx="2.5" fill="${iconColor}" />
       </g>
-      <!-- Title -->
       <text
         x="40" y="24"
         fill="${titleColor}"
-        font-family="${FONTS.body}"
+        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
         font-size="${isDark ? 13 : 12}"
         font-weight="700"
       >${escapeXml(data.label)}</text>
-      <!-- Subtitle -->
       ${data.subtitle ? `
       <text
         x="10" y="${height - 12}"
         fill="${subtitleColor}"
-        font-family="${FONTS.body}"
+        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
         font-size="${isDark ? 11 : 10}"
       >${escapeXml(data.subtitle)}</text>` : ''}
-      <!-- Status Indicator -->
       ${showStatus ? `
       <circle cx="${width - 15}" cy="${height - 15}" r="3" fill="${statusColor}" />
       ` : ''}
@@ -350,7 +346,7 @@ function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
       <text
         x="4" y="${fontSize + 4}"
         fill="${color}"
-        font-family="${FONTS.body}"
+        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
         font-size="${fontSize}"
         font-weight="${fontWeight}"
         text-anchor="start"
@@ -402,7 +398,6 @@ function renderAnnotationNode(node: SystemNodeRenderData, isDark: boolean): stri
   
   return `
     <g transform="translate(${x}, ${y})">
-      <!-- Container -->
       <rect
         x="0" y="0"
         width="${width}" height="${height}"
@@ -411,26 +406,23 @@ function renderAnnotationNode(node: SystemNodeRenderData, isDark: boolean): stri
         stroke-width="${selected ? 2 : 1}"
         rx="8" ry="8"
       />
-      <!-- Title -->
       <text
         x="12" y="20"
         fill="${titleColor}"
-        font-family="${FONTS.body}"
+        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
         font-size="${titleSize}"
         font-weight="${titleWeight}"
       >${escapeXml(title)}</text>
-      <!-- Divider -->
       <line
         x1="1" y1="${dividerY}"
         x2="${width - 1}" y2="${dividerY}"
         stroke="${dividerColor}"
         stroke-width="1"
       />
-      <!-- Body -->
       <text
         x="12" y="${dividerY + bodySize + 8}"
         fill="${bodyColor}"
-        font-family="${FONTS.body}"
+        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
         font-size="${bodySize}"
         font-weight="${bodyWeight}"
       >
@@ -570,7 +562,7 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
         <text
           x="0" y="3"
           fill="${fg}"
-          font-family="${FONTS.body}"
+          font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
           font-size="${isDark ? 10 : 9}"
           font-weight="${isDark ? 'bold' : 600}"
           text-anchor="middle"

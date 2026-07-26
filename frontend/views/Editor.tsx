@@ -24,8 +24,15 @@ import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import type { GenerationProgress } from '@/lib/ai/types';
 import { ContextualSidebar } from '@/components/editor/ContextualSidebar';
-import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
-import { isGitHubRepoUrl, parseGitHubUrl } from '@/lib/utils/githubUrl';
+import { isGitHubRepoUrl } from '@/lib/utils/githubUrl';
+import {
+  generateDiagramFromPrompt,
+  generateDiagramFromRepo,
+  mergeGeneratedNodes,
+  inferDiagramDirection,
+  extractRepoName,
+  GenerationServiceError,
+} from '@/lib/ai/generationService';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
@@ -229,40 +236,32 @@ export default function EditorPage() {
           ...node,
           type: isGroup ? 'groupNode' : (node.type as string || 'systemNode'),
         };
-      });
+      }) as Node[];
 
       const processedEdges = (result.edges as Record<string, unknown>[]).map((edge) => ({
         ...edge,
         type: 'simpleFloating',
-      }));
+      })) as Edge[];
 
       const store = useDiagramStore.getState();
-      const existingNodes = store.nodes;
-      const existingEdges = store.edges;
+      const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
+        store.nodes,
+        store.edges,
+        processedNodes,
+        processedEdges,
+      );
 
-      if (existingNodes.length > 0) {
-        const maxX = Math.max(...existingNodes.map(
-          n => n.position.x + (n.width ?? 200)
-        ), 0);
-        const offsetX = maxX + 250;
-
-        const offsetNodes = (processedNodes as Node[]).map(n => ({
-          ...n,
-          position: { x: n.position.x + offsetX, y: n.position.y },
-        }));
-
+      if (store.nodes.length > 0) {
         store.pushHistory();
-        store.setNodes([...existingNodes, ...offsetNodes]);
-        store.setEdges([...existingEdges, ...processedEdges as Edge[]]);
+        store.setNodes(mergedNodes);
+        store.setEdges(mergedEdges);
       } else {
-        importDiagram(processedNodes as Node[], processedEdges as Edge[]);
+        importDiagram(processedNodes, processedEdges);
       }
 
-      const generatedDiagramType = result.metadata?.diagramType as string;
-      if (generatedDiagramType === 'graph LR') {
-        store.setActiveLayoutPresetId('layered-lr');
-      } else if (generatedDiagramType === 'graph TD') {
-        store.setActiveLayoutPresetId('layered-tb');
+      const direction = inferDiagramDirection(result);
+      if (direction) {
+        store.setActiveLayoutPresetId(direction);
       }
 
       renameCanvas(store.activeCanvasId, canvasName);
@@ -285,14 +284,6 @@ export default function EditorPage() {
       progress: 100,
     });
   }, [fitView, importDiagram, importSequenceDiagram, renameCanvas]);
-
-  const extractRepoName = (url: string): string => {
-    const parsed = parseGitHubUrl(url);
-    if (parsed) return parsed.repo;
-    const cleanUrl = url.trim().replace(/\/+$/, '');
-    const parts = cleanUrl.split('/');
-    return parts[parts.length - 1] || 'Repository';
-  };
 
 
   const handleGenerate = async (description: string, detailLevelOrSize?: 1 | 2 | 3 | 'small' | 'medium' | 'large') => {
@@ -326,49 +317,13 @@ export default function EditorPage() {
     startGeneration();
 
     try {
-      // GitHub repo ingest path — same input box, different pipeline
       if (isGitHubRepoUrl(description)) {
-        setProgress({
-          phase: 'generating',
-          iteration: 0,
-          currentAgent: 'repo-ingest',
-          score: 0,
-          message: 'Analyzing GitHub repository...',
-          progress: 10,
-        });
-
-        const response = await fetch('/api/repo-diagram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repoUrl: description.trim(), detailLevel }),
-        });
-
-        const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || 'Repo ingest failed');
-        }
-
-        const parsed = parseAndValidateRepoDiagram(data.ndjson);
-        if (!parsed) {
-          throw new Error('No architectural components could be detected in this repository.');
-        }
-
+        const parsed = await generateDiagramFromRepo(description, detailLevel, (p) => setProgress(p));
         importDiagram(parsed.nodes, parsed.edges);
         renameCanvas(activeCanvasId, canvasName);
         setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
-
-        setProgress({
-          phase: 'complete',
-          iteration: 0,
-          currentAgent: 'complete',
-          score: 0,
-          message: `Ingested repo: ${parsed.nodeCount} nodes`,
-          progress: 100,
-        });
-
         markPipelineDone();
         toast.success(`Generated repo diagram: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
-
         analytics.track({
           event_type: 'diagram_generated',
           page_path: window.location.pathname,
@@ -384,34 +339,10 @@ export default function EditorPage() {
         return;
       }
 
-      const payload: {
-        description: string;
-        diagramSize?: 'small' | 'medium' | 'large';
-        detailLevel?: 1 | 2 | 3;
-        model?: string;
-        stream: boolean;
-      } = { description, diagramSize, detailLevel: detailLevel, model: selectedModel, stream: true };
-
-      // Use standard JSON endpoint
-      const response = await fetch('/api/generate-diagram', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Generation failed');
-      }
-
-      const responseData = await response.json();
-      
-      if (responseData.progress && responseData.progress.length > 0) {
-        const lastProgress = responseData.progress[responseData.progress.length - 1];
-        setProgress(lastProgress);
-      }
+      const responseData = await generateDiagramFromPrompt(
+        { description, detailLevel, model: selectedModel },
+        (p) => setProgress(p),
+      );
       
       markPipelineDone();
       handleGenerationComplete(responseData.data, canvasName);
@@ -431,14 +362,14 @@ export default function EditorPage() {
       });
 
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Generation failed';
+      const message = err instanceof GenerationServiceError ? err.message : (err instanceof Error ? err.message : 'Generation failed');
       markPipelineError(message);
       setProgress({
         phase: 'error',
         iteration: 0,
         currentAgent: 'error',
         score: 0,
-        message: message,
+        message,
         progress: 0,
       });
       toast.error(message);
@@ -447,7 +378,7 @@ export default function EditorPage() {
         event_type: 'diagram_generated',
         page_path: window.location.pathname,
         payload: {
-          model: selectedModel,
+          model: selectedModel || 'unknown',
           detail_level: detailLevel,
           diagram_size: diagramSize,
           duration_ms: Date.now() - generationStart,

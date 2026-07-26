@@ -1,41 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import fs from 'fs';
-import path from 'path';
-import logger from '@/lib/logger';
+import prisma from '@/lib/prisma';
 import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
 import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
 
-export interface DiagramData {
+interface DiagramData {
   nodes: unknown[];
   edges: unknown[];
   label?: string;
-  createdAt: Date;
-  source?: 'mcp' | 'manual';
 }
-
-const STORAGE_FILE = path.join(process.cwd(), '.diagram-sessions.json');
-
-function loadStore(): Map<string, DiagramData> {
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf-8')) as Record<string, DiagramData>;
-      const map = new Map<string, DiagramData>();
-      for (const [key, value] of Object.entries(data)) {
-        map.set(key, {
-          ...value,
-          createdAt: new Date(value.createdAt),
-        });
-      }
-      return map;
-    }
-  } catch (e) {
-    logger.error('Failed to load diagram store:', e);
-  }
-  return new Map();
-}
-
-const diagramStore = loadStore();
 
 const ExportSchema = z.object({
   sessionId: z.string().min(1),
@@ -62,7 +35,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const diagram = diagramStore.get(validated.sessionId);
+    let diagram: DiagramData | null = null;
+
+    try {
+      const shared = await prisma.sharedCanvas.findUnique({
+        where: { id: validated.sessionId },
+        select: { canvasName: true, nodes: true, edges: true, expiresAt: true },
+      });
+      if (shared) {
+        if (shared.expiresAt && new Date(shared.expiresAt) < new Date()) {
+          return NextResponse.json(
+            { error: 'Session has expired' },
+            { status: 410 }
+          );
+        }
+        diagram = {
+          nodes: shared.nodes as unknown[],
+          edges: shared.edges as unknown[],
+          label: shared.canvasName,
+        };
+      }
+    } catch {
+      // Prisma unavailable — continue to 404 below
+    }
+
     if (!diagram) {
       return NextResponse.json(
         { error: 'Session not found' },

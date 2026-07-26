@@ -28,12 +28,32 @@ export async function getUserCanvases(userId: string) {
   });
 }
 
+export class CanvasOwnershipError extends Error {
+  constructor(public canvasId: string) {
+    super(`Canvas ${canvasId} is owned by another user`);
+    this.name = 'CanvasOwnershipError';
+  }
+}
+
 export async function upsertUserCanvas(userId: string, data: {
   id: string;
   name: string;
   nodes: InputJson;
   edges: InputJson;
 }) {
+  // Defense-in-depth: Prisma's upsert keys only on the globally-unique `id`,
+  // so without an ownership check an attacker who knows a canvas id could
+  // overwrite a victim's canvas. Verify ownership before upserting; routes
+  // are expected to gate too, but a buggy/missing route gate must not turn
+  // into a data-loss privilege escalation.
+  const existing = await prisma.userCanvas.findUnique({
+    where: { id: data.id },
+    select: { userId: true },
+  });
+  if (existing && existing.userId !== userId) {
+    throw new CanvasOwnershipError(data.id);
+  }
+
   return prisma.userCanvas.upsert({
     where: { id: data.id },
     create: { ...data, userId },

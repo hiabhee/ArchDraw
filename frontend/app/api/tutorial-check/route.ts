@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
 import { z } from 'zod';
 import logger from '@/lib/logger';
+import { getClientIP } from '@/lib/server/ip';
 
 const ALLOWED_TUTORIAL_ID = 'netflix-architecture';
 
@@ -10,10 +11,9 @@ const CHECK_RATE_WINDOW_MS = 60 * 1000;
 const MAX_CHECK_REQUESTS = 10;
 
 function getCheckRateKey(request: NextRequest): string {
-  const ip = request.headers.get('x-forwarded-for') || 
-             request.headers.get('x-real-ip') || 
-             'unknown';
-  return `check:${ip}`;
+  // Keys on the trusted-proxy-aware client IP — leftmost X-Forwarded-For is
+  // client-controllable and would let an attacker reset this counter.
+  return `check:${getClientIP(request)}`;
 }
 
 function checkCheckRateLimit(key: string): boolean {

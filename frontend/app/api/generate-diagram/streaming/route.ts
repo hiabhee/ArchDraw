@@ -96,16 +96,6 @@ export async function POST(req: NextRequest) {
         try {
           sendEvent({ type: 'start', message: 'Starting generation...' });
 
-          // Disabled: API-level cache was causing same outputs for different prompts
-          // Semantic caching is now handled in orchestrator with intent-aware keys
-          // const cachedResult = diagramCache.get(description, model);
-          // if (cachedResult) {
-          //   sendEvent({ type: 'cached', message: 'Found cached result' });
-          //   sendEvent({ type: 'complete', data: cachedResult });
-          //   controller.close();
-          //   return;
-          // }
-
           // DISABLED: Prompt enhancement was causing issues
           // Enhancement should be done at the reasoning stage, not before
           const userIntent: UserIntent = {
@@ -129,9 +119,6 @@ export async function POST(req: NextRequest) {
               sendEvent({ type: 'progress', ...progress });
             }
           );
-
-          // Disabled: Writing to diagramCache was causing repeated diagrams
-          // diagramCache.set(description, { ... });
 
           const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
           const resolvedUserId = await userId;
@@ -178,10 +165,6 @@ export async function POST(req: NextRequest) {
 
 async function handleNonStreaming(req: NextRequest, data: z.infer<typeof generateDiagramSchema>) {
   const { description, systemType, complexity, model, diagramSize } = data;
-
-  // Disabled: Caching was causing repeated diagrams
-  // const cachedResult = diagramCache.get(description, model);
-  // if (cachedResult) { ... }
 
   const userIntent: UserIntent = {
     description: description.trim(),

@@ -10,7 +10,6 @@ import {
   type HandlerRect,
   type HandlerPairScore,
 } from './handlerPairScorer'
-import { useDiagramStore } from '@/store/diagramStore'
 
 export interface EdgeRouteResult {
   sourcePosition: Position
@@ -327,10 +326,13 @@ export function clearPortPairCache(): void {
   // no-op
 }
 
+export type EdgeRouteDirection = 'LR' | 'TD';
+
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
+  direction: EdgeRouteDirection = 'LR',
 ): EdgeRouteResult {
   const sourceNode = nodes.find(n => n.id === edge.source)
   const targetNode = nodes.find(n => n.id === edge.target)
@@ -372,8 +374,10 @@ export function computeEdgeRoute(
   const targetRect = getNodeRect(targetNode, nodes)
   const edgeData = edge.data as Record<string, unknown> | undefined
 
-  const activePreset = useDiagramStore.getState().activeLayoutPresetId
-  const direction = activePreset === 'layered-tb' ? 'TD' : 'LR'
+  // `direction` is now passed in by the caller (the parent component reads
+  // activeLayoutPresetId from the store and maps 'layered-tb' -> 'TD'). Keeping
+  // this library free of store reads prevents an inverted layering dependency
+  // where a geometry utility would import the UI state container.
 
   const manualSourceSide =
     sideToPosition(edgeData?.sourceSide as string) ?? sideFromHandleId(edge.sourceHandle)

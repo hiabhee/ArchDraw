@@ -4,6 +4,7 @@ import type { Connection, Edge, EdgeChange, Node, NodeChange } from 'reactflow';
 import { componentRegistry } from '@/lib/componentRegistry';
 import { STORAGE_KEYS } from '@/lib/config';
 import { toast } from 'sonner';
+import { applyThemeChange } from '@/lib/themeBridge';
 
 const isBrowser = typeof window !== 'undefined';
 const MAX_GUEST_CANVASES = 1;
@@ -102,72 +103,8 @@ import { EDGE_CONFIG, STORAGE_KEY, STORAGE_VERSION, NODE_CONFIG } from '@/lib/co
 import { createNode, createEdge } from '@/lib/factory';
 import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
 import { LAYOUT_PRESETS, type LayoutPreset } from '@/lib/canvas/layoutPresets';
-
-const NODE_PADDING = 40;
-const MIN_NODE_SPACING = 50;
-
-function resolveNodeCollisions(nodes: Node[]): Node[] {
-  if (!nodes || !Array.isArray(nodes)) return [];
-  const result = [...nodes];
-  
-  const getExtent = (node: Node) => {
-    const w = node.width ?? 180;
-    const h = node.height ?? 70;
-    return {
-      x1: node.position.x - NODE_PADDING,
-      y1: node.position.y - NODE_PADDING,
-      x2: node.position.x + w + NODE_PADDING,
-      y2: node.position.y + h + NODE_PADDING,
-    };
-  };
-
-  for (let iter = 0; iter < 10; iter++) {
-    let moved = false;
-    
-    for (let i = 0; i < result.length; i++) {
-      for (let j = i + 1; j < result.length; j++) {
-        const a = result[i];
-        const b = result[j];
-        
-        const aParent = a.parentId || (a as { parentNode?: string }).parentNode;
-        const bParent = b.parentId || (b as { parentNode?: string }).parentNode;
-        if (aParent !== bParent) continue;
-        
-        const extA = getExtent(a);
-        const extB = getExtent(b);
-        
-        const overlapX = Math.min(extA.x2, extB.x2) - Math.max(extA.x1, extB.x1);
-        const overlapY = Math.min(extA.y2, extB.y2) - Math.max(extA.y1, extB.y1);
-        
-        if (overlapX > 0 && overlapY > 0) {
-          const dx = a.position.x < b.position.x ? -MIN_NODE_SPACING : MIN_NODE_SPACING;
-          a.position.x += dx;
-          b.position.x -= dx;
-          moved = true;
-        }
-        
-        const gapX = Math.min(Math.abs(extA.x2 - extB.x1), Math.abs(extB.x2 - extA.x2));
-        const gapY = Math.min(Math.abs(extA.y2 - extB.y1), Math.abs(extB.y2 - extA.y1));
-        
-        if (gapX < MIN_NODE_SPACING && gapY < MIN_NODE_SPACING) {
-          const shift = (MIN_NODE_SPACING - Math.max(gapX, gapY)) / 2;
-          if (a.position.x < b.position.x) {
-            a.position.x -= shift;
-            b.position.x += shift;
-          } else {
-            a.position.x += shift;
-            b.position.x -= shift;
-          }
-          moved = true;
-        }
-      }
-    }
-    
-    if (!moved) break;
-  }
-  
-  return result;
-}
+import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
+import { resolveNodeCollisions } from '@/src/utils/resolveNodeCollisions';
 
 const RESERVED_LAYER_LABELS = new Set([
   'presentation', 'presentation layer',
@@ -463,18 +400,6 @@ function syncActiveCanvas(
   return canvases.map((c) =>
     c.id === activeCanvasId ? { ...c, nodes, edges, updatedAt: Date.now() } : c
   );
-}
-
-function migrateEdgesToSmoothstep(edges: Edge[]): Edge[] {
-  return edges.map((edge) => {
-    if (edge.data?.pathType === 'smooth') {
-      return {
-        ...edge,
-        data: { ...edge.data, pathType: 'Smoothstep' },
-      };
-    }
-    return edge;
-  });
 }
 
 const KNOWN_NODE_TYPES = new Set([
@@ -1353,6 +1278,14 @@ const useDiagramStoreRaw = create<DiagramState>()(
       guideLines: [],
       edgeAnimations: true,
       showGrid: true,
+      // `darkMode` is a read-only mirror of next-themes (the single source of
+      // truth, keyed by localStorage['archdraw-theme'] and the `dark` class).
+      // ThemeProvider's ThemeSync component writes this flag whenever
+      // resolvedTheme changes. The value below is only a *seed* matching the
+      // same key next-themes reads, so first paint stays consistent without a
+      // flash; never write localStorage or toggle the `.dark` class from the
+      // store — use toggleDarkMode(), which defers to next-themes via the
+      // registered bridge.
       darkMode: (typeof window !== 'undefined' ? (window.localStorage.getItem('archdraw-theme') === 'dark') : false),
       sidebarOpen: false,
       canvasMode: 'empty',
@@ -1479,17 +1412,11 @@ const useDiagramStoreRaw = create<DiagramState>()(
       toggleGrid: () => set({ showGrid: !get().showGrid }),
       toggleDarkMode: () => {
         const next = !get().darkMode;
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem('archdraw-theme', next ? 'dark' : 'light');
-          if (next) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.style.colorScheme = 'dark';
-          } else {
-            document.documentElement.classList.remove('dark');
-            document.documentElement.style.colorScheme = 'light';
-          }
-        }
-        set({ darkMode: next });
+        // Delegate to next-themes via the bridge rather than writing
+        // localStorage / toggling the `.dark` class directly. ThemeSync then
+        // mirrors the resulting resolvedTheme back into store.darkMode, so the
+        // store flag stays a read-only view of the real theme state.
+        applyThemeChange(next);
       },
       toggleEdgeAnimations: () => {
         const next = !get().edgeAnimations;

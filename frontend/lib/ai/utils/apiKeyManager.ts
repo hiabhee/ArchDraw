@@ -2,8 +2,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import Groq from 'groq-sdk';
 import logger from '@/lib/logger';
-
-export type AIProvider = 'groq' | 'openrouter';
+import { MODELS, type AIProvider } from '@/lib/ai/models';
 
 // Ambient request ID for LLM call counting — no signature changes needed downstream
 // Two counters:
@@ -37,16 +36,11 @@ interface ModelConfig {
   supportsStreaming?: boolean;
 }
 
-export const AVAILABLE_MODELS: ModelConfig[] = [
-  // Groq Models (Primary - Fast!)
-  { provider: 'groq', name: 'llama-3.3-70b-versatile' },
-  { provider: 'groq', name: 'mixtral-8x7b-32768' },
-  // OpenRouter Free Models (Fallback)
-  { provider: 'openrouter', name: 'google/gemma-4-26b-a4b-it' },
-  { provider: 'openrouter', name: 'nvidia/nemotron-3-super-120b-a12b' },
-  { provider: 'openrouter', name: 'meta-llama/llama-3.3-70b-instruct' },
-  { provider: 'openrouter', name: 'meta-llama/llama-3.2-3b-instruct' },
-];
+export const AVAILABLE_MODELS: ModelConfig[] = MODELS.map((m) => ({
+  provider: m.provider,
+  name: m.id,
+  ...(m.supportsStreaming !== undefined ? { supportsStreaming: m.supportsStreaming } : {}),
+}));
 
 class ApiKeyManager {
   private groqKeys: ApiKeyState[] = [];
