@@ -37,6 +37,7 @@ export function computeDynamicSlotOffsets(
   edges: Edge[],
   nodePositions: Map<string, { x: number; y: number; width: number; height: number }>,
 ): DynamicSlotOffsets {
+  if (!edges) return { incomingOffset: 0, outgoingOffset: 0, centered: true };
   let incomingSum = 0;
   let incomingCount = 0;
   let outgoingSum = 0;

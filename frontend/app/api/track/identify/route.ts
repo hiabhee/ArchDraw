@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { withRetry } from '@/lib/db-retry';
+import { headers } from 'next/headers';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +18,11 @@ export async function POST(req: NextRequest) {
   if (!process.env.DATABASE_URL) {
     console.warn('[Analytics] identify: DATABASE_URL is not set');
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   let body: unknown;
@@ -33,14 +41,14 @@ export async function POST(req: NextRequest) {
   const isInternal = ADMIN_USER_ID && user_id === ADMIN_USER_ID;
 
   try {
-    await prisma.visitor.update({
+    await withRetry(() => prisma.visitor.update({
       where: { anonId: anon_id },
       data: {
         userId: user_id,
         lastSeenAt: new Date(),
         ...(isInternal ? { isInternal: true } : {}),
       },
-    });
+    }));
   } catch (err) {
     console.error('[Analytics] Failed to identify visitor:', err);
     return NextResponse.json({ error: 'Failed to identify' }, { status: 500 });

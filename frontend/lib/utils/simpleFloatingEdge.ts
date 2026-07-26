@@ -106,6 +106,7 @@ function hasBothDirectionsOnSide(
   resolveSide?: EdgeSideResolver,
 ): boolean {
   if (!resolveSide) return true;
+  if (!edges) return false;
 
   let hasIncoming = false;
   let hasOutgoing = false;

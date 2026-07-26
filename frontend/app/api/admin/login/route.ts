@@ -22,6 +22,14 @@ async function hmacSign(data: string, secret: string): Promise<string> {
 
 const loginRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+let loginAccessCount = 0;
+function cleanupLoginExpired(): void {
+  const now = Date.now();
+  for (const [key, entry] of loginRateLimitMap) {
+    if (now > entry.resetAt) loginRateLimitMap.delete(key);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const adminConfig = validateAdminConfig();
 
@@ -40,6 +48,9 @@ export async function POST(req: NextRequest) {
   // header to bypass the 5-attempt admin passcode lockout.
   const ip = getClientIP(req);
   const now = Date.now();
+
+  if (++loginAccessCount % 10 === 0) cleanupLoginExpired();
+
   const rl = loginRateLimitMap.get(ip);
   if (rl && now < rl.resetAt) {
     if (rl.count >= 5) {

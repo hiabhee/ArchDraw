@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
+import { withRetry } from '@/lib/db-retry';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +23,13 @@ const trackSchema = z.object({
 });
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+let trackAccessCount = 0;
+function cleanupTrackExpired(): void {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(key);
+  }
+}
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 100;
 
@@ -39,6 +47,7 @@ export async function POST(req: NextRequest) {
 
   // Rate limit per anon_id
   const now = Date.now();
+  if (++trackAccessCount % 10 === 0) cleanupTrackExpired();
   const record = rateLimitMap.get(anonId);
   if (record && now < record.resetAt) {
     if (record.count >= RATE_LIMIT) {
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest) {
       if (Object.keys(utm).length > 0) visitorUpdate.firstUtm = utm;
     }
 
-    visitor = await prisma.visitor.upsert({
+    visitor = await withRetry(() => prisma.visitor.upsert({
       where: { anonId },
       create: {
         anonId,
@@ -100,7 +109,7 @@ export async function POST(req: NextRequest) {
       } as never,
       update: visitorUpdate,
       select: { id: true },
-    });
+    }));
   } catch (err) {
     console.error('[Analytics] Failed to upsert visitor:', err);
     return NextResponse.json({ error: 'Failed to upsert visitor' }, { status: 500 });
@@ -121,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     if (!existingSession) {
       const entryPage = events.length > 0 ? events[0].page_path : null;
-      await prisma.visitorSession.create({
+      await withRetry(() => prisma.visitorSession.create({
         data: {
           id: session_id,
           visitorId: visitor.id,
@@ -129,20 +138,20 @@ export async function POST(req: NextRequest) {
           deviceType,
           startedAt: new Date(),
         },
-      });
+      }));
     } else {
       const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
       const durationSeconds = Math.round(
         (Date.now() - new Date(existingSession.startedAt).getTime()) / 1000
       );
-      await prisma.visitorSession.update({
+      await withRetry(() => prisma.visitorSession.update({
         where: { id: session_id },
         data: {
           endedAt: new Date(),
           durationSeconds,
           exitPage,
         },
-      });
+      }));
     }
   } catch (err) {
     console.error('[Analytics] Failed to upsert session:', err);
@@ -160,7 +169,7 @@ export async function POST(req: NextRequest) {
       payload: (e.payload || {}) as object,
     }));
 
-    await prisma.event.createMany({ data: rows });
+    await withRetry(() => prisma.event.createMany({ data: rows }));
   } catch (err) {
     console.error('[Analytics] Failed to insert events:', err);
     return NextResponse.json({ error: 'Failed to insert events' }, { status: 500 });

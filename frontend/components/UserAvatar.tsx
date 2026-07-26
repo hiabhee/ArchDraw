@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { analytics } from '@/lib/analytics';
 import { 
   LogOut, 
   FolderOpen, 
@@ -109,7 +110,6 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
   const trackToggle = (setting: string, value: boolean) => {
     if (typeof window !== 'undefined') {
-      const { analytics } = require('@/lib/analytics');
       analytics.track({
         event_type: 'settings_interaction',
         event_name: 'setting_toggled',
@@ -121,7 +121,6 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
   const trackDropdownChange = (setting: string, value: string) => {
     if (typeof window !== 'undefined') {
-      const { analytics } = require('@/lib/analytics');
       analytics.track({
         event_type: 'settings_interaction',
         event_name: 'setting_changed',
@@ -198,8 +197,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 onClick={() => {
                   setActiveTab(tab.id);
                   if (typeof window !== 'undefined') {
-                    const { analytics } = require('@/lib/analytics');
-                    analytics.track({
+                                  analytics.track({
                       event_type: 'settings_interaction',
                       event_name: 'settings_tab_changed',
                       page_path: window.location.pathname,

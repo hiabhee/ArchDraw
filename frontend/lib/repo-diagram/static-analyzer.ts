@@ -1,4 +1,5 @@
 import type { FileEntry, StaticSignal, Subsystem } from '@/lib/types/repo-diagram';
+import logger from '@/lib/logger';
 
 /**
  * Deterministically extract architectural signals from ingested files.
@@ -64,7 +65,7 @@ function detectPackageDeps(file: FileEntry, _lower: string): StaticSignal[] {
           });
         }
       }
-    } catch {}
+    } catch { logger.warn('[static-analyzer] Failed to process %s', file.path) }
   }
   if (file.path.endsWith('requirements.txt')) {
     const lines = file.content.split('\n');
@@ -429,7 +430,7 @@ function detectBinEntries(file: FileEntry, path: string): StaticSignal[] {
           confidence: 'high',
         }));
       }
-    } catch {}
+    } catch { logger.warn('[static-analyzer] Failed to process binary: %s', path) }
   }
   return [];
 }

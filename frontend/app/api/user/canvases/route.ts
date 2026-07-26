@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { getUserCanvases, upsertUserCanvas } from '@/lib/db';
 import { headers } from 'next/headers';
 import { getUserTier, getUserQuotas } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
+
+const putSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  nodes: z.any(),
+  edges: z.any(),
+});
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -23,7 +31,12 @@ export async function PUT(req: NextRequest) {
   const userId = session.user.id;
   const tier = getUserTier(userId);
   const quotas = getUserQuotas(tier);
-  const body = await req.json();
+  const raw = await req.json();
+  const parsed = putSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 });
+  }
+  const body = parsed.data;
 
   if (body.nodes && Array.isArray(body.nodes) && body.nodes.length > quotas.maxNodesPerCanvas) {
     return NextResponse.json(

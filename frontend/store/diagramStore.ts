@@ -349,35 +349,7 @@ interface DiagramState {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeCanvas(name: string, id?: string): CanvasTab {
-  let finalId = id;
-  if (!finalId) {
-    if (isBrowser) {
-      try {
-        const raw = localStorage.getItem('archdraw-storage');
-        let nextNum = 1;
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.state && parsed.state.canvases) {
-            const canvases = parsed.state.canvases as { id: string }[];
-            const numbers = canvases
-              .map(c => {
-                const match = c.id.match(/^canvas-(\d+)$/);
-                return match ? parseInt(match[1], 10) : 0;
-              })
-              .filter(n => n > 0);
-            if (numbers.length > 0) {
-              nextNum = Math.max(...numbers) + 1;
-            }
-          }
-        }
-        finalId = `canvas-${nextNum}`;
-      } catch (e) {
-        finalId = `canvas-${Date.now()}`;
-      }
-    } else {
-      finalId = `canvas-1`;
-    }
-  }
+  const finalId = id ?? (isBrowser ? crypto.randomUUID() : 'canvas-1');
 
   return { 
     id: finalId, 
@@ -768,11 +740,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
             return get().activeCanvasId || 'guest-canvas';
           }
 
-          const id = !canvases.some((c) => c.id === 'guest-canvas')
-            ? 'guest-canvas'
-            : !canvases.some((c) => c.id === 'guest-canvas-2')
-              ? 'guest-canvas-2'
-              : `guest-canvas-${Date.now()}`;
+          const id = `guest-${crypto.randomUUID()}`;
 
           const name = customName || getRandomAnimalName();
           const newCanvas = {

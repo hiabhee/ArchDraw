@@ -11,10 +11,15 @@ export interface ParsedGitHubUrl {
 
 export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
   let cleaned = url.trim().replace(/\/+$/, '');
+  let hadPath = false;
   cleaned = cleaned.replace(
     /^(https?:\/\/(?:www\.)?github\.com\/[a-zA-Z0-9-._]+\/[a-zA-Z0-9-._]+?)(?:\.git)?(\/.*)?$/,
-    '$1',
+    (_, base, path) => {
+      if (path) hadPath = true;
+      return base;
+    },
   );
+  if (hadPath) return null;
   const match = cleaned.match(
     /^https?:\/\/(?:www\.)?github\.com\/([a-zA-Z0-9-._]+)\/([a-zA-Z0-9-._]+?)(?:\.git)?$/,
   );

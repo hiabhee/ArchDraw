@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { analytics } from '@/lib/analytics';
 import { usePromptHistory } from '@/store/promptHistory';
 
 interface FloatingAIBarProps {
@@ -52,7 +53,7 @@ export function FloatingAIBar({
       if (!hasUsed) {
         setIsFirstTime(true);
       }
-    } catch {}
+    } catch { /* localStorage may throw in private browsing */ }
   }, []);
 
   // Global keyboard shortcut: Shift+? to focus prompt input
@@ -91,7 +92,6 @@ export function FloatingAIBar({
     const sizeLabel = detailLevel === 1 ? 'small' : detailLevel === 2 ? 'medium' : 'large';
 
     if (typeof window !== 'undefined') {
-      const { analytics } = require('@/lib/analytics');
       analytics.track({
         event_type: 'ai_generation',
         event_name: 'diagram_generation_started',
@@ -112,8 +112,7 @@ export function FloatingAIBar({
       setIsFirstTime(false);
       
       if (typeof window !== 'undefined') {
-        const { analytics } = require('@/lib/analytics');
-        analytics.track({
+          analytics.track({
           event_type: 'ai_generation',
           event_name: 'diagram_generation_success',
           page_path: window.location.pathname,
@@ -126,8 +125,7 @@ export function FloatingAIBar({
       toast.error(message);
       
       if (typeof window !== 'undefined') {
-        const { analytics } = require('@/lib/analytics');
-        analytics.track({
+          analytics.track({
           event_type: 'ai_generation',
           event_name: 'diagram_generation_error',
           page_path: window.location.pathname,
@@ -148,7 +146,6 @@ export function FloatingAIBar({
     setError(null);
     
     if (typeof window !== 'undefined') {
-      const { analytics } = require('@/lib/analytics');
       analytics.track({
         event_type: 'ai_generation',
         event_name: 'diagram_regeneration_started',
@@ -161,8 +158,7 @@ export function FloatingAIBar({
       await onRegenerate(detailLevel);
       
       if (typeof window !== 'undefined') {
-        const { analytics } = require('@/lib/analytics');
-        analytics.track({
+          analytics.track({
           event_type: 'ai_generation',
           event_name: 'diagram_regeneration_success',
           page_path: window.location.pathname,
@@ -175,8 +171,7 @@ export function FloatingAIBar({
       toast.error(message);
       
       if (typeof window !== 'undefined') {
-        const { analytics } = require('@/lib/analytics');
-        analytics.track({
+          analytics.track({
           event_type: 'ai_generation',
           event_name: 'diagram_regeneration_error',
           page_path: window.location.pathname,
@@ -238,8 +233,7 @@ export function FloatingAIBar({
                   e.stopPropagation();
                   setDetailLevel(level);
                   if (typeof window !== 'undefined') {
-                    const { analytics } = require('@/lib/analytics');
-                    analytics.track({
+                                  analytics.track({
                       event_type: 'ai_settings',
                       event_name: 'detail_level_changed',
                       page_path: window.location.pathname,
@@ -265,8 +259,7 @@ export function FloatingAIBar({
               type="button"
               onClick={() => {
                 if (typeof window !== 'undefined') {
-                  const { analytics } = require('@/lib/analytics');
-                  analytics.track({
+                              analytics.track({
                     event_type: 'ui_interaction',
                     event_name: 'code_view_toggled',
                     page_path: window.location.pathname,

@@ -10,6 +10,14 @@ const checkRateLimitMap = new Map<string, { count: number; resetTime: number }>(
 const CHECK_RATE_WINDOW_MS = 60 * 1000;
 const MAX_CHECK_REQUESTS = 10;
 
+let checkAccessCount = 0;
+function cleanupCheckExpired(): void {
+  const now = Date.now();
+  for (const [key, entry] of checkRateLimitMap) {
+    if (now > entry.resetTime) checkRateLimitMap.delete(key);
+  }
+}
+
 function getCheckRateKey(request: NextRequest): string {
   // Keys on the trusted-proxy-aware client IP — leftmost X-Forwarded-For is
   // client-controllable and would let an attacker reset this counter.
@@ -18,6 +26,9 @@ function getCheckRateKey(request: NextRequest): string {
 
 function checkCheckRateLimit(key: string): boolean {
   const now = Date.now();
+
+  if (++checkAccessCount % 10 === 0) cleanupCheckExpired();
+
   const record = checkRateLimitMap.get(key);
   
   if (!record || now > record.resetTime) {

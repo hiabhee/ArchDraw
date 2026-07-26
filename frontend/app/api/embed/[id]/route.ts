@@ -7,6 +7,14 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 20;
 
+let accessCount = 0;
+function cleanupExpired(): void {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.resetTime) rateLimitMap.delete(key);
+  }
+}
+
 function getRateLimitKey(request: NextRequest): string {
   // Keys on the trusted-proxy-aware client IP. The leftmost X-Forwarded-For
   // value is client-controllable, so keying on it would let an attacker
@@ -16,6 +24,10 @@ function getRateLimitKey(request: NextRequest): string {
 
 function checkRateLimit(key: string): boolean {
   const now = Date.now();
+
+  // Sweep expired entries every 10 accesses to prevent unbounded growth.
+  if (++accessCount % 10 === 0) cleanupExpired();
+
   const record = rateLimitMap.get(key);
   
   if (!record || now > record.resetTime) {

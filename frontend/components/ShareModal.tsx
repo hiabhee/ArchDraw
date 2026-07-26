@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { analytics } from '@/lib/analytics';
 import { Link, Link2, Check, Copy, X, ChevronDown, Users, Globe, Lock, Mail } from 'lucide-react';
 
 export interface SharePerson {
@@ -71,7 +72,6 @@ export function ShareModal({
 
   const handleCopyLink = async (url: string) => {
     if (typeof window !== 'undefined') {
-      const { analytics } = require('@/lib/analytics');
       analytics.track({
         event_type: 'sharing',
         event_name: 'share_link_copied',
@@ -99,7 +99,7 @@ export function ShareModal({
       document.body.appendChild(textarea);
       textarea.focus();
       textarea.select();
-      try { document.execCommand('copy'); setCopied(true) } catch {}
+      try { document.execCommand('copy'); setCopied(true) } catch { /* clipboard fallback may not work in all browsers */ }
       document.body.removeChild(textarea);
     };
 
@@ -128,7 +128,6 @@ export function ShareModal({
     };
 
     if (typeof window !== 'undefined') {
-      const { analytics } = require('@/lib/analytics');
       analytics.track({
         event_type: 'sharing',
         event_name: 'user_invited',
@@ -267,8 +266,7 @@ export function ShareModal({
                   setAccessMode('invited');
                   onAccessChange?.('restricted', linkPerm === 'can edit' ? 'editor' : 'viewer');
                   if (typeof window !== 'undefined') {
-                    const { analytics } = require('@/lib/analytics');
-                    analytics.track({
+                                  analytics.track({
                       event_type: 'sharing',
                       event_name: 'access_mode_changed',
                       page_path: window.location.pathname,
@@ -305,8 +303,7 @@ export function ShareModal({
                   setAccessMode('link');
                   onAccessChange?.('anyone', linkPerm === 'can edit' ? 'editor' : 'viewer');
                   if (typeof window !== 'undefined') {
-                    const { analytics } = require('@/lib/analytics');
-                    analytics.track({
+                                  analytics.track({
                       event_type: 'sharing',
                       event_name: 'access_mode_changed',
                       page_path: window.location.pathname,
@@ -347,8 +344,7 @@ export function ShareModal({
                     setLinkPerm('can view');
                     onAccessChange?.('anyone', 'viewer');
                     if (typeof window !== 'undefined') {
-                      const { analytics } = require('@/lib/analytics');
-                      analytics.track({
+                                      analytics.track({
                         event_type: 'sharing',
                         event_name: 'link_permission_changed',
                         page_path: window.location.pathname,
@@ -370,8 +366,7 @@ export function ShareModal({
                     setLinkPerm('can edit');
                     onAccessChange?.('anyone', 'editor');
                     if (typeof window !== 'undefined') {
-                      const { analytics } = require('@/lib/analytics');
-                      analytics.track({
+                                      analytics.track({
                         event_type: 'sharing',
                         event_name: 'link_permission_changed',
                         page_path: window.location.pathname,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronRight, ChevronLeft, Zap, BookOpen, Target, Lightbulb, Play } from 'lucide-react';
+import { analytics } from '@/lib/analytics';
 import { STORAGE_KEYS } from '@/lib/config';
 
 interface IntroCard {
@@ -102,7 +103,6 @@ export function IntroCardFlow({
     if (currentIndex < cards.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       if (typeof window !== 'undefined') {
-        const { analytics } = require('@/lib/analytics');
         analytics.track({
           event_type: 'tutorial_interaction',
           event_name: 'welcome_card_next',
@@ -117,7 +117,6 @@ export function IntroCardFlow({
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
       if (typeof window !== 'undefined') {
-        const { analytics } = require('@/lib/analytics');
         analytics.track({
           event_type: 'tutorial_interaction',
           event_name: 'welcome_card_prev',
@@ -261,8 +260,7 @@ export function IntroCardFlow({
                 <button
                   onClick={() => {
                     if (typeof window !== 'undefined') {
-                      const { analytics } = require('@/lib/analytics');
-                      analytics.track({
+                                    analytics.track({
                         event_type: 'tutorial_interaction',
                         event_name: 'welcome_card_skip',
                         page_path: window.location.pathname,
@@ -280,8 +278,7 @@ export function IntroCardFlow({
               <button
                 onClick={() => {
                   if (isLastCard && typeof window !== 'undefined') {
-                    const { analytics } = require('@/lib/analytics');
-                    analytics.track({
+                                analytics.track({
                       event_type: 'tutorial_interaction',
                       event_name: 'welcome_card_start_building',
                       page_path: window.location.pathname,

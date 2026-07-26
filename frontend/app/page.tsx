@@ -953,7 +953,7 @@ function PricingSection() {
       try {
         localStorage.setItem('archdraw-waitlist-joined', 'true');
         localStorage.setItem('archdraw-waitlist-email', email);
-      } catch {}
+      } catch { /* localStorage may throw in private browsing */ }
     }, 1000);
   };
 
@@ -1276,7 +1276,7 @@ function FooterSection() {
 export default function LandingPage() {
   useEffect(() => {
     document.documentElement.classList.remove('dark');
-    try { localStorage.setItem('archdraw-theme', 'light'); } catch {}
+    try { localStorage.setItem('archdraw-theme', 'light'); } catch { /* localStorage may throw in private browsing */ }
 
     // Redirect returning users to /editor, unless they navigated from within the app
     try {
@@ -1289,7 +1289,7 @@ export default function LandingPage() {
       }
 
       localStorage.setItem('archdraw-visited', 'true');
-    } catch {}
+    } catch { /* localStorage may throw in private browsing */ }
   }, []);
 
   return (
