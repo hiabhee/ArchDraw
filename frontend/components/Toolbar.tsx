@@ -30,6 +30,17 @@ import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
+import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 type ExportFormat = 'png-dark' | 'png-light' | 'png-transparent' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
 
@@ -225,6 +236,7 @@ export function Toolbar() {
     isPenModeActive, setPenModeActive,
   } = useDiagramStore();
 
+  const selectedModel = useModelStore((s) => s.selectedModel);
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
@@ -634,7 +646,9 @@ export function Toolbar() {
       >
         {/* LEFT: Sidebar toggle + Canvas tabs */}
         <div className="flex items-center gap-1 sm:gap-2">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => {
               const newState = !sidebarOpen;
               setSidebarOpen(newState);
@@ -642,28 +656,32 @@ export function Toolbar() {
                 window.dispatchEvent(new CustomEvent('close-canvas-sidebar'));
               }
             }}
-            className="!hidden sm:!flex floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex !w-8 sm:!w-9 !h-8 sm:!h-9"
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
             <PanelLeftClose className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => window.dispatchEvent(new CustomEvent('toggle-canvas-sidebar'))}
-            className="!hidden sm:!flex floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex !w-8 sm:!w-9 !h-8 sm:!h-9"
             title="Toggle canvases"
           >
             <FolderOpen className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-accent hover:text-white"
+            className="gap-1.5"
             title="Go to Dashboard"
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Dashboard</span>
-          </button>
+          </Button>
 
           <DiagramPagination />
         </div>
@@ -698,33 +716,61 @@ export function Toolbar() {
         {/* RIGHT: Actions */}
         <div className="flex items-center gap-1 sm:gap-2">
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={undo}
               disabled={!past.length}
-              className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Undo (Cmd+Z)"
             >
               <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={redo}
               disabled={!future.length}
-              className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Redo (Cmd+Shift+Z)"
             >
               <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-            </button>
+            </Button>
 
-            <select
-              value={useModelStore((s) => s.selectedModel)}
-              onChange={(e) => useModelStore.getState().setSelectedModel(e.target.value)}
-              className="max-w-[130px] truncate px-1.5 py-1 text-[11px] rounded-md bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all border-0 cursor-pointer focus:outline-none"
-              title="Select AI model"
-            >
-              {AVAILABLE_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="max-w-[130px] truncate px-1.5 py-1 text-[11px] rounded-md bg-transparent text-muted-foreground hover:text-foreground hover:bg-brand/40 transition-all border-0 cursor-pointer focus:outline-none"
+                  title="Select AI model"
+                >
+                  {AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.name || 'Select model'}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {(['groq', 'openrouter'] as const).map((provider, idx) => {
+                  const models = AVAILABLE_MODELS.filter((m) => m.provider === provider);
+                  if (models.length === 0) return null;
+                  return (
+                    <div key={provider}>
+                      {idx > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">
+                        {provider === 'groq' ? 'Groq (Fast)' : 'OpenRouter'}
+                      </DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={selectedModel}
+                        onValueChange={(value) => useModelStore.getState().setSelectedModel(value)}
+                      >
+                        {models.map((m) => (
+                          <DropdownMenuRadioItem key={m.id} value={m.id} className="text-xs">
+                            {m.name}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </div>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
           </span>
@@ -732,47 +778,55 @@ export function Toolbar() {
           <ThemeToggle />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setPenModeActive(!isPenModeActive)}
-              className={`p-1 sm:p-1.5 rounded-md transition-all ${
-                isPenModeActive 
-                  ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40' 
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+              className={`!w-8 sm:!w-9 !h-8 sm:!h-9 ${
+                isPenModeActive
+                  ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40'
+                  : ''
               }`}
               title={isPenModeActive ? "Deactivate Comet Trail Pen" : "Activate Comet Trail Pen"}
             >
               <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-            </button>
+            </Button>
 
             <LayoutToggleButton />
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleDeleteCanvas}
-              className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+              className="!w-8 sm:!w-9 !h-8 sm:!h-9 hover:!text-destructive hover:!bg-destructive/10"
               title="Delete canvas"
             >
               <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleShare}
               disabled={isSharing || nodes.length === 0}
-              className="floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
+              className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
             >
               {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
-            </button>
+            </Button>
           </span>
 
           <div className="relative">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setExportOpen(!exportOpen)}
               disabled={isExporting}
-              className="floating-icon-btn !w-8 sm:!w-9 !h-8 sm:!h-9"
+              className="!w-8 sm:!w-9 !h-8 sm:!h-9"
             >
               {isExporting ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
-            </button>
+            </Button>
 
             {exportOpen && (
               <>
@@ -784,33 +838,39 @@ export function Toolbar() {
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Image</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       const isDark = useDiagramStore.getState().darkMode;
                       handleExport(isDark ? 'png-dark' : 'png-light');
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start rounded-none"
                   >
                     PNG
-                  </button>
+                  </Button>
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleExport('svg-transparent')}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start rounded-none"
                   >
                     SVG (No Background)
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       const isDark = useDiagramStore.getState().darkMode;
                       handleExport(isDark ? 'svg-dark' : 'svg-light');
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start rounded-none"
                   >
                     SVG (With Background)
-                  </button>
+                  </Button>
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Other</p>
                   </div>
@@ -819,13 +879,15 @@ export function Toolbar() {
                     { label: 'PDF', format: 'pdf' },
                     { label: 'HTML Embed', format: 'html-embed' },
                   ] as { label: string; format: ExportFormat }[]).map(({ label, format }) => (
-                    <button
+                    <Button
                       key={format}
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleExport(format)}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                      className="w-full justify-start rounded-none"
                     >
                       {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </>
@@ -833,78 +895,145 @@ export function Toolbar() {
           </div>
 
           <div className="relative">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setMoreOpen(!moreOpen)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+              className="!w-9 !h-9"
             >
               <MoreHorizontal className="w-4 h-4" />
-            </button>
+            </Button>
 
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setMoreOpen(false)} />
                 <div
-                  className="absolute right-0 top-full mt-3 w-52 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
+                  className="absolute right-0 top-full mt-3 w-56 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
                   style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
                 >
+                  {/* Edit Section (mobile-friendly access to hidden toolbar actions) */}
+                  <div className="px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Edit</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { undo(); setMoreOpen(false); }}
+                    disabled={!past.length}
+                    className="w-full justify-start gap-2 rounded-none disabled:opacity-30"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                    Undo
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { redo(); setMoreOpen(false); }}
+                    disabled={!future.length}
+                    className="w-full justify-start gap-2 rounded-none disabled:opacity-30"
+                  >
+                    <Redo2 className="w-3.5 h-3.5" />
+                    Redo
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setPenModeActive(!isPenModeActive); setMoreOpen(false); }}
+                    className="w-full justify-start gap-2 rounded-none"
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    {isPenModeActive ? 'Disable' : 'Enable'} Pen
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { handleDeleteCanvas(); setMoreOpen(false); }}
+                    className="w-full justify-start gap-2 rounded-none !text-destructive hover:!bg-destructive/10"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete canvas
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { handleShare(); setMoreOpen(false); }}
+                    disabled={isSharing || nodes.length === 0}
+                    className="w-full justify-start gap-2 rounded-none disabled:opacity-30"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    Share
+                  </Button>
+
                   {/* Resources Section */}
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Resources</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { router.push('/tutorials'); setMoreOpen(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start gap-2 rounded-none"
                   >
                     <GraduationCap className="w-3.5 h-3.5" />
                     Learn
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { openGuide(); setMoreOpen(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start gap-2 rounded-none"
                   >
                     <HelpCircle className="w-3.5 h-3.5" />
                     Guide
-                  </button>
-                  
+                  </Button>
+
                   {/* Workspace Section */}
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Workspace</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { setTemplatesOpen(true); setMoreOpen(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start gap-2 rounded-none"
                   >
                     <LayoutTemplate className="w-3.5 h-3.5" />
                     Templates
-                  </button>
+                  </Button>
                   <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { fileInputRef.current?.click(); setMoreOpen(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start gap-2 rounded-none"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     Import JSON
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { window.dispatchEvent(new CustomEvent('open-repo-ingest')); setMoreOpen(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-white hover:bg-accent transition-colors"
+                    className="w-full justify-start gap-2 rounded-none"
                   >
                     <Github className="w-3.5 h-3.5" />
                     Ingest GitHub Repo
-                  </button>
-                  
+                  </Button>
+
                   {/* Danger Zone */}
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Danger</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { handleClear(); setMoreOpen(false); }}
                     disabled={nodes.length === 0}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full justify-start gap-2 rounded-none !text-destructive hover:!bg-destructive/10 disabled:opacity-40"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Clear Canvas
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
@@ -1003,54 +1132,25 @@ export function Toolbar() {
       )}
       {templatesOpen && <TemplateModal onClose={() => setTemplatesOpen(false)} />}
 
-      {/* Delete confirmation modal */}
-      {confirmDeleteId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0, 0, 0, 0.5)' }}
-          onClick={() => setConfirmDeleteId(null)}
-        >
-          <div
-            className="rounded-xl overflow-hidden w-80"
-            style={{
-              background: 'white',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <h3 className="text-base font-semibold" style={{ color: '#111827' }}>
-                Delete canvas?
-              </h3>
-              <p className="text-sm mt-2" style={{ color: '#6B7280', lineHeight: 1.5 }}>
-                This will delete <strong>&ldquo;{currentCanvasForDelete?.name || 'this canvas'}&rdquo;</strong> and remove {deleteNodeCount} node{deleteNodeCount !== 1 ? 's' : ''} and {deleteEdgeCount} edge{deleteEdgeCount !== 1 ? 's' : ''}.
-              </p>
-              <p className="text-sm mt-2" style={{ color: '#EF4444' }}>
-                This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex border-t" style={{ borderColor: '#E5E7EB' }}>
-              <button
-                className="flex-1 py-3 text-sm font-medium transition-colors"
-                style={{ color: '#6B7280' }}
-                onClick={() => setConfirmDeleteId(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="flex-1 py-3 text-sm font-medium transition-colors border-l"
-                style={{ color: '#EF4444', borderColor: '#E5E7EB' }}
-                onClick={() => {
-                  removeCanvas(confirmDeleteId);
-                  setConfirmDeleteId(null);
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+        title="Delete canvas?"
+        description={
+          <>
+            This will delete <strong>&ldquo;{currentCanvasForDelete?.name || 'this canvas'}&rdquo;</strong> and remove {deleteNodeCount} node{deleteNodeCount !== 1 ? 's' : ''} and {deleteEdgeCount} edge{deleteEdgeCount !== 1 ? 's' : ''}.
+          </>
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        destructive
+        onConfirm={() => {
+          if (confirmDeleteId) {
+            removeCanvas(confirmDeleteId);
+            setConfirmDeleteId(null);
+          }
+        }}
+      />
     </>
   );
 }
@@ -1076,9 +1176,11 @@ function LayoutToggleButton() {
   };
 
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon"
       onClick={handleToggle}
-      className="p-1 sm:p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all"
+      className="!w-8 sm:!w-9 !h-8 sm:!h-9"
       title={`Layout: ${isVertical ? 'Top → Bottom' : 'Left → Right'} (click for ${nextLabel})`}
     >
       {isVertical ? (
@@ -1086,6 +1188,6 @@ function LayoutToggleButton() {
       ) : (
         <ArrowRightToLine className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
       )}
-    </button>
+    </Button>
   );
 }
