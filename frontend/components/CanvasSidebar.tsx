@@ -72,7 +72,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center"
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       >
         {/* Backdrop */}
         <motion.div
@@ -89,7 +89,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-80 max-h-[70vh] flex flex-col overflow-hidden"
+          className="relative w-full sm:w-80 max-h-[85vh] sm:max-h-[70vh] flex flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl"
         >
           <div className="floating-panel flex flex-col overflow-hidden">
             {/* Header */}
@@ -98,14 +98,14 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => addCanvas()}
-                  className="floating-icon-btn !w-8 !h-8"
+                  className="floating-icon-btn !min-w-[36px] !min-h-[36px] !w-9 !h-9 sm:!w-8 sm:!h-8"
                   title="New canvas"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
                 <button
                   onClick={onClose}
-                  className="floating-icon-btn !w-8 !h-8"
+                  className="floating-icon-btn !min-w-[36px] !min-h-[36px] !w-9 !h-9 sm:!w-8 sm:!h-8"
                   title="Close"
                 >
                   <X className="w-4 h-4" />
@@ -132,7 +132,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                   className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     canvas.id === activeCanvasId
                       ? 'bg-[#1E90FF]/10 text-[#1E90FF]'
-                      : 'hover:bg-accent'
+                      : 'hover:bg-brand'
                   }`}
                   onClick={() => handleCanvasClick(canvas.id)}
                 >
@@ -160,7 +160,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                   <DropdownMenu open={contextMenuId === canvas.id} onOpenChange={(open) => !open && setContextMenuId(null)}>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <button
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-accent transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-brand transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
                           setContextMenuId(canvas.id);
@@ -177,7 +177,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                           setEditDraft(canvas.name);
                           setContextMenuId(null);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-accent transition-colors"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-brand transition-colors"
                       >
                         Rename
                       </button>
@@ -187,7 +187,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                           togglePinCanvas(canvas.id);
                           setContextMenuId(null);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-accent transition-colors"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-brand transition-colors"
                       >
                         {canvas.isPinned ? 'Unpin' : 'Pin'}
                       </button>

@@ -11,10 +11,12 @@ import { LAYOUT_PRESETS } from '@/lib/canvas/layoutPresets';
 import { toast } from 'sonner';
 import { getUserTier, isTemplateAllowed } from '@/lib/userQuotas';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Props { onClose: () => void }
 
 export function TemplateModal({ onClose }: Props) {
+  useBodyScrollLock(true);
   const [query, setQuery] = useState('');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const { nodes, loadTemplate, fitView, addCanvas } = useDiagramStore();

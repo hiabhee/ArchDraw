@@ -49,7 +49,7 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-3">
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-xl hover:bg-accent transition-all"
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-xl hover:bg-brand transition-all"
             >
               Sign in
             </button>
@@ -80,7 +80,7 @@ export function Navbar() {
                 <Link
                   key={item}
                   href={item === 'Tutorials' ? '/tutorials' : item === 'Blog' ? '/blog' : `#${item.toLowerCase().replace(' ', '-')}`}
-                  className="block px-3 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl"
+                  className="block px-3 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-brand rounded-xl"
                   onClick={() => setMobileOpen(false)}
                 >
                   {item}
@@ -93,7 +93,7 @@ export function Navbar() {
                     setMobileOpen(false);
                     setAuthModalOpen(true);
                   }}
-                  className="w-full px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-all"
+                  className="w-full px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-brand rounded-xl transition-all"
                 >
                   Sign in
                 </button>

@@ -29,10 +29,10 @@ export interface ModelDefinition {
 export const MODELS: readonly ModelDefinition[] = [
   // Groq (primary — fast)
   { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 (70B)', provider: 'groq' },
-  { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B', provider: 'groq' },
-  { id: 'llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout (17B)', provider: 'groq' },
+  { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 (8B)', provider: 'groq' },
+  { id: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS (20B)', provider: 'groq' },
   // OpenRouter (free fallbacks)
-  { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'openrouter' },
+  { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq' },
   { id: 'google/gemma-4-26b-a4b-it', label: 'Google Gemma 4 (26B)', provider: 'openrouter' },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nvidia Nemotron 3 Super (120B)', provider: 'openrouter' },
   { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Meta Llama 3.3 (70B)', provider: 'openrouter' },

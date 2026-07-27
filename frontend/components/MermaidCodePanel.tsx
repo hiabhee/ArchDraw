@@ -374,26 +374,28 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 20, stiffness: 150 }}
-      className="fixed right-4 top-[80px] bottom-[180px] w-96 md:w-[450px] z-50 flex flex-col overflow-hidden bg-card/95 backdrop-blur-md border border-border/40 shadow-soft-3 rounded-2xl"
+      className="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-[72px] sm:left-auto sm:right-4 sm:top-[80px] sm:bottom-[180px] w-auto sm:w-96 md:w-[450px] z-50 flex flex-col overflow-hidden bg-card/95 backdrop-blur-md border border-border/40 shadow-soft-3 rounded-2xl max-h-[calc(100dvh-200px)]"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/10">
-        <div className="flex items-center gap-2">
-          <span className="flex h-2 w-2 rounded-full bg-primary" />
-          <h2 className="text-sm font-semibold text-foreground">Mermaid Code Editor</h2>
+      <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-border/10 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex h-2 w-2 rounded-full bg-primary shrink-0" />
+          <h2 className="text-sm font-semibold text-foreground truncate">Mermaid Code</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
-            className="floating-icon-btn !w-8 !h-8"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-brand-bg transition-all"
             title="Copy Code"
+            aria-label="Copy code"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
           </button>
           <button
             onClick={onClose}
-            className="floating-icon-btn !w-8 !h-8"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-brand-bg transition-all"
             title="Close Panel"
+            aria-label="Close panel"
           >
             <X className="w-4 h-4" />
           </button>
@@ -401,14 +403,14 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       </div>
 
       {/* Code Area */}
-      <div className="flex-1 p-4 flex flex-col gap-3 overflow-hidden">
+      <div className="flex-1 p-3 sm:p-4 flex flex-col gap-3 overflow-hidden min-h-0">
         <textarea
           value={code}
           onChange={(e) => handleCodeChange(e.target.value)}
           onFocus={() => { isFocusedRef.current = true; }}
           onBlur={() => { isFocusedRef.current = false; }}
           spellCheck={false}
-          className="flex-1 w-full p-4 font-mono text-xs text-foreground bg-muted/20 border border-border/40 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 outline-none rounded-xl resize-none leading-relaxed transition-all"
+          className="flex-1 w-full p-3 sm:p-4 font-mono text-sm sm:text-xs text-foreground bg-muted/20 border border-border/40 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 outline-none rounded-xl resize-none leading-relaxed transition-all"
           placeholder="graph TD&#10;  subgraph CLIENT[&quot;Client Tier&quot;]&#10;    CV[&quot;Customer View&quot;]&#10;  end"
         />
 

@@ -60,15 +60,15 @@ export default function SessionsPage() {
         <h1 className="text-lg font-bold">Sessions</h1>
         <button
           onClick={fetchSessions}
-          className="p-1.5 rounded-lg border border-[#18191a] text-[#8a8f98] hover:text-[#f7f8f8] hover:border-[#1E90FF] transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg border border-border-default text-text-muted hover:text-text-primary hover:border-brand-text transition-colors cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      <div className="rounded-xl border border-[#18191a] bg-[#0f1011] overflow-hidden">
+      <div className="rounded-xl border border-border-default bg-surface-page overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[1fr_120px_140px_80px_100px_80px_40px] gap-2 py-2 px-3 border-b border-[#18191a] text-[10px] text-[#62666d] uppercase tracking-wider">
+        <div className="grid grid-cols-[1fr_120px_140px_80px_100px_80px_40px] gap-2 py-2 px-3 border-b border-border-default text-[10px] text-text-muted uppercase tracking-wider">
           <span>Visitor</span>
           <span>Started</span>
           <span>Entry Page</span>
@@ -81,7 +81,7 @@ export default function SessionsPage() {
         {/* Rows */}
         <div className="max-h-[calc(100vh-200px)] overflow-auto">
           {sessions.length === 0 && !loading ? (
-            <div className="py-12 text-center text-xs text-[#62666d]">
+            <div className="py-12 text-center text-xs text-text-muted">
               No sessions yet.
             </div>
           ) : (
@@ -91,25 +91,25 @@ export default function SessionsPage() {
               return (
                 <div
                   key={s.id}
-                  className="grid grid-cols-[1fr_120px_140px_80px_100px_80px_40px] gap-2 py-2 px-3 border-b border-[#18191a]/50 text-xs hover:bg-[#141516] transition-colors cursor-pointer"
+                  className="grid grid-cols-[1fr_120px_140px_80px_100px_80px_40px] gap-2 py-2 px-3 border-b border-border-default/50 text-xs hover:bg-surface-panel transition-colors cursor-pointer"
                   onClick={() => router.push(`/admin/sessions/${s.id}`)}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ${
-                      isInternal ? 'bg-[#f59e0b]/10 text-[#f59e0b]' : isAuth ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-[#8a8f98]/10 text-[#8a8f98]'
+                      isInternal ? 'bg-warning/10 text-warning' : isAuth ? 'bg-success/10 text-success' : 'bg-text-muted/10 text-text-muted'
                     }`}>
                       {isInternal ? 'internal' : isAuth ? 'auth' : 'guest'}
                     </span>
-                    <span className="text-[#d0d6e0] truncate" title={s.visitors?.anon_id}>
+                    <span className="text-text-secondary truncate" title={s.visitors?.anon_id}>
                       {s.visitors?.anon_id?.slice(0, 8)}
                     </span>
                   </div>
-                  <span className="text-[#8a8f98] tabular-nums">{formatTime(s.started_at)}</span>
-                  <span className="text-[#d0d6e0] truncate">{s.entry_page || '--'}</span>
-                  <span className="text-[#8a8f98] tabular-nums">{formatDuration(s.duration_seconds)}</span>
-                  <span className="text-[#8a8f98] tabular-nums">{s.event_count}</span>
-                  <span className="text-[#8a8f98]">{s.device_type || '--'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-[#62666d] self-center justify-self-end" />
+                  <span className="text-text-muted tabular-nums">{formatTime(s.started_at)}</span>
+                  <span className="text-text-secondary truncate">{s.entry_page || '--'}</span>
+                  <span className="text-text-muted tabular-nums">{formatDuration(s.duration_seconds)}</span>
+                  <span className="text-text-muted tabular-nums">{s.event_count}</span>
+                  <span className="text-text-muted">{s.device_type || '--'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-text-muted self-center justify-self-end" />
                 </div>
               );
             })

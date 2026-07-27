@@ -103,7 +103,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
 
   if (!canvas) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[hsl(var(--canvas-bg))] text-foreground">
+      <div className="flex h-[100dvh] w-screen items-center justify-center bg-[hsl(var(--canvas-bg))] text-foreground">
         <p>Canvas not found or has no data.</p>
       </div>
     );
@@ -158,7 +158,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   };
 
   return (
-    <div className={`${isDark ? 'dark' : ''} w-screen h-screen bg-[hsl(var(--canvas-bg))] text-foreground`}>
+    <div className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground`}>
       {/* Top banner */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[hsl(var(--canvas-bg))]/95 backdrop-blur-sm border-b border-border/40">
         <div className="flex items-center gap-2">

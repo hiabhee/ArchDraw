@@ -12,19 +12,12 @@ function formatRelativeTime(timestamp?: number): string {
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  
+
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (days < 7) return `${days}d ago`;
   return new Date(timestamp).toLocaleDateString();
-}
-
-function getColorByNodeCount(count: number): string {
-  if (count === 0) return '#B0B0B0';
-  if (count < 5) return '#3B82F6';
-  if (count < 10) return '#10B981';
-  return '#F59E0B';
 }
 
 export function RecentCanvases() {
@@ -74,10 +67,6 @@ export function RecentCanvases() {
               onMouseEnter={(e) => handleMouseEnter(canvas.id, e)}
               onMouseLeave={handleMouseLeave}
             >
-              <div
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: getColorByNodeCount(nodeCount) }}
-              />
               <span className="text-sm truncate flex-1 text-text-primary">
                 {canvas.name.length > 20 ? canvas.name.slice(0, 20) + '..' : canvas.name}
               </span>

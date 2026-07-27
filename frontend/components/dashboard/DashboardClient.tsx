@@ -110,14 +110,6 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
     return new Date(timestamp).toLocaleDateString();
   };
 
-  // Determine indicator color based on size
-  const getIndicatorColor = (nodeCount: number) => {
-    if (nodeCount === 0) return 'bg-gray-400';
-    if (nodeCount < 5) return 'bg-[#3B82F6]';
-    if (nodeCount < 10) return 'bg-[#10B981]';
-    return 'bg-[#F59E0B]';
-  };
-
   const checklistItems = [
     {
       title: 'Blank Canvas',
@@ -175,7 +167,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
               </h3>
               <button 
                 onClick={() => router.push('/editor')}
-                className="text-xs font-semibold text-accent hover:text-accent-hover flex items-center gap-0.5 transition-colors cursor-pointer"
+                className="text-xs font-semibold text-brand-text hover:text-brand-hover flex items-center gap-0.5 transition-colors cursor-pointer"
               >
                 <span>View all</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -194,9 +186,8 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
                       className="flex items-center justify-between py-3.5 px-2 hover:bg-surface-page/60 rounded-xl transition-colors cursor-pointer group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${getIndicatorColor(nodeCount)}`} />
                         <div className="min-w-0">
-                          <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-[#1E90FF] transition-colors">
+                          <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-brand-text transition-colors">
                             {canvas.name}
                           </h4>
                           <p className="text-[11px] text-text-muted mt-0.5">

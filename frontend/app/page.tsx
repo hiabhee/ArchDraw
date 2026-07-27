@@ -40,47 +40,47 @@ const FEATURES_GRID = [
   {
     title: 'AI-generated diagrams',
     desc: 'Describe your architecture in plain English; the pipeline generates structured, validated Mermaid and renders it instantly.',
-    icon: <Sparkles className="w-5 h-5 text-accent" />
+    icon: <Sparkles className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Mermaid-first pipeline',
     desc: 'Write Mermaid directly or let AI generate it. Same pipeline either way: validated, enriched, and laid out correctly.',
-    icon: <CodeIcon className="w-5 h-5 text-accent" />
+    icon: <CodeIcon className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Smart auto-layout',
     desc: 'Dagre-powered layout with automatic handle selection. Nodes position themselves; you focus on the architecture.',
-    icon: <Layers className="w-5 h-5 text-accent" />
+    icon: <Layers className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Subgraph support',
     desc: 'Group nodes into containers with Mermaid subgraphs. Nested layouts render with correct parent-child positioning.',
-    icon: <FolderIcon className="w-5 h-5 text-accent" />
+    icon: <FolderIcon className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Interactive React Flow canvas',
     desc: 'Every diagram is a live, zoomable, pannable canvas — not a static image until you choose to export one.',
-    icon: <MousePointer className="w-5 h-5 text-accent" />
+    icon: <MousePointer className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Multiple diagram types',
     desc: 'Flowcharts, sequence diagrams, system architecture, ERDs. Handles the full range of Mermaid specs.',
-    icon: <Database className="w-5 h-5 text-accent" />
+    icon: <Database className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Export & share',
     desc: 'PNG, SVG, or a live shareable link. Dark theme, clean layout, presentation-ready by default.',
-    icon: <Globe className="w-5 h-5 text-accent" />
+    icon: <Globe className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Collaborative Syncing',
     desc: 'Instantly generate and share live, read/write links with teammates. Sync canvas changes in real-time across tabs.',
-    icon: <Share2 className="w-5 h-5 text-accent" />
+    icon: <Share2 className="w-5 h-5 text-brand-text" />
   },
   {
     title: 'Keyboard Shortcuts',
     desc: 'Navigate the canvas, connect nodes, delete items, and trigger layouts entirely via keyboard shortcuts.',
-    icon: <Activity className="w-5 h-5 text-accent" />
+    icon: <Activity className="w-5 h-5 text-brand-text" />
   }
 ];
 
@@ -109,7 +109,7 @@ const InteractiveLandingDemo = dynamic(
     loading: () => (
       <div className="w-full h-[400px] sm:h-[560px] lg:h-[740px] rounded-2xl bg-[#0f1011] border border-[#23252a] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-accent/30 border-t-accent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-4 border-brand/30 border-t-brand rounded-full animate-spin" />
           <span className="text-xs text-[#8a8f98] font-medium">Loading interactive canvas...</span>
         </div>
       </div>
@@ -136,7 +136,7 @@ function TopNav() {
       <div className="max-w-[1280px] mx-auto px-6 h-full flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(94,106,210,0.4)]">
+            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(94,106,210,0.4)]">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f7f8f8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
@@ -151,7 +151,7 @@ function TopNav() {
                 key={link.href}
                 href={link.href}
                 data-track={link.track}
-                className="px-3 py-1.5 text-sm text-[#575752] hover:text-accent rounded-md transition-colors duration-150 font-medium"
+                className="px-3 py-1.5 text-sm text-[#575752] hover:text-brand-text rounded-md transition-colors duration-150 font-medium"
               >
                 {link.label}
               </a>
@@ -169,7 +169,7 @@ function TopNav() {
           <a
             href="/dashboard"
             data-track="nav_get_started"
-            className="text-sm font-semibold text-white bg-accent hover:bg-accent-hover px-4 py-1.5 rounded-lg transition-all duration-150 shadow-[0_4px_12px_rgba(94,106,210,0.2)] hover:shadow-[0_4px_16px_rgba(94,106,210,0.35)] hover:-translate-y-0.5 active:translate-y-0"
+            className="text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-4 py-1.5 rounded-lg transition-all duration-150 shadow-[0_4px_12px_rgba(94,106,210,0.2)] hover:shadow-[0_4px_16px_rgba(94,106,210,0.35)] hover:-translate-y-0.5 active:translate-y-0"
           >
             Get started free
           </a>
@@ -206,7 +206,7 @@ function TopNav() {
             <a
               href="/dashboard"
               onClick={() => setMenuOpen(false)}
-              className="text-sm font-semibold text-center text-white bg-accent hover:bg-accent-hover px-4 py-2.5 rounded-lg transition-colors"
+              className="text-sm font-semibold text-center text-white bg-brand hover:bg-brand-hover px-4 py-2.5 rounded-lg transition-colors"
             >
               Get started free
             </a>
@@ -338,7 +338,7 @@ function HeroSection() {
   return (
     <section className="pt-[110px] pb-16 px-6 relative overflow-hidden bg-surface-page">
       {/* Background glow */}
-      <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-accent/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-brand/5 blur-[120px] rounded-full pointer-events-none" />
       
       {/* Floating half-submerged nodes matching main canvas aesthetics */}
       <FloatingHeroNode 
@@ -391,7 +391,7 @@ function HeroSection() {
           <a
             href="/dashboard"
             data-track="hero_generate_diagram"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-accent hover:bg-accent-hover px-6 py-3 rounded-lg transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_20px_rgba(94,106,210,0.3)] hover:shadow-[0_4px_25px_rgba(94,106,210,0.45)]"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3 rounded-lg transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_20px_rgba(94,106,210,0.3)] hover:shadow-[0_4px_25px_rgba(94,106,210,0.45)]"
           >
             Generate my diagram free <ArrowRight size="15" />
           </a>
@@ -427,7 +427,7 @@ function ProblemSection() {
     {
       title: 'Losing 30 minutes in formatting',
       desc: 'Wasting precious minutes tweaking alignments, colors, and line nodes to make it look decent enough to share.',
-      icon: <Clock className="w-5 h-5 text-accent" />
+      icon: <Clock className="w-5 h-5 text-brand-text" />
     },
     {
       title: 'Design is not your day job',
@@ -471,7 +471,7 @@ function ProblemSection() {
           <a
             href="/dashboard"
             data-track="problem_get_started"
-            className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-accent hover:text-accent-hover transition-colors"
+            className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-brand-text hover:text-brand-hover transition-colors"
           >
             Get started now <ArrowRight size="14" className="ml-1" />
           </a>
@@ -502,7 +502,7 @@ function HowItWorksSection() {
           {/* Animated connector line */}
           <div className="hidden md:block absolute top-[72px] left-[calc(16.67%+40px)] right-[calc(16.67%+40px)] h-[2px]">
             <div className="w-full h-full bg-gradient-to-r from-[#e4e4df] via-[#d0d0cc] to-[#e4e4df] dark:from-[#202327] dark:via-[#2a2d35] dark:to-[#202327]" />
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent/40 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/40 to-transparent animate-[shimmer_3s_ease-in-out_infinite]" />
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 md:gap-6 relative">
@@ -568,11 +568,11 @@ function HowItWorksCard({
             transition: 'transform 0.3s ease, box-shadow 0.3s ease',
           }}
         >
-          <span className={`text-2xl font-extrabold text-accent ${outfit.className}`}>{number}</span>
+          <span className={`text-2xl font-extrabold text-brand-text ${outfit.className}`}>{number}</span>
         </div>
         {/* Glow behind circle */}
         <div
-          className="absolute inset-0 rounded-2xl bg-accent/10 blur-xl -z-0"
+          className="absolute inset-0 rounded-2xl bg-brand/10 blur-xl -z-0"
           style={{
             opacity: isVisible ? 1 : 0,
             transition: `opacity 0.8s ease ${index * 0.15 + 0.3}s`,
@@ -609,8 +609,8 @@ function DescribeVisual({ isVisible }: { isVisible: boolean }) {
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-2">
-        <div className="w-5 h-5 rounded bg-accent/10 flex items-center justify-center shrink-0">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+        <div className="w-5 h-5 rounded bg-brand/10 flex items-center justify-center shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand-text">
             <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
           </svg>
         </div>
@@ -622,19 +622,19 @@ function DescribeVisual({ isVisible }: { isVisible: boolean }) {
           }}
         >
           <div
-            className="h-full bg-gradient-to-r from-accent/40 to-accent/20 rounded-full"
+            className="h-full bg-gradient-to-r from-brand/40 to-brand/20 rounded-full"
             style={{ width: '60%' }}
           />
         </div>
       </div>
       <div className="font-mono text-[10px] text-[#575752] dark:text-[#d0d6e0] bg-[#f1f1eb] dark:bg-[#0f1011] rounded-lg px-3 py-2 text-left leading-relaxed">
-        <span className="text-accent">Client</span>
+        <span className="text-brand-text">Client</span>
         <span className="text-[#8a8f98] mx-1">&rarr;</span>
-        <span className="text-accent">API Gateway</span>
+        <span className="text-brand-text">API Gateway</span>
         <span className="text-[#8a8f98] mx-1">&rarr;</span>
-        <span className="text-accent">Auth</span>
+        <span className="text-brand-text">Auth</span>
         <span className="text-[#8a8f98] mx-1">&rarr;</span>
-        <span className="text-accent">Postgres</span>
+        <span className="text-brand-text">Postgres</span>
       </div>
     </div>
   );
@@ -728,7 +728,7 @@ function ExportVisual({ isVisible }: { isVisible: boolean }) {
           key={chip.label}
           className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border transition-all duration-300 ${
             chip.active
-              ? 'bg-accent text-white border-accent shadow-sm'
+              ? 'bg-brand text-white border-brand shadow-sm'
               : 'bg-[#f1f1eb] dark:bg-[#1e2235] text-[#575752] dark:text-[#d0d6e0] border-[#e4e4df] dark:border-[#202327]'
           }`}
           style={{
@@ -778,7 +778,7 @@ function FeatureCardGrid() {
 function InteractiveDemoSection() {
   return (
     <section className="py-20 px-6 bg-[#f7f7f5] relative border-t border-[#e4e4df]">
-      <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-accent/2 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-brand/2 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="max-w-[1600px] mx-auto px-8 flex flex-col items-center relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-10">
@@ -831,7 +831,7 @@ function WhoUsesSection() {
     {
       title: 'Students',
       desc: 'Practice system design interview diagrams, or finish project docs fast without getting stuck dragging margins.',
-      icon: <BookOpen className="w-5 h-5 text-accent" />
+      icon: <BookOpen className="w-5 h-5 text-brand-text" />
     },
     {
       title: 'Engineers & Teams',
@@ -890,12 +890,12 @@ function FounderNote() {
       <div className="max-w-[760px] mx-auto bg-white border border-[#e4e4df] rounded-xl p-8 md:p-12 relative shadow-md">
         <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
           <div className="flex-shrink-0">
-            <div className="w-16 h-16 rounded-full bg-[#f1f1eb] border-2 border-accent flex items-center justify-center overflow-hidden shadow-lg select-none">
+            <div className="w-16 h-16 rounded-full bg-[#f1f1eb] border-2 border-brand flex items-center justify-center overflow-hidden shadow-lg select-none">
               <span className={`text-lg font-bold text-[#1c1c1a] ${outfit.className}`}>AS</span>
             </div>
           </div>
           <div>
-            <span className={`text-xs font-bold uppercase tracking-wider text-accent block mb-2`}>Developer Note</span>
+            <span className={`text-xs font-bold uppercase tracking-wider text-brand-text block mb-2`}>Developer Note</span>
             <h3 className={`text-xl font-bold text-[#1c1c1a] mb-4 ${outfit.className}`}>Hey, I&apos;m Abhishek 👋</h3>
             <div className="space-y-4 text-sm text-[#575752] leading-relaxed font-normal">
               <p>
@@ -974,7 +974,7 @@ function PricingSection() {
         </div>
 
         <div className="max-w-md mx-auto bg-white border border-[#e4e4df] rounded-xl p-8 shadow-md relative">
-          <div className="absolute -top-3 right-6 bg-accent text-white text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full shadow-sm">
+          <div className="absolute -top-3 right-6 bg-brand text-white text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full shadow-sm">
             Beta Pass
           </div>
           
@@ -1011,7 +1011,7 @@ function PricingSection() {
                 <div className="text-xs text-[#575752] font-medium block mb-1">
                   Want updates and locked-in launch discount? Join waitlist:
                 </div>
-                <div className="flex gap-2 bg-[#f9f9f7] border border-[#e4e4df] focus-within:border-accent rounded-lg p-1.5 transition-colors relative">
+                <div className="flex gap-2 bg-[#f9f9f7] border border-[#e4e4df] focus-within:border-brand rounded-lg p-1.5 transition-colors relative">
                   <div className="flex items-center pl-2 text-[#8a8f98]">
                     <Mail size="14" />
                   </div>
@@ -1026,7 +1026,7 @@ function PricingSection() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="bg-accent hover:bg-accent-hover text-white text-xs font-semibold px-4 py-1.5 rounded-md transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+                    className="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-1.5 rounded-md transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
                   >
                     {loading ? (
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1134,13 +1134,13 @@ function FAQAccordion({ faq }: { faq: FAQItem }) {
     <div className="border border-[#e4e4df] bg-white rounded-xl overflow-hidden transition-colors duration-150 shadow-sm">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between p-5 text-left text-sm font-semibold text-[#1c1c1a] hover:text-accent transition-colors cursor-pointer select-none"
+        className="w-full flex items-center justify-between p-5 text-left text-sm font-semibold text-[#1c1c1a] hover:text-brand-text transition-colors cursor-pointer select-none"
       >
         <span className={`${outfit.className} text-sm md:text-base pr-4`}>{faq.q}</span>
         <ChevronDown 
           size="16" 
           className={`text-[#8a8f98] shrink-0 transition-transform duration-200 ${
-            open ? 'rotate-180 text-accent' : ''
+            open ? 'rotate-180 text-brand-text' : ''
           }`} 
         />
       </button>
@@ -1161,7 +1161,7 @@ function FAQAccordion({ faq }: { faq: FAQItem }) {
 function CTABanner() {
   return (
     <section className="py-24 px-6 bg-[#f7f7f5] border-t border-[#e4e4df] relative overflow-hidden">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[250px] bg-accent/2 blur-[100px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[250px] bg-brand/2 blur-[100px] rounded-full pointer-events-none" />
       
       <div className="max-w-[960px] mx-auto bg-white border border-border rounded-xl p-12 text-center relative z-10 shadow-md">
         <h2
@@ -1177,7 +1177,7 @@ function CTABanner() {
           <a
             href="/dashboard"
             data-track="cta_generate_diagram"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-accent hover:bg-accent-hover px-6 py-3 rounded-lg transition-colors shadow-md cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3 rounded-lg transition-colors shadow-md cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
           >
             Generate my diagram free <ArrowRight size="15" />
           </a>
@@ -1233,7 +1233,7 @@ function FooterSection() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           <div className="col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-6 h-6 rounded-md bg-accent flex items-center justify-center shadow-md">
+              <div className="w-6 h-6 rounded-md bg-brand flex items-center justify-center shadow-md">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f7f8f8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2L2 7l10 5 10-5-10-5z" />
                   <path d="M2 17l10 5 10-5" />

@@ -47,17 +47,17 @@ export default function FunnelPage() {
         <h1 className="text-lg font-bold">Funnel</h1>
         <button
           onClick={fetchData}
-          className="p-1.5 rounded-lg border border-[#18191a] text-[#8a8f98] hover:text-[#f7f8f8] hover:border-[#1E90FF] transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg border border-border-default text-text-muted hover:text-text-primary hover:border-brand-text transition-colors cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-6">
-        <div className="text-xs text-[#62666d] mb-6">Last 30 days</div>
+      <div className="rounded-xl border border-border-default bg-surface-page p-6">
+        <div className="text-xs text-text-muted mb-6">Last 30 days</div>
 
         {funnel.length === 0 && !loading ? (
-          <div className="py-12 text-center text-xs text-[#62666d]">No funnel data yet.</div>
+          <div className="py-12 text-center text-xs text-text-muted">No funnel data yet.</div>
         ) : (
           <div className="space-y-4">
             {funnel.map((row, i) => {
@@ -70,24 +70,24 @@ export default function FunnelPage() {
                 <div key={i}>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                      style={{ backgroundColor: i === funnel.length - 1 ? '#27a644' : '#1E90FF' }}>
+                      style={{ backgroundColor: i === funnel.length - 1 ? 'var(--success)' : 'var(--accent)' }}>
                       {i + 1}
                     </div>
-                    <span className="text-sm text-[#f7f8f8] font-medium">
+                    <span className="text-sm text-text-primary font-medium">
                       {STAGE_LABELS[row.stage] || row.stage}
                     </span>
-                    <span className="text-xs text-[#8a8f98] ml-auto tabular-nums">
+                    <span className="text-xs text-text-muted ml-auto tabular-nums">
                       {row.unique_visitors.toLocaleString()} visitors
                     </span>
                   </div>
 
                   <div className="ml-7">
-                    <div className="h-8 bg-[#141516] rounded-lg overflow-hidden">
+                    <div className="h-8 bg-surface-panel rounded-lg overflow-hidden">
                       <div
                         className="h-full rounded-lg transition-all duration-700 flex items-center pl-3"
                         style={{
                           width: `${Math.max(pct, 2)}%`,
-                          backgroundColor: i === funnel.length - 1 ? '#27a644' : '#1E90FF',
+                          backgroundColor: i === funnel.length - 1 ? 'var(--success)' : 'var(--accent)',
                         }}
                       >
                         <span className="text-[10px] font-medium text-white">{pct.toFixed(1)}%</span>
@@ -95,7 +95,7 @@ export default function FunnelPage() {
                     </div>
 
                     {convFromPrev !== null && (
-                      <div className="flex items-center gap-1 mt-1 text-[10px] text-[#62666d]">
+                      <div className="flex items-center gap-1 mt-1 text-[10px] text-text-muted">
                         <ArrowRight className="w-2.5 h-2.5" />
                         <span>{convFromPrev}% from previous step</span>
                       </div>
@@ -110,25 +110,25 @@ export default function FunnelPage() {
 
       {/* Summary */}
       {funnel.length >= 2 && (
-        <div className="rounded-xl border border-[#18191a] bg-[#0f1011] p-4">
+        <div className="rounded-xl border border-border-default bg-surface-page p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-2xl font-bold text-[#f7f8f8]">
+              <div className="text-2xl font-bold text-text-primary">
                 {funnel[0]?.unique_visitors || 0}
               </div>
-              <div className="text-[10px] text-[#62666d] uppercase tracking-wider mt-1">Total Visitors</div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Total Visitors</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[#1E90FF]">
+              <div className="text-2xl font-bold text-brand-text">
                 {funnel[1]?.unique_visitors || 0}
               </div>
-              <div className="text-[10px] text-[#62666d] uppercase tracking-wider mt-1">Prompted AI</div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Prompted AI</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[#27a644]">
+              <div className="text-2xl font-bold text-success">
                 {funnel[funnel.length - 1]?.unique_visitors || 0}
               </div>
-              <div className="text-[10px] text-[#62666d] uppercase tracking-wider mt-1">Exported</div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider mt-1">Exported</div>
             </div>
           </div>
         </div>

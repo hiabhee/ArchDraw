@@ -24,8 +24,8 @@ function NavItem({ label, icon: Icon, active, onClick }: {
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
         active
-          ? 'bg-[#1E90FF] text-white'
-          : 'text-[#8a8f98] hover:text-[#f7f8f8] hover:bg-[#18191a]'
+          ? 'bg-brand-text text-white'
+          : 'text-text-muted hover:text-text-primary hover:bg-surface-card'
       }`}
     >
       <Icon className="w-4 h-4" />
@@ -55,8 +55,8 @@ function InternalTrafficToggle() {
       onClick={toggle}
       className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
         excludeInternal
-          ? 'border-[#18191a] text-[#8a8f98] hover:border-[#1E90FF]'
-          : 'border-[#f59e0b]/40 text-[#f59e0b] bg-[#f59e0b]/10'
+          ? 'border-border-default text-text-muted hover:border-brand-text'
+          : 'border-warning/40 text-warning bg-warning/10'
       }`}
       title={excludeInternal ? 'Showing only real traffic (click to include internal)' : 'Including your test traffic (click to exclude)'}
     >
@@ -77,18 +77,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!mounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#010102]">
-        <div className="w-6 h-6 border-2 border-[#1E90FF] border-t-transparent rounded-full animate-spin" />
+      <div className="dark min-h-screen flex items-center justify-center bg-canvas">
+        <div className="w-6 h-6 border-2 border-brand-text border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-[#010102] text-[#f7f8f8]">
+    <div className="dark min-h-screen flex bg-canvas text-text-primary">
       {/* Sidebar */}
-      <aside className="w-[220px] shrink-0 border-r border-[#18191a] p-4 flex flex-col sticky top-0 h-screen">
+      <aside className="w-[220px] shrink-0 border-r border-border-default p-4 flex flex-col sticky top-0 h-screen">
         <div className="flex items-center gap-2.5 px-2 mb-6">
-          <Shield className="w-5 h-5 text-[#1E90FF]" />
+          <Shield className="w-5 h-5 text-brand-text" />
           <span className="text-sm font-semibold tracking-wide">Admin</span>
         </div>
 
@@ -103,10 +103,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
 
-        <div className="border-t border-[#18191a] pt-3 mt-3">
+        <div className="border-t border-border-default pt-3 mt-3">
           <button
             onClick={() => router.push('/editor')}
-            className="w-full text-left px-3 py-2 text-xs text-[#8a8f98] hover:text-[#f7f8f8] transition-colors cursor-pointer"
+            className="w-full text-left px-3 py-2 text-xs text-text-muted hover:text-text-primary transition-colors cursor-pointer"
           >
             Back to App
           </button>

@@ -509,7 +509,6 @@ export class OpenRouterClient {
     'llama-3.2-3b-preview': 'meta-llama/llama-3.2-3b-instruct',
     'gpt-4o-mini': 'openai/gpt-4o-mini',
     'gpt-4o': 'openai/gpt-4o',
-    'mixtral-8x7b-32768': 'mistralai/mixtral-8x7b-instruct',
   };
 
   private static mapModel(model?: string): string | undefined {

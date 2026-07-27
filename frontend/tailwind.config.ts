@@ -63,9 +63,12 @@ const config: Config = {
         accent: {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
-          hover: 'var(--accent-hover)',
-          bg: 'var(--accent-bg)',
-          text: 'var(--accent-text)',
+        },
+        brand: {
+          DEFAULT: 'var(--brand)',
+          hover: 'var(--brand-hover)',
+          bg: 'var(--brand-bg)',
+          text: 'var(--brand-text)',
         },
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
@@ -73,6 +76,7 @@ const config: Config = {
         },
         border: {
           DEFAULT: 'hsl(var(--border))',
+          default: 'var(--border-default)',
           strong: 'var(--border-strong)',
         },
         input: 'hsl(var(--input))',
@@ -89,39 +93,57 @@ const config: Config = {
         },
         canvas: 'hsl(var(--canvas-bg))',
         grid: 'hsl(var(--grid-color))',
-        
+
         // Surface colors
         'surface-page': 'var(--surface-page)',
         'surface-panel': 'var(--surface-panel)',
         'surface-card': 'var(--surface-card)',
-        
+
         // Text colors
         'text-primary': 'var(--text-primary)',
         'text-secondary': 'var(--text-secondary)',
         'text-muted': 'var(--text-muted)',
-        
-        // Legacy/custom colors
-        lc: '#010102',
-        ls1: '#0f1011',
-        ls2: '#141516',
-        ls3: '#18191a',
-        lp: '#1E90FF',
-        lph: '#4dabf7',
-        li: '#f7f8f8',
-        lim: '#d0d6e0',
-        lis: '#8a8f98',
-        lit: '#62666d',
-        lh: '#23252a',
-        lhs: '#34343a',
-        lg: '#27a644',
-        lr: '#eb534b',
+
+        // Status (semantic)
+        success: {
+          DEFAULT: 'var(--success)',
+          bg: 'var(--success-bg)',
+        },
+        warning: {
+          DEFAULT: 'var(--warning)',
+          bg: 'var(--warning-bg)',
+        },
+        info: {
+          DEFAULT: 'var(--info)',
+          bg: 'var(--info-bg)',
+        },
+
+        // Overlays
+        'overlay-modal': 'var(--overlay-modal)',
+        'overlay-drawer': 'var(--overlay-drawer)',
+        'overlay-spotlight': 'var(--overlay-spotlight)',
       },
 
-      // Border radius (matching globals.css)
+      // Border radius scale (matching @theme)
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        none: '0',
+        xs: '3px',
+        sm: '6px',
+        md: '8px',
+        lg: '10px',
+        xl: '12px',
+        '2xl': '14px',
+        '3xl': '16px',
+        full: '9999px',
+      },
+
+      // Shadow scale (matching @theme)
+      boxShadow: {
+        1: '0 1px 4px hsl(var(--foreground) / 0.04)',
+        2: '0 2px 8px hsl(var(--foreground) / 0.06)',
+        3: '0 4px 16px hsl(var(--foreground) / 0.08)',
+        4: '0 8px 32px hsl(var(--foreground) / 0.12)',
+        5: '0 16px 48px hsl(var(--foreground) / 0.16)',
       },
 
       // Animations (matching globals.css @keyframes)

@@ -138,7 +138,7 @@ function validateTopologyAndSize(
 }
 
 function generateFallbackPlan(prompt: string) {
-  const mermaidCode = `graph LR
+  const mermaidCode = `graph TD
   subgraph CLIENT["Client Layer"]
     user["User"]
   end
@@ -158,7 +158,7 @@ function generateFallbackPlan(prompt: string) {
   return {
     formatConfig: {
       format: 'mermaid' as const,
-      diagramType: 'graph LR' as const,
+      diagramType: 'graph TD' as const,
       optionalVariants: [],
     },
     styleConfig: {
@@ -222,9 +222,9 @@ export async function runMermaidPipeline(
     formatConfig.diagramType = 'graph TD';
     mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
   } else {
-    logger.info('[DownstreamGuard] Forcing default layout to horizontal (graph LR).');
-    formatConfig.diagramType = 'graph LR';
-    mermaidCode = mermaidCode.replace(/^graph TD/m, 'graph LR');
+    logger.info('[DownstreamGuard] Forcing default layout to vertical (graph TD).');
+    formatConfig.diagramType = 'graph TD';
+    mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
   }
 
   onProgress?.('Parsing and laying out diagram', 50);
@@ -237,11 +237,7 @@ export async function runMermaidPipeline(
     const retryPrompt = `${prompt}\n\nIMPORTANT: Generate valid, complete Mermaid flowchart code containing at least 3-6 components.`;
     plan = await runArchitecturePlanner(retryPrompt, diagramSize, detailLevel, userIntent.model);
     ({ formatConfig, styleConfig, mermaidCode, reasoning } = plan);
-    if (isVerticalRequested) {
-      mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
-    } else {
-      mermaidCode = mermaidCode.replace(/^graph TD/m, 'graph LR');
-    }
+    mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
     parseResult = parseMermaidToReactFlow(mermaidCode);
   }
 
@@ -256,11 +252,7 @@ export async function runMermaidPipeline(
     // dropping the context.
     plan = generateFallbackPlan(prompt);
     ({ formatConfig, styleConfig, mermaidCode } = plan);
-    if (isVerticalRequested) {
-      mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
-    } else {
-      mermaidCode = mermaidCode.replace(/^graph TD/m, 'graph LR');
-    }
+    mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
     parseResult = parseMermaidToReactFlow(mermaidCode);
   }
 

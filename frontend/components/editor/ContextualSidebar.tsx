@@ -31,29 +31,30 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
   const theme = TIER_THEME[tier] || TIER_THEME.compute;
 
   return (
-    <aside 
-      className="fixed top-20 right-4 w-80 max-h-[calc(100vh-100px)] overflow-y-auto z-40 bg-card rounded-2xl shadow-2xl border border-border animate-in slide-in-from-right-4 duration-300 sm:max-w-xs max-w-[calc(100vw-32px)]"
+    <aside
+      className="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-auto right-auto left-2 max-h-[60vh] z-40 bg-card rounded-2xl shadow-2xl border border-border animate-in slide-in-from-bottom-4 duration-300 sm:left-auto sm:right-4 sm:top-20 sm:bottom-auto sm:max-h-[calc(100vh-100px)] sm:w-80 sm:max-w-xs sm:slide-in-from-right-4"
     >
-      <div className="flex items-center justify-between p-4 border-b border-border/50">
-        <div className="flex items-center gap-2">
-          <div 
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-border/50">
+        <div className="flex items-center gap-2 min-w-0">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shrink-0"
             style={{ background: node.data.color || theme.main }}
           >
             {node.data.label?.[0]?.toUpperCase()}
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-semibold text-foreground truncate max-w-[180px]">
               {node.data.label}
             </h3>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">
               {node.data.category}
             </p>
           </div>
         </div>
-        <button 
+        <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground transition-colors"
+          aria-label="Close panel"
+          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-brand-bg text-muted-foreground transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -64,7 +65,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
         <div className="flex gap-2">
           <button 
             onClick={() => setIsEditing(!isEditing)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-accent hover:bg-accent/80 text-xs font-medium transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand hover:bg-brand/80 text-xs font-medium transition-all"
           >
             <Pencil className="w-3.5 h-3.5" />
             Edit
@@ -89,7 +90,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
               <textarea
                 value={node.data.description || ''}
                 onChange={(e) => updateNodeData(nodeId, { description: e.target.value })}
-                className="w-full p-3 rounded-xl bg-accent/50 border border-border text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                className="w-full p-3 rounded-xl bg-brand/50 border border-border text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                 rows={3}
                 placeholder="What does this service do?"
               />
@@ -122,7 +123,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
                     {knowledge.concepts.map(concept => (
                       <span 
                         key={concept}
-                        className="px-2 py-0.5 rounded-md bg-accent text-[10px] text-muted-foreground border border-border/50"
+                        className="px-2 py-0.5 rounded-md bg-brand text-[10px] text-muted-foreground border border-border/50"
                       >
                         {concept}
                       </span>

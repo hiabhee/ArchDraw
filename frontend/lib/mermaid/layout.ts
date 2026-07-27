@@ -24,10 +24,12 @@ function wouldCreateCycle(childId: string, parentId: string, parentMap: Map<stri
 export function applyLayout(objects: RFObjects, direction: Direction): RFObjects {
   const g = new dagre.graphlib.Graph({ compound: true })
   g.setDefaultEdgeLabel(() => ({}))
+
+  const isVertical = direction === 'TD' || direction === 'BT';
   g.setGraph({
     rankdir: mapDirection(direction),
-    nodesep: MIN_HORIZONTAL_SPACING,
-    ranksep: MIN_VERTICAL_SPACING,
+    nodesep: isVertical ? MIN_HORIZONTAL_SPACING : MIN_VERTICAL_SPACING,
+    ranksep: isVertical ? MIN_VERTICAL_SPACING : MIN_HORIZONTAL_SPACING,
     marginx: 40,
     marginy: 40,
   })

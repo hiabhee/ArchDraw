@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,18 +13,22 @@ import {
 } from '@/components/ui/alert-dialog';
 
 interface ConfirmDialogProps {
-  isOpen: boolean;
+  open?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
-  description: string;
+  description: ReactNode;
   confirmText?: string;
   cancelText?: string;
   destructive?: boolean;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 export function ConfirmDialog({
+  open,
   isOpen,
+  onOpenChange,
   title,
   description,
   confirmText = 'Confirm',
@@ -32,8 +37,19 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const isControlled = open !== undefined;
+  const isShown = isControlled ? open : isOpen;
+  const handleChange = (next: boolean) => {
+    if (!next) {
+      onCancel?.();
+      onOpenChange?.(false);
+    } else if (isControlled) {
+      onOpenChange?.(true);
+    }
+  };
+
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+    <AlertDialog open={isShown} onOpenChange={handleChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

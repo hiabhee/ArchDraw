@@ -201,11 +201,12 @@ export function FloatingAIBar({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-3 sm:px-6 safe-area-bottom flex items-center gap-2"
+      className="fixed left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-3 sm:px-6 flex items-center gap-2"
+      style={{ bottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
     >
       <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
-        {/* Detail Level Toggle + Code — above the input */}
-        <div className="flex items-center gap-1.5">
+        {/* Detail Level Toggle + Code — above the input, horizontally scrollable on mobile */}
+        <div className="flex items-center gap-1.5 max-w-full overflow-x-auto scrollbar-none -mx-1 px-1">
           {hasLastPrompt && onRegenerate && (
             <button
               type="button"
@@ -310,24 +311,26 @@ export function FloatingAIBar({
           {/* Right Actions */}
           <div className="flex items-center gap-1 shrink-0">
             {/* Mic Button */}
-            <button 
-              className="w-6 h-6 rounded-full flex items-center justify-center bg-transparent text-muted-foreground/35 cursor-not-allowed" 
-              disabled 
+            <button
+              className="w-9 h-9 sm:w-6 sm:h-6 rounded-full flex items-center justify-center bg-transparent text-muted-foreground/35 cursor-not-allowed"
+              disabled
               title="Voice coming soon"
+              aria-label="Voice input (coming soon)"
             >
-              <Mic className="w-3 h-3" />
+              <Mic className="w-4 h-4 sm:w-3 sm:h-3" />
             </button>
 
             {/* Submit Button */}
             <button
               onClick={handleGenerate}
               disabled={!input.trim() || isGenerating}
-              className="w-6 h-6 rounded-full flex items-center justify-center bg-[#1E90FF] text-white hover:bg-[#4dabf7] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+              aria-label={isGenerating ? 'Generating' : 'Generate diagram'}
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-[#1E90FF] text-white hover:bg-[#4dabf7] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
             >
               {isGenerating ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
+                <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 animate-spin" />
               ) : (
-                <Send className="w-3 h-3" />
+                <Send className="w-5 h-5 sm:w-4 sm:h-4" />
               )}
             </button>
           </div>

@@ -180,7 +180,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
               </div>
               <button
                 onClick={onClose}
-                className="p-2 rounded-xl hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all"
+                className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -216,15 +216,15 @@ export function RepoDiagramGenerator({ onClose }: Props) {
               )}
 
               <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 rounded-xl bg-accent/30 border border-border/40 text-center">
+                <div className="p-3 rounded-xl bg-brand/30 border border-border/40 text-center">
                   <p className="text-lg font-bold text-foreground">{summary.nodeCount}</p>
                   <p className="text-[10px] text-muted-foreground">Nodes</p>
                 </div>
-                <div className="p-3 rounded-xl bg-accent/30 border border-border/40 text-center">
+                <div className="p-3 rounded-xl bg-brand/30 border border-border/40 text-center">
                   <p className="text-lg font-bold text-foreground">{summary.edgeCount}</p>
                   <p className="text-[10px] text-muted-foreground">Edges</p>
                 </div>
-                <div className="p-3 rounded-xl bg-accent/30 border border-border/40 text-center">
+                <div className="p-3 rounded-xl bg-brand/30 border border-border/40 text-center">
                   <p className="text-lg font-bold text-foreground">{summary.workflowCount}</p>
                   <p className="text-[10px] text-muted-foreground">Workflows</p>
                 </div>
@@ -256,7 +256,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                     {summary.workflows.slice(0, 4).map((wf) => (
                       <li
                         key={wf.name}
-                        className="text-[11px] px-2.5 py-1.5 rounded-lg bg-accent/40 border border-border/40 text-muted-foreground"
+                        className="text-[11px] px-2.5 py-1.5 rounded-lg bg-brand/40 border border-border/40 text-muted-foreground"
                       >
                         <span className="font-medium text-foreground/90">{wf.name}</span>
                         {wf.steps.length > 0 && (
@@ -278,7 +278,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                     {summary.criticalDependencies.map((dep) => (
                       <li
                         key={dep.name}
-                        className="text-[11px] px-2.5 py-1.5 rounded-lg bg-accent/40 border border-border/40"
+                        className="text-[11px] px-2.5 py-1.5 rounded-lg bg-brand/40 border border-border/40"
                       >
                         <span className="font-medium text-foreground/90">{dep.name}</span>
                         <span className="text-muted-foreground"> — {dep.architecturalRole}</span>
@@ -299,7 +299,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded-xl transition-all"
+                  className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-brand/60 rounded-xl transition-all"
                 >
                   Cancel
                 </button>
@@ -343,7 +343,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all"
+              className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition-all"
             >
               <X className="w-4 h-4" />
             </button>
@@ -362,7 +362,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 placeholder="https://github.com/owner/repo"
                 disabled={isLoading}
                 autoFocus
-                className="w-full px-3.5 py-2.5 text-sm bg-accent/40 rounded-xl outline-none border border-border/40 focus:border-primary/50 text-foreground placeholder:text-muted-foreground/60 transition-all shadow-inner"
+                className="w-full px-3.5 py-2.5 text-sm bg-brand/40 rounded-xl outline-none border border-border/40 focus:border-primary/50 text-foreground placeholder:text-muted-foreground/60 transition-all shadow-inner"
               />
               <span className="text-[10px] text-muted-foreground/80 mt-1 leading-relaxed">
                 * Public repositories only. Pasted a file/branch URL? We&apos;ll extract the repo automatically. Works with any language or framework.
@@ -401,7 +401,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 type="button"
                 onClick={onClose}
                 disabled={isLoading}
-                className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded-xl transition-all"
+                className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-brand/60 rounded-xl transition-all"
               >
                 Cancel
               </button>

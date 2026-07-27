@@ -1,5 +1,6 @@
 'use client';
 
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useState, useEffect, useRef } from 'react';
 import {
   Server, Database, Radio, Globe, Monitor, Brain, Shield,
@@ -63,6 +64,7 @@ export function CreateComponentModal({
   existingNames,
   editComponent,
 }: CreateComponentModalProps) {
+  useBodyScrollLock(isOpen);
   if (!isOpen) return null;
 
   const isEditing = !!editComponent;
@@ -86,7 +88,7 @@ export function CreateComponentModal({
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-all"
+            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-brand/60 transition-all"
           >
             <X className="w-4 h-4" />
           </button>
@@ -205,7 +207,7 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
             Name
           </label>
           {selectedTypeData && (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand">
               <selectedTypeData.icon
                 className="w-3 h-3"
                 style={{ color: selectedTypeData.color }}
@@ -252,7 +254,7 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
                 onClick={() => setSelectedType(type.id)}
                 className={`group relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl transition-all ${isSelected
                   ? 'bg-primary/10'
-                  : 'hover:bg-accent/50'
+                  : 'hover:bg-brand/50'
                   }`}
               >
                 <div
@@ -311,7 +313,7 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all"
+          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-brand/50 rounded-xl transition-all"
         >
           Cancel
         </button>

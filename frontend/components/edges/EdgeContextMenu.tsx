@@ -3,6 +3,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { Trash2, GitBranch, ChevronRight, ArrowUp, ArrowRight, ArrowDown, ArrowLeft, RotateCcw, Route } from 'lucide-react';
 import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType, type EdgePortSide } from '@/data/edgeTypes';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   edgeId: string;
@@ -96,12 +97,12 @@ export function EdgeContextMenu({
     >
       {/* Change Type Submenu */}
       <div className="relative">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onMouseEnter={() => setShowSubmenu('type')}
           onClick={() => setShowSubmenu(showSubmenu === 'type' ? null : 'type')}
-          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
-            showSubmenu === 'type' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-          }`}
+          className="w-full justify-between !h-auto !px-3 !py-2"
         >
           <div className="flex items-center gap-2.5">
             <GitBranch size={14} style={{ color: activeConfig.color }} />
@@ -111,8 +112,8 @@ export function EdgeContextMenu({
             <span style={{ color: activeConfig.color }} className="text-[10px] font-semibold">{activeConfig.label}</span>
             <ChevronRight size={12} className="text-muted-foreground" />
           </div>
-        </button>
-        
+        </Button>
+
         {showSubmenu === 'type' && (
           <div
             className="absolute left-full top-0 ml-1 min-w-[120px] rounded-md border border-border bg-card p-1 shadow-lg"
@@ -121,12 +122,12 @@ export function EdgeContextMenu({
               const cfg = EDGE_TYPE_CONFIGS[type];
               const isActive = type === currentEdgeType;
               return (
-                <button
+                <Button
                   key={type}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => handleEdgeTypeChange(type)}
-                  className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-colors ${
-                    isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                  }`}
+                  className="w-full justify-start gap-2.5 !h-auto !px-2.5 !py-2"
                   style={isActive ? { background: `${cfg.color}20` } : {}}
                 >
                   <svg width="24" height="4" viewBox="0 0 24 4" className="rounded">
@@ -139,7 +140,7 @@ export function EdgeContextMenu({
                     />
                   </svg>
                   {cfg.label}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -148,12 +149,12 @@ export function EdgeContextMenu({
 
 
       <div className="relative">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onMouseEnter={() => setShowSubmenu('route')}
           onClick={() => setShowSubmenu(showSubmenu === 'route' ? null : 'route')}
-          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-xs font-medium transition-colors ${
-            showSubmenu === 'route' ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-          }`}
+          className="w-full justify-between !h-auto !px-3 !py-2"
         >
           <div className="flex items-center gap-2.5">
             <Route size={14} />
@@ -165,7 +166,7 @@ export function EdgeContextMenu({
             </span>
             <ChevronRight size={12} className="text-muted-foreground" />
           </div>
-        </button>
+        </Button>
 
         {showSubmenu === 'route' && (
           <div className="absolute left-full top-0 ml-1 grid min-w-[176px] gap-2 rounded-md border border-border bg-card p-2 shadow-lg">
@@ -181,18 +182,20 @@ export function EdgeContextMenu({
                       const Icon = option.icon;
                       const active = option.value === current;
                       return (
-                        <button
+                        <Button
                           key={`${key}-${option.label}`}
+                          variant="ghost"
+                          size="icon"
                           onClick={() => handleSideChange(key, option.value)}
                           title={`${key === 'sourceSide' ? 'Source' : 'Target'} ${option.label}`}
-                          className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+                          className={`!h-7 !w-7 ${
                             active
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                              ? 'border border-primary bg-primary/10 text-primary'
+                              : 'border border-border text-muted-foreground'
                           }`}
                         >
                           <Icon className="h-3.5 w-3.5" />
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -205,35 +208,40 @@ export function EdgeContextMenu({
 
       {hasCustomWaypoints && (
         <>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleResetRoute}
-            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/50"
+            className="w-full justify-start gap-2.5 !h-auto !px-3 !py-2"
           >
             <RotateCcw size={14} />
             <span>Reset Route</span>
-          </button>
+          </Button>
           <div className="my-1.5 h-px bg-border" />
         </>
       )}
 
       {!hasCustomWaypoints && <div className="my-1.5 h-px bg-border" />}
 
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={handleDelete}
-        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+        className="w-full justify-start gap-2.5 !h-auto !px-3 !py-2 !text-destructive hover:!bg-destructive/10"
       >
         <Trash2 size={14} />
         <span>Delete Edge</span>
-      </button>
+      </Button>
 
       <ConfirmDialog
-        isOpen={confirmDelete}
+        open={confirmDelete}
+        onOpenChange={(open) => !open && setConfirmDelete(false)}
         title="Delete edge?"
         description="This action cannot be undone."
         confirmText="Delete"
+        cancelText="Cancel"
         destructive
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setConfirmDelete(false)}
       />
     </div>
   );

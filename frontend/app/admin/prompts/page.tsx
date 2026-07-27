@@ -56,20 +56,20 @@ export default function PromptsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search prompts..."
-            className="w-full text-xs bg-[#0f1011] border border-[#18191a] rounded-lg px-3 py-2 text-[#d0d6e0] placeholder:text-[#62666d] focus:outline-none focus:border-[#1E90FF]"
+            className="w-full text-xs bg-surface-page border border-border-default rounded-lg px-3 py-2 text-text-secondary placeholder:text-text-muted focus:outline-none focus:border-brand-text"
           />
           <button
             onClick={fetchPrompts}
-            className="p-1.5 rounded-lg border border-[#18191a] text-[#8a8f98] hover:text-[#f7f8f8] hover:border-[#1E90FF] transition-colors cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg border border-border-default text-text-muted hover:text-text-primary hover:border-brand-text transition-colors cursor-pointer shrink-0"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#18191a] bg-[#0f1011] overflow-hidden">
+      <div className="rounded-xl border border-border-default bg-surface-page overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[140px_1fr_80px_100px_80px] gap-2 py-2 px-3 border-b border-[#18191a] text-[10px] text-[#62666d] uppercase tracking-wider">
+        <div className="grid grid-cols-[140px_1fr_80px_100px_80px] gap-2 py-2 px-3 border-b border-border-default text-[10px] text-text-muted uppercase tracking-wider">
           <span>Time</span>
           <span>Prompt</span>
           <span>Length</span>
@@ -79,7 +79,7 @@ export default function PromptsPage() {
 
         <div className="max-h-[calc(100vh-200px)] overflow-auto">
           {filtered.length === 0 && !loading ? (
-            <div className="py-12 text-center text-xs text-[#62666d]">
+            <div className="py-12 text-center text-xs text-text-muted">
               {search ? 'No prompts match your search.' : 'No prompts submitted yet.'}
             </div>
           ) : (
@@ -89,28 +89,28 @@ export default function PromptsPage() {
               return (
                 <div
                   key={p.id}
-                  className="grid grid-cols-[140px_1fr_80px_100px_80px] gap-2 py-2.5 px-3 border-b border-[#18191a]/50 text-xs hover:bg-[#141516] transition-colors"
+                  className="grid grid-cols-[140px_1fr_80px_100px_80px] gap-2 py-2.5 px-3 border-b border-border-default/50 text-xs hover:bg-surface-panel transition-colors"
                 >
-                  <span className="text-[#8a8f98] tabular-nums">
+                  <span className="text-text-muted tabular-nums">
                     {new Date(p.created_at).toLocaleString()}
                   </span>
-                  <span className="text-[#d0d6e0] line-clamp-2">
+                  <span className="text-text-secondary line-clamp-2">
                     {p.payload?.prompt_text || p.payload?.prompt_length
                       ? `(${p.payload.prompt_length} chars)`
                       : '--'}
                   </span>
-                  <span className="text-[#8a8f98] tabular-nums">
+                  <span className="text-text-muted tabular-nums">
                     {String(p.payload?.prompt_length ?? '--')}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                      isInternal ? 'bg-[#f59e0b]/10 text-[#f59e0b]' : isAuth ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-[#8a8f98]/10 text-[#8a8f98]'
+                      isInternal ? 'bg-warning/10 text-warning' : isAuth ? 'bg-success/10 text-success' : 'bg-text-muted/10 text-text-muted'
                     }`}>
                       {isInternal ? 'int' : isAuth ? 'auth' : 'guest'}
                     </span>
-                    <span className="text-[#62666d] truncate">{p.visitors?.anon_id?.slice(0, 6)}</span>
+                    <span className="text-text-muted truncate">{p.visitors?.anon_id?.slice(0, 6)}</span>
                   </span>
-                  <span className="text-[#8a8f98]">
+                  <span className="text-text-muted">
                     {p.page_path}
                   </span>
                 </div>

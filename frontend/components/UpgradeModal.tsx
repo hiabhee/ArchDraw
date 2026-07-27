@@ -1,5 +1,6 @@
 'use client';
 
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { X, Check, Sparkles } from 'lucide-react';
 import { SignInButtons } from '@/components/SignInButtons';
 
@@ -18,8 +19,8 @@ export function UpgradeModal({
   message,
   benefits,
 }: UpgradeModalProps) {
+  useBodyScrollLock(isOpen);
   if (!isOpen) return null;
-
   return (
     <>
       {/* Backdrop */}

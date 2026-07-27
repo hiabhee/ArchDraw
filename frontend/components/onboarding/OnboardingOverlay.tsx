@@ -25,29 +25,36 @@ function computeCardPosition(
   cardPosition: string,
 ): { top: number; left: number } {
   const pad = 16;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+  // Card clamps to 80% of viewport on small screens
+  const cardW = Math.min(CARD_WIDTH, Math.max(280, vw - 32));
+  const cardH = Math.min(CARD_HEIGHT, Math.max(200, vh - 100));
+  const maxLeft = Math.max(pad, vw - cardW - pad);
+  const maxTop = Math.max(pad, vh - cardH - pad);
   switch (cardPosition) {
     case 'center':
       return {
-        top: typeof window !== 'undefined' ? window.innerHeight / 2 - CARD_HEIGHT / 2 : 0,
-        left: typeof window !== 'undefined' ? window.innerWidth / 2 - CARD_WIDTH / 2 : 0,
+        top: Math.max(pad, Math.min(vh / 2 - cardH / 2, maxTop)),
+        left: Math.max(pad, Math.min(vw / 2 - cardW / 2, maxLeft)),
       };
     case 'right':
       if (!rect) return { top: 100, left: 100 };
       return {
-        top: typeof window !== 'undefined' ? Math.min(Math.max(rect.top, 20), window.innerHeight - CARD_HEIGHT - 20) : 100,
-        left: typeof window !== 'undefined' ? Math.min(rect.right + pad, window.innerWidth - CARD_WIDTH - 20) : 100,
+        top: Math.max(pad, Math.min(Math.max(rect.top, pad), maxTop)),
+        left: Math.max(pad, Math.min(rect.right + pad, maxLeft)),
       };
     case 'below':
       if (!rect) return { top: 100, left: 100 };
       return {
-        top: typeof window !== 'undefined' ? Math.min(rect.bottom + pad, window.innerHeight - CARD_HEIGHT - 20) : 100,
-        left: typeof window !== 'undefined' ? Math.max(Math.min(rect.left, window.innerWidth - CARD_WIDTH - 20), 20) : 100,
+        top: Math.max(pad, Math.min(rect.bottom + pad, maxTop)),
+        left: Math.max(pad, Math.min(Math.max(rect.left, pad), maxLeft)),
       };
     case 'below-left':
       if (!rect) return { top: 100, left: 100 };
       return {
-        top: typeof window !== 'undefined' ? Math.min(rect.bottom + pad, window.innerHeight - CARD_HEIGHT - 20) : 100,
-        left: Math.max(rect.right - CARD_WIDTH, 20),
+        top: Math.max(pad, Math.min(rect.bottom + pad, maxTop)),
+        left: Math.max(pad, Math.min(Math.max(rect.right - cardW, pad), maxLeft)),
       };
     default:
       return { top: 100, left: 100 };

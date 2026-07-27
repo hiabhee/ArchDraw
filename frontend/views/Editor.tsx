@@ -430,20 +430,20 @@ export default function EditorPage() {
           <CanvasSidebar onClose={() => setCanvasSidebarOpen(false)} />
         )}
         
-        {!isMobile && sidebarOpen && (
+        {sidebarOpen && (
           <ComponentSidebar
             onOpenCreateModal={() => setShowCreateModal(true)}
           />
         )}
-        
-        {!isMobile && (selectedNodeId && !selectedEdgeId) && (
-          <ContextualSidebar 
-            nodeId={selectedNodeId} 
-            onClose={() => useDiagramStore.getState().setSelectedNodeId(null)} 
+
+        {(selectedNodeId && !selectedEdgeId) && (
+          <ContextualSidebar
+            nodeId={selectedNodeId}
+            onClose={() => useDiagramStore.getState().setSelectedNodeId(null)}
           />
         )}
-        
-        {!isMobile && selectedEdgeId && <PropertiesPanel />}
+
+        {selectedEdgeId && <PropertiesPanel />}
         
         <CommandPalette />
         <OnboardingOverlay />

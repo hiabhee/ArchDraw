@@ -6,6 +6,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { Trash2, Edit3, Check, X, ChevronDown, ArrowUp, ArrowRight, ArrowDown, ArrowLeft, RotateCcw } from 'lucide-react';
 import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType, type EdgePortSide } from '@/data/edgeTypes';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   edgeId: string;
@@ -147,7 +148,7 @@ export function EdgeToolbar({
             {activeConfig.label}
             <ChevronDown className="w-3 h-3" />
           </button>
-          
+
           {showTypeMenu && (
             <div
               ref={typeMenuRef}
@@ -157,12 +158,12 @@ export function EdgeToolbar({
                 const cfg = EDGE_TYPE_CONFIGS[type];
                 const isActive = type === currentEdgeType;
                 return (
-                  <button
+                  <Button
                     key={type}
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleEdgeTypeChange(type)}
-                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors ${
-                      isActive ? '' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                    }`}
+                    className="w-full justify-start gap-2 rounded !h-auto !px-2 !py-1.5"
                     style={isActive ? { background: `${cfg.color}20`, color: cfg.color } : {}}
                   >
                     <svg width="16" height="4" viewBox="0 0 16 4" className="rounded">
@@ -175,7 +176,7 @@ export function EdgeToolbar({
                       />
                     </svg>
                     {cfg.label}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -183,16 +184,18 @@ export function EdgeToolbar({
         </div>
 
         <div className="relative">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowRouteMenu(!showRouteMenu)}
             title="Edit route ports"
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            className="!h-auto !px-1.5 !py-0.5 gap-1"
           >
             <ActiveSourceIcon className="w-3 h-3" />
             <span className="text-[9px]">→</span>
             <ActiveTargetIcon className="w-3 h-3" />
             <ChevronDown className="w-3 h-3" />
-          </button>
+          </Button>
 
           {showRouteMenu && (
             <div
@@ -211,18 +214,20 @@ export function EdgeToolbar({
                         const Icon = option.icon;
                         const active = option.value === current;
                         return (
-                          <button
+                          <Button
                             key={`${key}-${option.label}`}
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleSideChange(key, option.value)}
                             title={`${key === 'sourceSide' ? 'Source' : 'Target'} ${option.label}`}
-                            className={`flex h-7 w-7 items-center justify-center rounded border text-xs transition-colors ${
+                            className={`!h-7 !w-7 ${
                               active
-                                ? 'border-primary bg-primary/10 text-primary'
-                                : 'border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                                ? 'border border-primary bg-primary/10 text-primary'
+                                : 'border border-border text-muted-foreground'
                             }`}
                           >
                             <Icon className="h-3.5 w-3.5" />
-                          </button>
+                          </Button>
                         );
                       })}
                     </div>
@@ -247,22 +252,34 @@ export function EdgeToolbar({
               className="w-20 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-foreground"
               placeholder="Label..."
             />
-            <button onClick={handleSaveLabel} className="text-emerald-500 hover:text-emerald-400">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSaveLabel}
+              className="!h-6 !w-6 !text-emerald-500 hover:!text-emerald-400"
+            >
               <Check className="w-3 h-3" />
-            </button>
-            <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground">
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCancelEdit}
+              className="!h-6 !w-6"
+            >
               <X className="w-3 h-3" />
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setIsEditing(true)}
-              className="text-muted-foreground hover:text-foreground"
+              className="!h-6 !w-6"
               title="Edit label"
             >
               <Edit3 className="w-3 h-3" />
-            </button>
+            </Button>
             <span className="max-w-[100px] truncate text-[10px] text-muted-foreground">
               {currentLabel || 'Add label'}
             </span>
@@ -270,32 +287,37 @@ export function EdgeToolbar({
         )}
 
         {hasCustomWaypoints && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleResetRoute}
-            className="text-muted-foreground hover:text-foreground"
+            className="!h-6 !w-6"
             title="Reset route to auto"
           >
             <RotateCcw className="w-3 h-3" />
-          </button>
+          </Button>
         )}
 
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={handleDelete}
-          className="text-muted-foreground hover:text-destructive"
+          className="!h-6 !w-6 hover:!text-destructive"
           title="Delete edge"
         >
           <Trash2 className="w-3 h-3" />
-        </button>
+        </Button>
       </div>
 
       <ConfirmDialog
-        isOpen={confirmDelete}
+        open={confirmDelete}
+        onOpenChange={(open) => !open && setConfirmDelete(false)}
         title="Delete edge?"
         description="This action cannot be undone."
         confirmText="Delete"
+        cancelText="Cancel"
         destructive
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setConfirmDelete(false)}
       />
     </EdgeLabelRenderer>
   );

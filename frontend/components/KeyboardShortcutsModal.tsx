@@ -71,7 +71,7 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[75vh] overflow-hidden flex flex-col gap-0">
         <DialogHeader className="flex flex-row items-center gap-2 shrink-0 px-6 pt-4 pb-2">
-          <div className="w-8 h-8 rounded-xl bg-accent/60 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-brand/60 flex items-center justify-center">
             <Keyboard className="w-4 h-4 text-foreground/70" />
           </div>
           <DialogTitle className="text-sm font-semibold">Keyboard Shortcuts</DialogTitle>
@@ -94,7 +94,7 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
                       className="flex items-center justify-between py-1.5"
                     >
                       <span className="text-xs text-foreground/80">{action}</span>
-                      <kbd className="text-[10px] font-mono font-medium text-foreground/70 bg-accent/60 rounded-lg px-2 py-1 ml-2 shrink-0">
+                      <kbd className="text-[10px] font-mono font-medium text-foreground/70 bg-brand/60 rounded-lg px-2 py-1 ml-2 shrink-0">
                         {key}
                       </kbd>
                     </div>

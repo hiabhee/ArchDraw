@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface AuthModalProps {
   open: boolean;
@@ -11,6 +12,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
+  useBodyScrollLock(open);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,14 +38,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div
         className="absolute inset-0"
         style={{ background: 'rgba(0, 0, 0, 0.3)' }}
         onClick={() => onOpenChange(false)}
       />
       <div
-        className="relative w-full max-w-sm mx-4 p-8"
+        className="relative w-full max-w-sm p-6 sm:p-8"
         style={{
           background: 'white',
           borderRadius: 20,
@@ -52,7 +54,8 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       >
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute top-4 right-4 p-2 rounded-lg transition-colors hover:bg-gray-100"
+          aria-label="Close"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors hover:bg-gray-100"
           style={{ color: '#6B6B6B' }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,15 +63,15 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           </svg>
         </button>
 
-        <h2 className="text-2xl font-bold text-[#1A1A1A] mb-1">Sign in to ArchDraw</h2>
-        <p className="text-sm mb-8" style={{ color: '#6B6B6B' }}>
+        <h2 className="text-2xl font-bold text-[#1A1A1A] mb-1 pr-8">Sign in to ArchDraw</h2>
+        <p className="text-sm mb-6 sm:mb-8" style={{ color: '#6B6B6B' }}>
           Export diagrams and sync across devices
         </p>
 
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full py-3.5 px-4 text-sm font-medium rounded-[14px] transition-all hover:bg-gray-50 flex items-center justify-center gap-3 disabled:opacity-50"
+          className="w-full min-h-[48px] py-3.5 px-4 text-sm font-medium rounded-[14px] transition-all hover:bg-gray-50 flex items-center justify-center gap-3 disabled:opacity-50"
           style={{ background: '#F8F8F8', color: '#1A1A1A' }}
         >
           {loading ? (

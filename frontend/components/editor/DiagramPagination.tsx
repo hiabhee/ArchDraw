@@ -110,7 +110,7 @@ export function DiagramPagination() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="px-3 py-1.5 rounded-md bg-muted/50 hover:bg-muted text-sm font-medium transition-colors focus:outline-none flex items-center gap-1">
-            <span className="text-xs font-medium truncate max-w-[100px] sm:max-w-[150px] block">
+            <span className="text-xs font-medium truncate max-w-[80px] sm:max-w-[150px] block">
               {currentName}
             </span>
             <ChevronDown className="w-3 h-3 text-muted-foreground" />
@@ -121,7 +121,7 @@ export function DiagramPagination() {
             <DropdownMenuItem 
               key={c.id} 
               onClick={() => navigateTo(c.id)}
-              className={`text-xs ${c.id === activeCanvasId ? 'bg-accent font-semibold' : ''}`}
+              className={`text-xs ${c.id === activeCanvasId ? 'bg-brand font-semibold' : ''}`}
             >
               <span className="truncate">{c.name || 'Untitled'}</span>
             </DropdownMenuItem>

@@ -4,7 +4,7 @@
 
 @theme {
   --font-serif: var(--font-instrument-serif);
-  
+
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -24,7 +24,7 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  
+
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
@@ -40,32 +40,43 @@
   --color-surface-page: var(--surface-page);
   --color-surface-panel: var(--surface-panel);
   --color-surface-card: var(--surface-card);
+  --color-border-default: var(--border-default);
   --color-border-strong: var(--border-strong);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-bg: var(--accent-bg);
-  --color-accent-text: var(--accent-text);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-text: var(--brand-text);
 
-  --color-lc: #010102;
-  --color-ls1: #0f1011;
-  --color-ls2: #141516;
-  --color-ls3: #18191a;
-  --color-lp: #1E90FF;
-  --color-lph: #4dabf7;
-  --color-li: #f7f8f8;
-  --color-lim: #d0d6e0;
-  --color-lis: #8a8f98;
-  --color-lit: #62666d;
-  --color-lh: #23252a;
-  --color-lhs: #34343a;
-  --color-lg: #27a644;
-  --color-lr: #eb534b;
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
 
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --color-overlay-modal: var(--overlay-modal);
+  --color-overlay-drawer: var(--overlay-drawer);
+  --color-overlay-spotlight: var(--overlay-spotlight);
+
+  /* Radius scale (consumed by rounded-xs..3xl utilities) */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-3xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadow scale (consumed by shadow-1..5 utilities) */
+  --shadow-1: 0 1px 4px hsl(var(--foreground) / 0.04);
+  --shadow-2: 0 2px 8px hsl(var(--foreground) / 0.06);
+  --shadow-3: 0 4px 16px hsl(var(--foreground) / 0.08);
+  --shadow-4: 0 8px 32px hsl(var(--foreground) / 0.12);
+  --shadow-5: 0 16px 48px hsl(var(--foreground) / 0.16);
 
   --animate-gradient: gradient 8s linear infinite;
   --animate-marquee: marquee 40s linear infinite;
@@ -167,10 +178,23 @@
     --text-primary: #1c1c1a;
     --text-secondary: #575752;
     --text-muted: #8a8f98;
-    --accent: #1E90FF;
-    --accent-hover: #1c7ed6;
-    --accent-bg: rgba(30, 144, 255, 0.08);
-    --accent-text: #1E90FF;
+    --brand: #1E90FF;
+    --brand-hover: #1c7ed6;
+    --brand-bg: rgba(30, 144, 255, 0.08);
+    --brand-text: #1E90FF;
+
+    /* ── Status (semantic) ── */
+    --success: #10B981;
+    --success-bg: rgba(16, 185, 129, 0.10);
+    --warning: #F59E0B;
+    --warning-bg: rgba(245, 158, 11, 0.10);
+    --info: #3B82F6;
+    --info-bg: rgba(59, 130, 246, 0.10);
+
+    /* ── Overlays (modal scrim, drawer, spotlight) ── */
+    --overlay-modal: hsl(0 0% 0% / 0.50);
+    --overlay-drawer: hsl(0 0% 0% / 0.35);
+    --overlay-spotlight: hsl(0 0% 0% / 0.65);
   }
 
   .dark, :where(.dark, .dark *) {
@@ -239,10 +263,30 @@
     --text-primary: #f7f8f8;
     --text-secondary: #d0d6e0;
     --text-muted: #8a8f98;
-    --accent: #1E90FF;
-    --accent-hover: #4dabf7;
-    --accent-bg: rgba(30, 144, 255, 0.12);
-    --accent-text: #4dabf7;
+    --brand: #1E90FF;
+    --brand-hover: #4dabf7;
+    --brand-bg: rgba(30, 144, 255, 0.12);
+    --brand-text: #4dabf7;
+
+    /* ── Status (semantic) ── */
+    --success: #34D399;
+    --success-bg: rgba(52, 211, 153, 0.12);
+    --warning: #FBBF24;
+    --warning-bg: rgba(251, 191, 36, 0.12);
+    --info: #60A5FA;
+    --info-bg: rgba(96, 165, 250, 0.12);
+
+    /* ── Overlays (modal scrim, drawer, spotlight) ── */
+    --overlay-modal: hsl(0 0% 0% / 0.65);
+    --overlay-drawer: hsl(0 0% 0% / 0.45);
+    --overlay-spotlight: hsl(0 0% 0% / 0.75);
+
+    /* ── Shadows: dark-mode paper stacking (overrides @theme light values) ── */
+    --shadow-1: 0 1px 0 hsl(215 25% 28% / 0.4), 0 1px 3px hsl(0 0% 0% / 0.3);
+    --shadow-2: 0 1px 0 hsl(215 25% 28% / 0.45), 0 2px 4px hsl(0 0% 0% / 0.35), 0 4px 8px hsl(0 0% 0% / 0.15);
+    --shadow-3: 0 1px 0 hsl(215 25% 26% / 0.5), 0 3px 6px hsl(0 0% 0% / 0.35), 0 6px 14px hsl(0 0% 0% / 0.2);
+    --shadow-4: 0 1px 0 hsl(215 25% 24% / 0.5), 0 4px 10px hsl(0 0% 0% / 0.4), 0 8px 24px hsl(0 0% 0% / 0.25);
+    --shadow-5: 0 1px 0 hsl(215 25% 22% / 0.5), 0 6px 16px hsl(0 0% 0% / 0.45), 0 12px 36px hsl(0 0% 0% / 0.3);
   }
 }
 

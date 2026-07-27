@@ -32,16 +32,16 @@ function SidebarItem({ icon: Icon, label, active, onClick, badge }: SidebarItemP
     <button
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 cursor-pointer ${
-        active 
-          ? 'bg-accent text-white shadow-sm' 
-          : 'text-text-secondary hover:bg-accent hover:text-white'
+        active
+          ? 'bg-brand-bg text-brand-text shadow-sm'
+          : 'text-text-secondary hover:bg-brand-bg hover:text-brand-text'
       }`}
     >
       <Icon className="w-5 h-5" />
       <span className="text-sm font-medium flex-1 text-left">{label}</span>
       {badge && (
         <span className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-          active ? 'bg-white/20 text-white' : 'bg-accent text-white'
+          active ? 'bg-brand text-white' : 'bg-brand-bg text-brand-text'
         }`}>
           {badge}
         </span>
@@ -67,16 +67,16 @@ function CollapsibleGroup({
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 text-text-primary hover:bg-accent hover:text-white group cursor-pointer"
+        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 text-text-primary hover:bg-brand-bg hover:text-brand-text group cursor-pointer"
       >
         <Icon className="w-5 h-5" />
         <span className="text-xs font-semibold flex-1 text-left tracking-wider uppercase opacity-60">
           {label}
         </span>
         {isOpen ? (
-          <ChevronDown className="w-4 h-4 text-text-muted group-hover:text-white transition-colors" />
+          <ChevronDown className="w-4 h-4 text-text-muted group-hover:text-brand-text transition-colors" />
         ) : (
-          <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-white transition-colors" />
+          <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-brand-text transition-colors" />
         )}
       </button>
       {isOpen && <div className="mt-1 pl-7 space-y-1">{children}</div>}
@@ -89,9 +89,9 @@ function SubmenuItem({ label, active, onClick }: { label: string; active?: boole
     <button
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-2 rounded-[12px] transition-all duration-200 cursor-pointer ${
-        active 
-          ? 'bg-accent text-white shadow-sm' 
-          : 'text-text-muted hover:bg-accent hover:text-white'
+        active
+          ? 'bg-brand-bg text-brand-text shadow-sm'
+          : 'text-text-muted hover:bg-brand-bg hover:text-brand-text'
       }`}
     >
       <span className="text-sm font-medium">{label}</span>
@@ -193,7 +193,7 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 px-1">
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center bg-accent"
+                className="w-8 h-8 rounded-lg flex items-center justify-center bg-brand"
               >
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
@@ -306,7 +306,7 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
           {/* Logo & Title */}
           <div className="flex items-center gap-3 px-2 mb-2">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-accent"
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-brand"
             >
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
@@ -419,14 +419,15 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
           >
             {/* Top row layout */}
             <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <button
                   onClick={() => setMobileMenuOpen(true)}
-                  className="md:hidden p-1.5 rounded-lg hover:bg-surface-page text-text-muted"
+                  aria-label="Open menu"
+                  className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-surface-page text-text-muted"
                 >
                   <Menu className="w-5 h-5" />
                 </button>
-                <h1 className="text-lg md:text-xl font-bold text-text-primary leading-tight">
+                <h1 className="text-base sm:text-lg md:text-xl font-bold text-text-primary leading-tight truncate">
                   {activePage === 'Dashboard' && 'Dashboard'}
                   {activePage === 'Templates' && 'Architecture Templates'}
                   {activePage === 'Learn' && 'System Design Tutorials'}
@@ -436,10 +437,11 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
                   {activePage === 'Admin' && 'Admin Panel'}
                 </h1>
               </div>
-              
-              <div className="flex items-center gap-2.5 shrink-0">
+
+              <div className="flex items-center gap-2 shrink-0">
                 <button
-                  className="p-1.5 rounded-lg transition-colors bg-surface-page text-text-secondary hover:bg-border-default"
+                  aria-label="Notifications"
+                  className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg transition-colors bg-surface-page text-text-secondary hover:bg-border-default"
                 >
                   <Bell className="w-4 h-4 md:w-5 md:h-5" />
                 </button>

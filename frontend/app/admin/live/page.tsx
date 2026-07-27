@@ -38,33 +38,33 @@ function EventRow({ event }: { event: Event }) {
   const time = new Date(event.created_at).toLocaleTimeString();
 
   return (
-    <div className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-[#141516] transition-colors text-xs border-b border-[#18191a]/50">
-      <span className="text-[#62666d] w-16 shrink-0 tabular-nums">{time}</span>
-      <Icon className="w-3.5 h-3.5 text-[#1E90FF] shrink-0" />
+    <div className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-surface-panel transition-colors text-xs border-b border-border-default/50">
+      <span className="text-text-muted w-16 shrink-0 tabular-nums">{time}</span>
+      <Icon className="w-3.5 h-3.5 text-brand-text shrink-0" />
       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-        event.event_type === 'click' ? 'bg-[#f59e0b]/10 text-[#f59e0b]'
-        : event.event_type === 'prompt_submitted' ? 'bg-[#8b5cf6]/10 text-[#8b5cf6]'
-        : event.event_type === 'export' ? 'bg-[#10b981]/10 text-[#10b981]'
-        : event.event_type === 'tutorial_interaction' ? 'bg-[#f97316]/10 text-[#f97316]'
-        : event.event_type === 'ai_generation' ? 'bg-[#06b6d4]/10 text-[#06b6d4]'
-        : event.event_type === 'ai_settings' ? 'bg-[#06b6d4]/10 text-[#06b6d4]'
-        : event.event_type === 'sharing' ? 'bg-[#ec4899]/10 text-[#ec4899]'
-        : event.event_type === 'settings_interaction' ? 'bg-[#a855f7]/10 text-[#a855f7]'
-        : event.event_type === 'ui_interaction' ? 'bg-[#14b8a6]/10 text-[#14b8a6]'
-        : 'bg-[#1E90FF]/10 text-[#1E90FF]'
+        event.event_type === 'click' ? 'bg-warning/10 text-warning'
+        : event.event_type === 'prompt_submitted' ? 'bg-purple-500/10 text-purple-400'
+        : event.event_type === 'export' ? 'bg-success/10 text-success'
+        : event.event_type === 'tutorial_interaction' ? 'bg-orange-500/10 text-orange-400'
+        : event.event_type === 'ai_generation' ? 'bg-cyan-500/10 text-cyan-400'
+        : event.event_type === 'ai_settings' ? 'bg-cyan-500/10 text-cyan-400'
+        : event.event_type === 'sharing' ? 'bg-pink-500/10 text-pink-400'
+        : event.event_type === 'settings_interaction' ? 'bg-purple-500/10 text-purple-400'
+        : event.event_type === 'ui_interaction' ? 'bg-teal-500/10 text-teal-400'
+        : 'bg-brand-text/10 text-brand-text'
       }`}>
         {event.event_type}
       </span>
       {event.event_name && (
-        <span className="text-[#d0d6e0] truncate max-w-[150px]">{event.event_name}</span>
+        <span className="text-text-secondary truncate max-w-[150px]">{event.event_name}</span>
       )}
-      <span className="text-[#8a8f98] truncate flex-1">{event.page_path}</span>
+      <span className="text-text-muted truncate flex-1">{event.page_path}</span>
       <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-        isInternal ? 'bg-[#f59e0b]/10 text-[#f59e0b]' : isAuth ? 'bg-[#10b981]/10 text-[#10b981]' : 'bg-[#8a8f98]/10 text-[#8a8f98]'
+        isInternal ? 'bg-warning/10 text-warning' : isAuth ? 'bg-success/10 text-success' : 'bg-text-muted/10 text-text-muted'
       }`}>
         {isInternal ? 'internal' : isAuth ? 'auth' : 'guest'}
       </span>
-      <span className="text-[#62666d] w-16 truncate text-right tabular-nums" title={event.visitors?.anon_id}>
+      <span className="text-text-muted w-16 truncate text-right tabular-nums" title={event.visitors?.anon_id}>
         {event.visitors?.anon_id?.slice(0, 6)}
       </span>
     </div>
@@ -111,24 +111,24 @@ export default function LiveFeedPage() {
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
               autoRefresh
-                ? 'border-[#1E90FF] text-[#1E90FF] bg-[#1E90FF]/10'
-                : 'border-[#18191a] text-[#8a8f98] hover:border-[#1E90FF]'
+                ? 'border-brand-text text-brand-text bg-brand-text/10'
+                : 'border-border-default text-text-muted hover:border-brand-text'
             }`}
           >
             {autoRefresh ? 'Auto-refreshing' : 'Paused'}
           </button>
           <button
             onClick={fetchEvents}
-            className="p-1.5 rounded-lg border border-[#18191a] text-[#8a8f98] hover:text-[#f7f8f8] hover:border-[#1E90FF] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-border-default text-text-muted hover:text-text-primary hover:border-brand-text transition-colors cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-[#18191a] bg-[#0f1011] overflow-hidden">
+      <div className="rounded-xl border border-border-default bg-surface-page overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-3 py-2 px-3 border-b border-[#18191a] text-[10px] text-[#62666d] uppercase tracking-wider">
+        <div className="flex items-center gap-3 py-2 px-3 border-b border-border-default text-[10px] text-text-muted uppercase tracking-wider">
           <span className="w-16 shrink-0">Time</span>
           <span className="w-3.5 shrink-0" />
           <span className="w-[70px]">Type</span>
@@ -141,7 +141,7 @@ export default function LiveFeedPage() {
         {/* Events */}
         <div className="max-h-[calc(100vh-200px)] overflow-auto">
           {events.length === 0 && !loading ? (
-            <div className="py-12 text-center text-xs text-[#62666d]">
+            <div className="py-12 text-center text-xs text-text-muted">
               No events yet. Start using the app to see tracking data flow in.
             </div>
           ) : (

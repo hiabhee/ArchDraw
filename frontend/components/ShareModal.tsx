@@ -56,6 +56,9 @@ export function ShareModal({
   useEffect(() => {
     if (isOpen) {
       inputRef.current?.focus();
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
     }
   }, [isOpen]);
 
@@ -175,22 +178,23 @@ export function ShareModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-[520px] mx-4 bg-white rounded-[20px] shadow-[0_8px_32px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="relative w-full max-w-[520px] sm:mx-4 mx-0 bg-white sm:rounded-[20px] rounded-none shadow-[0_8px_32px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden max-h-[100dvh] sm:max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-[#F3F4F6]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-[10px] flex items-center justify-center bg-[#F3F4F6]">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-[#F3F4F6] shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-[10px] flex items-center justify-center bg-[#F3F4F6] shrink-0">
                 <Users className="w-5 h-5 text-[#111118]" />
               </div>
-              <div>
-                <h2 className="text-[20px] font-semibold text-[#111118] leading-tight">Share</h2>
-                <p className="text-[13px] text-[#6B7280] mt-0.5">Invite people and manage access</p>
+              <div className="min-w-0">
+                <h2 className="text-[18px] sm:text-[20px] font-semibold text-[#111118] leading-tight">Share</h2>
+                <p className="text-[13px] text-[#6B7280] mt-0.5 truncate">Invite people and manage access</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-[10px] hover:bg-[#F3F4F6] text-[#6B7280] transition-all duration-150"
+              aria-label="Close"
+              className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-[10px] hover:bg-[#F3F4F6] text-[#6B7280] transition-all duration-150"
             >
               <X className="w-5 h-5" />
             </button>
@@ -198,10 +202,10 @@ export function ShareModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
           {/* SECTION 1: INVITE ROW */}
           <div className="space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
                 <input
@@ -211,20 +215,20 @@ export function ShareModal({
                   onChange={(e) => setInviteEmail(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
                   placeholder="Email, name..."
-                  className="w-full pl-11 pr-4 py-[10px] text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] outline-none text-[#111118] placeholder:text-[#9CA3AF] focus:border-[#111118] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)] transition-all duration-150"
+                  className="w-full min-h-[44px] pl-11 pr-4 py-[10px] text-[16px] sm:text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] outline-none text-[#111118] placeholder:text-[#9CA3AF] focus:border-[#111118] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)] transition-all duration-150"
                 />
               </div>
-              
+
               {/* Permission dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowInviteDropdown(!showInviteDropdown)}
-                  className="flex items-center gap-1 px-4 py-[10px] text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] hover:bg-[#F9FAFB] transition-all duration-150 text-[#6B7280]"
+                  className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1 px-4 py-[10px] text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] hover:bg-[#F9FAFB] transition-all duration-150 text-[#6B7280]"
                 >
                   <span>{invitePermission}</span>
                   <ChevronDown className="w-4 h-4 text-[#9CA3AF]" />
                 </button>
-                
+
                 {showInviteDropdown && (
                   <div className="absolute top-full right-0 mt-1 w-36 rounded-[10px] overflow-hidden z-10 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-[#E5E7EB]">
                     <button
@@ -246,7 +250,7 @@ export function ShareModal({
               <button
                 onClick={handleInvite}
                 disabled={!validateEmail(inviteEmail)}
-                className="px-5 py-[10px] text-[14px] font-medium text-white bg-[#1E90FF] rounded-[9999px] hover:bg-[#4dabf7] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                className="min-h-[44px] px-5 py-[10px] text-[14px] font-medium text-white bg-[#1E90FF] rounded-[9999px] hover:bg-[#4dabf7] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
               >
                 Invite
               </button>
@@ -337,52 +341,54 @@ export function ShareModal({
             
             {/* Link permission selector */}
             {accessMode === 'link' && (
-              <div className="flex items-center gap-3 mt-3 ml-13">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-3 sm:ml-[52px]">
                 <span className="text-[13px] text-[#6B7280]">People with link can:</span>
-                <button
-                  onClick={() => {
-                    setLinkPerm('can view');
-                    onAccessChange?.('anyone', 'viewer');
-                    if (typeof window !== 'undefined') {
-                                      analytics.track({
-                        event_type: 'sharing',
-                        event_name: 'link_permission_changed',
-                        page_path: window.location.pathname,
-                        payload: { 
-                          permission: 'viewer',
-                          session_id: sessionId 
-                        }
-                      });
-                    }
-                  }}
-                  className={`px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
-                    linkPerm === 'can view' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
-                  }`}
-                >
-                  View
-                </button>
-                <button
-                  onClick={() => {
-                    setLinkPerm('can edit');
-                    onAccessChange?.('anyone', 'editor');
-                    if (typeof window !== 'undefined') {
-                                      analytics.track({
-                        event_type: 'sharing',
-                        event_name: 'link_permission_changed',
-                        page_path: window.location.pathname,
-                        payload: { 
-                          permission: 'editor',
-                          session_id: sessionId 
-                        }
-                      });
-                    }
-                  }}
-                  className={`px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
-                    linkPerm === 'can edit' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
-                  }`}
-                >
-                  Edit
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setLinkPerm('can view');
+                      onAccessChange?.('anyone', 'viewer');
+                      if (typeof window !== 'undefined') {
+                                        analytics.track({
+                          event_type: 'sharing',
+                          event_name: 'link_permission_changed',
+                          page_path: window.location.pathname,
+                          payload: {
+                            permission: 'viewer',
+                            session_id: sessionId
+                          }
+                        });
+                      }
+                    }}
+                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
+                      linkPerm === 'can view' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    }`}
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLinkPerm('can edit');
+                      onAccessChange?.('anyone', 'editor');
+                      if (typeof window !== 'undefined') {
+                                        analytics.track({
+                          event_type: 'sharing',
+                          event_name: 'link_permission_changed',
+                          page_path: window.location.pathname,
+                          payload: {
+                            permission: 'editor',
+                            session_id: sessionId
+                          }
+                        });
+                      }
+                    }}
+                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
+                      linkPerm === 'can edit' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    }`}
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -470,11 +476,12 @@ export function ShareModal({
                       </div>
                     )}
                     
-                    {/* Remove button (visible on hover) */}
+                    {/* Remove button (visible on hover; always visible on touch devices) */}
                     {person.role !== 'owner' && (
                       <button
                         onClick={() => handleRemove(person.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-[6px] hover:bg-[#FEF2F2] text-[#9CA3AF] hover:text-[#EF4444] transition-all duration-150"
+                        aria-label={`Remove ${person.name}`}
+                        className="min-w-[36px] min-h-[36px] p-1.5 rounded-[6px] hover:bg-[#FEF2F2] text-[#9CA3AF] hover:text-[#EF4444] transition-all duration-150 opacity-60 sm:opacity-0 sm:group-hover:opacity-100"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -487,7 +494,7 @@ export function ShareModal({
         </div>
 
         {/* SECTION 4: COPY LINK ROW */}
-        <div className="px-6 py-4 bg-[#F9FAFB] border-t border-[#F3F4F6]">
+        <div className="px-4 sm:px-6 py-4 bg-[#F9FAFB] border-t border-[#F3F4F6] shrink-0" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
           <div className="flex items-center justify-between gap-3">
             {/* Faded URL */}
             <div className="relative flex-1 min-w-0 overflow-hidden">
@@ -501,7 +508,7 @@ export function ShareModal({
             <button
               onClick={() => handleCopyLink(shareUrl)}
               disabled={copied}
-              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-[9999px] text-[14px] font-medium transition-all duration-150
+              className={`min-h-[44px] flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-[9999px] text-[14px] font-medium transition-all duration-150
                 ${copied
                   ? 'bg-[#DCFCE7] text-[#22C55E] cursor-default'
                   : 'bg-[#1E90FF] text-white hover:bg-[#4dabf7]'

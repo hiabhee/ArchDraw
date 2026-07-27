@@ -1010,22 +1010,22 @@ function InteractiveLandingDemoContent() {
             <button className={`p-2 rounded-xl transition-all ${
               isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
             }`} title="Blocks/Shapes">
-              <LayoutGrid className="w-4.5 h-4.5 text-[#1E90FF]" />
+              <LayoutGrid className="w-4 h-4 text-[#1E90FF]" />
             </button>
             <button className={`p-2 rounded-xl transition-all ${
               isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
             }`} title="Layers">
-              <Layers className="w-4.5 h-4.5" />
+              <Layers className="w-4 h-4" />
             </button>
             <button className={`p-2 rounded-xl transition-all ${
               isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
             }`} title="Rectangle">
-              <Square className="w-4.5 h-4.5" />
+              <Square className="w-4 h-4" />
             </button>
             <button className={`p-2 rounded-xl transition-all ${
               isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
             }`} title="Line">
-              <Slash className="w-4.5 h-4.5 -rotate-45" />
+              <Slash className="w-4 h-4 -rotate-45" />
             </button>
             
             <span className={`w-6 h-px self-center ${isDemoDark ? 'bg-[#202327]' : 'bg-[#e2e8f0]'}`} />
@@ -1037,7 +1037,7 @@ function InteractiveLandingDemoContent() {
               }`} 
               title="Add Connection"
             >
-              <Plus className="w-4.5 h-4.5" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
         </div>
