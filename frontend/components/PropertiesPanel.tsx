@@ -1,8 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Minimize2, Copy, Circle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
+import type { ShapeType } from '@/components/ShapeNode';
+
+const SHAPE_OPTIONS: { value: ShapeType; label: string; icon: React.ElementType }[] = [
+  { value: 'rectangle', label: 'Rectangle', icon: Square },
+  { value: 'rounded-rectangle', label: 'Rounded', icon: Square },
+  { value: 'diamond', label: 'Diamond', icon: Diamond },
+  { value: 'cylinder', label: 'Cylinder', icon: CylinderIcon },
+  { value: 'circle', label: 'Circle', icon: Disc },
+  { value: 'parallelogram', label: 'Parallel', icon: SlidersHorizontal },
+];
 
 const TIER_ICONS: Record<string, React.ElementType> = {
   client: Globe,
@@ -164,6 +174,37 @@ export function PropertiesPanel() {
     updateNodeData(node.id, { accentColor: nextColor });
   };
 
+  const handleShapeChange = (newShape: ShapeType) => {
+    const isSystemNode = node.type === 'systemNode' || node.type === 'architectureNode' || node.type === 'baseNode';
+    
+    if (isSystemNode) {
+      // Convert systemNode to shapeNode
+      const { ...nodeRest } = node;
+      useDiagramStore.getState().pushHistory();
+      const newNode = {
+        ...nodeRest,
+        type: 'shapeNode' as const,
+        data: {
+          ...node.data,
+          shape: newShape,
+          label: node.data?.label || 'Node',
+          color: node.data?.accentColor || node.data?.color || '#3b82f6',
+          accentColor: node.data?.accentColor || node.data?.color || '#3b82f6',
+        },
+      };
+      useDiagramStore.getState().importDiagram(
+        [...useDiagramStore.getState().nodes.filter(n => n.id !== node.id), newNode],
+        useDiagramStore.getState().edges
+      );
+    } else {
+      // Already a shapeNode or other type - just update the shape
+      updateNodeData(node.id, { shape: newShape });
+    }
+  };
+
+  const currentShape = (node.type === 'shapeNode' ? (data as { shape?: ShapeType }).shape : null) || 'rounded-rectangle';
+  const isShapeNode = node.type === 'shapeNode';
+
   const statusColor = data.status === 'warning' ? '#F59E0B' : data.status === 'error' ? '#EF4444' : data.status === 'unknown' ? '#6B7280' : '#10B981';
   const accent = data.accentColor || data.color || '#3b82f6';
 
@@ -217,6 +258,43 @@ export function PropertiesPanel() {
             onKeyDown={(e) => { if (e.key === 'Enter') labelRef.current?.blur(); e.stopPropagation(); }}
             className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
           />
+        </div>
+
+        {/* Shape */}
+        <div>
+          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
+            <Square className="w-3 h-3" />
+            Shape
+            {isShapeNode && (
+              <span className="text-[9px] text-muted-foreground/60 normal-case">(Shape Node)</span>
+            )}
+          </label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {SHAPE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const isSelected = currentShape === option.value;
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => handleShapeChange(option.value)}
+                  className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[10px] transition-all ${
+                    isSelected
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+                  }`}
+                  title={option.label}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="truncate w-full text-center">{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {!isShapeNode && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1.5">
+              Changing shape converts to Shape Node
+            </p>
+          )}
         </div>
 
         {/* Category / Tier */}
