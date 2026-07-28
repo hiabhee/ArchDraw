@@ -1181,6 +1181,10 @@ function LayoutToggleButton() {
         return {
           ...newNode,
           type: originalNode.type,
+          // Preserve parent-child relationships for nested groups
+          parentNode: originalNode.parentNode,
+          parentId: originalNode.data?.parentId || (originalNode as { parentId?: string }).parentId,
+          extent: originalNode.extent,
           data: {
             ...originalNode.data,
             // Keep layout-relevant new data

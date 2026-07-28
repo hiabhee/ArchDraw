@@ -40,21 +40,67 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
   lines.push(`graph ${direction}`);
   lines.push('');
 
-  for (const group of groupNodes) {
-    const gid = sanitizeId(group.id);
-    const glabel = escapeLabel(String(group.data?.label ?? group.id));
-    lines.push(`  subgraph ${gid}["${glabel}"]`);
-
-    const children = regularNodes.filter(n => n.parentNode === group.id || n.data?.parentId === group.id);
-    for (const child of children) {
-      lines.push(`    ${formatNodeWithShape(child.id, String(child.data?.label ?? child.id), child.data?.shape)}`);
+  // Build a map of group children (including nested groups)
+  const groupChildren = new Map<string, Node[]>();
+  for (const node of regularNodes) {
+    const parentId = node.parentNode || (node.data?.parentId as string);
+    if (parentId && groupIds.has(parentId)) {
+      const children = groupChildren.get(parentId) || [];
+      children.push(node);
+      groupChildren.set(parentId, children);
     }
-
-    lines.push('  end');
-    lines.push('');
   }
 
-  const ungrouped = regularNodes.filter(n => !n.parentNode && !n.data?.parentId);
+  // Build a map of nested groups (groups that are children of other groups)
+  const nestedGroups = new Map<string, Node[]>();
+  for (const group of groupNodes) {
+    const parentId = group.parentNode || (group.data?.parentId as string);
+    if (parentId && groupIds.has(parentId)) {
+      const children = nestedGroups.get(parentId) || [];
+      children.push(group);
+      nestedGroups.set(parentId, children);
+    }
+  }
+
+  // Find top-level groups (no parent)
+  const topLevelGroups = groupNodes.filter(n => {
+    const parentId = n.parentNode || (n.data?.parentId as string);
+    return !parentId || !groupIds.has(parentId);
+  });
+
+  // Recursively render a group and its contents
+  const renderGroup = (group: Node, indent: number) => {
+    const gid = sanitizeId(group.id);
+    const glabel = escapeLabel(String(group.data?.label ?? group.id));
+    const prefix = '  '.repeat(indent);
+    lines.push(`${prefix}subgraph ${gid}["${glabel}"]`);
+
+    // Render child groups first (nested)
+    const childGroups = nestedGroups.get(group.id) || [];
+    for (const childGroup of childGroups) {
+      renderGroup(childGroup, indent + 1);
+    }
+
+    // Render child nodes
+    const children = groupChildren.get(group.id) || [];
+    for (const child of children) {
+      lines.push(`${prefix}  ${formatNodeWithShape(child.id, String(child.data?.label ?? child.id), child.data?.shape)}`);
+    }
+
+    lines.push(`${prefix}end`);
+    lines.push('');
+  };
+
+  // Render all top-level groups
+  for (const group of topLevelGroups) {
+    renderGroup(group, 1);
+  }
+
+  // Render ungrouped nodes
+  const ungrouped = regularNodes.filter(n => {
+    const parentId = n.parentNode || (n.data?.parentId as string);
+    return !parentId || !groupIds.has(parentId);
+  });
   for (const node of ungrouped) {
     lines.push(`  ${formatNodeWithShape(node.id, String(node.data?.label ?? node.id), node.data?.shape)}`);
   }
