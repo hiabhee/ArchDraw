@@ -183,6 +183,7 @@ export interface NodeData {
   technology?: string;
   nodeWidth?: number;
   shape?: string;
+  serviceType?: string;
   groupLabel?: string;
   labelManuallyEdited?: boolean;
   /** Enter inline label edit when the node mounts (edge-drop create). */
@@ -1837,21 +1838,34 @@ const useDiagramStoreRaw = create<DiagramState>()(
               : [];
         if (idsToGroup.length < 1) return;
         pushHistory();
-        // Asymmetric padding: top clears the group label tag + has breathing room.
-        const PAD_SIDE = 60;
-        const PAD_TOP  = 72;
-        const PAD_BOT  = 60;
+        
         const selected = nodes.filter((n) => idsToGroup.includes(n.id));
+        const isNested = !!parentId;
+        
+        // Smaller padding for nested groups
+        const PAD_SIDE = isNested ? 30 : 60;
+        const PAD_TOP  = isNested ? 40 : 72;
+        const PAD_BOT  = isNested ? 30 : 60;
         
         // Calculate bounds from selected nodes
-        const minX = Math.min(...selected.map((n) => n.position.x)) - PAD_SIDE;
-        const minY = Math.min(...selected.map((n) => n.position.y)) - PAD_TOP;
-        const maxX = Math.max(...selected.map((n) => n.position.x + (n.width ?? 160))) + PAD_SIDE;
-        const maxY = Math.max(...selected.map((n) => n.position.y + (n.height ?? 80))) + PAD_BOT;
+        let rawMinX = Math.min(...selected.map((n) => n.position.x));
+        let rawMinY = Math.min(...selected.map((n) => n.position.y));
+        let rawMaxX = Math.max(...selected.map((n) => n.position.x + (n.width ?? 160)));
+        let rawMaxY = Math.max(...selected.map((n) => n.position.y + (n.height ?? 80)));
         
-        // For nested groups, offset positions relative to parent
-        const parent = parentId ? nodes.find((n) => n.id === parentId) : undefined;
-        const positionOffset = parent ? { x: parent.position.x, y: parent.position.y } : { x: 0, y: 0 };
+        // For nested groups, convert to parent-relative coordinates
+        let positionOffset = { x: 0, y: 0 };
+        if (parentId) {
+          const parent = nodes.find((n) => n.id === parentId);
+          if (parent) {
+            positionOffset = { x: parent.position.x, y: parent.position.y };
+          }
+        }
+        
+        const minX = rawMinX - PAD_SIDE;
+        const minY = rawMinY - PAD_TOP;
+        const maxX = rawMaxX + PAD_SIDE;
+        const maxY = rawMaxY + PAD_BOT;
         
         const existingGroupCount = nodes.filter((n) => n.type === 'groupNode' || n.data?.isGroup).length;
         const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
@@ -1861,7 +1875,10 @@ const useDiagramStoreRaw = create<DiagramState>()(
         const groupNode: Node = {
           id: groupId, 
           type: 'groupNode',
-          position: { x: minX - positionOffset.x, y: minY - positionOffset.y },
+          position: { 
+            x: isNested ? rawMinX - positionOffset.x - PAD_SIDE : minX, 
+            y: isNested ? rawMinY - positionOffset.y - PAD_TOP : minY 
+          },
           style: { width: maxX - minX, height: maxY - minY },
           data: { label: 'Group', groupLabel: 'Group', groupColor }, 
           zIndex: -1,
@@ -1878,7 +1895,10 @@ const useDiagramStoreRaw = create<DiagramState>()(
             parentId: groupId,
             parentNode: groupId,
             extent: 'parent' as const,
-            position: { x: n.position.x - minX + positionOffset.x, y: n.position.y - minY + positionOffset.y },
+            position: { 
+              x: isNested ? n.position.x - positionOffset.x - (rawMinX - positionOffset.x - PAD_SIDE) : n.position.x - minX,
+              y: isNested ? n.position.y - positionOffset.y - (rawMinY - positionOffset.y - PAD_TOP) : n.position.y - minY
+            },
           }))
         ];
         
