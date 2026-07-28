@@ -1171,7 +1171,32 @@ function LayoutToggleButton() {
       toast.error(`Layout toggle failed: ${result.warnings.join('; ')}`);
       return;
     }
-    store.importDiagram(result.nodes, result.edges);
+    
+    // Preserve original node data (type, accentColor, serviceType, etc.) while using new positions
+    const originalNodeMap = new Map(nodes.map(n => [n.id, n]));
+    const preservedNodes = result.nodes.map(newNode => {
+      const originalNode = originalNodeMap.get(newNode.id);
+      if (originalNode) {
+        // Merge: use original type and data, but take new position/size from layout
+        return {
+          ...newNode,
+          type: originalNode.type,
+          data: {
+            ...originalNode.data,
+            // Keep layout-relevant new data
+            shape: newNode.data?.shape || originalNode.data?.shape,
+            nodeWidth: newNode.data?.nodeWidth || originalNode.data?.nodeWidth,
+            nodeHeight: newNode.data?.nodeHeight || originalNode.data?.nodeHeight,
+          },
+          // Preserve original width/height if available
+          width: originalNode.width || newNode.width,
+          height: originalNode.height || newNode.height,
+        };
+      }
+      return newNode;
+    });
+    
+    store.importDiagram(preservedNodes, result.edges);
     store.setActiveLayoutPresetId(nextDirection === 'LR' ? 'layered-lr' : 'layered-tb');
   };
 
