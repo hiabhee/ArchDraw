@@ -1843,20 +1843,15 @@ const useDiagramStoreRaw = create<DiagramState>()(
         const PAD_BOT  = 60;
         const selected = nodes.filter((n) => idsToGroup.includes(n.id));
         
-        let minX = Math.min(...selected.map((n) => n.position.x)) - PAD_SIDE;
-        let minY = Math.min(...selected.map((n) => n.position.y)) - PAD_TOP;
-        let maxX = Math.max(...selected.map((n) => n.position.x + (n.width ?? 160))) + PAD_SIDE;
-        let maxY = Math.max(...selected.map((n) => n.position.y + (n.height ?? 80))) + PAD_BOT;
+        // Calculate bounds from selected nodes
+        const minX = Math.min(...selected.map((n) => n.position.x)) - PAD_SIDE;
+        const minY = Math.min(...selected.map((n) => n.position.y)) - PAD_TOP;
+        const maxX = Math.max(...selected.map((n) => n.position.x + (n.width ?? 160))) + PAD_SIDE;
+        const maxY = Math.max(...selected.map((n) => n.position.y + (n.height ?? 80))) + PAD_BOT;
         
-        if (parentId) {
-          const parent = nodes.find((n) => n.id === parentId);
-          if (parent) {
-            minX = parent.position.x + PAD_SIDE;
-            minY = parent.position.y + PAD_TOP;
-            maxX = parent.position.x + (parent.width ?? 400) - PAD_SIDE;
-            maxY = parent.position.y + (parent.height ?? 300) - PAD_BOT;
-          }
-        }
+        // For nested groups, offset positions relative to parent
+        const parent = parentId ? nodes.find((n) => n.id === parentId) : undefined;
+        const positionOffset = parent ? { x: parent.position.x, y: parent.position.y } : { x: 0, y: 0 };
         
         const existingGroupCount = nodes.filter((n) => n.type === 'groupNode' || n.data?.isGroup).length;
         const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
@@ -1866,23 +1861,24 @@ const useDiagramStoreRaw = create<DiagramState>()(
         const groupNode: Node = {
           id: groupId, 
           type: 'groupNode',
-          position: { x: minX, y: minY },
+          position: { x: minX - positionOffset.x, y: minY - positionOffset.y },
           style: { width: maxX - minX, height: maxY - minY },
           data: { label: 'Group', groupLabel: 'Group', groupColor }, 
           zIndex: -1,
           draggable: true,
           selectable: true,
+          ...(parentId ? { parentId, parentNode: parentId, extent: 'parent' as const } : {}),
         };
         
         const newNodes = [
-          groupNode,
           ...nodes.filter((n) => !idsToGroup.includes(n.id)),
+          groupNode,
           ...selected.map((n) => ({
             ...n,
             parentId: groupId,
             parentNode: groupId,
             extent: 'parent' as const,
-            position: { x: n.position.x - minX, y: n.position.y - minY },
+            position: { x: n.position.x - minX + positionOffset.x, y: n.position.y - minY + positionOffset.y },
           }))
         ];
         
@@ -1903,10 +1899,24 @@ const useDiagramStoreRaw = create<DiagramState>()(
         const children = nodes.filter((n) => n.parentId === groupId || (n as Record<string, unknown>).parentNode === groupId);
         const parentOffset = { x: group.position.x, y: group.position.y };
         
+        // Check if this group has a parent (nested group)
+        const grandParentId = group.parentId || (group as Record<string, unknown>).parentNode as string | undefined;
+        
         let newNodes = nodes
           .filter((n) => n.id !== groupId)
           .map((n) => {
             if (n.parentId === groupId || (n as Record<string, unknown>).parentNode === groupId) {
+              // If there's a grandparent, keep children in the grandparent's context
+              if (grandParentId) {
+                return {
+                  ...n,
+                  parentId: grandParentId,
+                  parentNode: grandParentId,
+                  extent: 'parent' as const,
+                  position: { x: n.position.x + parentOffset.x, y: n.position.y + parentOffset.y },
+                };
+              }
+              // Otherwise, remove from all groups
               return {
                 ...n,
                 parentId: undefined,
