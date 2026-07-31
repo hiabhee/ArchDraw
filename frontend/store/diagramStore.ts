@@ -5,89 +5,15 @@ import { componentRegistry } from '@/lib/componentRegistry';
 import { STORAGE_KEYS } from '@/lib/config';
 import { toast } from 'sonner';
 import { applyThemeChange } from '@/lib/themeBridge';
+import { serializedStorage, migrateLegacyStorage } from '@/lib/storage/localStorage';
 
 const isBrowser = typeof window !== 'undefined';
 const MAX_GUEST_CANVASES = 1;
 const MAX_GUEST_NODES = 25;
 const MAX_AUTH_NODES = 50;
 
-// --- Migration for Problem 1: Duplicate Nodes and Edges ---
-if (isBrowser) {
-  try {
-    const raw = localStorage.getItem('archdraw-storage');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.state) {
-        const state = parsed.state;
-        if ((state.nodes !== undefined || state.edges !== undefined) && state.activeCanvasId) {
-          const activeId = state.activeCanvasId;
-          const canvases = state.canvases || [];
-          const canvasIndex = canvases.findIndex((c: { id: string }) => c.id === activeId);
-          if (canvasIndex !== -1) {
-            const canvas = canvases[canvasIndex];
-            const topNodes = state.nodes || [];
-            const canvasNodes = canvas.nodes || [];
-            const topEdges = state.edges || [];
-            const canvasEdges = canvas.edges || [];
-            
-            const useTop = topNodes.length > canvasNodes.length || (state.updatedAt || 0) > (canvas.updatedAt || 0);
-            
-            const winnerNodes = useTop ? topNodes : canvasNodes;
-            const winnerEdges = useTop ? topEdges : canvasEdges;
-            
-            canvases[canvasIndex] = {
-              ...canvas,
-              nodes: winnerNodes,
-              edges: winnerEdges,
-              updatedAt: Math.max(state.updatedAt || 0, canvas.updatedAt || 0, Date.now())
-            };
-          }
-          delete state.nodes;
-          delete state.edges;
-          localStorage.setItem('archdraw-storage', JSON.stringify({
-            ...parsed,
-            state
-          }));
-        }
-      }
-    }
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error('[Migration] Failed to migrate duplicate nodes/edges:', e);
-  }
-}
-
-let writeChain: Promise<void> = Promise.resolve();
-
-export const serializedStorage = {
-  getItem: (key: string): string | null => {
-    if (!isBrowser) return null;
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  setItem: (key: string, value: string): void => {
-    if (!isBrowser) return;
-
-    writeChain = writeChain.then(() => {
-      try {
-        localStorage.setItem(key, value);
-      } catch {
-        // Storage unavailable — silently ignore
-      }
-    });
-  },
-  removeItem: (key: string): void => {
-    if (!isBrowser) return;
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Ignore
-    }
-  },
-};
+// --- Migration for duplicate nodes/edges from legacy flat schema ---
+migrateLegacyStorage();
 
 import { addEdge, applyNodeChanges, applyEdgeChanges, MarkerType, Position } from 'reactflow';
 import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
@@ -168,9 +94,11 @@ export interface NodeData {
   category: string;
   layer?: string;
   componentType?: string;
+  typeId?: string;
   color?: string;
   icon?: string;
   iconUrl?: string;
+  iconSource?: string;
   description?: string;
   tech?: string;
   status?: 'healthy' | 'warning' | 'error' | 'unknown';
@@ -265,6 +193,7 @@ interface DiagramState {
   guideLines: GuideLine[];
   edgeAnimations: boolean;
   showGrid: boolean;
+  showNodeIcons: boolean;
   darkMode: boolean;
   sidebarOpen: boolean;
   canvasMode: 'empty' | 'editing' | 'template';
@@ -273,6 +202,8 @@ interface DiagramState {
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
+  toggleNodeIcons: () => void;
+  setShowNodeIcons: (show: boolean) => void;
   toggleDarkMode: () => void;
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
@@ -402,12 +333,22 @@ function normalizeNodeType(type?: string): string {
 }
 
 function normalizeNodes(nodes: Node[]): Node[] {
+  // Create a set of valid node IDs for parent validation
+  const validNodeIds = new Set(nodes.map(n => n.id));
+  
   return nodes.map((node) => {
     const parentId = node.parentId || (node as { parentNode?: string }).parentNode;
+    const isValidParent = parentId && validNodeIds.has(parentId);
+    
     return {
       ...node,
       type: normalizeNodeType(node.type as string | undefined),
-      ...(parentId ? { parentId, parentNode: parentId, extent: node.extent || 'parent' as const } : {}),
+      // Only set parent-related fields if parent actually exists
+      ...(isValidParent ? { parentId, parentNode: parentId, extent: node.extent || 'parent' as const } : {
+        parentId: undefined,
+        parentNode: undefined,
+        extent: undefined
+      }),
     };
   });
 }
@@ -715,6 +656,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
       sequenceDiagrams: {},
       pipelineStatus: 'idle',
       pipelineError: null,
+      showNodeIcons: true,
 
       getRandomAnimalName: () => {
         const animals = ['Elephant', 'Lion', 'Panda', 'Tiger', 'Falcon', 'Shark', 'Wolf', 'Fox', 'Bear', 'Eagle', 'Owl', 'Hawk', 'Dolphin', 'Penguin', 'Zebra', 'Giraffe', 'Leopard', 'Jaguar', 'Panther', 'Cheetah'];
@@ -731,7 +673,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
         return `${baseAnimal} ${counter}`;
       },
 
-       addCanvas: (customName?: string, canvasId?: string) => {
+      addCanvas: (customName?: string, canvasId?: string) => {
          const { canvases, openCanvasIds, getRandomAnimalName, userProfile } = get();
          const isGuest = !userProfile || userProfile.id === 'guest';
          if (isGuest) {
@@ -1379,6 +1321,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
         }
       },
       toggleGrid: () => set({ showGrid: !get().showGrid }),
+      toggleNodeIcons: () => set({ showNodeIcons: !get().showNodeIcons }),
+      setShowNodeIcons: (show) => set({ showNodeIcons: show }),
       toggleDarkMode: () => {
         const next = !get().darkMode;
         // Delegate to next-themes via the bridge rather than writing
@@ -1703,8 +1647,14 @@ const useDiagramStoreRaw = create<DiagramState>()(
       updateNodeSize: (id, size) => {
         const nodes = get().nodes.map((n) => {
           if (n.id !== id) return n;
+          // Groups render their size via `style.width/height`, so update both the
+          // top-level dimensions and the style so resizing is reflected on screen.
+          const style = { ...(n.style || {}) };
+          if (size.width !== undefined) style.width = size.width;
+          if (size.height !== undefined) style.height = size.height;
           return {
             ...n,
+            style,
             ...(size.width !== undefined && { width: size.width }),
             ...(size.height !== undefined && { height: size.height }),
           };
@@ -1848,10 +1798,10 @@ const useDiagramStoreRaw = create<DiagramState>()(
         const PAD_BOT  = isNested ? 30 : 60;
         
         // Calculate bounds from selected nodes
-        let rawMinX = Math.min(...selected.map((n) => n.position.x));
-        let rawMinY = Math.min(...selected.map((n) => n.position.y));
-        let rawMaxX = Math.max(...selected.map((n) => n.position.x + (n.width ?? 160)));
-        let rawMaxY = Math.max(...selected.map((n) => n.position.y + (n.height ?? 80)));
+        const rawMinX = Math.min(...selected.map((n) => n.position.x));
+        const rawMinY = Math.min(...selected.map((n) => n.position.y));
+        const rawMaxX = Math.max(...selected.map((n) => n.position.x + (n.width ?? 160)));
+        const rawMaxY = Math.max(...selected.map((n) => n.position.y + (n.height ?? 80)));
         
         // For nested groups, convert to parent-relative coordinates
         let positionOffset = { x: 0, y: 0 };
@@ -1880,6 +1830,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
             y: isNested ? rawMinY - positionOffset.y - PAD_TOP : minY 
           },
           style: { width: maxX - minX, height: maxY - minY },
+          width: maxX - minX,
+          height: maxY - minY,
           data: { label: 'Group', groupLabel: 'Group', groupColor }, 
           zIndex: -1,
           draggable: true,
@@ -2224,6 +2176,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
         activeCanvasId: s.activeCanvasId,
         edgeAnimations: s.edgeAnimations,
         showGrid: s.showGrid,
+        showNodeIcons: s.showNodeIcons,
         userProfile: s.userProfile,
       }),
       onRehydrateStorage: () => (state) => {

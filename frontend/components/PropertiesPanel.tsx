@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Inbox, GitBranch, Monitor, Box, Palette } from 'lucide-react';
+import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Inbox, GitBranch, Monitor, Box } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
 
@@ -229,25 +229,24 @@ export function PropertiesPanel() {
     useDiagramStore.getState().setSelectedNodeIds([newId]);
   };
 
-  const handleStatusChange = (status: 'healthy' | 'warning' | 'error' | 'unknown') => {
-    applyToAll({ status });
+  const handleStatusChange = () => {
+    const statuses: Array<'healthy' | 'warning' | 'error' | 'unknown'> = ['healthy', 'warning', 'error', 'unknown'];
+    const currentIndex = statuses.indexOf(data.status || 'healthy');
+    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
+    applyToAll({ status: nextStatus });
   };
 
-  const statusOptions: Array<{ value: 'healthy' | 'warning' | 'error' | 'unknown'; label: string; color: string }> = [
-    { value: 'healthy', label: 'Healthy', color: '#10B981' },
-    { value: 'warning', label: 'Warning', color: '#F59E0B' },
-    { value: 'error', label: 'Error', color: '#EF4444' },
-    { value: 'unknown', label: 'Unknown', color: '#6B7280' },
-  ];
-
-  const handleColorChange = (color: string) => {
-    applyToAll({ accentColor: color });
+  const handleColorChange = () => {
+    const colors = [
+      '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#6b7280',
+      '#f43f5e', '#a855f7', '#84cc16', '#fb923c', '#0d9488',
+    ];
+    const currentIndex = colors.indexOf(data.accentColor || data.color || '#3b82f6');
+    const nextColor = colors[(currentIndex + 1) % colors.length];
+    applyToAll({ accentColor: nextColor });
   };
 
-  const colorOptions = [
-    '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#6b7280',
-    '#f43f5e', '#a855f7', '#84cc16', '#fb923c', '#0d9488',
-  ];
+
 
   const handleShapeChange = (newShape: ShapeType) => {
     useDiagramStore.getState().pushHistory();
@@ -283,6 +282,8 @@ export function PropertiesPanel() {
   const accent = data.accentColor || data.color || '#3b82f6';
   const currentType = data.componentType || 'service';
 
+  const statusColor = data.status === 'warning' ? '#F59E0B' : data.status === 'error' ? '#EF4444' : data.status === 'unknown' ? '#6B7280' : '#10B981';
+
   if (selectedEdgeId && !node && !isMulti) {
     return <EdgePropertiesPanel />;
   }
@@ -313,6 +314,12 @@ export function PropertiesPanel() {
               <Copy className="w-4 h-4" />
             </button>
           )}
+          <button onClick={handleStatusChange} title="Toggle Status" className="floating-icon-btn !w-8 !h-8">
+            <Circle className="w-3 h-3" fill={statusColor} />
+          </button>
+          <button onClick={handleColorChange} title="Change Color" className="floating-icon-btn !w-8 !h-8">
+            <Circle className="w-3 h-3" fill={accent} />
+          </button>
           <button
             onClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); }}
             className="floating-icon-btn !w-8 !h-8"
@@ -413,65 +420,6 @@ export function PropertiesPanel() {
           )}
         </div>
 
-        {/* Color Picker */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-            <Palette className="w-3 h-3" />
-            Color
-          </label>
-          <div className="grid grid-cols-5 gap-1.5">
-            {colorOptions.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleColorChange(color)}
-                className={`w-8 h-8 rounded-lg transition-all ${
-                  accent === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'
-                }`}
-                style={{ 
-                  backgroundColor: color,
-                  ...(accent === color ? { boxShadow: `0 0 0 2px ${color}` } : {})
-                }}
-                title={color}
-              />
-            ))}
-          </div>
-          {isMulti && (
-            <p className="text-[9px] text-muted-foreground/60 mt-1">
-              Applies to all {targetIds.length} selected nodes
-            </p>
-          )}
-        </div>
-
-        {/* Status Picker */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-            <Activity className="w-3 h-3" />
-            Status
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {statusOptions.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => handleStatusChange(option.value)}
-                className={`flex items-center gap-2 px-2 py-2 rounded-lg text-[10px] transition-all ${
-                  data.status === option.value
-                    ? 'bg-primary/15 text-primary border border-primary/30'
-                    : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
-                }`}
-                style={data.status === option.value ? { borderColor: option.color, color: option.color } : undefined}
-              >
-                <Circle className="w-3 h-3" fill={option.color} />
-                <span>{option.label}</span>
-              </button>
-            ))}
-          </div>
-          {isMulti && (
-            <p className="text-[9px] text-muted-foreground/60 mt-1">
-              Applies to all {targetIds.length} selected nodes
-            </p>
-          )}
-        </div>
-
         {/* Category / Tier */}
         {data.category && (
           <div>
@@ -535,7 +483,7 @@ export function PropertiesPanel() {
                 <span className="text-[10px] text-muted-foreground">Width</span>
                 <input
                   type="number"
-                  value={node.width || 180}
+                  value={node.width ?? (node.style?.width as number) ?? 180}
                   onChange={(e) => {
                     const w = parseInt(e.target.value) || 180;
                     updateNodeSize(node.id, { width: w });
@@ -547,7 +495,7 @@ export function PropertiesPanel() {
                 <span className="text-[10px] text-muted-foreground">Height</span>
                 <input
                   type="number"
-                  value={node.height || 100}
+                  value={node.height ?? (node.style?.height as number) ?? 100}
                   onChange={(e) => {
                     const h = parseInt(e.target.value) || 100;
                     updateNodeSize(node.id, { height: h });

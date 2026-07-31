@@ -323,6 +323,58 @@ function resolveEdgeSideOnNode(
 
 export type EdgeRouteDirection = 'LR' | 'TD';
 
+/**
+ * Max extra path length (px) over the straight line that still counts as a
+ * "very small twist". Anything larger is a genuine detour and stays routed.
+ */
+const SNAP_STRAIGHT_MAX_EXCESS = 36;
+
+function pathManhattanLengthOf(points: Array<{ x: number; y: number }>): number {
+  let len = 0
+  for (let i = 1; i < points.length; i++) {
+    len += Math.abs(points[i].x - points[i - 1].x) + Math.abs(points[i].y - points[i - 1].y)
+  }
+  return len
+}
+
+/**
+ * Collapses a near-straight orthogonal path into a straight segment.
+ *
+ * The router always draws horizontal/vertical legs, so two anchors that are
+ * only a few pixels off-axis produce a tiny Z/L jog that cannot be tuned away
+ * by nudging nodes. When the extra path length over the straight line is small
+ * and a straight segment is safe (no obstacle or terminal clipping), render
+ * the edge as a single straight line.
+ */
+export function snapSmallTwistToStraight(
+  waypoints: Array<{ x: number; y: number }>,
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+  edgeOffset: number,
+  nodeRects: Map<string, { id: string; x: number; y: number; w: number; h: number }> | undefined,
+  sourceRect: ObstacleRect,
+  targetRect: ObstacleRect,
+): Array<{ x: number; y: number }> {
+  if (edgeOffset !== 0) return waypoints
+  if (waypoints.length <= 2) return waypoints
+
+  const dx = target.x - source.x
+  const dy = target.y - source.y
+  const straightLen = Math.sqrt(dx * dx + dy * dy)
+  if (straightLen < 1) return waypoints
+
+  const manhattan = pathManhattanLengthOf(waypoints)
+  const excess = manhattan - straightLen
+  if (excess > SNAP_STRAIGHT_MAX_EXCESS) return waypoints
+  if (excess > Math.max(8, straightLen * 0.4)) return waypoints
+
+  const straight: Array<{ x: number; y: number }> = [source, target]
+  if (pathEntersTerminalInterior(straight, sourceRect, targetRect)) return waypoints
+  if (nodeRects && pathCollidesWithRects(straight, nodeRects)) return waypoints
+
+  return straight
+}
+
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
@@ -535,14 +587,17 @@ export function computeEdgeRoute(
     sh, th, sourcePosition, targetPosition, edgeOffset,
     nodeRectParam, sourceRect, targetRect,
   )
-  const svgPath = buildSmoothStepSvg(waypoints, 24)
+  const snapped = snapSmallTwistToStraight(
+    waypoints, sh, th, edgeOffset, nodeRectParam, sourceRect, targetRect,
+  )
+  const svgPath = buildSmoothStepSvg(snapped, 24)
 
   return {
     sourcePosition,
     targetPosition,
     sourcePoint: sh,
     targetPoint: th,
-    waypoints,
+    waypoints: snapped,
     svgPath,
   }
 }

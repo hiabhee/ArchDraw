@@ -1,23 +1,29 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { NodeProps, useUpdateNodeInternals } from 'reactflow';
+import { NodeProps, NodeResizer, useUpdateNodeInternals } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
-import { NodeResizer } from '@reactflow/node-resizer';
 import { useCanvasTheme } from '@/lib/theme';
 import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import '@reactflow/node-resizer/dist/style.css';
+import './nodes/nodeStyles.css';
 
 export default function GroupNode({ id, data, selected }: NodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
   const { isDark } = useCanvasTheme();
 
   useEffect(() => {
     updateNodeInternals(id);
   }, [id, updateNodeInternals]);
+
+  const handleResizeEnd = () => {
+    const state = useDiagramStore.getState();
+    state.saveCanvasToDB(state.activeCanvasId);
+  };
   
   const getDeterministicColor = (str: string) => {
     const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
@@ -62,6 +68,14 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     // ReactFlow natively supports shift+click multi-select.
   };
 
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
+
   const handleLabelClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditing(true);
@@ -99,12 +113,24 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
           : `0 2px 8px ${hexToRgba(color, 0.05)}`,
       }}
       onClick={handleContainerClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onDragStart={(e) => e.preventDefault()}
     >
-      <NodeResizer 
-        color={color} 
-        isVisible={selected} 
-        minWidth={100} 
+      {/* Resize handles — 4 corners + 4 side lines (official React Flow NodeResizer) */}
+      <NodeResizer
+        isVisible={!!selected || isHovered}
+        minWidth={150}
         minHeight={100}
+        lineStyle={{ borderColor: hexToRgba(color, 0.55) }}
+        handleStyle={{
+          width: 12,
+          height: 12,
+          background: isDark ? '#1a1d24' : '#ffffff',
+          border: `2px solid ${hexToRgba(color, 0.9)}`,
+          borderRadius: 3,
+        }}
+        onResizeEnd={handleResizeEnd}
       />
       {/* Text tag - editable */}
       <div
