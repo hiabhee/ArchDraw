@@ -1,8 +1,10 @@
 import { apiKeyManager } from '@/lib/ai/utils/apiKeyManager';
 import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
-import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
+import { JSON_OUTPUT_REMINDER, formatSourceFilesForPrompt } from './repo-prompt-utils';
 import { buildFallbackRepoProfile } from './repo-deep-classifier';
+import { REPO_LLM_MODEL } from '@/lib/ai/utils/repoModels';
+import logger from '@/lib/logger';
 import type { RepoSnapshot, RepoProfile, RepoType, ArchitecturePattern } from '@/lib/types/repo-diagram';
 
 function normalizeProfile(parsed: Record<string, unknown>): RepoProfile {
@@ -36,18 +38,44 @@ export async function classifyRepository(
   staticDetectionReport: string,
   summaries?: string[]
 ): Promise<RepoProfile> {
-  const fileTreeOverview = snapshot.fileTree.slice(0, 100).join('\n');
+  // Phase 4.3: feed the classifier real source-file evidence (file tree up to 800
+  // paths + key source files via formatSourceFilesForPrompt). cheap after Phase 2.
+  // Keep prompt under ~32k tokens (128000 chars) for better context
+  const PROMPT_CHAR_CAP = 128_000;
+
+  let sourceFilesBlock = formatSourceFilesForPrompt([
+    ...snapshot.phase1Files,
+    ...snapshot.phase2Files,
+  ]);
   const summariesBlock = summaries?.length
     ? `\nSUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}\n`
     : '';
+
+  let fileTreeOverview = snapshot.fileTree.slice(0, 800).join('\n');
+
+  // Shrink source files (the bulkiest section) if the full prompt would exceed budget.
+  const templatePrefix = `Classify this repository architecture.\n\nSTATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 800 paths):\n`;
+  const templateSuffix = `\n\nSOURCE FILES (architectural evidence):\n\n${JSON_OUTPUT_REMINDER}\nRequired shape: ...}`;
+  const fixedOverhead = templatePrefix.length + templateSuffix.length + summariesBlock.length;
+  while (sourceFilesBlock.length + fileTreeOverview.length + fixedOverhead > PROMPT_CHAR_CAP) {
+    if (sourceFilesBlock.length > 2000) {
+      sourceFilesBlock = sourceFilesBlock.slice(0, Math.floor(sourceFilesBlock.length * 0.7)) + '\n... [truncated to fit token budget]';
+    } else if (fileTreeOverview.length > 500) {
+      const half = Math.floor(fileTreeOverview.length * 0.4);
+      fileTreeOverview = fileTreeOverview.slice(0, half) + '\n... (truncated)\n' + fileTreeOverview.slice(-half);
+    } else break;
+  }
 
   const prompt = `Classify this repository architecture.
 
 STATIC DETECTION:
 ${staticDetectionReport}
 
-FILE TREE OVERVIEW (first 100 paths):
+FILE TREE OVERVIEW (first 800 paths):
 ${fileTreeOverview}${summariesBlock}
+
+SOURCE FILES (architectural evidence):
+${sourceFilesBlock}
 
 ${JSON_OUTPUT_REMINDER}
 Required shape: {
@@ -55,23 +83,25 @@ Required shape: {
   "architecturePattern": "mvc | layered | clean_architecture | hexagonal | event_driven | serverless | jamstack | microservices | monolithic | pipeline | unknown",
   "primaryStack": { "framework": "string or null", "language": "string", "runtime": "string" },
   "applicationDomain": "one sentence describing the application's purpose",
-  "coreCapabilities": ["3-6 functional capabilities"],
-  "primaryUserFlows": ["1-3 key user journeys"],
+  "coreCapabilities": ["5-8 specific functional capabilities based on detected technologies"],
+  "primaryUserFlows": ["2-4 key user journeys based on routes and architecture"],
   "confidence": "high | medium | low",
   "reasoning": "two sentences explaining why you classified it this way",
-  "extractionStrategy": { "keyDirectories": [], "entryPoints": [], "moduleStructure": "string", "focusAreas": [] }
-}`;
+  "extractionStrategy": { "keyDirectories": ["specific directories that contain architectural significance"], "entryPoints": ["main entry points like main.py, index.ts, app.py"], "moduleStructure": "describe the modular organization", "focusAreas": ["specific architectural patterns to focus on"] }
+}
 
-  console.log(`[Classifier] Calling LLM (~${Math.ceil(prompt.length / 4)} est tokens)...`);
+Be thorough in your analysis. Use the static detection and source files to make an informed classification. The extractionStrategy should guide component extraction to focus on the most architecturally significant parts of the codebase.`;
+
+  logger.log(`[Classifier] Calling LLM (~${Math.ceil(prompt.length / 4)} est tokens)...`);
 
   try {
     const result = await apiKeyManager.executeWithRetry(async (client) =>
       groqJsonCompletion(client, {
-        model: 'llama-3.3-70b-versatile',
+        model: REPO_LLM_MODEL,
         messages: [
           {
             role: 'system',
-            content: `You are an expert software architect. Classify the repository based on the provided detection report and file tree.
+            content: `You are an expert software architect. Classify the repository based on the provided detection report, file tree, and source-file evidence.
 Reply with a single JSON object only. No markdown fences. Keep it concise.`,
           },
           { role: 'user', content: prompt },
@@ -85,7 +115,7 @@ Reply with a single JSON object only. No markdown fences. Keep it concise.`,
       const parsed = parseLlmJson<Record<string, unknown>>(result, 'Classifier');
       return normalizeProfile(parsed);
     } catch (parseErr) {
-      console.warn('[Classifier] JSON parse failed:', parseErr instanceof Error ? parseErr.message : parseErr);
+      logger.warn('[Classifier] JSON parse failed:', parseErr instanceof Error ? parseErr.message : parseErr);
       return buildFallbackRepoProfile(snapshot);
     }
   } catch (err) {

@@ -1,5 +1,6 @@
 import type { FileEntry, StaticSignal, Subsystem } from '@/lib/types/repo-diagram';
 import logger from '@/lib/logger';
+import { parse as parseYaml } from 'yaml';
 
 /**
  * Deterministically extract architectural signals from ingested files.
@@ -29,6 +30,10 @@ export function extractStaticSignals(
     signals.push(...detectBinEntries(file, path));
     signals.push(...detectMlFiles(file, path, allLower));
     signals.push(...detectDataPipeline(file, path, allLower));
+    signals.push(...detectCiWorkflows(file, path, allLower));
+    signals.push(...detectReadmeDiagram(file, path));
+    signals.push(...detectHttpCalls(file, path, allLower));
+    signals.push(...detectDbQueries(file, path, allLower));
   }
 
   return dedupSignals(signals);
@@ -37,7 +42,12 @@ export function extractStaticSignals(
 function dedupSignals(signals: StaticSignal[]): StaticSignal[] {
   const seen = new Set<string>();
   return signals.filter((s) => {
-    const key = `${s.type}:${s.label}:${s.source}`;
+    // compose_dependency dedups on (from,to), not just (label, source) — a service
+    // can be depended on by multiple upstreams (`api→redis` and `worker→redis` are indep).
+    const fromKey = s.type === 'compose_dependency' && (s.details as { from?: string }).from
+      ? (s.details as { from: string }).from
+      : '';
+    const key = `${s.type}:${fromKey}:${s.label}:${s.source}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -165,20 +175,53 @@ function detectRoutes(file: FileEntry, path: string, _lower: string): StaticSign
     });
   }
 
+  // Phase 5 — GraphQL SDL field names (only for .graphql/.gql files to avoid false hits).
+  if (/\.(graphql|gql)$/i.test(path)) {
+    const fieldRe = /^\s*([A-Za-z_]\w*)\s*(?:\([^)]*\))?\s*:\s*[A-Za-z_!\[]/gm;
+    let fm: RegExpExecArray | null;
+    while ((fm = fieldRe.exec(file.content)) !== null) {
+      const name = fm[1];
+      if (!name || ['type', 'input', 'schema', 'enum', 'scalar', 'extend'].includes(name)) continue;
+      signals.push({ type: 'route', label: name, source: path, details: { kind: 'graphql_field' }, confidence: 'medium' });
+    }
+    return signals;
+  }
+
   const routePatterns = [
+    // Express / Koa / Fastify
     /app\.(?:get|post|put|delete|patch)\(['"`](\/[^'"`]+)/g,
     /router\.(?:get|post|put|delete|patch)\(['"`](\/[^'"`]+)/g,
+    // Decorators (NestJS / tsoa)
     /@(?:get|post|put|delete|patch)\(['"`](\/[^'"`]+)/g,
+    // Generic .route()
     /\.route\(['"`](\/[^'"`]+)/g,
+    // Express chained
     /@app\.(?:get|post|put|delete|patch)\(['"`](\/[^'"`]+)/g,
+    // Phase 5 — Flask / FastAPI (paths may or may not start with /).
+    /@\w+\.route\(['"`](\/?[^'"`]+)/g,
+    /@(?:router|api_router|app)\.(?:get|post|put|delete|patch)\(['"`](\/?[^'"`]+)/g,
+    /APIRouter\(prefix=['"`](\/?[^'"`]+)/g,
+    // Phase 5 — Django urls.py
+    /path\(\s*['"`](\/?[^'"`]+)/g,
+    /re_path\(\s*r['"`](\/?[^'"`]+)/g,
+    // Phase 5 — Rails routes.rb (resources :name + get/post/...)
+    /\bresources\s+:(\w+)/g,
+    /\b(?:get|post|put|delete|patch)\s+['"`]([^'"`]+)['"`]\s+(?:to:|=>)/g,
+    /\b(?:get|post|put|delete|patch)\s+['"`]([^'"`]+)/g,
+    // Phase 5 — Spring @*Mapping
+    /@(?:Get|Post|Put|Delete|Patch|Request)Mapping\(['"`]([^'"`]+)['"`]\s*[,\)]/g,
   ];
+
   for (const pattern of routePatterns) {
     let match: RegExpExecArray | null;
     pattern.lastIndex = 0;
     while ((match = pattern.exec(file.content)) !== null) {
+      // Spring/Rails/GraphQL variants — prefer the explicit path group, else first.
+      const label = match[2] ?? match[1] ?? match[0].split(/[(:]/)[0];
+      if (!label) continue;
       signals.push({
         type: 'route',
-        label: match[1],
+        label,
         source: path,
         details: { path, method: 'http' },
         confidence: 'high',
@@ -267,22 +310,70 @@ function detectEnvVars(file: FileEntry, path: string, _lower: string): StaticSig
 
 // ── Docker Service Detection ────────────────────────────────────
 
-function detectDockerServices(file: FileEntry, path: string, lower: string): StaticSignal[] {
+function detectDockerServices(file: FileEntry, path: string, _lower: string): StaticSignal[] {
   const signals: StaticSignal[] = [];
   if (!path.includes('docker-compose')) return signals;
 
-  const serviceMatch = lower.match(/^  (\w+):\s*$/gm);
-  if (serviceMatch) {
-    for (const m of serviceMatch) {
-      const name = m.trim().replace(':', '');
-      if (['version', 'services', 'networks', 'volumes'].includes(name)) continue;
-      signals.push({
-        type: 'docker_service',
-        label: name,
-        source: path,
-        details: {},
-        confidence: 'high',
-      });
+  let compose: Record<string, unknown>;
+  try {
+    compose = parseYaml(file.content) as Record<string, unknown>;
+  } catch {
+    logger.warn('[static-analyzer] docker-compose YAML parse failed for %s', path);
+    return signals;
+  }
+  if (!compose || typeof compose !== 'object') return signals;
+
+  const services = (compose.services ?? {}) as Record<string, Record<string, unknown>>;
+  if (!services || typeof services !== 'object') return signals;
+
+  for (const [name, def] of Object.entries(services)) {
+    if (!def || typeof def !== 'object') continue;
+    signals.push({
+      type: 'docker_service',
+      label: name,
+      source: path,
+      details: { image: typeof def.image === 'string' ? def.image : undefined },
+      confidence: 'high',
+    });
+
+    // depends_on → high-confidence inter-service dependency edge.
+    const dependsOn = def.depends_on;
+    if (dependsOn) {
+      const deps: string[] = [];
+      if (Array.isArray(dependsOn)) {
+        for (const d of dependsOn) if (typeof d === 'string') deps.push(d);
+      } else if (dependsOn && typeof dependsOn === 'object') {
+        for (const k of Object.keys(dependsOn as Record<string, unknown>)) deps.push(k);
+      } else if (typeof dependsOn === 'string') {
+        deps.push(dependsOn);
+      }
+      for (const dep of deps) {
+        if (!dep) continue;
+        signals.push({
+          type: 'compose_dependency',
+          label: dep,
+          source: path,
+          details: { from: name, to: dep, kind: 'depends_on' },
+          confidence: 'high',
+        });
+      }
+    }
+
+    // environment refs to DB → db_query-style hint (degraded if env var only).
+    const env = def.environment;
+    if (env) {
+      const envStr = Array.isArray(env)
+        ? env.join('\n')
+        : (env && typeof env === 'object' ? Object.entries(env).map(([k, v]) => `${k}=${v ?? ''}`).join('\n') : String(env));
+      if (/DATABASE|POSTGRES|MYSQL|MONGO|REDIS|DB_/i.test(envStr)) {
+        signals.push({
+          type: 'docker_service',
+          label: name,
+          source: path,
+          details: { usesDatabase: true },
+          confidence: 'medium',
+        });
+      }
     }
   }
 
@@ -572,6 +663,153 @@ function detectDataPipeline(file: FileEntry, path: string, _allLower: string): S
   // SQL / schema files
   if (/\.(sql|ddl|dml)$/.test(path)) {
     signals.push({ type: 'schema', label: path, source: path, details: { kind: 'sql' }, confidence: 'high' });
+  }
+
+  return signals;
+}
+
+// ── CI Workflow / README diagram detection (Phase 5) ───────────
+
+function detectCiWorkflows(file: FileEntry, path: string, _lower: string): StaticSignal[] {
+  if (!path.startsWith('.github/workflows/') && !path.startsWith('.gitlab-ci') && !path.startsWith('.circleci/')) return [];
+  // Cap analysis to small files.
+  if (file.content.length > 20_000) return [];
+  const signals: StaticSignal[] = [];
+  // Job names + service containers + deploy targets → architecture hints.
+  const jobRe = /^(\w+):\s*$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = jobRe.exec(file.content)) !== null) {
+    const name = m[1];
+    if (!name || ['name', 'on', 'jobs', 'env', 'defaults', 'permissions', 'concurrency', 'strategy', 'steps', 'uses', 'with'].includes(name)) continue;
+    signals.push({ type: 'ci_workflow', label: name, source: path, details: {}, confidence: 'medium' });
+  }
+  // Detect references to services declared via `services:` blocks (DB/Redis/etc).
+  if (/services:\s*\n\s*([\w-]+):\s*$/m.test(file.content)) {
+    const svcRe = /^\s{4,}([\w-]+):\s*$/gm;
+    while ((m = svcRe.exec(file.content)) !== null) {
+      const n = m[1];
+      if (n && !['image', 'env', 'ports', 'options', 'volumes'].includes(n)) {
+        signals.push({ type: 'ci_workflow', label: n, source: path, details: { kind: 'service_container' }, confidence: 'medium' });
+      }
+    }
+  }
+  return signals;
+}
+
+function detectReadmeDiagram(file: FileEntry, path: string): StaticSignal[] {
+  if (!/readme\.md$/i.test(path)) return [];
+  if (file.content.length > 50_000) return [];
+  const mermaidBlock = file.content.match(/```mermaid\n([\s\S]*?)\n```/i);
+  if (!mermaidBlock) return [];
+  return [{
+    type: 'config',
+    label: 'readme_diagram',
+    source: path,
+    details: { kind: 'mermaid', content: mermaidBlock[1].slice(0, 4000) },
+    confidence: 'high',
+  }];
+}
+
+/**
+ * Detect HTTP client calls (fetch, axios, etc.) between services.
+ * Generates http_call signals that can corroborate inter-service edges.
+ */
+function detectHttpCalls(file: FileEntry, path: string, _lower: string): StaticSignal[] {
+  const signals: StaticSignal[] = [];
+  const ext = path.split('.').pop()?.toLowerCase();
+  if (!ext || !['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'java', 'rb', 'php'].includes(ext)) return signals;
+
+  const content = file.content;
+  const patterns: RegExp[] = [
+    // fetch('https://...' or fetch('/api/...')
+    /\bfetch\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // axios.get/post/put/delete(...)
+    /axios\s*\.\s*(?:get|post|put|delete|patch|request)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // $.ajax({url:...}) / $.get/post(...)
+    /\$\.(?:ajax|get|post|getJSON)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // got.get/post(...)
+    /got\s*\.\s*(?:get|post|put|delete|patch)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // Python requests.get/post(...)
+    /requests\.\s*(?:get|post|put|delete|patch|request)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // Python httpx.Client().get/post(...)
+    /httpx\.\s*(?:get|post|put|delete|patch|request)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // Python aiohttp.ClientSession().get/post(...)
+    /aiohttp\.\s*(?:get|post|put|delete|patch|request)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // Go http.Get/Post(...) / http.NewRequest(...)
+    /http\.\s*(?:Get|Post|Head|Do|NewRequest)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // Java HttpClients / HttpClient.send / RestTemplate / WebClient
+    /RestTemplate\.\s*(?:getForObject|postForObject|exchange|execute)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    /WebClient\.\s*(?:get|post|put|delete)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // Ruby Faraday, Net::HTTP, HTTParty
+    /Faraday\.\s*(?:get|post|put|delete|patch)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    /HTTParty\.\s*(?:get|post|put|delete|patch)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+    // PHP Guzzle
+    /\$client->\s*(?:get|post|put|delete|patch|request)\s*\(\s*['"`](https?:\/\/[^'"`]+|(\/[^'"`]+))['"`]/g,
+  ];
+
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      const url = m[1];
+      if (!url) continue;
+      signals.push({
+        type: 'http_call',
+        label: url.includes('://') ? new URL(url).hostname : `local_${url.slice(0, 40)}`,
+        source: path,
+        details: { url: url.slice(0, 200), kind: 'outbound_http' },
+        confidence: 'high',
+      });
+    }
+  }
+
+  return signals;
+}
+
+/**
+ * Detect database query patterns in source code.
+ * Generates db_query signals that corroborate database edges.
+ */
+function detectDbQueries(file: FileEntry, path: string, _lower: string): StaticSignal[] {
+  const signals: StaticSignal[] = [];
+  const ext = path.split('.').pop()?.toLowerCase();
+  if (!ext || !['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'java', 'rb', 'rs', 'kt', 'cs'].includes(ext)) return signals;
+
+  const content = file.content;
+  const patterns: [RegExp, string][] = [
+    // Prisma
+    [/prisma\.\s*\w+\s*\.\s*(?:findMany|findUnique|findFirst|create|update|delete|upsert|aggregate|count|queryRaw|executeRaw)\s*\(/g, 'prisma'],
+    // TypeORM / MikroORM
+    [/\.\s*(?:find|findOne|findAndCount|save|update|delete|remove|insert|createQueryBuilder)\s*\(/g, 'orm'],
+    // Mongoose
+    [/\.\s*(?:find|findOne|findById|create|updateOne|deleteOne|save|aggregate|populate)\s*\(/g, 'mongoose'],
+    // Knex
+    [/knex\.\s*(?:select|from|insert|update|del|where|join|raw|table|schema)\s*\(/g, 'knex'],
+    // SQLAlchemy (Python)
+    [/session\.\s*(?:query|execute|add|commit|rollback|flush|scalar|all|first|one)\s*\(/g, 'sqlalchemy'],
+    [/\.\s*filter\s*\([^)]*\)\s*\.\s*(?:all|first|one|count|update|delete)\s*\(/g, 'sqlalchemy'],
+    // psycopg / database/sql (Go)
+    [/db\.\s*(?:Query|QueryRow|Exec|Prepare|ExecContext|QueryContext)\s*\(/g, 'go_database'],
+    // JDBC / Spring Data (Java)
+    [/jdbcTemplate\.\s*(?:query|update|execute|batchUpdate|queryForList|queryForObject)\s*\(/g, 'jdbc'],
+    [/\w*Repository\.\s*(?:findBy|save|deleteBy|countBy|existsBy|findAll|findById|saveAll)\s*\(/g, 'spring_data'],
+    // Raw SQL keywords
+    [/\b(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE|DROP TABLE)\s+/gi, 'raw_sql'],
+  ];
+
+  for (const [re, _kind] of patterns) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      const label = `${_kind}_query_${path.split('/').pop()?.split('.')[0] || 'db'}`;
+      signals.push({
+        type: 'db_query',
+        label,
+        source: path,
+        details: { kind: _kind, snippet: content.slice(Math.max(0, m.index - 20), m.index + 40) },
+        confidence: 'high',
+      });
+    }
   }
 
   return signals;

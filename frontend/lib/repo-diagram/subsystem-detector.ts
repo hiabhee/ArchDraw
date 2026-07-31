@@ -7,6 +7,10 @@ const IGNORED_DIRS = new Set([
 
 function inferSubsystemType(path: string, files: string[]): Subsystem['type'] {
   const p = path.toLowerCase();
+  // Phase 5.6: treat frontend/client/web at any depth as frontend; server/backend/api as backend.
+  const lastSeg = p.split('/').pop() || '';
+  if (['frontend', 'client', 'web', 'ui'].includes(lastSeg)) return 'frontend';
+  if (['backend', 'server', 'api'].includes(lastSeg)) return 'backend';
   if (p === 'apps/web' || p === 'apps/client' || p === 'frontend' || p === 'client') return 'frontend';
   if (p === 'apps/api' || p === 'apps/server' || p === 'backend' || p === 'server' || p === 'api') return 'backend';
   if (p === 'infra' || p === 'infrastructure' || p === 'deploy' || p === 'terraform' || p === 'k8s') return 'infrastructure';
@@ -70,7 +74,7 @@ function detectFramework(paths: string[], files: string[]): string | null {
 
 function isMonorepoDir(fileTree: string[]): boolean {
   return fileTree.some((p) =>
-    /^(apps|packages|services|libs)\/\w+\//.test(p)
+    /^(apps|packages|services|libs|frontend|client|web|server|backend|api)\/\w+\//.test(p)
   ) || fileTree.includes('pnpm-workspace.yaml') || fileTree.includes('turbo.json') || fileTree.includes('lerna.json') || fileTree.includes('nx.json');
 }
 
@@ -81,6 +85,8 @@ function isMonorepoDir(fileTree: string[]): boolean {
 export function detectSubsystems(snapshot: RepoSnapshot): Subsystem[] {
   const { fileTree, surfaceClassification } = snapshot;
   const subsystems: Subsystem[] = [];
+  // Phase 5.6 — extended monorepo top dirs.
+  const monoTopDirs = ['apps', 'packages', 'services', 'libs', 'frontend', 'client', 'web', 'server', 'backend', 'api'];
 
   if (isMonorepoDir(fileTree)) {
     const dirs = new Set<string>();
@@ -89,7 +95,7 @@ export function detectSubsystems(snapshot: RepoSnapshot): Subsystem[] {
       if (parts.length >= 2) {
         const top = parts[0];
         const sub = parts[1];
-        if (['apps', 'packages', 'services', 'libs'].includes(top) && sub) {
+        if (monoTopDirs.includes(top) && sub) {
           const fullPath = `${top}/${sub}`;
           if (!IGNORED_DIRS.has(sub)) dirs.add(fullPath);
         }

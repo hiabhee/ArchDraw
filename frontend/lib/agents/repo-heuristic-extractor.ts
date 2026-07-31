@@ -1,6 +1,6 @@
 import type { RepoSnapshot, RepoProfile, ExtractedNode, RichEdge, NodeType, FileEntry } from '@/lib/types/repo-diagram';
 
-const MAX_HEURISTIC_NODES = 18;
+const MAX_HEURISTIC_NODES = 50;
 
 function slugId(input: string): string {
   return input
