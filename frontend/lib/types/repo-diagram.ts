@@ -28,6 +28,8 @@ export type RepoSnapshot = {
   treeTruncated?: boolean;
   fileTree: string[];
   selectedFiles: FileEntry[];
+  /** Paths that were selected but whose content could not be fetched (Phase 2 transparency). Defaults to []. */
+  failedPaths?: string[];
   skippedCounts?: Record<string, number>;
   repoMeta: {
     hasAppDir: boolean;
@@ -40,6 +42,12 @@ export type RepoSnapshot = {
   surfaceClassification: SurfaceClassification;
   phase1Files: FileEntry[];
   phase2Files: FileEntry[];
+  /**
+   * Phase 2/6: in-memory archive map (when tarball ingestion succeeded).
+   * Pass-2 fetch reads paths NOT originally selected from here → 0 API calls.
+   * Null on the Contents-API fallback path.
+   */
+  archiveMap?: Map<string, string> | null;
 };
 
 // ─── Repo Profile (Deep Classifier output) ────────────────────
@@ -199,6 +207,14 @@ export type ReviewResult = {
 
 // ─── Pipeline Result ──────────────────────────────────────────
 
+export type DegradedFlags = {
+  classify: boolean;
+  extract: boolean;
+  edges: boolean;
+  ingestion: boolean;
+  anything: boolean;
+};
+
 export type PipelineResult = {
   ndjson: string;
   nodeCount: number;
@@ -210,6 +226,19 @@ export type PipelineResult = {
   reviewNotes: string;
   confidence: Confidence;
   repoMeta: RepoSnapshot['repoMeta'];
+  /** Final architectural nodes after sanitize/dedupe/prune (exposed for eval + diagnostics). */
+  nodes: ExtractedNode[];
+  /** Final edges after sanitize/dedupe/prune (exposed for eval + diagnostics). */
+  edges: RichEdge[];
+  /** Coverage-derived diagnostics (Phase 8). Populated when computed. */
+  diagnostics?: {
+    groundedNodeRatio: number;
+    evidencedEdgeRatio: number;
+    truncatedNodes: string[];
+    failedPaths: string[];
+  };
+  /** Degraded-mode flags (Phase 7). True when a stage fell back. */
+  degraded?: DegradedFlags;
 };
 
 /** JSON body returned by POST /api/repo-diagram on success. */
@@ -245,7 +274,8 @@ export type StaticSignal = {
       | 'terraform_resource' | 'kubernetes_resource' | 'queue_topic'
       | 'sdk_usage' | 'middleware' | 'auth_provider' | 'entry_point'
       | 'ml_script' | 'notebook' | 'model_artifact' | 'config'
-      | 'ml_directory' | 'ml_import' | 'data_file' | 'pipeline';
+      | 'ml_directory' | 'ml_import' | 'data_file' | 'pipeline'
+      | 'compose_dependency' | 'ci_workflow' | 'http_call' | 'db_query';
   label: string;
   source: string;
   details: Record<string, unknown>;

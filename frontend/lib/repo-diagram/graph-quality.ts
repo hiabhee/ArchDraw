@@ -216,10 +216,21 @@ export function deduplicateNodes(
   edges: RichEdge[]
 ): { nodes: ExtractedNode[]; edges: RichEdge[] } {
   const idRemap = new Map<string, string>();
-  const kept: ExtractedNode[] = [];
+  const labelMap = new Map<string, ExtractedNode>();
 
   for (const node of nodes) {
-    const match = kept.find((k) => shouldMergeNodes(k, node));
+    const normKey = normalizeLabelKey(node.label);
+    let match = normKey ? labelMap.get(normKey) : undefined;
+
+    if (!match) {
+      for (const [, k] of labelMap) {
+        if (shouldMergeNodes(k, node)) {
+          match = k;
+          break;
+        }
+      }
+    }
+
     if (match) {
       idRemap.set(node.id, match.id);
       match.sourceFiles = [...new Set([...match.sourceFiles, ...node.sourceFiles])];
@@ -232,10 +243,13 @@ export function deduplicateNodes(
         match.description = node.description;
       }
     } else {
-      kept.push({ ...node, sourceFiles: [...node.sourceFiles] });
+      const copy: ExtractedNode = { ...node, sourceFiles: [...node.sourceFiles] };
+      if (normKey) labelMap.set(normKey, copy);
+      else labelMap.set(node.id, copy);
     }
   }
 
+  const kept = [...labelMap.values()];
   const remappedEdges = edges.map((e) => ({
     ...e,
     from: idRemap.get(e.from) || e.from,
@@ -305,7 +319,7 @@ export function pruneNoisyEdges(nodes: ExtractedNode[], edges: RichEdge[]): Rich
   const sorted = Array.from(byPair.values()).sort(
     (a, b) => confidenceRank(b.confidence) - confidenceRank(a.confidence)
   );
-  const MAX_OUT = 6;
+  const MAX_OUT = 20;
   for (const edge of sorted) {
     const count = outCount.get(edge.from) || 0;
     if (count >= MAX_OUT) continue;

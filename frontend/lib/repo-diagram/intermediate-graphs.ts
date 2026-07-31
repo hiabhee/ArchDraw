@@ -87,14 +87,45 @@ export function buildSubsystemGraph(
   }
 
   // Inter-subsystem edges — frontend calls backend
+  // Only add edges where there's signal evidence or name-based affinity,
+  // instead of brute-force O(F*B) edges.
   const frontends = subsystems.filter((s) => s.type === 'frontend' || s.type === 'application');
   const backends = subsystems.filter((s) => s.type === 'backend' || s.type === 'service' || s.type === 'worker');
-  for (const fe of frontends) {
-    for (const be of backends) {
-      if (fe.name !== be.name) {
+  if (frontends.length > 0 && backends.length > 0 && frontends.length + backends.length <= 8) {
+    // Small subsystem count: reasonable to assume all call all
+    for (const fe of frontends) {
+      for (const be of backends) {
+        if (fe.name !== be.name) {
+          edges.push({
+            from: toNodeId(fe.name),
+            to: toNodeId(be.name),
+            type: 'http_call',
+            label: 'calls',
+          });
+        }
+      }
+    }
+  } else if (frontends.length > 0 && backends.length > 0) {
+    // Large subsystem count: only connect frontends to the most referenced backends.
+    // Pick the backend whose name shares the longest prefix with each frontend.
+    for (const fe of frontends) {
+      const feParts = fe.path.split('/').filter(Boolean);
+      let bestScore = -1;
+      let bestBe: typeof backends[0] | null = null;
+      for (const be of backends) {
+        if (fe.name === be.name) continue;
+        const beParts = be.path.split('/').filter(Boolean);
+        let score = 0;
+        for (let i = 0; i < Math.min(feParts.length, beParts.length); i++) {
+          if (feParts[i] === beParts[i]) score++;
+          else break;
+        }
+        if (score > bestScore) { bestScore = score; bestBe = be; }
+      }
+      if (bestBe) {
         edges.push({
           from: toNodeId(fe.name),
-          to: toNodeId(be.name),
+          to: toNodeId(bestBe.name),
           type: 'http_call',
           label: 'calls',
         });
