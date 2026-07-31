@@ -329,6 +329,13 @@ export type EdgeRouteDirection = 'LR' | 'TD';
  */
 const SNAP_STRAIGHT_MAX_EXCESS = 36;
 
+/**
+ * Max slope (minor axis / major axis) for the collapsed straight line.
+ * Keeps straightening to near-axis-aligned edges only — anything more
+ * diagonal would read as a slanted line rather than a clean straight edge.
+ */
+const SNAP_STRAIGHT_MAX_SLOPE = 0.06;
+
 function pathManhattanLengthOf(points: Array<{ x: number; y: number }>): number {
   let len = 0
   for (let i = 1; i < points.length; i++) {
@@ -342,9 +349,9 @@ function pathManhattanLengthOf(points: Array<{ x: number; y: number }>): number 
  *
  * The router always draws horizontal/vertical legs, so two anchors that are
  * only a few pixels off-axis produce a tiny Z/L jog that cannot be tuned away
- * by nudging nodes. When the extra path length over the straight line is small
- * and a straight segment is safe (no obstacle or terminal clipping), render
- * the edge as a single straight line.
+ * by nudging nodes. When the extra path length over the straight line is small,
+ * the straight line is still near-axis-aligned, and a straight segment is safe
+ * (no obstacle or terminal clipping), render the edge as a single straight line.
  */
 export function snapSmallTwistToStraight(
   waypoints: Array<{ x: number; y: number }>,
@@ -367,6 +374,10 @@ export function snapSmallTwistToStraight(
   const excess = manhattan - straightLen
   if (excess > SNAP_STRAIGHT_MAX_EXCESS) return waypoints
   if (excess > Math.max(8, straightLen * 0.4)) return waypoints
+
+  const majorAxis = Math.max(Math.abs(dx), Math.abs(dy))
+  const minorAxis = Math.min(Math.abs(dx), Math.abs(dy))
+  if (minorAxis / majorAxis > SNAP_STRAIGHT_MAX_SLOPE) return waypoints
 
   const straight: Array<{ x: number; y: number }> = [source, target]
   if (pathEntersTerminalInterior(straight, sourceRect, targetRect)) return waypoints

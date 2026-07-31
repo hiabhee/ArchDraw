@@ -59,6 +59,24 @@ describe('snapSmallTwistToStraight', () => {
     expect(result).toBe(waypoints);
   });
 
+  it('does not snap when the straight line would be steeply sloped', () => {
+    const source = { x: 0, y: 0 };
+    const target = { x: 100, y: 30 };
+    const waypoints = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 30 },
+    ];
+
+    const result = snapSmallTwistToStraight(
+      waypoints, source, target, 0, undefined,
+      { x: -200, y: -100, w: 80, h: 80 },
+      { x: 200, y: -100, w: 80, h: 80 },
+    );
+
+    expect(result).toBe(waypoints);
+  });
+
   it('keeps parallel-edge separation (does not snap overlapping straights)', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 112)];
     const e1 = makeEdge('e1', 'a', 'b');
