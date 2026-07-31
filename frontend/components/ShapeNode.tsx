@@ -6,6 +6,10 @@ import { useCanvasTheme } from '@/lib/theme';
 import { LIGHT_NODE_STYLES, DARK_NODE_STYLES } from '@/lib/theme/stylingConstants';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
+import { useDiagramStore } from '@/store/diagramStore';
+import { NodeIcon } from '@/components/NodeIcon';
+import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { CustomNodeIcon, toCustomNodeIconName, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
 import './nodes/nodeStyles.css';
 
 export type ShapeType =
@@ -22,6 +26,13 @@ export interface ShapeNodeData {
   shape: ShapeType;
   color?: string;
   accentColor?: string;
+  category?: string;
+  componentType?: string;
+  typeId?: string;
+  icon?: string;
+  iconSource?: string;
+  technology?: string;
+  serviceType?: string;
   nodeWidth?: number;
   nodeHeight?: number;
 }
@@ -52,6 +63,83 @@ const CENTER_HANDLE: React.CSSProperties = {
   minHeight: 0,
 };
 
+function CustomNodeVisual({ name, color }: { name: CustomNodeIconName; color: string }) {
+  const cellCount = name === 'arch-message-queue' ? 8 : 6;
+  const filledCells = name === 'arch-partition' ? 2 : name === 'arch-event-stream' ? 5 : 4;
+
+  if (name === 'arch-web') {
+    return (
+      <div className="node-object node-object-browser" style={{ borderColor: `${color}88` }}>
+        <span style={{ background: color }} />
+        <span style={{ background: color, opacity: 0.55 }} />
+        <span style={{ background: color, opacity: 0.32 }} />
+      </div>
+    );
+  }
+
+  if (name === 'arch-server' || name === 'arch-service') {
+    return (
+      <div className="node-object node-object-lines">
+        <span style={{ width: '86%', background: `${color}18` }} />
+        <span style={{ width: '66%', background: `${color}16` }} />
+        <span style={{ width: '78%', background: `${color}13` }} />
+        <span style={{ width: '52%', background: `${color}11` }} />
+      </div>
+    );
+  }
+
+  if (name === 'arch-database') {
+    return (
+      <div className="node-object node-object-db" style={{ borderColor: `${color}55` }}>
+        <span style={{ background: `${color}30` }} />
+        <span style={{ background: `${color}14`, width: '78%' }} />
+        <span style={{ background: `${color}12`, width: '92%' }} />
+      </div>
+    );
+  }
+
+  if (name === 'arch-message-queue' || name === 'arch-event-stream' || name === 'arch-partition') {
+    return (
+      <div className="node-object node-object-queue" style={{ borderColor: `${color}72`, background: `${color}10` }}>
+        {Array.from({ length: cellCount }, (_, i) => (
+          <span
+            key={i}
+            style={{
+              background: color,
+              opacity: i < filledCells ? 0.9 - i * 0.12 : 0.12,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (name === 'arch-topic') {
+    return (
+      <div className="node-object node-object-topic" style={{ borderColor: `${color}55` }}>
+        <span style={{ background: `${color}24` }} />
+        <span style={{ background: `${color}16` }} />
+      </div>
+    );
+  }
+
+  if (name === 'arch-api-gateway' || name === 'arch-load-balancer') {
+    return (
+      <div className="node-object node-object-route">
+        <span style={{ borderColor: color }} />
+        <i style={{ background: color }} />
+        <span style={{ borderColor: color }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="node-object node-object-mark">
+      <CustomNodeIcon name={name} color={color} size={30} />
+    </div>
+  );
+}
+
 /**
  * Node Handles — renders exactly 2 handles per side (one source, one target).
  */
@@ -68,13 +156,25 @@ function Handles({ color, nodeId }: { color: string; nodeId: string }) {
   );
 }
 
-function Label({ label, sublabel, color, nodeId }: { label: string; sublabel?: string; color: string; nodeId: string }) {
+function Label({ data, color, nodeId }: { data: ShapeNodeData; color: string; nodeId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
   const labelEdit = useInlineLabelEdit({
     nodeId,
-    currentLabel: label || '',
+    currentLabel: data.label || '',
     containerRef,
   });
+  const resolvedIcon = resolveNodeIcon({
+    label: data.label,
+    typeId: data.typeId,
+    componentType: data.componentType,
+    serviceType: data.serviceType,
+    technology: data.technology,
+    category: data.category,
+    icon: data.icon,
+    color,
+  });
+  const customVisual = toCustomNodeIconName(resolvedIcon.icon);
 
   return (
     <div
@@ -82,6 +182,27 @@ function Label({ label, sublabel, color, nodeId }: { label: string; sublabel?: s
       className="flex flex-col items-center justify-center text-center px-2 select-none"
       style={{ width: '100%' }}
     >
+      {customVisual ? (
+        <CustomNodeVisual name={customVisual} color={resolvedIcon.color} />
+      ) : showNodeIcons && (
+        <div
+          className="node-icon-box mb-1"
+          aria-hidden="true"
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 8,
+            background: `${color}14`,
+          }}
+        >
+          <NodeIcon
+            technology={resolvedIcon.technology}
+            fallbackIcon={resolvedIcon.icon}
+            fallbackColor={resolvedIcon.color}
+            size={16}
+          />
+        </div>
+      )}
       {labelEdit.isEditing ? (
         <input
           {...labelEdit.inputProps}
@@ -109,12 +230,12 @@ function Label({ label, sublabel, color, nodeId }: { label: string; sublabel?: s
           onDoubleClick={labelEdit.startEdit}
           style={{ cursor: 'text' }}
         >
-          {label}
+          {data.label}
         </span>
       )}
-      {sublabel && (
+      {data.sublabel && (
         <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5" style={{ color }}>
-          {sublabel}
+          {data.sublabel}
         </span>
       )}
     </div>
@@ -178,7 +299,7 @@ function Rectangle({ id, data, selected, rounded, backplates, isDark, styles }: 
           background: `linear-gradient(135deg, ${color}08 0%, transparent 60%)`,
           pointerEvents: 'none',
         }} />
-        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
+        <Label data={data} color={color} nodeId={id} />
       </div>
       <Handles color={color} nodeId={id} />
     </div>
@@ -212,7 +333,7 @@ function Diamond({ id, data, selected, backplates, isDark }: { id: string; data:
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
+        <Label data={data} color={color} nodeId={id} />
       </div>
     </div>
   );
@@ -254,7 +375,7 @@ function Cylinder({ id, data, selected, backplates, isDark }: { id: string; data
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
+        <Label data={data} color={color} nodeId={id} />
       </div>
     </div>
   );
@@ -283,7 +404,7 @@ function Circle({ id, data, selected, backplates, isDark }: { id: string; data: 
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
+        <Label data={data} color={color} nodeId={id} />
       </div>
     </div>
   );
@@ -318,7 +439,7 @@ function Parallelogram({ id, data, selected, backplates, isDark }: { id: string;
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label label={data.label} sublabel={data.sublabel} color={color} nodeId={id} />
+        <Label data={data} color={color} nodeId={id} />
       </div>
     </div>
   );

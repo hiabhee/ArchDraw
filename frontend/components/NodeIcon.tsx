@@ -15,10 +15,12 @@ import {
   Train, Cloud, Plane,
   Monitor, Timer, AppWindow, Key,
   GitMerge, Mail, CreditCard, Smartphone, Map, Plug,
+  Upload, User, Play, Clock, MessageCircle, ArrowLeftRight, Inbox,
   LucideIcon,
 } from 'lucide-react';
 import { iconRegistry } from '@/lib/iconRegistry';
 import { AWSIcon, getAWSIcon } from './icons/AWSIcon';
+import { CustomNodeIcon, toCustomNodeIconName, isCustomNodeIcon } from './icons/CustomNodeIcon';
 
 const LUCIDE_MAP: Record<string, LucideIcon> = {
   Server, Zap, Boxes, Box, CircleDot, Sprout,
@@ -35,6 +37,7 @@ const LUCIDE_MAP: Record<string, LucideIcon> = {
   Train, Cloud, Plane,
   Monitor, Timer, AppWindow, Key,
   GitMerge, Mail, CreditCard, Smartphone, Map, Plug,
+  Upload, User, Play, Clock, MessageCircle, ArrowLeftRight, Inbox,
 };
 
 interface NodeIconProps {
@@ -55,7 +58,31 @@ export function NodeIcon({ technology, fallbackIcon, fallbackColor, size = 18 }:
       return <AWSIcon iconId={entry.icon} size={size} color={color} />;
     }
   }
-  
+
+  // Handle custom icons (arch-*) from icon registry
+  if (entry?.kind === 'custom' || iconName.startsWith('arch-')) {
+    const customIconName = toCustomNodeIconName(iconName);
+    if (customIconName) {
+      return <CustomNodeIcon name={customIconName} color={color} size={size} />;
+    }
+  }
+
+  // Handle custom icons via aliases (Database -> arch-database, etc.)
+  if (isCustomNodeIcon(iconName)) {
+    const customIconName = toCustomNodeIconName(iconName);
+    if (customIconName) {
+      return <CustomNodeIcon name={customIconName} color={color} size={size} />;
+    }
+  }
+
+  if (!LUCIDE_MAP[iconName] && /[^\w\s-]/.test(iconName)) {
+    return (
+      <span style={{ color, fontSize: size, lineHeight: 1 }} aria-hidden="true">
+        {iconName}
+      </span>
+    );
+  }
+
   const Icon = LUCIDE_MAP[iconName] ?? Server;
   return <Icon size={size} style={{ color }} strokeWidth={2} />;
 }
@@ -63,17 +90,4 @@ export function NodeIcon({ technology, fallbackIcon, fallbackColor, size = 18 }:
 export function resolveNodeColor(technology?: string, fallbackColor?: string): string {
   if (technology && iconRegistry[technology]) return iconRegistry[technology].color;
   return fallbackColor ?? '#6B7280';
-}
-
-export function getNodeIcon(technology?: string): { icon: LucideIcon | typeof AWSIcon; kind: 'lucide' | 'aws'; color: string } | null {
-  if (!technology) return null;
-  
-  const entry = iconRegistry[technology];
-  if (!entry) return null;
-  
-  return {
-    icon: entry.kind === 'aws' ? AWSIcon : (LUCIDE_MAP[entry.icon] ?? Server),
-    kind: entry.kind,
-    color: entry.color,
-  };
 }

@@ -1,10 +1,10 @@
 /**
  * Icon registry — maps every component/technology id to an icon + brand color.
- * AWS entries use custom AWS icons, others use lucide icons.
+ * AWS entries use custom AWS icons, others use custom architecture icons.
  */
 
 export type IconEntry = {
-    kind: 'aws' | 'lucide';
+    kind: 'aws' | 'lucide' | 'custom';
     icon: string;
     color: string;
     description: string;
@@ -66,17 +66,17 @@ export const iconRegistry: Record<string, IconEntry> = {
     'aws-cloudformation': { kind: 'aws', icon: 'aws-cloudformation', color: '#3F8624', description: 'Infrastructure as code for AWS' },
 
     // ── Databases ──────────────────────────────────────────────────────────────
-    'mongodb': { kind: 'lucide', icon: 'Leaf', color: '#47A248', description: 'Document-oriented NoSQL database' },
-    'postgresql': { kind: 'lucide', icon: 'Database', color: '#336791', description: 'Advanced open-source relational database' },
-    'mysql': { kind: 'lucide', icon: 'Database', color: '#4479A1', description: "World's most popular open-source database" },
-    'sqlite': { kind: 'lucide', icon: 'Database', color: '#003B57', description: 'Lightweight embedded relational database' },
-    'redis': { kind: 'lucide', icon: 'Gauge', color: '#DC382D', description: 'In-memory data structure store and cache' },
-    'cassandra': { kind: 'lucide', icon: 'Layers', color: '#1287B1', description: 'Distributed wide-column NoSQL database' },
-    'cockroachdb': { kind: 'lucide', icon: 'Bug', color: '#6933FF', description: 'Distributed SQL database for global apps' },
-    'supabase': { kind: 'lucide', icon: 'Database', color: '#3ECF8E', description: 'Open-source Firebase alternative with Postgres' },
-    'planetscale': { kind: 'lucide', icon: 'Database', color: '#000000', description: 'Serverless MySQL platform with branching' },
-    'fauna': { kind: 'lucide', icon: 'Leaf', color: '#3A1AB6', description: 'Distributed document-relational database' },
-    'firestore': { kind: 'lucide', icon: 'Flame', color: '#FFCA28', description: 'Flexible, scalable NoSQL cloud database' },
+    'mongodb': { kind: 'custom', icon: 'arch-database', color: '#47A248', description: 'Document-oriented NoSQL database' },
+    'postgresql': { kind: 'custom', icon: 'arch-database', color: '#336791', description: 'Advanced open-source relational database' },
+    'mysql': { kind: 'custom', icon: 'arch-database', color: '#4479A1', description: "World's most popular open-source database" },
+    'sqlite': { kind: 'custom', icon: 'arch-database', color: '#003B57', description: 'Lightweight embedded relational database' },
+    'redis': { kind: 'custom', icon: 'arch-cache', color: '#DC382D', description: 'In-memory data structure store and cache' },
+    'cassandra': { kind: 'custom', icon: 'arch-database', color: '#1287B1', description: 'Distributed wide-column NoSQL database' },
+    'cockroachdb': { kind: 'custom', icon: 'arch-database', color: '#6933FF', description: 'Distributed SQL database for global apps' },
+    'supabase': { kind: 'custom', icon: 'arch-database', color: '#3ECF8E', description: 'Open-source Firebase alternative with Postgres' },
+    'planetscale': { kind: 'custom', icon: 'arch-database', color: '#000000', description: 'Serverless MySQL platform with branching' },
+    'fauna': { kind: 'custom', icon: 'arch-database', color: '#3A1AB6', description: 'Distributed document-relational database' },
+    'firestore': { kind: 'custom', icon: 'arch-database', color: '#FFCA28', description: 'Flexible, scalable NoSQL cloud database' },
 
     // ── ORMs & Query Tools ─────────────────────────────────────────────────────
     'prisma': { kind: 'lucide', icon: 'Triangle', color: '#2D3748', description: 'Next-generation ORM for Node.js and TypeScript' },
@@ -85,11 +85,11 @@ export const iconRegistry: Record<string, IconEntry> = {
     'sequelize': { kind: 'lucide', icon: 'Code2', color: '#52B0E7', description: 'Promise-based Node.js ORM for SQL databases' },
 
     // ── Auth ───────────────────────────────────────────────────────────────────
-    'auth0': { kind: 'lucide', icon: 'ShieldCheck', color: '#EB5424', description: 'Identity platform for app builders' },
-    'clerk': { kind: 'lucide', icon: 'UserCheck', color: '#6C47FF', description: 'Complete user management and authentication' },
-    'nextauth': { kind: 'lucide', icon: 'KeyRound', color: '#000000', description: 'Authentication for Next.js applications' },
-    'firebase-auth': { kind: 'lucide', icon: 'Flame', color: '#FFCA28', description: "Google's authentication service" },
-    'supabase-auth': { kind: 'lucide', icon: 'UserCheck', color: '#3ECF8E', description: 'Row-level security and JWT auth via Supabase' },
+    'auth0': { kind: 'custom', icon: 'arch-auth', color: '#EB5424', description: 'Identity platform for app builders' },
+    'clerk': { kind: 'custom', icon: 'arch-auth', color: '#6C47FF', description: 'Complete user management and authentication' },
+    'nextauth': { kind: 'custom', icon: 'arch-auth', color: '#000000', description: 'Authentication for Next.js applications' },
+    'firebase-auth': { kind: 'custom', icon: 'arch-auth', color: '#FFCA28', description: "Google's authentication service" },
+    'supabase-auth': { kind: 'custom', icon: 'arch-auth', color: '#3ECF8E', description: 'Row-level security and JWT auth via Supabase' },
 
     // ── Search ─────────────────────────────────────────────────────────────────
     'elasticsearch': { kind: 'lucide', icon: 'Search', color: '#FEC514', description: 'Distributed search and analytics engine' },
@@ -98,33 +98,33 @@ export const iconRegistry: Record<string, IconEntry> = {
     'meilisearch': { kind: 'lucide', icon: 'Search', color: '#FF5CAA', description: 'Lightning-fast open-source search engine' },
 
     // ── Messaging ──────────────────────────────────────────────────────────────
-    'kafka': { kind: 'lucide', icon: 'Activity', color: '#231F20', description: 'Distributed event streaming platform' },
-    'rabbitmq': { kind: 'lucide', icon: 'MessageSquare', color: '#FF6600', description: 'Open-source message broker' },
-    'upstash': { kind: 'lucide', icon: 'Zap', color: '#00E9A3', description: 'Serverless Redis and Kafka for the edge' },
+    'kafka': { kind: 'custom', icon: 'arch-event-stream', color: '#231F20', description: 'Distributed event streaming platform' },
+    'rabbitmq': { kind: 'custom', icon: 'arch-message-queue', color: '#FF6600', description: 'Open-source message broker' },
+    'upstash': { kind: 'custom', icon: 'arch-message-queue', color: '#00E9A3', description: 'Serverless Redis and Kafka for the edge' },
 
     // ── Monitoring ─────────────────────────────────────────────────────────────
-    'datadog': { kind: 'lucide', icon: 'BarChart2', color: '#632CA6', description: 'Cloud monitoring and security platform' },
-    'sentry': { kind: 'lucide', icon: 'AlertTriangle', color: '#362D59', description: 'Application error tracking and performance' },
-    'newrelic': { kind: 'lucide', icon: 'LayoutDashboard', color: '#1CE783', description: 'Full-stack observability platform' },
-    'grafana': { kind: 'lucide', icon: 'LayoutDashboard', color: '#F46800', description: 'Open-source analytics and monitoring' },
-    'prometheus': { kind: 'lucide', icon: 'Activity', color: '#E6522C', description: 'Open-source metrics and alerting toolkit' },
+    'datadog': { kind: 'custom', icon: 'arch-observability', color: '#632CA6', description: 'Cloud monitoring and security platform' },
+    'sentry': { kind: 'custom', icon: 'arch-observability', color: '#362D59', description: 'Application error tracking and performance' },
+    'newrelic': { kind: 'custom', icon: 'arch-observability', color: '#1CE783', description: 'Full-stack observability platform' },
+    'grafana': { kind: 'custom', icon: 'arch-observability', color: '#F46800', description: 'Open-source analytics and monitoring' },
+    'prometheus': { kind: 'custom', icon: 'arch-observability', color: '#E6522C', description: 'Open-source metrics and alerting toolkit' },
 
     // ── AI ─────────────────────────────────────────────────────────────────────
-    'openai': { kind: 'lucide', icon: 'Brain', color: '#412991', description: 'GPT models and AI APIs' },
-    'anthropic': { kind: 'lucide', icon: 'Brain', color: '#D4A27F', description: 'Claude AI models for safe, helpful AI' },
-    'pinecone': { kind: 'lucide', icon: 'Cpu', color: '#1C17FF', description: 'Vector database for ML applications' },
-    'weaviate': { kind: 'lucide', icon: 'Cpu', color: '#FA0050', description: 'Open-source vector search engine' },
-    'langchain': { kind: 'lucide', icon: 'Link', color: '#1C3C3C', description: 'Framework for LLM-powered applications' },
-    'huggingface': { kind: 'lucide', icon: 'Bot', color: '#FFD21E', description: 'Open-source ML models and datasets' },
+    'openai': { kind: 'custom', icon: 'arch-ai', color: '#412991', description: 'GPT models and AI APIs' },
+    'anthropic': { kind: 'custom', icon: 'arch-ai', color: '#D4A27F', description: 'Claude AI models for safe, helpful AI' },
+    'pinecone': { kind: 'custom', icon: 'arch-storage', color: '#1C17FF', description: 'Vector database for ML applications' },
+    'weaviate': { kind: 'custom', icon: 'arch-storage', color: '#FA0050', description: 'Open-source vector search engine' },
+    'langchain': { kind: 'custom', icon: 'arch-ai', color: '#1C3C3C', description: 'Framework for LLM-powered applications' },
+    'huggingface': { kind: 'custom', icon: 'arch-ai', color: '#FFD21E', description: 'Open-source ML models and datasets' },
 
     // ── DevOps ─────────────────────────────────────────────────────────────────
-    'docker': { kind: 'lucide', icon: 'Box', color: '#2496ED', description: 'Build, ship, and run containerized apps' },
-    'kubernetes': { kind: 'lucide', icon: 'CircleDot', color: '#326CE5', description: 'Container orchestration at scale' },
-    'vercel': { kind: 'lucide', icon: 'Triangle', color: '#000000', description: 'Frontend cloud for web deployment' },
-    'railway': { kind: 'lucide', icon: 'Train', color: '#0B0D0E', description: 'Infrastructure platform for any language' },
-    'render': { kind: 'lucide', icon: 'Cloud', color: '#46E3B7', description: 'Unified cloud for apps and databases' },
-    'flyio': { kind: 'lucide', icon: 'Plane', color: '#7B3FE4', description: 'Run full-stack apps close to users' },
-    'github-actions': { kind: 'lucide', icon: 'GitPullRequest', color: '#2088FF', description: 'CI/CD automation built into GitHub' },
+    'docker': { kind: 'custom', icon: 'arch-docker', color: '#2496ED', description: 'Build, ship, and run containerized apps' },
+    'kubernetes': { kind: 'custom', icon: 'arch-service', color: '#326CE5', description: 'Container orchestration at scale' },
+    'vercel': { kind: 'custom', icon: 'arch-web', color: '#000000', description: 'Frontend cloud for web deployment' },
+    'railway': { kind: 'custom', icon: 'arch-server', color: '#0B0D0E', description: 'Infrastructure platform for any language' },
+    'render': { kind: 'custom', icon: 'arch-server', color: '#46E3B7', description: 'Unified cloud for apps and databases' },
+    'flyio': { kind: 'custom', icon: 'arch-server', color: '#7B3FE4', description: 'Run full-stack apps close to users' },
+    'github-actions': { kind: 'custom', icon: 'arch-service', color: '#2088FF', description: 'CI/CD automation built into GitHub' },
 
     // ── Azure Compute ─────────────────────────────────────────────────────────────
     'azure-vm': { kind: 'lucide', icon: 'Server', color: '#0078D4', description: 'Azure Virtual Machines' },
@@ -179,19 +179,19 @@ export const iconRegistry: Record<string, IconEntry> = {
     'gcp-lb': { kind: 'lucide', icon: 'Scale', color: '#4285F4', description: 'GCP Cloud Load Balancing' },
 
     // ── Generic Service Types ──────────────────────────────────────────────────────
-    'generic-api': { kind: 'lucide', icon: 'Webhook', color: '#6B7280', description: 'Generic API service' },
-    'generic-database': { kind: 'lucide', icon: 'Database', color: '#6B7280', description: 'Generic database service' },
-    'generic-storage': { kind: 'lucide', icon: 'HardDrive', color: '#6B7280', description: 'Generic storage service' },
-    'generic-queue': { kind: 'lucide', icon: 'MessageSquare', color: '#6B7280', description: 'Generic message queue' },
-    'generic-cache': { kind: 'lucide', icon: 'Gauge', color: '#6B7280', description: 'Generic cache service' },
-    'generic-auth': { kind: 'lucide', icon: 'ShieldCheck', color: '#6B7280', description: 'Generic authentication service' },
-    'generic-search': { kind: 'lucide', icon: 'Search', color: '#6B7280', description: 'Generic search service' },
-    'generic-compute': { kind: 'lucide', icon: 'Cpu', color: '#6B7280', description: 'Generic compute service' },
-    'generic-container': { kind: 'lucide', icon: 'Box', color: '#6B7280', description: 'Generic container service' },
-    'generic-server': { kind: 'lucide', icon: 'Server', color: '#6B7280', description: 'Generic server/service' },
-    'generic-client': { kind: 'lucide', icon: 'Monitor', color: '#6B7280', description: 'Generic client/application' },
-    'generic-cdn': { kind: 'lucide', icon: 'RadioTower', color: '#6B7280', description: 'Generic CDN service' },
-    'generic-dns': { kind: 'lucide', icon: 'Globe', color: '#6B7280', description: 'Generic DNS service' },
-    'generic-monitoring': { kind: 'lucide', icon: 'LayoutDashboard', color: '#6B7280', description: 'Generic monitoring service' },
-    'generic-logging': { kind: 'lucide', icon: 'ScrollText', color: '#6B7280', description: 'Generic logging service' },
+    'generic-api': { kind: 'custom', icon: 'arch-api-gateway', color: '#6B7280', description: 'Generic API service' },
+    'generic-database': { kind: 'custom', icon: 'arch-database', color: '#6B7280', description: 'Generic database service' },
+    'generic-storage': { kind: 'custom', icon: 'arch-storage', color: '#6B7280', description: 'Generic storage service' },
+    'generic-queue': { kind: 'custom', icon: 'arch-message-queue', color: '#6B7280', description: 'Generic message queue' },
+    'generic-cache': { kind: 'custom', icon: 'arch-cache', color: '#6B7280', description: 'Generic cache service' },
+    'generic-auth': { kind: 'custom', icon: 'arch-auth', color: '#6B7280', description: 'Generic authentication service' },
+    'generic-search': { kind: 'custom', icon: 'arch-observability', color: '#6B7280', description: 'Generic search service' },
+    'generic-compute': { kind: 'custom', icon: 'arch-server', color: '#6B7280', description: 'Generic compute service' },
+    'generic-container': { kind: 'custom', icon: 'arch-docker', color: '#6B7280', description: 'Generic container service' },
+    'generic-server': { kind: 'custom', icon: 'arch-server', color: '#6B7280', description: 'Generic server/service' },
+    'generic-client': { kind: 'custom', icon: 'arch-web', color: '#6B7280', description: 'Generic client/application' },
+    'generic-cdn': { kind: 'custom', icon: 'arch-api-gateway', color: '#6B7280', description: 'Generic CDN service' },
+    'generic-dns': { kind: 'custom', icon: 'arch-external', color: '#6B7280', description: 'Generic DNS service' },
+    'generic-monitoring': { kind: 'custom', icon: 'arch-observability', color: '#6B7280', description: 'Generic monitoring service' },
+    'generic-logging': { kind: 'custom', icon: 'arch-observability', color: '#6B7280', description: 'Generic logging service' },
 };
