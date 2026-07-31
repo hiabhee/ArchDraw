@@ -182,26 +182,30 @@ function Label({ data, color, nodeId }: { data: ShapeNodeData; color: string; no
       className="flex flex-col items-center justify-center text-center px-2 select-none"
       style={{ width: '100%' }}
     >
-      {customVisual ? (
-        <CustomNodeVisual name={customVisual} color={resolvedIcon.color} />
-      ) : showNodeIcons && (
-        <div
-          className="node-icon-box mb-1"
-          aria-hidden="true"
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 8,
-            background: `${color}14`,
-          }}
-        >
-          <NodeIcon
-            technology={resolvedIcon.technology}
-            fallbackIcon={resolvedIcon.icon}
-            fallbackColor={resolvedIcon.color}
-            size={16}
-          />
-        </div>
+      {showNodeIcons && (
+        <>
+          {customVisual ? (
+            <CustomNodeVisual name={customVisual} color={resolvedIcon.color} />
+          ) : (
+            <div
+              className="node-icon-box mb-1"
+              aria-hidden="true"
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 8,
+                background: `${color}14`,
+              }}
+            >
+              <NodeIcon
+                technology={resolvedIcon.technology}
+                fallbackIcon={resolvedIcon.icon}
+                fallbackColor={resolvedIcon.color}
+                size={16}
+              />
+            </div>
+          )}
+        </>
       )}
       {labelEdit.isEditing ? (
         <input

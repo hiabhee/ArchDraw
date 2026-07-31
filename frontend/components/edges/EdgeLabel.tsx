@@ -10,9 +10,10 @@ interface EdgeLabelProps {
   label?: string;
   labelX: number;
   labelY: number;
+  edgeLength?: number;
 }
 
-export function EdgeLabel({ edgeId, label }: EdgeLabelProps) {
+export function EdgeLabel({ edgeId, label, edgeLength }: EdgeLabelProps) {
   const { isDark } = useCanvasTheme();
   const updateEdgeLabel = useDiagramStore((s) => s.updateEdgeLabel);
 
@@ -63,21 +64,32 @@ export function EdgeLabel({ edgeId, label }: EdgeLabelProps) {
 
   const inputWidth = Math.max(80, Math.min(150, draft.length * 6 + 32));
 
+  // Adjust opacity based on edge length - shorter edges get more transparent labels
+  const backgroundOpacity = edgeLength && edgeLength < 80 ? 0.7 : 0.85;
+  
   const pillStyle: React.CSSProperties = {
-    background: isDark ? '#1e293b' : '#f8f7f4',
+    background: isDark 
+      ? `rgba(30, 41, 59, ${backgroundOpacity})` 
+      : `rgba(248, 247, 244, ${backgroundOpacity})`,
     color: isDark ? '#cbd5e1' : '#4B5563',
     borderRadius: 4,
-    border: isDark ? '1px solid rgba(203,213,225,0.12)' : 'none',
+    border: isDark ? '1px solid rgba(203,213,225,0.12)' : '1px solid rgba(0,0,0,0.08)',
     fontSize: 8,
     fontFamily: 'Inter, -apple-system, sans-serif',
     fontWeight: 500,
-    padding: '2.5px 5px',
+    padding: '3px 6px',
+    lineHeight: 1,
     textAlign: 'center',
     outline: 'none',
     boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.05)',
     position: 'relative',
     zIndex: 1000,
     textTransform: 'uppercase',
+    backdropFilter: 'blur(2px)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    verticalAlign: 'middle',
   };
 
   if (!displayText && !editing) {
@@ -120,7 +132,6 @@ export function EdgeLabel({ edgeId, label }: EdgeLabelProps) {
           title="Double-click to edit"
           style={{
             ...pillStyle,
-            display: 'inline-block',
             cursor: 'text',
             userSelect: 'none',
             whiteSpace: 'nowrap',

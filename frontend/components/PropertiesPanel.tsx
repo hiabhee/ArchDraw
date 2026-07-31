@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal } from 'lucide-react';
-import { useDiagramStore } from '@/store/diagramStore';
+import { useRef, useState, useCallback, useMemo } from 'react';
+import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Inbox, GitBranch, Monitor, Box, Palette } from 'lucide-react';
+import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
 
 const SHAPE_OPTIONS: { value: ShapeType; label: string; icon: React.ElementType }[] = [
@@ -22,6 +22,23 @@ const TIER_ICONS: Record<string, React.ElementType> = {
   data: Database,
   observe: Activity,
 };
+
+const COMPONENT_TYPE_OPTIONS = [
+  { value: 'service', label: 'Service', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#4F46E5' },
+  { value: 'database', label: 'Database', icon: Database, shape: 'cylinder' as ShapeType, category: 'data', color: '#1e293b' },
+  { value: 'queue', label: 'Message Queue', icon: Inbox, shape: 'circle' as ShapeType, category: 'messaging', color: '#0891b2' },
+  { value: 'load-balancer', label: 'Load Balancer', icon: GitBranch, shape: 'diamond' as ShapeType, category: 'networking', color: '#4F46E5' },
+  { value: 'client', label: 'Client', icon: Monitor, shape: 'rounded-rectangle' as ShapeType, category: 'client', color: '#2563EB' },
+  { value: 'external-service', label: 'External', icon: Globe, shape: 'diamond' as ShapeType, category: 'external', color: '#64748b' },
+  { value: 'observability', label: 'Observability', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#475569' },
+  { value: 'api-gateway', label: 'API Gateway', icon: Shield, shape: 'diamond' as ShapeType, category: 'gateway', color: '#7c3aed' },
+  { value: 'cache', label: 'Cache', icon: Zap, shape: 'cylinder' as ShapeType, category: 'data', color: '#f59e0b' },
+  { value: 'function', label: 'Function', icon: Server, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#ec4899' },
+  { value: 'cdn', label: 'CDN', icon: Globe, shape: 'circle' as ShapeType, category: 'edge', color: '#10b981' },
+  { value: 'auth-service', label: 'Auth Service', icon: Shield, shape: 'rounded-rectangle' as ShapeType, category: 'security', color: '#6366f1' },
+  { value: 'monitoring', label: 'Monitoring', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#0ea5e9' },
+  { value: 'container', label: 'Container', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#06b6d4' },
+];
 
 const TECH_LABELS: Record<string, string> = {
   postgres: 'PostgreSQL',
@@ -117,11 +134,17 @@ function EdgePropertiesPanel() {
 
 export function PropertiesPanel() {
   const {
-    selectedNodeId, nodes, updateNodeData, updateNodeSize, removeNode, setSelectedNodeId,
+    selectedNodeId, selectedNodeIds, nodes, updateNodeSize, setSelectedNodeId, setSelectedNodeIds,
     selectedEdgeId,
   } = useDiagramStore();
 
-  const node = nodes.find((n) => n.id === selectedNodeId);
+  const isMulti = selectedNodeIds.length > 1 && !selectedNodeId;
+  const targetIds = useMemo(
+    () => isMulti ? selectedNodeIds : (selectedNodeId ? [selectedNodeId] : []),
+    [isMulti, selectedNodeId, selectedNodeIds]
+  );
+
+  const node = isMulti ? null : nodes.find((n) => n.id === selectedNodeId);
 
   const labelRef = useRef<HTMLInputElement>(null);
   const [localLabel, setLocalLabel] = useState(node?.data?.label ?? '');
@@ -132,21 +155,70 @@ export function PropertiesPanel() {
     setLocalLabel(node?.data?.label ?? '');
   }
 
-  if (selectedEdgeId && !node) {
-    return <EdgePropertiesPanel />;
-  }
+  // For multi-select, use the first node's data as a reference
+  const firstData: NodeData | undefined = isMulti && targetIds.length > 0
+    ? nodes.find((n) => n.id === targetIds[0])?.data
+    : node?.data;
+  const data: Partial<NodeData> = firstData ?? {};
 
-  if (!node) return null;
+  const applyToAll = useCallback((updates: Partial<NodeData>) => {
+    const store = useDiagramStore.getState();
+    store.pushHistory();
+    for (const id of targetIds) {
+      store.updateNodeData(id, updates);
+    }
+  }, [targetIds]);
 
-  const data = node.data;
-  const TierIcon = TIER_ICONS[data.category?.toLowerCase()] || Server;
-  const techLabel = data.tech ? TECH_LABELS[data.tech.toLowerCase()] || data.tech : null;
+  const applyTypeChange = useCallback((typeValue: string) => {
+    const option = COMPONENT_TYPE_OPTIONS.find((o) => o.value === typeValue);
+    if (!option) return;
+    useDiagramStore.getState().pushHistory();
+    for (const id of targetIds) {
+      const existing = useDiagramStore.getState().nodes.find((n) => n.id === id);
+      if (!existing) continue;
+      const isSystemNode = existing.type === 'systemNode' || existing.type === 'architectureNode' || existing.type === 'baseNode';
+      if (isSystemNode) {
+        const newNode = {
+          ...existing,
+          type: 'shapeNode' as const,
+          data: {
+            ...existing.data,
+            shape: option.shape,
+            componentType: option.value,
+            category: option.category,
+            icon: option.icon.name,
+            color: option.color,
+            accentColor: option.color,
+          },
+        };
+        useDiagramStore.getState().importDiagram(
+          useDiagramStore.getState().nodes.map((n) => n.id === id ? newNode : n),
+          useDiagramStore.getState().edges
+        );
+      } else {
+        useDiagramStore.getState().updateNodeData(id, {
+          shape: option.shape,
+          componentType: option.value,
+          category: option.category,
+          icon: option.icon.name,
+          color: option.color,
+          accentColor: option.color,
+        });
+      }
+    }
+  }, [targetIds]);
+
+  const TierIcon = TIER_ICONS[data.category?.toLowerCase() ?? ''] || Server;
+  const techLabel = data.tech
+    ? TECH_LABELS[data.tech.toLowerCase()] || data.tech
+    : null;
 
   const commitLabel = () => {
-    if (localLabel.trim()) updateNodeData(node.id, { label: localLabel.trim() });
+    if (localLabel.trim()) applyToAll({ label: localLabel.trim() });
   };
 
   const handleDuplicate = () => {
+    if (!node) return;
     const newId = `${node.id}-copy-${Date.now()}`;
     useDiagramStore.getState().addNode({
       ...node,
@@ -157,56 +229,65 @@ export function PropertiesPanel() {
     useDiagramStore.getState().setSelectedNodeIds([newId]);
   };
 
-  const handleStatusChange = () => {
-    const statuses: Array<'healthy' | 'warning' | 'error' | 'unknown'> = ['healthy', 'warning', 'error', 'unknown'];
-    const currentIndex = statuses.indexOf(data.status || 'healthy');
-    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-    updateNodeData(node.id, { status: nextStatus });
+  const handleStatusChange = (status: 'healthy' | 'warning' | 'error' | 'unknown') => {
+    applyToAll({ status });
   };
 
-  const handleColorChange = () => {
-    const colors = [
-      '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#6b7280',
-      '#f43f5e', '#a855f7', '#84cc16', '#fb923c', '#14b8a6',
-    ];
-    const currentIndex = colors.indexOf(data.accentColor || data.color || '#3b82f6');
-    const nextColor = colors[(currentIndex + 1) % colors.length];
-    updateNodeData(node.id, { accentColor: nextColor });
+  const statusOptions: Array<{ value: 'healthy' | 'warning' | 'error' | 'unknown'; label: string; color: string }> = [
+    { value: 'healthy', label: 'Healthy', color: '#10B981' },
+    { value: 'warning', label: 'Warning', color: '#F59E0B' },
+    { value: 'error', label: 'Error', color: '#EF4444' },
+    { value: 'unknown', label: 'Unknown', color: '#6B7280' },
+  ];
+
+  const handleColorChange = (color: string) => {
+    applyToAll({ accentColor: color });
   };
+
+  const colorOptions = [
+    '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#6b7280',
+    '#f43f5e', '#a855f7', '#84cc16', '#fb923c', '#0d9488',
+  ];
 
   const handleShapeChange = (newShape: ShapeType) => {
-    const isSystemNode = node.type === 'systemNode' || node.type === 'architectureNode' || node.type === 'baseNode';
-    
-    if (isSystemNode) {
-      // Convert systemNode to shapeNode
-      const { ...nodeRest } = node;
-      useDiagramStore.getState().pushHistory();
-      const newNode = {
-        ...nodeRest,
-        type: 'shapeNode' as const,
-        data: {
-          ...node.data,
-          shape: newShape,
-          label: node.data?.label || 'Node',
-          color: node.data?.accentColor || node.data?.color || '#3b82f6',
-          accentColor: node.data?.accentColor || node.data?.color || '#3b82f6',
-        },
-      };
-      useDiagramStore.getState().importDiagram(
-        [...useDiagramStore.getState().nodes.filter(n => n.id !== node.id), newNode],
-        useDiagramStore.getState().edges
-      );
-    } else {
-      // Already a shapeNode or other type - just update the shape
-      updateNodeData(node.id, { shape: newShape });
+    useDiagramStore.getState().pushHistory();
+    for (const id of targetIds) {
+      const existing = useDiagramStore.getState().nodes.find((n) => n.id === id);
+      if (!existing) continue;
+      const isSystemNode = existing.type === 'systemNode' || existing.type === 'architectureNode' || existing.type === 'baseNode';
+      if (isSystemNode) {
+        const newNode = {
+          ...existing,
+          type: 'shapeNode' as const,
+          data: {
+            ...existing.data,
+            shape: newShape,
+            label: existing.data?.label || 'Node',
+            color: existing.data?.accentColor || existing.data?.color || '#3b82f6',
+            accentColor: existing.data?.accentColor || existing.data?.color || '#3b82f6',
+          },
+        };
+        useDiagramStore.getState().importDiagram(
+          useDiagramStore.getState().nodes.map((n) => n.id === id ? newNode : n),
+          useDiagramStore.getState().edges
+        );
+      } else {
+        useDiagramStore.getState().updateNodeData(id, { shape: newShape });
+      }
     }
   };
 
-  const currentShape = (node.type === 'shapeNode' ? (data as { shape?: ShapeType }).shape : null) || 'rounded-rectangle';
-  const isShapeNode = node.type === 'shapeNode';
+  const currentShape = (node?.type === 'shapeNode' ? (node.data as { shape?: ShapeType }).shape : null) || 'rounded-rectangle';
+  const isShapeNode = node?.type === 'shapeNode';
 
-  const statusColor = data.status === 'warning' ? '#F59E0B' : data.status === 'error' ? '#EF4444' : data.status === 'unknown' ? '#6B7280' : '#10B981';
   const accent = data.accentColor || data.color || '#3b82f6';
+  const currentType = data.componentType || 'service';
+
+  if (selectedEdgeId && !node && !isMulti) {
+    return <EdgePropertiesPanel />;
+  }
+
+  if (!node && !isMulti) return null;
 
   return (
     <div 
@@ -223,19 +304,17 @@ export function PropertiesPanel() {
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-medium">Node Info</span>
+        <span className="text-sm font-medium">
+          {isMulti ? `${targetIds.length} Nodes Selected` : 'Node Info'}
+        </span>
         <div className="flex items-center gap-1">
-          <button onClick={handleDuplicate} title="Duplicate" className="floating-icon-btn !w-8 !h-8">
-            <Copy className="w-4 h-4" />
-          </button>
-          <button onClick={handleStatusChange} title="Toggle Status" className="floating-icon-btn !w-8 !h-8">
-            <Circle className="w-3 h-3" fill={statusColor} />
-          </button>
-          <button onClick={handleColorChange} title="Change Color" className="floating-icon-btn !w-8 !h-8">
-            <Circle className="w-3 h-3" fill={accent} />
-          </button>
+          {!isMulti && node && (
+            <button onClick={handleDuplicate} title="Duplicate" className="floating-icon-btn !w-8 !h-8">
+              <Copy className="w-4 h-4" />
+            </button>
+          )}
           <button
-            onClick={() => setSelectedNodeId(null)}
+            onClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); }}
             className="floating-icon-btn !w-8 !h-8"
           >
             <X className="w-4 h-4" />
@@ -244,20 +323,57 @@ export function PropertiesPanel() {
       </div>
 
       <div className="space-y-4 mt-4">
-        {/* Label */}
+        {/* Label (single node only) */}
+        {!isMulti && (
+          <div>
+            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
+              <Type className="w-3 h-3" />
+              Label
+            </label>
+            <input
+              ref={labelRef}
+              value={localLabel}
+              onChange={(e) => setLocalLabel(e.target.value)}
+              onBlur={commitLabel}
+              onKeyDown={(e) => { if (e.key === 'Enter') labelRef.current?.blur(); e.stopPropagation(); }}
+              className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
+            />
+          </div>
+        )}
+
+        {/* Component Type */}
         <div>
           <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-            <Type className="w-3 h-3" />
-            Label
+            <Server className="w-3 h-3" />
+            Component Type
           </label>
-          <input
-            ref={labelRef}
-            value={localLabel}
-            onChange={(e) => setLocalLabel(e.target.value)}
-            onBlur={commitLabel}
-            onKeyDown={(e) => { if (e.key === 'Enter') labelRef.current?.blur(); e.stopPropagation(); }}
-            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
-          />
+          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+            {COMPONENT_TYPE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const isSelected = currentType === option.value;
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => applyTypeChange(option.value)}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-[10px] transition-all ${
+                    isSelected
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+                  }`}
+                  title={option.label}
+                  style={isSelected ? { borderColor: option.color, color: option.color } : undefined}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {isMulti && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1.5">
+              Applies to all {targetIds.length} selected nodes
+            </p>
+          )}
         </div>
 
         {/* Shape */}
@@ -290,9 +406,68 @@ export function PropertiesPanel() {
               );
             })}
           </div>
-          {!isShapeNode && (
+          {!isShapeNode && !isMulti && (
             <p className="text-[9px] text-muted-foreground/60 mt-1.5">
               Changing shape converts to Shape Node
+            </p>
+          )}
+        </div>
+
+        {/* Color Picker */}
+        <div>
+          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
+            <Palette className="w-3 h-3" />
+            Color
+          </label>
+          <div className="grid grid-cols-5 gap-1.5">
+            {colorOptions.map((color) => (
+              <button
+                key={color}
+                onClick={() => handleColorChange(color)}
+                className={`w-8 h-8 rounded-lg transition-all ${
+                  accent === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110'
+                }`}
+                style={{ 
+                  backgroundColor: color,
+                  ...(accent === color ? { boxShadow: `0 0 0 2px ${color}` } : {})
+                }}
+                title={color}
+              />
+            ))}
+          </div>
+          {isMulti && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1">
+              Applies to all {targetIds.length} selected nodes
+            </p>
+          )}
+        </div>
+
+        {/* Status Picker */}
+        <div>
+          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
+            <Activity className="w-3 h-3" />
+            Status
+          </label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {statusOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleStatusChange(option.value)}
+                className={`flex items-center gap-2 px-2 py-2 rounded-lg text-[10px] transition-all ${
+                  data.status === option.value
+                    ? 'bg-primary/15 text-primary border border-primary/30'
+                    : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+                }`}
+                style={data.status === option.value ? { borderColor: option.color, color: option.color } : undefined}
+              >
+                <Circle className="w-3 h-3" fill={option.color} />
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
+          {isMulti && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1">
+              Applies to all {targetIds.length} selected nodes
             </p>
           )}
         </div>
@@ -311,43 +486,45 @@ export function PropertiesPanel() {
         )}
 
         {/* Technology */}
-        {(data.tech || data.technology) && (
-          <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-              Technology
-            </label>
-            <div className="px-3 py-2 text-xs bg-secondary rounded-xl">
-              {techLabel || data.technology || data.tech}
-            </div>
-          </div>
-        )}
+        <div>
+          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
+            Technology
+          </label>
+          <input
+            type="text"
+            value={data.tech || data.technology || ''}
+            placeholder="e.g. PostgreSQL, Redis"
+            onChange={(e) => applyToAll({ tech: e.target.value, technology: e.target.value })}
+            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {isMulti && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1">
+              Applies to all {targetIds.length} selected nodes
+            </p>
+          )}
+        </div>
 
         {/* Subtitle / Description */}
-        {(data.sublabel || data.description) && (
-          <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-              Description
-            </label>
-            <div className="px-3 py-2 text-xs bg-secondary rounded-xl text-muted-foreground">
-              {data.sublabel || data.description}
-            </div>
-          </div>
-        )}
-
-        {/* Component Type */}
-        {data.componentType && (
-          <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-              Type
-            </label>
-            <div className="px-3 py-2 text-xs bg-secondary rounded-xl capitalize">
-              {data.componentType}
-            </div>
-          </div>
-        )}
+        <div>
+          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
+            Description
+          </label>
+          <input
+            type="text"
+            value={data.sublabel || data.description || ''}
+            placeholder="Optional description"
+            onChange={(e) => applyToAll({ sublabel: e.target.value, description: e.target.value })}
+            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {isMulti && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1">
+              Applies to all {targetIds.length} selected nodes
+            </p>
+          )}
+        </div>
 
         {/* Dimensions - only for groups */}
-        {data.isGroup && (
+        {(data as { isGroup?: boolean }).isGroup && node && (
           <div className="space-y-3">
             <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
               <Maximize2 className="w-3 h-3" />
@@ -382,23 +559,32 @@ export function PropertiesPanel() {
           </div>
         )}
 
-        {/* Node ID (for reference) */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-            ID
-          </label>
-          <div className="px-3 py-2 text-xs bg-secondary rounded-xl text-muted-foreground font-mono truncate" title={node.id}>
-            {node.id}
+        {/* Node ID (for reference, single node only) */}
+        {!isMulti && node && (
+          <div>
+            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
+              ID
+            </label>
+            <div className="px-3 py-2 text-xs bg-secondary rounded-xl text-muted-foreground font-mono truncate" title={node.id}>
+              {node.id}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Delete */}
         <div className="pt-4 border-t border-border/50">
           <button
-            onClick={() => { removeNode(node.id); setSelectedNodeId(null); }}
+            onClick={() => {
+              useDiagramStore.getState().pushHistory();
+              for (const id of targetIds) {
+                useDiagramStore.getState().removeNode(id);
+              }
+              setSelectedNodeId(null);
+              setSelectedNodeIds([]);
+            }}
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
           >
-            Delete Node
+            Delete {isMulti ? `${targetIds.length} Nodes` : 'Node'}
           </button>
         </div>
       </div>

@@ -311,6 +311,11 @@ export default function SimpleFloatingEdge({
     }
   }, [edgePath, labelT, displayLabel, sx, sy, tx, ty]);
 
+  // Calculate edge length for label opacity adjustment
+  const edgeLength = useMemo(() => {
+    return Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
+  }, [sx, sy, tx, ty]);
+
   const isDragging = useRef(false);
   const [dragging, setDragging] = useState(false);
 
@@ -446,6 +451,7 @@ export default function SimpleFloatingEdge({
               cursor: dragging ? 'grabbing' : 'grab',
               zIndex: 1000,
               userSelect: 'none',
+              marginTop: '-2px',
             }}
             title="Drag to reposition label"
           >
@@ -454,6 +460,7 @@ export default function SimpleFloatingEdge({
               label={displayLabel}
               labelX={labelPos.x}
               labelY={labelPos.y}
+              edgeLength={edgeLength}
             />
           </div>
         </EdgeLabelRenderer>

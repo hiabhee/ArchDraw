@@ -378,6 +378,18 @@ body {
   transition: stroke 0.15s ease, stroke-width 0.15s ease, opacity 0.15s ease;
 }
 
+/* Edge label container styling */
+.react-flow__edgelabel {
+  pointer-events: all;
+  user-select: none;
+}
+
+/* Edge label background transparency */
+.react-flow__edgelabel > div {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
 /* Dark mode: lighter edges for visibility */
 .dark .react-flow__edge-path {
   opacity: 0.75;
@@ -1259,6 +1271,22 @@ body {
 .animate-shimmer {
   background-size: 200% auto;
   animation: shimmer 3s linear infinite;
+}
+
+@keyframes shimmerLine {
+  0% { background-position: 200% 0; opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { background-position: -200% 0; opacity: 0.3; }
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.mask-fade-x {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
 }
 
 /* ══════════════════════════════════════════════════════════════
