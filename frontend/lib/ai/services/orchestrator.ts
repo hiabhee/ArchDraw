@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { UserIntent, GenerationResult, GenerationProgress, ReactFlowNode, ReactFlowEdge } from '../types';
+import type { UserIntent, GenerationResult, GenerationProgress } from '../types';
 import type { ValidationIssue } from '../pipeline/types';
 import { runMermaidPipeline } from '../pipeline/mermaid-pipeline';
 import { requestContext } from '../utils/apiKeyManager';
@@ -46,8 +46,8 @@ export async function generateDiagram(
 
       return {
         type: 'architecture',
-        nodes: result.nodes as ReactFlowNode[],
-        edges: result.edges as ReactFlowEdge[],
+        nodes: result.nodes,
+        edges: result.edges,
         metadata: {
           totalNodes: result.nodes.length,
           totalEdges: result.edges.length,

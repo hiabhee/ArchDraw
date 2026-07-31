@@ -174,6 +174,7 @@ export interface ReactFlowNode {
   id: string;
   type: string;
   position: { x: number; y: number };
+  parentId?: string;
   data: {
     label: string;
     icon: string;

@@ -1,4 +1,5 @@
 import { redis } from '@/lib/redis';
+import logger from '@/lib/logger';
 import type { PipelineResult } from '@/lib/types/repo-diagram';
 
 const TTL_SECONDS = 30 * 60; // 30 minutes — matches existing in-memory TTL
@@ -16,8 +17,9 @@ export async function getRepoDiagramFromRedis(
   try {
     const raw = await redis.get<PipelineResult>(key(repoUrl, headSha));
     return raw ?? null;
-  } catch {
-    return null; // Redis unavailable — fall through to generation
+  } catch (e) {
+    logger.warn(`[RedisCache] getRepoDiagramFromRedis failed: ${(e as Error).message}`);
+    return null;
   }
 }
 
@@ -29,7 +31,7 @@ export async function setRepoDiagramInRedis(
   if (!redis) return;
   try {
     await redis.set(key(repoUrl, headSha), result, { ex: TTL_SECONDS });
-  } catch {
-    // Non-fatal — in-memory cache is still the fallback
+  } catch (e) {
+    logger.warn(`[RedisCache] setRepoDiagramInRedis failed: ${(e as Error).message}`);
   }
 }
