@@ -216,7 +216,8 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
             absY,
           };
 
-          if (node.parentNode) {
+          // Only set parent reference if parent exists in the result nodes
+          if (node.parentNode && result.nodes.some(n => n.id === node.parentNode)) {
             mappedNode.parentId = node.parentNode;
             mappedNode.parentNode = node.parentNode;
             mappedNode.extent = 'parent';
@@ -260,7 +261,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
 
               if (minX !== Infinity) {
                 const pad = 40; // SUBGRAPH_PADDING
-                const labelPad = 64;
+                const labelPad = 64; // Reverted to original value
                 const newWidth = maxX - minX + pad * 2;
                 const newHeight = maxY - minY + pad + labelPad;
                 const newX = minX - pad;

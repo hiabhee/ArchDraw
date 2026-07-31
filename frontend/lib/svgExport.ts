@@ -1,5 +1,6 @@
 'use client';
 
+// ARCHDRAW-SVG-EXPORT-V2: Updated version with fixes - July 30, 2026
 import { Node, Edge, getSmoothStepPath, getBezierPath, getStraightPath, Position } from 'reactflow';
 import { NodeData } from '@/store/diagramStore';
 import { getEdgeConfig, getEffectivePathType, type EdgeData, type EdgeType, type PathType } from '@/data/edgeTypes';
@@ -39,6 +40,13 @@ function escapeXml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 interface SystemNodeRenderData {
@@ -221,6 +229,19 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
   const statusColor = STATUS_COLORS[data.status || 'healthy'] || '#10B981';
   const showStatus = data.status && data.status !== 'healthy';
   
+  // Match SystemNode.tsx styling exactly
+  const backplateLayers = selected
+    ? [
+        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
+        { offset: 5, color: isDark ? '#151828' : '#e8e8e8' },
+      ]
+    : [
+        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
+        { offset: 5, color: isDark ? '#151828' : '#f5f5f5' },
+      ];
+  
+  const catStyle = getDarkCategoryStyle(data.layer);
+  
   let borderCol: string;
   let iconColor: string;
   let fillBg: string;
@@ -229,7 +250,6 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
   let styleAttr = '';
   
   if (isDark) {
-    const catStyle = getDarkCategoryStyle(data.layer);
     borderCol = selected ? catStyle.border : '#334155';
     iconColor = catStyle.border;
     fillBg = '#1e2235';
@@ -252,26 +272,6 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
       ? `style="filter: drop-shadow(0 3px 8px rgba(0,0,0,0.07));"`
       : `style="filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06));"`;
   }
-  
-  const backplateLayers = isDark
-    ? (selected
-        ? [
-            { offset: 10, color: '#787c97' },
-            { offset: 5, color: '#646882' },
-          ]
-        : [
-            { offset: 10, color: '#787c97' },
-            { offset: 5, color: '#646882' },
-          ])
-    : (selected
-        ? [
-            { offset: 10, color: '#fafafc' },
-            { offset: 5, color: '#f0f0f3' },
-          ]
-        : [
-            { offset: 10, color: '#fafafc' },
-            { offset: 5, color: '#f0f0f3' },
-          ]);
       
   const backplateElements = backplateLayers.map((bp) => `
     <rect
@@ -432,6 +432,70 @@ function renderAnnotationNode(node: SystemNodeRenderData, isDark: boolean): stri
   `.trim();
 }
 
+function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
+  const { x, y, width, height, data, selected } = node;
+  
+  const groupColor = (data as { accentColor?: string; groupColor?: string })?.accentColor || 
+                    (data as { groupColor?: string })?.groupColor || 
+                    (data as { color?: string })?.color || '#2563EB';
+  
+  const bgRgba = hexToRgba(groupColor, isDark ? 0.05 : 0.08);
+  const borderColor = isDark 
+    ? (selected ? hexToRgba(groupColor, 0.75) : hexToRgba(groupColor, 0.35))
+    : (selected ? hexToRgba(groupColor, 0.9) : hexToRgba(groupColor, 0.45));
+  
+  const borderStyle = 'dashed';
+  const borderWidth = selected ? 2.5 : 2;
+  
+  const label = (data as { groupLabel?: string; label?: string })?.groupLabel || 
+               (data as { label?: string })?.label || '';
+  
+  const tagText = isDark ? '#f0f2f7' : hexToRgba(groupColor, 0.95);
+  const tagBg = isDark ? '#13151a' : 'rgba(255,255,255,0.95)';
+  const tagBorder = isDark ? hexToRgba(groupColor, 0.5) : hexToRgba(groupColor, 0.45);
+  
+  // Calculate label position (bottom-right corner as per GroupNode.tsx: bottom: -14, right: 20)
+  const labelWidth = Math.max(50, label.length * 7 + 24);
+  const labelHeight = 24;
+  const labelX = width - labelWidth - 20; // Relative to group x
+  const labelY = height - 14; // Relative to group y (positioned slightly outside bottom)
+  
+  return `
+    <g transform="translate(${x}, ${y})">
+      <rect
+        x="0" y="0"
+        width="${width}" height="${height}"
+        fill="${bgRgba}"
+        stroke="${borderColor}"
+        stroke-width="${borderWidth}"
+        stroke-dasharray="${borderStyle === 'dashed' ? '8,4' : 'none'}"
+        rx="20" ry="20"
+      />
+      ${label ? `
+      <g transform="translate(${labelX}, ${labelY})">
+        <rect
+          x="0" y="-${labelHeight / 2}"
+          width="${labelWidth}" height="${labelHeight}"
+          fill="${tagBg}"
+          stroke="${tagBorder}"
+          stroke-width="1"
+          rx="12"
+        />
+        <text
+          x="${labelWidth / 2}" y="2"
+          fill="${tagText}"
+          font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
+          font-size="${isDark ? 12 : 9}"
+          font-weight="600"
+          text-anchor="middle"
+          letter-spacing="0.12em"
+          text-transform="uppercase"
+        >${escapeXml(label)}</text>
+      </g>` : ''}
+    </g>
+  `.trim();
+}
+
 function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, isFloating } = edge;
   
@@ -519,14 +583,14 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   const markerStartId = `arrow-start-${id}`;
   
   let defsSVG = `<defs>
-    <marker id="${markerEndId}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth">
-      <path d="M 0 0 L 0 6 L 6 3 z" fill="${strokeColor}"/>
+    <marker id="${markerEndId}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="${strokeColor}"/>
     </marker>`;
     
   if (config.markerStart || isBidirectional) {
     defsSVG += `
-    <marker id="${markerStartId}" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth">
-      <path d="M 0 0 L 0 6 L 6 3 z" fill="${strokeColor}"/>
+    <marker id="${markerStartId}" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 10 0 L 0 5 L 10 10 z" fill="${strokeColor}"/>
     </marker>`;
   }
   defsSVG += '\n  </defs>';
@@ -641,23 +705,34 @@ export function generatePureSVG(
   isDark: boolean = true,
   backgroundColor: string = '#0f172a'
 ): string {
+  console.log('🚨 SVG Export V2 STARTING:', nodes.length, 'nodes and', edges.length, 'edges');
+  console.log('🚨 SVG Export V2: isDark =', isDark, 'backgroundColor =', backgroundColor);
+  console.log('🚨 SVG Export V2: FUNCTION UPDATED - July 30, 2026');
+  
   const preparedNodes = nodes.map(node => {
-    let defaultW = NODE_WIDTH;
-    let defaultH = NODE_HEIGHT;
+    // Use actual measured dimensions from React Flow, not hardcoded defaults
+    const measuredWidth = (node as any).measured?.width;
+    const measuredHeight = (node as any).measured?.height;
     
+    let w = node.width ?? node.data?.nodeWidth ?? measuredWidth ?? NODE_WIDTH;
+    let h = node.height ?? node.data?.nodeHeight ?? measuredHeight ?? NODE_HEIGHT;
+    
+    // For text and annotation nodes, use their actual dimensions if available
     if (node.type === 'textLabelNode') {
-      defaultW = 120;
-      defaultH = 40;
+      w = w || 120;
+      h = h || 40;
     } else if (node.type === 'annotationNode') {
-      defaultW = 200;
-      defaultH = 120;
+      w = w || 200;
+      h = h || 120;
+    } else if (node.type === 'groupNode' || node.type === 'group') {
+      // Group nodes should use their actual dimensions
+      w = w || 300;
+      h = h || 200;
     } else {
-      defaultW = 160;
-      defaultH = 80;
+      // System nodes should use actual measured dimensions
+      w = measuredWidth || w || 160;
+      h = measuredHeight || h || 80;
     }
-    
-    const w = node.width ?? node.data?.nodeWidth ?? defaultW;
-    const h = node.height ?? node.data?.nodeHeight ?? defaultH;
     
     return {
       ...node,
@@ -679,6 +754,7 @@ export function generatePureSVG(
   const edgeElements: string[] = [];
   
   for (const node of preparedNodes) {
+    // Use global bounds offset for all nodes to keep them positioned correctly
     const nodeData: SystemNodeRenderData = {
       id: node.id,
       type: node.type || 'systemNode',
@@ -694,6 +770,8 @@ export function generatePureSVG(
       nodeElements.push(renderTextLabel(nodeData, isDark));
     } else if (node.type === 'annotationNode') {
       nodeElements.push(renderAnnotationNode(nodeData, isDark));
+    } else if (node.type === 'groupNode' || node.type === 'group') {
+      nodeElements.push(renderGroupNode(nodeData, isDark));
     } else {
       nodeElements.push(renderSystemNode(nodeData, isDark));
     }
@@ -793,6 +871,7 @@ export function generatePureSVG(
   }
   
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- 🚨 ARCHDRAW-SVG-EXPORT-V2-JULY-30-2026-FIXES-APPLIED 🚨 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>
   <g id="edges">
@@ -802,6 +881,10 @@ ${edgeElements.map(e => '    ' + e.replace(/\n/g, '\n    ')).join('\n')}
 ${nodeElements.map(n => '    ' + n.replace(/\n/g, '\n    ')).join('\n')}
   </g>
 </svg>`.trim();
+  
+  console.log('🚨 SVG Export V2 COMPLETED:', nodeElements.length, 'nodes and', edgeElements.length, 'edges');
+  console.log('🚨 SVG Export V2: Canvas size', width, 'x', height);
+  console.log('🚨 SVG Export V2: First few node types:', preparedNodes.slice(0, 3).map(n => n.type));
   
   return svg;
 }

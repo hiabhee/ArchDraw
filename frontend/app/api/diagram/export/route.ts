@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
 import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
+import { generatePureSVG } from '@/lib/svgExport';
 
 interface DiagramData {
   nodes: unknown[];
@@ -77,6 +78,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (format === 'png' || format === 'svg') {
+      if (format === 'svg') {
+        // Generate SVG directly in the API
+        console.log('🚨 API SVG Export: Generating SVG for session', validated.sessionId);
+        const svgContent = generatePureSVG(
+          diagram.nodes as any[],
+          diagram.edges as any[],
+          true, // default to dark mode
+          '#0f172a' // default background
+        );
+        
+        console.log('🚨 API SVG Export: SVG generated, size:', svgContent.length);
+        
+        return new NextResponse(svgContent, {
+          headers: {
+            'Content-Type': 'image/svg+xml',
+            'Content-Disposition': `attachment; filename="diagram-v2-fixed-${validated.sessionId}.svg"`,
+          },
+        });
+      }
+      
+      // For PNG, still return the redirect message
       const watermark = shouldWatermark(tier, format);
       return NextResponse.json({
         nodes: diagram.nodes,

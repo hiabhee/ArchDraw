@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { generatePureSVG } from '@/lib/svgExport';
+import { documentToSVG } from 'dom2svg';
 import {
   Download, Trash2, Upload,
   Undo2, Redo2, Share2, Loader2, Check,
@@ -11,6 +12,7 @@ import {
   Github,
   ArrowDownToLine, ArrowRightToLine,
   PenTool,
+  Eye, EyeOff,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -234,6 +236,7 @@ export function Toolbar() {
     savingState, userProfile, setSidebarOpen, sidebarOpen,
     activeLayoutPresetId, sequenceDiagrams,
     isPenModeActive, setPenModeActive,
+    showNodeIcons, toggleNodeIcons,
   } = useDiagramStore();
 
   const selectedModel = useModelStore((s) => s.selectedModel);
@@ -365,19 +368,42 @@ export function Toolbar() {
     try {
 
       if (isSvg) {
-        const { nodes, edges } = useDiagramStore.getState();
         const isDark = originalCanvasDarkMode;
         const bg = bgType === 'dark' ? '#000000' : bgType === 'light' ? '#ffffff' : 'transparent';
         
         fitView({ padding: 0.1, duration: 300 });
         await new Promise((r) => setTimeout(r, 350));
         
-        const svgContent = generatePureSVG(nodes, edges, isDark, bg || '#000000');
-        
-        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
-        
-        const MAX_SIZE = 3 * 1024 * 1024;
-        if (blob.size > MAX_SIZE) {
+        try {
+          const element = document.querySelector('.react-flow') as HTMLElement | null;
+          if (!element) {
+            toast.error('React Flow element not found');
+            return;
+          }
+          
+          console.log('🚨 Using documentToSVG for SVG export');
+          const result = await documentToSVG(element, {
+            background: bg || '#000000',
+            padding: 24,
+            exclude: '.react-flow__controls, .react-flow__minimap, .react-flow__panel, .react-flow__background',
+          });
+          
+          const svgContent = result.toString();
+          const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+          
+          downloadFile(blob, getExportFilename('svg'));
+          toast.success('Exported as SVG using documentToSVG');
+          analytics.track({
+            event_type: 'export',
+            event_name: 'svg_documentToSVG',
+            page_path: window.location.pathname,
+            payload: { format: 'svg', method: 'documentToSVG', success: true },
+          });
+        } catch (error) {
+          console.error('documentToSVG export failed:', error);
+          toast.error('SVG export failed, falling back to PNG');
+          
+          // Fallback to PNG
           const { toPng } = await import('html-to-image');
           const element = document.querySelector('.react-flow') as HTMLElement | null;
           if (!element) return;
@@ -401,26 +427,11 @@ export function Toolbar() {
               shouldWatermark(tier, 'png') ? await addWatermark(pngDataUrl) : pngDataUrl
             );
             downloadFile(pngBlob, getExportFilename('png'));
-            toast.warning('SVG too large, exported as PNG instead');
-          analytics.track({
-            event_type: 'export',
-            event_name: 'svg_fallback_png',
-            page_path: window.location.pathname,
-            payload: { format: 'png-fallback', success: true },
-          });
-          } catch (error) {
-            logger.error('PNG export failed:', error);
+            toast.warning('SVG export failed, exported as PNG instead');
+          } catch (pngError) {
+            logger.error('PNG export failed:', pngError);
             toast.error('Export failed');
           }
-        } else {
-          downloadFile(blob, getExportFilename('svg'));
-          toast.success('Exported as SVG');
-          analytics.track({
-            event_type: 'export',
-            event_name: 'svg',
-            page_path: window.location.pathname,
-            payload: { format: 'svg', success: true },
-          });
         }
         return;
       }
@@ -793,6 +804,24 @@ export function Toolbar() {
             </Button>
 
             <LayoutToggleButton />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleNodeIcons}
+              className={`!w-8 sm:!w-9 !h-8 sm:!h-9 ${
+                showNodeIcons
+                  ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40'
+                  : ''
+              }`}
+              title={showNodeIcons ? 'Hide node icons' : 'Show node icons'}
+            >
+              {showNodeIcons ? (
+                <Eye className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              ) : (
+                <EyeOff className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              )}
+            </Button>
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 

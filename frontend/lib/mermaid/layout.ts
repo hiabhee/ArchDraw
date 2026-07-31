@@ -1,7 +1,10 @@
-import dagre from 'dagre'
+import * as dagre from 'dagre'
 import type { RFObjects, RFNode, Direction } from './types'
 import { NODE_WIDTH, NODE_HEIGHT, SUBGRAPH_PADDING } from './types'
-import { MIN_HORIZONTAL_SPACING, MIN_VERTICAL_SPACING } from '@/lib/config'
+
+// Use local constants to avoid import issues
+const MIN_HORIZONTAL_SPACING = 100; // Further increased for guaranteed edge visibility
+const MIN_VERTICAL_SPACING = 150; // Further increased for guaranteed edge visibility
 
 function mapDirection(d: Direction): string {
   const map: Record<string, string> = { TD: 'TB', LR: 'LR', BT: 'BT', RL: 'RL' }
@@ -26,12 +29,17 @@ export function applyLayout(objects: RFObjects, direction: Direction): RFObjects
   g.setDefaultEdgeLabel(() => ({}))
 
   const isVertical = direction === 'TD' || direction === 'BT';
+  
+  // Use tighter spacing for better compact layouts
+  const nodesep = isVertical ? MIN_HORIZONTAL_SPACING : MIN_VERTICAL_SPACING;
+  const ranksep = isVertical ? MIN_VERTICAL_SPACING : MIN_HORIZONTAL_SPACING;
+  
   g.setGraph({
     rankdir: mapDirection(direction),
-    nodesep: isVertical ? MIN_HORIZONTAL_SPACING : MIN_VERTICAL_SPACING,
-    ranksep: isVertical ? MIN_VERTICAL_SPACING : MIN_HORIZONTAL_SPACING,
-    marginx: 40,
-    marginy: 40,
+    nodesep,
+    ranksep,
+    marginx: 30,
+    marginy: 30,
   })
 
   const subgraphIds = new Set(
@@ -93,7 +101,7 @@ export function applyLayout(objects: RFObjects, direction: Direction): RFObjects
 
   dagre.layout(g)
 
-  const layoutedNodes: RFNode[] = objects.nodes.map(node => {
+  let layoutedNodes: RFNode[] = objects.nodes.map(node => {
     const dagreNode = g.node(node.id)
     if (!dagreNode) return { ...node }
 
@@ -111,6 +119,56 @@ export function applyLayout(objects: RFObjects, direction: Direction): RFObjects
         : node.style,
     }
   })
+
+  // Anti-clustering: resolve overlapping nodes with optimized spacing
+  const minSpacing = 30; // Base minimum spacing
+  const connectedNodeSpacing = 50; // Base spacing for connected nodes
+  
+  // Build a set of connected node pairs for special spacing
+  const connectedPairs = new Set<string>();
+  objects.edges.forEach(edge => {
+    const pairKey = [edge.source, edge.target].sort().join('-');
+    connectedPairs.add(pairKey);
+  });
+  
+  // Single iteration for performance
+  for (let i = 0; i < layoutedNodes.length; i++) {
+    for (let j = i + 1; j < layoutedNodes.length; j++) {
+      const nodeA = layoutedNodes[i];
+      const nodeB = layoutedNodes[j];
+      
+      // Skip if they're in different parent groups
+      if (nodeA.parentNode !== nodeB.parentNode) continue;
+      
+      const dx = nodeB.position.x - nodeA.position.x;
+      const dy = nodeB.position.y - nodeA.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Check if these nodes are connected
+      const pairKey = [nodeA.id, nodeB.id].sort().join('-');
+      const isConnected = connectedPairs.has(pairKey);
+      
+      // Use larger spacing for connected nodes
+      const spacing = isConnected ? connectedNodeSpacing : minSpacing;
+      const minDistance = ((nodeA.width || NODE_WIDTH) + (nodeB.width || NODE_WIDTH)) / 2 + spacing;
+      
+      if (distance < minDistance && distance > 0) {
+        // Push nodes apart
+        const overlap = minDistance - distance;
+        const pushX = (dx / distance) * overlap * 0.5;
+        const pushY = (dy / distance) * overlap * 0.5;
+        
+        layoutedNodes[j] = { 
+          ...nodeB, 
+          position: { x: nodeB.position.x + pushX, y: nodeB.position.y + pushY } 
+        };
+        layoutedNodes[i] = { 
+          ...nodeA, 
+          position: { x: nodeA.position.x - pushX, y: nodeA.position.y - pushY } 
+        };
+      }
+    }
+  }
 
   return { nodes: layoutedNodes, edges: [...objects.edges] }
 }

@@ -209,7 +209,11 @@ export default function SimpleFloatingEdge({
       stroke = isDenseBundle ? '#4f46e5' : '#818cf8';
     }
 
-    const strokeWidth = selected || isHovered ? baseWidth + 1.0 : edgeVariant === 'thick' ? baseWidth + 1.5 : baseWidth;
+    // Calculate edge length (no longer used for styling - spacing is handled in layout)
+    const edgeLength = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
+    
+    // Use standard stroke width - let layout handle visibility through proper spacing
+    let strokeWidth = selected || isHovered ? baseWidth + 1.0 : edgeVariant === 'thick' ? baseWidth + 1.5 : baseWidth;
 
     let strokeDasharray: string | undefined;
     if (edgeVariant === 'dashed' || isAsync) {
@@ -225,6 +229,7 @@ export default function SimpleFloatingEdge({
       }
     }
 
+    // Standard opacity - let layout handle visibility through proper spacing
     const opacity = selected || isHovered ? 1 : 0.85;
 
     return {

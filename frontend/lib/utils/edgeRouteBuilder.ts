@@ -85,7 +85,7 @@ function buildBlockingNodeRects(
   const nodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>()
   for (const node of nodes) {
     if (excludedIds.has(node.id)) continue
-    if (isGroupNode(node)) continue
+    if (isGroupNode(node)) continue // Reverted: don't treat group nodes as obstacles
     const rect = getNodeRect(node, nodes)
     nodeRects.set(node.id, { id: node.id, ...rect })
   }
@@ -319,11 +319,6 @@ function resolveEdgeSideOnNode(
     sideToPosition(data?.laneTargetSide as string),
   )
   return e.source === nodeId ? pair.sourceSide : pair.targetSide
-}
-
-/** @deprecated Cache removed — kept as no-op for existing call sites. */
-export function clearPortPairCache(): void {
-  // no-op
 }
 
 export type EdgeRouteDirection = 'LR' | 'TD';
