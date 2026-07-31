@@ -3,6 +3,7 @@ import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
 import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../utils/nodeSizing'
 import { classifyEdge } from './edgeClassifier'
+import { resolveNodeIcon } from '@/lib/nodeIconResolver'
 const ARROW_MARKER = 'arrowclosed'
 
 export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
@@ -10,7 +11,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
   const edges: RFEdge[] = []
   const subgraphNodes = new Set(ast.subgraphs.map(s => s.id))
 
-  // Create subgraph nodes
+  // Create subgraph nodes first (parents must exist before children)
   for (const sub of ast.subgraphs) {
     const rfNode: RFNode = {
       id: sub.id,
@@ -29,6 +30,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       zIndex: -1,
     }
 
+    // Only set parent reference if parent exists in subgraphs
     if (sub.parentId && subgraphNodes.has(sub.parentId)) {
       rfNode.parentNode = sub.parentId
       rfNode.extent = 'parent'
@@ -64,6 +66,14 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
 
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service']
     const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1'
+    const resolvedIcon = resolveNodeIcon({
+      label,
+      typeId: meta.typeId,
+      componentType: meta.typeId,
+      serviceType,
+      category: meta.category,
+      color: categoryColor,
+    })
 
     const rfNode: RFNode = {
       id: pNode.id,
@@ -80,12 +90,15 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         typeId: meta.typeId,
         color: categoryColor,
         category: meta.category,
-        icon: meta.icon,
+        icon: resolvedIcon.icon,
+        iconSource: resolvedIcon.source,
+        technology: resolvedIcon.technology,
       },
       width,
       height,
     }
 
+    // Only set parent reference if subgraph parent exists
     if (pNode.subgraphId && subgraphNodes.has(pNode.subgraphId)) {
       rfNode.parentNode = pNode.subgraphId
       rfNode.extent = 'parent'
