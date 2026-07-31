@@ -2,8 +2,10 @@ import logger from '@/lib/logger';
 import type {
   UserIntent,
   ReactFlowNode,
+  ReactFlowEdge,
   ArchitectureEdge,
   LayerType,
+  ServiceType,
 } from '../../types';
 import type {
   ArchitectureStyle,
@@ -12,7 +14,7 @@ import type {
   ValidationIssue,
 } from '../types';
 import type { PipelineResult, PipelineState } from './types';
-import type { RFNode } from '@/lib/mermaid/types';
+import type { RFNode, RFEdge } from '@/lib/mermaid/types';
 import type { Node as RFNodeType, Edge as RFEdgeType } from 'reactflow';
 import { runArchitecturePlanner } from './stage1-planner';
 import { runMermaidPipeline as parseMermaidToReactFlow } from '@/lib/mermaid/pipeline';
@@ -366,7 +368,7 @@ export async function runMermaidPipeline(
       metadata: {},
     })),
     edges: rfEdges as unknown as ArchitectureEdge[],
-    reactFlowNodes: rfNodes as ReactFlowNode[],
+    reactFlowNodes: rfNodes,
     graph: null,
     score: diagramScore.score,
     iteration: 0,
@@ -377,10 +379,29 @@ export async function runMermaidPipeline(
     pipelineDiagnostics,
   };
 
+  // Create a set of valid node IDs for parent validation
+  const validNodeIds = new Set(rfNodes.map(n => n.id));
+  
+  // Validate parent references before conversion
+  const toReactFlowNodeSafe = (n: RFNode): ReactFlowNode => {
+    const parentId = n.parentNode || (n.data?.parentId as string | undefined);
+    const isValidParent = parentId && validNodeIds.has(parentId);
+    
+    const result = toReactFlowNode(n);
+    
+    // Only set parentId and extent if parent actually exists
+    if (!isValidParent) {
+      result.parentId = undefined;
+      result.extent = undefined;
+    }
+    
+    return result;
+  };
+
   return {
     success: true,
-    nodes: rfNodes as ReactFlowNode[],
-    edges: rfEdges as unknown as ArchitectureEdge[],
+    nodes: rfNodes.map(toReactFlowNodeSafe),
+    edges: rfEdges.map(toReactFlowEdge),
     state,
     score: diagramScore.score,
     diagramScore: diagramScore as DiagramScore,
@@ -388,5 +409,64 @@ export async function runMermaidPipeline(
     diagramType: formatConfig.diagramType,
     usedFallback,
     droppedExistingContext,
+  };
+}
+
+function toReactFlowNode(n: RFNode): ReactFlowNode {
+  const parentId = n.parentNode || (n.data?.parentId as string | undefined);
+  return {
+    id: n.id,
+    type: n.type,
+    position: n.position,
+    parentId,
+    data: {
+      label: (n.data?.label as string) || n.id,
+      icon: (n.data?.icon as string) || '',
+      layer: (n.data?.layer as LayerType) || 'application',
+      layerIndex: n.data?.layerIndex as number | undefined,
+      isGroup: n.data?.isGroup as boolean | undefined,
+      parentId,
+      groupLabel: n.data?.groupLabel as string | undefined,
+      groupColor: n.data?.groupColor as string | undefined,
+      serviceType: n.data?.serviceType as ServiceType | undefined,
+      tier: n.data?.tier as string | undefined,
+    },
+    extent: n.extent,
+    width: n.width,
+    height: n.height,
+    measured: n.width && n.height ? { width: n.width, height: n.height } : undefined,
+    style: n.style as ReactFlowNode['style'],
+    zIndex: n.zIndex,
+  };
+}
+
+function toReactFlowEdge(e: RFEdge): ReactFlowEdge {
+  const d = (e.data || {}) as Record<string, unknown>;
+  return {
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    sourceHandle: (e.sourceHandle as ReactFlowEdge['sourceHandle']) || null,
+    targetHandle: (e.targetHandle as ReactFlowEdge['targetHandle']) || null,
+    type: e.type || 'default',
+    animated: e.animated || false,
+    label: e.label || '',
+    labelShowBg: (d.labelShowBg as boolean) || false,
+    labelBgPadding: (d.labelBgPadding as [number, number]) || [8, 4],
+    labelBgBorderRadius: (d.labelBgBorderRadius as number) || 4,
+    labelBgStyle: (d.labelBgStyle as ReactFlowEdge['labelBgStyle']) || { fill: '#ffffff' },
+    labelStyle: (d.labelStyle as ReactFlowEdge['labelStyle']) || { fontSize: 12, fontWeight: 400, fill: '#64748b' },
+    style: (d.style as ReactFlowEdge['style']) || { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: 'none' },
+    markerEnd: (d.markerEnd as ReactFlowEdge['markerEnd']) || { type: 'arrowclosed', color: '#94a3b8' },
+    data: {
+      communicationType: (d.communicationType as ReactFlowEdge['data']['communicationType']) || 'sync',
+      pathType: (d.pathType as ReactFlowEdge['data']['pathType']) || 'straight',
+      label: e.label || '',
+      edgeVariant: d.edgeVariant as ReactFlowEdge['data']['edgeVariant'],
+      labelX: d.labelX as number | undefined,
+      labelY: d.labelY as number | undefined,
+      labelAngle: d.labelAngle as number | undefined,
+      waypoints: d.waypoints as ReactFlowEdge['data']['waypoints'],
+    },
   };
 }

@@ -53,8 +53,8 @@ import type { PipelineDiagnostics } from '../types';
 
 export interface PipelineResult {
   success: boolean;
-  nodes: unknown[];
-  edges: unknown[];
+  nodes: ReactFlowNode[];
+  edges: ReactFlowEdge[];
   state: PipelineState;
   score: number;
   error?: 'generation_failed';
@@ -77,3 +77,5 @@ export interface PipelineResult {
    */
   droppedExistingContext?: boolean;
 }
+
+import type { ReactFlowNode, ReactFlowEdge } from '../../types';
