@@ -1,30 +1,3 @@
-// ── Factory Tutorial format (new canonical type) ────────────────────────────────
-/** @deprecated Use TutorialDefinition from '@/lib/tutorial/schema' directly. */
-export type { Tutorial, TutorialStep, TutorialLevel } from '@/lib/tutorial/types';
-/** @deprecated */
-export type { TutorialMessage, StepValidation } from '@/lib/tutorial/types';
-
-// ── Flat Tutorial format (legacy — used by non-refactored tutorials) ────────────
-/** @deprecated All 22 tutorials now use TutorialDefinition from schema.ts. */
-export type FlatTutorial = {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  category: string;
-  estimatedTime: string;
-  nodeCount: number;
-  stepCount: number;
-  icon: string;
-  color: string;
-  tags: string[];
-  steps: import('@/lib/tutorial/types').TutorialStep[];
-};
-
-// Re-export FlatTutorial as TutorialData for backward compatibility with old flat tutorials
-export type { FlatTutorial as TutorialData };
-
-// ── Union type for the TUTORIALS array ────────────────────────────────────────
 import type { TutorialDefinition } from '@/lib/tutorial/schema';
 
 export type AnyTutorial = TutorialDefinition;
@@ -102,44 +75,6 @@ export {
   aiAgentTutorial,
 };
 
-// Validate the refactored tutorials at startup (dev-only, no-op in prod)
-// validateAllTutorials([chatgptTutorial, instagramTutorial, openclawTutorial, netflixTutorial, uberTutorial]);
-
-export const LIVE_TUTORIALS = new Set<string>([]);
-
-export function isLiveTutorial(id: string): boolean {
-  return LIVE_TUTORIALS.has(id);
-}
-
-export const LEVELED_TUTORIALS = new Set([
-  'chatgpt-architecture',
-  'instagram-architecture',
-  'netflix-architecture',
-  'openclaw-architecture',
-  'uber-architecture',
-  'whatsapp-architecture',
-  'stripe-architecture',
-  'youtube-architecture',
-  'notion-architecture',
-  'twitter-architecture',
-  'airbnb-architecture',
-  'discord-architecture',
-  'zoom-architecture',
-  'spotify-architecture',
-  'linkedin-architecture',
-  'figma-architecture',
-  'shopify-architecture',
-  'doordash-architecture',
-  'github-architecture',
-  'url-shortener-architecture',
-  'rag-application-architecture',
-  'ai-agent-system-architecture',
-]);
-
-export function isLeveledTutorial(id: string): boolean {
-  return LEVELED_TUTORIALS.has(id);
-}
-
 export const TUTORIALS: AnyTutorial[] = [
   chatgptTutorial,
   instagramTutorial,
@@ -164,6 +99,16 @@ export const TUTORIALS: AnyTutorial[] = [
   ragTutorial,
   aiAgentTutorial,
 ];
+
+export const LIVE_TUTORIALS = new Set(TUTORIALS.map(t => t.id));
+
+export function isLiveTutorial(id: string): boolean {
+  return LIVE_TUTORIALS.has(id);
+}
+
+export function isLeveledTutorial(_id: string): boolean {
+  return true;
+}
 
 export function getTutorialById(id: string): AnyTutorial | undefined {
   return TUTORIALS.find((t) => t.id === id);

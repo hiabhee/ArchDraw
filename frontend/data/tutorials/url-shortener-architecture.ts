@@ -13,22 +13,24 @@ const urlShortenerTutorial = defineTutorial({
   levels: [
     level({
       title: 'URL Shortener',
+      description: 'Build the request path from the browser through the API gateway, load balancer, and in-memory cache that makes redirects lightning fast.',
       steps: [
         step({
-          component: 'Web Client',
+          component: 'Web',
           nodeType: 'client_web',
           noConnect: true,
+          title: 'Add the Web Client',
           phases: {
             context: {
               heading: 'Welcome to URL Shortener Architecture',
               body: "Let's build a URL shortener from scratch \u2014 the classic system design interview question. Services like Bitly and TinyURL handle billions of redirects daily.",
             },
             intro: {
-              heading: 'Do you know about Web Clients?',
+              heading: 'Do you know about the Web?',
               body: 'The client is any web browser. Users paste a long URL and get back a short code.',
             },
             teaching: {
-              heading: 'Deep dive: Web Client',
+              heading: 'Deep dive: The Web',
               body: "Every system starts with the client. For a URL shortener, the client is simple \u2014 it only needs to accept a URL input and display the shortened result.",
             },
             action: {
@@ -41,7 +43,7 @@ const urlShortenerTutorial = defineTutorial({
             },
             celebration: {
               heading: 'Great job!',
-              body: 'Web Client added. Now the API Gateway.',
+              body: 'Web added. Now the API Gateway.',
             },
           },
           hints: ['Search for "Web"'],
@@ -49,7 +51,7 @@ const urlShortenerTutorial = defineTutorial({
         step({
           component: 'API Gateway',
           nodeType: 'api_gateway',
-          parent: 'Web Client',
+          parent: 'Web',
           phases: {
             context: {
               heading: 'Level 1: Step 2',
@@ -69,14 +71,14 @@ const urlShortenerTutorial = defineTutorial({
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client \u2192 API Gateway.',
+              body: 'Connect Web \u2192 API Gateway.',
             },
             celebration: {
               heading: 'Great job!',
               body: 'API Gateway added. Now the Load Balancer.',
             },
           },
-          hints: ['Search for "API Gateway"', 'Connect Web Client to it'],
+          hints: ['Search for "API Gateway"', 'Connect Web to it'],
         }),
         step({
           component: 'Load Balancer',
@@ -146,6 +148,7 @@ const urlShortenerTutorial = defineTutorial({
     }),
     level({
       title: 'Hashing & Storage',
+      description: 'Add the URL service, SQL database, and analytics pipeline that handle short-code generation, persistence, and click tracking at scale.',
       steps: [
         step({
           component: 'Microservice', nodeType: 'microservice', parent: 'In-Memory Cache',
@@ -156,10 +159,10 @@ const urlShortenerTutorial = defineTutorial({
             teaching: { heading: 'Collision strategy and counter-based vs random',
               body: 'Random codes risk collisions at scale. Counter-based (atomic integer → base-62) guarantees uniqueness but requires a distributed counter service (Redis INCR). Bitly uses a counter with Zookeeper coordination. At 1B URLs, random with retry has ~0.0002% collision rate — acceptable for most uses.' },
             action: { heading: 'Your turn!', body: "Press ⌘K, search for 'Microservice', and add the URL Service." },
-            connecting: { heading: 'Connect it', body: 'Connect In-Memory Cache → URL Service.' },
-            celebration: { heading: 'URL Service added.', body: 'Now the database.' },
+            connecting: { heading: 'Connect it', body: 'Connect In-Memory Cache → Microservice.' },
+            celebration: { heading: 'Microservice added.', body: 'Now the database.' },
           },
-          hints: ['Search for "Microservice"', 'Connect Cache to it'],
+          hints: ['Search for "Microservice"', 'Connect In-Memory Cache to it'],
         }),
         step({
           component: 'SQL Database', nodeType: 'sql_db', parent: 'Microservice',
@@ -168,11 +171,11 @@ const urlShortenerTutorial = defineTutorial({
             intro: { heading: 'Schema simplicity', body: 'The table has three columns: code (PK, varchar 8), original_url (text), created_at. That is the entire data model.' },
             teaching: { heading: 'Read-write asymmetry',
               body: 'URL shorteners have extreme read-write asymmetry: 95% reads (redirects), 5% writes (new URLs). This means you can optimize reads aggressively: replicas, read-through cache, CDN edge caching of redirect responses. Writes are infrequent enough that a single primary handles them comfortably up to millions of daily new URLs.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K, search for 'SQL', and add the SQL Database." },
-            connecting: { heading: 'Connect it', body: 'Connect URL Service → SQL Database.' },
+            action: { heading: 'Your turn!', body: "Press ⌘K, search for 'SQL Database', and add it." },
+            connecting: { heading: 'Connect it', body: 'Connect Microservice → SQL Database.' },
             celebration: { heading: 'SQL Database added.', body: 'Now analytics.' },
           },
-          hints: ['Search for "SQL"', 'Connect URL Service to it'],
+          hints: ['Search for "SQL Database"', 'Connect Microservice to it'],
         }),
         step({
           component: 'Analytics Service', nodeType: 'analytics_service', parent: 'Microservice',
@@ -181,11 +184,11 @@ const urlShortenerTutorial = defineTutorial({
             intro: { heading: 'Write-behind async analytics', body: 'Analytics writes must not block the redirect. A redirect that takes 50ms is fine. One that takes 300ms because it waits for analytics to write is not.' },
             teaching: { heading: 'The async analytics pattern',
               body: 'On each redirect: synchronously return the 301. Asynchronously emit a click event to a message queue. The Analytics Service consumes from the queue and batches writes to a columnar store (ClickHouse, BigQuery). This decouples the critical-path redirect (p99: 10ms) from non-critical analytics writes.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K, search for 'Analytics', and add the Analytics Service." },
-            connecting: { heading: 'Connect it', body: 'Connect URL Service → Analytics Service.' },
-            celebration: { heading: 'Analytics added. URL Shortener complete!', body: 'You built the classic interview system.' },
+            action: { heading: 'Your turn!', body: "Press ⌘K, search for 'Analytics Service', and add it." },
+            connecting: { heading: 'Connect it', body: 'Connect Microservice → Analytics Service.' },
+            celebration: { heading: 'Analytics Service added. URL Shortener complete!', body: 'You built the classic interview system.' },
           },
-          hints: ['Search for "Analytics"', 'Connect URL Service to it'],
+          hints: ['Search for "Analytics Service"', 'Connect Microservice to it'],
         }),
       ],
     }),

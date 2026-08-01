@@ -23,11 +23,11 @@ const ragTutorial = defineTutorial({
               body: 'A simple chat interface. The user types a natural language question — "What does our Q3 report say about margins?" — and expects a grounded, cited answer.' },
             teaching: { heading: 'Why the client matters',
               body: 'RAG changes the UX contract. The client must display cited sources alongside the answer, show a confidence indicator, and handle the longer latency of retrieval + synthesis (typically 2-5s vs 0.5s for plain LLM). Without this expectation set in the UI, users distrust the system.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K, search for 'Web', and add the client." },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Web Client', and add the Web Client." },
             connecting: { heading: 'No connections yet', body: 'First step — connect nothing.' },
             celebration: { heading: 'Web Client added.', body: 'Now the API layer.' },
           },
-          hints: ['Search for "Web"'],
+          hints: ['Search for "Web Client"'],
         }),
         step({
           component: 'API Gateway', nodeType: 'api_gateway', parent: 'Web Client',

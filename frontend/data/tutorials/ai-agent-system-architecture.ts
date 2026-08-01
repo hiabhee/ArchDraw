@@ -22,11 +22,11 @@ const aiAgentTutorial = defineTutorial({
             intro: { heading: 'Goal-oriented interaction', body: 'The client sends a goal ("research competitors and write a report") not a query. The UI must handle async execution — showing live progress as the agent works through sub-tasks.' },
             teaching: { heading: 'Why agents change UX fundamentally',
               body: 'Traditional LLM apps are synchronous: user waits 1-2s. Agent apps are asynchronous: execution can take minutes. The client must show live agent thought traces, tool call logs, and intermediate outputs — or users think the system crashed.' },
-            action: { heading: 'Your turn!', body: "Press ⌘K, search for 'Web', and add the client." },
+            action: { heading: 'Your turn!', body: "Press \u2318K, search for 'Web Client', and add the Web Client." },
             connecting: { heading: 'No connections yet', body: 'First step.' },
             celebration: { heading: 'Web Client added.', body: 'Now the API Gateway.' },
           },
-          hints: ['Search for "Web"'],
+          hints: ['Search for "Web Client"'],
         }),
         step({
           component: 'API Gateway', nodeType: 'api_gateway', parent: 'Web Client',

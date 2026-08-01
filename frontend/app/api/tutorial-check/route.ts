@@ -4,8 +4,6 @@ import { z } from 'zod';
 import logger from '@/lib/logger';
 import { getClientIP } from '@/lib/server/ip';
 
-const ALLOWED_TUTORIAL_ID = 'netflix-architecture';
-
 const checkRateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const CHECK_RATE_WINDOW_MS = 60 * 1000;
 const MAX_CHECK_REQUESTS = 10;
@@ -109,10 +107,6 @@ export async function POST(req: NextRequest) {
       canvasNodes,
       canvasEdges = [],
     } = validatedInput.data;
-
-    if (tutorialId !== ALLOWED_TUTORIAL_ID) {
-      return NextResponse.json({ error: 'AI work review is only available for the Netflix tutorial.' }, { status: 403 });
-    }
 
     const nodeList = canvasNodes.map((n) => n.label).join(', ') || 'none';
     const edgeList = canvasEdges.length > 0

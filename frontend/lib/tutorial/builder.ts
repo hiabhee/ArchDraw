@@ -204,6 +204,9 @@ interface LevelConfig {
   /** Level title (e.g. "The Foundation", "Production Ready") */
   title: string;
 
+  /** Level description shown in the intro card and level-complete screen */
+  description?: string;
+
   /** Steps in this level */
   steps: TutorialStep[];
 
@@ -219,6 +222,7 @@ export function level(config: LevelConfig): TutorialLevel {
   return {
     id: config.id ?? `level-${slug}`,
     title: config.title,
+    description: config.description,
     steps: config.steps,
   };
 }

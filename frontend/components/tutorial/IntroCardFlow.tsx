@@ -285,7 +285,11 @@ export function IntroCardFlow({
                       payload: { tutorial: tutorialTitle }
                     });
                   }
-                  isLastCard ? onStart() : goNext();
+                  if (isLastCard) {
+                    onStart();
+                  } else {
+                    goNext();
+                  }
                 }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200"
                 style={{ 

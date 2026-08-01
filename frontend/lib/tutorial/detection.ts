@@ -9,6 +9,10 @@ function normalize(str: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
+function nodeTypeId(n: Node): string {
+  return n.data?.componentType || n.data?.typeId || n.data?.componentId || n.type || '';
+}
+
 /**
  * Checks if a rule passes given the current canvas state.
  */
@@ -28,7 +32,7 @@ export function evaluateValidationRule(
         if (n.data?.componentId === rule.nodeType) return true;
         const matchesLabel = !rule.label || normalize(n.data?.label || '') === targetLabel;
         const matchesType =
-          normalize(n.data?.componentType || n.type || '') === targetType ||
+          normalize(nodeTypeId(n)) === targetType ||
           normalize(n.data?.category || '') === targetType ||
           normalize(n.data?.componentId || '') === targetType;
         return matchesLabel && matchesType;
@@ -42,7 +46,7 @@ export function evaluateValidationRule(
       const matches = nodes.filter(n => {
         // Exact registry id match
         if (n.data?.componentId === rule.nodeType) return true;
-        const nType = n.data?.componentType || n.type || '';
+        const nType = nodeTypeId(n);
         const nCategory = n.data?.category || '';
         return normalize(nType) === target || normalize(nCategory) === target;
       });
@@ -58,13 +62,15 @@ export function evaluateValidationRule(
       const sourceNodes = nodes.filter(n => 
         n.id === rule.source ||
         n.data?.componentId === rule.source ||
-        normalize(n.data?.componentType || n.type || '') === srcTarget ||
+        n.data?.typeId === rule.source ||
+        normalize(nodeTypeId(n)) === srcTarget ||
         normalize(n.data?.label || '') === srcTarget
       );
       const targetNodes = nodes.filter(n => 
         n.id === rule.target ||
         n.data?.componentId === rule.target ||
-        normalize(n.data?.componentType || n.type || '') === tgtTarget ||
+        n.data?.typeId === rule.target ||
+        normalize(nodeTypeId(n)) === tgtTarget ||
         normalize(n.data?.label || '') === tgtTarget
       );
 
@@ -87,8 +93,8 @@ export function evaluateValidationRule(
       const srcType = normalize(rule.sourceType);
       const tgtType = normalize(rule.targetType);
 
-      const sourceNodes = nodes.filter(n => normalize(n.data?.componentType || n.type || '') === srcType);
-      const targetNodes = nodes.filter(n => normalize(n.data?.componentType || n.type || '') === tgtType);
+      const sourceNodes = nodes.filter(n => normalize(nodeTypeId(n)) === srcType);
+      const targetNodes = nodes.filter(n => normalize(nodeTypeId(n)) === tgtType);
 
       if (sourceNodes.length === 0 || targetNodes.length === 0) {
         return false;

@@ -6,6 +6,10 @@ function normalize(str: string): string {
   return str.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 }
 
+function nodeTypeId(n: Node): string {
+  return n.data?.componentType || n.data?.typeId || n.data?.componentId || n.type || '';
+}
+
 /**
  * Generate a human-readable error message from an unmet ValidationRule.
  */
@@ -136,7 +140,7 @@ function extractSchemaRequirements(rules: ValidationRule[], out: StepRequirement
 export function isNodeTypeMet(nodeType: string, nodes: Node[]): boolean {
   const target = normalize(nodeType);
   return nodes.some(n => {
-    const nType = normalize(n.data?.componentType || n.type || '');
+    const nType = normalize(nodeTypeId(n));
     const nCategory = normalize(n.data?.category || '');
     const nLabel = normalize(n.data?.label || '');
     return nType === target || nCategory === target || nLabel === target;
@@ -151,11 +155,11 @@ export function isEdgeMet(source: string, target: string, nodes: Node[], edges: 
   const tgtTarget = normalize(target);
 
   const sourceNodes = nodes.filter(n =>
-    normalize(n.data?.componentType || n.type || '') === srcTarget ||
+    normalize(nodeTypeId(n)) === srcTarget ||
     normalize(n.data?.label || '') === srcTarget
   );
   const targetNodes = nodes.filter(n =>
-    normalize(n.data?.componentType || n.type || '') === tgtTarget ||
+    normalize(nodeTypeId(n)) === tgtTarget ||
     normalize(n.data?.label || '') === tgtTarget
   );
 

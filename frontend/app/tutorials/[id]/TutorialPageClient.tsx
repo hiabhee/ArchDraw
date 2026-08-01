@@ -7,14 +7,16 @@ import Link from 'next/link';
 import { ArrowLeft, PenSquare, RotateCcw, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { getTutorialById, isLeveledTutorial } from '@/data/tutorials';
+import { useAuthStore } from '@/store/authStore';
 import { useTutorialStore, sanitizeNode, sanitizeEdge } from '@/store/tutorialStore';
 import { GuidePanel } from '@/components/tutorial/GuidePanel';
 import { IntroCardFlow } from '@/components/tutorial/IntroCardFlow';
 import { CompletionCardFlow } from '@/components/tutorial/CompletionCardFlow';
+import { NodeDetailsPanel, NodeDetailsPanelEmpty } from '@/components/tutorial/NodeDetailsPanel';
+import type { NodeDetailsInfo } from '@/components/tutorial/TutorialCanvas';
 import { analytics } from '@/lib/analytics';
 import logger from '@/lib/logger';
-import type { TutorialData } from '@/data/tutorials';
-import type { TutorialDefinition, TutorialLevel, TutorialStep } from '@/lib/tutorial/schema';
+import type { TutorialLevel, TutorialStep } from '@/lib/tutorial/schema';
 import type { Node, Edge } from 'reactflow';
 
 // Dynamic import to avoid SSR issues with ReactFlow
@@ -103,6 +105,7 @@ export default function TutorialPage() {
   const id = params.id as string;
   const tutorial = getTutorialById(id);
   const isLeveled = tutorial ? isLeveledTutorial(tutorial.id) : false;
+  const { user } = useAuthStore();
 
   const {
     currentStep, totalSteps, nodes, edges,
@@ -114,6 +117,8 @@ export default function TutorialPage() {
     activeTutorialId,
     saveProgress,
     setSwitchingTutorial,
+    loadFromDb, syncToDb,
+    hasHydrated,
   } = useTutorialStore();
 
   const hasStarted = useRef(false);
@@ -129,6 +134,11 @@ export default function TutorialPage() {
   const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('light');
   const [showIntro, setShowIntro] = useState(false);
   const [introSkipped, setIntroSkipped] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<NodeDetailsInfo | null>(null);
+
+  const handleNodeSelect = useCallback((info: NodeDetailsInfo | null) => {
+    setSelectedNode(info);
+  }, []);
 
   // If navigating to a different tutorial, save the current canvas and switch.
   // Uses refs to capture nodes/edges at the moment the effect fires —
@@ -148,7 +158,13 @@ export default function TutorialPage() {
     const fromEdges = prevEdgesRef.current;
 
     setSwitchingTutorial(true);
+    const fromSession = useTutorialStore.getState().session;
     saveProgress(fromId, {
+      currentLevel: fromSession ? fromSession.levelIndex + 1 : useTutorialStore.getState().currentLevel,
+      currentStep: fromSession ? fromSession.stepIndex + 1 : useTutorialStore.getState().currentStep,
+      currentPhase: fromSession?.phase,
+      completedLevels: fromSession?.completedLevelIds.map(Number) ?? useTutorialStore.getState().completedLevels,
+      completedStepIds: fromSession?.completedStepIds ?? [],
       canvasNodes: fromNodes.map(sanitizeNode),
       canvasEdges: fromEdges.map(sanitizeEdge),
     });
@@ -185,14 +201,26 @@ export default function TutorialPage() {
 
   // FIX: Start tutorial — restore from saved progress if available, otherwise start fresh
   useEffect(() => {
-    if (!tutorial || hasStarted.current) return;
+    if (!tutorial || !hasHydrated || hasStarted.current) return;
     hasStarted.current = true;
 
     const start = async () => {
-      setShowIntro(true);
+      // Check for saved progress — local store first (already rehydrated), then DB for cross-device
+      let saved = getProgress(tutorial.id);
+      const hasLocalSaved = saved && (
+        (saved.canvasNodes && saved.canvasNodes.length > 0) ||
+        (saved.currentLevel > 0) ||
+        (saved.currentStep > 0)
+      );
 
-      // Check for saved progress in the store
-      const saved = getProgress(tutorial.id);
+      // If no local progress, try loading from DB (cross-device)
+      if (!hasLocalSaved) {
+        const dbProgress = await loadFromDb(tutorial.id);
+        if (dbProgress) {
+          saved = dbProgress;
+        }
+      }
+
       const hasSavedProgress = saved && (
         (saved.canvasNodes && saved.canvasNodes.length > 0) ||
         (saved.currentLevel > 0) ||
@@ -208,14 +236,15 @@ export default function TutorialPage() {
           position: 'bottom-center',
         });
       } else {
-        // No saved progress — start fresh
+        // No saved progress — start fresh and show intro card
         const result = await startTutorialFresh(tutorial);
         if (!result.success) {
           logger.error('[tutorial] Failed to start fresh:', result.error);
           toast.error('Failed to load tutorial progress');
           return;
         }
-        setIntroSkipped(true);
+        setShowIntro(true);
+        setIntroSkipped(false);
       }
 
       analytics.track({
@@ -226,7 +255,22 @@ export default function TutorialPage() {
     };
 
     start();
-  }, [tutorial, startTutorialFresh, startTutorialByDef, getProgress]);
+  }, [tutorial, hasHydrated, startTutorialFresh, startTutorialByDef, getProgress, loadFromDb]);
+
+  // Periodic autosave to DB
+  useEffect(() => {
+    if (!tutorial || !activeTutorialId) return;
+    const interval = setInterval(() => {
+      syncToDb(activeTutorialId).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [tutorial, activeTutorialId, syncToDb]);
+
+  // Save on step/level change
+  useEffect(() => {
+    if (!tutorial || !activeTutorialId) return;
+    syncToDb(activeTutorialId).catch(() => {});
+  }, [currentStep, currentLevel, tutorial, activeTutorialId, syncToDb]);
 
   const handleSkip = useCallback(() => {
     setValidationStatus('idle');
@@ -292,22 +336,26 @@ export default function TutorialPage() {
     router.push('/tutorials');
   }, [dismissLevelComplete, router]);
 
-  // FIX: Start building - always from DB fresh to ensure atomic reset
+  // Start building from the intro card. The session is already initialized by
+  // the bootstrap effect; this only dismisses the overlay. If progress somehow
+  // exists (e.g. restored from another tab), resume from that instead of wiping.
   const handleStartFromIntro = useCallback(async () => {
     if (!tutorial) return;
-    
-    setShowIntro(false);
-    
-    // Start fresh from DB - this does the atomic reset sequence
-    const result = await startTutorialFresh(tutorial);
-    
-    if (!result.success) {
-      toast.error('Failed to start tutorial: ' + result.error);
-      return;
+
+    const saved = getProgress(tutorial.id);
+    const hasSavedProgress = saved && (
+      (saved.canvasNodes && saved.canvasNodes.length > 0) ||
+      (saved.currentLevel > 0) ||
+      (saved.currentStep > 0)
+    );
+
+    if (hasSavedProgress) {
+      startTutorialByDef(tutorial);
     }
-    
+
+    setShowIntro(false);
     setIntroSkipped(true);
-  }, [tutorial, startTutorialFresh]);
+  }, [tutorial, getProgress, startTutorialByDef]);
 
   const handleIntroSkip = useCallback(() => {
     setShowIntro(false);
@@ -340,6 +388,20 @@ export default function TutorialPage() {
         <div className="text-center">
           <p className="text-slate-500 mb-4">Tutorial not found.</p>
           <Link href="/tutorials" className="text-gray-500 hover:text-gray-600 text-sm">← Back to tutorials</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.id === 'guest') {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4F4F4', color: '#1A1A1A' }}>
+        <div className="text-center max-w-sm">
+          <p className="text-slate-500 mb-2">Sign in to access tutorials</p>
+          <p className="text-xs text-slate-400 mb-4">Tutorial progress tracking is only available for authenticated users.</p>
+          <Link href="/login" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors" style={{ background: '#595959' }}>
+            Sign in
+          </Link>
         </div>
       </div>
     );
@@ -441,8 +503,19 @@ export default function TutorialPage() {
             totalLevels={isLeveled ? levels.length : undefined}
             onRestart={showHeaderConfirm}
             onSkip={handleSkip}
+            onNodeSelect={handleNodeSelect}
           />
         </div>
+
+        {/* Right sidebar — node deep-dive (always visible, but empty when no selection) */}
+        {selectedNode ? (
+          <NodeDetailsPanel
+            info={selectedNode}
+            onClose={() => setSelectedNode(null)}
+          />
+        ) : (
+          <NodeDetailsPanelEmpty />
+        )}
 
         {/* Level complete overlay */}
         {isLevelComplete && isLeveled && currentLevelData && nextLevelData && (
@@ -480,9 +553,9 @@ export default function TutorialPage() {
           tutorialTitle={tutorial.title}
           tutorialDescription={tutorial.description}
           levelTitle={currentLevelData?.title}
-          levelDescription={currentLevelData?.title}
+          levelDescription={currentLevelData?.description || tutorial.description}
           stepCount={totalSteps}
-          estimatedTime={'estimatedMinutes' in tutorial ? String(tutorial.estimatedMinutes) + ' mins' : String((tutorial as TutorialData).estimatedTime)}
+          estimatedTime={String(tutorial.estimatedMinutes) + ' mins'}
           componentCount={componentCount}
           onStart={handleStartFromIntro}
           onSkip={handleIntroSkip}

@@ -32,7 +32,7 @@ const openclawTutorial = defineTutorial({
             },
             action: {
               heading: 'Your turn!',
-              body: "Press \u2318K, search for 'Mobile', and add the mobile client.",
+              body: "Press \u2318K, search for 'Mobile Client', and add the Mobile Client.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -43,7 +43,7 @@ const openclawTutorial = defineTutorial({
               body: 'Mobile Client added. Now the Web Client.',
             },
           },
-          hints: ['Press \u2318K to open component search', 'Search for "Mobile"'],
+          hints: ['Press \u2318K to open component search', 'Search for "Mobile Client"'],
         }),
         step({
           component: 'Web Client',
@@ -63,7 +63,7 @@ const openclawTutorial = defineTutorial({
             },
             action: {
               heading: 'Your turn!',
-              body: "Press \u2318K, search for 'Web', and add the web client.",
+              body: "Press \u2318K, search for 'Web Client', and add the Web Client.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -74,7 +74,7 @@ const openclawTutorial = defineTutorial({
               body: 'Web Client added. Now the API Gateway.',
             },
           },
-          hints: ['Search for "Web"'],
+          hints: ['Search for "Web Client"'],
         }),
         step({
           component: 'API Gateway',

@@ -32,7 +32,7 @@ const linkedinTutorial = defineTutorial({
             },
             action: {
               heading: 'Your turn!',
-              body: "Press \u2318K, search for 'Web', and add the client to the canvas.",
+              body: "Press \u2318K, search for 'Web Client', and add the client to the canvas.",
             },
             connecting: {
               heading: 'Connect it up',
@@ -43,7 +43,7 @@ const linkedinTutorial = defineTutorial({
               body: 'Web Client added. Now the API Gateway.',
             },
           },
-          hints: ['Press \u2318K to open component search', 'Search for "Web"'],
+          hints: ['Press \u2318K to open component search', 'Search for "Web Client"'],
         }),
         step({
           component: 'API Gateway',
@@ -75,7 +75,7 @@ const linkedinTutorial = defineTutorial({
               body: 'API Gateway added. Now the Load Balancer.',
             },
           },
-          hints: ['Search for "API Gateway"', 'Connect Web to it'],
+          hints: ['Search for "API Gateway"', 'Connect Web Client to it'],
         }),
         step({
           component: 'Load Balancer',

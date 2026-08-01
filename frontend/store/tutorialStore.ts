@@ -1,7 +1,7 @@
 import logger from '@/lib/logger';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { serializedStorage } from './diagramStore';
+import { serializedStorage } from '@/lib/storage/localStorage';
 import type { Node, Edge } from 'reactflow';
 import type { TutorialDefinition, TutorialSession, PhaseName } from '@/lib/tutorial/schema';
 import type { AnyTutorial } from '@/data/tutorials';
@@ -39,6 +39,7 @@ export interface TutorialProgressEntry {
   currentStep: number;
   currentPhase: string;
   completedLevels: number[];
+  completedStepIds: string[];
   canvasNodes: SanitizedNode[];
   canvasEdges: SanitizedEdge[];
   explainCount: number;
@@ -52,6 +53,7 @@ export type TutorialProgressRow = {
   current_step: number;
   current_phase: string;
   completed_levels: number[];
+  completed_step_ids: string[];
   canvas_nodes: SanitizedNode[];
   canvas_edges: SanitizedEdge[];
   explain_count: number;
@@ -212,10 +214,11 @@ export const useTutorialStore = create<TutorialStoreState>()(
           restoredEdges = migrateEdgesToSmoothstep(saved.canvasEdges as Edge[]) as Edge[];
           
           session = engine.restoreSession(tutorial, {
-            levelIndex: saved.currentLevel,
-            stepIndex: saved.currentStep,
-            phase: saved.currentPhase as PhaseName,
+            levelIndex: Math.max(0, (saved.currentLevel ?? 1) - 1),
+            stepIndex: Math.max(0, (saved.currentStep ?? 1) - 1),
+            phase: (saved.currentPhase as PhaseName) ?? 'context',
             completedLevelIds: saved.completedLevels.map(String),
+            completedStepIds: saved.completedStepIds ?? [],
             canvasSnapshot: {
               nodes: restoredNodes,
               edges: restoredEdges,
@@ -318,7 +321,15 @@ export const useTutorialStore = create<TutorialStoreState>()(
         set({ currentStep: Math.min(currentStep + 1, totalSteps) });
       },
 
-      completeTutorial: () => set({ isComplete: true }),
+      completeTutorial: () => {
+        const { activeTutorial } = get();
+        set((s) => ({
+          isComplete: true,
+          completedTutorials: activeTutorial
+            ? [...new Set([...s.completedTutorials, activeTutorial.id])]
+            : s.completedTutorials,
+        }));
+      },
 
       resetTutorial: () => { 
         const { activeTutorial } = get();
@@ -340,14 +351,12 @@ export const useTutorialStore = create<TutorialStoreState>()(
           });
           
           // Delete from DB
-          if (process.env.DATABASE_URL) {
-            import('@/store/authStore').then(({ useAuthStore }) => {
-              const { user } = useAuthStore.getState();
-              if (user && user.id !== 'guest') {
-                apiDeleteTutorialProgress(activeTutorial.id);
-              }
-            });
-          }
+          import('@/store/authStore').then(({ useAuthStore }) => {
+            const { user } = useAuthStore.getState();
+            if (user && user.id !== 'guest') {
+              apiDeleteTutorialProgress(activeTutorial.id).catch(() => {});
+            }
+          });
         }
       },
 
@@ -374,37 +383,24 @@ export const useTutorialStore = create<TutorialStoreState>()(
         });
 
         // Step 3: Try to upsert DB with fresh state (with timeout)
-        if (process.env.DATABASE_URL) {
-          try {
-            // Create a timeout promise that rejects after 5 seconds
-            const timeoutPromise = new Promise<never>((_, reject) => 
-              setTimeout(() => reject(new Error('Auth timeout')), 5000)
-            );
-            
-            // Race between auth check and timeout
-            const authPromise = (async () => {
-              const { useAuthStore } = await import('@/store/authStore');
-              return useAuthStore.getState();
-            })();
-            
-            const { user } = await Promise.race([authPromise, timeoutPromise]) as { user: unknown };
-            
-            if (user && typeof user === 'object' && 'id' in user && (user as { id: string }).id !== 'guest') {
-              await apiSaveTutorialProgress({
-                tutorialId: tutorial.id,
-                currentLevel: 1,
-                currentStep: 1,
-                currentPhase: 'context',
-                completedLevels: [],
-                canvasNodes: [],
-                canvasEdges: [],
-                explainCount: 0,
-              });
-            }
-          } catch (e) {
-            // Timeout or auth error - continue with local-only mode
-            logger.warn('[tutorialStore] Auth check timed out or failed, starting locally:', e instanceof Error ? e.message : String(e));
+        try {
+          const { useAuthStore } = await import('@/store/authStore');
+          const { user } = useAuthStore.getState();
+          if (user && user.id !== 'guest') {
+            await apiSaveTutorialProgress({
+              tutorialId: tutorial.id,
+              currentLevel: 1,
+              currentStep: 1,
+              currentPhase: 'context',
+              completedLevels: [],
+              completedStepIds: [],
+              canvasNodes: [],
+              canvasEdges: [],
+              explainCount: 0,
+            });
           }
+        } catch (e) {
+          logger.warn('[tutorialStore] DB save failed, continuing locally:', e instanceof Error ? e.message : String(e));
         }
 
         // Start fresh locally (either DB not configured, auth timed out, or no user)
@@ -457,6 +453,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
               currentStep: progress.currentStep ?? state.currentStep,
               currentPhase: progress.currentPhase ?? 'context',
               completedLevels: progress.completedLevels ?? state.completedLevels,
+              completedStepIds: progress.completedStepIds ?? state.richProgress[tutorialId]?.completedStepIds ?? [],
               canvasNodes: (progress.canvasNodes ?? state.tutorialNodes) as SanitizedNode[],
               canvasEdges: (progress.canvasEdges ?? state.tutorialEdges) as SanitizedEdge[],
               explainCount: progress.explainCount ?? 0,
@@ -496,8 +493,6 @@ export const useTutorialStore = create<TutorialStoreState>()(
         if (!progress) return;
         
         try {
-          if (!process.env.DATABASE_URL) return;
-
           const { user } = (await import('@/store/authStore')).useAuthStore.getState();
           if (!user || user.id === 'guest') return;
 
@@ -508,6 +503,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
             currentStep: progress.currentStep,
             currentPhase: progress.currentPhase,
             completedLevels: progress.completedLevels,
+            completedStepIds: progress.completedStepIds,
             canvasNodes: progress.canvasNodes as object,
             canvasEdges: progress.canvasEdges as object,
             explainCount: progress.explainCount,
@@ -522,8 +518,6 @@ export const useTutorialStore = create<TutorialStoreState>()(
 
       loadFromDb: async (tutorialId) => {
         try {
-          if (!process.env.DATABASE_URL) return null;
-
           const { user } = (await import('@/store/authStore')).useAuthStore.getState();
           if (!user || user.id === 'guest') return null;
 
@@ -537,6 +531,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
             currentStep: data.currentStep,
             currentPhase: data.currentPhase,
             completedLevels: data.completedLevels,
+            completedStepIds: data.completedStepIds ?? [],
             canvasNodes: (data.canvasNodes as unknown as SanitizedNode[]) ?? [],
             canvasEdges: migrateEdgesToSmoothstep(data.canvasEdges as unknown as Edge[]) as unknown as SanitizedEdge[],
             explainCount: data.explainCount,
@@ -557,10 +552,11 @@ export const useTutorialStore = create<TutorialStoreState>()(
         const { activeTutorial, session, nodes, edges } = get();
         if (activeTutorial && session) {
           get().saveProgress(activeTutorial.id, {
-            currentLevel: session.levelIndex,
-            currentStep: session.stepIndex,
+            currentLevel: session.levelIndex + 1,
+            currentStep: session.stepIndex + 1,
             currentPhase: session.phase,
             completedLevels: session.completedLevelIds.map(Number),
+            completedStepIds: session.completedStepIds,
             canvasNodes: nodes.map(sanitizeNode),
             canvasEdges: edges.map(sanitizeEdge),
             explainCount: 0,

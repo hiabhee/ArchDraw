@@ -4,7 +4,7 @@ import { useCallback, DragEvent, useState, useEffect, useRef, useMemo } from 're
 import ReactFlow, {
   Background, BackgroundVariant, Controls,
   ReactFlowProvider, useReactFlow,
-  ConnectionLineType,
+  ConnectionLineType, ConnectionMode,
   type NodeChange,
   type EdgeChange,
   type Connection,
@@ -44,9 +44,21 @@ const EDGE_TYPES = {
   dotted: SimpleFloatingEdge,
 };
 import { ComponentPalette } from '@/components/tutorial/ComponentPalette';
-import { NodeTooltip } from '@/components/tutorial/NodeTooltip';
 import { CORE_COMPONENTS as components } from '@/lib/componentRegistry';
-import { COMPONENT_TOOLTIPS } from '@/data/componentTooltips';
+import { COMPONENT_TOOLTIPS, type RichTooltipData } from '@/data/componentTooltips';
+
+export interface NodeDetailsInfo {
+  label: string;
+  category?: string;
+  color?: string;
+  description?: string;
+  role?: string;
+  whyItMatters?: string;
+  realWorldFact?: string;
+  tradeoff?: string;
+  interviewTip?: string;
+  concepts?: string[];
+}
 
 type ComponentEntry = { id: string; label: string; category: string; color: string; description?: string };
 const componentMap = new Map<string, ComponentEntry>(
@@ -63,13 +75,26 @@ function findComponentMeta(label: string): ComponentEntry | undefined {
   return undefined;
 }
 
+function buildNodeDetails(label: string, data: { category?: string; color?: string }): NodeDetailsInfo {
+  const meta = findComponentMeta(label);
+  const rich: RichTooltipData | undefined = COMPONENT_TOOLTIPS[label];
+  return {
+    label,
+    category: data.category ?? meta?.category,
+    color: data.color ?? meta?.color,
+    description: meta?.description,
+    role: rich?.role,
+    whyItMatters: rich?.whyItMatters,
+    realWorldFact: rich?.realWorldFact,
+    tradeoff: rich?.tradeoff,
+    interviewTip: rich?.interviewTip,
+    concepts: rich?.concepts,
+  };
+}
+
 function TutorialSystemNodeWrapper(props: NodeProps<NodeData>) {
-  const meta = findComponentMeta(props.data.label ?? '');
   const { highlightFrom, highlightTo } = useTutorialStore();
-  
-  const nodeLabel = props.data.label ?? '';
-  const richTooltip = COMPONENT_TOOLTIPS[nodeLabel];
-  
+
   const nodeLabelLower = (props.data.label ?? '').toLowerCase().trim();
   const isHighlighted: 'source' | 'target' | null =
     highlightFrom && nodeLabelLower.includes(highlightFrom.toLowerCase()) ? 'source' :
@@ -77,28 +102,15 @@ function TutorialSystemNodeWrapper(props: NodeProps<NodeData>) {
     null;
 
   return (
-    <NodeTooltip
-      label={nodeLabel}
-      description={meta?.description}
-      category={props.data.category}
-      color={props.data.color ?? meta?.color}
-      role={richTooltip?.role}
-      whyItMatters={richTooltip?.whyItMatters}
-      realWorldFact={richTooltip?.realWorldFact}
-      tradeoff={richTooltip?.tradeoff}
-      interviewTip={richTooltip?.interviewTip}
-      concepts={richTooltip?.concepts}
+    <div
+      className={`${isHighlighted === 'source' ? 'ring-2 ring-gray-500 ring-offset-2 ring-offset-white' : ''} ${isHighlighted === 'target' ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white' : ''} rounded-lg transition-all duration-300`}
+      style={{
+        boxShadow: isHighlighted === 'source' ? '0 0 20px rgba(107,114,128,0.4), inset 0 0 15px rgba(107,114,128,0.1)' :
+                   isHighlighted === 'target' ? '0 0 20px rgba(16,185,129,0.4), inset 0 0 15px rgba(16,185,129,0.1)' : 'none',
+      }}
     >
-      <div 
-        className={`${isHighlighted === 'source' ? 'ring-2 ring-gray-500 ring-offset-2 ring-offset-white' : ''} ${isHighlighted === 'target' ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white' : ''} rounded-lg transition-all duration-300`}
-        style={{
-          boxShadow: isHighlighted === 'source' ? '0 0 20px rgba(107,114,128,0.4), inset 0 0 15px rgba(107,114,128,0.1)' : 
-                     isHighlighted === 'target' ? '0 0 20px rgba(16,185,129,0.4), inset 0 0 15px rgba(16,185,129,0.1)' : 'none',
-        }}
-      >
-        <SystemNode {...props} />
-      </div>
-    </NodeTooltip>
+      <SystemNode {...props} />
+    </div>
   );
 }
 
@@ -129,11 +141,13 @@ interface TutorialCanvasInnerProps {
   totalLevels?: number;
   onRestart?: () => void;
   onSkip?: () => void;
+  onNodeSelect?: (info: NodeDetailsInfo | null) => void;
 }
 
-function TutorialCanvasInner({ 
-  theme, 
-  tutorialId, 
+function TutorialCanvasInner({
+  theme,
+  tutorialId,
+  onNodeSelect,
 }: TutorialCanvasInnerProps) {
   const isDark = theme === 'dark';
   const canvasBg = isDark ? '#0f172a' : '#f8fafc';
@@ -149,7 +163,7 @@ function TutorialCanvasInner({
   const controlsClass = isDark
     ? '!bg-[#0d1117]/90 !backdrop-blur-sm !border !border-white/10 !rounded-lg [&>button]:!border-0 [&>button]:!border-b [&>button]:!border-white/10 [&>button:hover]:!bg-white/5'
     : '!bg-white/90 !backdrop-blur-sm !border !border-black/10 !rounded-lg [&>button]:!border-0 [&>button]:!border-b [&>button]:!border-black/10 [&>button]:hover:!bg-black/5';
-  const { nodes, edges, setNodes, setEdges, setTutorialNodes, setTutorialEdges, saveProgress, getProgress, hasHydrated, isSwitchingTutorial } = useTutorialStore();
+  const { nodes, edges, session, setNodes, setEdges, setTutorialNodes, setTutorialEdges, saveProgress, getProgress, hasHydrated, isSwitchingTutorial } = useTutorialStore();
   const reactFlowInstance = useReactFlow();
   const [isMac, setIsMac] = useState(false);
   const [paletteForceOpen, setPaletteForceOpen] = useState(false);
@@ -196,26 +210,33 @@ function TutorialCanvasInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated, tutorialId, getProgress, setNodes, setEdges, setTutorialNodes, setTutorialEdges, reactFlowInstance]);
 
-  // Save canvas nodes/edges to richProgress on change (debounced 1s).
+  // Save canvas nodes/edges + session state to richProgress on change (debounced 1s).
   useEffect(() => {
     if (!tutorialId) return;
     if (isSwitchingTutorial) return;
     if (canvasSaveTimerRef.current) clearTimeout(canvasSaveTimerRef.current);
     canvasSaveTimerRef.current = setTimeout(() => {
-      saveProgress(tutorialId, {
+      const progress: Parameters<typeof saveProgress>[1] = {
         canvasNodes: nodes.map(sanitizeNode),
         canvasEdges: edges.map(sanitizeEdge),
-      });
+      };
+      if (session) {
+        progress.currentLevel = session.levelIndex + 1;
+        progress.currentStep = session.stepIndex + 1;
+        progress.currentPhase = session.phase;
+        progress.completedLevels = session.completedLevelIds.map(Number);
+        progress.completedStepIds = session.completedStepIds;
+      }
+      saveProgress(tutorialId, progress);
     }, 1000);
     return () => {
       if (canvasSaveTimerRef.current) clearTimeout(canvasSaveTimerRef.current);
     };
    
-  }, [nodes, edges, tutorialId, saveProgress, isSwitchingTutorial]);
+  }, [nodes, edges, session, tutorialId, saveProgress, isSwitchingTutorial]);
 
   // ── Real-time step detection ─────────────────────────────────────────────
   const { currentStep } = useTutorialHelpers();
-  const { session } = useTutorialStore();
   const prevRequirementsMetRef = useRef<string>('');
 
   useEffect(() => {
@@ -400,8 +421,18 @@ function TutorialCanvasInner({
           onConnect={onConnect}
           onDragOver={onDragOver}
           onDrop={onDrop}
+          onNodeDoubleClick={(_event, node) => {
+            const label = (node.data?.label as string) ?? '';
+            if (!label) return;
+            onNodeSelect?.(buildNodeDetails(label, {
+              category: node.data?.category as string | undefined,
+              color: node.data?.color as string | undefined,
+            }));
+          }}
+          onPaneClick={() => onNodeSelect?.(null)}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
+          connectionMode={ConnectionMode.Loose}
           snapToGrid
           snapGrid={[20, 20]}
           minZoom={0.1}
@@ -485,10 +516,11 @@ interface TutorialCanvasProps {
   totalLevels?: number;
   onRestart?: () => void;
   onSkip?: () => void;
+  onNodeSelect?: (info: NodeDetailsInfo | null) => void;
 }
 
-export function TutorialCanvas({ 
-  theme = 'dark', 
+export function TutorialCanvas({
+  theme = 'dark',
   tutorialId,
   tutorialTitle,
   currentStep,
@@ -497,11 +529,12 @@ export function TutorialCanvas({
   totalLevels,
   onRestart,
   onSkip,
+  onNodeSelect,
 }: TutorialCanvasProps) {
   return (
     <ReactFlowProvider>
-      <TutorialCanvasInner 
-        theme={theme} 
+      <TutorialCanvasInner
+        theme={theme}
         tutorialId={tutorialId}
         tutorialTitle={tutorialTitle}
         currentStep={currentStep}
@@ -510,6 +543,7 @@ export function TutorialCanvas({
         totalLevels={totalLevels}
         onRestart={onRestart}
         onSkip={onSkip}
+        onNodeSelect={onNodeSelect}
       />
     </ReactFlowProvider>
   );
