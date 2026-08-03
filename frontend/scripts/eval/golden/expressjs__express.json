@@ -1,0 +1,35 @@
+{
+  "repo": "https://github.com/expressjs/express",
+  "classification": {
+    "repoType": "library",
+    "framework": "Express",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "express_core",
+      "label": "Express",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "express",
+        "express.js",
+        "express core"
+      ],
+      "sourceFiles": [
+        "lib/express.js",
+        "lib/application.js"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Pure web framework library. The pipeline must NOT fabricate a database/queue/auth service from keywords like \"middleware\" or \"router\"."
+}

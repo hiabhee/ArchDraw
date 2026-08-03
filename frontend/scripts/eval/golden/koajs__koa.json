@@ -1,0 +1,33 @@
+{
+  "repo": "https://github.com/koajs/koa",
+  "classification": {
+    "repoType": "library",
+    "framework": "Koa",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "koa_core",
+      "label": "Koa",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "koa",
+        "koa core"
+      ],
+      "sourceFiles": [
+        "lib/application.js"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Pure web framework library."
+}

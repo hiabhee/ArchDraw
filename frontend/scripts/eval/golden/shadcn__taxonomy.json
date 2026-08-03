@@ -1,0 +1,69 @@
+{
+  "repo": "https://github.com/shadcn/taxonomy",
+  "classification": {
+    "repoType": "fullstack_monolith",
+    "framework": "Next.js",
+    "database": "PostgreSQL"
+  },
+  "nodes": [
+    {
+      "id": "web_frontend",
+      "label": "Next.js Web App",
+      "type": "PAGE",
+      "aliases": [
+        "web app",
+        "frontend",
+        "app"
+      ]
+    },
+    {
+      "id": "auth",
+      "label": "NextAuth",
+      "type": "AUTH",
+      "aliases": [
+        "nextauth",
+        "authentication",
+        "auth"
+      ]
+    },
+    {
+      "id": "prisma",
+      "label": "Prisma ORM",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "prisma",
+        "database client",
+        "orm"
+      ]
+    },
+    {
+      "id": "postgres",
+      "label": "PostgreSQL",
+      "type": "DATABASE",
+      "aliases": [
+        "database",
+        "postgres"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "web_frontend",
+      "to": "auth"
+    },
+    {
+      "from": "web_frontend",
+      "to": "prisma"
+    },
+    {
+      "from": "auth",
+      "to": "postgres"
+    },
+    {
+      "from": "prisma",
+      "to": "postgres"
+    }
+  ],
+  "forbiddenNodes": [],
+  "notes": "Next.js app router + Prisma + NextAuth. DB provider may be MySQL/PlanetScale in some versions — re-check and update golden if the eval reports a database mismatch."
+}

@@ -45,28 +45,19 @@ function getTierColorNormalized(layer?: string): string {
   const tier = (layer || 'compute').toLowerCase();
   const colorMap: Record<string, string> = {
     client:   '#64748b',
-    edge:     '#6366f1',
-    compute:  '#0d9488',
-    async:    '#d97706',
-    data:     '#3b82f6',
-    observe:  '#8b5cf6',
-    external: '#ec4899',
+    edge:     '#0f766e',
+    compute:  '#0f766e',
+    async:    '#b45309',
+    data:     '#475569',
+    observe:  '#0f766e',
+    external: '#6b7280',
   };
   return colorMap[tier] || colorMap.compute;
 }
 
 function getDarkCategoryStyle(layer?: string): { border: string; glow: string } {
-  const tier = (layer || 'compute').toLowerCase();
-  const map: Record<string, { border: string; glow: string }> = {
-    client:      { border: '#60A5FA', glow: 'rgba(96,165,250,0.15)' },
-    edge:        { border: '#60A5FA', glow: 'rgba(96,165,250,0.15)' },
-    compute:     { border: '#34D399', glow: 'rgba(52,211,153,0.15)' },
-    async:       { border: '#FBBF24', glow: 'rgba(251,191,36,0.15)' },
-    data:        { border: '#F87171', glow: 'rgba(248,113,113,0.15)' },
-    observe:     { border: '#A78BFA', glow: 'rgba(167,139,250,0.15)' },
-    external:    { border: '#22D3EE', glow: 'rgba(34,211,238,0.15)' },
-  };
-  return map[tier] || map.compute;
+  const color = getTierColorNormalized(layer);
+  return { border: color, glow: hexToRgba(color, 0.12) };
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -124,19 +115,9 @@ function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; sele
   };
   
   const tierColor = getTierColorNormalized(data.layer);
-  const accentColor = data.accentColor || data.color || tierColor || '#0D9488';
+  const accentColor = data.accentColor || data.color || tierColor || '#0f766e';
   const statusColor = STATUS_COLORS[(data.status || 'healthy') as keyof typeof STATUS_COLORS];
   const showStatus = data.status && data.status !== 'healthy';
-
-  const backplateLayers = selected
-    ? [
-        { offset: 10, color: isDark ? '#0d0f1b' : '#f1f1f1' },
-        { offset: 5, color: isDark ? '#151828' : '#e0e0e0' },
-      ]
-    : [
-        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
-        { offset: 5, color: isDark ? '#151828' : '#eaeaea' },
-      ];
 
   const catStyle = getDarkCategoryStyle(data.layer);
 
@@ -155,21 +136,6 @@ function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; sele
       <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-[#1E90FF] !border-0" style={{ zIndex: 10 }} />
       <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-[#1E90FF] !border-0" style={{ zIndex: 10 }} />
 
-      {backplateLayers.map((layer, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            borderRadius: 16,
-            transform: `translate(${layer.offset}px, ${layer.offset}px)`,
-            background: layer.color,
-            zIndex: i + 1,
-            pointerEvents: 'none',
-            transition: 'all 150ms ease',
-          }}
-        />
-      ))}
       <div
         className="group node-card"
         style={{
@@ -178,7 +144,6 @@ function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; sele
           minHeight: data.nodeHeight || 72,
         }}
       >
-        <div className="node-shine" />
         <div className="node-header">
           {isEditing ? (
             <input
@@ -254,28 +219,23 @@ function DemoGroup({ id, data, selected }: { id: string; data: DemoGroupData; se
     }
   };
 
-  const getDeterministicColor = (str: string) => {
-    const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
+  const color =
+    data.accentColor ||
+    data.groupColor ||
+    data.color ||
+    getTierColorNormalized(data.layer || data.groupLabel || data.label);
 
-  const color = data.accentColor || data.groupColor || data.color || getDeterministicColor(id);
+  const bg = isDark ? hexToRgba(color, 0.04) : hexToRgba(color, 0.035);
+  const borderColor = isDark
+    ? selected
+      ? hexToRgba(color, 0.55)
+      : 'rgba(255, 255, 255, 0.12)'
+    : selected
+      ? hexToRgba(color, 0.55)
+      : 'rgba(15, 23, 42, 0.12)';
 
-  const bg = isDark ? hexToRgba(color, 0.05) : hexToRgba(color, 0.08);
-  const borderColor = isDark 
-    ? (selected ? hexToRgba(color, 0.75) : hexToRgba(color, 0.35))
-    : (selected ? hexToRgba(color, 0.9) : hexToRgba(color, 0.45));
-
-  const borderStyle = 'dashed';
-  const borderWidth = selected ? 2.5 : 2;
-
-  const tagText = isDark ? '#f0f2f7' : hexToRgba(color, 0.95);
-  const tagBg = isDark ? '#13151a' : 'rgba(255,255,255,0.95)';
-  const tagBorder = isDark ? hexToRgba(color, 0.5) : hexToRgba(color, 0.45);
+  const borderWidth = selected ? 1.5 : 1;
+  const tagText = isDark ? '#94a3b8' : '#64748b';
 
   const label = data.groupLabel || data.label || '';
 
@@ -285,8 +245,8 @@ function DemoGroup({ id, data, selected }: { id: string; data: DemoGroupData; se
         width: '100%',
         height: '100%',
         backgroundColor: bg,
-        border: `${borderWidth}px ${borderStyle} ${borderColor}`,
-        borderRadius: 20,
+        border: `${borderWidth}px solid ${borderColor}`,
+        borderRadius: 12,
         position: 'relative',
         boxSizing: 'border-box',
       }}
@@ -300,25 +260,23 @@ function DemoGroup({ id, data, selected }: { id: string; data: DemoGroupData; se
       <div
         style={{
           position: 'absolute',
-          bottom: -14,
-          right: 20,
+          top: 8,
+          left: 12,
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 6,
-          padding: '4px 12px',
-          fontSize: isDark ? 12 : 9,
-          fontWeight: 600,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
+          gap: 4,
+          padding: 0,
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: '0.04em',
+          textTransform: 'none',
           color: tagText,
-          background: tagBg,
-          border: `1px solid ${tagBorder}`,
-          borderRadius: 999,
-          backdropFilter: 'blur(4px)',
-          WebkitBackdropFilter: 'blur(4px)',
-          lineHeight: 1.4,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 0,
+          lineHeight: 1.3,
           whiteSpace: 'nowrap',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          boxShadow: 'none',
           zIndex: 10,
           cursor: 'pointer',
         }}
@@ -340,10 +298,10 @@ function DemoGroup({ id, data, selected }: { id: string; data: DemoGroupData; se
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              fontSize: isDark ? 12 : 10,
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
+              textTransform: 'none',
               color: tagText,
               width: '100%',
               cursor: 'text',
@@ -370,21 +328,21 @@ const PRESETS: Record<'loadBalancer', PresetData> = {
   loadBalancer: {
     title: 'Describe simple load balancer...',
     nodes: [
-      // Containers
-      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 420, y: 40 }, style: { width: 320, height: 140 }, data: { label: 'CLIENT CONTAINER', color: '#6366f1' }, draggable: true },
-      { id: 'LB_GROUP', type: 'demoGroup', position: { x: 420, y: 220 }, style: { width: 320, height: 140 }, data: { label: 'LOAD BALANCER', color: '#22c55e' }, draggable: true },
-      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 40, y: 400 }, style: { width: 1080, height: 140 }, data: { label: 'SERVER POOL', color: '#a855f7' }, draggable: true },
+      // Containers — generous vertical gaps so groups / edges do not feel packed
+      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 460, y: 40 }, style: { width: 360, height: 160 }, data: { label: 'CLIENT CONTAINER', color: '#6366f1' }, draggable: true },
+      { id: 'LB_GROUP', type: 'demoGroup', position: { x: 460, y: 280 }, style: { width: 360, height: 160 }, data: { label: 'LOAD BALANCER', color: '#22c55e' }, draggable: true },
+      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 40, y: 520 }, style: { width: 1200, height: 160 }, data: { label: 'SERVER POOL', color: '#a855f7' }, draggable: true },
       // Nodes
-      { id: 'client-node', type: 'demoNode', parentId: 'CLIENT_GROUP', position: { x: 60, y: 30 }, data: { label: 'Client', subtitle: 'Web Browser / iOS', layer: 'client', icon: '🌐' }, draggable: true },
-      { id: 'lb-node', type: 'demoNode', parentId: 'LB_GROUP', position: { x: 60, y: 30 }, data: { label: 'Load Balancer', subtitle: 'Nginx Proxy', layer: 'edge', icon: '⚡' }, draggable: true },
-      { id: 'server1', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 60, y: 30 }, data: { label: 'Server 1', subtitle: 'Node.js App', layer: 'compute', icon: '💻' }, draggable: true },
-      { id: 'server2', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 440, y: 30 }, data: { label: 'Server 2', subtitle: 'Go Microservice', layer: 'compute', icon: '💻' }, draggable: true },
-      { id: 'server3', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 820, y: 30 }, data: { label: 'Monitoring Service', subtitle: 'Prometheus', layer: 'observe', icon: '📊' }, draggable: true },
+      { id: 'client-node', type: 'demoNode', parentId: 'CLIENT_GROUP', position: { x: 80, y: 44 }, data: { label: 'Client', subtitle: 'Web Browser / iOS', layer: 'client', icon: '🌐' }, draggable: true },
+      { id: 'lb-node', type: 'demoNode', parentId: 'LB_GROUP', position: { x: 80, y: 44 }, data: { label: 'Load Balancer', subtitle: 'Nginx Proxy', layer: 'edge', icon: '⚡' }, draggable: true },
+      { id: 'server1', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 80, y: 44 }, data: { label: 'Server 1', subtitle: 'Node.js App', layer: 'compute', icon: '💻' }, draggable: true },
+      { id: 'server2', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 500, y: 44 }, data: { label: 'Server 2', subtitle: 'Go Microservice', layer: 'compute', icon: '💻' }, draggable: true },
+      { id: 'server3', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 920, y: 44 }, data: { label: 'Monitoring Service', subtitle: 'Prometheus', layer: 'observe', icon: '📊' }, draggable: true },
       // Invisible spacer node to push content up so the floating AI bar has background
       { 
         id: 'dummy-spacer', 
         type: 'spacerNode', 
-        position: { x: 500, y: 650 }, 
+        position: { x: 500, y: 780 }, 
         data: {}, 
         draggable: false, 
         selectable: false,
@@ -594,13 +552,13 @@ function InteractiveLandingDemoContent() {
   const handleLayoutArrange = () => {
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setDefaultEdgeLabel(() => ({}));
-    g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 60 });
+    g.setGraph({ rankdir: 'TB', nodesep: 160, ranksep: 200 });
 
     const groups = nodes.filter(n => n.type === 'demoGroup');
     const leafs = nodes.filter(n => n.type === 'demoNode');
 
     groups.forEach(group => {
-      g.setNode(group.id, { width: group.style?.width as number || 260, height: group.style?.height as number || 160 });
+      g.setNode(group.id, { width: group.style?.width as number || 360, height: group.style?.height as number || 160 });
     });
 
     leafs.forEach(node => {
@@ -621,13 +579,13 @@ function InteractiveLandingDemoContent() {
         const dagreNode = g.node(node.id);
         if (!dagreNode) return node;
 
-        let x = dagreNode.x - (node.type === 'demoGroup' ? (node.style?.width as number || 260) : 200) / 2;
+        let x = dagreNode.x - (node.type === 'demoGroup' ? (node.style?.width as number || 360) : 200) / 2;
         let y = dagreNode.y - (node.type === 'demoGroup' ? (node.style?.height as number || 160) : 72) / 2;
 
         if (node.parentId) {
           const parentDagreNode = g.node(node.parentId);
           if (parentDagreNode) {
-            const parentX = parentDagreNode.x - (groups.find(g => g.id === node.parentId)?.style?.width as number || 260) / 2;
+            const parentX = parentDagreNode.x - (groups.find(g => g.id === node.parentId)?.style?.width as number || 360) / 2;
             const parentY = parentDagreNode.y - (groups.find(g => g.id === node.parentId)?.style?.height as number || 160) / 2;
             x = x - parentX;
             y = y - parentY;

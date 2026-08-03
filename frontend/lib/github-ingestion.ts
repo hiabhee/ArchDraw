@@ -1,6 +1,8 @@
 import type { RepoSnapshot, SurfaceClassification, FileEntry } from './types/repo-diagram';
 import { parseGitHubUrl as sharedParseGitHubUrl } from '@/lib/utils/githubUrl';
 import logger from '@/lib/logger';
+import { fetchRepoArchive } from './repo-diagram/tarball-ingestion';
+import { parse as parseYaml } from 'yaml';
 
 function parseGithubUrl(url: string): { owner: string; repo: string } {
   const parsed = sharedParseGitHubUrl(url);
@@ -127,7 +129,7 @@ interface GitTreeItem {
   url: string;
 }
 
-const MAX_FILE_SIZE_BYTES = 100 * 1024;
+const MAX_FILE_SIZE_BYTES = 500 * 1024;
 
 const SKIPPED_DIRECTORIES = new Set([
   'node_modules', '.next', 'dist', 'build', 'out', 'public',
@@ -144,7 +146,7 @@ const ConfigSkipReason = {
   BINARY: 'binary',
 } as const;
 
-const isSkipped = (path: string, size?: number): string | null => {
+export const isSkipped = (path: string, size?: number): string | null => {
   if (size && size > MAX_FILE_SIZE_BYTES) return ConfigSkipReason.LARGE_FILE;
   const parts = path.split('/');
   if (parts.some((p) => SKIPPED_DIRECTORIES.has(p))) {
@@ -176,15 +178,42 @@ const isSkipped = (path: string, size?: number): string | null => {
 // In-memory caches to avoid re-fetching the same data on re-runs.
 // Content cache keyed by path; tree cache keyed by headSha.
 const CONTENT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_ARCHIVE_CACHE_SIZE = Number(process.env.ARCHIVE_CACHE_SIZE) || 25;
 const MAX_CACHE_SIZE = 25;
 const fileContentCache = new Map<string, { entry: FileEntry | null; ts: number }>();
 const treeCache = new Map<string, { tree: GitTreeItem[]; truncated: boolean; ts: number }>();
+// Phase 2: archive (zipball) cache keyed by headSha — a hit reuses the in-memory
+// file map across eval retries/cache-warming without re-downloading.
+const archiveCache = new Map<string, { map: Map<string, string>; ts: number }>();
 
-function evictIfNeeded(cache: Map<string, { ts: number }>) {
-  while (cache.size > MAX_CACHE_SIZE) {
+async function loadArchiveMap(
+  owner: string,
+  repo: string,
+  ref: string,
+  headers: Record<string, string>,
+  signal?: AbortSignal
+): Promise<Map<string, string> | null> {
+  const cacheKey = `${owner}/${repo}:${ref}`;
+  const cached = archiveCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CONTENT_CACHE_TTL_MS) return cached.map;
+  const archive = await fetchRepoArchive(owner, repo, ref, headers, signal);
+  if (!archive) return null;
+  archiveCache.set(cacheKey, { map: archive.files, ts: Date.now() });
+  void evictIfNeeded(archiveCache, 'archiveCache');
+  return archive.files;
+}
+
+function evictIfNeeded(cache: Map<string, { ts: number }>, cacheName?: string) {
+  const limit = cache === archiveCache ? MAX_ARCHIVE_CACHE_SIZE : MAX_CACHE_SIZE;
+  let evicted = 0;
+  while (cache.size > limit) {
     const oldestKey = cache.keys().next().value;
     if (oldestKey === undefined) break;
     cache.delete(oldestKey);
+    evicted++;
+  }
+  if (evicted > 0) {
+    logger.warn(`[Cache] ${cacheName || 'cache'} evicted ${evicted} entry/entries (size=${cache.size + evicted}, limit=${limit})`);
   }
 }
 
@@ -226,10 +255,7 @@ async function fetchFileContent(
   }
 
   const base64 = data.content.replace(/\r?\n/g, '');
-  let content = Buffer.from(base64, 'base64').toString('utf8');
-  if (path.toLowerCase() === 'readme.md') {
-    content = content.split('\n').slice(0, 200).join('\n');
-  }
+  const content = Buffer.from(base64, 'base64').toString('utf8');
   const entry: FileEntry = { path, content };
   fileContentCache.set(cacheKey, { entry, ts: Date.now() });
   evictIfNeeded(fileContentCache);
@@ -266,8 +292,13 @@ function determineSurfaceClassification(
   else if (hasCargoToml) primaryLanguage = 'Rust';
   else if (hasComposerJson) primaryLanguage = 'PHP';
   else if (hasGemfile) primaryLanguage = 'Ruby';
+  else if (allPaths.some((p) => p.endsWith('pom.xml') || p.endsWith('build.gradle') || p.endsWith('build.gradle.kts') || p.endsWith('.java'))) primaryLanguage = 'Java';
+  else if (allPaths.some((p) => p.endsWith('.csproj') || p.endsWith('.sln'))) primaryLanguage = 'C#';
+  else if (allPaths.some((p) => p === 'mix.exs' || p.endsWith('/mix.exs'))) primaryLanguage = 'Elixir';
   else if (allPaths.some((p) => p.endsWith('.tf'))) primaryLanguage = 'Terraform/HCL';
   else if (allPaths.some((p) => p.endsWith('.py'))) primaryLanguage = 'Python';
+  else if (allPaths.some((p) => p.endsWith('.rb'))) primaryLanguage = 'Ruby';
+  else if (allPaths.some((p) => p.endsWith('.go'))) primaryLanguage = 'Go';
   else if (allPaths.some((p) => p.endsWith('.html'))) primaryLanguage = 'HTML/CSS/JS';
 
   const detectedFrameworks: string[] = [];
@@ -337,7 +368,7 @@ export async function ingestRepo(
   logger.info(`[Ingest] Resolving branch HEAD SHA...`);
   const headSha = await getBranchHeadSha(owner, repo, defaultBranch, headers, signal);
 
-  console.log(`[Ingest] Fetching recursive tree for ${owner}/${repo}@${defaultBranch}...`);
+  logger.log(`[Ingest] Fetching recursive tree for ${owner}/${repo}@${defaultBranch}...`);
   const treeData = await getRecursiveTree(owner, repo, headSha, headers, signal);
 
   if (!treeData.tree || !Array.isArray(treeData.tree)) {
@@ -346,14 +377,23 @@ export async function ingestRepo(
 
   const treeItems: GitTreeItem[] = treeData.tree;
   if (treeItems.length > 50000) {
-    throw new Error('Repository is too large to ingest (file tree exceeds 50k entries). Try a smaller repo or add a GitHub token.');
+    logger.warn(`[Ingest] File tree exceeds 50k entries (${treeItems.length}) — sampling top entries. Quality may be reduced for this large repo.`);
   }
   const fileTree = treeItems.filter(item => item.type === 'blob').map(item => item.path);
   const treeMap = new Map<string, GitTreeItem>();
   treeItems.forEach(item => treeMap.set(item.path, item));
 
+  // ── Phase 0: Tarball ingestion (1 API call → whole repo in memory) ──
+  // When the archive is available, all subsequent "fetches" are free in-memory
+  // lookups, eliminating 1-API-call-per-file rate-limit pressure and budget
+  // starvation (fix 1.1, 1.4, 1.5). Falls back to the Contents-API path below.
+  const archiveMap = await loadArchiveMap(owner, repo, defaultBranch, headers, signal);
+  const usingArchive = archiveMap !== null;
+  const failedPaths: string[] = [];
+  logger.info(`[Ingest] archive=${usingArchive ? 'hit' : 'fallback'}`);
+
   // ── Phase 1: Triage Read ──────────────────────────────────
-  console.log(`[Ingest] Phase 1: Triage read...`);
+  logger.log(`[Ingest] Phase 1: Triage read...`);
 
   const phase1Candidates: string[] = [];
 
@@ -369,6 +409,9 @@ export async function ingestRepo(
     'README.md',
     '.env.example',
     'turbo.json', 'nx.json', 'lerna.json',
+    // Phase 5: broader manifest coverage for non-JS stacks.
+    'Gemfile', 'pom.xml', 'build.gradle', 'build.gradle.kts',
+    'manage.py', 'mix.exs',
   ];
   for (const p of phase1Always) {
     if (treeMap.has(p) && !phase1Candidates.includes(p)) {
@@ -391,12 +434,21 @@ export async function ingestRepo(
     if (!phase1Candidates.includes(d.path)) phase1Candidates.push(d.path);
   }
 
-  console.log(`[Ingest] Phase 1: Fetching ${phase1Candidates.length} files...`);
-  const phase1Fetched = await promisePool(phase1Candidates, 5, async (path) => {
-    const item = treeMap.get(path);
-    if (!item || isSkipped(path, item.size)) return null;
-    return fetchFileContent(owner, repo, path, headers, signal);
-  });
+  logger.log(`[Ingest] Phase 1: Fetching ${phase1Candidates.length} files...`);
+  let phase1Fetched: (FileEntry | null)[];
+  if (usingArchive) {
+    phase1Fetched = phase1Candidates.map((path) =>
+      archiveMap!.has(path) ? { path, content: archiveMap!.get(path)! } : null
+    );
+  } else {
+    phase1Fetched = await promisePool(phase1Candidates, 5, async (path) => {
+      const item = treeMap.get(path);
+      if (!item || isSkipped(path, item.size)) return null;
+      const entry = await fetchFileContent(owner, repo, path, headers, signal);
+      if (!entry && !isSkipped(path, item.size)) failedPaths.push(path);
+      return entry;
+    });
+  }
 
   const phase1Files: FileEntry[] = [];
   let phase1PackageJsonRaw: string | null = null;
@@ -409,11 +461,17 @@ export async function ingestRepo(
   // Refine surface classification with actual content
   const surfaceClassification = determineSurfaceClassification(treeItems, treeMap, phase1Files, phase1PackageJsonRaw);
 
-  // Check docker-compose services count
+  // Check docker-compose services count (Phase 3: real YAML parse, not brittle regex)
   const dcEntry = phase1Files.find((f) => f.path === 'docker-compose.yml' || f.path === 'docker-compose.yaml');
   if (dcEntry) {
-    const serviceCount = (dcEntry.content.match(/^\s{2}\w+:/gm) || []).length;
-    surfaceClassification.hasMultipleServices = serviceCount > 1;
+    try {
+      const parsed = parseYaml(dcEntry.content) as Record<string, unknown>;
+      const services = parsed?.services as Record<string, unknown> | undefined;
+      const serviceCount = services && typeof services === 'object' ? Object.keys(services).length : 0;
+      surfaceClassification.hasMultipleServices = serviceCount > 1;
+    } catch {
+      // ignore parse error — keep hasMultipleServices=false
+    }
   }
 
   // Detect frameworks from package.json
@@ -450,7 +508,7 @@ export async function ingestRepo(
   }
 
   // ── Phase 2: Stack-Guided Deep Read ───────────────────────
-  console.log(`[Ingest] Phase 2: Stack-guided deep file selection...`);
+  logger.log(`[Ingest] Phase 2: Stack-guided deep file selection...`);
 
   const totalLimit = (opts?.fileBudget ?? 75) - phase1Files.length;
   let contentBudget = (opts?.contentBudgetKB ?? 280) * 1024; // 280KB default
@@ -614,9 +672,45 @@ export async function ingestRepo(
     jsFiles.forEach(p => { if (!phase2Candidates.includes(p)) phase2Candidates.push(p); });
   }
 
+  // ── Phase 5: new stack selectors ──────────────────────────
+  // Each branch runs even when no earlier branch matched. Use tree-wide `findAll`
+  // (path can live at any depth) so non-standard layouts are covered.
+  const isJava = surfaceClassification.primaryLanguage === 'Java';
+  const isRuby = surfaceClassification.primaryLanguage === 'Ruby';
+  const isCSharp = surfaceClassification.primaryLanguage === 'C#';
+  const isElixir = surfaceClassification.primaryLanguage === 'Elixir';
+  if (isJava) {
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)(?:src\/main\/java\/.+\/)?[A-Z][\w]*Controller\.java$/, 20));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)[A-Z][\w]*Service\.java$/, 20));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)application\.(yml|yaml|properties)$/, 8));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)(pom\.xml|build\.gradle|build\.gradle\.kts)$/, 4));
+  } else if (isRuby) {
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)config\/routes\.rb$/, 1));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)app\/controllers\/[^/]+_controller\.rb$/, 20));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)app\/models\/[^/]+\.rb$/, 20));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)(Gemfile|Rakefile)$/, 2));
+  } else if (isCSharp) {
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)[A-Z][\w]*Controller\.cs$/, 20));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)(Program\.cs|Startup\.cs|appsettings\.json)$/, 6));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)[^/]+\.(csproj|sln)$/, 4));
+  } else if (isElixir) {
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)lib\/[^/]+(?:_[a-z]+)?_controller\.ex$/, 20));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)lib\/[^/]+_web\/router\.ex$/, 4));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)mix\.exs$/, 1));
+  }
+  // Python: expand Django/Flask/FastAPI selection regardless of monorepo nesting.
+  if (isPython) {
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)urls\.py$/, 5));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)views\.py$/, 8));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)models\.py$/, 8));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)settings\.py$/, 5));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)[\w]*blueprint[\w]*\.py$/i, 8));
+    pushCandidates(phase2Candidates, findAll(treeItems, /(^|\/)(app\.py|main\.py|wsgi\.py|asgi\.py)$/, 6));
+  }
+
   // Monorepo support: pick up package.json, configs, AND source files from apps/, packages/, services/
-  if (surfaceClassification.isMonorepo || treeItems.some((i) => i.path.startsWith('apps/') || i.path.startsWith('packages/') || i.path.startsWith('services/'))) {
-    const monoDirs = ['apps', 'packages', 'services'];
+  if (surfaceClassification.isMonorepo || treeItems.some((i) => i.path.startsWith('apps/') || i.path.startsWith('packages/') || i.path.startsWith('services/') || i.path.startsWith('frontend/') || i.path.startsWith('client/') || i.path.startsWith('web/') || i.path.startsWith('server/') || i.path.startsWith('backend/') || i.path.startsWith('api/'))) {
+    const monoDirs = ['apps', 'packages', 'services', 'frontend', 'client', 'web', 'server', 'backend', 'api'];
     for (const dir of monoDirs) {
       // 1) package.json files
       const subPkg = treeItems
@@ -674,6 +768,19 @@ export async function ingestRepo(
 
 interface ScoredCandidate { path: string; score: number; }
 
+/** Phase 5: tree-wide path matcher (any depth, not root-anchored). Cap per pattern. */
+function findAll(tree: GitTreeItem[], pattern: RegExp, cap: number): string[] {
+  return tree
+    .filter((i) => i.type === 'blob' && pattern.test(i.path) && !isSkipped(i.path, i.size))
+    .slice(0, cap)
+    .map((i) => i.path);
+}
+
+/** Push new candidates into an array (de-duplicates). */
+function pushCandidates(target: string[], newPaths: string[]): void {
+  for (const p of newPaths) if (!target.includes(p)) target.push(p);
+}
+
 function scoreCandidate(path: string, treeMap: Map<string, GitTreeItem>): number {
   let score = 0;
   const item = treeMap.get(path);
@@ -707,15 +814,25 @@ function scoreCandidate(path: string, treeMap: Map<string, GitTreeItem>): number
   scored.sort((a, b) => b.score - a.score);
   const phase2Slice = scored.slice(0, Math.min(scored.length, totalLimit)).map(s => s.path);
 
-  console.log(`[Ingest] Phase 2: Fetching ${phase2Slice.length} files...`);
-  const phase2Fetched = await promisePool(phase2Slice, 6, async (path) => {
-    const item = treeMap.get(path);
-    if (!item || isSkipped(path, item.size)) return null;
-    if (contentBudget <= 0) return null;
-    if ((item.size || 0) > contentBudget) return null;
-    contentBudget -= (item.size || 0);
-    return fetchFileContent(owner, repo, path, headers, signal);
-  });
+  logger.log(`[Ingest] Phase 2: Fetching ${phase2Slice.length} files...`);
+  let phase2Fetched: (FileEntry | null)[];
+  if (usingArchive) {
+    // Archive path: content is already in memory — no content-KB starvation (fix 1.4).
+    phase2Fetched = phase2Slice.map((path) =>
+      archiveMap!.has(path) ? { path, content: archiveMap!.get(path)! } : null
+    );
+  } else {
+    phase2Fetched = await promisePool(phase2Slice, 6, async (path) => {
+      const item = treeMap.get(path);
+      if (!item || isSkipped(path, item.size)) return null;
+      if (contentBudget <= 0) return null;
+      if ((item.size || 0) > contentBudget) return null;
+      contentBudget -= (item.size || 0);
+      const entry = await fetchFileContent(owner, repo, path, headers, signal);
+      if (!entry) failedPaths.push(path);
+      return entry;
+    });
+  }
 
   const phase2Files: FileEntry[] = [];
   for (const entry of phase2Fetched) {
@@ -763,6 +880,7 @@ function scoreCandidate(path: string, treeMap: Map<string, GitTreeItem>): number
     treeTruncated: treeData.truncated || false,
     fileTree,
     selectedFiles,
+    failedPaths,
     skippedCounts,
     repoMeta: {
       hasAppDir,
@@ -775,5 +893,6 @@ function scoreCandidate(path: string, treeMap: Map<string, GitTreeItem>): number
     surfaceClassification,
     phase1Files,
     phase2Files,
+    archiveMap: usingArchive ? archiveMap : null,
   };
 }

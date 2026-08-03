@@ -27,7 +27,7 @@ const COMPONENT_TYPE_OPTIONS = [
   { value: 'service', label: 'Service', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#4F46E5' },
   { value: 'database', label: 'Database', icon: Database, shape: 'cylinder' as ShapeType, category: 'data', color: '#1e293b' },
   { value: 'queue', label: 'Message Queue', icon: Inbox, shape: 'circle' as ShapeType, category: 'messaging', color: '#0891b2' },
-  { value: 'load-balancer', label: 'Load Balancer', icon: GitBranch, shape: 'diamond' as ShapeType, category: 'networking', color: '#4F46E5' },
+  { value: 'load-balancer', label: 'Load Balancer', icon: GitBranch, shape: 'diamond' as ShapeType, category: 'networking', color: '#1E90FF' },
   { value: 'client', label: 'Client', icon: Monitor, shape: 'rounded-rectangle' as ShapeType, category: 'client', color: '#2563EB' },
   { value: 'external-service', label: 'External', icon: Globe, shape: 'diamond' as ShapeType, category: 'external', color: '#64748b' },
   { value: 'observability', label: 'Observability', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#475569' },

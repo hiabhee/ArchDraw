@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDiagramStore } from '@/store/diagramStore';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { recomputeSubgraphBounds } from '@/lib/mermaid/recomputeSubgraphBounds';
 import { toast } from 'sonner';
 
 interface MermaidCodePanelProps {
@@ -23,6 +24,7 @@ interface MappedNode {
   zIndex?: number;
   absX: number;
   absY: number;
+  isGroup: boolean;
   parentId?: string;
   parentNode?: string;
   extent?: 'parent' | [[number, number], [number, number]];
@@ -77,7 +79,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    debounceTimerRef.current = setTimeout(() => {
+    debounceTimerRef.current = setTimeout(async () => {
       if (!newCode.trim()) {
         setError('Diagram code cannot be empty.');
         return;
@@ -86,7 +88,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       if (newCode === lastProcessedRef.current) return;
 
       try {
-        const result = runMermaidPipeline(newCode);
+        const result = await runMermaidPipeline(newCode);
 
         if (!result.success) {
           setError(result.warnings.join('; '));
@@ -96,7 +98,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const store = useDiagramStore.getState();
         const existingNodes = store.nodes;
         const currentPresetId = store.activeLayoutPresetId;
-        const newDirection = result.direction; // 'LR' or 'TD'
+        const newDirection = result.data.direction; // 'LR' or 'TD'
 
         // Determine if direction changed
         const currentDirection = currentPresetId === 'layered-lr' ? 'LR' : 'TD';
@@ -117,10 +119,10 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
 
         // Helper to resolve absolute position of a parsed node in the pipeline's layout
         const getParsedAbsPos = (nodeId: string) => {
-          const node = result.nodes.find(n => n.id === nodeId);
+          const node = result.data.nodes.find(n => n.id === nodeId);
           if (!node) return null;
           if (node.parentNode) {
-            const parent = result.nodes.find(p => p.id === node.parentNode);
+            const parent = result.data.nodes.find(p => p.id === node.parentNode);
             if (parent) {
               return { x: node.position.x + parent.position.x, y: node.position.y + parent.position.y };
             }
@@ -133,7 +135,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         let sumDeltaY = 0;
         let matchedCount = 0;
 
-        result.nodes.forEach(node => {
+        result.data.nodes.forEach(node => {
           const isGroup = node.type === 'groupNode' || (node.data?.isGroup as boolean);
           if (isGroup) return;
 
@@ -154,15 +156,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const subgraphs = new Map<string, MappedNode>();
         const childIdsByParent = new Map<string, string[]>();
 
-        const hexToRgba = (hex: string, alpha: number): string => {
-          const cleanHex = hex.startsWith('#') ? hex : '#2563EB';
-          const r = parseInt(cleanHex.slice(1, 3), 16) || 37;
-          const g = parseInt(cleanHex.slice(3, 5), 16) || 99;
-          const b = parseInt(cleanHex.slice(5, 7), 16) || 235;
-          return `rgba(${r},${g},${b},${alpha})`;
-        };
-
-        result.nodes.forEach(node => {
+        result.data.nodes.forEach(node => {
           const isGroup = node.type === 'groupNode' || (node.data?.isGroup as boolean);
           const existingNode = existingNodes.find(n => n.id === node.id);
           const preserveNode = existingNode && !isGroup && !directionChanged;
@@ -214,10 +208,11 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
             zIndex: node.zIndex,
             absX,
             absY,
+            isGroup,
           };
 
           // Only set parent reference if parent exists in the result nodes
-          if (node.parentNode && result.nodes.some(n => n.id === node.parentNode)) {
+          if (node.parentNode && result.data.nodes.some(n => n.id === node.parentNode)) {
             mappedNode.parentId = node.parentNode;
             mappedNode.parentNode = node.parentNode;
             mappedNode.extent = 'parent';
@@ -231,8 +226,11 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         });
 
         // If direction did NOT change, recompute the bounding boxes of subgraphs (group nodes)
-        // using the preserved/updated coordinates of their leaf child nodes.
+        // using the preserved/updated coordinates of their child nodes. Nested groups are
+        // processed innermost-first so an outer group's bounds wrap ALL of its children
+        // (leaf nodes AND nested group nodes), not just its direct leaf children.
         if (!directionChanged && subgraphs.size > 0) {
+          // Map every node (leaf + group) to its direct parent group
           processedNodesMap.forEach(node => {
             if (node.parentNode && subgraphs.has(node.parentNode)) {
               if (!childIdsByParent.has(node.parentNode)) {
@@ -241,70 +239,19 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
               childIdsByParent.get(node.parentNode)!.push(node.id);
             }
           });
-
-          subgraphs.forEach((subgraph, subId) => {
-            const childIds = childIdsByParent.get(subId) || [];
-            if (childIds.length > 0) {
-              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-              
-              childIds.forEach(childId => {
-                const child = processedNodesMap.get(childId)!;
-                const cx = child.absX;
-                const cy = child.absY;
-                const cw = child.width ?? 0;
-                const ch = child.height ?? 0;
-                if (cx < minX) minX = cx;
-                if (cy < minY) minY = cy;
-                if (cx + cw > maxX) maxX = cx + cw;
-                if (cy + ch > maxY) maxY = cy + ch;
-              });
-
-              if (minX !== Infinity) {
-                const pad = 40; // SUBGRAPH_PADDING
-                const labelPad = 64; // Reverted to original value
-                const newWidth = maxX - minX + pad * 2;
-                const newHeight = maxY - minY + pad + labelPad;
-                const newX = minX - pad;
-                const newY = minY - labelPad;
-
-                subgraph.position = { x: newX, y: newY };
-                subgraph.width = newWidth;
-                subgraph.height = newHeight;
-                
-                const groupColor = (subgraph.data?.color as string) || (subgraph.data?.groupColor as string) || '#2563EB';
-                const bgRgba = hexToRgba(groupColor, 0.08);
-
-                subgraph.style = {
-                  ...(subgraph.style as CSSProperties || {}),
-                  width: newWidth,
-                  height: newHeight,
-                  backgroundColor: bgRgba,
-                  borderColor: groupColor,
-                  borderRadius: '12px',
-                } as CSSProperties;
-
-                // Readjust children to be relative to parent new position
-                childIds.forEach(childId => {
-                  const child = processedNodesMap.get(childId)!;
-                  child.position = {
-                    x: child.absX - newX,
-                    y: child.absY - newY,
-                  };
-                });
+          subgraphs.forEach(node => {
+            if (node.parentNode && subgraphs.has(node.parentNode)) {
+              if (!childIdsByParent.has(node.parentNode)) {
+                childIdsByParent.set(node.parentNode, []);
               }
-            } else {
-              // subgraph with no children
-              const existingNode = existingNodes.find(n => n.id === subId);
-              if (existingNode && !directionChanged) {
-                subgraph.position = { ...existingNode.position };
-                subgraph.width = existingNode.width ?? subgraph.width;
-                subgraph.height = existingNode.height ?? subgraph.height;
-                subgraph.style = existingNode.style;
-              } else {
-                subgraph.position = { x: subgraph.absX, y: subgraph.absY };
-              }
+              childIdsByParent.get(node.parentNode)!.push(node.id);
             }
           });
+
+          recomputeSubgraphBounds([
+            ...Array.from(subgraphs.values()),
+            ...Array.from(processedNodesMap.values()),
+          ]);
         }
 
         // For all nodes, if they have no parentNode and direction did not change, set position to their absolute coordinate
@@ -321,6 +268,9 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
               const existingNode = existingNodes.find(n => n.id === subgraph.id);
               if (existingNode) {
                 subgraph.position = { ...existingNode.position };
+                subgraph.width = existingNode.width ?? subgraph.width;
+                subgraph.height = existingNode.height ?? subgraph.height;
+                subgraph.style = existingNode.style;
               } else {
                 subgraph.position = { x: subgraph.absX, y: subgraph.absY };
               }
@@ -333,7 +283,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
           ...Array.from(processedNodesMap.values())
         ];
 
-        const processedEdges = result.edges.map(edge => ({
+        const processedEdges = result.data.edges.map(edge => ({
           id: edge.id,
           source: edge.source,
           target: edge.target,

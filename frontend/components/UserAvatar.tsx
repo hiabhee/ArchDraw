@@ -588,7 +588,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                   </li>
                 </ul>
                 <a
-                  href="mailto:jamdadeabhishek039@gmail.com?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20upgrading%20to%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AMy%20account%20details%3A%0AName%3A%20%0AEmail%3A%20%0A%0AThank%20you!"
+                  href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'contact@archdraw.ai'}?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20upgrading%20to%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AMy%20account%20details%3A%0AName%3A%20%0AEmail%3A%20%0A%0AThank%20you!`}
                   className="w-full py-2.5 text-sm font-medium text-white rounded-[12px] hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                   style={{ background: '#1E90FF' }}
                 >

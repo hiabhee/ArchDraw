@@ -72,11 +72,9 @@ export function NodeDetailsPanel({ info, onClose }: NodeDetailsPanelProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    if (info) {
-      const t = setTimeout(() => setIsVisible(true), 10);
-      return () => clearTimeout(t);
-    }
-    setIsVisible(false);
+    if (!info) return undefined;
+    const t = setTimeout(() => setIsVisible(true), 10);
+    return () => clearTimeout(t);
   }, [info]);
 
   if (!info) return null;

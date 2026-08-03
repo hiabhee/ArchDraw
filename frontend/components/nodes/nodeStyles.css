@@ -7,19 +7,22 @@
 /* ── CSS Custom Properties (tunable per-node via inline style) ──── */
 
 .node-wrapper {
-  --node-accent: #0d9488;
-  --node-accent-soft: rgba(13, 148, 136, 0.04);
-  --node-accent-bg: rgba(13, 148, 136, 0.1);
-  --node-card-bg: #ffffff;
-  --node-title-color: #1a2744;
-  --node-subtitle-color: #8b95a5;
-  --node-shadow: 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.85);
-  --node-shadow-selected: 0 0 0 2px var(--node-accent), 0 4px 14px rgba(0,0,0,0.1);
+  --node-accent: #0f766e;
+  --node-accent-soft: rgba(15, 118, 110, 0.04);
+  --node-accent-bg: rgba(15, 118, 110, 0.08);
+  --node-accent-track: rgba(15, 118, 110, 0.35);
+  --node-card-bg: var(--arch-node-fill, #ffffff);
+  --node-title-color: var(--arch-title, #0f172a);
+  --node-subtitle-color: var(--arch-subtitle, #94a3b8);
+  --node-shadow: var(--arch-shadow, 0 1px 2px rgba(15, 23, 42, 0.04));
+  --node-shadow-selected: 0 0 0 2px var(--node-accent), 0 2px 8px rgba(15, 23, 42, 0.06);
   --node-toolbar-bg: #ffffff;
   --node-toolbar-border: #e5e7eb;
   --node-toolbar-shadow: 0 4px 16px rgba(0,0,0,0.1);
   --node-toolbar-btn-hover: #f3f4f6;
   --node-toolbar-divider: #d1d5db;
+  --arch-stroke-width: 1.25px;
+  --arch-radius: 10px;
   position: relative;
   z-index: 2;
 }
@@ -27,12 +30,12 @@
 /* ── Card Surface ──────────────────────────────────────────────── */
 
 .node-card {
-  width: 220px;
-  min-width: 220px;
+  width: var(--arch-size-m, 200px);
+  min-width: var(--arch-size-m, 200px);
   min-height: 72px;
-  border-radius: 16px;
+  border-radius: var(--arch-radius, 10px);
   background: var(--node-card-bg);
-  padding: 20px 24px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -40,23 +43,23 @@
   overflow: visible;
   z-index: 5;
   box-shadow: var(--node-shadow);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: var(--arch-stroke-width, 1.25px) solid var(--arch-node-stroke, rgba(15, 23, 42, 0.14));
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 @media (max-width: 640px) {
   .node-card {
-    width: 160px;
-    min-width: 160px;
+    width: var(--arch-size-s, 160px);
+    min-width: var(--arch-size-s, 160px);
     min-height: 56px;
-    padding: 12px 14px;
-    border-radius: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
   }
   .node-title {
-    font-size: 11px;
+    font-size: 14px;
   }
   .node-subtitle {
-    font-size: 10px;
+    font-size: 12px;
   }
   .node-icon-box {
     width: 22px;
@@ -66,23 +69,90 @@
     width: 10px;
     height: 10px;
   }
+
+  /* Queue mobile */
+  .node-queue .node-kind-bar {
+    height: 14px;
+    gap: 3px;
+    padding: 2px;
+    margin-bottom: 8px;
+  }
+  .node-queue .node-card {
+    min-width: var(--arch-size-l, 240px);
+    width: var(--arch-size-l, 240px);
+    min-height: 72px;
+  }
+  .node-queue .node-icon-box {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+  }
+  .node-queue .node-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Database mobile */
+  .node-database .node-card {
+    min-height: 90px;
+  }
+  .node-database .node-icon-box {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+  }
+  .node-database .node-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Server mobile */
+  .node-server .node-card {
+    min-height: 85px;
+  }
+
+  /* AI mobile */
+  .node-ai .node-card {
+    min-height: 80px;
+  }
+  .node-ai .node-icon-box {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+  }
+  .node-ai .node-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Docker mobile */
+  .node-docker .node-card {
+    min-height: 80px;
+  }
 }
 
 .node-wrapper.selected .node-card,
 .node-card.selected {
-  box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgba(0,0,0,0.1);
-  border-color: var(--accent);
+  box-shadow: var(--node-shadow-selected);
+  border-color: var(--node-accent);
+  border-width: 2px;
 }
 
-/* ── Shine Overlay ─────────────────────────────────────────────── */
+/* ── Shine Overlay (edit chrome only; hidden in present/export) ── */
 
 .node-shine {
+  display: none;
+}
+
+.diagram-chrome-edit .node-shine {
+  display: block;
   position: absolute;
   inset: 0;
-  border-radius: 16px;
+  border-radius: var(--arch-radius, 10px);
   pointer-events: none;
   z-index: 1;
-  background: linear-gradient(135deg, var(--node-accent-soft) 0%, transparent 60%);
+  background: linear-gradient(135deg, var(--node-accent-soft) 0%, transparent 70%);
+  opacity: 0.5;
 }
 
 /* ── Header ────────────────────────────────────────────────────── */
@@ -96,14 +166,16 @@
 }
 
 .node-icon-box {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   background: var(--node-accent-bg);
+  border: 1px solid color-mix(in srgb, var(--node-accent) 18%, transparent);
+  box-shadow: none;
 }
 
 .node-icon {
@@ -113,20 +185,154 @@
   background: var(--node-accent);
 }
 
+.node-object {
+  width: min(112px, calc(100% - 10px));
+  height: 30px;
+  margin: 0 auto 9px;
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.node-object-browser {
+  height: 18px;
+  border: 1.6px solid;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.68));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 4px rgba(15,23,42,0.08);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+}
+
+.node-object-browser span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.node-object-lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.node-object-lines span {
+  height: 5px;
+  border-radius: 999px;
+}
+
+.node-object-db {
+  height: 34px;
+  border-top: 4px solid;
+  border-radius: 10px 10px 5px 5px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.74));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.96), 0 1px 6px rgba(15,23,42,0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 11px 6px;
+}
+
+.node-object-db span {
+  height: 4px;
+  border-radius: 999px;
+}
+
+.node-object-queue {
+  height: 25px;
+  border: 1.8px solid;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.92), 0 2px 7px rgba(15,23,42,0.08);
+}
+
+.node-object-queue span {
+  height: 15px;
+  flex: 1;
+  min-width: 8px;
+  border-radius: 5px;
+}
+
+.node-object-topic {
+  height: 30px;
+  border-left: 4px solid;
+  border-right: 4px solid;
+  border-radius: 50% / 22%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.96), rgba(248,250,252,0.72));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 2px 7px rgba(15,23,42,0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 16px;
+}
+
+.node-object-topic span {
+  height: 5px;
+  border-radius: 999px;
+}
+
+.node-object-route {
+  height: 30px;
+  display: grid;
+  grid-template-columns: 1fr 22px 1fr;
+  align-items: center;
+  gap: 5px;
+}
+
+.node-object-route span {
+  height: 14px;
+  border-top: 2px solid;
+  border-bottom: 2px solid;
+  opacity: 0.62;
+}
+
+.node-object-route span:first-child {
+  border-left: 2px solid;
+  border-radius: 10px 0 0 10px;
+}
+
+.node-object-route span:last-child {
+  border-right: 2px solid;
+  border-radius: 0 10px 10px 0;
+}
+
+.node-object-route i {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  display: block;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 2px 7px rgba(15,23,42,0.1);
+}
+
+.node-object-mark {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .node-title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--node-title-color);
   margin: 0;
   line-height: 1.3;
   flex: 1;
   min-width: 0;
   word-break: break-word;
+  letter-spacing: -0.01em;
 }
 
 .node-subtitle {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--node-subtitle-color);
   margin: 0;
   line-height: 1.3;
@@ -142,11 +348,17 @@
 }
 
 .node-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--node-status-color, #10B981);
+}
+
+/* Present / export: strip status chrome */
+.diagram-chrome-present .node-status-dot,
+.diagram-chrome-present .node-kind-bar {
+  display: none !important;
 }
 
 /* ── Toolbar ───────────────────────────────────────────────────── */
@@ -200,15 +412,11 @@
 /* ── Dark Mode Overrides ───────────────────────────────────────── */
 
 .dark .node-wrapper {
-  --node-card-bg: #1e2235;
-  --node-title-color: #ffffff;
-  --node-subtitle-color: #94a3b8;
-  --node-shadow: 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 1px 3px rgba(0,0,0,0.3);
-  --node-shadow-selected: 0 0 0 2px var(--node-glow-border, #34D399), 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 2px 6px rgba(0,0,0,0.4);
-  --node-backplate-1: #0d0f1b;
-  --node-backplate-2: #151828;
-  --node-backplate-1-selected: #0d0f1b;
-  --node-backplate-2-selected: #151828;
+  --node-card-bg: var(--arch-node-fill, #1a1d27);
+  --node-title-color: var(--arch-title, #f8fafc);
+  --node-subtitle-color: var(--arch-subtitle, #94a3b8);
+  --node-shadow: var(--arch-shadow, 0 1px 3px rgba(0, 0, 0, 0.35));
+  --node-shadow-selected: 0 0 0 2px var(--node-glow-border, #2dd4bf), 0 2px 8px rgba(0, 0, 0, 0.4);
   --node-toolbar-bg: #1f2937;
   --node-toolbar-border: #374151;
   --node-toolbar-btn-hover: #374151;
@@ -216,20 +424,20 @@
 }
 
 .dark .node-card {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: var(--node-shadow), inset 0 0 12px var(--node-glow, rgba(52,211,153,0.15));
+  border-color: var(--arch-node-stroke, rgba(255, 255, 255, 0.12));
+  box-shadow: var(--node-shadow);
 }
 
 .dark .node-wrapper.selected .node-card {
-  box-shadow: 0 0 0 2px var(--accent), 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 2px 6px rgba(0,0,0,0.4), inset 0 0 12px var(--node-glow, rgba(52,211,153,0.15));
-  border-color: var(--accent);
+  box-shadow: var(--node-shadow-selected);
+  border-color: var(--node-accent);
 }
 
 /* ── Database Cylinder ─────────────────────────────────────────── */
 
 .node-card-db {
-  border-radius: 12px !important;
-  border-top: 3px solid var(--node-accent);
+  border-radius: var(--arch-radius, 10px) !important;
+  border-top: 2px solid var(--node-accent);
   overflow: hidden;
 }
 
@@ -239,10 +447,10 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 4px;
   background: var(--node-accent);
-  opacity: 0.15;
-  border-radius: 12px 12px 0 0;
+  opacity: 0.12;
+  border-radius: var(--arch-radius, 10px) var(--arch-radius, 10px) 0 0;
   z-index: 0;
 }
 
@@ -260,9 +468,10 @@
 }
 
 /* ── ShapeNode Handles ─────────────────────────────────────────── */
-/* Handles are invisible by default (opacity: 0 inline), shown on hover */
-.shape-node:hover .react-flow__handle {
-  opacity: 1 !important;
+/* Handles stay hidden on hover; they only appear while drawing a connection. */
+.shape-node .react-flow__handle {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* ── Floating Handles (SystemNode) ──────────────────────────────── */
@@ -293,43 +502,531 @@
   transform: translateX(-50%) !important;
 }
 
-/* Show handles on hover with visible dots.
-   Tangential top/left offsets (in/out slot separation) come from inline styles. */
-.node-card:hover .rh {
-  opacity: 1 !important;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  border: 2px solid var(--node-accent, #0d9488) !important;
-  background: var(--node-card-bg, #ffffff) !important;
-  border-radius: 50% !important;
-  pointer-events: all !important;
-  cursor: crosshair !important;
-  transition: opacity 0.15s ease, box-shadow 0.15s ease, top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease;
-  z-index: 20 !important;
+/* Keep floating handles invisible on hover (visible only while connecting). */
+.node-card .rh {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
-.node-card:hover .rh:hover {
-  box-shadow: 0 0 0 3px var(--node-accent, #0d9488) !important;
-}
-.node-card:hover .rh--left:hover,
-.node-card:hover .rh--right:hover {
-  transform: translateY(-50%) scale(1.2) !important;
-}
-.node-card:hover .rh--top:hover,
-.node-card:hover .rh--bottom:hover {
-  transform: translateX(-50%) scale(1.2) !important;
+
+/* ── Kind Decorations ─────────────────────────────────────────────
+   Each node serviceType can render a small visual decoration above
+   the header. These styles handle the shared positioning. */
+
+.node-kind-bar {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ── Queue ──────────────────────────────────────────────────────── */
 
 .node-queue .node-card {
-  border-left: 3px solid var(--node-accent);
+  padding-top: 14px;
+  min-width: var(--arch-size-l, 240px);
+  width: var(--arch-size-l, 240px);
+  min-height: 80px;
+}
+
+.node-queue .node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .node-queue .node-icon-box {
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+.node-queue .node-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.node-queue .node-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Message pipe: a tube of cells across the top of the card.
+   Filled cells read as messages waiting in the queue. */
+.node-queue .node-kind-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 3px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--node-accent-track, rgba(13, 148, 136, 0.45));
+  background: var(--node-accent-bg);
+}
+
+.node-queue .node-kind-cell {
+  flex: 1;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--node-accent);
+  opacity: 0.12;
+}
+
+.node-queue .node-kind-cell:first-child {
+  border-radius: 8px 4px 4px 8px;
+}
+
+.node-queue .node-kind-cell:last-child {
+  border-radius: 4px 8px 8px 4px;
+}
+
+.node-queue .node-kind-cell--filled {
+  opacity: 0.85;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.35), inset 0 -1.5px 0 rgba(0, 0, 0, 0.08);
+}
+
+/* ── Database ───────────────────────────────────────────────────── */
+
+.node-database .node-card {
+  padding-top: 18px;
+  min-height: 110px;
+}
+
+.node-database .node-icon-box {
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+
+.node-database .node-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Table-record rows — three horizontal bars of varying width,
+   like rows in a database table. */
+.node-db-records {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.node-db-record {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--node-accent);
+  opacity: 0.14;
+}
+
+.node-db-record:nth-child(2) {
+  opacity: 0.10;
+}
+
+.node-db-record:nth-child(3) {
+  opacity: 0.07;
+}
+
+/* ── Client ─────────────────────────────────────────────────────── */
+
+.node-client .node-card {
+  padding-top: 16px;
+}
+
+/* Monitor bezel: a thin bar with 3 dots (traffic-light style),
+   universally read as "screen / client". */
+.node-client-bezel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 16px;
+  padding: 0 10px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: var(--node-accent-bg);
+  border: 1px solid var(--node-accent-track, rgba(13, 148, 136, 0.25));
+}
+
+.node-bezel-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--node-accent);
+  opacity: 0.75;
+}
+
+/* ── Server ──────────────────────────────────────────────────────── */
+
+.node-server .node-card {
+  padding-top: 16px;
+  min-height: 105px;
+}
+
+/* Rack-unit slots: thin horizontal bars stacked vertically,
+   like server blades in a rack. */
+.node-server-rack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.node-rack-slot {
+  height: 6px;
+  border-radius: 2px;
+  background: var(--node-accent);
+  opacity: 0.08;
+  border: 1px solid var(--node-accent);
+  border-color: var(--node-accent-track, rgba(13, 148, 136, 0.3));
+}
+
+.node-rack-slot:nth-child(odd) {
+  width: 85%;
+}
+
+.node-rack-slot:nth-child(even) {
+  width: 65%;
+}
+
+/* ── Load Balancer ───────────────────────────────────────────────── */
+
+.node-load-balancer .node-card {
+  padding-top: 16px;
+}
+
+.node-load-balancer .node-icon-box {
   border-radius: 50%;
 }
+
+.node-load-balancer .node-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-load-balancer .node-subtitle {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Traffic-split indicator: a vertical line branching into two angled
+   arms, representing request distribution. */
+.node-lb-split {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 14px;
+  height: 26px;
+}
+
+.node-lb-line {
+  width: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--node-accent);
+  opacity: 0.35;
+}
+
+.node-lb-arms {
+  display: flex;
+  width: 48%;
+  justify-content: space-between;
+  height: 12px;
+  position: relative;
+}
+
+.node-lb-arm {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--node-accent);
+  opacity: 0.35;
+  transform-origin: top center;
+}
+
+.node-lb-arm:first-child {
+  transform: rotate(-28deg);
+}
+
+.node-lb-arm:last-child {
+  transform: rotate(28deg);
+}
+
+/* ── AI / ML ─────────────────────────────────────────────────────── */
+
+.node-ai .node-card {
+  padding-top: 18px;
+  min-height: 100px;
+}
+
+.node-ai .node-icon-box {
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+
+.node-ai .node-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Neural-node pattern: three dots with the middle one elevated,
+   connected by a subtle path — reads as a miniature neural network. */
+.node-ai-nodes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  height: 22px;
+  position: relative;
+}
+
+.node-ai-nodes::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 22%;
+  right: 22%;
+  height: 1.5px;
+  background: var(--node-accent);
+  opacity: 0.2;
+  border-radius: 1px;
+}
+
+.node-ai-node {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--node-accent);
+  opacity: 0.6;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 6px var(--node-accent);
+}
+
+.node-ai-node:nth-child(1) { margin-top: 0; }
+.node-ai-node:nth-child(2) { margin-top: -8px; opacity: 0.85; width: 12px; height: 12px; }
+.node-ai-node:nth-child(3) { margin-top: 0; }
+
+/* ── Docker / Container ──────────────────────────────────────────── */
+
+.node-docker .node-card {
+  padding-top: 18px;
+  min-height: 100px;
+}
+
+.node-docker .node-icon-box {
+  border-radius: 6px;
+}
+
+/* Container stack: three rounded rectangles offset diagonally,
+   like stacked shipping containers. */
+.node-docker-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  height: 36px;
+  padding: 0 8px;
+}
+
+.node-docker-layer {
+  width: 60px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--node-accent);
+  opacity: 0.18;
+  border: 1px solid var(--node-accent);
+  border-color: var(--node-accent-track, rgba(13, 148, 136, 0.4));
+  margin-top: -3px;
+}
+
+.node-docker-layer:first-child {
+  margin-top: 0;
+  opacity: 0.30;
+}
+
+.node-docker-layer:nth-child(2) {
+  opacity: 0.18;
+}
+
+.node-docker-layer:nth-child(3) {
+  opacity: 0.10;
+}
+
+/* ── API ─────────────────────────────────────────────────────────── */
+
+.node-api .node-card {
+  padding-top: 16px;
+}
+
+.node-api .node-icon-box {
+  border-radius: 6px;
+}
+
+.node-api .node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-api .node-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Code-bracket indicator: a pair of angle brackets with a dot
+   between them, reads as "API endpoint". */
+.node-api-brackets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  height: 18px;
+}
+
+.node-api-bracket {
+  width: 10px;
+  height: 14px;
+  border: 2px solid var(--node-accent);
+  border-color: var(--node-accent-track, rgba(13, 148, 136, 0.55));
+  border-radius: 2px;
+  opacity: 0.5;
+  background: transparent;
+}
+
+.node-api-bracket--right {
+  border-left: none;
+  border-radius: 0 3px 3px 0;
+}
+
+/* ── Group Node Resize Handles ─────────────────────────────────────── */
+
+.group-resize-handle {
+  position: absolute;
+  background: transparent;
+  transition: background 0.15s ease;
+  z-index: 100;
+  pointer-events: all !important;
+}
+
+.group-resize-handle:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+/* Edge handles - make them more prominent */
+.group-resize-handle--top {
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 20px;
+  cursor: ns-resize;
+}
+
+.group-resize-handle--bottom {
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 20px;
+  cursor: ns-resize;
+}
+
+.group-resize-handle--left {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 60px;
+  cursor: ew-resize;
+}
+
+.group-resize-handle--right {
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 60px;
+  cursor: ew-resize;
+}
+
+/* Corner handles */
+.group-resize-handle--top-left {
+  top: -10px;
+  left: -10px;
+  width: 30px;
+  height: 30px;
+  cursor: nwse-resize;
+}
+
+.group-resize-handle--top-right {
+  top: -10px;
+  right: -10px;
+  width: 30px;
+  height: 30px;
+  cursor: nesw-resize;
+}
+
+.group-resize-handle--bottom-left {
+  bottom: -10px;
+  left: -10px;
+  width: 30px;
+  height: 30px;
+  cursor: nesw-resize;
+}
+
+.group-resize-handle--bottom-right {
+  bottom: -10px;
+  right: -10px;
+  width: 30px;
+  height: 30px;
+  cursor: nwse-resize;
+}
+
+.node-api-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--node-accent);
+  opacity: 0.6;
+}
+
+/* ── Service ─────────────────────────────────────────────────────── */
+
+.node-service .node-card {
+  padding-top: 16px;
+}
+
+/* Microservice grid: three small squares in a row,
+   representing multiple independent services. */
+.node-service-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  height: 14px;
+}
+
+.node-svc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--node-accent);
+  opacity: 0.20;
+}
+
+.node-svc-dot:first-child { opacity: 0.35; }
+.node-svc-dot:last-child { opacity: 0.15; }
 
 /* ── Active Connection Drag Styling ─────────────────────────────── */
 
@@ -364,4 +1061,3 @@
 .react-flow--connection-drawing .react-flow__handle-source {
   pointer-events: none !important;
 }
-

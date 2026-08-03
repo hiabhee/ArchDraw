@@ -5,7 +5,7 @@ import { Node, Edge, getSmoothStepPath, getBezierPath, getStraightPath, Position
 import { NodeData } from '@/store/diagramStore';
 import { getEdgeConfig, getEffectivePathType, type EdgeData, type EdgeType, type PathType } from '@/data/edgeTypes';
 import { 
-  NODE_WIDTH, NODE_HEIGHT, STATUS_COLORS
+  NODE_WIDTH, NODE_HEIGHT, STATUS_COLORS, getConcernColor, LIGHT_NODE_STYLES, DARK_NODE_STYLES, STROKE_WIDTH, BORDER_RADIUS
 } from '@/lib/theme/stylingConstants';
 import { getSimpleEdgePositions, getSimpleHandlePosition, getEdgeShiftOffset, getNodeCenter } from '@/lib/utils/simpleFloatingEdge';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
@@ -75,31 +75,12 @@ interface EdgeRenderData {
 }
 
 function getTierColorNormalized(layer?: string): string {
-  const tier = (layer || 'compute').toLowerCase();
-  const colorMap: Record<string, string> = {
-    client:   '#64748b', // slate
-    edge:     '#6366f1', // indigo
-    compute:  '#0d9488', // teal
-    async:    '#d97706', // amber
-    data:     '#3b82f6', // blue
-    observe:  '#8b5cf6', // violet
-    external: '#ec4899', // rose
-  };
-  return colorMap[tier] || colorMap.compute;
+  return getConcernColor(layer);
 }
 
 function getDarkCategoryStyle(layer?: string): { border: string; glow: string } {
-  const tier = (layer || 'compute').toLowerCase();
-  const map: Record<string, { border: string; glow: string }> = {
-    client:      { border: '#60A5FA', glow: 'rgba(96,165,250,0.15)' }, // Infrastructure/Client -> blue
-    edge:        { border: '#60A5FA', glow: 'rgba(96,165,250,0.15)' },
-    compute:     { border: '#34D399', glow: 'rgba(52,211,153,0.15)' }, // Services -> green
-    async:       { border: '#FBBF24', glow: 'rgba(251,191,36,0.15)' }, // Async/Queue -> amber
-    data:        { border: '#F87171', glow: 'rgba(248,113,113,0.15)' }, // Databases -> red
-    observe:     { border: '#A78BFA', glow: 'rgba(167,139,250,0.15)' }, // Auth/Security -> purple
-    external:    { border: '#22D3EE', glow: 'rgba(34,211,238,0.15)' }, // Cache/External -> cyan
-  };
-  return map[tier] || map.compute;
+  const color = getTierColorNormalized(layer);
+  return { border: color, glow: hexToRgba(color, 0.12) };
 }
 
 function getBezierPathWithOffset(
@@ -224,22 +205,11 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
   const { x, y, width, height, data, selected } = node;
   
   const tierColor = getTierColorNormalized(data.layer);
-  const accentColor = data.accentColor || data.color || tierColor || '#0D9488';
+  const accentColor = data.accentColor || data.color || tierColor || '#0f766e';
   
   const statusColor = STATUS_COLORS[data.status || 'healthy'] || '#10B981';
   const showStatus = data.status && data.status !== 'healthy';
-  
-  // Match SystemNode.tsx styling exactly
-  const backplateLayers = selected
-    ? [
-        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
-        { offset: 5, color: isDark ? '#151828' : '#e8e8e8' },
-      ]
-    : [
-        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
-        { offset: 5, color: isDark ? '#151828' : '#f5f5f5' },
-      ];
-  
+  const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   const catStyle = getDarkCategoryStyle(data.layer);
   
   let borderCol: string;
@@ -250,71 +220,60 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
   let styleAttr = '';
   
   if (isDark) {
-    borderCol = selected ? catStyle.border : '#334155';
+    borderCol = selected ? catStyle.border : styles.border;
     iconColor = catStyle.border;
-    fillBg = '#1e2235';
-    titleColor = '#ffffff';
-    subtitleColor = '#94a3b8';
-    
-    if (selected) {
-      styleAttr = `style="filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));"`;
-    } else {
-      styleAttr = `style="filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));"`;
-    }
-  } else {
-    borderCol = selected ? accentColor : '#e5e7eb';
-    iconColor = accentColor;
-    fillBg = '#ffffff';
-    titleColor = '#1f2937';
-    subtitleColor = '#6b7280';
-    
+    fillBg = styles.background;
+    titleColor = styles.titleColor;
+    subtitleColor = styles.subtitleColor;
     styleAttr = selected
-      ? `style="filter: drop-shadow(0 3px 8px rgba(0,0,0,0.07));"`
-      : `style="filter: drop-shadow(0 2px 6px rgba(0,0,0,0.06));"`;
+      ? `style="filter: drop-shadow(0 1px 3px rgba(0,0,0,0.35));"`
+      : '';
+  } else {
+    borderCol = selected ? accentColor : styles.border;
+    iconColor = accentColor;
+    fillBg = styles.background;
+    titleColor = styles.titleColor;
+    subtitleColor = styles.subtitleColor;
+    styleAttr = selected
+      ? `style="filter: drop-shadow(0 1px 2px rgba(15,23,42,0.06));"`
+      : '';
   }
-      
-  const backplateElements = backplateLayers.map((bp) => `
-    <rect
-      x="${bp.offset}" y="${bp.offset}"
-      width="${width}" height="${height}"
-      fill="${bp.color}"
-      rx="10" ry="10"
-    />
-  `).join('');
+
+  const strokeW = selected ? 2 : STROKE_WIDTH;
+  const rx = BORDER_RADIUS;
 
   return `
     <g transform="translate(${x}, ${y})">
-      ${backplateElements}
       <rect
         x="0" y="0"
         width="${width}" height="${height}"
         fill="${fillBg}"
         stroke="${borderCol}"
-        stroke-width="1.5"
-        rx="10" ry="10"
+        stroke-width="${strokeW}"
+        rx="${rx}" ry="${rx}"
         ${styleAttr}
       />
-      <g transform="translate(10, 8)">
-        <rect x="0" y="0" width="24" height="24" rx="6" fill="${iconColor}" fill-opacity="0.07" />
-        <rect x="7" y="7" width="10" height="10" rx="2.5" fill="${iconColor}" />
+      <g transform="translate(12, 10)">
+        <rect x="0" y="0" width="20" height="20" rx="5" fill="${iconColor}" fill-opacity="0.08" />
+        <rect x="6" y="6" width="8" height="8" rx="2" fill="${iconColor}" />
+        <text
+          x="28" y="14"
+          fill="${titleColor}"
+          font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
+          font-size="13"
+          font-weight="600"
+        >${escapeXml(data.label || 'Service')}</text>
       </g>
-      <text
-        x="40" y="24"
-        fill="${titleColor}"
-        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-        font-size="${isDark ? 13 : 12}"
-        font-weight="700"
-      >${escapeXml(data.label)}</text>
       ${data.subtitle ? `
       <text
-        x="10" y="${height - 12}"
+        x="12" y="${height - 14}"
         fill="${subtitleColor}"
         font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-        font-size="${isDark ? 11 : 10}"
-      >${escapeXml(data.subtitle)}</text>` : ''}
+        font-size="10"
+        font-weight="400"
+      >${escapeXml(String(data.subtitle))}</text>` : ''}
       ${showStatus ? `
-      <circle cx="${width - 15}" cy="${height - 15}" r="3" fill="${statusColor}" />
-      ` : ''}
+      <circle cx="${width - 14}" cy="${height - 14}" r="3" fill="${statusColor}" />` : ''}
     </g>
   `.trim();
 }
@@ -437,28 +396,21 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
   
   const groupColor = (data as { accentColor?: string; groupColor?: string })?.accentColor || 
                     (data as { groupColor?: string })?.groupColor || 
-                    (data as { color?: string })?.color || '#2563EB';
+                    (data as { color?: string })?.color ||
+                    getConcernColor((data as { layer?: string; label?: string }).layer || (data as { label?: string }).label) ||
+                    '#0f766e';
   
-  const bgRgba = hexToRgba(groupColor, isDark ? 0.05 : 0.08);
+  const bgRgba = hexToRgba(groupColor, isDark ? 0.04 : 0.035);
   const borderColor = isDark 
-    ? (selected ? hexToRgba(groupColor, 0.75) : hexToRgba(groupColor, 0.35))
-    : (selected ? hexToRgba(groupColor, 0.9) : hexToRgba(groupColor, 0.45));
+    ? (selected ? hexToRgba(groupColor, 0.55) : 'rgba(255, 255, 255, 0.12)')
+    : (selected ? hexToRgba(groupColor, 0.55) : 'rgba(15, 23, 42, 0.12)');
   
-  const borderStyle = 'dashed';
-  const borderWidth = selected ? 2.5 : 2;
+  const borderWidth = selected ? 1.5 : 1;
   
   const label = (data as { groupLabel?: string; label?: string })?.groupLabel || 
                (data as { label?: string })?.label || '';
   
-  const tagText = isDark ? '#f0f2f7' : hexToRgba(groupColor, 0.95);
-  const tagBg = isDark ? '#13151a' : 'rgba(255,255,255,0.95)';
-  const tagBorder = isDark ? hexToRgba(groupColor, 0.5) : hexToRgba(groupColor, 0.45);
-  
-  // Calculate label position (bottom-right corner as per GroupNode.tsx: bottom: -14, right: 20)
-  const labelWidth = Math.max(50, label.length * 7 + 24);
-  const labelHeight = 24;
-  const labelX = width - labelWidth - 20; // Relative to group x
-  const labelY = height - 14; // Relative to group y (positioned slightly outside bottom)
+  const tagText = isDark ? '#94a3b8' : '#64748b';
   
   return `
     <g transform="translate(${x}, ${y})">
@@ -468,30 +420,17 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
         fill="${bgRgba}"
         stroke="${borderColor}"
         stroke-width="${borderWidth}"
-        stroke-dasharray="${borderStyle === 'dashed' ? '8,4' : 'none'}"
-        rx="20" ry="20"
+        rx="12" ry="12"
       />
       ${label ? `
-      <g transform="translate(${labelX}, ${labelY})">
-        <rect
-          x="0" y="-${labelHeight / 2}"
-          width="${labelWidth}" height="${labelHeight}"
-          fill="${tagBg}"
-          stroke="${tagBorder}"
-          stroke-width="1"
-          rx="12"
-        />
-        <text
-          x="${labelWidth / 2}" y="2"
-          fill="${tagText}"
-          font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-          font-size="${isDark ? 12 : 9}"
-          font-weight="600"
-          text-anchor="middle"
-          letter-spacing="0.12em"
-          text-transform="uppercase"
-        >${escapeXml(label)}</text>
-      </g>` : ''}
+      <text
+        x="12" y="18"
+        fill="${tagText}"
+        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
+        font-size="11"
+        font-weight="500"
+        letter-spacing="0.04em"
+      >${escapeXml(label)}</text>` : ''}
     </g>
   `.trim();
 }

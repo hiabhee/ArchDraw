@@ -36,16 +36,16 @@ const edge = (
 export const collaborativeDocsNodes: Node[] = [
   node('cd_browser', 'Browser Editor', 'Rich text canvas', 'client', '#64748b', 'FileText', 0, 120),
   node('cd_mobile', 'Mobile Editor', 'Offline edits', 'client', '#64748b', 'Smartphone', 0, 300),
-  node('cd_edge', 'Edge Router', 'Sessions + region', 'edge', '#6366f1', 'Route', 320, 210),
+  node('cd_edge', 'Edge Router', 'Sessions + region', 'edge', '#0f766e', 'Route', 320, 210),
   node('cd_presence', 'Presence Service', 'Cursors + viewers', 'compute', '#0d9488', 'MousePointer2', 640, 60),
   node('cd_collab', 'Collab Service', 'CRDT operations', 'compute', '#0d9488', 'UsersRound', 640, 210),
   node('cd_api', 'Document API', 'Metadata + sharing', 'compute', '#0d9488', 'FileStack', 640, 360),
   node('cd_pubsub', 'Realtime Pub/Sub', 'Fanout channels', 'async', '#d97706', 'RadioTower', 960, 210),
   node('cd_snapshot', 'Snapshot Worker', 'Compaction jobs', 'async', '#d97706', 'TimerReset', 960, 380),
-  node('cd_redis', 'Redis', 'Presence cache', 'external', '#ec4899', 'Zap', 960, 40),
-  node('cd_docdb', 'Document Store', 'CRDT log + docs', 'data', '#3b82f6', 'Database', 1280, 210),
-  node('cd_search', 'Search Index', 'Full text search', 'data', '#3b82f6', 'Search', 1280, 380),
-  node('cd_metrics', 'Metrics', 'Latency + conflicts', 'observe', '#8b5cf6', 'Activity', 1280, 560),
+  node('cd_redis', 'Redis', 'Presence cache', 'external', '#0f766e', 'Zap', 960, 40),
+  node('cd_docdb', 'Document Store', 'CRDT log + docs', 'data', '#64748b', 'Database', 1280, 210),
+  node('cd_search', 'Search Index', 'Full text search', 'data', '#64748b', 'Search', 1280, 380),
+  node('cd_metrics', 'Metrics', 'Latency + conflicts', 'observe', '#475569', 'Activity', 1280, 560),
 ];
 
 export const collaborativeDocsEdges: Edge[] = [

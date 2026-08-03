@@ -1,0 +1,96 @@
+{
+  "repo": "https://github.com/vercel/nextjs-subscription-payments",
+  "classification": {
+    "repoType": "fullstack_monolith",
+    "framework": "Next.js",
+    "database": "PostgreSQL"
+  },
+  "nodes": [
+    {
+      "id": "web_frontend",
+      "label": "Next.js Web App",
+      "type": "PAGE",
+      "aliases": [
+        "web app",
+        "frontend",
+        "app"
+      ]
+    },
+    {
+      "id": "customer_auth",
+      "label": "Supabase Auth",
+      "type": "AUTH",
+      "aliases": [
+        "authentication",
+        "auth",
+        "supabase auth"
+      ]
+    },
+    {
+      "id": "checkout_api",
+      "label": "Checkout API",
+      "type": "API_ROUTE",
+      "aliases": [
+        "checkout",
+        "stripe checkout"
+      ]
+    },
+    {
+      "id": "webhook_api",
+      "label": "Stripe Webhook",
+      "type": "API_ROUTE",
+      "aliases": [
+        "webhook",
+        "webhooks",
+        "stripe webhook"
+      ]
+    },
+    {
+      "id": "postgres",
+      "label": "PostgreSQL",
+      "type": "DATABASE",
+      "aliases": [
+        "database",
+        "postgres",
+        "supabase database"
+      ]
+    },
+    {
+      "id": "stripe",
+      "label": "Stripe",
+      "type": "EXTERNAL_SERVICE",
+      "aliases": [
+        "stripe api",
+        "stripe payments"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "web_frontend",
+      "to": "customer_auth"
+    },
+    {
+      "from": "web_frontend",
+      "to": "checkout_api"
+    },
+    {
+      "from": "checkout_api",
+      "to": "stripe"
+    },
+    {
+      "from": "webhook_api",
+      "to": "stripe"
+    },
+    {
+      "from": "webhook_api",
+      "to": "postgres"
+    },
+    {
+      "from": "customer_auth",
+      "to": "postgres"
+    }
+  ],
+  "forbiddenNodes": [],
+  "notes": "Canonical Next.js SaaS. Stripe IS real (not forbidden). Webhook handler persists to Supabase Postgres."
+}

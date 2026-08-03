@@ -1,8 +1,16 @@
 import { NextRequest } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
 import { auth } from '@/lib/auth';
+import { getClientIP } from '@/lib/server/ip';
+import { adminSessionTracking, cleanupExpiredSessions } from '@/lib/admin-session-tracking';
 
-const ALLOWED_ADMIN_EMAIL = process.env.ALLOWED_ADMIN_EMAIL || 'jamdadeabhishek039@gmail.com';
+let ALLOWED_ADMIN_EMAIL: string | undefined;
+try {
+  const adminConfig = validateAdminConfig();
+  ALLOWED_ADMIN_EMAIL = adminConfig?.adminEmail;
+} catch {
+  // Admin not configured
+}
 
 async function hmacVerify(data: string, signature: string, secret: string): Promise<boolean> {
   const encoder = new TextEncoder();
@@ -39,6 +47,26 @@ export async function verifyAdminSession(req: NextRequest): Promise<boolean> {
     const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString());
     if (!decoded.exp || Date.now() > decoded.exp) return false;
 
+    // Additional security: verify IP and user agent match (in production)
+    if (process.env.NODE_ENV === 'production') {
+      cleanupExpiredSessions();
+      const sessionData = adminSessionTracking.get(sessionCookie);
+      if (sessionData) {
+        const currentIP = getClientIP(req);
+        const currentUA = req.headers.get('user-agent') || 'unknown';
+        
+        // Allow some tolerance for IP changes (mobile networks, etc.)
+        // but require user agent to match exactly
+        if (sessionData.ua !== currentUA) {
+          console.warn('[AdminAuth] User agent mismatch for admin session');
+          return false;
+        }
+        
+        // Update timestamp for active session
+        sessionData.timestamp = Date.now();
+      }
+    }
+
     return true;
   } catch {
     return false;
@@ -54,14 +82,24 @@ export async function requireAdmin(req: NextRequest): Promise<Response | null> {
   const ok = await verifyAdminSession(req);
   if (ok) return null;
 
-  // Fallback: check better-auth session for the allowed admin email
+  // Refresh admin email from config in case it changed
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-    if (session?.user?.email === ALLOWED_ADMIN_EMAIL) {
-      return null;
-    }
+    const adminConfig = validateAdminConfig();
+    ALLOWED_ADMIN_EMAIL = adminConfig?.adminEmail;
   } catch {
-    // Silently fall through to 401
+    // Admin not configured
+  }
+
+  // Fallback: check better-auth session for the allowed admin email
+  if (ALLOWED_ADMIN_EMAIL) {
+    try {
+      const session = await auth.api.getSession({ headers: req.headers });
+      if (session?.user?.email === ALLOWED_ADMIN_EMAIL) {
+        return null;
+      }
+    } catch {
+      // Silently fall through to 401
+    }
   }
 
   return Response.json({ error: 'Unauthorized' }, { status: 401 });

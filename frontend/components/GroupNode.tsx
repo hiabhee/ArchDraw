@@ -5,6 +5,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
+import { getConcernColor, CONCERN_COLORS } from '@/lib/theme/stylingConstants';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodes/nodeStyles.css';
 
@@ -24,37 +25,40 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     const state = useDiagramStore.getState();
     state.saveCanvasToDB(state.activeCanvasId);
   };
-  
-  const getDeterministicColor = (str: string) => {
-    const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
+
+  const dataRec = data as {
+    accentColor?: string;
+    groupColor?: string;
+    color?: string;
+    layer?: string;
+    tier?: string;
+    groupLabel?: string;
+    label?: string;
   };
 
+  const concernHint = dataRec.layer || dataRec.tier || dataRec.label || dataRec.groupLabel;
   const color =
-    (data as { accentColor?: string })?.accentColor ||
-    (data as { groupColor?: string })?.groupColor ||
-    getDeterministicColor(id);
+    dataRec.accentColor ||
+    dataRec.groupColor ||
+    dataRec.color ||
+    getConcernColor(concernHint) ||
+    CONCERN_COLORS.compute.color;
 
-  const bg = isDark ? hexToRgba(color, 0.05) : hexToRgba(color, 0.08);
-  const borderColor = isDark 
-    ? (selected ? hexToRgba(color, 0.75) : hexToRgba(color, 0.35))
-    : (selected ? hexToRgba(color, 0.9) : hexToRgba(color, 0.45));
+  const bg = isDark ? hexToRgba(color, 0.04) : hexToRgba(color, 0.035);
+  const borderColor = isDark
+    ? selected
+      ? hexToRgba(color, 0.55)
+      : 'rgba(255, 255, 255, 0.12)'
+    : selected
+      ? hexToRgba(color, 0.55)
+      : 'rgba(15, 23, 42, 0.12)';
 
-  const borderStyle = 'dashed';
-  const borderWidth = selected ? 2.5 : 2;
+  const borderWidth = selected ? 1.5 : 1;
 
-  const tagText = isDark ? '#f0f2f7' : hexToRgba(color, 0.95);
-  const tagBg = isDark ? '#13151a' : 'rgba(255,255,255,0.95)';
-  const tagBorder = isDark ? hexToRgba(color, 0.5) : hexToRgba(color, 0.45);
+  const tagText = isDark ? '#94a3b8' : '#64748b';
+  const tagBg = isDark ? 'transparent' : 'transparent';
 
-  const label =
-    (data as { groupLabel?: string; label?: string })?.groupLabel ||
-    (data as { label?: string })?.label ||
-    '';
+  const label = dataRec.groupLabel || dataRec.label || '';
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -64,17 +68,11 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   }, [isEditing]);
 
   const handleContainerClick = (_e: React.MouseEvent) => {
-    // Don't stop propagation — let ReactFlow's onNodeClick handle selection.
-    // ReactFlow natively supports shift+click multi-select.
+    // Let ReactFlow handle selection.
   };
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
+  const handleMouseEnter = () => setIsHovered(true);
+  const handleMouseLeave = () => setIsHovered(false);
 
   const handleLabelClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -97,66 +95,63 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     }
   };
 
+  void handleContainerClick;
+
   return (
     <div
       style={{
         width: '100%',
         height: '100%',
         backgroundColor: bg,
-        border: `${borderWidth}px ${borderStyle} ${borderColor}`,
-        borderRadius: 20,
+        border: `${borderWidth}px solid ${borderColor}`,
+        borderRadius: 12,
         position: 'relative',
         boxSizing: 'border-box',
         cursor: 'pointer',
-        boxShadow: isDark 
-          ? `inset 0 4px 16px rgba(0,0,0,0.6), 0 2px 8px ${hexToRgba(color, 0.08)}` 
-          : `0 2px 8px ${hexToRgba(color, 0.05)}`,
+        boxShadow: 'none',
       }}
       onClick={handleContainerClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onDragStart={(e) => e.preventDefault()}
     >
-      {/* Resize handles — 4 corners + 4 side lines (official React Flow NodeResizer) */}
       <NodeResizer
         isVisible={!!selected || isHovered}
         minWidth={150}
         minHeight={100}
-        lineStyle={{ borderColor: hexToRgba(color, 0.55) }}
+        lineStyle={{ borderColor: hexToRgba(color, 0.4) }}
         handleStyle={{
-          width: 12,
-          height: 12,
+          width: 10,
+          height: 10,
           background: isDark ? '#1a1d24' : '#ffffff',
-          border: `2px solid ${hexToRgba(color, 0.9)}`,
-          borderRadius: 3,
+          border: `1.5px solid ${hexToRgba(color, 0.7)}`,
+          borderRadius: 2,
         }}
         onResizeEnd={handleResizeEnd}
       />
-      {/* Text tag - editable */}
+      {/* Quiet caption label */}
       <div
         style={{
           position: 'absolute',
-          bottom: -14,
-          right: 20,
+          top: 8,
+          left: 12,
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 6,
-          padding: '4px 12px',
-          fontSize: isDark ? 12 : 9,
-          fontWeight: 600,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
+          gap: 4,
+          padding: 0,
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: '0.04em',
+          textTransform: 'none',
           color: tagText,
           background: tagBg,
-          border: `1px solid ${tagBorder}`,
-          borderRadius: 999,
-          backdropFilter: 'blur(4px)',
-          WebkitBackdropFilter: 'blur(4px)',
-          lineHeight: 1.4,
+          border: 'none',
+          borderRadius: 0,
+          lineHeight: 1.3,
           whiteSpace: 'nowrap',
           cursor: 'pointer',
-          minWidth: 50,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          minWidth: 40,
+          boxShadow: 'none',
         }}
         onClick={handleLabelClick}
         title="Click to edit group name"
@@ -173,10 +168,9 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              fontSize: isDark ? 12 : 10,
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: '0.04em',
               color: tagText,
               width: '100%',
               cursor: 'text',

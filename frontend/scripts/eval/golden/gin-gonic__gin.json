@@ -1,0 +1,33 @@
+{
+  "repo": "https://github.com/gin-gonic/gin",
+  "classification": {
+    "repoType": "library",
+    "framework": "Gin",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "gin_core",
+      "label": "Gin",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "gin",
+        "gin web framework"
+      ],
+      "sourceFiles": [
+        "gin.go"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "HTTP web framework library — no database or queue."
+}

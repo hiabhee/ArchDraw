@@ -407,6 +407,34 @@ export function collectGroundedNodeIds(nodes: ExtractedNode[], signals: StaticSi
   return grounded;
 }
 
+/**
+ * Core infrastructure node types that remain architecturally meaningful even
+ * when the edge detectors miss their connections (a database, queue, cache,
+ * external service, etc.).
+ */
+export const CORE_INFRA_TYPES = new Set<NodeType>([
+  'DATABASE', 'EXTERNAL_SERVICE', 'CACHE', 'QUEUE', 'STORAGE',
+  'AUTH', 'MIDDLEWARE', 'INFRASTRUCTURE', 'API_GATEWAY', 'CDN',
+]);
+
+/**
+ * Decide whether an orphan (zero-edge) node is worth keeping in the final
+ * diagram. Orphans are the main source of clutter in repo diagrams — most are
+ * directory/grouping nodes (or over-extractions) the relationship analyst never
+ * connected, even when stamped high confidence. We keep:
+ *  - grounded core-infrastructure types (a DB / queue / cache / external service
+ *    that simply has no detected edges) — real architecture, not grouping;
+ *  - in sparse graphs (< 3 connected nodes) the edge detectors largely failed,
+ *    so keep grounded nodes too instead of gutting the diagram.
+ * Everything else — high-confidence directory nodes, dependency-library labels
+ * like React/Tailwind/Zustand with no connections — is dropped.
+ */
+export function isImportantOrphan(node: ExtractedNode, connectedCount: number): boolean {
+  if (CORE_INFRA_TYPES.has(node.type) && node.sourceFiles.length > 0) return true;
+  if (connectedCount < 3 && node.sourceFiles.length > 0) return true;
+  return false;
+}
+
 export function subsystemNamesToIds(subsystems: Subsystem[]): Set<string> {
   return new Set(subsystems.map((s) => slugId(s.name)));
 }

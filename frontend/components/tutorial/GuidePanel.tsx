@@ -121,12 +121,14 @@ function PhaseRenderer({
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (phase === 'celebration') {
-      setCelebrationReady(false);
-      const t = setTimeout(() => setCelebrationReady(true), 1500);
-      return () => clearTimeout(t);
+    if (phase !== 'celebration') {
+      return undefined;
     }
-    setCelebrationReady(false);
+    const t = setTimeout(() => setCelebrationReady(true), 1500);
+    return () => {
+      clearTimeout(t);
+      setCelebrationReady(false);
+    };
   }, [phase]);
 
   useEffect(() => {

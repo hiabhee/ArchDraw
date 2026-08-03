@@ -1,0 +1,41 @@
+{
+  "repo": "https://github.com/shadcn-ui/ui",
+  "classification": {
+    "repoType": "monorepo",
+    "framework": "React",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "ui_library",
+      "label": "shadcn/ui Components",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "ui",
+        "components",
+        "shadcn ui"
+      ]
+    },
+    {
+      "id": "docs_site",
+      "label": "Docs Site",
+      "type": "PAGE",
+      "aliases": [
+        "docs",
+        "apps/www",
+        "website"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "React component registry monorepo (apps/www + packages). Should not fabricate a backend/database."
+}

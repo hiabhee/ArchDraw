@@ -13,7 +13,7 @@ import {
 } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { getPointOnPath, findClosestT } from '@/lib/utils/edgeLabelDrag';
-import { getNodeCenter, getSimpleEdgePositions } from '@/lib/utils/simpleFloatingEdge';
+import { sideFromHandleId, sideFromDataString, getSharedTerminalEdges } from '@/lib/utils/simpleFloatingEdge';
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { useCanvasTheme } from '@/lib/theme';
@@ -22,6 +22,17 @@ import { EdgeToolbar } from './EdgeToolbar';
 import { EdgeContextMenu } from './EdgeContextMenu';
 import { getEdgeConfig } from '@/data/edgeTypes';
 import type { EdgeData } from '@/data/edgeTypes';
+import { resolveEdgePalette } from '@/lib/edgeColors';
+
+/** Darken a hex color by a fixed amount; leaves non-hex colors untouched. */
+function darkenColor(color: string, amount: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  const n = parseInt(color.slice(1), 16);
+  const r = Math.max(0, ((n >> 16) & 0xff) - amount);
+  const g = Math.max(0, ((n >> 8) & 0xff) - amount);
+  const b = Math.max(0, (n & 0xff) - amount);
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 export default function SimpleFloatingEdge({
   id,
@@ -200,20 +211,28 @@ export default function SimpleFloatingEdge({
   const { isDark } = useCanvasTheme();
 
   const strokeStyle: React.CSSProperties = useMemo(() => {
-    const darkDefault = '#cbd5e1';
-    const lightDefault = DIAGRAM_CONSTANTS.edge.stroke;
-    let stroke = edgeStyle?.stroke || (isDark ? darkDefault : lightDefault);
+    const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark);
+    let stroke = edgeStyle?.stroke || palette.stroke;
     const baseWidth: number = DIAGRAM_CONSTANTS.edge.strokeWidth;
 
     if (isBundle) {
-      stroke = isDenseBundle ? '#4f46e5' : '#818cf8';
+      stroke = isDenseBundle ? '#475569' : '#94a3b8';
     }
 
-    // Calculate edge length (no longer used for styling - spacing is handled in layout)
-    const edgeLength = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
-    
-    // Use standard stroke width - let layout handle visibility through proper spacing
-    let strokeWidth = selected || isHovered ? baseWidth + 1.0 : edgeVariant === 'thick' ? baseWidth + 1.5 : baseWidth;
+    const isPrimary = edgeVariant === 'thick' || (data?.connectionType === 'sync' && edgeVariant === 'solid');
+    const isHoverState = selected || isHovered;
+    const strokeWidth =
+      isHoverState
+        ? baseWidth + 0.75
+        : edgeVariant === 'thick' || isPrimary
+          ? baseWidth + 0.5
+          : baseWidth;
+
+    // Color bump on hover/focus: darken non-accent connectors so they read
+    // more strongly when the user is inspecting them.
+    if (isHoverState && !isPrimary && !isBundle) {
+      stroke = darkenColor(stroke, isDark ? 10 : 20);
+    }
 
     let strokeDasharray: string | undefined;
     if (edgeVariant === 'dashed' || isAsync) {
@@ -229,8 +248,7 @@ export default function SimpleFloatingEdge({
       }
     }
 
-    // Standard opacity - let layout handle visibility through proper spacing
-    const opacity = selected || isHovered ? 1 : 0.85;
+    const opacity = isHoverState ? 1 : isAsync ? 0.75 : 0.65;
 
     return {
       stroke,
@@ -239,18 +257,17 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle, data]);
+
+  const resolvedStroke = typeof strokeStyle.stroke === 'string' ? strokeStyle.stroke : undefined;
 
   const rawLabel = responseLabel
     ? `${label || data?.label || ''} / ${responseLabel}`
     : (typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : ''));
 
-  const displayLabel = useMemo(() => {
-    if (!rawLabel) return '';
-    const words = rawLabel.split(/\s+/).filter(Boolean);
-    if (words.length <= 3) return rawLabel.trim();
-    return words.slice(0, 3).join(' ');
-  }, [rawLabel]);
+  const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : [];
+  const displayLabel =
+    words.length === 0 ? '' : words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ');
 
   const parallelEdges = useMemo(
     () => edges.filter((edge) =>
@@ -266,41 +283,29 @@ export default function SimpleFloatingEdge({
   // handler. Only the first edge by id draws the arrowhead so the join reads
   // as a single connection (multiple paths, one tip).
   const showMergedTargetMarker = useMemo(() => {
-    const siblings = edges
-      .filter((e) => e.target === target)
-      .filter((e) => {
-        if (e.id === id) return true;
-        const srcNode = nodeInternals.get(e.source);
-        const tgtNode = nodeInternals.get(e.target);
-        if (!srcNode || !tgtNode) return false;
-        const sc = getNodeCenter(srcNode);
-        const tc = getNodeCenter(tgtNode);
-        const { targetPos: side } = getSimpleEdgePositions(sc.cx, sc.cy, tc.cx, tc.cy);
-        return side === targetPos;
-      })
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const currentTargetSide =
+      sideFromDataString(data?.targetSide) ??
+      sideFromHandleId(targetHandleId) ??
+      targetPos;
+    const siblings = getSharedTerminalEdges(
+      id, target, currentTargetSide, edges, nodeInternals, 'target',
+    );
     if (siblings.length <= 1) return true;
     return siblings[0]?.id === id;
-  }, [edges, target, targetPos, nodeInternals, id]);
+  }, [edges, target, targetPos, targetHandleId, nodeInternals, id, data?.targetSide]);
 
   const showMergedSourceMarker = useMemo(() => {
     if (!markerStart) return false;
-    const siblings = edges
-      .filter((e) => e.source === source)
-      .filter((e) => {
-        if (e.id === id) return true;
-        const srcNode = nodeInternals.get(e.source);
-        const tgtNode = nodeInternals.get(e.target);
-        if (!srcNode || !tgtNode) return false;
-        const sc = getNodeCenter(srcNode);
-        const tc = getNodeCenter(tgtNode);
-        const { sourcePos: side } = getSimpleEdgePositions(sc.cx, sc.cy, tc.cx, tc.cy);
-        return side === sourcePos;
-      })
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const currentSourceSide =
+      sideFromDataString(data?.sourceSide) ??
+      sideFromHandleId(sourceHandleId) ??
+      sourcePos;
+    const siblings = getSharedTerminalEdges(
+      id, source, currentSourceSide, edges, nodeInternals, 'source',
+    );
     if (siblings.length <= 1) return true;
     return siblings[0]?.id === id;
-  }, [edges, source, sourcePos, nodeInternals, id, markerStart]);
+  }, [edges, source, sourcePos, sourceHandleId, nodeInternals, id, markerStart, data?.sourceSide]);
 
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
@@ -310,11 +315,6 @@ export default function SimpleFloatingEdge({
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
   }, [edgePath, labelT, displayLabel, sx, sy, tx, ty]);
-
-  // Calculate edge length for label opacity adjustment
-  const edgeLength = useMemo(() => {
-    return Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
-  }, [sx, sy, tx, ty]);
 
   const isDragging = useRef(false);
   const [dragging, setDragging] = useState(false);
@@ -460,7 +460,7 @@ export default function SimpleFloatingEdge({
               label={displayLabel}
               labelX={labelPos.x}
               labelY={labelPos.y}
-              edgeLength={edgeLength}
+              color={resolvedStroke}
             />
           </div>
         </EdgeLabelRenderer>

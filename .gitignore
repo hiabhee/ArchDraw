@@ -33,6 +33,7 @@ logs/
 test-results/
 frontend/test-results/
 .qoder/
+.kiro/
 
 # Eval harness output
 frontend/eval-results/

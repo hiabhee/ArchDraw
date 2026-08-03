@@ -104,8 +104,9 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'archdraw_self',
     name: 'ArchDraw Architecture',
-    description: 'The system architecture of ArchDraw itself — Next.js, React Flow, Supabase, and Vercel.',
-    tags: ['Next.js', 'Supabase', 'Vercel', 'SaaS'],
+    description:
+      'ArchDraw itself: pipeline-core + shared layout, AI Mermaid / Mermaid / Repo diagram pipelines, React Flow canvas, and Supabase.',
+    tags: ['Next.js', 'pipeline-core', 'React Flow', 'Supabase'],
     icon: '🏗️',
     nodes: archdrawNodes,
     edges: archdrawEdges,

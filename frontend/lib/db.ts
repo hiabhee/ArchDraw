@@ -124,25 +124,6 @@ export async function createSharedCanvas(data: {
   return withRetry(() => prisma.sharedCanvas.create({ data }));
 }
 
-// ── Tutorial Response Cache ──────────────────────────────────────────────────
-// RLS equivalent: anyone can read/insert/update (public)
-
-export async function getCachedResponse(questionHash: string) {
-  const row = await prisma.tutorialResponseCache.findUnique({
-    where: { questionHash },
-    select: { response: true },
-  });
-  return row?.response ?? null;
-}
-
-export async function cacheResponse(questionHash: string, response: string) {
-  return withRetry(() => prisma.tutorialResponseCache.upsert({
-    where: { questionHash },
-    create: { questionHash, response },
-    update: { response },
-  }));
-}
-
 // ── Component Templates + Categories ─────────────────────────────────────────
 // RLS equivalent: public read
 

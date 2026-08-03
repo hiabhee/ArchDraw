@@ -17,8 +17,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useDiagramStore, registerFitViewCallback } from '@/store/diagramStore';
-import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
-import { LAYOUT_PRESETS } from '@/lib/canvas/layoutPresets';
+import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/GuideLines';
 import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu';
@@ -28,6 +27,7 @@ import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
 import { useCallback, useEffect, useRef, DragEvent, useState, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
+import { diagramThemeCssVars } from '@/lib/theme/stylingConstants';
 import { cn } from '@/lib/utils';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 
@@ -56,6 +56,8 @@ function CanvasInner() {
   const pipelineStatus = useDiagramStore((s) => s.pipelineStatus);
   const isPenModeActive = useDiagramStore((s) => s.isPenModeActive);
   const showGrid = useDiagramStore((s) => s.showGrid);
+  const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
+  const diagramStyleTheme = useDiagramStore((s) => s.diagramStyleTheme);
   const pendingLabelEdgeId = useDiagramStore((s) => s.pendingLabelEdgeId);
   const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
   const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
@@ -133,29 +135,23 @@ function CanvasInner() {
 
     const template = TEMPLATES.find((t) => t.id === templateId);
     if (template) {
-      // Create a new canvas for the template
       const newCanvasId = addCanvas(template.name);
-      
-      // Apply ELK layout (same engine as the layout toggle button)
-      const preset = LAYOUT_PRESETS.find((p) => p.id === 'layered-lr');
-      applyLayoutPreset(template.nodes, template.edges, preset!).then((layoutedNodes) => {
-        // Import into diagram store
-        importDiagram(layoutedNodes, template.edges);
-        
-        // Ensure canvas name is set
+
+      void (async () => {
+        const layouted = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR');
+        const nodes = layouted.success ? layouted.nodes : template.nodes;
+        const edges = layouted.success ? layouted.edges : template.edges;
+        importDiagram(nodes, edges);
+        useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
         renameCanvas(newCanvasId, template.name);
-        
-        // Clear template from URL and switch to new canvas
         router.replace(`/editor?canvas=${newCanvasId}`);
         toast.success(`Loaded template: ${template.name}`);
-        
-        // Fit view after a short delay to allow nodes to mount
         setTimeout(() => {
           if (reactFlowRef.instance) {
             reactFlowRef.instance.fitView({ padding: 0.1, duration: 400 });
           }
         }, 100);
-      });
+      })();
     } else {
       toast.error('Template not found');
       router.replace('/editor');
@@ -415,12 +411,19 @@ function CanvasInner() {
   };
 
   const coloredEdges = useEdgeColors(edges);
+  const themeVars = useMemo(
+    () => diagramThemeCssVars(diagramStyleTheme, isDark),
+    [diagramStyleTheme, isDark],
+  );
 
   return (
     <div 
-      className="w-full h-full relative transition-colors duration-200 bg-[hsl(var(--canvas-bg))] overscroll-contain"
+      className={cn(
+        'w-full h-full relative transition-colors duration-200 bg-[hsl(var(--canvas-bg))] overscroll-contain',
+        diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
+      )}
       onDragOver={(e) => e.preventDefault()}
-      style={{ overscrollBehavior: 'contain' }}
+      style={{ overscrollBehavior: 'contain', ...themeVars }}
     >
       <ReactFlow
         nodes={nodes}

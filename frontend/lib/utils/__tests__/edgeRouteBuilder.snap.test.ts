@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Edge, Node } from 'reactflow';
-import { computeEdgeRoute, snapSmallTwistToStraight } from '../edgeRouteBuilder';
+import { computeEdgeRoute } from '../edgeRouteBuilder';
 
 function makeNode(id: string, x: number, y: number, w = 160, h = 80): Node {
   return {
@@ -17,14 +17,15 @@ function makeEdge(id: string, source: string, target: string): Edge {
   return { id, source, target, type: 'default' } as Edge;
 }
 
-describe('snapSmallTwistToStraight', () => {
-  it('snaps a tiny off-axis jog to a straight line', () => {
+describe('computeEdgeRoute routing', () => {
+  it('keeps a tiny off-axis jog as a routed path (no straight-snap)', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 112)];
     const edge = makeEdge('e1', 'a', 'b');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
-    expect(route.waypoints.length).toBe(2);
-    expect(route.svgPath).toBe('M 272,140 L 488,152');
+    expect(route.waypoints.length).toBeGreaterThan(2);
+    expect(route.waypoints[0]).toEqual({ x: 272, y: 140 });
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 152 });
   });
 
   it('keeps the routed Z path for a large vertical offset', () => {
@@ -35,46 +36,6 @@ describe('snapSmallTwistToStraight', () => {
     expect(route.waypoints.length).toBeGreaterThan(2);
     expect(route.waypoints[0]).toEqual({ x: 272, y: 140 });
     expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 340 });
-  });
-
-  it('does not snap when a straight segment would cross an obstacle node', () => {
-    const source = { x: 272, y: 140 };
-    const target = { x: 488, y: 152 };
-    const waypoints = [
-      { x: 272, y: 140 },
-      { x: 380, y: 140 },
-      { x: 380, y: 152 },
-      { x: 488, y: 152 },
-    ];
-    const nodeRects = new Map([
-      ['blocker', { id: 'blocker', x: 300, y: 100, w: 160, h: 80 }],
-    ]);
-
-    const result = snapSmallTwistToStraight(
-      waypoints, source, target, 0, nodeRects,
-      { x: 100, y: 100, w: 160, h: 80 },
-      { x: 500, y: 112, w: 160, h: 80 },
-    );
-
-    expect(result).toBe(waypoints);
-  });
-
-  it('does not snap when the straight line would be steeply sloped', () => {
-    const source = { x: 0, y: 0 };
-    const target = { x: 100, y: 30 };
-    const waypoints = [
-      { x: 0, y: 0 },
-      { x: 100, y: 0 },
-      { x: 100, y: 30 },
-    ];
-
-    const result = snapSmallTwistToStraight(
-      waypoints, source, target, 0, undefined,
-      { x: -200, y: -100, w: 80, h: 80 },
-      { x: 200, y: -100, w: 80, h: 80 },
-    );
-
-    expect(result).toBe(waypoints);
   });
 
   it('keeps parallel-edge separation (does not snap overlapping straights)', () => {

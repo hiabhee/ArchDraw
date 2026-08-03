@@ -1,0 +1,23 @@
+{
+  "repo": "https://github.com/docker/awesome-compose",
+  "classification": {
+    "repoType": "devops_config",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "compose_examples",
+      "label": "Compose Examples",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "compose",
+        "docker compose examples",
+        "examples"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [],
+  "notes": "Curated set of docker-compose YAML examples — config only, not a deployable app. Pipeline should label devops_config / documentation and avoid fabricating service nodes from the example YAML."
+}

@@ -31,9 +31,11 @@ export function useInlineLabelEdit({
   const isCommittingRef = useRef(false);
   // autoStart should only open the editor once per mount cycle.
   const didAutoStartRef = useRef(autoStart);
-  const ignoreBlurUntilRef = useRef(autoStart ? Date.now() + AUTO_START_FOCUS_MS : 0);
+  const ignoreBlurUntilRef = useRef(0);
 
-  draftRef.current = draft;
+  useLayoutEffect(() => {
+    draftRef.current = draft;
+  });
 
   useEffect(() => {
     if (!isEditing) {
@@ -44,6 +46,9 @@ export function useInlineLabelEdit({
   // Only re-enter edit mode for autoStart if we never started (e.g. late prop).
   // Never reopen after an intentional commit — that resets draft to '' and
   // looks like the first Enter "erased" the label.
+  // This syncs local state to a one-shot store signal (autoStartLabelEdit) and
+  // must run imperatively to avoid racing the commit/unmount blur handlers.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (autoStart && !isEditing && !didAutoStartRef.current && !isCommittingRef.current) {
       didAutoStartRef.current = true;
@@ -53,9 +58,14 @@ export function useInlineLabelEdit({
       setIsEditing(true);
     }
   }, [autoStart, isEditing, currentLabel]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useLayoutEffect(() => {
     if (!isEditing) return;
+
+    if (autoStart) {
+      ignoreBlurUntilRef.current = Date.now() + AUTO_START_FOCUS_MS;
+    }
 
     const focusInput = (selectText: boolean) => {
       const el = inputRef.current;
@@ -99,7 +109,7 @@ export function useInlineLabelEdit({
       window.removeEventListener('mouseup', reclaim, true);
       window.removeEventListener('click', reclaim, true);
     };
-  }, [isEditing]);
+  }, [isEditing, autoStart]);
 
   const commit = useCallback(() => {
     if (isCommittingRef.current) return;

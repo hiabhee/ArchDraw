@@ -1,49 +1,29 @@
 'use client';
 
 import { memo, useCallback, useRef } from 'react';
-import { NodeProps, useUpdateNodeInternals } from 'reactflow';
+import { NodeProps } from 'reactflow';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { Activity, Palette, Pencil, Copy, Trash2 } from 'lucide-react';
 import { FloatingHandles } from './nodes/FloatingHandles';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { NodeIcon } from '@/components/NodeIcon';
+import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
+import {
+  getConcernColor,
+  SIZE_M,
+  STATUS_COLORS,
+  CONCERN_COLORS,
+} from '@/lib/theme/stylingConstants';
+import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import './nodes/nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
 const NODE_HEIGHT = DIAGRAM_CONSTANTS.node.minHeight;
 
-function calcNodeWidth(label?: string, subtitle?: string): number {
-  const labelLength = typeof label === 'string' ? label.length : 0;
-  const subtitleLength = typeof subtitle === 'string' ? subtitle.length : 0;
-  const longest = Math.max(labelLength, subtitleLength);
-  // ~8px per character for typical font sizes, min 200
-  return Math.max(200, Math.min(320, longest * 9));
-}
-
-const STATUS_COLORS = {
-  healthy: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  unknown: '#6B7280',
-};
-
-function getTierColorNormalized(layer?: string): string {
-  const tier = (layer || 'compute').toLowerCase();
-  const colorMap: Record<string, string> = {
-    client:   '#64748b',
-    edge:     '#6366f1',
-    compute:  '#0d9488',
-    async:    '#d97706',
-    data:     '#3b82f6',
-    observe:  '#8b5cf6',
-    external: '#ec4899',
-  };
-  return colorMap[tier] || colorMap.compute;
-}
-
 function hexToRgba(hex: string, alpha: number): string {
+  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) return hex;
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -51,17 +31,8 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 function getDarkCategoryStyle(layer?: string): { border: string; glow: string } {
-  const tier = (layer || 'compute').toLowerCase();
-  const map: Record<string, { border: string; glow: string }> = {
-    client:      { border: '#60A5FA', glow: 'rgba(96,165,250,0.15)' },
-    edge:        { border: '#60A5FA', glow: 'rgba(96,165,250,0.15)' },
-    compute:     { border: '#34D399', glow: 'rgba(52,211,153,0.15)' },
-    async:       { border: '#FBBF24', glow: 'rgba(251,191,36,0.15)' },
-    data:        { border: '#F87171', glow: 'rgba(248,113,113,0.15)' },
-    observe:     { border: '#A78BFA', glow: 'rgba(167,139,250,0.15)' },
-    external:    { border: '#22D3EE', glow: 'rgba(34,211,238,0.15)' },
-  };
-  return map[tier] || map.compute;
+  const color = getConcernColor(layer);
+  return { border: color, glow: hexToRgba(color, 0.12) };
 }
 
 function ToolbarButton({
@@ -86,11 +57,15 @@ function ToolbarButton({
   );
 }
 
+const ACCENT_CYCLE = Object.values(CONCERN_COLORS).map((c) => c.color);
+
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
-  const updateNodeInternals = useUpdateNodeInternals();
+  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
+  const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
   const nodeCardRef = useRef<HTMLDivElement>(null);
+  const showEditChrome = diagramChromeMode !== 'present';
 
   const nodeData = data as NodeData & {
     layer?: string;
@@ -108,11 +83,35 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const isDatabase = nodeData.shape === 'cylinder' || nodeData.serviceType === 'database';
   const isQueue = nodeData.serviceType === 'queue';
 
-  const tierColor = getTierColorNormalized(nodeData.layer);
-  const accentColor = nodeData.accentColor || nodeData.color || tierColor || '#0D9488';
+  const nodeKind = (() => {
+    const st = nodeData.serviceType;
+    if (isDatabase) return 'database';
+    if (isQueue) return 'queue';
+    if (st === 'client') return 'client';
+    if (st === 'load-balancer') return 'load-balancer';
+    if (st === 'ai') return 'ai';
+    if (st === 'server') return 'server';
+    if (st === 'docker') return 'docker';
+    if (st === 'api') return 'api';
+    if (st === 'service') return 'service';
+    return null;
+  })();
+
+  const tierColor = getConcernColor(nodeData.layer || nodeData.serviceType);
+  const accentColor = nodeData.accentColor || nodeData.color || tierColor;
+  const resolvedIcon = resolveNodeIcon({
+    label: data.label,
+    typeId: nodeData.typeId,
+    componentType: nodeData.componentType,
+    serviceType: nodeData.serviceType,
+    technology: nodeData.technology,
+    category: nodeData.category,
+    icon: nodeData.icon,
+    color: accentColor,
+  });
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
-  const showStatus = nodeData.status && nodeData.status !== 'healthy';
+  const showStatus = showEditChrome && nodeData.status && nodeData.status !== 'healthy';
 
   const labelEdit = useInlineLabelEdit({
     nodeId: id,
@@ -121,17 +120,9 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     autoStart: Boolean(nodeData.autoStartLabelEdit),
   });
 
-  const backplateLayers = selected
-    ? [
-        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
-        { offset: 5, color: isDark ? '#151828' : '#e8e8e8' },
-      ]
-    : [
-        { offset: 10, color: isDark ? '#0d0f1b' : '#ffffff' },
-        { offset: 5, color: isDark ? '#151828' : '#f5f5f5' },
-      ];
-
-  const catStyle = getDarkCategoryStyle(nodeData.layer);
+  const catStyle = getDarkCategoryStyle(nodeData.layer || nodeData.serviceType);
+  const accentSoft = hexToRgba(accentColor, isDark ? 0.08 : 0.04);
+  const accentBg = hexToRgba(accentColor, isDark ? 0.16 : 0.08);
 
   const handleClick = useCallback(() => {
     setSelectedNodeId(id);
@@ -168,12 +159,9 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const handleColorChange = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    const colors = [
-      '#64748b', '#6366f1', '#0d9488', '#d97706', '#3b82f6', '#8b5cf6', '#ec4899',
-      '#0284c7', '#059669', '#c026d3', '#65a30d', '#0891b2',
-    ];
-    const currentIndex = colors.indexOf(nodeData.accentColor || nodeData.color || '#6B7280');
-    const nextColor = colors[(currentIndex + 1) % colors.length];
+    const current = nodeData.accentColor || nodeData.color || ACCENT_CYCLE[0];
+    const currentIndex = ACCENT_CYCLE.indexOf(current);
+    const nextColor = ACCENT_CYCLE[(currentIndex + 1) % ACCENT_CYCLE.length];
     useDiagramStore.getState().updateNodeData(id, { accentColor: nextColor });
   }, [id, nodeData.accentColor, nodeData.color]);
 
@@ -182,40 +170,33 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     useDiagramStore.getState().setSidebarOpen(true);
   }, []);
 
+  const fitted = calculateNodeDimensions(data.label || '', nodeData.subtitle, {
+    shape: 'rounded-rectangle',
+    minWidth: SIZE_M,
+  });
+  const cardWidth = Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
+  const cardHeight = Math.max(nodeData.nodeHeight || NODE_HEIGHT, fitted.height);
+
   return (
       <div
-        className={`node-wrapper${selected ? ' selected' : ''}${isDatabase ? ' node-cylinder' : ''}${isQueue ? ' node-queue' : ''}`}
+        className={`node-wrapper${selected ? ' selected' : ''}${nodeKind ? ` node-${nodeKind}` : ''}`}
         style={{
           ['--node-accent' as string]: accentColor,
-          ['--node-accent-soft' as string]: hexToRgba(accentColor, 0.04),
-          ['--node-accent-bg' as string]: `${accentColor}12`,
+          ['--node-accent-soft' as string]: accentSoft,
+          ['--node-accent-bg' as string]: accentBg,
+          ['--node-accent-track' as string]: hexToRgba(accentColor, 0.35),
           ['--node-glow' as string]: catStyle.glow,
           ['--node-glow-border' as string]: catStyle.border,
           ['--node-status-color' as string]: statusColor,
         }}
       >
-        {backplateLayers.map((layer, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: isDatabase ? 12 : 16,
-              transform: `translate(${layer.offset}px, ${layer.offset}px)`,
-              background: layer.color,
-              zIndex: i + 1,
-              pointerEvents: 'none',
-              transition: 'all 150ms ease',
-            }}
-          />
-        ))}
         <div
           ref={nodeCardRef}
-          className={`group node-card${isDatabase ? ' node-card-db' : ''}`}
+          className={`group node-card${nodeKind === 'database' ? ' node-card-db' : ''}`}
           style={{
-            width: nodeData.nodeWidth || Math.max(NODE_WIDTH, calcNodeWidth(data.label, nodeData.subtitle)),
-            minWidth: nodeData.nodeWidth || NODE_WIDTH,
-            minHeight: nodeData.nodeHeight || NODE_HEIGHT,
+            width: cardWidth,
+            minWidth: Math.max(NODE_WIDTH, SIZE_M),
+            minHeight: cardHeight,
           }}
         onClick={handleClick}
       >
@@ -239,14 +220,103 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             </ToolbarButton>
           </div>
         )}
-        <div className="node-shine" />
+        {showEditChrome && <div className="node-shine" />}
+
+        {/* Kind decorations — edit chrome only */}
+        {showEditChrome && nodeKind === 'queue' && (
+          <div className="node-kind-bar" aria-hidden="true">
+            {Array.from({ length: 6 }, (_, i) => (
+              <span
+                key={i}
+                className={`node-kind-cell${i < 3 ? ' node-kind-cell--filled' : ''}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'database' && (
+          <div className="node-kind-bar node-db-records" aria-hidden="true">
+            <div className="node-db-record" style={{ width: '75%' }} />
+            <div className="node-db-record" style={{ width: '90%' }} />
+            <div className="node-db-record" style={{ width: '60%' }} />
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'client' && (
+          <div className="node-kind-bar node-client-bezel" aria-hidden="true">
+            <span className="node-bezel-dot" />
+            <span className="node-bezel-dot" style={{ opacity: 0.55 }} />
+            <span className="node-bezel-dot" style={{ opacity: 0.35 }} />
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'server' && (
+          <div className="node-kind-bar node-server-rack" aria-hidden="true">
+            <div className="node-rack-slot" />
+            <div className="node-rack-slot" />
+            <div className="node-rack-slot" />
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'load-balancer' && (
+          <div className="node-kind-bar node-lb-split" aria-hidden="true">
+            <div className="node-lb-line" />
+            <div className="node-lb-arms">
+              <div className="node-lb-arm" />
+              <div className="node-lb-arm" />
+            </div>
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'ai' && (
+          <div className="node-kind-bar node-ai-nodes" aria-hidden="true">
+            <span className="node-ai-node" />
+            <span className="node-ai-node" />
+            <span className="node-ai-node" />
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'docker' && (
+          <div className="node-kind-bar node-docker-stack" aria-hidden="true">
+            <div className="node-docker-layer" style={{ marginLeft: 0 }} />
+            <div className="node-docker-layer" style={{ marginLeft: 4 }} />
+            <div className="node-docker-layer" style={{ marginLeft: 8 }} />
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'api' && (
+          <div className="node-kind-bar node-api-brackets" aria-hidden="true">
+            <span className="node-api-bracket" />
+            <span className="node-api-dot" />
+            <span className="node-api-bracket node-api-bracket--right" />
+          </div>
+        )}
+
+        {showEditChrome && nodeKind === 'service' && (
+          <div className="node-kind-bar node-service-grid" aria-hidden="true">
+            <span className="node-svc-dot" />
+            <span className="node-svc-dot" />
+            <span className="node-svc-dot" />
+          </div>
+        )}
+
         <div className="node-header">
+          {showNodeIcons && (
+            <div className="node-icon-box" aria-hidden="true">
+              <NodeIcon
+                technology={resolvedIcon.technology}
+                fallbackIcon={resolvedIcon.icon}
+                fallbackColor={resolvedIcon.color}
+                size={14}
+              />
+            </div>
+          )}
           {labelEdit.isEditing ? (
             <input
               {...labelEdit.inputProps}
               style={{
-                fontSize: 13,
-                fontWeight: 700,
+                fontSize: 14,
+                fontWeight: 600,
                 color: 'var(--node-title-color)',
                 background: 'transparent',
                 border: 'none',
@@ -259,13 +329,13 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 flex: 1,
                 boxSizing: 'border-box',
                 borderRadius: 3,
-                boxShadow: '0 0 0 2px var(--accent, #0d9488)',
+                boxShadow: '0 0 0 2px var(--node-accent)',
                 cursor: 'text',
               }}
             />
           ) : (
             <p
-              className="node-title"
+              className="node-title whitespace-pre-line"
               title={data.label || 'Double-click to rename'}
               onDoubleClick={labelEdit.startEdit}
               style={{

@@ -1,0 +1,35 @@
+{
+  "repo": "https://github.com/tiangolo/fastapi",
+  "classification": {
+    "repoType": "framework",
+    "framework": "FastAPI",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "fastapi_core",
+      "label": "FastAPI",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "fastapi",
+        "fast api",
+        "fastapi framework"
+      ],
+      "sourceFiles": [
+        "fastapi/__init__.py",
+        "fastapi/applications.py"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Pure ASGI web framework — no bundled database."
+}

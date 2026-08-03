@@ -1,0 +1,98 @@
+{
+  "repo": "https://github.com/supabase/supabase",
+  "classification": {
+    "repoType": "monorepo",
+    "framework": null,
+    "database": "PostgreSQL"
+  },
+  "nodes": [
+    {
+      "id": "studio",
+      "label": "Supabase Studio",
+      "type": "PAGE",
+      "aliases": [
+        "studio",
+        "dashboard",
+        "apps/studio"
+      ]
+    },
+    {
+      "id": "postgrest",
+      "label": "PostgREST API",
+      "type": "SERVICE",
+      "aliases": [
+        "postgrest",
+        "rest api",
+        "api"
+      ]
+    },
+    {
+      "id": "auth",
+      "label": "GoTrue Auth",
+      "type": "AUTH",
+      "aliases": [
+        "gotrue",
+        "authentication",
+        "auth"
+      ]
+    },
+    {
+      "id": "realtime",
+      "label": "Realtime",
+      "type": "SERVICE",
+      "aliases": [
+        "realtime"
+      ]
+    },
+    {
+      "id": "storage",
+      "label": "Storage",
+      "type": "SERVICE",
+      "aliases": [
+        "storage-api",
+        "storage"
+      ]
+    },
+    {
+      "id": "postgres",
+      "label": "PostgreSQL",
+      "type": "DATABASE",
+      "aliases": [
+        "database",
+        "postgres"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "studio",
+      "to": "postgrest"
+    },
+    {
+      "from": "studio",
+      "to": "auth"
+    },
+    {
+      "from": "postgrest",
+      "to": "postgres"
+    },
+    {
+      "from": "auth",
+      "to": "postgres"
+    },
+    {
+      "from": "realtime",
+      "to": "postgres"
+    },
+    {
+      "from": "storage",
+      "to": "postgres"
+    }
+  ],
+  "forbiddenNodes": [
+    "Stripe",
+    "Redis",
+    "MongoDB"
+  ],
+  "notes": "Platform monorepo across TS/Go/Elixir. Every backend service mounts the same Postgres."
+}

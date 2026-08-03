@@ -1,0 +1,31 @@
+{
+  "repo": "https://github.com/rails/rails",
+  "classification": {
+    "repoType": "framework",
+    "framework": "Rails",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "rails_core",
+      "label": "Ruby on Rails",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "rails",
+        "ruby on rails",
+        "rails framework"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Framework monorepo (railties, activerecord, actionpack…). Detecting routes.py/controllers is correct but should not fabricate a live DB service."
+}

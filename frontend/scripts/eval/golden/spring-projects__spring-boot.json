@@ -1,0 +1,31 @@
+{
+  "repo": "https://github.com/spring-projects/spring-boot",
+  "classification": {
+    "repoType": "framework",
+    "framework": "Spring Boot",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "spring_boot_core",
+      "label": "Spring Boot",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "spring boot",
+        "spring-boot",
+        "springboot"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Java framework — @Controller/@GetMapping exist across autoconfig samples; should not fabricate a deployed app with Postgres/Redis."
+}

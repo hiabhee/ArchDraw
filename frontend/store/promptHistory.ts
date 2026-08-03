@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { serializedStorage } from './diagramStore';
+import { serializedStorage } from '@/lib/storage/localStorage';
 
 export interface PromptHistoryItem {
   id: string;

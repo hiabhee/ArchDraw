@@ -1,0 +1,34 @@
+{
+  "repo": "https://github.com/encode/django-rest-framework",
+  "classification": {
+    "repoType": "library",
+    "framework": "Django REST Framework",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "drf_core",
+      "label": "Django REST Framework",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "rest framework",
+        "drf",
+        "django rest framework"
+      ],
+      "sourceFiles": [
+        "rest_framework/__init__.py"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Toolkit library built on Django — no runtime infrastructure of its own."
+}

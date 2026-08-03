@@ -14,7 +14,10 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
   }
 
   async execute(input: LayoutStageInput, _context: PipelineContext): Promise<StageResult<RFObjects>> {
-    const layouted = applyRfLayout(input.objects, input.direction) as RFObjects;
+    const layouted = applyRfLayout(
+      input.objects as unknown as Parameters<typeof applyRfLayout>[0],
+      input.direction
+    ) as unknown as RFObjects;
     return successResult(layouted);
   }
 }

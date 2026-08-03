@@ -1,0 +1,31 @@
+{
+  "repo": "https://github.com/laravel/laravel",
+  "classification": {
+    "repoType": "framework",
+    "framework": "Laravel",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "laravel_core",
+      "label": "Laravel",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "laravel",
+        "laravel framework",
+        "laravel app"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Laravel application skeleton/framework — ships Eloquent ORM but no bundled database service."
+}

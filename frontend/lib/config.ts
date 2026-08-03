@@ -21,16 +21,20 @@ export const CANVAS_CONFIG = {
 export const EDGE_CONFIG = {
   type:              'floating',
   animated:          true,
-  strokeWidth:       1.5,
-  strokeColor:       '#94a3b8',
-  strokeColorOverlap:'#000000',
+  strokeWidth:       1.25,
+  strokeColor:       '#64748b',
+  strokeColorOverlap:'#475569',
+  /** Primary request-path accent (DodgerBlue / brand). */
+  strokeColorPrimary:'#1E90FF',
   markerType:        'arrowclosed' as MarkerType,
+  markerWidth:       22,
+  markerHeight:      22,
   label: {
-    fontSize:        10,
-    letterSpacing:   '0.05em',
-    background:      'rgba(255,255,255,0.85)',
-    padding:         '2px 6px',
-    borderRadius:    '4px',
+    fontSize:        9,
+    letterSpacing:   '0.04em',
+    background:      'rgba(100,116,139,0.12)',
+    padding:         '2px 5px',
+    borderRadius:    '3px',
   },
 } as const;
 
@@ -43,8 +47,10 @@ export const DEFAULT_EDGE_OPTIONS = {
     stroke:      EDGE_CONFIG.strokeColor,
   },
   markerEnd: {
-    type:  EDGE_CONFIG.markerType,
-    color: EDGE_CONFIG.strokeColor,
+    type:   EDGE_CONFIG.markerType,
+    color:  EDGE_CONFIG.strokeColor,
+    width:  EDGE_CONFIG.markerWidth,
+    height: EDGE_CONFIG.markerHeight,
   },
 };
 
@@ -52,11 +58,11 @@ export const DEFAULT_EDGE_OPTIONS = {
 
 export const NODE_CONFIG = {
   defaultWidth:      200,
-  defaultHeight:     80,
+  defaultHeight:     88,
   duplicateOffset:   40,
   defaultType:       'custom',
   fallback: {
-    color:           '#6366f1',
+    color:           '#0f766e',
     category:        'default',
     icon:            'Box',
     label:           'Unnamed',

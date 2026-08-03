@@ -1,101 +1,173 @@
 import { Node, Edge } from 'reactflow';
 
+/**
+ * ArchDraw self-architecture template — reflects the post-refactor pipeline layout:
+ *   pipeline-core          → execution engine (Pipeline, Stage, Context, DomainResult)
+ *   pipeline-shared        → canonical layout (applyRfLayout) + RF adapters + progress
+ *   ai/mermaid-pipeline    → Concept → Plan → LayoutOverride → Materialize → Score → Validate
+ *   mermaid/pipeline       → Parse → Validate → Build → Layout → Size → ValidateOutput
+ *   repo-diagram           → Ingest → Cache → Analysis → Baseline → Classify → Extract →
+ *                            Relationships → Verify → Finalize → CacheWrite
+ */
+
 export const archdrawNodes: Node[] = [
   // ═══════════════════════════════════════════════════════════
-  // GROUP: Client Tier (Browser) — Next.js React App
+  // GROUP: Client Tier (Browser)
   // ═══════════════════════════════════════════════════════════
   {
     id: 'grp_client',
     type: 'groupNode',
     position: { x: 0, y: 0 },
-    data: { label: 'Client Tier (Browser)', groupLabel: 'Client Tier (Browser)', isGroup: true, color: '#3b82f6' },
-    style: { width: 1100, height: 520 },
+    data: { label: 'Client Tier (Browser)', groupLabel: 'Client Tier (Browser)', isGroup: true, color: '#64748b' },
+    style: { width: 1100, height: 420 },
     zIndex: -1,
     width: 1100,
-    height: 520,
+    height: 420,
   },
   {
     id: 'nd_webui',
     type: 'shapeNode',
-    position: { x: 60, y: 80 },
+    position: { x: 60, y: 70 },
     data: {
-      label: 'Web UI Layer', subtitle: 'Next.js React App',
-      shape: 'rounded-rectangle', nodeWidth: 220, nodeHeight: 100,
-      serviceType: 'service', typeId: 'service', color: '#3b82f6',
+      label: 'Web UI Layer', subtitle: 'Next.js App Router',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 100,
+      serviceType: 'service', typeId: 'service', color: '#64748b',
       category: 'Client & Entry', icon: 'Monitor',
     },
-    width: 220, height: 100, parentNode: 'grp_client', extent: 'parent',
+    width: 200, height: 100, parentNode: 'grp_client', extent: 'parent',
   },
   {
     id: 'nd_canvas',
     type: 'shapeNode',
-    position: { x: 380, y: 80 },
+    position: { x: 380, y: 70 },
     data: {
       label: 'React Flow Canvas', subtitle: 'Interactive Diagram Renderer',
-      shape: 'rounded-rectangle', nodeWidth: 220, nodeHeight: 100,
-      serviceType: 'service', typeId: 'service', color: '#3b82f6',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 100,
+      serviceType: 'service', typeId: 'service', color: '#64748b',
       category: 'Client & Entry', icon: 'Workflow',
     },
-    width: 220, height: 100, parentNode: 'grp_client', extent: 'parent',
+    width: 200, height: 100, parentNode: 'grp_client', extent: 'parent',
   },
   {
     id: 'nd_editor',
     type: 'shapeNode',
-    position: { x: 700, y: 80 },
+    position: { x: 700, y: 70 },
     data: {
-      label: 'Code Editor', subtitle: 'CodeMirror Mermaid Editor',
-      shape: 'rounded-rectangle', nodeWidth: 220, nodeHeight: 100,
-      serviceType: 'service', typeId: 'service', color: '#3b82f6',
+      label: 'Mermaid Code Panel', subtitle: 'Live Edit → runMermaidPipeline',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 100,
+      serviceType: 'service', typeId: 'service', color: '#64748b',
       category: 'Client & Entry', icon: 'Code',
     },
-    width: 220, height: 100, parentNode: 'grp_client', extent: 'parent',
+    width: 240, height: 100, parentNode: 'grp_client', extent: 'parent',
   },
   {
     id: 'nd_store',
     type: 'shapeNode',
-    position: { x: 380, y: 280 },
+    position: { x: 380, y: 250 },
     data: {
       label: 'Zustand Store', subtitle: 'Client State + Persistence',
-      shape: 'cylinder', nodeWidth: 220, nodeHeight: 100,
+      shape: 'cylinder', nodeWidth: 200, nodeHeight: 100,
       serviceType: 'database', typeId: 'database', color: '#1e293b',
       category: 'Data Storage', icon: 'Database',
     },
-    width: 220, height: 100, parentNode: 'grp_client', extent: 'parent',
+    width: 200, height: 100, parentNode: 'grp_client', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // GROUP: AI Pipeline — LLM Planning & Response Processing
+  // GROUP: Pipeline Core — shared execution engine
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'grp_core',
+    type: 'groupNode',
+    position: { x: 0, y: 500 },
+    data: { label: 'pipeline-core', groupLabel: 'pipeline-core', isGroup: true, color: '#64748b' },
+    style: { width: 1100, height: 280 },
+    zIndex: -1,
+    width: 1100,
+    height: 280,
+  },
+  {
+    id: 'nd_pipeline',
+    type: 'shapeNode',
+    position: { x: 40, y: 70 },
+    data: {
+      label: 'Pipeline Engine', subtitle: 'Flat stage runner + weights + abort',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#64748b',
+      category: 'Compute', icon: 'Cpu',
+    },
+    width: 240, height: 90, parentNode: 'grp_core', extent: 'parent',
+  },
+  {
+    id: 'nd_context',
+    type: 'shapeNode',
+    position: { x: 320, y: 70 },
+    data: {
+      label: 'PipelineContext', subtitle: 'signal · progress · sharedData',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#64748b',
+      category: 'Compute', icon: 'Boxes',
+    },
+    width: 240, height: 90, parentNode: 'grp_core', extent: 'parent',
+  },
+  {
+    id: 'nd_domain',
+    type: 'shapeNode',
+    position: { x: 600, y: 70 },
+    data: {
+      label: 'DomainResult', subtitle: 'success | failure + error codes',
+      shape: 'diamond', nodeWidth: 200, nodeHeight: 90,
+      serviceType: 'compute', typeId: 'microservice', color: '#64748b',
+      category: 'Compute', icon: 'CheckCircle',
+    },
+    width: 200, height: 90, parentNode: 'grp_core', extent: 'parent',
+  },
+  {
+    id: 'nd_metrics',
+    type: 'shapeNode',
+    position: { x: 860, y: 70 },
+    data: {
+      label: 'Stage Metrics', subtitle: 'duration · weights · terminal exit',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#64748b',
+      category: 'Observability', icon: 'BarChart2',
+    },
+    width: 200, height: 90, parentNode: 'grp_core', extent: 'parent',
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // GROUP: AI Mermaid Pipeline — prompt → diagram
   // ═══════════════════════════════════════════════════════════
   {
     id: 'grp_ai',
     type: 'groupNode',
-    position: { x: 0, y: 600 },
-    data: { label: 'AI Pipeline', groupLabel: 'AI Pipeline', isGroup: true, color: '#ec4899' },
-    style: { width: 1100, height: 380 },
+    position: { x: 0, y: 860 },
+    data: { label: 'AI Mermaid Pipeline', groupLabel: 'AI Mermaid Pipeline', isGroup: true, color: '#0f766e' },
+    style: { width: 1480, height: 420 },
     zIndex: -1,
-    width: 1100,
-    height: 380,
+    width: 1480,
+    height: 420,
   },
   {
-    id: 'nd_prompt',
+    id: 'nd_orchestrator',
     type: 'shapeNode',
-    position: { x: 60, y: 60 },
+    position: { x: 40, y: 60 },
     data: {
-      label: 'Prompt Handler', subtitle: 'User Input Processing',
-      shape: 'rounded-rectangle', nodeWidth: 220, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#ec4899',
-      category: 'Compute', icon: 'MessageSquare',
+      label: 'Orchestrator', subtitle: 'generateDiagram → DomainResult',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'GitBranch',
     },
-    width: 220, height: 90, parentNode: 'grp_ai', extent: 'parent',
+    width: 240, height: 90, parentNode: 'grp_ai', extent: 'parent',
   },
   {
     id: 'nd_concepts',
     type: 'shapeNode',
-    position: { x: 380, y: 60 },
+    position: { x: 320, y: 60 },
     data: {
-      label: 'Concept Detector', subtitle: 'Template Fast Path',
+      label: 'Concept Detection', subtitle: 'Template fast path',
       shape: 'diamond', nodeWidth: 200, nodeHeight: 90,
-      serviceType: 'compute', typeId: 'microservice', color: '#ec4899',
+      serviceType: 'compute', typeId: 'microservice', color: '#0f766e',
       category: 'Compute', icon: 'Search',
     },
     width: 200, height: 90, parentNode: 'grp_ai', extent: 'parent',
@@ -103,60 +175,96 @@ export const archdrawNodes: Node[] = [
   {
     id: 'nd_planner',
     type: 'shapeNode',
-    position: { x: 660, y: 60 },
+    position: { x: 560, y: 60 },
     data: {
-      label: 'LLM Planner', subtitle: 'Stage 1 — Architecture Planner',
-      shape: 'rounded-rectangle', nodeWidth: 220, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#ec4899',
+      label: 'Architecture Planning', subtitle: 'architecturePlanner (LLM)',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
       category: 'AI / ML', icon: 'Brain',
     },
-    width: 220, height: 90, parentNode: 'grp_ai', extent: 'parent',
+    width: 240, height: 90, parentNode: 'grp_ai', extent: 'parent',
+  },
+  {
+    id: 'nd_layoutoverride',
+    type: 'shapeNode',
+    position: { x: 840, y: 60 },
+    data: {
+      label: 'Layout Override', subtitle: 'Direction / style overrides',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'Layout',
+    },
+    width: 200, height: 90, parentNode: 'grp_ai', extent: 'parent',
+  },
+  {
+    id: 'nd_materialize',
+    type: 'shapeNode',
+    position: { x: 1100, y: 60 },
+    data: {
+      label: 'Mermaid Materialize', subtitle: 'Parse · retry · fallback',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'FileCode',
+    },
+    width: 240, height: 90, parentNode: 'grp_ai', extent: 'parent',
+  },
+  {
+    id: 'nd_score',
+    type: 'shapeNode',
+    position: { x: 320, y: 240 },
+    data: {
+      label: 'Score Stage', subtitle: 'scoreDiagram (0–100)',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'Gauge',
+    },
+    width: 200, height: 90, parentNode: 'grp_ai', extent: 'parent',
+  },
+  {
+    id: 'nd_aivalidate',
+    type: 'shapeNode',
+    position: { x: 560, y: 240 },
+    data: {
+      label: 'Validation Stage', subtitle: 'Semantic + mechanical checks',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'ShieldCheck',
+    },
+    width: 240, height: 90, parentNode: 'grp_ai', extent: 'parent',
   },
   {
     id: 'nd_keymgr',
     type: 'shapeNode',
-    position: { x: 60, y: 240 },
+    position: { x: 840, y: 240 },
     data: {
-      label: 'API Key Manager', subtitle: 'Multi-Key Rotation (10 Groq + 3 OpenRouter)',
-      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#ec4899',
+      label: 'API Key Manager', subtitle: 'Multi-key rotation + retry',
+      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
       category: 'Auth & Security', icon: 'Key',
     },
-    width: 260, height: 90, parentNode: 'grp_ai', extent: 'parent',
+    width: 240, height: 90, parentNode: 'grp_ai', extent: 'parent',
   },
   {
-    id: 'nd_cache',
+    id: 'nd_diagcache',
     type: 'shapeNode',
-    position: { x: 400, y: 240 },
+    position: { x: 1120, y: 240 },
     data: {
-      label: 'Diagram Cache', subtitle: 'LRU In-Memory (20 entries, 5m TTL)',
-      shape: 'cylinder', nodeWidth: 260, nodeHeight: 90,
+      label: 'Diagram Cache', subtitle: 'LRU in-memory (prompt hits)',
+      shape: 'cylinder', nodeWidth: 200, nodeHeight: 90,
       serviceType: 'database', typeId: 'database', color: '#1e293b',
       category: 'Caching', icon: 'Layers',
     },
-    width: 260, height: 90, parentNode: 'grp_ai', extent: 'parent',
-  },
-  {
-    id: 'nd_validator',
-    type: 'shapeNode',
-    position: { x: 740, y: 240 },
-    data: {
-      label: 'Response Validator', subtitle: 'JSON Parse + Score (0-100)',
-      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#ec4899',
-      category: 'Compute', icon: 'CheckCircle',
-    },
-    width: 260, height: 90, parentNode: 'grp_ai', extent: 'parent',
+    width: 200, height: 90, parentNode: 'grp_ai', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // GROUP: Mermaid Processing — 5-Stage Sync Pipeline
+  // GROUP: Mermaid Processing — deterministic RF conversion
   // ═══════════════════════════════════════════════════════════
   {
     id: 'grp_mermaid',
     type: 'groupNode',
-    position: { x: 1200, y: 0 },
-    data: { label: 'Mermaid Processing Pipeline', groupLabel: 'Mermaid Processing Pipeline', isGroup: true, color: '#14b8a6' },
+    position: { x: 1580, y: 0 },
+    data: { label: 'Mermaid Pipeline', groupLabel: 'Mermaid Pipeline', isGroup: true, color: '#0f766e' },
     style: { width: 360, height: 980 },
     zIndex: -1,
     width: 360,
@@ -165,197 +273,317 @@ export const archdrawNodes: Node[] = [
   {
     id: 'nd_parse',
     type: 'shapeNode',
-    position: { x: 60, y: 80 },
+    position: { x: 50, y: 60 },
     data: {
-      label: 'Mermaid Parser', subtitle: 'Stage 1 — Text to AST',
-      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#14b8a6',
+      label: 'ParseStage', subtitle: 'Mermaid text → AST',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
       category: 'Compute', icon: 'FileCode',
     },
-    width: 240, height: 90, parentNode: 'grp_mermaid', extent: 'parent',
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
   },
   {
-    id: 'nd_astval',
+    id: 'nd_validate',
     type: 'shapeNode',
-    position: { x: 60, y: 230 },
+    position: { x: 50, y: 190 },
     data: {
-      label: 'AST Validator', subtitle: 'Stage 2 — Schema Check',
-      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#14b8a6',
+      label: 'ValidateStage', subtitle: 'AST schema check',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
       category: 'Compute', icon: 'ShieldCheck',
     },
-    width: 240, height: 90, parentNode: 'grp_mermaid', extent: 'parent',
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
   },
   {
-    id: 'nd_rfbuild',
+    id: 'nd_build',
     type: 'shapeNode',
-    position: { x: 60, y: 380 },
+    position: { x: 50, y: 320 },
     data: {
-      label: 'ReactFlow Builder', subtitle: 'Stage 3 — Nodes & Edges',
-      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#14b8a6',
+      label: 'BuildStage', subtitle: 'AST → ReactFlow objects',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
       category: 'Compute', icon: 'Workflow',
     },
-    width: 240, height: 90, parentNode: 'grp_mermaid', extent: 'parent',
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
   },
   {
-    id: 'nd_nodeclf',
+    id: 'nd_layoutstage',
     type: 'shapeNode',
-    position: { x: 60, y: 530 },
+    position: { x: 50, y: 450 },
     data: {
-      label: 'Node Classifier', subtitle: 'Service Type + Category + Icon',
-      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#14b8a6',
-      category: 'Compute', icon: 'Tag',
+      label: 'LayoutStage', subtitle: 'applyRfLayout (shared)',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'Layout',
     },
-    width: 240, height: 90, parentNode: 'grp_mermaid', extent: 'parent',
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
   },
   {
-    id: 'nd_edgeclf',
+    id: 'nd_size',
     type: 'shapeNode',
-    position: { x: 60, y: 680 },
+    position: { x: 50, y: 580 },
     data: {
-      label: 'Edge Classifier', subtitle: 'Importance + Sync/Async + Protocol',
-      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#14b8a6',
-      category: 'Compute', icon: 'GitBranch',
-    },
-    width: 240, height: 90, parentNode: 'grp_mermaid', extent: 'parent',
-  },
-  {
-    id: 'nd_dagsize',
-    type: 'shapeNode',
-    position: { x: 60, y: 830 },
-    data: {
-      label: 'Subgraph Sizing', subtitle: 'Stage 5 — Container Dimensions',
-      shape: 'rounded-rectangle', nodeWidth: 240, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#14b8a6',
+      label: 'SizeStage', subtitle: 'Subgraph container bounds',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
       category: 'Compute', icon: 'Maximize2',
     },
-    width: 240, height: 90, parentNode: 'grp_mermaid', extent: 'parent',
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
+  },
+  {
+    id: 'nd_finalval',
+    type: 'shapeNode',
+    position: { x: 50, y: 710 },
+    data: {
+      label: 'FinalValidation', subtitle: 'Output integrity warnings',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'CheckCircle',
+    },
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
+  },
+  {
+    id: 'nd_relayout',
+    type: 'shapeNode',
+    position: { x: 50, y: 840 },
+    data: {
+      label: 'Relayout Helper', subtitle: 'Canvas LR/TD toggles',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#0f766e',
+      category: 'Compute', icon: 'RefreshCw',
+    },
+    width: 260, height: 80, parentNode: 'grp_mermaid', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // GROUP: Layout Engine — Dagre + ELK
+  // GROUP: pipeline-shared — canonical layout + adapters
   // ═══════════════════════════════════════════════════════════
   {
-    id: 'grp_layout',
+    id: 'grp_shared',
     type: 'groupNode',
-    position: { x: 1680, y: 0 },
-    data: { label: 'Layout Engine', groupLabel: 'Layout Engine', isGroup: true, color: '#8b5cf6' },
-    style: { width: 360, height: 440 },
+    position: { x: 2040, y: 0 },
+    data: { label: 'pipeline-shared', groupLabel: 'pipeline-shared', isGroup: true, color: '#475569' },
+    style: { width: 360, height: 520 },
     zIndex: -1,
     width: 360,
-    height: 440,
+    height: 520,
+  },
+  {
+    id: 'nd_applyrf',
+    type: 'shapeNode',
+    position: { x: 50, y: 60 },
+    data: {
+      label: 'applyRfLayout', subtitle: 'Canonical layout entry point',
+      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
+      serviceType: 'service', typeId: 'service', color: '#475569',
+      category: 'Compute', icon: 'Layout',
+    },
+    width: 260, height: 90, parentNode: 'grp_shared', extent: 'parent',
   },
   {
     id: 'nd_dagre',
     type: 'shapeNode',
-    position: { x: 60, y: 80 },
+    position: { x: 50, y: 200 },
     data: {
-      label: 'Dagre Layout', subtitle: 'Primary — Compound Graph, 20px Grid Snap',
+      label: 'DagreLayoutEngine', subtitle: 'Compound graph + cycle guard',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#8b5cf6',
-      category: 'Compute', icon: 'Layout',
+      serviceType: 'service', typeId: 'service', color: '#475569',
+      category: 'Compute', icon: 'GitMerge',
     },
-    width: 260, height: 90, parentNode: 'grp_layout', extent: 'parent',
+    width: 260, height: 90, parentNode: 'grp_shared', extent: 'parent',
   },
   {
     id: 'nd_elk',
     type: 'shapeNode',
-    position: { x: 60, y: 230 },
+    position: { x: 50, y: 340 },
     data: {
-      label: 'ELK Layout', subtitle: 'Alternate — Eclipse Layout Kernel',
+      label: 'Elk / Integrated', subtitle: 'Optional ELK + canvas presets',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#8b5cf6',
+      serviceType: 'service', typeId: 'service', color: '#475569',
       category: 'Compute', icon: 'LayoutTemplate',
     },
-    width: 260, height: 90, parentNode: 'grp_layout', extent: 'parent',
-  },
-  {
-    id: 'nd_colldetect',
-    type: 'shapeNode',
-    position: { x: 60, y: 380 },
-    data: {
-      label: 'Collision Detection', subtitle: 'Node Overlap Resolution',
-      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#8b5cf6',
-      category: 'Compute', icon: 'ShieldAlert',
-    },
-    width: 260, height: 90, parentNode: 'grp_layout', extent: 'parent',
+    width: 260, height: 90, parentNode: 'grp_shared', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // GROUP: Edge Routing — Obstacle-Aware Connection Paths
+  // GROUP: Repo Diagram Pipeline — GitHub → architecture
   // ═══════════════════════════════════════════════════════════
   {
-    id: 'grp_edge',
+    id: 'grp_repo',
     type: 'groupNode',
-    position: { x: 1680, y: 520 },
-    data: { label: 'Edge Routing', groupLabel: 'Edge Routing', isGroup: true, color: '#f59e0b' },
-    style: { width: 360, height: 460 },
+    position: { x: 2040, y: 600 },
+    data: { label: 'Repo Diagram Pipeline', groupLabel: 'Repo Diagram Pipeline', isGroup: true, color: '#b45309' },
+    style: { width: 720, height: 680 },
     zIndex: -1,
-    width: 360,
-    height: 460,
+    width: 720,
+    height: 680,
   },
   {
-    id: 'nd_handlescorer',
+    id: 'nd_ingest',
     type: 'shapeNode',
-    position: { x: 60, y: 60 },
+    position: { x: 40, y: 50 },
     data: {
-      label: 'Handle Pair Scorer', subtitle: 'Optimal Source/Target Selection',
-      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#f59e0b',
-      category: 'Compute', icon: 'Crosshair',
+      label: 'Ingest', subtitle: 'GitHub tarball → snapshot',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'Compute', icon: 'Download',
     },
-    width: 260, height: 90, parentNode: 'grp_edge', extent: 'parent',
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
   },
   {
-    id: 'nd_routebuilder',
+    id: 'nd_cachecheck',
     type: 'shapeNode',
-    position: { x: 60, y: 210 },
+    position: { x: 280, y: 50 },
     data: {
-      label: 'Edge Route Builder', subtitle: 'Waypoint + SmoothStep SVG Generation',
-      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#f59e0b',
-      category: 'Compute', icon: 'Route',
+      label: 'Cache Check', subtitle: 'Terminal early-exit on hit',
+      shape: 'diamond', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'compute', typeId: 'microservice', color: '#b45309',
+      category: 'Caching', icon: 'Zap',
     },
-    width: 260, height: 90, parentNode: 'grp_edge', extent: 'parent',
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
   },
   {
-    id: 'nd_colfreepath',
+    id: 'nd_analysis',
     type: 'shapeNode',
-    position: { x: 60, y: 360 },
+    position: { x: 520, y: 50 },
     data: {
-      label: 'Collision-Free Path', subtitle: 'A* Grid Search + Cohen-Sutherland',
-      shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 90,
-      serviceType: 'service', typeId: 'service', color: '#f59e0b',
-      category: 'Compute', icon: 'Waypoints',
+      label: 'Analysis', subtitle: 'Static signals + import graph',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'Compute', icon: 'Search',
     },
-    width: 260, height: 90, parentNode: 'grp_edge', extent: 'parent',
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_baseline',
+    type: 'shapeNode',
+    position: { x: 40, y: 180 },
+    data: {
+      label: 'Baseline', subtitle: 'Heuristic graph seed',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'Compute', icon: 'Layers',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_classify',
+    type: 'shapeNode',
+    position: { x: 280, y: 180 },
+    data: {
+      label: 'Classify', subtitle: 'Repo profile + pass-2 files',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'AI / ML', icon: 'Tag',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_extract',
+    type: 'shapeNode',
+    position: { x: 520, y: 180 },
+    data: {
+      label: 'Extract', subtitle: 'LLM / heuristic components',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'AI / ML', icon: 'Boxes',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_relationships',
+    type: 'shapeNode',
+    position: { x: 40, y: 310 },
+    data: {
+      label: 'Relationships', subtitle: 'Edges + workflows',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'AI / ML', icon: 'GitBranch',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_verify',
+    type: 'shapeNode',
+    position: { x: 280, y: 310 },
+    data: {
+      label: 'Verify', subtitle: 'Verifier + prune',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'Compute', icon: 'ShieldCheck',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_finalize',
+    type: 'shapeNode',
+    position: { x: 520, y: 310 },
+    data: {
+      label: 'Finalization', subtitle: 'Sanitize + compile RF',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'Compute', icon: 'Package',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_cachewrite',
+    type: 'shapeNode',
+    position: { x: 280, y: 440 },
+    data: {
+      label: 'Cache Write', subtitle: 'Optional Redis persist',
+      shape: 'cylinder', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'database', typeId: 'database', color: '#1e293b',
+      category: 'Caching', icon: 'HardDrive',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_github',
+    type: 'shapeNode',
+    position: { x: 40, y: 560 },
+    data: {
+      label: 'GitHub API', subtitle: 'Tarball + contents',
+      shape: 'hexagon', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'external', typeId: 'external_api', color: '#6b7280',
+      category: 'Client & Entry', icon: 'Github',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
+  },
+  {
+    id: 'nd_repolayout',
+    type: 'shapeNode',
+    position: { x: 280, y: 560 },
+    data: {
+      label: 'Compile → Layout', subtitle: 'Shared applyRfLayout',
+      shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 80,
+      serviceType: 'service', typeId: 'service', color: '#b45309',
+      category: 'Compute', icon: 'Layout',
+    },
+    width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // GROUP: Canvas Rendering — Custom React Flow Components
+  // GROUP: Canvas Rendering
   // ═══════════════════════════════════════════════════════════
   {
     id: 'grp_render',
     type: 'groupNode',
-    position: { x: 2160, y: 0 },
-    data: { label: 'Canvas Rendering', groupLabel: 'Canvas Rendering', isGroup: true, color: '#06b6d4' },
-    style: { width: 360, height: 440 },
+    position: { x: 2860, y: 0 },
+    data: { label: 'Canvas Rendering', groupLabel: 'Canvas Rendering', isGroup: true, color: '#64748b' },
+    style: { width: 360, height: 420 },
     zIndex: -1,
     width: 360,
-    height: 440,
+    height: 420,
   },
   {
     id: 'nd_sysnode',
     type: 'shapeNode',
-    position: { x: 60, y: 60 },
+    position: { x: 50, y: 60 },
     data: {
-      label: 'SystemNode', subtitle: 'Service / Compute Components',
+      label: 'SystemNode', subtitle: 'Service / compute components',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
-      serviceType: 'service', typeId: 'service', color: '#06b6d4',
+      serviceType: 'service', typeId: 'service', color: '#64748b',
       category: 'Client & Entry', icon: 'Box',
     },
     width: 260, height: 80, parentNode: 'grp_render', extent: 'parent',
@@ -363,11 +591,11 @@ export const archdrawNodes: Node[] = [
   {
     id: 'nd_shapenode',
     type: 'shapeNode',
-    position: { x: 60, y: 190 },
+    position: { x: 50, y: 180 },
     data: {
-      label: 'ShapeNode', subtitle: 'Cylinder, Diamond, Hexagon',
+      label: 'ShapeNode', subtitle: 'Cylinder, diamond, hexagon',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
-      serviceType: 'service', typeId: 'service', color: '#06b6d4',
+      serviceType: 'service', typeId: 'service', color: '#64748b',
       category: 'Client & Entry', icon: 'Shapes',
     },
     width: 260, height: 80, parentNode: 'grp_render', extent: 'parent',
@@ -375,37 +603,37 @@ export const archdrawNodes: Node[] = [
   {
     id: 'nd_floatedge',
     type: 'shapeNode',
-    position: { x: 60, y: 320 },
+    position: { x: 50, y: 300 },
     data: {
-      label: 'SimpleFloatingEdge', subtitle: 'Custom Edge with Dynamic Handles',
+      label: 'SimpleFloatingEdge', subtitle: 'Dynamic handles + routes',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
-      serviceType: 'service', typeId: 'service', color: '#06b6d4',
+      serviceType: 'service', typeId: 'service', color: '#64748b',
       category: 'Client & Entry', icon: 'Spline',
     },
     width: 260, height: 80, parentNode: 'grp_render', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // GROUP: Supabase Backend — Database, Auth & Realtime
+  // GROUP: Supabase Backend
   // ═══════════════════════════════════════════════════════════
   {
     id: 'grp_backend',
     type: 'groupNode',
-    position: { x: 2160, y: 520 },
-    data: { label: 'Supabase Backend', groupLabel: 'Supabase Backend', isGroup: true, color: '#10b981' },
-    style: { width: 360, height: 460 },
+    position: { x: 2860, y: 500 },
+    data: { label: 'Supabase Backend', groupLabel: 'Supabase Backend', isGroup: true, color: '#475569' },
+    style: { width: 360, height: 420 },
     zIndex: -1,
     width: 360,
-    height: 460,
+    height: 420,
   },
   {
     id: 'nd_auth',
     type: 'shapeNode',
-    position: { x: 60, y: 60 },
+    position: { x: 50, y: 60 },
     data: {
-      label: 'Authentication', subtitle: 'OAuth + Row Level Security',
+      label: 'Authentication', subtitle: 'OAuth + RLS',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
-      serviceType: 'auth', typeId: 'auth_service', color: '#10b981',
+      serviceType: 'auth', typeId: 'auth_service', color: '#475569',
       category: 'Auth & Security', icon: 'Shield',
     },
     width: 260, height: 80, parentNode: 'grp_backend', extent: 'parent',
@@ -413,9 +641,9 @@ export const archdrawNodes: Node[] = [
   {
     id: 'nd_db',
     type: 'shapeNode',
-    position: { x: 60, y: 190 },
+    position: { x: 50, y: 180 },
     data: {
-      label: 'PostgreSQL Database', subtitle: 'Diagrams, Profiles, Versions, Activity Log',
+      label: 'PostgreSQL', subtitle: 'Diagrams · profiles · versions',
       shape: 'cylinder', nodeWidth: 260, nodeHeight: 80,
       serviceType: 'database', typeId: 'database', color: '#1e293b',
       category: 'Data Storage', icon: 'Database',
@@ -425,59 +653,57 @@ export const archdrawNodes: Node[] = [
   {
     id: 'nd_realtime',
     type: 'shapeNode',
-    position: { x: 60, y: 320 },
+    position: { x: 50, y: 300 },
     data: {
-      label: 'Realtime Sync', subtitle: 'Live Collaboration + Shared Canvases',
+      label: 'Realtime Sync', subtitle: 'Collaboration + presence',
       shape: 'rounded-rectangle', nodeWidth: 260, nodeHeight: 80,
-      serviceType: 'service', typeId: 'service', color: '#10b981',
+      serviceType: 'service', typeId: 'service', color: '#475569',
       category: 'Messaging & Events', icon: 'Radio',
     },
     width: 260, height: 80, parentNode: 'grp_backend', extent: 'parent',
   },
 
   // ═══════════════════════════════════════════════════════════
-  // EXTERNAL: AI Providers — LLM API Endpoints
+  // GROUP: External AI Providers
   // ═══════════════════════════════════════════════════════════
   {
     id: 'grp_providers',
     type: 'groupNode',
-    position: { x: 1200, y: 1060 },
-    data: { label: 'External AI Providers', groupLabel: 'External AI Providers', isGroup: true, color: '#f97316' },
-    style: { width: 800, height: 220 },
+    position: { x: 0, y: 1360 },
+    data: { label: 'External AI Providers', groupLabel: 'External AI Providers', isGroup: true, color: '#6b7280' },
+    style: { width: 800, height: 200 },
     zIndex: -1,
     width: 800,
-    height: 220,
+    height: 200,
   },
   {
     id: 'nd_groq',
     type: 'shapeNode',
-    position: { x: 60, y: 60 },
+    position: { x: 60, y: 55 },
     data: {
-      label: 'Groq', subtitle: 'Primary — Llama 3.3 70B / Llama 4 Scout / Mixtral',
-      shape: 'hexagon', nodeWidth: 320, nodeHeight: 90,
-      serviceType: 'external', typeId: 'llm_api', color: '#f97316',
+      label: 'Groq', subtitle: 'Primary — gpt-oss / Llama 3.3',
+      shape: 'hexagon', nodeWidth: 300, nodeHeight: 90,
+      serviceType: 'external', typeId: 'llm_api', color: '#6b7280',
       category: 'AI / ML', icon: 'Brain',
     },
-    width: 320, height: 90, parentNode: 'grp_providers', extent: 'parent',
+    width: 300, height: 90, parentNode: 'grp_providers', extent: 'parent',
   },
   {
     id: 'nd_openrouter',
     type: 'shapeNode',
-    position: { x: 440, y: 60 },
+    position: { x: 420, y: 55 },
     data: {
-      label: 'OpenRouter', subtitle: 'Fallback — Claude 3.5 Sonnet / GPT Models',
-      shape: 'hexagon', nodeWidth: 320, nodeHeight: 90,
-      serviceType: 'external', typeId: 'llm_api', color: '#f97316',
+      label: 'OpenRouter', subtitle: 'Fallback — Claude / GPT',
+      shape: 'hexagon', nodeWidth: 300, nodeHeight: 90,
+      serviceType: 'external', typeId: 'llm_api', color: '#6b7280',
       category: 'AI / ML', icon: 'Brain',
     },
-    width: 320, height: 90, parentNode: 'grp_providers', extent: 'parent',
+    width: 300, height: 90, parentNode: 'grp_providers', extent: 'parent',
   },
 ];
 
 export const archdrawEdges: Edge[] = [
-  // ───────────────────────────────────────────────────────────
-  // Client Tier internal flow
-  // ───────────────────────────────────────────────────────────
+  // Client internal
   {
     id: 'e_webui_canvas', source: 'nd_webui', target: 'nd_canvas',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
@@ -496,16 +722,6 @@ export const archdrawEdges: Edge[] = [
     label: 'live preview sync',
     data: { label: 'live preview sync', connectionType: 'sync', edgeVariant: 'solid' },
   },
-
-  // ───────────────────────────────────────────────────────────
-  // Client Tier → AI Pipeline (user triggers generation)
-  // ───────────────────────────────────────────────────────────
-  {
-    id: 'e_webui_prompt', source: 'nd_webui', target: 'nd_prompt',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'user prompt',
-    data: { label: 'user prompt', connectionType: 'sync', edgeVariant: 'solid' },
-  },
   {
     id: 'e_editor_store', source: 'nd_editor', target: 'nd_store',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
@@ -513,20 +729,100 @@ export const archdrawEdges: Edge[] = [
     data: { label: 'mermaid code sync', connectionType: 'sync', edgeVariant: 'solid' },
   },
 
-  // ───────────────────────────────────────────────────────────
-  // AI Pipeline internal flow
-  // ───────────────────────────────────────────────────────────
+  // Client → AI / Mermaid / Repo entry points
   {
-    id: 'e_prompt_concepts', source: 'nd_prompt', target: 'nd_concepts',
+    id: 'e_webui_orchestrator', source: 'nd_webui', target: 'nd_orchestrator',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'classify intent',
-    data: { label: 'classify intent', connectionType: 'sync', edgeVariant: 'solid' },
+    label: 'prompt generate',
+    data: { label: 'prompt generate', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_editor_parse', source: 'nd_editor', target: 'nd_parse',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'runMermaidPipeline',
+    data: { label: 'runMermaidPipeline', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_webui_ingest', source: 'nd_webui', target: 'nd_ingest',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'repo URL',
+    data: { label: 'repo URL', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+
+  // Client → pipeline-core (all domain pipelines execute here)
+  {
+    id: 'e_orchestrator_pipeline', source: 'nd_orchestrator', target: 'nd_pipeline',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'Pipeline.execute',
+    data: { label: 'Pipeline.execute', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_parse_pipeline', source: 'nd_parse', target: 'nd_pipeline',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'Pipeline.execute',
+    data: { label: 'Pipeline.execute', connectionType: 'sync', edgeVariant: 'dashed' },
+  },
+  {
+    id: 'e_ingest_pipeline', source: 'nd_ingest', target: 'nd_pipeline',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'Pipeline.execute',
+    data: { label: 'Pipeline.execute', connectionType: 'sync', edgeVariant: 'dashed' },
+  },
+  {
+    id: 'e_pipeline_context', source: 'nd_pipeline', target: 'nd_context',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'abort · progress',
+    data: { label: 'abort · progress', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_pipeline_domain', source: 'nd_pipeline', target: 'nd_domain',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'toDomainResult',
+    data: { label: 'toDomainResult', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_pipeline_metrics', source: 'nd_pipeline', target: 'nd_metrics',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'stage timings',
+    data: { label: 'stage timings', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+
+  // AI Mermaid flat stages
+  {
+    id: 'e_orch_concepts', source: 'nd_orchestrator', target: 'nd_concepts',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'user intent',
+    data: { label: 'user intent', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
     id: 'e_concepts_planner', source: 'nd_concepts', target: 'nd_planner',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'no template match → LLM',
-    data: { label: 'no template match → LLM', connectionType: 'sync', edgeVariant: 'solid' },
+    label: 'no template → LLM',
+    data: { label: 'no template → LLM', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_planner_override', source: 'nd_planner', target: 'nd_layoutoverride',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'architecture plan',
+    data: { label: 'architecture plan', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_override_materialize', source: 'nd_layoutoverride', target: 'nd_materialize',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'mermaid code',
+    data: { label: 'mermaid code', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_materialize_score', source: 'nd_materialize', target: 'nd_score',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'RF nodes/edges',
+    data: { label: 'RF nodes/edges', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_score_validate', source: 'nd_score', target: 'nd_aivalidate',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'diagram score',
+    data: { label: 'diagram score', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
     id: 'e_planner_keymgr', source: 'nd_planner', target: 'nd_keymgr',
@@ -535,129 +831,91 @@ export const archdrawEdges: Edge[] = [
     data: { label: 'API key rotation', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
-    id: 'e_planner_validator', source: 'nd_planner', target: 'nd_validator',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'raw LLM response',
-    data: { label: 'raw LLM response', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-  {
-    id: 'e_validator_cache', source: 'nd_validator', target: 'nd_cache',
+    id: 'e_validate_cache', source: 'nd_aivalidate', target: 'nd_diagcache',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
     label: 'cache result',
     data: { label: 'cache result', connectionType: 'sync', edgeVariant: 'solid' },
   },
 
-  // ───────────────────────────────────────────────────────────
-  // AI Pipeline → Mermaid Processing (mermaid code handoff)
-  // ───────────────────────────────────────────────────────────
+  // Materialize uses mermaid pipeline
   {
-    id: 'e_planner_parse', source: 'nd_planner', target: 'nd_parse',
+    id: 'e_materialize_parse', source: 'nd_materialize', target: 'nd_parse',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'mermaid code',
-    data: { label: 'mermaid code', connectionType: 'sync', edgeVariant: 'solid' },
+    label: 'runMermaidPipeline',
+    data: { label: 'runMermaidPipeline', connectionType: 'sync', edgeVariant: 'solid' },
   },
 
-  // ───────────────────────────────────────────────────────────
-  // Mermaid Processing Pipeline (sequential 5-stage)
-  // ───────────────────────────────────────────────────────────
+  // Mermaid sequential stages
   {
-    id: 'e_parse_astval', source: 'nd_parse', target: 'nd_astval',
+    id: 'e_parse_validate', source: 'nd_parse', target: 'nd_validate',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'AST output',
-    data: { label: 'AST output', connectionType: 'sync', edgeVariant: 'solid' },
+    label: 'AST',
+    data: { label: 'AST', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
-    id: 'e_astval_rfbuild', source: 'nd_astval', target: 'nd_rfbuild',
+    id: 'e_validate_build', source: 'nd_validate', target: 'nd_build',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
     label: 'validated AST',
     data: { label: 'validated AST', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
-    id: 'e_rfbuild_nodeclf', source: 'nd_rfbuild', target: 'nd_nodeclf',
+    id: 'e_build_layout', source: 'nd_build', target: 'nd_layoutstage',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'unpositioned nodes',
-    data: { label: 'unpositioned nodes', connectionType: 'sync', edgeVariant: 'solid' },
+    label: 'RF objects',
+    data: { label: 'RF objects', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
-    id: 'e_nodeclf_edgeclf', source: 'nd_nodeclf', target: 'nd_edgeclf',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'classified nodes',
-    data: { label: 'classified nodes', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-
-  // ───────────────────────────────────────────────────────────
-  // Mermaid Processing → Layout Engine (positioned nodes)
-  // ───────────────────────────────────────────────────────────
-  {
-    id: 'e_rfbuild_dagre', source: 'nd_rfbuild', target: 'nd_dagre',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'dagre layout (primary)',
-    data: { label: 'dagre layout (primary)', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-  {
-    id: 'e_rfbuild_elk', source: 'nd_rfbuild', target: 'nd_elk',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'ELK layout (alternate)',
-    data: { label: 'ELK layout (alternate)', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-  {
-    id: 'e_dagre_colldetect', source: 'nd_dagre', target: 'nd_colldetect',
+    id: 'e_layout_size', source: 'nd_layoutstage', target: 'nd_size',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
     label: 'positioned nodes',
     data: { label: 'positioned nodes', connectionType: 'sync', edgeVariant: 'solid' },
   },
   {
-    id: 'e_elk_colldetect', source: 'nd_elk', target: 'nd_colldetect',
+    id: 'e_size_final', source: 'nd_size', target: 'nd_finalval',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'sized graph',
+    data: { label: 'sized graph', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_final_relayout', source: 'nd_finalval', target: 'nd_relayout',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'DomainResult',
+    data: { label: 'DomainResult', connectionType: 'sync', edgeVariant: 'dashed' },
+  },
+
+  // Mermaid LayoutStage → shared layout
+  {
+    id: 'e_layoutstage_applyrf', source: 'nd_layoutstage', target: 'nd_applyrf',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'canonical layout',
+    data: { label: 'canonical layout', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_applyrf_dagre', source: 'nd_applyrf', target: 'nd_dagre',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'primary engine',
+    data: { label: 'primary engine', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_applyrf_elk', source: 'nd_applyrf', target: 'nd_elk',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'optional / presets',
+    data: { label: 'optional / presets', connectionType: 'sync', edgeVariant: 'dashed' },
+  },
+
+  // Shared layout → canvas rendering
+  {
+    id: 'e_dagre_sysnode', source: 'nd_dagre', target: 'nd_sysnode',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
     label: 'positioned nodes',
     data: { label: 'positioned nodes', connectionType: 'sync', edgeVariant: 'solid' },
   },
-
-  // ───────────────────────────────────────────────────────────
-  // Layout Engine → Edge Routing (positioned + collision-free)
-  // ───────────────────────────────────────────────────────────
   {
-    id: 'e_colldetect_handlescorer', source: 'nd_colldetect', target: 'nd_handlescorer',
+    id: 'e_dagre_floatedge', source: 'nd_dagre', target: 'nd_floatedge',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'resolved positions',
-    data: { label: 'resolved positions', connectionType: 'sync', edgeVariant: 'solid' },
+    label: 'routed edges',
+    data: { label: 'routed edges', connectionType: 'sync', edgeVariant: 'solid' },
   },
-
-  // ───────────────────────────────────────────────────────────
-  // Edge Routing internal flow
-  // ───────────────────────────────────────────────────────────
-  {
-    id: 'e_handlescorer_routebuilder', source: 'nd_handlescorer', target: 'nd_routebuilder',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'optimal handle pairs',
-    data: { label: 'optimal handle pairs', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-  {
-    id: 'e_routebuilder_colfreepath', source: 'nd_routebuilder', target: 'nd_colfreepath',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'candidate waypoints',
-    data: { label: 'candidate waypoints', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-
-  // ───────────────────────────────────────────────────────────
-  // Edge Routing → Canvas Rendering (SVG paths + positioned nodes)
-  // ───────────────────────────────────────────────────────────
-  {
-    id: 'e_colfreepath_floatedge', source: 'nd_colfreepath', target: 'nd_floatedge',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'collision-free SVG',
-    data: { label: 'collision-free SVG', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-  {
-    id: 'e_colldetect_sysnode', source: 'nd_colldetect', target: 'nd_sysnode',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'positioned nodes',
-    data: { label: 'positioned nodes', connectionType: 'sync', edgeVariant: 'solid' },
-  },
-
-  // ───────────────────────────────────────────────────────────
-  // Canvas Rendering → Client Store (rendered diagram state)
-  // ───────────────────────────────────────────────────────────
   {
     id: 'e_sysnode_canvas', source: 'nd_sysnode', target: 'nd_canvas',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
@@ -670,10 +928,94 @@ export const archdrawEdges: Edge[] = [
     label: 'rendered edges',
     data: { label: 'rendered edges', connectionType: 'sync', edgeVariant: 'solid' },
   },
+  {
+    id: 'e_finalval_store', source: 'nd_finalval', target: 'nd_store',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'diagram data',
+    data: { label: 'diagram data', connectionType: 'sync', edgeVariant: 'solid' },
+  },
 
-  // ───────────────────────────────────────────────────────────
-  // Client → Supabase Backend (persistence + auth + realtime)
-  // ───────────────────────────────────────────────────────────
+  // Repo pipeline flat stages
+  {
+    id: 'e_ingest_github', source: 'nd_ingest', target: 'nd_github',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'fetch tarball',
+    data: { label: 'fetch tarball', connectionType: 'async', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_ingest_cache', source: 'nd_ingest', target: 'nd_cachecheck',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'snapshot',
+    data: { label: 'snapshot', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_cache_analysis', source: 'nd_cachecheck', target: 'nd_analysis',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'cache miss',
+    data: { label: 'cache miss', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_analysis_baseline', source: 'nd_analysis', target: 'nd_baseline',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'signals',
+    data: { label: 'signals', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_baseline_classify', source: 'nd_baseline', target: 'nd_classify',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'seed graph',
+    data: { label: 'seed graph', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_classify_extract', source: 'nd_classify', target: 'nd_extract',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'repo profile',
+    data: { label: 'repo profile', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_extract_rel', source: 'nd_extract', target: 'nd_relationships',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'components',
+    data: { label: 'components', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_rel_verify', source: 'nd_relationships', target: 'nd_verify',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'edges + workflows',
+    data: { label: 'edges + workflows', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_verify_finalize', source: 'nd_verify', target: 'nd_finalize',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'verified graph',
+    data: { label: 'verified graph', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_finalize_cachewrite', source: 'nd_finalize', target: 'nd_cachewrite',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'compiled result',
+    data: { label: 'compiled result', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_finalize_repolayout', source: 'nd_finalize', target: 'nd_repolayout',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'RF objects',
+    data: { label: 'RF objects', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_repolayout_applyrf', source: 'nd_repolayout', target: 'nd_applyrf',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'shared layout',
+    data: { label: 'shared layout', connectionType: 'sync', edgeVariant: 'solid' },
+  },
+  {
+    id: 'e_classify_keymgr', source: 'nd_classify', target: 'nd_keymgr',
+    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
+    label: 'LLM enrichment',
+    data: { label: 'LLM enrichment', connectionType: 'async', edgeVariant: 'dashed' },
+  },
+
+  // Persistence
   {
     id: 'e_store_auth', source: 'nd_store', target: 'nd_auth',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
@@ -693,9 +1035,7 @@ export const archdrawEdges: Edge[] = [
     data: { label: 'realtime presence', connectionType: 'stream', edgeVariant: 'solid' },
   },
 
-  // ───────────────────────────────────────────────────────────
-  // AI Pipeline → External Providers (LLM API calls)
-  // ───────────────────────────────────────────────────────────
+  // LLM providers
   {
     id: 'e_keymgr_groq', source: 'nd_keymgr', target: 'nd_groq',
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
@@ -707,15 +1047,5 @@ export const archdrawEdges: Edge[] = [
     sourceHandle: null, targetHandle: null, type: 'simpleFloating',
     label: 'fallback on 429',
     data: { label: 'fallback on 429', connectionType: 'async', edgeVariant: 'dashed' },
-  },
-
-  // ───────────────────────────────────────────────────────────
-  // Mermaid Processing → Store (diagram data return path)
-  // ───────────────────────────────────────────────────────────
-  {
-    id: 'e_dagsize_store', source: 'nd_dagsize', target: 'nd_store',
-    sourceHandle: null, targetHandle: null, type: 'simpleFloating',
-    label: 'sized diagram data',
-    data: { label: 'sized diagram data', connectionType: 'sync', edgeVariant: 'solid' },
   },
 ];

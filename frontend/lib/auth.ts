@@ -1,8 +1,17 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { prisma } from '@/lib/prisma';
-import { validateGoogleOAuthConfig, validateGitHubOAuthConfig } from '@/lib/env-validation';
+import { validateGoogleOAuthConfig, validateGitHubOAuthConfig, validateAuthConfig } from '@/lib/env-validation';
 import logger from '@/lib/logger';
+
+// Validate critical auth configuration for production (only throws in production)
+try {
+  validateAuthConfig();
+} catch (err) {
+  if (process.env.NODE_ENV === 'production') {
+    throw err;
+  }
+}
 
 // Validate OAuth configurations
 const googleOAuth = validateGoogleOAuthConfig();
@@ -31,7 +40,7 @@ if (githubOAuth) {
 
 const baseURL = process.env.BETTER_AUTH_URL
   || process.env.NEXT_PUBLIC_APP_URL
-  || (process.env.NODE_ENV === 'production' ? 'https://archdraw.hiabhee.online' : 'http://localhost:3000');
+  || 'http://localhost:3000';
 
 // Build trusted origins list - include both production and development
 const trustedOrigins = new Set<string>([

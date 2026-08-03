@@ -1,0 +1,31 @@
+{
+  "repo": "https://github.com/langchain-ai/langchain",
+  "classification": {
+    "repoType": "library",
+    "framework": "LangChain",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "langchain_core",
+      "label": "LangChain",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "langchain",
+        "langchain library",
+        "langchain core"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "LLM application library with many optional integration packages. The core repo should classify as library and not fabricate a live database service, even though vectorstore integrations are referenced."
+}

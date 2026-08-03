@@ -22,8 +22,7 @@ import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
-import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { relayoutCanvasViaMermaid } from '@/lib/mermaid/relayout';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
 import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
 
@@ -1159,46 +1158,23 @@ function LayoutToggleButton() {
   const nextLabel = isVertical ? 'Left → Right' : 'Top → Bottom';
   const nextDirection = isVertical ? 'LR' : 'TD';
 
-  const handleToggle = () => {
+  const handleToggle = async () => {
     const store = useDiagramStore.getState();
     const { nodes, edges } = store;
-    const nextMermaid = reactFlowToMermaid(nodes, edges, nextDirection);
-    const result = runMermaidPipeline(nextMermaid);
-    if (!result.success) {
-      toast.error(`Layout toggle failed: ${result.warnings.join('; ')}`);
-      return;
-    }
-    
-    // Preserve original node data (type, accentColor, serviceType, etc.) while using new positions
-    const originalNodeMap = new Map(nodes.map(n => [n.id, n]));
-    const preservedNodes = result.nodes.map(newNode => {
-      const originalNode = originalNodeMap.get(newNode.id);
-      if (originalNode) {
-        // Merge: use original type and data, but take new position/size from layout
-        return {
-          ...newNode,
-          type: originalNode.type,
-          // Preserve parent-child relationships for nested groups
-          parentNode: originalNode.parentNode,
-          parentId: originalNode.data?.parentId || (originalNode as { parentId?: string }).parentId,
-          extent: originalNode.extent,
-          data: {
-            ...originalNode.data,
-            // Keep layout-relevant new data
-            shape: newNode.data?.shape || originalNode.data?.shape,
-            nodeWidth: newNode.data?.nodeWidth || originalNode.data?.nodeWidth,
-            nodeHeight: newNode.data?.nodeHeight || originalNode.data?.nodeHeight,
-          },
-          // Preserve original width/height if available
-          width: originalNode.width || newNode.width,
-          height: originalNode.height || newNode.height,
-        };
+
+    try {
+      const { nodes: layoutedNodes, edges: layoutedEdges, success, warnings } =
+        await relayoutCanvasViaMermaid(nodes, edges, nextDirection);
+      if (!success) {
+        toast.error(`Layout toggle failed: ${warnings.join('; ') || 'unknown error'}`);
+        return;
       }
-      return newNode;
-    });
-    
-    store.importDiagram(preservedNodes, result.edges);
-    store.setActiveLayoutPresetId(nextDirection === 'LR' ? 'layered-lr' : 'layered-tb');
+
+      store.importDiagram(layoutedNodes, layoutedEdges);
+      store.setActiveLayoutPresetId(nextDirection === 'LR' ? 'layered-lr' : 'layered-tb');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Layout toggle failed');
+    }
   };
 
   return (

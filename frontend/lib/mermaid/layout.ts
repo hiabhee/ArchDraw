@@ -6,5 +6,8 @@ import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
 import type { RFObjects, Direction } from './types';
 
 export function applyLayout(objects: RFObjects, direction: Direction): RFObjects {
-  return applyRfLayout(objects, direction) as RFObjects;
+  return applyRfLayout(
+    objects as unknown as Parameters<typeof applyRfLayout>[0],
+    direction
+  ) as unknown as RFObjects;
 }

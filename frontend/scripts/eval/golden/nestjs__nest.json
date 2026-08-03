@@ -1,0 +1,34 @@
+{
+  "repo": "https://github.com/nestjs/nest",
+  "classification": {
+    "repoType": "framework",
+    "framework": "NestJS",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "nestjs_core",
+      "label": "NestJS",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "nestjs",
+        "nest",
+        "nestjs framework"
+      ],
+      "sourceFiles": [
+        "packages/core/lib/nest-application.ts"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Framework repo. Detection of @Controller decorators is fine but should not invent a deployed service with a database."
+}

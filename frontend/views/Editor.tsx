@@ -35,6 +35,7 @@ import {
 } from '@/lib/ai/generationService';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
+import { relayoutCanvasViaMermaid } from '@/lib/mermaid/relayout';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
 import { getUserTier } from '@/lib/userQuotas';
 
@@ -61,7 +62,7 @@ function generateCanvasName(prompt: string): string {
 
 export default function EditorPage() {
   const { 
-    selectedNodeId, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen, 
+    selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen, 
     importDiagram, importSequenceDiagram, fitView, renameCanvas, 
     activeCanvasId, sequenceDiagrams, canvases,
     startGeneration, markPipelineDone, markPipelineError
@@ -198,7 +199,7 @@ export default function EditorPage() {
       window.removeEventListener('close-canvas-sidebar', closeHandler);
       window.removeEventListener('toggle-canvas-sidebar', toggleHandler);
     };
-  }, [setSidebarOpen]);
+  }, [setSidebarOpen, setCanvasSidebarOpen]);
 
   useEffect(() => {
     const handleOpen = () => setShowRepoIngestModal(true);
@@ -206,7 +207,7 @@ export default function EditorPage() {
     return () => window.removeEventListener('open-repo-ingest', handleOpen);
   }, []);
 
-  const handleGenerationComplete = useCallback((result: { type?: string; nodes?: unknown[]; edges?: unknown[]; metadata?: Record<string, unknown> }, canvasName: string, cached = false) => {
+  const handleGenerationComplete = useCallback(async (result: { type?: string; nodes?: unknown[]; edges?: unknown[]; metadata?: Record<string, unknown> }, canvasName: string, cached = false) => {
     if (result.type === 'sequence') {
       const mermaidSyntax = result.metadata?.mermaidSyntax as string;
       const title = (result.metadata?.title as string) || canvasName;
@@ -244,11 +245,27 @@ export default function EditorPage() {
       })) as Edge[];
 
       const store = useDiagramStore.getState();
+      const styleTheme = (result.metadata?.styleTheme || result.metadata?.theme) as string | undefined;
+      if (styleTheme) {
+        store.setDiagramStyleTheme(styleTheme);
+      }
+
+      // Apply the same layout transformation the horizontal/vertical layout
+      // toggler performs so freshly generated diagrams are laid out properly
+      // (parent groups resized to contain nested children) without requiring a
+      // manual toggle. Falls back to the AI pipeline's own layout on failure.
+      const direction = inferDiagramDirection(result);
+      const activePresetId = direction ?? store.activeLayoutPresetId;
+      const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
+      const relayouted = await relayoutCanvasViaMermaid(processedNodes, processedEdges, mermaidDirection);
+      const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
+      const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
+
       const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
         store.nodes,
         store.edges,
-        processedNodes,
-        processedEdges,
+        finalNodes,
+        finalEdges,
       );
 
       if (store.nodes.length > 0) {
@@ -256,10 +273,9 @@ export default function EditorPage() {
         store.setNodes(mergedNodes);
         store.setEdges(mergedEdges);
       } else {
-        importDiagram(processedNodes, processedEdges);
+        importDiagram(finalNodes, finalEdges);
       }
 
-      const direction = inferDiagramDirection(result);
       if (direction) {
         store.setActiveLayoutPresetId(direction);
       }
@@ -436,14 +452,7 @@ export default function EditorPage() {
           />
         )}
 
-        {(selectedNodeId && !selectedEdgeId) && (
-          <ContextualSidebar
-            nodeId={selectedNodeId}
-            onClose={() => useDiagramStore.getState().setSelectedNodeId(null)}
-          />
-        )}
-
-        {selectedEdgeId && <PropertiesPanel />}
+        {(selectedNodeId || selectedNodeIds.length > 0 || selectedEdgeId) && <PropertiesPanel />}
         
         <CommandPalette />
         <OnboardingOverlay />

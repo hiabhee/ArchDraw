@@ -1,11 +1,10 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Position, type Edge, type Node } from 'reactflow';
+import { Position, type Node } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import {
   getCenteredSides,
-  INCOMING_OUTGOING_GAP,
   resolveSideFromEdgeHandles,
   type EdgeSideResolver,
 } from '@/lib/utils/simpleFloatingEdge';
@@ -13,9 +12,6 @@ import {
   computeDynamicSlotOffsets,
   type DynamicSlotOffsets,
 } from '@/lib/utils/handleSlotOrder';
-
-const SOURCE_OFFSET = -INCOMING_OUTGOING_GAP;
-const TARGET_OFFSET = INCOMING_OUTGOING_GAP;
 
 const HANDLE_TRANSITION =
   'top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease';

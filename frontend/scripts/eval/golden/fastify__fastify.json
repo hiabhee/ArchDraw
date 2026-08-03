@@ -1,0 +1,34 @@
+{
+  "repo": "https://github.com/fastify/fastify",
+  "classification": {
+    "repoType": "library",
+    "framework": "Fastify",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "fastify_core",
+      "label": "Fastify",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "fastify",
+        "fastify core"
+      ],
+      "sourceFiles": [
+        "lib/fastify.js",
+        "index.js"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Pure web framework library — no runtime infrastructure."
+}

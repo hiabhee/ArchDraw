@@ -1,3 +1,11 @@
+/**
+ * Canvas layout presets (ELK).
+ *
+ * Ownership:
+ * - Compound / Mermaid pipeline graphs → `@/lib/pipeline-shared/layout` (`applyRfLayout`).
+ * - Interactive canvas presets (nested groups, opposite inner direction, freeform) stay here.
+ *   These options are UI-product specific and are not a second Dagre implementation.
+ */
 import type { Node, Edge } from 'reactflow';
 import type { LayoutPreset } from './layoutPresets';
 import { getNodeShapeConfig } from '@/constants/nodeShapeConfig';
@@ -86,7 +94,7 @@ export async function applyLayoutPreset(
         ...(isGroupWithChildren
           ? {
               'elk.nodeSize.constraints': 'NODE_LABELS',
-              'elk.padding': '[top=60, left=40, bottom=40, right=40]',
+              'elk.padding': '[top=50, left=30, bottom=30, right=30]',
             }
           : {
               'elk.nodeSize.constraints': 'MINIMUM_SIZE',
@@ -106,9 +114,10 @@ export async function applyLayoutPreset(
 
   const elkEdges = edges
     .filter(e => {
+      // Include all edges except those where both source and target are groups
       const sourceIsGroup = groupNodes.some(g => g.id === e.source);
       const targetIsGroup = groupNodes.some(g => g.id === e.target);
-      return !sourceIsGroup && !targetIsGroup;
+      return !(sourceIsGroup && targetIsGroup);
     })
     .map(e => ({
       id: e.id,

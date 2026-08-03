@@ -1,0 +1,33 @@
+{
+  "repo": "https://github.com/tokio-rs/axum",
+  "classification": {
+    "repoType": "library",
+    "framework": "Axum",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "axum_core",
+      "label": "Axum",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "axum",
+        "axum web framework"
+      ],
+      "sourceFiles": [
+        "axum/src/lib.rs"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Ergonomic Rust web framework — no bundled infrastructure."
+}

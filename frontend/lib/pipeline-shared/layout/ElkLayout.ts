@@ -45,7 +45,7 @@ interface ElkInstance {
  */
 async function createElk(): Promise<ElkInstance> {
   const ELKModule = await import('elkjs/lib/elk.bundled.js');
-  const ELK = (ELKModule as { default?: new () => ElkInstance }).default ?? (ELKModule as unknown as new () => ElkInstance);
+  const ELK = (ELKModule as unknown as { default?: new () => ElkInstance }).default ?? (ELKModule as unknown as new () => ElkInstance);
   return new ELK();
 }
 

@@ -1,0 +1,33 @@
+{
+  "$comment": "Golden corpus for the repo→diagram accuracy eval. detailLevel passed to the pipeline. pinnedHeadSha optional (re-pin quarterly).",
+  "repos": [
+    { "id": "vercel__nextjs-subscription-payments", "owner": "vercel", "repo": "nextjs-subscription-payments", "url": "https://github.com/vercel/nextjs-subscription-payments", "stack": "Next.js + Supabase + Stripe (fullstack SaaS)", "detailLevel": 3 },
+    { "id": "shadcn__taxonomy", "owner": "shadcn", "repo": "taxonomy", "url": "https://github.com/shadcn/taxonomy", "stack": "Next.js + Prisma + NextAuth + Postgres + Stripe (fullstack)", "detailLevel": 3 },
+    { "id": "supabase__supabase", "owner": "supabase", "repo": "supabase", "url": "https://github.com/supabase/supabase", "stack": "Supabase platform monorepo (TS/Go/Elixir)", "detailLevel": 3 },
+    { "id": "expressjs__express", "owner": "expressjs", "repo": "express", "url": "https://github.com/expressjs/express", "stack": "Express (JS library)", "detailLevel": 2 },
+    { "id": "fastify__fastify", "owner": "fastify", "repo": "fastify", "url": "https://github.com/fastify/fastify", "stack": "Fastify (JS library)", "detailLevel": 2 },
+    { "id": "nestjs__nest", "owner": "nestjs", "repo": "nest", "url": "https://github.com/nestjs/nest", "stack": "NestJS (TS framework)", "detailLevel": 2 },
+    { "id": "koajs__koa", "owner": "koajs", "repo": "koa", "url": "https://github.com/koajs/koa", "stack": "Koa (JS library)", "detailLevel": 2 },
+    { "id": "pallets__flask", "owner": "pallets", "repo": "flask", "url": "https://github.com/pallets/flask", "stack": "Flask (Python library)", "detailLevel": 2 },
+    { "id": "django__django", "owner": "django", "repo": "django", "url": "https://github.com/django/django", "stack": "Django (Python framework)", "detailLevel": 2 },
+    { "id": "encode__django-rest-framework", "owner": "encode", "repo": "django-rest-framework", "url": "https://github.com/encode/django-rest-framework", "stack": "DRF (Python library)", "detailLevel": 2 },
+    { "id": "tiangolo__fastapi", "owner": "tiangolo", "repo": "fastapi", "url": "https://github.com/tiangolo/fastapi", "stack": "FastAPI (Python framework)", "detailLevel": 2 },
+    { "id": "encode__uvicorn", "owner": "encode", "repo": "uvicorn", "url": "https://github.com/encode/uvicorn", "stack": "Uvicorn (Python ASGI server library)", "detailLevel": 2 },
+    { "id": "rails__rails", "owner": "rails", "repo": "rails", "url": "https://github.com/rails/rails", "stack": "Ruby on Rails (framework)", "detailLevel": 2 },
+    { "id": "laravel__laravel", "owner": "laravel", "repo": "laravel", "url": "https://github.com/laravel/laravel", "stack": "Laravel (PHP framework)", "detailLevel": 2 },
+    { "id": "spring-projects__spring-boot", "owner": "spring-projects", "repo": "spring-boot", "url": "https://github.com/spring-projects/spring-boot", "stack": "Spring Boot (Java framework)", "detailLevel": 2 },
+    { "id": "gin-gonic__gin", "owner": "gin-gonic", "repo": "gin", "url": "https://github.com/gin-gonic/gin", "stack": "Gin (Go web library)", "detailLevel": 2 },
+    { "id": "labstack__echo", "owner": "labstack", "repo": "echo", "url": "https://github.com/labstack/echo", "stack": "Echo (Go web library)", "detailLevel": 2 },
+    { "id": "tokio-rs__axum", "owner": "tokio-rs", "repo": "axum", "url": "https://github.com/tokio-rs/axum", "stack": "Axum (Rust web library)", "detailLevel": 2 },
+    { "id": "vercel__turborepo", "owner": "vercel", "repo": "turborepo", "url": "https://github.com/vercel/turborepo", "stack": "Turborepo (TS monorepo + CLI)", "detailLevel": 3 },
+    { "id": "shadcn-ui__ui", "owner": "shadcn-ui", "repo": "ui", "url": "https://github.com/shadcn-ui/ui", "stack": "shadcn/ui (React components monorepo)", "detailLevel": 3 },
+    { "id": "pnpm__pnpm", "owner": "pnpm", "repo": "pnpm", "url": "https://github.com/pnpm/pnpm", "stack": "pnpm (TS monorepo + CLI)", "detailLevel": 3 },
+    { "id": "sharkdp__bat", "owner": "sharkdp", "repo": "bat", "url": "https://github.com/sharkdp/bat", "stack": "bat (Rust CLI)", "detailLevel": 2 },
+    { "id": "charmbracelet__gum", "owner": "charmbracelet", "repo": "gum", "url": "https://github.com/charmbracelet/gum", "stack": "gum (Go CLI)", "detailLevel": 2 },
+    { "id": "hashicorp__terraform", "owner": "hashicorp", "repo": "terraform", "url": "https://github.com/hashicorp/terraform", "stack": "Terraform (Go CLI / IaC)", "detailLevel": 2 },
+    { "id": "docker__awesome-compose", "owner": "docker", "repo": "awesome-compose", "url": "https://github.com/docker/awesome-compose", "stack": "docker-compose examples (config only)", "detailLevel": 2 },
+    { "id": "langchain-ai__langchain", "owner": "langchain-ai", "repo": "langchain", "url": "https://github.com/langchain-ai/langchain", "stack": "LangChain (Python library)", "detailLevel": 2 },
+    { "id": "vercel__ai", "owner": "vercel", "repo": "ai", "url": "https://github.com/vercel/ai", "stack": "Vercel AI SDK (TS library monorepo)", "detailLevel": 2 },
+    { "id": "awesome-selfhosted__awesome-selfhosted", "owner": "awesome-selfhosted", "repo": "awesome-selfhosted", "url": "https://github.com/awesome-selfhosted/awesome-selfhosted", "stack": "Awesome Selfhosted (documentation list)", "detailLevel": 1 }
+  ]
+}

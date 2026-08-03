@@ -84,7 +84,7 @@ export function UpgradeModal({
             </div>
 
             <a
-              href="mailto:jamdadeabhishek039@gmail.com?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AThank%20you!"
+              href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'contact@archdraw.ai'}?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AThank%20you!`}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-[12px] border border-border/50 hover:border-border hover:bg-secondary/50 transition-all duration-150 text-foreground"
             >
               <Sparkles className="w-4 h-4" />

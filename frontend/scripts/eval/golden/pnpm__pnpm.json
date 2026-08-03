@@ -1,0 +1,30 @@
+{
+  "repo": "https://github.com/pnpm/pnpm",
+  "classification": {
+    "repoType": "cli_tool",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "pnpm_cli",
+      "label": "pnpm CLI",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "pnpm",
+        "pnpm cli"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Package manager CLI — TypeScript monorepo, no runtime database."
+}

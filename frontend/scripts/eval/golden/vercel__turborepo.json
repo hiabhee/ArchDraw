@@ -1,0 +1,41 @@
+{
+  "repo": "https://github.com/vercel/turborepo",
+  "classification": {
+    "repoType": "cli_tool",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "turbo_cli",
+      "label": "Turbo CLI",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "turbo",
+        "turbo cli",
+        "turborepo"
+      ]
+    },
+    {
+      "id": "turbo_core",
+      "label": "Turbo Core",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "turbo core",
+        "@turbo/core",
+        "packages/turbo"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Build-system monorepo + CLI. Should yield a CLI/library profile, not a web app with a database."
+}

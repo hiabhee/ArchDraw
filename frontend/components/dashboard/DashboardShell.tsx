@@ -269,7 +269,7 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
                 active={activePage === 'Blog'}
                 onClick={() => { router.push('/blogs'); setMobileMenuOpen(false); }}
               />
-              {user?.email === 'jamdadeabhishek039@gmail.com' && (
+              {user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
                 <SubmenuItem
                   label="Admin"
                   active={activePage === 'Admin'}
@@ -379,7 +379,7 @@ export function DashboardShell({ children, activePage }: DashboardShellProps) {
                 active={activePage === 'Blog'}
                 onClick={() => router.push('/blogs')}
               />
-              {user?.email === 'jamdadeabhishek039@gmail.com' && (
+              {user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && (
                 <SubmenuItem
                   label="Admin"
                   active={activePage === 'Admin'}

@@ -1,0 +1,34 @@
+{
+  "repo": "https://github.com/pallets/flask",
+  "classification": {
+    "repoType": "library",
+    "framework": "Flask",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "flask_core",
+      "label": "Flask",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "flask",
+        "flask core"
+      ],
+      "sourceFiles": [
+        "src/flask/app.py",
+        "src/flask/__init__.py"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Pure WSGI microframework — no bundled database or queue."
+}

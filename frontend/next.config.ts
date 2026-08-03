@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 import path from 'path';
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -9,13 +11,24 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
   { 
     key: 'Content-Security-Policy', 
-    value: "default-src 'self'; script-src 'self' blob: 'unsafe-inline' 'unsafe-eval' https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self';" 
+    // Add 'unsafe-eval' only in development for React debugging features
+    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self';` 
   },
 ];
 
+// Configure allowed embed domains via environment variable
+// Comma-separated list of domains allowed to embed the diagram viewer
+const allowedEmbedDomains = process.env.ALLOWED_EMBED_DOMAINS 
+  ? process.env.ALLOWED_EMBED_DOMAINS.split(',').map(d => d.trim()) 
+  : ['*']; // Default to allow all if not configured
+
+const embedCSP = allowedEmbedDomains.includes('*') 
+  ? "frame-ancestors *"
+  : `frame-ancestors 'self' ${allowedEmbedDomains.map(d => `https://${d}`).join(' ')}`;
+
 const embedHeaders = [
-  { key: 'X-Frame-Options', value: 'ALLOWALL' },
-  { key: 'Content-Security-Policy', value: "frame-ancestors *" },
+  { key: 'X-Frame-Options', value: allowedEmbedDomains.includes('*') ? 'ALLOWALL' : 'SAMEORIGIN' },
+  { key: 'Content-Security-Policy', value: embedCSP },
 ];
 
 const nextConfig: NextConfig = {
@@ -24,32 +37,10 @@ const nextConfig: NextConfig = {
     optimizePackageImports: [
       'lucide-react',
       'zustand',
-      '@radix-ui/react-accordion',
       '@radix-ui/react-alert-dialog',
-      '@radix-ui/react-avatar',
-      '@radix-ui/react-checkbox',
-      '@radix-ui/react-collapsible',
-      '@radix-ui/react-context-menu',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-hover-card',
-      '@radix-ui/react-label',
-      '@radix-ui/react-menubar',
-      '@radix-ui/react-navigation-menu',
-      '@radix-ui/react-popover',
-      '@radix-ui/react-progress',
-      '@radix-ui/react-radio-group',
-      '@radix-ui/react-scroll-area',
-      '@radix-ui/react-select',
-      '@radix-ui/react-separator',
-      '@radix-ui/react-slider',
       '@radix-ui/react-slot',
-      '@radix-ui/react-switch',
-      '@radix-ui/react-tabs',
-      '@radix-ui/react-toast',
-      '@radix-ui/react-toggle',
-      '@radix-ui/react-toggle-group',
-      '@radix-ui/react-tooltip',
     ],
   },
 

@@ -1,0 +1,27 @@
+{
+  "repo": "https://github.com/hashicorp/terraform",
+  "classification": {
+    "repoType": "cli_tool",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "terraform_cli",
+      "label": "Terraform CLI",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "terraform",
+        "terraform cli",
+        "terraform binary"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "IaC CLI written in Go. It *references* provider resources but the binary itself is not a database/queue service."
+}

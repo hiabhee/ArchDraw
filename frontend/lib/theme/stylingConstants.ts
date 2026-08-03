@@ -1,15 +1,140 @@
 /**
- * Shared styling constants for both React components (Canvas) 
- * and pure SVG generation (Export).
- * 
- * Changing a value here should update both environments simultaneously,
- * ensuring pixel-perfect identity.
+ * Architecture visual system — single source of truth for canvas + SVG export.
+ *
+ * Grammar: thin strokes, soft/no depth, muted neutrals, 5 semantic accents,
+ * optical size grid (160 / 200 / 240). Themes remapped stroke/fill/type/edges.
+ * Primary flow uses brand DodgerBlue so the eye can track request paths.
  */
 
-// Rule 2: Minimum node width: 180px.
-export const NODE_WIDTH = 180;
-export const NODE_HEIGHT = 110;
-export const BORDER_RADIUS = 12;
+// ── Size grid ───────────────────────────────────────────────────────────────
+
+export const SIZE_S = 160;
+export const SIZE_M = 200;
+export const SIZE_L = 240;
+
+export const NODE_WIDTH = SIZE_M;
+export const NODE_HEIGHT = 88;
+/** Max layout height for diamond/circle so ELK lanes stay aligned with rects. */
+export const SHAPE_LANE_HEIGHT_CAP = 96;
+export const BORDER_RADIUS = 10;
+export const STROKE_WIDTH = 1.25;
+export const STROKE_EMPHASIS = 2;
+
+/** Brand flow accent — primary edges, hover, selection rings. */
+export const FLOW_ACCENT = '#1E90FF';
+export const FLOW_ACCENT_SOFT = 'rgba(30, 144, 255, 0.12)';
+export const FLOW_ACCENT_MUTED = '#4dabf7';
+
+export const SIZE_GRID = {
+  S: SIZE_S,
+  M: SIZE_M,
+  L: SIZE_L,
+  max: SIZE_L,
+} as const;
+
+/** Clamp any computed width onto the optical grid. */
+export function clampToSizeGrid(width: number): number {
+  if (width <= SIZE_S + 20) return SIZE_S;
+  if (width <= SIZE_M + 20) return SIZE_M;
+  return SIZE_L;
+}
+
+// ── Semantic concerns (color = meaning) ─────────────────────────────────────
+
+export type Concern =
+  | 'client'
+  | 'compute'
+  | 'data'
+  | 'async'
+  | 'external';
+
+export interface ConcernSwatch {
+  color: string;
+  bg: string;
+  label: string;
+}
+
+/** Default (slate) muted semantic accents — used when no diagram theme is set. */
+export const CONCERN_COLORS: Record<Concern, ConcernSwatch> = {
+  client:   { color: '#64748b', bg: 'rgba(100, 116, 139, 0.06)', label: 'Client' },
+  compute:  { color: '#0f766e', bg: 'rgba(15, 118, 110, 0.06)', label: 'Compute' },
+  data:     { color: '#475569', bg: 'rgba(71, 85, 105, 0.07)',  label: 'Data' },
+  async:    { color: '#b45309', bg: 'rgba(180, 83, 9, 0.06)',   label: 'Async' },
+  external: { color: '#6b7280', bg: 'rgba(107, 114, 128, 0.06)', label: 'External' },
+};
+
+/** Legacy tier keys → concern (kept for call sites). */
+export const TIER_COLORS = {
+  infrastructure: CONCERN_COLORS.client,
+  security:       CONCERN_COLORS.compute,
+  services:       CONCERN_COLORS.compute,
+  async:          CONCERN_COLORS.async,
+  database:       CONCERN_COLORS.data,
+  cache:          CONCERN_COLORS.data,
+} as const;
+
+export type TierType = keyof typeof TIER_COLORS;
+
+export function resolveConcern(category?: string): Concern {
+  const cat = (category || '').toLowerCase();
+  if (
+    cat.includes('client') || cat.includes('browser') || cat.includes('frontend') ||
+    cat.includes('mobile') || cat.includes('user') || cat.includes('ui')
+  ) return 'client';
+  if (
+    cat.includes('queue') || cat.includes('message') || cat.includes('event') ||
+    cat.includes('async') || cat.includes('kafka') || cat.includes('bus') || cat.includes('stream')
+  ) return 'async';
+  if (
+    cat.includes('data') || cat.includes('db') || cat.includes('database') ||
+    cat.includes('cache') || cat.includes('storage') || cat.includes('postgres') ||
+    cat.includes('redis') || cat.includes('mongo')
+  ) return 'data';
+  if (
+    cat.includes('external') || cat.includes('saas') || cat.includes('third') ||
+    cat.includes('cdn') || cat.includes('cloud') || cat.includes('stripe')
+  ) return 'external';
+  if (
+    cat.includes('edge') || cat.includes('gateway') || cat.includes('auth') ||
+    cat.includes('security') || cat.includes('observe') || cat.includes('monitor')
+  ) return 'compute';
+  if (
+    cat.includes('compute') || cat.includes('server') || cat.includes('worker') ||
+    cat.includes('service') || cat.includes('api')
+  ) return 'compute';
+  return 'compute';
+}
+
+export function getConcernColor(category?: string, palette: Record<Concern, ConcernSwatch> = CONCERN_COLORS): string {
+  return palette[resolveConcern(category)].color;
+}
+
+/** @deprecated Prefer getConcernColor — kept for existing imports. */
+export function getTierColorNormalized(category?: string): string {
+  return getConcernColor(category);
+}
+
+export const STATUS_COLORS = {
+  healthy: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  unknown: '#6B7280',
+};
+
+export const EDGE_STYLES = {
+  sync:    { color: '#64748b', width: 1.25, dash: '',    animated: false },
+  primary: { color: FLOW_ACCENT, width: 1.75, dash: '',  animated: false },
+  async:   { color: '#b45309', width: 1.25, dash: '6,5', animated: true },
+} as const;
+
+export const EDGE_MARKER_SIZE = { width: 22, height: 22 } as const;
+
+export const FONTS = {
+  body: '"Inter", "Roboto", system-ui, -apple-system, sans-serif',
+  display: '"Inter", "Roboto", system-ui, sans-serif',
+};
+
+// ── Node surface styles ─────────────────────────────────────────────────────
 
 export interface NodeStyleConfig {
   background: string;
@@ -19,80 +144,304 @@ export interface NodeStyleConfig {
   shadowSelected: string;
   titleColor: string;
   subtitleColor: string;
+  /** Stacked sticker backplates — always empty in the quiet system. */
   backplates: { offset: number; color: string }[];
 }
 
-export const DARK_NODE_STYLES: NodeStyleConfig = {
-  background: '#1e2235',
-  border: 'rgba(255, 255, 255, 0.12)',
-  borderHover: 'rgba(255, 255, 255, 0.2)',
-  shadow: '5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 1px 3px rgba(0,0,0,0.3)',
-  shadowSelected: '0 0 0 2px var(--node-glow-border, #34D399), 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 2px 6px rgba(0,0,0,0.4)',
-  titleColor: '#ffffff',
-  subtitleColor: '#94a3b8',
-  backplates: [
-    { offset: 10, color: '#0d0f1b' },
-    { offset: 5, color: '#151828' },
-  ],
-};
-
 export const LIGHT_NODE_STYLES: NodeStyleConfig = {
   background: '#ffffff',
-  border: 'rgba(0, 0, 0, 0.08)',
-  borderHover: 'rgba(0, 0, 0, 0.12)',
-  shadow: '5px 5px 0 #e1e1da, 10px 10px 0 #efefe8, 0 1px 2px rgba(0,0,0,0.04)',
-  shadowSelected: '0 0 0 2px rgba(95,164,219,0.35), 5px 5px 0 #dfdfd8, 10px 10px 0 #ecece5, 0 2px 5px rgba(0,0,0,0.06)',
-  titleColor: '#1e293b',
-  subtitleColor: '#7a7a7a',
-  backplates: [
-    { offset: 10, color: '#efefe8' },
-    { offset: 5, color: '#e1e1da' },
-  ],
+  border: 'rgba(15, 23, 42, 0.2)',
+  borderHover: 'rgba(15, 23, 42, 0.32)',
+  shadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+  shadowSelected: `0 0 0 2px ${FLOW_ACCENT}99, 0 2px 8px rgba(15, 23, 42, 0.06)`,
+  titleColor: '#0f172a',
+  subtitleColor: '#64748b',
+  backplates: [],
 };
 
-export const STATUS_COLORS = {
-  healthy: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  unknown: '#6B7280',
+export const DARK_NODE_STYLES: NodeStyleConfig = {
+  background: '#1a1d27',
+  border: 'rgba(255, 255, 255, 0.18)',
+  borderHover: 'rgba(255, 255, 255, 0.28)',
+  shadow: '0 1px 3px rgba(0, 0, 0, 0.35)',
+  shadowSelected: `0 0 0 2px ${FLOW_ACCENT}aa, 0 2px 8px rgba(0, 0, 0, 0.4)`,
+  titleColor: '#f8fafc',
+  subtitleColor: '#94a3b8',
+  backplates: [],
 };
 
-/**
- * Rule 6: Color-code nodes by category
- * Infrastructure → Gray (#6B7280)
- * Auth/Security  → Purple (#7C3AED)
- * Services       → Blue (#2563EB)
- * Async/Queue    → Orange (#D97706)
- * Databases      → Green (#059669)
- * Cache          → Teal (#0891B2)
- */
-export const TIER_COLORS = {
-  infrastructure: { color: '#6B7280', bg: 'rgba(107, 114, 128, 0.1)', label: 'Infrastructure' },
-  security: { color: '#7C3AED', bg: 'rgba(124, 58, 237, 0.1)', label: 'Security' },
-  services: { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.1)', label: 'Services' },
-  async: { color: '#D97706', bg: 'rgba(217, 119, 6, 0.1)', label: 'Async' },
-  database: { color: '#059669', bg: 'rgba(5, 150, 105, 0.1)', label: 'Database' },
-  cache: { color: '#0891B2', bg: 'rgba(8, 145, 178, 0.1)', label: 'Cache' },
-} as const;
+// ── Diagram theme packs ─────────────────────────────────────────────────────
 
-export type TierType = keyof typeof TIER_COLORS;
+export type DiagramThemeId = 'default' | 'slate' | 'forest-green' | 'dark-minimal' | 'luxury';
 
-export const EDGE_STYLES = {
-  sync: { color: '#6B7280', dash: '', animated: false },
-  async: { color: '#D97706', dash: '8,6', animated: true },
-} as const;
-
-export function getTierColorNormalized(category?: string): string {
-  const cat = (category || '').toLowerCase();
-  if (cat.includes('auth') || cat.includes('security')) return TIER_COLORS.security.color;
-  if (cat.includes('data') || cat.includes('db')) return TIER_COLORS.database.color;
-  if (cat.includes('cache')) return TIER_COLORS.cache.color;
-  if (cat.includes('message') || cat.includes('queue') || cat.includes('event')) return TIER_COLORS.async.color;
-  if (cat.includes('compute') || cat.includes('server') || cat.includes('worker')) return TIER_COLORS.services.color;
-  return TIER_COLORS.infrastructure.color;
+export interface DiagramThemePack {
+  id: DiagramThemeId;
+  label: string;
+  light: {
+    canvasHint: string;
+    nodeFill: string;
+    nodeStroke: string;
+    title: string;
+    subtitle: string;
+    groupFill: string;
+    groupStroke: string;
+    edgeDefault: string;
+    edgePrimary: string;
+    edgeAsync: string;
+    shadow: string;
+  };
+  dark: {
+    canvasHint: string;
+    nodeFill: string;
+    nodeStroke: string;
+    title: string;
+    subtitle: string;
+    groupFill: string;
+    groupStroke: string;
+    edgeDefault: string;
+    edgePrimary: string;
+    edgeAsync: string;
+    shadow: string;
+  };
+  concerns: Record<Concern, ConcernSwatch>;
 }
 
-export const FONTS = {
-  body: '"Inter", "Roboto", system-ui, -apple-system, sans-serif',
-  display: '"Inter", "Roboto", system-ui, sans-serif',
+function concern(color: string, bg: string, label: string): ConcernSwatch {
+  return { color, bg, label };
+}
+
+export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
+  default: {
+    id: 'default',
+    label: 'Default',
+    light: {
+      canvasHint: '#f8fafc',
+      nodeFill: '#ffffff',
+      nodeStroke: 'rgba(15, 23, 42, 0.2)',
+      title: '#0f172a',
+      subtitle: '#64748b',
+      groupFill: 'rgba(15, 23, 42, 0.02)',
+      groupStroke: 'rgba(15, 23, 42, 0.16)',
+      edgeDefault: '#64748b',
+      edgePrimary: FLOW_ACCENT,
+      edgeAsync: '#b45309',
+      shadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+    },
+    dark: {
+      canvasHint: '#0f1117',
+      nodeFill: '#1a1d27',
+      nodeStroke: 'rgba(255, 255, 255, 0.18)',
+      title: '#f8fafc',
+      subtitle: '#94a3b8',
+      groupFill: 'rgba(255, 255, 255, 0.03)',
+      groupStroke: 'rgba(255, 255, 255, 0.16)',
+      edgeDefault: '#94a3b8',
+      edgePrimary: FLOW_ACCENT_MUTED,
+      edgeAsync: '#d97706',
+      shadow: '0 1px 3px rgba(0, 0, 0, 0.35)',
+    },
+    concerns: { ...CONCERN_COLORS },
+  },
+  slate: {
+    id: 'slate',
+    label: 'Slate',
+    light: {
+      canvasHint: '#f1f5f9',
+      nodeFill: '#ffffff',
+      nodeStroke: 'rgba(30, 41, 59, 0.16)',
+      title: '#0f172a',
+      subtitle: '#64748b',
+      groupFill: 'rgba(30, 41, 59, 0.03)',
+      groupStroke: 'rgba(30, 41, 59, 0.14)',
+      edgeDefault: '#94a3b8',
+      edgePrimary: '#475569',
+      edgeAsync: '#92400e',
+      shadow: 'none',
+    },
+    dark: {
+      canvasHint: '#0b1220',
+      nodeFill: '#151b28',
+      nodeStroke: 'rgba(148, 163, 184, 0.22)',
+      title: '#e2e8f0',
+      subtitle: '#94a3b8',
+      groupFill: 'rgba(148, 163, 184, 0.04)',
+      groupStroke: 'rgba(148, 163, 184, 0.18)',
+      edgeDefault: '#64748b',
+      edgePrimary: '#94a3b8',
+      edgeAsync: '#d97706',
+      shadow: 'none',
+    },
+    concerns: {
+      client:   concern('#64748b', 'rgba(100,116,139,0.06)', 'Client'),
+      compute:  concern('#334155', 'rgba(51,65,85,0.07)', 'Compute'),
+      data:     concern('#475569', 'rgba(71,85,105,0.08)', 'Data'),
+      async:    concern('#92400e', 'rgba(146,64,14,0.06)', 'Async'),
+      external: concern('#78716c', 'rgba(120,113,108,0.06)', 'External'),
+    },
+  },
+  'forest-green': {
+    id: 'forest-green',
+    label: 'Forest',
+    light: {
+      canvasHint: '#f4f7f4',
+      nodeFill: '#fcfdfb',
+      nodeStroke: 'rgba(22, 61, 40, 0.16)',
+      title: '#14261a',
+      subtitle: '#6b7c70',
+      groupFill: 'rgba(22, 61, 40, 0.03)',
+      groupStroke: 'rgba(22, 61, 40, 0.14)',
+      edgeDefault: '#8fa094',
+      edgePrimary: '#3d5a45',
+      edgeAsync: '#a16207',
+      shadow: '0 1px 2px rgba(22, 61, 40, 0.05)',
+    },
+    dark: {
+      canvasHint: '#0c1410',
+      nodeFill: '#141c17',
+      nodeStroke: 'rgba(134, 179, 149, 0.2)',
+      title: '#e8f0ea',
+      subtitle: '#8fa094',
+      groupFill: 'rgba(134, 179, 149, 0.04)',
+      groupStroke: 'rgba(134, 179, 149, 0.16)',
+      edgeDefault: '#5c7364',
+      edgePrimary: '#a3bfad',
+      edgeAsync: '#ca8a04',
+      shadow: '0 1px 3px rgba(0, 0, 0, 0.4)',
+    },
+    concerns: {
+      client:   concern('#5c7364', 'rgba(92,115,100,0.07)', 'Client'),
+      compute:  concern('#2f6b4f', 'rgba(47,107,79,0.08)', 'Compute'),
+      data:     concern('#3f5e4c', 'rgba(63,94,76,0.08)', 'Data'),
+      async:    concern('#a16207', 'rgba(161,98,7,0.07)', 'Async'),
+      external: concern('#6b7280', 'rgba(107,114,128,0.06)', 'External'),
+    },
+  },
+  'dark-minimal': {
+    id: 'dark-minimal',
+    label: 'Dark Minimal',
+    light: {
+      canvasHint: '#fafafa',
+      nodeFill: '#ffffff',
+      nodeStroke: 'rgba(0, 0, 0, 0.12)',
+      title: '#171717',
+      subtitle: '#a3a3a3',
+      groupFill: 'rgba(0, 0, 0, 0.02)',
+      groupStroke: 'rgba(0, 0, 0, 0.1)',
+      edgeDefault: '#a3a3a3',
+      edgePrimary: '#525252',
+      edgeAsync: '#a16207',
+      shadow: 'none',
+    },
+    dark: {
+      canvasHint: '#09090b',
+      nodeFill: '#121214',
+      nodeStroke: 'rgba(255, 255, 255, 0.1)',
+      title: '#fafafa',
+      subtitle: '#737373',
+      groupFill: 'rgba(255, 255, 255, 0.02)',
+      groupStroke: 'rgba(255, 255, 255, 0.1)',
+      edgeDefault: '#525252',
+      edgePrimary: '#a3a3a3',
+      edgeAsync: '#ca8a04',
+      shadow: 'none',
+    },
+    concerns: {
+      client:   concern('#737373', 'rgba(115,115,115,0.08)', 'Client'),
+      compute:  concern('#525252', 'rgba(82,82,82,0.1)', 'Compute'),
+      data:     concern('#404040', 'rgba(64,64,64,0.1)', 'Data'),
+      async:    concern('#a16207', 'rgba(161,98,7,0.08)', 'Async'),
+      external: concern('#78716c', 'rgba(120,113,108,0.07)', 'External'),
+    },
+  },
+  luxury: {
+    id: 'luxury',
+    label: 'Luxury',
+    light: {
+      canvasHint: '#f7f5f2',
+      nodeFill: '#fffcf8',
+      nodeStroke: 'rgba(55, 42, 30, 0.16)',
+      title: '#2a2118',
+      subtitle: '#8a7f72',
+      groupFill: 'rgba(55, 42, 30, 0.03)',
+      groupStroke: 'rgba(55, 42, 30, 0.12)',
+      edgeDefault: '#b0a69a',
+      edgePrimary: '#5c4d3d',
+      edgeAsync: '#9a3412',
+      shadow: '0 2px 6px rgba(55, 42, 30, 0.05)',
+    },
+    dark: {
+      canvasHint: '#12100e',
+      nodeFill: '#1a1714',
+      nodeStroke: 'rgba(214, 201, 186, 0.16)',
+      title: '#f5efe6',
+      subtitle: '#a89f93',
+      groupFill: 'rgba(214, 201, 186, 0.03)',
+      groupStroke: 'rgba(214, 201, 186, 0.12)',
+      edgeDefault: '#6e655a',
+      edgePrimary: '#d6c9ba',
+      edgeAsync: '#c2410c',
+      shadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
+    },
+    concerns: {
+      client:   concern('#8a7f72', 'rgba(138,127,114,0.07)', 'Client'),
+      compute:  concern('#5c4d3d', 'rgba(92,77,61,0.08)', 'Compute'),
+      data:     concern('#6b5a48', 'rgba(107,90,72,0.08)', 'Data'),
+      async:    concern('#9a3412', 'rgba(154,52,18,0.07)', 'Async'),
+      external: concern('#78716c', 'rgba(120,113,108,0.06)', 'External'),
+    },
+  },
 };
+
+export function getDiagramTheme(id?: string | null): DiagramThemePack {
+  if (id && id in DIAGRAM_THEMES) return DIAGRAM_THEMES[id as DiagramThemeId];
+  return DIAGRAM_THEMES.default;
+}
+
+/** Build StyleConfig-compatible nodeTypeStyles from a theme pack. */
+export function themeToNodeTypeStyles(themeId?: string | null): Record<string, string> {
+  const pack = getDiagramTheme(themeId);
+  const c = pack.concerns;
+  return {
+    client: c.client.color,
+    edge: c.compute.color,
+    gateway: c.compute.color,
+    application: c.compute.color,
+    compute: c.compute.color,
+    data: c.data.color,
+    queue: c.async.color,
+    async: c.async.color,
+    observability: c.compute.color,
+    external: c.external.color,
+  };
+}
+
+export function themePrimaryColor(themeId?: string | null): string {
+  return getDiagramTheme(themeId).concerns.compute.color;
+}
+
+/** CSS custom properties for a theme pack (applied to canvas root). */
+export function diagramThemeCssVars(themeId: string | null | undefined, isDark: boolean): Record<string, string> {
+  const pack = getDiagramTheme(themeId);
+  const mode = isDark ? pack.dark : pack.light;
+  return {
+    '--arch-node-fill': mode.nodeFill,
+    '--arch-node-stroke': mode.nodeStroke,
+    '--arch-title': mode.title,
+    '--arch-subtitle': mode.subtitle,
+    '--arch-group-fill': mode.groupFill,
+    '--arch-group-stroke': mode.groupStroke,
+    '--arch-edge-default': mode.edgeDefault,
+    '--arch-edge-primary': mode.edgePrimary,
+    '--arch-edge-async': mode.edgeAsync,
+    '--arch-shadow': mode.shadow,
+    '--arch-stroke-width': `${STROKE_WIDTH}px`,
+    '--arch-radius': `${BORDER_RADIUS}px`,
+    '--arch-size-s': `${SIZE_S}px`,
+    '--arch-size-m': `${SIZE_M}px`,
+    '--arch-size-l': `${SIZE_L}px`,
+    '--node-card-bg': mode.nodeFill,
+    '--node-title-color': mode.title,
+    '--node-subtitle-color': mode.subtitle,
+    '--node-shadow': mode.shadow,
+  };
+}

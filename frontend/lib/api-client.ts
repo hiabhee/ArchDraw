@@ -49,6 +49,7 @@ export async function saveTutorialProgress(data: {
   currentStep: number;
   currentPhase: string;
   completedLevels: number[];
+  completedStepIds: string[];
   canvasNodes: unknown;
   canvasEdges: unknown;
   explainCount: number;

@@ -121,10 +121,11 @@ export function validateGoogleOAuthConfig(): { clientId: string; clientSecret: s
  * Validates admin authentication configuration.
  * Returns null if not configured (admin panel disabled).
  */
-export function validateAdminConfig(): { passcode: string; sessionSecret: string; userId?: string } | null {
+export function validateAdminConfig(): { passcode: string; sessionSecret: string; userId?: string; adminEmail?: string } | null {
   const passcode = process.env.ADMIN_PASSCODE;
   const sessionSecret = process.env.ADMIN_SESSION_SECRET;
   const userId = process.env.ADMIN_USER_ID;
+  const adminEmail = process.env.ALLOWED_ADMIN_EMAIL;
   
   // Both missing = admin not configured
   if (!passcode && !sessionSecret) {
@@ -140,7 +141,11 @@ export function validateAdminConfig(): { passcode: string; sessionSecret: string
     throw new EnvironmentError(errorMsg, missing);
   }
   
-  return { passcode, sessionSecret, userId };
+  if (adminEmail) {
+    logger.info('[EnvValidation] Admin email configured for OAuth fallback');
+  }
+  
+  return { passcode, sessionSecret, userId, adminEmail };
 }
 
 /**
@@ -160,6 +165,38 @@ export function isDatabaseConfigured(): boolean {
 }
 
 /**
+ * Validates authentication configuration for production.
+ * Throws if critical auth config is missing in production.
+ */
+export function validateAuthConfig(): void {
+  if (process.env.NODE_ENV === 'production') {
+    const errors: string[] = [];
+    
+    if (!process.env.BETTER_AUTH_URL && !process.env.NEXT_PUBLIC_APP_URL) {
+      errors.push('BETTER_AUTH_URL or NEXT_PUBLIC_APP_URL must be set in production');
+    }
+    
+    if (!process.env.BETTER_AUTH_SECRET) {
+      errors.push('BETTER_AUTH_SECRET must be set in production');
+    }
+    
+    if (errors.length > 0) {
+      const errorMsg = `Authentication configuration error in production: ${errors.join(', ')}`;
+      logger.error(`[EnvValidation] ${errorMsg}`);
+      throw new EnvironmentError(errorMsg, 'AUTH_CONFIG');
+    }
+  } else {
+    // In development, just warn if critical config is missing
+    if (!process.env.BETTER_AUTH_URL && !process.env.NEXT_PUBLIC_APP_URL) {
+      logger.warn('[EnvValidation] BETTER_AUTH_URL or NEXT_PUBLIC_APP_URL not set in development - using localhost');
+    }
+    if (!process.env.BETTER_AUTH_SECRET) {
+      logger.warn('[EnvValidation] BETTER_AUTH_SECRET not set in development - authentication may not work properly');
+    }
+  }
+}
+
+/**
  * Validates all critical environment variables at startup.
  * Call this in server initialization to fail fast.
  */
@@ -167,6 +204,15 @@ export function validateCriticalEnv(): void {
   const errors: string[] = [];
   
   try {
+    // Validate auth configuration for production
+    try {
+      validateAuthConfig();
+    } catch (err) {
+      if (err instanceof EnvironmentError) {
+        errors.push(err.message);
+      }
+    }
+    
     // Database is critical
     if (!isDatabaseConfigured()) {
       errors.push('DATABASE_URL is not set - database operations will fail');

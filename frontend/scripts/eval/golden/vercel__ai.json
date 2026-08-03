@@ -1,0 +1,32 @@
+{
+  "repo": "https://github.com/vercel/ai",
+  "classification": {
+    "repoType": "library",
+    "framework": "AI SDK",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "ai_sdk",
+      "label": "AI SDK",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "ai",
+        "vercel ai sdk",
+        "ai sdk",
+        "ai core"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "TypeScript AI SDK monorepo (packages/ai, packages/provider...). Library — no runtime database of its own."
+}

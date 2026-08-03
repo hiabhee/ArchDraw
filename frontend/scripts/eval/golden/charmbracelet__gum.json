@@ -1,0 +1,31 @@
+{
+  "repo": "https://github.com/charmbracelet/gum",
+  "classification": {
+    "repoType": "cli_tool",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "gum_cli",
+      "label": "Gum CLI",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "gum",
+        "gum cli",
+        "shell script tool"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Go tool for glamorous shell scripts — pure CLI."
+}

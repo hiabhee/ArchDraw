@@ -13,8 +13,8 @@ export const DIAGRAM_CONSTANTS = {
     stroke: EDGE_CONFIG.strokeColor,
     strokeWidth: EDGE_CONFIG.strokeWidth,
     dashArray: '5,4',
-    arrowWidth: 20,
-    arrowHeight: 20,
+    arrowWidth: EDGE_CONFIG.markerWidth,
+    arrowHeight: EDGE_CONFIG.markerHeight,
     labelFontSize: EDGE_CONFIG.label.fontSize,
     labelBgPadding: [4, 6] as [number, number],
     labelBgBorderRadius: 4,
@@ -29,6 +29,6 @@ export const DIAGRAM_CONSTANTS = {
 export const EDGE_MARKER: { type: MarkerType; color: string; width: number; height: number } = {
   type: EDGE_CONFIG.markerType,
   color: EDGE_CONFIG.strokeColor,
-  width: 20,
-  height: 20,
+  width: EDGE_CONFIG.markerWidth,
+  height: EDGE_CONFIG.markerHeight,
 };

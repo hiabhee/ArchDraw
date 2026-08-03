@@ -26,6 +26,7 @@ async function migrateGuestProgress(userId: string) {
         currentStep: p.currentStep,
         currentPhase: p.currentPhase,
         completedLevels: p.completedLevels,
+        completedStepIds: p.completedStepIds ?? [],
         canvasNodes: p.canvasNodes as object,
         canvasEdges: p.canvasEdges as object,
         explainCount: p.explainCount,

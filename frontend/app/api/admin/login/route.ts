@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
 import { getClientIP } from '@/lib/server/ip';
+import { trackAdminSession, cleanupExpiredSessions } from '@/lib/admin-session-tracking';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,8 @@ function cleanupLoginExpired(): void {
   for (const [key, entry] of loginRateLimitMap) {
     if (now > entry.resetAt) loginRateLimitMap.delete(key);
   }
+  // Clean up expired admin sessions
+  cleanupExpiredSessions();
 }
 
 export async function POST(req: NextRequest) {
@@ -95,11 +98,16 @@ export async function POST(req: NextRequest) {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set('admin_session', sessionValue, {
-    maxAge: 60 * 60 * 24,
+    maxAge: 60 * 60 * 24, // 24 hours
     path: '/',
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
   });
+  
+  // Track session IP and user agent for additional security
+  const userAgent = req.headers.get('user-agent') || 'unknown';
+  trackAdminSession(sessionValue, ip, userAgent);
+  
   return response;
 }

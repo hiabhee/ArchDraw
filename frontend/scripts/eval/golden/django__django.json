@@ -1,0 +1,33 @@
+{
+  "repo": "https://github.com/django/django",
+  "classification": {
+    "repoType": "framework",
+    "framework": "Django",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "django_core",
+      "label": "Django",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "django",
+        "django framework"
+      ],
+      "sourceFiles": [
+        "django/__init__.py"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Framework repo ships ORM/database-abstraction but no actual database service."
+}

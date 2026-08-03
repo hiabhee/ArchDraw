@@ -1,0 +1,34 @@
+{
+  "repo": "https://github.com/encode/uvicorn",
+  "classification": {
+    "repoType": "library",
+    "framework": "Uvicorn",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "uvicorn_core",
+      "label": "Uvicorn",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "uvicorn",
+        "asgi server"
+      ],
+      "sourceFiles": [
+        "uvicorn/__init__.py",
+        "uvicorn/main.py"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "ASGI server library — no database or message queue."
+}

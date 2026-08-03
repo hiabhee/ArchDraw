@@ -1,0 +1,31 @@
+{
+  "repo": "https://github.com/sharkdp/bat",
+  "classification": {
+    "repoType": "cli_tool",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "bat_cli",
+      "label": "bat CLI",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "bat",
+        "cat clone",
+        "bat cli"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "Rust cat-clone CLI — no backend, no database."
+}

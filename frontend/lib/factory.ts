@@ -1,6 +1,7 @@
 import logger from '@/lib/logger';
 import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry } from '@/lib/componentRegistry';
+import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 
 // ─── NODE FACTORY ────────────────────────────────────────────
 
@@ -40,6 +41,17 @@ export function createNode(
   }
 
   const { type, data: extraData, ...restExtra } = extra;
+  const rawData = (extraData || {}) as Record<string, unknown>;
+  const resolvedIcon = resolveNodeIcon({
+    label: label ?? def?.label,
+    typeId,
+    componentType: typeId,
+    serviceType: rawData.serviceType as string | undefined,
+    technology: (rawData.technology as string | undefined) ?? def?.technology,
+    category: (rawData.category as string | undefined) ?? def?.category,
+    icon: (rawData.icon as string | undefined) ?? def?.icon,
+    color: (rawData.color as string | undefined) ?? def?.color,
+  });
 
   return {
     id: crypto.randomUUID(),
@@ -48,11 +60,14 @@ export function createNode(
     ...restExtra,
     data: {
       typeId,
+      componentType: typeId,
       label:    label ?? def?.label ?? 'Unnamed',
       color:    def?.color    ?? '#6366f1',
       category: def?.category ?? 'default',
-      icon:     def?.icon     ?? 'Box',
-      ...(extraData || {}),
+      ...rawData,
+      icon:     resolvedIcon.icon,
+      iconSource: resolvedIcon.source,
+      technology: resolvedIcon.technology ?? def?.technology,
     },
   };
 }

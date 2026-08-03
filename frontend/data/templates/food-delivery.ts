@@ -37,17 +37,17 @@ export const foodDeliveryNodes: Node[] = [
   node('fd_customer', 'Customer App', 'Browse + order', 'client', '#64748b', 'Smartphone', 0, 100),
   node('fd_courier', 'Courier App', 'Live assignment', 'client', '#64748b', 'Bike', 0, 300),
   node('fd_restaurant', 'Restaurant Portal', 'Accept orders', 'client', '#64748b', 'Store', 0, 500),
-  node('fd_gateway', 'API Gateway', 'Auth + routing', 'edge', '#6366f1', 'Webhook', 320, 300),
+  node('fd_gateway', 'API Gateway', 'Auth + routing', 'edge', '#0f766e', 'Webhook', 320, 300),
   node('fd_catalog', 'Catalog Service', 'Menus + pricing', 'compute', '#0d9488', 'Utensils', 640, 80),
   node('fd_order', 'Order Service', 'Order lifecycle', 'compute', '#0d9488', 'ReceiptText', 640, 260),
   node('fd_dispatch', 'Dispatch Service', 'Courier matching', 'compute', '#0d9488', 'MapPinned', 640, 440),
   node('fd_location', 'Location Stream', 'Courier GPS', 'stream', '#d97706', 'Navigation', 960, 440),
   node('fd_events', 'Order Events', 'Kafka pipeline', 'async', '#d97706', 'MessagesSquare', 960, 260),
   node('fd_payment', 'Payment Service', 'Capture + refunds', 'compute', '#0d9488', 'CreditCard', 960, 80),
-  node('fd_db', 'Orders DB', 'Transactional state', 'data', '#3b82f6', 'Database', 1280, 260),
-  node('fd_search', 'Search Index', 'Restaurant discovery', 'data', '#3b82f6', 'Search', 1280, 80),
+  node('fd_db', 'Orders DB', 'Transactional state', 'data', '#64748b', 'Database', 1280, 260),
+  node('fd_search', 'Search Index', 'Restaurant discovery', 'data', '#64748b', 'Search', 1280, 80),
   node('fd_notify', 'Notification Service', 'Push + SMS', 'async', '#d97706', 'Bell', 1280, 440),
-  node('fd_dashboard', 'Ops Dashboard', 'SLA monitoring', 'observe', '#8b5cf6', 'LayoutDashboard', 1280, 620),
+  node('fd_dashboard', 'Ops Dashboard', 'SLA monitoring', 'observe', '#475569', 'LayoutDashboard', 1280, 620),
 ];
 
 export const foodDeliveryEdges: Edge[] = [

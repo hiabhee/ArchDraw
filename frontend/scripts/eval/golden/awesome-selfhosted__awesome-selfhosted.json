@@ -1,0 +1,32 @@
+{
+  "repo": "https://github.com/awesome-selfhosted/awesome-selfhosted",
+  "classification": {
+    "repoType": "documentation",
+    "framework": null,
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "docs",
+      "label": "Awesome Selfhosted List",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "readme",
+        "list",
+        "docs",
+        "markdown"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "A curated README list of self-hosted software. Pure documentation — almost any node beyond a docs/README node is a hallucination."
+}

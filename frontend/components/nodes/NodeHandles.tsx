@@ -27,22 +27,23 @@ function SingleHandle({ side, type, slotOffset, handleTransition, style }: NodeH
   const isHorizontal = side === 'left' || side === 'right';
   const pos = sideToPosition(side);
 
+  // Pin to side midpoint (translate both axes) so diamond/circle tips stay centered.
   const base: React.CSSProperties = {
     position: 'absolute',
     zIndex: 10,
     transition: handleTransition,
     ...(isHorizontal
       ? {
-          left: side === 'left' ? -4 : undefined,
-          right: side === 'right' ? -4 : undefined,
+          left: side === 'left' ? 0 : 'auto',
+          right: side === 'right' ? 0 : 'auto',
           top: `calc(50% + ${slotOffset}px)`,
-          transform: 'translateY(-50%)',
+          transform: 'translate(-50%, -50%)',
         }
       : {
-          top: side === 'top' ? -4 : undefined,
-          bottom: side === 'bottom' ? -4 : undefined,
+          top: side === 'top' ? 0 : 'auto',
+          bottom: side === 'bottom' ? 0 : 'auto',
           left: `calc(50% + ${slotOffset}px)`,
-          transform: 'translateX(-50%)',
+          transform: 'translate(-50%, -50%)',
         }),
     ...style,
   };

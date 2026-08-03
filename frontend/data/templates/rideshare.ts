@@ -6,23 +6,23 @@ export const rideshareNodes: Node[] = [
   { id: 'rs_driver', type: 'systemNode', position: { x: 0, y: 400 }, data: { label: 'Mobile App (Driver)', category: 'Client Layer', color: '#5A5A5A', icon: 'Car' } },
   
   // Gateway Layer (Col 1)
-  { id: 'rs_apigw', type: 'systemNode', position: { x: 350, y: 200 }, data: { label: 'API Gateway', category: 'Gateway Layer', color: '#3b82f6', icon: 'Webhook' } },
-  { id: 'rs_ws', type: 'systemNode', position: { x: 350, y: 400 }, data: { label: 'WebSocket Server', category: 'Gateway Layer', color: '#3b82f6', icon: 'Radio' } },
+  { id: 'rs_apigw', type: 'systemNode', position: { x: 350, y: 200 }, data: { label: 'API Gateway', category: 'Gateway Layer', color: '#64748b', icon: 'Webhook' } },
+  { id: 'rs_ws', type: 'systemNode', position: { x: 350, y: 400 }, data: { label: 'WebSocket Server', category: 'Gateway Layer', color: '#64748b', icon: 'Radio' } },
   
   // Core Ride System (Col 2)
-  { id: 'rs_usersvc', type: 'systemNode', position: { x: 700, y: 100 }, data: { label: 'User Service', category: 'Core Ride System', color: '#3b82f6', icon: 'Users' } },
-  { id: 'rs_match', type: 'systemNode', position: { x: 700, y: 280 }, data: { label: 'Matching Service', category: 'Core Ride System', color: '#3b82f6', icon: 'GitMerge' } },
-  { id: 'rs_driver_svc', type: 'systemNode', position: { x: 700, y: 460 }, data: { label: 'Driver Service', category: 'Core Ride System', color: '#3b82f6', icon: 'Truck' } },
-  { id: 'rs_ride', type: 'systemNode', position: { x: 700, y: 640 }, data: { label: 'Ride Service', category: 'Core Ride System', color: '#3b82f6', icon: 'MapPin' } },
+  { id: 'rs_usersvc', type: 'systemNode', position: { x: 700, y: 100 }, data: { label: 'User Service', category: 'Core Ride System', color: '#64748b', icon: 'Users' } },
+  { id: 'rs_match', type: 'systemNode', position: { x: 700, y: 280 }, data: { label: 'Matching Service', category: 'Core Ride System', color: '#64748b', icon: 'GitMerge' } },
+  { id: 'rs_driver_svc', type: 'systemNode', position: { x: 700, y: 460 }, data: { label: 'Driver Service', category: 'Core Ride System', color: '#64748b', icon: 'Truck' } },
+  { id: 'rs_ride', type: 'systemNode', position: { x: 700, y: 640 }, data: { label: 'Ride Service', category: 'Core Ride System', color: '#64748b', icon: 'MapPin' } },
   
   // Real-Time Location System (Col 3)
-  { id: 'rs_locsvc', type: 'systemNode', position: { x: 1050, y: 280 }, data: { label: 'Location Service', category: 'Real-Time Location System', color: '#f59e0b', icon: 'Map' } },
+  { id: 'rs_locsvc', type: 'systemNode', position: { x: 1050, y: 280 }, data: { label: 'Location Service', category: 'Real-Time Location System', color: '#b45309', icon: 'Map' } },
   
   // Async Processing System (Col 4)
-  { id: 'rs_mq', type: 'systemNode', position: { x: 1400, y: 280 }, data: { label: 'Message Queue', category: 'Async Processing System', color: '#f97316', icon: 'MessageSquare' } },
-  { id: 'rs_worker', type: 'systemNode', position: { x: 1400, y: 460 }, data: { label: 'Background Worker', category: 'Async Processing System', color: '#f97316', icon: 'Timer' } },
-  { id: 'rs_notif', type: 'systemNode', position: { x: 1750, y: 380 }, data: { label: 'Notification Service', category: 'Async Processing System', color: '#f97316', icon: 'Bell' } },
-  { id: 'rs_billing', type: 'systemNode', position: { x: 1750, y: 540 }, data: { label: 'Billing Service', category: 'Async Processing System', color: '#f97316', icon: 'CreditCard' } },
+  { id: 'rs_mq', type: 'systemNode', position: { x: 1400, y: 280 }, data: { label: 'Message Queue', category: 'Async Processing System', color: '#6b7280', icon: 'MessageSquare' } },
+  { id: 'rs_worker', type: 'systemNode', position: { x: 1400, y: 460 }, data: { label: 'Background Worker', category: 'Async Processing System', color: '#6b7280', icon: 'Timer' } },
+  { id: 'rs_notif', type: 'systemNode', position: { x: 1750, y: 380 }, data: { label: 'Notification Service', category: 'Async Processing System', color: '#6b7280', icon: 'Bell' } },
+  { id: 'rs_billing', type: 'systemNode', position: { x: 1750, y: 540 }, data: { label: 'Billing Service', category: 'Async Processing System', color: '#6b7280', icon: 'CreditCard' } },
   
   // Data Layer (Col 5)
   { id: 'rs_db', type: 'systemNode', position: { x: 2100, y: 280 }, data: { label: 'Database', category: 'Data Layer', color: '#334155', icon: 'Database' } },

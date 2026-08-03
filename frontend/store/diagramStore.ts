@@ -29,6 +29,10 @@ import { EDGE_CONFIG, STORAGE_KEY, STORAGE_VERSION, NODE_CONFIG } from '@/lib/co
 import { createNode, createEdge } from '@/lib/factory';
 import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
 import { LAYOUT_PRESETS, type LayoutPreset } from '@/lib/canvas/layoutPresets';
+import {
+  layoutDiagramViaMermaid,
+  directionFromPresetId,
+} from '@/lib/mermaid/relayout';
 import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
 import { resolveNodeCollisions } from '@/src/utils/resolveNodeCollisions';
 
@@ -194,6 +198,10 @@ interface DiagramState {
   edgeAnimations: boolean;
   showGrid: boolean;
   showNodeIcons: boolean;
+  /** edit = decorative chrome; present = quiet architecture (also used for export). */
+  diagramChromeMode: 'edit' | 'present';
+  /** Named diagram theme pack (slate / forest-green / …). */
+  diagramStyleTheme: string;
   darkMode: boolean;
   sidebarOpen: boolean;
   canvasMode: 'empty' | 'editing' | 'template';
@@ -204,6 +212,8 @@ interface DiagramState {
   toggleGrid: () => void;
   toggleNodeIcons: () => void;
   setShowNodeIcons: (show: boolean) => void;
+  setDiagramChromeMode: (mode: 'edit' | 'present') => void;
+  setDiagramStyleTheme: (theme: string) => void;
   toggleDarkMode: () => void;
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
@@ -657,6 +667,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
       pipelineStatus: 'idle',
       pipelineError: null,
       showNodeIcons: true,
+      diagramChromeMode: 'edit',
+      diagramStyleTheme: 'default',
 
       getRandomAnimalName: () => {
         const animals = ['Elephant', 'Lion', 'Panda', 'Tiger', 'Falcon', 'Shark', 'Wolf', 'Fox', 'Bear', 'Eagle', 'Owl', 'Hawk', 'Dolphin', 'Penguin', 'Zebra', 'Giraffe', 'Leopard', 'Jaguar', 'Panther', 'Cheetah'];
@@ -1220,21 +1232,50 @@ const useDiagramStoreRaw = create<DiagramState>()(
 
           if (preset.isFreeform) {
             set({ activeLayoutPresetId: presetId });
-            isLayouting = false;
             return;
           }
 
           const { nodes, edges, activeCanvasId, canvases } = get();
-          const layoutedNodes = await applyLayoutPreset(nodes, edges, preset);
 
-          // Temporarily set extent to undefined for child nodes so React Flow
-          // does not clamp their layout positions to the old parent dimensions.
-          const nodesWithoutExtent = layoutedNodes.map(n => 
-            (n.parentId || (n as { parentNode?: string }).parentNode) ? { ...n, extent: undefined } : n
+          // Layered LR/TB use the same Mermaid → Dagre path as the toolbar toggler.
+          // Other presets (e.g. force) keep the ELK canvas path.
+          const isLayeredMermaid = presetId === 'layered-lr' || presetId === 'layered-tb';
+          let layoutedNodes = nodes;
+          let layoutedEdges = edges;
+
+          if (isLayeredMermaid) {
+            const result = await layoutDiagramViaMermaid(
+              nodes,
+              edges,
+              directionFromPresetId(presetId)
+            );
+            if (!result.success) {
+              console.error('[Layout] Mermaid layout failed:', result.warnings);
+              return;
+            }
+            layoutedNodes = result.nodes;
+            layoutedEdges = result.edges;
+          } else {
+            layoutedNodes = await applyLayoutPreset(nodes, edges, preset);
+          }
+
+          // Temporarily clear extent so React Flow does not clamp children
+          // against the previous parent size while new group bounds settle.
+          const nodesWithoutExtent = layoutedNodes.map((n) =>
+            n.parentId || (n as { parentNode?: string }).parentNode
+              ? { ...n, extent: undefined }
+              : n
           );
 
           const nextCanvases = canvases.map((c) =>
-            c.id === activeCanvasId ? { ...c, nodes: nodesWithoutExtent, updatedAt: Date.now() } : c
+            c.id === activeCanvasId
+              ? {
+                  ...c,
+                  nodes: nodesWithoutExtent,
+                  edges: layoutedEdges,
+                  updatedAt: Date.now(),
+                }
+              : c
           );
 
           set({
@@ -1245,22 +1286,23 @@ const useDiagramStoreRaw = create<DiagramState>()(
           get().saveCanvasToDB(activeCanvasId);
           setTimeout(() => get().fitView(), 100);
 
-          // Re-apply extent constraint after React Flow has finished rendering and measuring the new parent size
           setTimeout(() => {
             const { activeCanvasId: currentActiveId, canvases: currentCanvases } = get();
-            const canvas = currentCanvases.find(c => c.id === currentActiveId);
+            const canvas = currentCanvases.find((c) => c.id === currentActiveId);
             if (!canvas) return;
 
-            const restoredNodes = canvas.nodes.map(n => {
+            const restoredNodes = canvas.nodes.map((n) => {
               const pId = n.parentId || (n as { parentNode?: string }).parentNode;
-              return pId ? { ...n, parentId: pId, parentNode: pId, extent: 'parent' as const } : n;
+              return pId
+                ? { ...n, parentId: pId, parentNode: pId, extent: 'parent' as const }
+                : n;
             });
 
-            const nextCanvasesRestored = currentCanvases.map((c) =>
-              c.id === currentActiveId ? { ...c, nodes: restoredNodes } : c
-            );
-
-            set({ canvases: nextCanvasesRestored });
+            set({
+              canvases: currentCanvases.map((c) =>
+                c.id === currentActiveId ? { ...c, nodes: restoredNodes } : c
+              ),
+            });
           }, 250);
         } catch (e) {
           console.error('[Layout] Failed to apply layout preset:', e);
@@ -1273,22 +1315,36 @@ const useDiagramStoreRaw = create<DiagramState>()(
         isLayouting = true;
         try {
           const { activeLayoutPresetId, nodes, edges, activeCanvasId, canvases } = get();
-          const nextPresetId = activeLayoutPresetId === 'layered-tb' ? 'layered-lr' : 'layered-tb';
-          const preset = LAYOUT_PRESETS.find((p) => p.id === nextPresetId) as LayoutPreset | undefined;
-          if (!preset) return;
+          const nextPresetId =
+            activeLayoutPresetId === 'layered-tb' ? 'layered-lr' : 'layered-tb';
 
           get().pushHistory();
 
-          const layoutedNodes = await applyLayoutPreset(nodes, edges, preset);
+          const result = await layoutDiagramViaMermaid(
+            nodes,
+            edges,
+            directionFromPresetId(nextPresetId)
+          );
+          if (!result.success) {
+            console.error('[Layout] Mermaid toggle failed:', result.warnings);
+            return;
+          }
 
-          // Temporarily set extent to undefined for child nodes so React Flow
-          // does not clamp their layout positions to the old parent dimensions.
-          const nodesWithoutExtent = layoutedNodes.map(n => 
-            (n.parentId || (n as { parentNode?: string }).parentNode) ? { ...n, extent: undefined } : n
+          const nodesWithoutExtent = result.nodes.map((n) =>
+            n.parentId || (n as { parentNode?: string }).parentNode
+              ? { ...n, extent: undefined }
+              : n
           );
 
           const nextCanvases = canvases.map((c) =>
-            c.id === activeCanvasId ? { ...c, nodes: nodesWithoutExtent, updatedAt: Date.now() } : c
+            c.id === activeCanvasId
+              ? {
+                  ...c,
+                  nodes: nodesWithoutExtent,
+                  edges: result.edges,
+                  updatedAt: Date.now(),
+                }
+              : c
           );
 
           set({
@@ -1299,22 +1355,23 @@ const useDiagramStoreRaw = create<DiagramState>()(
           get().saveCanvasToDB(activeCanvasId);
           setTimeout(() => get().fitView(), 100);
 
-          // Re-apply extent constraint after React Flow has finished rendering and measuring the new parent size
           setTimeout(() => {
             const { activeCanvasId: currentActiveId, canvases: currentCanvases } = get();
-            const canvas = currentCanvases.find(c => c.id === currentActiveId);
+            const canvas = currentCanvases.find((c) => c.id === currentActiveId);
             if (!canvas) return;
 
-            const restoredNodes = canvas.nodes.map(n => {
+            const restoredNodes = canvas.nodes.map((n) => {
               const pId = n.parentId || (n as { parentNode?: string }).parentNode;
-              return pId ? { ...n, parentId: pId, parentNode: pId, extent: 'parent' as const } : n;
+              return pId
+                ? { ...n, parentId: pId, parentNode: pId, extent: 'parent' as const }
+                : n;
             });
 
-            const nextCanvasesRestored = currentCanvases.map((c) =>
-              c.id === currentActiveId ? { ...c, nodes: restoredNodes } : c
-            );
-
-            set({ canvases: nextCanvasesRestored });
+            set({
+              canvases: currentCanvases.map((c) =>
+                c.id === currentActiveId ? { ...c, nodes: restoredNodes } : c
+              ),
+            });
           }, 250);
         } finally {
           isLayouting = false;
@@ -1323,6 +1380,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
       toggleGrid: () => set({ showGrid: !get().showGrid }),
       toggleNodeIcons: () => set({ showNodeIcons: !get().showNodeIcons }),
       setShowNodeIcons: (show) => set({ showNodeIcons: show }),
+      setDiagramChromeMode: (mode) => set({ diagramChromeMode: mode }),
+      setDiagramStyleTheme: (theme) => set({ diagramStyleTheme: theme }),
       toggleDarkMode: () => {
         const next = !get().darkMode;
         // Delegate to next-themes via the bridge rather than writing
@@ -1950,18 +2009,11 @@ const useDiagramStoreRaw = create<DiagramState>()(
       },
 
       loadTemplate: (nodes, edges) => {
-        get().pushHistory();
-        const normalizedNodes = normalizeNodes(nodes);
-        const cleanedNodes = stripReservedLayerNodes(normalizedNodes);
-        const validatedNodes = validateAndFixNodes(cleanedNodes);
-        const resolvedNodes = resolveNodeCollisions(validatedNodes);
-        const normalizedEdges = normalizeEdges(edges);
-        const canvases = get().canvases.map((c) =>
-          // Qualifies for updatedAt because template was loaded
-          c.id === get().activeCanvasId ? { ...c, nodes: resolvedNodes, edges: normalizedEdges, updatedAt: Date.now() } : c
-        );
-        set({ canvases, selectedNodeId: null, selectedEdgeId: null });
-        get().saveCanvasToDB(get().activeCanvasId);
+        // Same import path as the layout toggler (`importDiagram`) so
+        // Mermaid-pre-laid templates keep compound positions/handles instead of
+        // being scrambled by resolveNodeCollisions.
+        get().importDiagram(nodes, edges);
+        set({ selectedNodeId: null, selectedEdgeId: null });
       },
 
       // ── Fit view ───────────────────────────────────────────────────────────
@@ -2177,6 +2229,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
         edgeAnimations: s.edgeAnimations,
         showGrid: s.showGrid,
         showNodeIcons: s.showNodeIcons,
+        diagramChromeMode: s.diagramChromeMode,
+        diagramStyleTheme: s.diagramStyleTheme,
         userProfile: s.userProfile,
       }),
       onRehydrateStorage: () => (state) => {

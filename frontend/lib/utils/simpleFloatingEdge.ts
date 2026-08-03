@@ -79,6 +79,73 @@ export function resolveSideFromEdgeHandles(edge: Edge, nodeId: string): Position
   return undefined;
 }
 
+/** Map a stored `data.sourceSide` / `data.targetSide` string to a Position. */
+export function sideFromDataString(value: unknown): Position | undefined {
+  if (value === 'left' || value === Position.Left) return Position.Left;
+  if (value === 'right' || value === Position.Right) return Position.Right;
+  if (value === 'top' || value === Position.Top) return Position.Top;
+  if (value === 'bottom' || value === Position.Bottom) return Position.Bottom;
+  return undefined;
+}
+
+/**
+ * Resolve which side of `nodeId` an edge actually renders on. Mirrors the
+ * route builder (`edgeRouteBuilder`): stored side override, then stored
+ * handle id, then a geometric center-to-center inference as a last resort.
+ * The geometric heuristic alone is not reliable — obstacle detours, lane
+ * preferences and semantic ports can move an edge onto a different side.
+ */
+export function resolveEdgeTerminalSide(
+  edge: Edge,
+  nodeId: string,
+  terminal: 'source' | 'target',
+  nodeById?: Map<string, Node>,
+): Position | undefined {
+  const data = edge.data as Record<string, unknown> | undefined;
+  const manual =
+    terminal === 'target'
+      ? sideFromDataString(data?.targetSide)
+      : sideFromDataString(data?.sourceSide);
+  if (manual !== undefined) return manual;
+
+  const fromHandle = resolveSideFromEdgeHandles(edge, nodeId);
+  if (fromHandle !== undefined) return fromHandle;
+
+  if (!nodeById) return undefined;
+  const src = nodeById.get(edge.source);
+  const tgt = nodeById.get(edge.target);
+  if (!src || !tgt) return undefined;
+  const sc = getNodeCenter(src);
+  const tc = getNodeCenter(tgt);
+  const pos = getSimpleEdgePositions(sc.cx, sc.cy, tc.cx, tc.cy);
+  return terminal === 'target' ? pos.targetPos : pos.sourcePos;
+}
+
+/**
+ * Edges that converge onto the same terminal tip as `edgeId` on `nodeId`.
+ * A tip is shared only by edges landing on the SAME side, so the marker
+ * merge is only valid when the resolved sides agree. Edges whose rendered
+ * side differs (even when geometry suggests otherwise) are kept apart so a
+ * shared-tip merge never steals an edge's arrowhead.
+ */
+export function getSharedTerminalEdges(
+  edgeId: string,
+  nodeId: string,
+  side: Position,
+  edges: Edge[],
+  nodeById?: Map<string, Node>,
+  terminal: 'source' | 'target' = 'target',
+): Edge[] {
+  return edges
+    .filter((e) => (terminal === 'target' ? e.target === nodeId : e.source === nodeId))
+    .filter((e) =>
+      e.id === edgeId
+        ? true
+        : resolveEdgeTerminalSide(e, nodeId, terminal, nodeById) === side,
+    )
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
 /**
  * Per-side slot layout for dedicated source (outgoing) / target (incoming) handles.
  *

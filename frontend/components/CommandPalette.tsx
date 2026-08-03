@@ -8,6 +8,70 @@ import { createNode } from '@/lib/factory';
 import { getViewportCenter } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
+const SERVICE_TYPE_MAP: Record<string, string> = {
+  // Queue types
+  'message_queue': 'queue',
+  'event_bus': 'queue',
+  'kafka_streaming': 'queue',
+  // Database types
+  'sql_db': 'database',
+  'nosql_db': 'database',
+  'graph_database': 'database',
+  'object_storage': 'database',
+  'data_warehouse': 'database',
+  'in_memory_cache': 'database',
+  'cdn_cache': 'database',
+  'app_cache': 'database',
+  // Load balancer types
+  'load_balancer': 'load-balancer',
+  'reverse_proxy': 'load-balancer',
+  // External service types
+  'email_service': 'external-service',
+  'payment_gateway': 'external-service',
+  'sms_push': 'external-service',
+  'maps_api': 'external-service',
+  'third_party_api': 'external-service',
+  // Observability types
+  'logger': 'observability',
+  'metrics_collector': 'observability',
+  'tracing_service': 'observability',
+  'alert_manager': 'observability',
+  'dashboard': 'observability',
+  'otel_collector': 'observability',
+  // Client types
+  'client_web': 'client',
+  'client_mobile': 'client',
+  'api_gateway': 'load-balancer',
+  'cdn': 'external-service',
+  'dns': 'external-service',
+  'bff_gateway': 'load-balancer',
+  // Service types
+  'microservice': 'service',
+  'serverless_fn': 'service',
+  'worker_job': 'service',
+  'container': 'service',
+  // AI / ML types
+  'llm_api': 'ai',
+  'openai': 'ai',
+  'anthropic': 'ai',
+  'anthropic_claude': 'ai',
+  'gemini': 'ai',
+  'claude': 'ai',
+  'embedding_service': 'ai',
+  'embedding_model': 'ai',
+  'ml_model': 'ai',
+  'sagemaker': 'ai',
+  'huggingface': 'ai',
+  // Server types
+  'server_monolith': 'server',
+  // Container types
+  'docker': 'docker',
+  // API types
+  'graphql_federation': 'api',
+  'graphql_subgraph': 'api',
+  'rest_api': 'api',
+};
+
 let globalSearchVersion = 0;
 
 function useCustomComponentListener() {
@@ -109,6 +173,7 @@ export function CommandPalette() {
   }, [selectedIndex, open]);
 
   const handleSelectComponent = useCallback((comp: ComponentDefinition) => {
+    const serviceType = SERVICE_TYPE_MAP[comp.id] || (comp.category?.toLowerCase().includes('messaging') || comp.category?.toLowerCase().includes('queue') ? 'queue' : comp.category?.toLowerCase().includes('ai') || comp.category?.toLowerCase().includes('ml') ? 'ai' : undefined);
     const node = createNode(
       comp.id,
       comp.label,
@@ -121,6 +186,7 @@ export function CommandPalette() {
           color: comp.color,
           icon: comp.icon,
           technology: comp.technology,
+          serviceType,
         }
       }
     );

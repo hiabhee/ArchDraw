@@ -13,7 +13,7 @@ const node = (
   id,
   type: 'systemNode',
   position: { x, y },
-  data: { label, subtitle, layer, category: layer, color, icon, nodeWidth: 180, nodeHeight: 82 },
+  data: { label, subtitle, layer, category: layer, color, icon, nodeWidth: 200, nodeHeight: 82 },
 });
 
 const edge = (
@@ -36,16 +36,16 @@ const edge = (
 export const fintechPaymentsNodes: Node[] = [
   node('fp_mobile', 'Mobile App', 'Checkout + wallet', 'client', '#64748b', 'Smartphone', 0, 120),
   node('fp_web', 'Web App', 'Merchant checkout', 'client', '#64748b', 'Monitor', 0, 300),
-  node('fp_gateway', 'API Gateway', 'Auth + throttling', 'edge', '#6366f1', 'Webhook', 320, 210),
+  node('fp_gateway', 'API Gateway', 'Auth + throttling', 'edge', '#0f766e', 'Webhook', 320, 210),
   node('fp_risk', 'Risk Engine', 'Fraud scoring', 'compute', '#0d9488', 'ShieldCheck', 640, 60),
   node('fp_payment', 'Payment Service', 'Authorize + capture', 'compute', '#0d9488', 'CreditCard', 640, 210),
   node('fp_ledger', 'Ledger Service', 'Double-entry records', 'compute', '#0d9488', 'BookOpen', 640, 360),
   node('fp_queue', 'Payment Events', 'Kafka topics', 'async', '#d97706', 'Radio', 960, 210),
-  node('fp_processor', 'Card Processor', 'External acquirer', 'external', '#ec4899', 'Landmark', 960, 40),
-  node('fp_bank', 'Bank Network', 'Settlement rails', 'external', '#ec4899', 'Building2', 1280, 40),
-  node('fp_db', 'Payments DB', 'Transactions', 'data', '#3b82f6', 'Database', 960, 360),
-  node('fp_warehouse', 'Data Warehouse', 'Finance analytics', 'data', '#3b82f6', 'Warehouse', 1280, 300),
-  node('fp_alerts', 'Alerting', 'Risk + ops alerts', 'observe', '#8b5cf6', 'BellRing', 1280, 500),
+  node('fp_processor', 'Card Processor', 'External acquirer', 'external', '#0f766e', 'Landmark', 960, 40),
+  node('fp_bank', 'Bank Network', 'Settlement rails', 'external', '#0f766e', 'Building2', 1280, 40),
+  node('fp_db', 'Payments DB', 'Transactions', 'data', '#64748b', 'Database', 960, 360),
+  node('fp_warehouse', 'Data Warehouse', 'Finance analytics', 'data', '#64748b', 'Warehouse', 1280, 300),
+  node('fp_alerts', 'Alerting', 'Risk + ops alerts', 'observe', '#475569', 'BellRing', 1280, 500),
 ];
 
 export const fintechPaymentsEdges: Edge[] = [

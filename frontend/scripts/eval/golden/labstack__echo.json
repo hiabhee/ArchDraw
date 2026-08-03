@@ -1,0 +1,33 @@
+{
+  "repo": "https://github.com/labstack/echo",
+  "classification": {
+    "repoType": "library",
+    "framework": "Echo",
+    "database": null
+  },
+  "nodes": [
+    {
+      "id": "echo_core",
+      "label": "Echo",
+      "type": "CORE_MODULE",
+      "aliases": [
+        "echo",
+        "echo framework"
+      ],
+      "sourceFiles": [
+        "echo.go"
+      ]
+    }
+  ],
+  "edges": [],
+  "forbiddenNodes": [
+    "PostgreSQL",
+    "Redis",
+    "MongoDB",
+    "MySQL",
+    "Stripe",
+    "Auth0",
+    "Stripe API"
+  ],
+  "notes": "High-performance HTTP web framework library."
+}

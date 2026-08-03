@@ -6,8 +6,7 @@ import { X, Search, LayoutTemplate, Lock } from 'lucide-react';
 import { TEMPLATES, type Template } from '@/data/templates/index';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useAuthStore } from '@/store/authStore';
-import { applyLayoutPreset } from '@/lib/canvas/applyLayout';
-import { LAYOUT_PRESETS } from '@/lib/canvas/layoutPresets';
+import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { toast } from 'sonner';
 import { getUserTier, isTemplateAllowed } from '@/lib/userQuotas';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
@@ -19,8 +18,10 @@ export function TemplateModal({ onClose }: Props) {
   useBodyScrollLock(true);
   const [query, setQuery] = useState('');
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const { nodes, loadTemplate, fitView, addCanvas } = useDiagramStore();
   const renameCanvas = useDiagramStore((s) => s.renameCanvas);
+  const setActiveLayoutPresetId = useDiagramStore((s) => s.setActiveLayoutPresetId);
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
 
@@ -29,27 +30,37 @@ export function TemplateModal({ onClose }: Props) {
     t.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
   );
 
+  /** Same Mermaid → Dagre path as the toolbar layout toggler. */
   const layoutTemplate = async (t: Template): Promise<{ nodes: Node[]; edges: Edge[] }> => {
-    const preset = LAYOUT_PRESETS.find((p) => p.id === 'layered-lr');
-    const layoutedNodes = await applyLayoutPreset(t.nodes, t.edges, preset!);
-    return { nodes: layoutedNodes, edges: t.edges };
+    const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR');
+    if (!result.success) {
+      toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
+      return { nodes: t.nodes, edges: t.edges };
+    }
+    return { nodes: result.nodes, edges: result.edges };
   };
 
   const handleLoad = async (t: Template) => {
-    const { nodes: ln, edges: le } = await layoutTemplate(t);
-    if (nodes.length > 0) {
-      addCanvas();
-      setTimeout(() => {
-        const { activeCanvasId } = useDiagramStore.getState();
-        useDiagramStore.getState().renameCanvas(activeCanvasId, t.name);
-        useDiagramStore.getState().loadTemplate(ln, le);
-        setTimeout(() => useDiagramStore.getState().fitView(), 80);
-      }, 0);
-      toast.success(`"${t.name}" loaded in new tab`);
-      onClose();
-      return;
+    setLoadingId(t.id);
+    try {
+      const { nodes: ln, edges: le } = await layoutTemplate(t);
+      setActiveLayoutPresetId('layered-lr');
+      if (nodes.length > 0) {
+        addCanvas();
+        setTimeout(() => {
+          const { activeCanvasId } = useDiagramStore.getState();
+          useDiagramStore.getState().renameCanvas(activeCanvasId, t.name);
+          useDiagramStore.getState().loadTemplate(ln, le);
+          setTimeout(() => useDiagramStore.getState().fitView(), 80);
+        }, 0);
+        toast.success(`"${t.name}" loaded in new tab`);
+        onClose();
+        return;
+      }
+      await apply(t, ln, le);
+    } finally {
+      setLoadingId(null);
     }
-    apply(t, ln, le);
   };
 
   const apply = async (t: Template, ln?: Node[], le?: Edge[]) => {
@@ -57,6 +68,7 @@ export function TemplateModal({ onClose }: Props) {
     const { activeCanvasId } = useDiagramStore.getState();
     renameCanvas(activeCanvasId, t.name);
     loadTemplate(result.nodes, result.edges);
+    setActiveLayoutPresetId('layered-lr');
     setTimeout(() => fitView(), 80);
     toast.success(`"${t.name}" loaded`);
     onClose();
@@ -124,6 +136,8 @@ export function TemplateModal({ onClose }: Props) {
                   key={t.id}
                   template={t}
                   isLocked={!isTemplateAllowed(tier, t.id)}
+                  isLoading={loadingId === t.id}
+                  disabled={loadingId !== null}
                   onLoad={() => handleLoad(t)}
                   onUpgrade={() => setShowUpgrade(true)}
                 />
@@ -144,14 +158,35 @@ export function TemplateModal({ onClose }: Props) {
   );
 }
 
-function TemplateRow({ template, isLocked, onLoad, onUpgrade }: { template: Template; isLocked?: boolean; onLoad: () => void; onUpgrade?: () => void }) {
+function TemplateRow({
+  template,
+  isLocked,
+  isLoading,
+  disabled,
+  onLoad,
+  onUpgrade,
+}: {
+  template: Template;
+  isLocked?: boolean;
+  isLoading?: boolean;
+  disabled?: boolean;
+  onLoad: () => void;
+  onUpgrade?: () => void;
+}) {
+  const handleClick = () => {
+    if (disabled) return;
+    isLocked ? onUpgrade?.() : onLoad();
+  };
+
   return (
     <div
-      onClick={() => isLocked ? onUpgrade?.() : onLoad()}
-      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer border border-transparent ${
-        isLocked
-          ? 'opacity-60 hover:bg-secondary/20 hover:border-border/10'
-          : 'hover:bg-secondary/40 dark:hover:bg-secondary/25 hover:border-border/15'
+      onClick={handleClick}
+      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 border border-transparent ${
+        disabled && !isLoading
+          ? 'opacity-40 pointer-events-none'
+          : isLocked
+            ? 'opacity-60 hover:bg-secondary/20 hover:border-border/10 cursor-pointer'
+            : 'hover:bg-secondary/40 dark:hover:bg-secondary/25 hover:border-border/15 cursor-pointer'
       }`}
     >
       {/* Icon */}
@@ -187,15 +222,16 @@ function TemplateRow({ template, isLocked, onLoad, onUpgrade }: { template: Temp
       <button
         onClick={(e) => {
           e.stopPropagation();
-          isLocked ? onUpgrade?.() : onLoad();
+          handleClick();
         }}
+        disabled={disabled}
         className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition-all duration-200 ${
           isLocked
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
             : 'bg-[#1E90FF] hover:bg-[#4dabf7] active:scale-98 text-white'
         }`}
       >
-        {isLocked ? 'Sign in' : 'Load'}
+        {isLocked ? 'Sign in' : isLoading ? 'Laying out…' : 'Load'}
       </button>
     </div>
   );
