@@ -37,6 +37,7 @@ cd frontend
 npm install
 cd ../mcp-server && npm install && cd ../frontend
 cp .env.example .env.local
+# Edit frontend/.env.local with your actual values
 ```
 
 ### Environment Variables
@@ -51,9 +52,25 @@ UPSTASH_REDIS_REST_TOKEN=your_redis_token
 
 BETTER_AUTH_SECRET=your_secret
 BETTER_AUTH_URL=http://localhost:3000
+
+# Admin Configuration (Optional)
+ADMIN_PASSCODE=your_admin_passcode
+ADMIN_SESSION_SECRET=your_admin_session_secret
+ALLOWED_ADMIN_EMAIL=admin@yourdomain.com
+
+# Public Configuration
+NEXT_PUBLIC_ADMIN_EMAIL=admin@yourdomain.com
+NEXT_PUBLIC_CONTACT_EMAIL=contact@yourdomain.com
+
+# Embed Security (Optional)
+ALLOWED_EMBED_DOMAINS=example.com,another.com
 ```
 
 Only `GROQ_API_KEY` is required for AI generation. The app runs locally without Redis (rate limiting degrades gracefully).
+
+See `frontend/.env.example` for a complete list of available environment variables.
+
+For security configuration and best practices, see [SECURITY.md](SECURITY.md).
 
 ### Running
 

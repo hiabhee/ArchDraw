@@ -33,3 +33,6 @@ logs/
 test-results/
 frontend/test-results/
 .qoder/
+
+# Eval harness output
+frontend/eval-results/

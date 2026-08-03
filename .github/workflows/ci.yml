@@ -7,9 +7,11 @@ on:
     branches: [main]
 
 env:
-  DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
-  DIRECT_URL: postgresql://dummy:dummy@localhost:5432/dummy
+  DATABASE_URL: postgresql://test:test@localhost:5432/test
+  DIRECT_URL: postgresql://test:test@localhost:5432/test
   NEXT_PUBLIC_APP_URL: http://localhost:3000
+  BETTER_AUTH_SECRET: test-secret-for-ci-only-do-not-use-in-production
+  GROQ_API_KEY: test-key-for-ci-only-do-not-use-in-production
 
 jobs:
   quality:
