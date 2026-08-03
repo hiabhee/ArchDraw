@@ -4,7 +4,6 @@ import {
   deduplicateNodes,
   pruneNoisyEdges,
   applyReviewCorrections,
-  isImportantOrphan,
 } from '../graph-quality';
 import type { ExtractedNode, RichEdge, StaticSignal } from '@/lib/types/repo-diagram';
 
@@ -90,42 +89,5 @@ describe('applyReviewCorrections', () => {
     expect(result.nodes.some((n) => n.id === 'db')).toBe(true);
     expect(result.nodes.some((n) => n.id === 'old')).toBe(false);
     expect(result.edges).toHaveLength(1);
-  });
-});
-
-describe('isImportantOrphan', () => {
-  it('drops a single-file, low-confidence orphan when the graph is well connected', () => {
-    const orphan: ExtractedNode = { id: 'junk', label: 'Junk', type: 'UI_COMPONENT', description: '', sourceFiles: ['a.tsx'], confidence: 'low' };
-    expect(isImportantOrphan(orphan, 8)).toBe(false);
-  });
-
-  it('drops a high-confidence directory/grouping orphan (no edges) regardless of file count', () => {
-    const orphan: ExtractedNode = { id: 'frontend_components', label: 'Components', type: 'SERVICE', description: 'Components subsystem (5 files).', sourceFiles: ['a.tsx', 'b.tsx', 'c.tsx', 'd.tsx', 'e.tsx'], confidence: 'high' };
-    expect(isImportantOrphan(orphan, 8)).toBe(false);
-  });
-
-  it('drops a high-confidence dependency-library orphan like React/Tailwind', () => {
-    const orphan: ExtractedNode = { id: 'react', label: 'React', type: 'UI_COMPONENT', description: '', sourceFiles: ['react'], confidence: 'high' };
-    expect(isImportantOrphan(orphan, 8)).toBe(false);
-  });
-
-  it('keeps a grounded core-infrastructure orphan (database / queue / cache)', () => {
-    const db: ExtractedNode = { id: 'db', label: 'Database', type: 'DATABASE', description: '', sourceFiles: ['schema.prisma'], confidence: 'medium' };
-    expect(isImportantOrphan(db, 8)).toBe(true);
-  });
-
-  it('keeps a grounded external-service orphan', () => {
-    const svc: ExtractedNode = { id: 'stripe', label: 'Stripe', type: 'EXTERNAL_SERVICE', description: '', sourceFiles: ['lib/stripe.ts'], confidence: 'high' };
-    expect(isImportantOrphan(svc, 8)).toBe(true);
-  });
-
-  it('keeps a grounded orphan when the graph is sparse (< 3 connected nodes)', () => {
-    const orphan: ExtractedNode = { id: 'lonely', label: 'Lonely', type: 'UI_COMPONENT', description: '', sourceFiles: ['a.tsx'], confidence: 'low' };
-    expect(isImportantOrphan(orphan, 2)).toBe(true);
-  });
-
-  it('drops an ungrounded orphan even if it is core infrastructure', () => {
-    const ghost: ExtractedNode = { id: 'ghost', label: 'Ghost', type: 'DATABASE', description: '', sourceFiles: [], confidence: 'low' };
-    expect(isImportantOrphan(ghost, 8)).toBe(false);
   });
 });

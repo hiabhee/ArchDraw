@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateRepoArchitectureDiagramV2 as generateRepoArchitectureDiagram } from '@/lib/repo-diagram/pipeline-v2';
+import { generateRepoArchitectureDiagram } from '@/lib/repo-diagram-pipeline';
 import { parseGitHubUrl } from '@/lib/utils/githubUrl';
 import { clear } from '@/lib/ai/services/diagramCache';
 import { clearBlobCaches } from '@/lib/cache/blobCache';
@@ -68,24 +68,13 @@ export async function POST(req: NextRequest) {
   // Run pipeline in background, stream events:
   (async () => {
     try {
-      const outcome = await generateRepoArchitectureDiagram(
+      const result = await generateRepoArchitectureDiagram(
         parsed.canonical,
         resolvedDetail,
         req.signal,
         safeUserToken,
         (event) => send({ type: 'progress', ...event })
       );
-
-      if (!outcome.success) {
-        await send({
-          type: 'error',
-          message: outcome.error.message,
-          code: outcome.code,
-        });
-        return;
-      }
-
-      const result = outcome.data;
 
       const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
       const resolvedUserId = await userId;
@@ -113,7 +102,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unexpected error';
-      await send({ type: 'error', message, code: 'unknown' });
+      await send({ type: 'error', message });
     } finally {
       await writer.close();
     }

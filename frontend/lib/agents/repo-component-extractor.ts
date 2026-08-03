@@ -9,7 +9,7 @@ import logger from '@/lib/logger';
 
 export type { ExtractedNode };
 
-const KEY_FILE_BUDGET = 20000;
+const KEY_FILE_BUDGET = 32000;
 
 const ARCHITECTURAL_FILE_PATTERNS = [
   /route\.(ts|js|tsx)$/,
@@ -44,11 +44,6 @@ function pickKeyFiles(snapshot: RepoSnapshot): { path: string; content: string }
 
   for (const file of snapshot.selectedFiles) {
     let score = 0;
-    const lower = file.path.toLowerCase();
-    // README first — project overview often names services/architecture
-    if (/(^|\/)readme(\.[^/]+)?$/.test(lower)) {
-      score += 100;
-    }
     for (const pattern of ARCHITECTURAL_FILE_PATTERNS) {
       if (pattern.test(file.path)) {
         score += 1;
@@ -69,12 +64,7 @@ function pickKeyFiles(snapshot: RepoSnapshot): { path: string; content: string }
 
   for (const file of scored) {
     if (budget <= 0) break;
-    const isReadme = /(^|\/)readme(\.[^/]+)?$/i.test(file.path);
-    const maxChars = isReadme ? 12_000 : 5_000;
-    const content =
-      file.content.length > maxChars
-        ? file.content.slice(0, maxChars) + '\n... [truncated]'
-        : file.content;
+    const content = file.content.length > 5000 ? file.content.slice(0, 5000) + '\n... [truncated]' : file.content;
     const cost = file.path.length + content.length + 40;
     if (cost <= budget) {
       selected.push({ path: file.path, content });
@@ -122,10 +112,8 @@ export async function extractComponents(
   staticDetectionReport: string,
   summaries?: string[]
 ): Promise<ExtractedNode[]> {
-  // Prompt capped at ~28k chars (~7.3k tokens) so prompt + max output tokens
-  // stays under the 12K TPM ceiling of llama-3.3-70b-versatile (Groq free tier).
-  const PROMPT_CHAR_CAP = 28_000;
-  const fileTreeText = snapshot.fileTree.slice(0, 250).join('\n');
+  const PROMPT_CHAR_CAP = 64_000;
+  const fileTreeText = snapshot.fileTree.slice(0, 400).join('\n');
   let keyFiles = pickKeyFiles(snapshot);
 
   const summariesBlock = summaries?.length

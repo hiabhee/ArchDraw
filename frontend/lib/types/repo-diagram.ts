@@ -241,22 +241,6 @@ export type PipelineResult = {
   degraded?: DegradedFlags;
 };
 
-export type PipelineStage =
-  | 'ingesting'
-  | 'detecting_subsystems'
-  | 'extracting_signals'
-  | 'classifying'
-  | 'extracting_components'
-  | 'analyzing_relationships'
-  | 'compiling'
-  | 'done';
-
-export type PipelineProgressEvent = {
-  stage: PipelineStage;
-  message: string;
-  progress: number; // 0-100
-};
-
 /** JSON body returned by POST /api/repo-diagram on success. */
 export type RepoDiagramApiResponse = {
   success: true;

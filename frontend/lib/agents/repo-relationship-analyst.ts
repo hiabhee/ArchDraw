@@ -88,10 +88,8 @@ function buildEvidencePack(
   }
 
   const out = lines.join('\n');
-  // Hard cap ~5k tokens (~20k chars) so prompt + max output tokens stays under
-  // the 12K TPM ceiling of llama-3.3-70b-versatile. Deterministic — we already
-  // rank by weight upstream.
-  return out.length > 20_000 ? out.slice(0, 20_000) + '\n…[truncated]' : out;
+  // Hard cap ~12k tokens (~48k chars) for better context. Deterministic — we already rank by weight upstream.
+  return out.length > 48_000 ? out.slice(0, 48_000) + '\n…[truncated]' : out;
 }
 
 export async function analyzeRelationships(
