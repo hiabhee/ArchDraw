@@ -334,4 +334,49 @@ describe('Mermaid Full Syntax Coverage', () => {
       }
     }
   });
+
+  it('multi-line quoted labels across nested subgraphs', () => {
+    const r = p(`flowchart LR
+      Producer["Producer"]
+      subgraph Kafka["Kafka Cluster"]
+        direction TB
+        Topic["Topic : Orders"]
+        subgraph Broker1["Broker 1"]
+          P0["Partition 0
+Offset 0
+Offset 1
+Offset 2"]
+        end
+        Topic --> P0
+      end
+      Consumer1["Consumer Group A
+Consumer 1"]
+      Producer --> Topic
+      P0 --> Consumer1`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const labels = Object.fromEntries(r.ast.nodes.map(n => [n.id, n.label]));
+      expect(labels['P0']).toBe('Partition 0\nOffset 0\nOffset 1\nOffset 2');
+      expect(labels['Consumer1']).toBe('Consumer Group A\nConsumer 1');
+      expect(labels['Topic']).toBe('Topic : Orders');
+      // No spurious nodes created from continuation lines
+      expect(r.ast.nodes.map(n => n.id)).not.toContain('Offset');
+      expect(r.ast.edges.length).toBe(3);
+      const broker1 = r.ast.subgraphs.find(s => s.id === 'Broker1');
+      expect(broker1?.parentId).toBe('Kafka');
+      expect(broker1?.nodeIds).toEqual(['P0']);
+    }
+  });
+
+  it('escaped quotes in labels do not leak quote state across lines', () => {
+    const r = p(`graph LR
+      A[\\"trapezoid\\"]
+      B["plain"]
+      C --> D`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.map(n => n.id)).toEqual(['A', 'B', 'C', 'D']);
+      expect(r.ast.edges.length).toBe(1);
+    }
+  });
 });

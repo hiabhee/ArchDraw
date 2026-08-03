@@ -98,7 +98,7 @@ export const SERVICE_TYPE_META: Record<string, { typeId: string; icon: string; c
 // Category-based color overrides (applied on top of theme primary color)
 export const CATEGORY_COLORS: Record<string, string> = {
   'data':           '#1e293b',
-  'networking':     '#4F46E5',
+  'networking':     '#1E90FF',
   'messaging':      '#0891b2',
   'external':       '#64748b',
   'client':         '#2563EB',

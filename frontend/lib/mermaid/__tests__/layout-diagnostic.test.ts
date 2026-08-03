@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runMermaidPipeline, runMermaidPipelineV2 } from '../pipeline';
+import { runMermaidPipeline } from '../pipeline';
 import { applyLayout } from '../layout';
 import { buildReactFlowObjects } from '../buildReactFlow';
 import { parseMermaid } from '../parse';
@@ -25,22 +25,12 @@ const flatCode = `graph LR
   A["Service A"] --> B["Service B"]
   B --> C["Database"]`;
 
-// Nested subgraphs
-const deeplyNestedCode = `graph TD
-  subgraph OUTER["Outer"]
-    subgraph INNER["Inner"]
-      A["Node A"]
-    end
-    B["Node B"]
-  end
-  C["Node C"]`;
-
 describe('Layout diagnostic', () => {
-  it('original v1 pipeline produces non-zero positions for all nodes', () => {
-    const result = runMermaidPipeline(nestedCode);
+  it('pipeline produces non-zero positions for all nodes', async () => {
+    const result = await runMermaidPipeline(nestedCode);
     expect(result.success).toBe(true);
-    expect(result.nodes.length).toBeGreaterThan(0);
-    result.nodes.forEach(n => {
+    expect(result.data.nodes.length).toBeGreaterThan(0);
+    result.data.nodes.forEach(n => {
       expect(typeof n.position.x).toBe('number');
       expect(typeof n.position.y).toBe('number');
       // All nodes should have non-zero position (layout actually happened)
@@ -48,9 +38,9 @@ describe('Layout diagnostic', () => {
     });
   });
 
-  it('v1 pipeline positions nodes hierarchically (TD)', () => {
-    const result = runMermaidPipeline(nestedCode);
-    const nodes = result.nodes;
+  it('pipeline positions nodes hierarchically (TD)', async () => {
+    const result = await runMermaidPipeline(nestedCode);
+    const nodes = result.data.nodes;
     // Group nodes should have correct dimensions
     const groups = nodes.filter(n => n.type === 'groupNode');
     for (const g of groups) {
@@ -68,12 +58,12 @@ describe('Layout diagnostic', () => {
     }
   });
 
-  it('v1 pipeline preserves parentNode', () => {
-    const result = runMermaidPipeline(nestedCode);
-    const withParent = result.nodes.filter(n => n.parentNode);
+  it('pipeline preserves parentNode', async () => {
+    const result = await runMermaidPipeline(nestedCode);
+    const withParent = result.data.nodes.filter(n => n.parentNode);
     // A, B are in FRONTEND; C, D are in BACKEND
     expect(withParent.length).toBe(4);
-    for (const n of result.nodes) {
+    for (const n of result.data.nodes) {
       if (n.id === 'A' || n.id === 'B') {
         expect(n.parentNode).toBe('FRONTEND');
       } else if (n.id === 'C' || n.id === 'D') {
@@ -82,20 +72,13 @@ describe('Layout diagnostic', () => {
     }
   });
 
-  it('v1 pipeline handles flat diagram (no subgraphs)', () => {
-    const result = runMermaidPipeline(flatCode);
+  it('pipeline handles flat diagram (no subgraphs)', async () => {
+    const result = await runMermaidPipeline(flatCode);
     expect(result.success).toBe(true);
-    expect(result.nodes.length).toBe(3);
-    result.nodes.forEach(n => {
+    expect(result.data.nodes.length).toBe(3);
+    result.data.nodes.forEach(n => {
       expect(n.position.x !== 0 || n.position.y !== 0).toBe(true);
     });
-  });
-
-  it('v2 pipeline produces same positions as v1', () => {
-    const v1Result = runMermaidPipeline(nestedCode);
-    // runMermaidPipelineV2 is async
-    // We'll test this separately below
-    expect(v1Result.success).toBe(true);
   });
 
   it('parse -> build -> applyLayout -> sizeSubgraphs produces correct parent-relative positions', () => {
@@ -144,40 +127,6 @@ describe('Layout diagnostic', () => {
       if (g.width && g.height) {
         expect(g.width).toBeGreaterThan(200);
         expect(g.height).toBeGreaterThan(100);
-      }
-    }
-  });
-});
-
-describe('v2 pipeline layout', () => {
-  it('produces correct positions', async () => {
-    const result = await runMermaidPipelineV2(nestedCode);
-    expect(result.success).toBe(true);
-    expect(result.nodes.length).toBeGreaterThan(0);
-    result.nodes.forEach(n => {
-      expect(n.position.x !== 0 || n.position.y !== 0).toBe(true);
-    });
-    const groups = result.nodes.filter(n => n.type === 'groupNode');
-    for (const g of groups) {
-      expect(g.width).toBeGreaterThan(100);
-      expect(g.height).toBeGreaterThan(100);
-    }
-  });
-
-  it('v2 matches v1 output for identical input', async () => {
-    const v1Result = runMermaidPipeline(nestedCode);
-    const v2Result = await runMermaidPipelineV2(nestedCode);
-    
-    expect(v2Result.nodes.length).toBe(v1Result.nodes.length);
-    expect(v2Result.edges.length).toBe(v1Result.edges.length);
-    expect(v2Result.success).toBe(v1Result.success);
-    
-    // Check parentNode assignments match
-    for (const v1n of v1Result.nodes) {
-      const v2n = v2Result.nodes.find(n => n.id === v1n.id);
-      expect(v2n).toBeDefined();
-      if (v2n) {
-        expect(v2n.parentNode).toBe(v1n.parentNode);
       }
     }
   });

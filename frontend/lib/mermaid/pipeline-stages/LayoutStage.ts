@@ -1,6 +1,6 @@
 import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
-import { applyLayout } from '../layout';
+import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
 import type { RFObjects, Direction } from '../types';
 
 export interface LayoutStageInput {
@@ -14,8 +14,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
   }
 
   async execute(input: LayoutStageInput, _context: PipelineContext): Promise<StageResult<RFObjects>> {
-    // Use the improved layout function with better spacing
-    const layouted = applyLayout(input.objects, input.direction);
+    const layouted = applyRfLayout(input.objects, input.direction) as RFObjects;
     return successResult(layouted);
   }
 }

@@ -149,22 +149,28 @@ describe('FinalValidationStage', () => {
 
 describe('Pipeline integration - full Mermaid pipeline', () => {
   it('processes valid mermaid code end-to-end', async () => {
-    const { runMermaidPipelineV2 } = await import('../../pipeline');
-    const result = await runMermaidPipelineV2(validMermaidCode);
+    const { runMermaidPipeline } = await import('../../pipeline');
+    const result = await runMermaidPipeline(validMermaidCode);
 
     expect(result.success).toBe(true);
-    expect(result.nodes.length).toBeGreaterThan(0);
-    expect(result.edges.length).toBeGreaterThan(0);
-    expect(result.nodes.every(n => n.position.x !== 0 || n.position.y !== 0)).toBe(true);
+    expect(result.data.nodes.length).toBeGreaterThan(0);
+    expect(result.data.edges.length).toBeGreaterThan(0);
+    expect(result.data.nodes.every(n => n.position.x !== 0 || n.position.y !== 0)).toBe(true);
   });
 
   it('returns partial result for minimal mermaid code', async () => {
-    const { runMermaidPipelineV2 } = await import('../../pipeline');
-    const result = await runMermaidPipelineV2(`graph TD
+    const { runMermaidPipeline } = await import('../../pipeline');
+    const result = await runMermaidPipeline(`graph TD
       A[Single Node]`);
 
     expect(result.success).toBe(true);
-    expect(result.nodes.length).toBe(1);
-    expect(result.edges.length).toBe(0);
+    expect(result.data.nodes.length).toBe(1);
+    expect(result.data.edges.length).toBe(0);
+  });
+
+  it('composes production path from class stages', async () => {
+    const { createMermaidPipelineStages } = await import('../../pipeline');
+    const names = createMermaidPipelineStages().map(s => s.name);
+    expect(names).toEqual(['parse', 'validate', 'build', 'layout', 'size', 'validate-output']);
   });
 });

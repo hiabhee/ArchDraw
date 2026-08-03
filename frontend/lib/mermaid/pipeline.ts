@@ -1,15 +1,19 @@
-import type { RFObjects, RFNode, RFEdge, Direction, MermaidAST } from './types'
-import { parseMermaid } from './parse'
-import { validateAST } from './validate'
-import { buildReactFlowObjects } from './buildReactFlow'
-import { applyLayout } from './layout'
-import { sizeSubgraphs } from './subgraphSizing'
-import { validateDiagramOutput } from './validation'
-import { Pipeline } from '@/lib/pipeline-core/Pipeline'
+import { Pipeline, pipelineStages, toDomainResult } from '@/lib/pipeline-core'
+import type { DomainPipelineResult } from '@/lib/pipeline-core'
 import type { Stage } from '@/lib/pipeline-core/Stage'
 import type { StageResult } from '@/lib/pipeline-core/StageResult'
 import { successResult, errorResult, warningResult } from '@/lib/pipeline-core/StageResult'
 import type { PipelineResult as CorePipelineResult } from '@/lib/pipeline-core/PipelineResult'
+import type { PipelineContext } from '@/lib/pipeline-core/PipelineContext'
+import type { RFObjects, RFNode, RFEdge, Direction, MermaidAST } from './types'
+import {
+  ParseStage,
+  ValidateStage,
+  BuildStage,
+  LayoutStage,
+  SizeStage,
+  FinalValidationStage,
+} from './pipeline-stages'
 
 export interface PipelineResult {
   nodes: RFNode[]
@@ -27,139 +31,139 @@ export interface MermaidPipelineData {
   warnings: string[]
 }
 
-export function runMermaidPipeline(mermaidText: string): PipelineResult {
-  const parseResult = parseMermaid(mermaidText)
-  if (!parseResult.ok) {
-    return {
-      nodes: [],
-      edges: [],
-      warnings: parseResult.errors.map(e => `Parse error (line ${e.line}): ${e.reason}`),
-      success: false,
-    }
-  }
+const parseStage = new ParseStage()
+const validateStage = new ValidateStage()
+const buildStage = new BuildStage()
+const layoutStage = new LayoutStage()
+const sizeStage = new SizeStage()
+const finalValidationStage = new FinalValidationStage()
 
-  const validateResult = validateAST(parseResult.ast)
-  if (!validateResult.ok) {
-    return {
-      nodes: [],
-      edges: [],
-      warnings: validateResult.errors.map(e => `[${e.type}] ${e.message}`),
-      success: false,
-    }
-  }
-
-  const objects = buildReactFlowObjects(validateResult.ast)
-  const layouted = applyLayout(objects, parseResult.ast.direction)
-  const report = validateDiagramOutput(layouted.nodes, layouted.edges, parseResult.ast.direction)
-  const warnings = report.warnings.map(w => `[${w.type}] ${w.message}`)
-
-  return {
-    nodes: sizeSubgraphs(layouted.nodes),
-    edges: layouted.edges,
-    warnings,
-    success: true,
-    direction: parseResult.ast.direction,
-  }
+/** Composes class stages with accumulating MermaidPipelineData. Exported for tests. */
+export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData>[] {
+  return pipelineStages<string, MermaidPipelineData>(
+    {
+      name: 'parse',
+      description: 'Parse Mermaid text into AST',
+      async execute(input: string, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        const result = await parseStage.execute(input, context)
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Mermaid parsing failed'), result.warnings)
+        }
+        return successResult({
+          text: input,
+          ast: result.data,
+          objects: null,
+          direction: result.data.direction,
+          warnings: [],
+        })
+      },
+    },
+    {
+      name: 'validate',
+      description: 'Validate Mermaid AST',
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.ast) return errorResult(new Error('No AST to validate'))
+        const result = await validateStage.execute(input.ast, context)
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('AST validation failed'), result.warnings)
+        }
+        return successResult({ ...input, ast: result.data })
+      },
+    },
+    {
+      name: 'build',
+      description: 'Build ReactFlow objects',
+      weight: 2,
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.ast) return errorResult(new Error('No AST to build from'))
+        const result = await buildStage.execute(input.ast, context)
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Build failed'), result.warnings)
+        }
+        return successResult({ ...input, objects: result.data })
+      },
+    },
+    {
+      name: 'layout',
+      description: 'Apply layout',
+      weight: 2,
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.objects) return errorResult(new Error('No objects to layout'))
+        const result = await layoutStage.execute(
+          { objects: input.objects, direction: input.direction },
+          context
+        )
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Layout failed'), result.warnings)
+        }
+        return successResult({ ...input, objects: result.data })
+      },
+    },
+    {
+      name: 'size',
+      description: 'Size subgraph containers',
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.objects) return errorResult(new Error('No objects to size'))
+        const result = await sizeStage.execute(input.objects.nodes, context)
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Sizing failed'), result.warnings)
+        }
+        return successResult({
+          ...input,
+          objects: { nodes: result.data, edges: input.objects.edges },
+        })
+      },
+    },
+    {
+      name: 'validate-output',
+      description: 'Validate final output',
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.objects) return errorResult(new Error('No objects to validate'))
+        const result = await finalValidationStage.execute(
+          {
+            nodes: input.objects.nodes,
+            edges: input.objects.edges,
+            direction: input.direction,
+          },
+          context
+        )
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Output validation failed'), result.warnings)
+        }
+        const warnings = result.data.validationWarnings
+        const data = { ...input, warnings }
+        return warnings.length > 0 ? warningResult(data, warnings) : successResult(data)
+      },
+    },
+  )
 }
 
-const stages: Stage<any, any>[] = [
-  {
-    name: 'parse',
-    description: 'Parse Mermaid text into AST',
-    async execute(input: string): Promise<StageResult<MermaidPipelineData>> {
-      const result = parseMermaid(input)
-      if (!result.ok) {
-        return errorResult(new Error('Mermaid parsing failed'),
-          result.errors.map(e => `Parse error (line ${e.line}): ${e.reason}`)
-        )
-      }
-      return successResult({
-        text: input,
-        ast: result.ast,
-        objects: null,
-        direction: result.ast.direction,
-        warnings: [],
-      })
-    },
-  },
-  {
-    name: 'validate',
-    description: 'Validate Mermaid AST',
-    async execute(input: MermaidPipelineData): Promise<StageResult<MermaidPipelineData>> {
-      if (!input.ast) return errorResult(new Error('No AST to validate'))
-      const result = validateAST(input.ast)
-      if (!result.ok) {
-        return errorResult(new Error('AST validation failed'),
-          result.errors.map(e => `[${e.type}] ${e.message}`)
-        )
-      }
-      return successResult({ ...input, ast: result.ast })
-    },
-  },
-  {
-    name: 'build',
-    description: 'Build ReactFlow objects',
-    weight: 2,
-    async execute(input: MermaidPipelineData): Promise<StageResult<MermaidPipelineData>> {
-      if (!input.ast) return errorResult(new Error('No AST to build from'))
-      const objects = buildReactFlowObjects(input.ast)
-      return successResult({ ...input, objects })
-    },
-  },
-  {
-    name: 'layout',
-    description: 'Apply layout',
-    weight: 2,
-    async execute(input: MermaidPipelineData): Promise<StageResult<MermaidPipelineData>> {
-      if (!input.objects) return errorResult(new Error('No objects to layout'))
-      const layouted = applyLayout(input.objects, input.direction)
-      return successResult({ ...input, objects: layouted })
-    },
-  },
-  {
-    name: 'size',
-    description: 'Size subgraph containers',
-    async execute(input: MermaidPipelineData): Promise<StageResult<MermaidPipelineData>> {
-      if (!input.objects) return errorResult(new Error('No objects to size'))
-      const sizedNodes = sizeSubgraphs(input.objects.nodes)
-      return successResult({
-        ...input,
-        objects: { nodes: sizedNodes, edges: input.objects.edges },
-      })
-    },
-  },
-  {
-    name: 'validate-output',
-    description: 'Validate final output',
-    async execute(input: MermaidPipelineData): Promise<StageResult<MermaidPipelineData>> {
-      if (!input.objects) return errorResult(new Error('No objects to validate'))
-      const report = validateDiagramOutput(input.objects.nodes, input.objects.edges, input.direction)
-      const warnings = report.warnings.map(w => `[${w.type}] ${w.message}`)
-      const data = { ...input, warnings: warnings }
-      return warnings.length > 0 ? warningResult(data, warnings) : successResult(data)
-    },
-  },
-]
-
-export async function runMermaidPipelineV2(mermaidText: string): Promise<PipelineResult> {
-  const pipeline = new Pipeline<string, MermaidPipelineData>('mermaid-pipeline-v2', stages)
+export async function runMermaidPipeline(mermaidText: string): Promise<DomainPipelineResult<PipelineResult>> {
+  const pipeline = new Pipeline<string, MermaidPipelineData>(
+    'mermaid-pipeline-v2',
+    createMermaidPipelineStages()
+  )
 
   const result: CorePipelineResult<MermaidPipelineData> = await pipeline.execute(mermaidText)
 
-  if (!result.success || !result.data) {
-    return {
-      nodes: [],
-      edges: [],
-      warnings: [...result.warnings, ...result.errors],
-      success: false,
-    }
+  const domainResult = toDomainResult(result)
+
+  if (!domainResult.success) {
+    return domainResult
+  }
+
+  const pipelineResult: PipelineResult = {
+    nodes: domainResult.data.objects?.nodes ?? [],
+    edges: domainResult.data.objects?.edges ?? [],
+    warnings: domainResult.data.warnings,
+    success: true,
+    direction: domainResult.data.direction,
   }
 
   return {
-    nodes: result.data.objects?.nodes ?? [],
-    edges: result.data.objects?.edges ?? [],
-    warnings: result.data.warnings,
     success: true,
-    direction: result.data.direction,
+    data: pipelineResult,
+    warnings: domainResult.warnings,
+    metrics: domainResult.metrics,
   }
 }

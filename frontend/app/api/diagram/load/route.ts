@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import logger from '@/lib/logger';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { isDomainSuccess } from '@/lib/pipeline-core';
 import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { getSessionFromRequest, logUsage } from '@/lib/middleware/quotaCheck';
 
@@ -33,16 +34,16 @@ export async function POST(req: NextRequest) {
     let warnings: string[] = [];
 
     if (body.mermaid) {
-      const pipelineResult = runMermaidPipeline(body.mermaid);
-      if (!pipelineResult.success) {
+      const pipelineResult = await runMermaidPipeline(body.mermaid);
+      if (!isDomainSuccess(pipelineResult)) {
         return NextResponse.json({
           error: 'Failed to parse Mermaid code',
           warnings: pipelineResult.warnings
         }, { status: 400 });
       }
-      nodes = pipelineResult.nodes;
-      edges = pipelineResult.edges;
-      warnings = pipelineResult.warnings;
+      nodes = pipelineResult.data.nodes;
+      edges = pipelineResult.data.edges;
+      warnings = pipelineResult.data.warnings;
     }
 
     const shared = await prisma.sharedCanvas.create({

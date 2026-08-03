@@ -2,6 +2,75 @@ import type { ParsedNode, ParsedEdge, ParsedSubgraph, Direction, Shape, EdgeType
 
 const RESERVED_KEYWORDS = new Set(['end', 'graph', 'flowchart', 'subgraph', 'direction'])
 
+// Mermaid allows labels that span multiple physical lines, e.g.
+//   P0["Partition 0
+// Offset 0"]
+// This parser is line-based, so a bare newline inside a quoted label would
+// otherwise be treated as a fresh statement (creating bogus nodes). Join those
+// continuation lines by replacing the newline inside a quoted region with a
+// literal "\n" escape (which Mermaid itself interprets as a line break). Both
+// " and ' quoted strings are supported, as are \" escapes and %% comments.
+function mergeMultilineLabels(text: string): string {
+  let out = ''
+  let inQuote: '"' | "'" | '' = ''
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQuote) {
+      if (ch === '\\') {
+        out += ch
+        if (i + 1 < text.length) {
+          out += text[i + 1]
+          i++
+        }
+        continue
+      }
+      if (ch === inQuote) {
+        inQuote = ''
+      } else if (ch === '\n') {
+        out += '\\n'
+        continue
+      }
+      out += ch
+      continue
+    }
+    if (ch === '%' && text[i + 1] === '%') {
+      const nl = text.indexOf('\n', i)
+      if (nl === -1) {
+        out += text.slice(i)
+        break
+      }
+      out += text.slice(i, nl + 1)
+      i = nl
+      continue
+    }
+    if (ch === '\\') {
+      // An escaped character outside a string (e.g. `H[\"label\"]`) is literal:
+      // it must not open a quoted region, otherwise the quote state leaks into
+      // the following lines.
+      out += ch
+      if (i + 1 < text.length) {
+        out += text[i + 1]
+        i++
+      }
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch
+      out += ch
+      continue
+    }
+    out += ch
+  }
+  return out
+}
+
+function unescapeLabel(label: string): string {
+  return label
+    .replace(/\\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+}
+
 function normalizeEdgeLabels(text: string): string {
   return text.split('\n').map(line => {
     // Apply the arrow-label rewrite ONLY outside of quoted regions. The previous
@@ -156,7 +225,7 @@ function extractNodeLabel(line: string): string | null {
       const closeIdx = afterOpen.indexOf(close)
       if (closeIdx !== -1) {
         const content = afterOpen.slice(0, closeIdx)
-        return content.replace(/^["']|["']$/g, '').trim()
+        return unescapeLabel(content.replace(/^["']|["']$/g, '')).trim()
       }
     }
   }
@@ -166,7 +235,8 @@ function extractNodeLabel(line: string): string | null {
 
 export function parseMermaid(mermaidText: string): ParseResult {
   const errors: { line: number; reason: string }[] = []
-  const normalized = normalizeEdgeLabels(mermaidText)
+  const merged = mergeMultilineLabels(mermaidText)
+  const normalized = normalizeEdgeLabels(merged)
   const direction = detectDirection(normalized)
   const subgraphs: ParsedSubgraph[] = []
   const nodes: ParsedNode[] = []
@@ -211,7 +281,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       const labelMatch = afterKw.match(/\s*\[\s*("(.*?)"|'(.*?)'|(.*?))\s*\]\s*$/)
       if (labelMatch) {
         rawId = afterKw.slice(0, afterKw.length - labelMatch[0].length).trim()
-        label = labelMatch[2] ?? labelMatch[3] ?? labelMatch[4] ?? null
+        label = unescapeLabel(labelMatch[2] ?? labelMatch[3] ?? labelMatch[4] ?? null)
       } else {
         rawId = afterKw.trim()
       }
