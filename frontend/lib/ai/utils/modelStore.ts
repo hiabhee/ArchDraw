@@ -23,6 +23,6 @@ type ModelStore = {
 };
 
 export const useModelStore = create<ModelStore>((set) => ({
-  selectedModel: 'llama-3.3-70b-versatile',
+  selectedModel: 'openai/gpt-oss-120b',
   setSelectedModel: (model) => set({ selectedModel: model }),
 }));

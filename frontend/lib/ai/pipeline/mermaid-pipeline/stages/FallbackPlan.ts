@@ -1,3 +1,5 @@
+import { themePrimaryColor, themeToNodeTypeStyles, getDiagramTheme } from '@/lib/theme/stylingConstants';
+
 export function generateFallbackPlan(prompt: string) {
   const mermaidCode = `graph TD
   subgraph CLIENT["Client Layer"]
@@ -16,6 +18,9 @@ export function generateFallbackPlan(prompt: string) {
   gateway -->|route| service
   service -->|query| database`;
 
+  const theme = 'default';
+  const pack = getDiagramTheme(theme);
+
   return {
     formatConfig: {
       format: 'mermaid' as const,
@@ -23,22 +28,13 @@ export function generateFallbackPlan(prompt: string) {
       optionalVariants: [],
     },
     styleConfig: {
-      primaryColor: '#2563EB',
-      secondaryColor: '#4F46E5',
-      background: '#F9FAFB',
-      backgroundColor: '#F9FAFB',
+      primaryColor: themePrimaryColor(theme),
+      secondaryColor: pack.concerns.data.color,
+      background: pack.light.canvasHint,
+      backgroundColor: pack.light.canvasHint,
       fontFamily: 'Inter',
-      theme: 'default',
-      nodeTypeStyles: {
-        client: '#2563EB',
-        edge: '#4F46E5',
-        gateway: '#4F46E5',
-        application: '#4F46E5',
-        data: '#1e293b',
-        queue: '#1e293b',
-        observability: '#475569',
-        external: '#64748b',
-      },
+      theme,
+      nodeTypeStyles: themeToNodeTypeStyles(theme),
     },
     mermaidCode,
   };

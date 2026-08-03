@@ -40,10 +40,15 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
   lines.push(`graph ${direction}`);
   lines.push('');
 
+  const resolveParentId = (n: Node): string | undefined =>
+    n.parentNode ||
+    (n as { parentId?: string }).parentId ||
+    (n.data?.parentId as string | undefined);
+
   // Build a map of group children (including nested groups)
   const groupChildren = new Map<string, Node[]>();
   for (const node of regularNodes) {
-    const parentId = node.parentNode || (node.data?.parentId as string);
+    const parentId = resolveParentId(node);
     if (parentId && groupIds.has(parentId)) {
       const children = groupChildren.get(parentId) || [];
       children.push(node);
@@ -54,7 +59,7 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
   // Build a map of nested groups (groups that are children of other groups)
   const nestedGroups = new Map<string, Node[]>();
   for (const group of groupNodes) {
-    const parentId = group.parentNode || (group.data?.parentId as string);
+    const parentId = resolveParentId(group);
     if (parentId && groupIds.has(parentId)) {
       const children = nestedGroups.get(parentId) || [];
       children.push(group);
@@ -64,7 +69,7 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
 
   // Find top-level groups (no parent)
   const topLevelGroups = groupNodes.filter(n => {
-    const parentId = n.parentNode || (n.data?.parentId as string);
+    const parentId = resolveParentId(n);
     return !parentId || !groupIds.has(parentId);
   });
 
@@ -98,7 +103,7 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
 
   // Render ungrouped nodes
   const ungrouped = regularNodes.filter(n => {
-    const parentId = n.parentNode || (n.data?.parentId as string);
+    const parentId = resolveParentId(n);
     return !parentId || !groupIds.has(parentId);
   });
   for (const node of ungrouped) {

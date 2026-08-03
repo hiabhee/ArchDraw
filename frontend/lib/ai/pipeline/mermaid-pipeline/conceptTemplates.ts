@@ -1,4 +1,5 @@
 import type { FormatConfig, StyleConfig } from './types';
+import { themePrimaryColor, themeToNodeTypeStyles, getDiagramTheme } from '@/lib/theme/stylingConstants';
 
 export interface ConceptTemplatePlan {
   formatConfig: FormatConfig;
@@ -28,22 +29,13 @@ export interface ImplicitConcept {
 }
 
 const BASE_STYLE: StyleConfig = {
-  primaryColor: '#2563EB',
-  secondaryColor: '#4F46E5',
-  background: '#F9FAFB',
-  backgroundColor: '#F9FAFB',
+  primaryColor: themePrimaryColor('slate'),
+  secondaryColor: getDiagramTheme('slate').concerns.data.color,
+  background: getDiagramTheme('slate').light.canvasHint,
+  backgroundColor: getDiagramTheme('slate').light.canvasHint,
   fontFamily: 'Inter',
-  theme: 'dark-minimal',
-  nodeTypeStyles: {
-    client: '#2563EB',
-    edge: '#4F46E5',
-    gateway: '#4F46E5',
-    application: '#4F46E5',
-    data: '#1e293b',
-    queue: '#1e293b',
-    observability: '#475569',
-    external: '#64748b',
-  },
+  theme: 'slate',
+  nodeTypeStyles: themeToNodeTypeStyles('slate'),
 };
 
 const FORMAT: FormatConfig = {

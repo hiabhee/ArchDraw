@@ -17,10 +17,10 @@ const nestedCode = `graph TD
   C --> D`;
 
 describe('parentId propagation', () => {
-  it('mermaid pipeline returns parentNode on all children', () => {
-    const result = runMermaidPipeline(nestedCode);
+  it('mermaid pipeline returns parentNode on all children', async () => {
+    const result = await runMermaidPipeline(nestedCode);
     expect(result.success).toBe(true);
-    for (const n of result.nodes) {
+    for (const n of result.data.nodes) {
       if (n.id === 'A' || n.id === 'B') {
         expect(n.parentNode).toBe('FRONTEND');
       } else if (n.id === 'C' || n.id === 'D') {
@@ -29,13 +29,13 @@ describe('parentId propagation', () => {
     }
   });
 
-  it('AI pipeline toReactFlowNode sets parentId at top level', () => {
-    const mermaidResult = runMermaidPipeline(nestedCode);
+  it('AI pipeline toReactFlowNode sets parentId at top level', async () => {
+    const mermaidResult = await runMermaidPipeline(nestedCode);
     const toReactFlowNode = (n: RFNode): ReactFlowNode => {
       const parentId = n.parentNode || (n.data?.parentId as string | undefined);
       return { id: n.id, type: n.type, position: n.position, parentId, data: { label: (n.data?.label as string) || n.id, icon: '', layer: 'application', parentId } };
     };
-    const rfNodes = mermaidResult.nodes.map(toReactFlowNode);
+    const rfNodes = mermaidResult.data.nodes.map(toReactFlowNode);
     for (const n of rfNodes) {
       if (n.id === 'A' || n.id === 'B') {
         expect(n.parentId).toBe('FRONTEND');
@@ -47,9 +47,9 @@ describe('parentId propagation', () => {
 
 
 
-  it('child nodes have positions relative to parent (small values)', () => {
-    const result = runMermaidPipeline(nestedCode);
-    const children = result.nodes.filter(n => n.parentNode);
+  it('child nodes have positions relative to parent (small values)', async () => {
+    const result = await runMermaidPipeline(nestedCode);
+    const children = result.data.nodes.filter(n => n.parentNode);
     for (const c of children) {
       expect(c.position.x).toBeGreaterThanOrEqual(0);
       expect(c.position.x).toBeLessThan(500);
@@ -58,19 +58,19 @@ describe('parentId propagation', () => {
     }
   });
 
-  it('group nodes have non-trivial width and height', () => {
-    const result = runMermaidPipeline(nestedCode);
-    const groups = result.nodes.filter(n => n.type === 'groupNode');
+  it('group nodes have non-trivial width and height', async () => {
+    const result = await runMermaidPipeline(nestedCode);
+    const groups = result.data.nodes.filter(n => n.type === 'groupNode');
     for (const g of groups) {
       expect(g.width).toBeGreaterThan(100);
       expect(g.height).toBeGreaterThan(100);
     }
   });
 
-  it('position of child relative to parent is within group bounds', () => {
-    const result = runMermaidPipeline(nestedCode);
-    const groups = new Map(result.nodes.filter(n => n.type === 'groupNode').map(g => [g.id, g]));
-    for (const c of result.nodes) {
+  it('position of child relative to parent is within group bounds', async () => {
+    const result = await runMermaidPipeline(nestedCode);
+    const groups = new Map(result.data.nodes.filter(n => n.type === 'groupNode').map(g => [g.id, g]));
+    for (const c of result.data.nodes) {
       if (c.parentNode) {
         const parent = groups.get(c.parentNode);
         expect(parent).toBeDefined();

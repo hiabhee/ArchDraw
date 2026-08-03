@@ -1,5 +1,13 @@
 import * as dagre from 'dagre';
-import type { LayoutEngine, LayoutParams, LayoutResult, PositionedNode, PositionedEdge, LayoutDirection, LayoutNode, LayoutEdge } from './LayoutEngine';
+import type {
+  LayoutEngine,
+  LayoutParams,
+  LayoutResult,
+  PositionedNode,
+  PositionedEdge,
+  LayoutDirection,
+} from './LayoutEngine';
+import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
 
 function toDagreRankDir(direction: LayoutDirection): string {
   const map: Record<LayoutDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
@@ -26,22 +34,21 @@ export class DagreLayoutEngine implements LayoutEngine {
     return typeof dagre === 'object' && dagre !== null;
   }
 
-  async layout(params: LayoutParams): Promise<LayoutResult> {
+  /** Sync entry point — dagre is synchronous; prefer this from sync call sites. */
+  layoutSync(params: LayoutParams): LayoutResult {
     const warnings: string[] = [];
+    const defaults = defaultCompoundLayoutOptions(params.direction);
+    const opts = { ...defaults, ...params.options };
+
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setDefaultEdgeLabel(() => ({}));
-    
-    // Use tighter spacing for better compact layouts
-    const isVertical = params.direction === 'TB' || params.direction === 'BT';
-    const nodesep = params.options?.nodeSep ?? (isVertical ? 100 : 120); // Further increased for guaranteed edge visibility
-    const ranksep = params.options?.rankSep ?? (isVertical ? 150 : 180); // Further increased for guaranteed edge visibility
-    
+
     g.setGraph({
       rankdir: toDagreRankDir(params.direction),
-      nodesep,
-      ranksep,
-      marginx: params.options?.marginX ?? 30,
-      marginy: params.options?.marginY ?? 30,
+      nodesep: opts.nodeSep,
+      ranksep: opts.rankSep,
+      marginx: opts.marginX,
+      marginy: opts.marginY,
     });
 
     const subgraphIds = new Set(params.nodes.filter(n => n.isGroup).map(n => n.id));
@@ -61,26 +68,26 @@ export class DagreLayoutEngine implements LayoutEngine {
 
     for (const node of params.nodes) {
       const isSubgraph = subgraphIds.has(node.id);
+      const width = node.width || DEFAULT_NODE_WIDTH;
+      const height = node.height || DEFAULT_NODE_HEIGHT;
+
       if (isSubgraph) {
         const hasChildren = params.nodes.some(n => parentMap.get(n.id) === node.id);
         if (hasChildren) {
           g.setNode(node.id, {
-            paddingLeft: params.options?.paddingLeft ?? 40,
-            paddingRight: params.options?.paddingRight ?? 40,
-            paddingTop: params.options?.paddingTop ?? 64,
-            paddingBottom: params.options?.paddingBottom ?? 40,
+            paddingLeft: opts.paddingLeft,
+            paddingRight: opts.paddingRight,
+            paddingTop: opts.paddingTop,
+            paddingBottom: opts.paddingBottom,
           });
         } else {
           g.setNode(node.id, {
-            width: (node.width || 180) + (params.options?.paddingLeft ?? 40) * 2,
-            height: (node.height || 60) + (params.options?.paddingTop ?? 64) + (params.options?.paddingBottom ?? 40),
+            width: width + (opts.paddingLeft ?? 40) * 2,
+            height: height + (opts.paddingTop ?? 64) + (opts.paddingBottom ?? 40),
           });
         }
       } else {
-        g.setNode(node.id, {
-          width: node.width || 180,
-          height: node.height || 60,
-        });
+        g.setNode(node.id, { width, height });
       }
 
       const resolvedParentId = cycledNodes.has(node.id) ? undefined : parentMap.get(node.id);
@@ -95,62 +102,51 @@ export class DagreLayoutEngine implements LayoutEngine {
 
     dagre.layout(g);
 
-    // Apply anti-clustering: ensure minimum spacing between nodes
-    let positionedNodes: PositionedNode[] = params.nodes.map(node => {
+    const positionedNodes: PositionedNode[] = params.nodes.map(node => {
       const dagreNode = g.node(node.id);
+      const clearedParentId = cycledNodes.has(node.id) ? undefined : node.parentId;
+
       if (!dagreNode) {
         warnings.push(`Node "${node.id}" not positioned by dagre`);
-        return { ...node, x: 0, y: 0 };
+        return { ...node, parentId: clearedParentId, x: 0, y: 0 };
       }
-      const x = dagreNode.x - (dagreNode.width || node.width) / 2;
-      const y = dagreNode.y - (dagreNode.height || node.height) / 2;
+
+      const width = dagreNode.width || node.width || DEFAULT_NODE_WIDTH;
+      const height = dagreNode.height || node.height || DEFAULT_NODE_HEIGHT;
       return {
         ...node,
-        x,
-        y,
-        width: dagreNode.width || node.width,
-        height: dagreNode.height || node.height,
+        parentId: clearedParentId,
+        x: dagreNode.x - width / 2,
+        y: dagreNode.y - height / 2,
+        width,
+        height,
       };
     });
 
-    // Anti-clustering: resolve overlapping nodes with optimized spacing
-    const minSpacing = 30; // Base minimum spacing
-    const connectedNodeSpacing = 50; // Base spacing for connected nodes
-    
-    // Build a set of connected node pairs for special spacing
+    const minSpacing = 30;
+    const connectedNodeSpacing = 50;
     const connectedPairs = new Set<string>();
     params.edges.forEach(edge => {
-      const pairKey = [edge.source, edge.target].sort().join('-');
-      connectedPairs.add(pairKey);
+      connectedPairs.add([edge.source, edge.target].sort().join('-'));
     });
-    
-    // Single iteration for performance
+
     for (let i = 0; i < positionedNodes.length; i++) {
       for (let j = i + 1; j < positionedNodes.length; j++) {
         const nodeA = positionedNodes[i];
         const nodeB = positionedNodes[j];
-        
-        // Skip if they're in different parent groups
         if (nodeA.parentId !== nodeB.parentId) continue;
-        
+
         const dx = nodeB.x - nodeA.x;
         const dy = nodeB.y - nodeA.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        // Check if these nodes are connected
         const pairKey = [nodeA.id, nodeB.id].sort().join('-');
-        const isConnected = connectedPairs.has(pairKey);
-        
-        // Use larger spacing for connected nodes
-        const spacing = isConnected ? connectedNodeSpacing : minSpacing;
+        const spacing = connectedPairs.has(pairKey) ? connectedNodeSpacing : minSpacing;
         const minDistance = (nodeA.width + nodeB.width) / 2 + spacing;
-        
+
         if (distance < minDistance && distance > 0) {
-          // Push nodes apart
           const overlap = minDistance - distance;
           const pushX = (dx / distance) * overlap * 0.5;
           const pushY = (dy / distance) * overlap * 0.5;
-          
           positionedNodes[j] = { ...nodeB, x: nodeB.x + pushX, y: nodeB.y + pushY };
           positionedNodes[i] = { ...nodeA, x: nodeA.x - pushX, y: nodeA.y - pushY };
         }
@@ -166,5 +162,9 @@ export class DagreLayoutEngine implements LayoutEngine {
     });
 
     return { nodes: positionedNodes, edges: positionedEdges, warnings };
+  }
+
+  async layout(params: LayoutParams): Promise<LayoutResult> {
+    return this.layoutSync(params);
   }
 }

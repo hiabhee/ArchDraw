@@ -2,6 +2,7 @@ import type { Node, Edge } from 'reactflow';
 import type { GenerationProgress } from '@/lib/ai/types';
 import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
 import { parseGitHubUrl } from '@/lib/utils/githubUrl';
+import type { RepoDiagramApiResponse } from '@/lib/types/repo-diagram';
 
 export interface AIGenerationOptions {
   description: string;
@@ -113,15 +114,81 @@ export async function generateDiagramFromRepo(
     body: JSON.stringify({ repoUrl: repoUrl.trim(), detailLevel }),
   });
 
-  const data = await response.json();
-  if (!response.ok || !data.success) {
+  if (!response.ok) {
+    let errorData: { error?: string };
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = {};
+    }
     throw new GenerationServiceError(
-      data.error || 'Repo ingest failed',
+      errorData.error || `Repo ingest failed (HTTP ${response.status})`,
       'repo_ingest_failed',
     );
   }
 
-  const parsed = parseAndValidateRepoDiagram(data.ndjson);
+  if (!response.body) {
+    throw new GenerationServiceError('Repo ingest failed: empty response', 'repo_ingest_failed');
+  }
+
+  // /api/repo-diagram responds with a Server-Sent Events stream, not JSON:
+  // read it frame by frame and surface progress until the final result.
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let payload: RepoDiagramApiResponse | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+
+    for (const raw of events) {
+      const dataLine = raw.split('\n').find((line) => line.startsWith('data: '));
+      if (!dataLine) continue;
+      try {
+        const event = JSON.parse(dataLine.slice(6)) as {
+          type: 'progress' | 'result' | 'error';
+          message?: string;
+          progress?: number;
+          payload?: RepoDiagramApiResponse;
+        };
+
+        if (event.type === 'progress') {
+          onProgress?.({
+            phase: 'generating',
+            iteration: 0,
+            currentAgent: 'repo-ingest',
+            score: 0,
+            message: event.message ?? 'Analyzing repository...',
+            progress: event.progress ?? 0,
+          });
+        } else if (event.type === 'result' && event.payload) {
+          payload = event.payload;
+        } else if (event.type === 'error') {
+          throw new GenerationServiceError(
+            event.message || 'Repo ingest failed',
+            'repo_ingest_failed',
+          );
+        }
+      } catch (err) {
+        if (err instanceof GenerationServiceError) throw err;
+        // skip malformed lines
+      }
+    }
+  }
+
+  if (!payload?.success || !payload.ndjson) {
+    throw new GenerationServiceError(
+      'No architectural components could be detected in this repository.',
+      'validation_failed',
+    );
+  }
+
+  const parsed = parseAndValidateRepoDiagram(payload.ndjson);
   if (!parsed) {
     throw new GenerationServiceError(
       'No architectural components could be detected in this repository.',

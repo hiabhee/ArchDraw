@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll, vi, beforeEach } from 'vitest';
-import { runMermaidPipeline } from './index';
+import { runAiMermaidPipelineV2 } from './pipeline-v2';
 import type { UserIntent } from '../../types';
 
 // Mock the Groq API calls
@@ -97,7 +97,7 @@ describe('Mermaid Pipeline Benchmark', () => {
       const start = performance.now();
       let result;
       try {
-        result = await runMermaidPipeline(intent);
+        result = await runAiMermaidPipelineV2(intent);
       } catch (err) {
         const durationMs = performance.now() - start;
         results.push({ name, durationMs, nodes: 0, edges: 0, success: false });
@@ -105,8 +105,12 @@ describe('Mermaid Pipeline Benchmark', () => {
         throw err;
       }
       const durationMs = performance.now() - start;
-      const nodeCount = result.nodes?.length ?? 0;
-      const edgeCount = result.edges?.length ?? 0;
+      if (!result.success) {
+        results.push({ name, durationMs, nodes: 0, edges: 0, success: false });
+        throw result.error;
+      }
+      const nodeCount = result.data.nodes.length;
+      const edgeCount = result.data.edges.length;
       results.push({ name, durationMs, nodes: nodeCount, edges: edgeCount, success: true });
 
       console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -114,7 +118,7 @@ describe('Mermaid Pipeline Benchmark', () => {
       console.log(`  Duration:     ${(durationMs / 1000).toFixed(1)}s`);
       console.log(`  Nodes:        ${nodeCount}`);
       console.log(`  Edges:        ${edgeCount}`);
-      console.log(`  Score:        ${result.score ?? 'N/A'}`);
+      console.log(`  Score:        ${result.data.score ?? 'N/A'}`);
       console.log(`  Success:      ${result.success}`);
       console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 

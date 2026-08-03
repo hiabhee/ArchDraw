@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { UserIntent, GenerationResult, GenerationProgress } from '../types';
 import type { ValidationIssue } from '../pipeline/types';
-import { runMermaidPipeline } from '../pipeline/mermaid-pipeline';
+import { runAiMermaidPipelineV2 as runMermaidPipeline } from '../pipeline/mermaid-pipeline/pipeline-v2';
 import { requestContext } from '../utils/apiKeyManager';
 import logger from '@/lib/logger';
 
@@ -33,36 +33,38 @@ export async function generateDiagram(
       });
 
       if (!result.success) {
-        throw new GenerationFailedError(result.state.errors.at(-1)?.message || 'generation_failed');
+        throw new GenerationFailedError(result.error.message || result.code || 'generation_failed');
       }
 
+      const data = result.data;
       const store = requestContext.getStore();
-      logger.log(`[Orchestrator] [${requestId}] Generation complete. Score: ${result.score}, logical: ${store?.logicalCalls ?? '?'}, network: ${store?.networkAttempts ?? '?'}`);
+      logger.log(`[Orchestrator] [${requestId}] Generation complete. Score: ${data.score}, logical: ${store?.logicalCalls ?? '?'}, network: ${store?.networkAttempts ?? '?'}`);
 
       const qualityWarnings = [
-        ...(result.diagnostics?.semanticIssues.map((i: ValidationIssue) => i.message) ?? []),
-        ...(result.diagnostics?.mechanicalRepairs.map((i: ValidationIssue) => i.message) ?? []),
+        ...(data.diagnostics?.semanticIssues.map((i: ValidationIssue) => i.message) ?? []),
+        ...(data.diagnostics?.mechanicalRepairs.map((i: ValidationIssue) => i.message) ?? []),
       ];
 
       return {
         type: 'architecture',
-        nodes: result.nodes,
-        edges: result.edges,
+        nodes: data.nodes,
+        edges: data.edges,
         metadata: {
-          totalNodes: result.nodes.length,
-          totalEdges: result.edges.length,
+          totalNodes: data.nodes.length,
+          totalEdges: data.edges.length,
           systemType: 'architecture',
           generatedAt: new Date().toISOString(),
-          score: result.score,
-          grade: (result.diagramScore?.grade === 'F' ? 'D' : result.diagramScore?.grade || 'D') as 'A' | 'B' | 'C' | 'D',
+          score: data.score,
+          grade: (data.diagramScore?.grade === 'F' ? 'D' : data.diagramScore?.grade || 'D') as 'A' | 'B' | 'C' | 'D',
           qualityWarnings: qualityWarnings.length > 0 ? qualityWarnings : undefined,
-          pipelineDiagnostics: result.diagnostics,
-          diagramType: result.diagramType,
+          pipelineDiagnostics: data.diagnostics,
+          diagramType: data.diagramType,
+          styleTheme: data.diagnostics?.style || 'default',
           // Signal whether the result came from the hardcoded fallback or if
           // the user's existing diagram context was silently dropped, so API
           // callers can warn rather than silently serving a stale result.
-          usedFallback: result.usedFallback,
-          droppedExistingContext: result.droppedExistingContext,
+          usedFallback: data.usedFallback,
+          droppedExistingContext: data.droppedExistingContext,
         },
       };
     } catch (error) {
@@ -92,6 +94,14 @@ export class GenerationFailedError extends Error {
 
 function phaseForStep(step: string): GenerationProgress['phase'] {
   const lower = step.toLowerCase();
+  // Map to actual stage names from AI pipeline
+  if (lower === 'concept-detection') return 'planning';
+  if (lower === 'planning-orchestrator') return 'planning';
+  if (lower === 'layout-override') return 'layout';
+  if (lower === 'mermaid-materialize') return 'generating';
+  if (lower === 'scoring') return 'scoring';
+  if (lower === 'validation') return 'validating';
+  // Fallback mappings for backward compatibility
   if (lower.includes('reason')) return 'reasoning';
   if (lower.includes('layout')) return 'layout';
   if (lower.includes('edge') || lower.includes('connect')) return 'edges';

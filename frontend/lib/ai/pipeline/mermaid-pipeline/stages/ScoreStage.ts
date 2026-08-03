@@ -1,6 +1,6 @@
 import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
-import { scoreDiagram } from '../../stage8-score';
+import { scoreDiagram } from '../../scoreDiagram';
 import type { RFNode, RFEdge } from '@/lib/mermaid/types';
 import type { Node as RFNodeType, Edge as RFEdgeType } from 'reactflow';
 import type { ArchitectureStyle } from '../../types';

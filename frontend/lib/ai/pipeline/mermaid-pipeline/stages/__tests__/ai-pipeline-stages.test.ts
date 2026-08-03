@@ -111,7 +111,7 @@ describe('generateFallbackPlan', () => {
     expect(plan.mermaidCode).toContain('graph TD');
     expect(plan.mermaidCode).toContain('API Gateway');
     expect(plan.mermaidCode).toContain('Database');
-    expect(plan.styleConfig.primaryColor).toBe('#2563EB');
+    expect(plan.styleConfig.primaryColor).toBe('#0f766e');
   });
 });
 

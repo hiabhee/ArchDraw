@@ -185,7 +185,7 @@ class ApiKeyManager {
   private releaseKey(provider: AIProvider, index: number): void {
     const keys = provider === 'groq' ? this.groqKeys : this.openrouterKeys;
     if (index >= 0 && index < keys.length) {
-      keys[index].inUse = Math.max(0, keys[index].inUse - 1);
+      keys[index].inUse -= 1;
     }
   }
 
@@ -299,7 +299,7 @@ class ApiKeyManager {
       }
 
       try {
-        const groq = new Groq({ apiKey: keyInfo.key, dangerouslyAllowBrowser: true });
+        const groq = new Groq({ apiKey: keyInfo.key });
         const result = await operation(groq);
         this.releaseKey(provider, keyInfo.index);
         this.clearKeyError(provider, keyInfo.index);
@@ -344,20 +344,20 @@ class ApiKeyManager {
     operation: (groq: Groq) => Promise<T>,
     options?: { maxRetries?: number; provider?: AIProvider }
   ): Promise<T> {
-    const maxRetries = options?.maxRetries ?? 1;
+    const maxRetries = options?.maxRetries ?? 3;
     
     // Count one logical call per executeWithRetry entry (pipeline depth)
     const store = requestContext.getStore();
     if (store) store.logicalCalls++;
     
-    // Strategy: 1. Try Groq keys (10→1), 2. Early fallback to OpenRouter after 2 rate-limited keys
+    // Strategy: 1. Try every Groq key (10→1, skipping rate-limited), 2. Fall back to OpenRouter only after all Groq keys are exhausted
     
     let lastError: Error | null = null;
-    let rateLimitedCount = 0;
     
     for (let keyIndex = this.groqKeys.length - 1; keyIndex >= 0; keyIndex--) {
       const keyState = this.groqKeys[keyIndex];
       const keyNumber = keyIndex + 1;
+      lastError = null; // Reset per key so stale errors don't mask actual failure
       
       // Skip rate-limited keys
       if (keyState.isRateLimited) {
@@ -369,21 +369,16 @@ class ApiKeyManager {
       }
       
       for (let attempt = 0; attempt < maxRetries; attempt++) {
+        keyState.inUse++;
+        keyState.lastUsed = Date.now();
+        if (store) store.networkAttempts++;
         try {
-          keyState.inUse++;
-          keyState.lastUsed = Date.now();
-          
-          if (store) store.networkAttempts++;
-
-          const groq = new Groq({ apiKey: keyState.key, dangerouslyAllowBrowser: true });
+          const groq = new Groq({ apiKey: keyState.key });
           const result = await operation(groq);
-          
-          keyState.inUse = Math.max(0, keyState.inUse - 1);
           keyState.consecutiveErrors = 0;
           logger.log(`[ApiKeyManager] Groq key ${keyNumber} succeeded`);
           return result;
         } catch (error: unknown) {
-          keyState.inUse = Math.max(0, keyState.inUse - 1);
           const err = error as { status?: number; message?: string };
           lastError = new Error(err.message || 'Unknown error');
           
@@ -405,19 +400,6 @@ class ApiKeyManager {
             if (keyState.consecutiveErrors >= 2) {
               keyState.isRateLimited = true;
             }
-            rateLimitedCount++;
-            // Fast OpenRouter fallback after 2 rate-limited Groq keys
-            if (rateLimitedCount >= 2 && this.openrouterKeys.length > 0) {
-              logger.log('[ApiKeyManager] 2 Groq keys rate limited, trying OpenRouter early...');
-              try {
-                return await this.executeWithOpenRouter(
-                  (client: OpenRouterClient) => operation(client as unknown as Groq),
-                  { maxRetries: 1 }
-                );
-              } catch (openrouterError) {
-                logger.log(`[ApiKeyManager] Early OpenRouter also failed: ${(openrouterError as Error).message}`);
-              }
-            }
             const delay = 3000; // 3s fixed delay per key
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} rate limited (${delay/1000}s delay)...`);
             await this.delay(delay);
@@ -430,6 +412,8 @@ class ApiKeyManager {
             // Other error - log and continue to next attempt
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} error: ${err.message}`);
           }
+        } finally {
+          keyState.inUse -= 1;
         }
       }
     }
@@ -509,6 +493,7 @@ export class OpenRouterClient {
     'llama-3.2-3b-preview': 'meta-llama/llama-3.2-3b-instruct',
     'gpt-4o-mini': 'openai/gpt-4o-mini',
     'gpt-4o': 'openai/gpt-4o',
+    'openai/gpt-oss-120b': 'openai/gpt-oss-120b',
   };
 
   private static mapModel(model?: string): string | undefined {
@@ -518,7 +503,7 @@ export class OpenRouterClient {
 
   constructor(apiKey: string, model?: string) {
     this.apiKey = apiKey;
-    this.model = OpenRouterClient.mapModel(model) || 'anthropic/claude-3.5-sonnet';
+    this.model = OpenRouterClient.mapModel(model) || 'openai/gpt-oss-120b';
     
     this.chat = {
       completions: {

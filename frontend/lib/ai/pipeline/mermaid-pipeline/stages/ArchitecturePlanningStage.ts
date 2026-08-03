@@ -1,6 +1,6 @@
 import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
-import { runArchitecturePlanner } from '../stage1-planner';
+import { runArchitecturePlanner } from '../architecturePlanner';
 import { getConceptTemplatePlan } from '../conceptTemplates';
 import type { ConceptDetectionOutput } from './ConceptDetectionStage';
 import type { UserIntent } from '../../../types';

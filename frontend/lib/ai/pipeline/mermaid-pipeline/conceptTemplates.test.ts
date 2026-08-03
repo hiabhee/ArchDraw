@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { detectImplicitConceptPrompt, trimMermaidByDetailLevel } from './conceptTemplates';
-import { runMermaidPipeline } from './index';
+import { runAiMermaidPipelineV2 } from './pipeline-v2';
 
-function nodeLabels(result: Awaited<ReturnType<typeof runMermaidPipeline>>): string[] {
-  return result.nodes.map((node) => String((node as { data?: { label?: unknown } }).data?.label ?? ''));
+function nodeLabels(result: Awaited<ReturnType<typeof runAiMermaidPipelineV2>>): string[] {
+  if (!result.success) throw new Error(result.error.message);
+  return result.data.nodes.map((node) => String((node as { data?: { label?: unknown } }).data?.label ?? ''));
 }
 
 describe('implicit concept diagram generation', () => {
@@ -26,7 +27,7 @@ describe('implicit concept diagram generation', () => {
   });
 
   it('uses canonical Docker Engine components for generic Docker architecture', async () => {
-    const result = await runMermaidPipeline({
+    const result = await runAiMermaidPipelineV2({
       description: 'Describe Docker architecture',
       systemType: 'architecture',
       complexity: 'low',
@@ -56,7 +57,7 @@ describe('implicit concept diagram generation', () => {
   });
 
   it('uses an API Gateway capability map instead of inventing an application architecture', async () => {
-    const result = await runMermaidPipeline({
+    const result = await runAiMermaidPipelineV2({
       description: 'Describe API Gateway',
       systemType: 'architecture',
       complexity: 'low',
@@ -84,7 +85,7 @@ describe('implicit concept diagram generation', () => {
   });
 
   it('uses production Kafka platform elements for generic Kafka prompts', async () => {
-    const result = await runMermaidPipeline({
+    const result = await runAiMermaidPipelineV2({
       description: 'Explain Kafka architecture',
       systemType: 'architecture',
       complexity: 'low',
@@ -109,7 +110,7 @@ describe('implicit concept diagram generation', () => {
   });
 
   it('uses Linux internal layers for generic Linux prompts', async () => {
-    const result = await runMermaidPipeline({
+    const result = await runAiMermaidPipelineV2({
       description: 'Linux architecture overview',
       systemType: 'architecture',
       complexity: 'low',
@@ -134,7 +135,7 @@ describe('implicit concept diagram generation', () => {
   });
 
   it('generalizes implicit prompts for non-templated infrastructure concepts', async () => {
-    const result = await runMermaidPipeline({
+    const result = await runAiMermaidPipelineV2({
       description: 'Describe Redis architecture',
       systemType: 'architecture',
       complexity: 'low',

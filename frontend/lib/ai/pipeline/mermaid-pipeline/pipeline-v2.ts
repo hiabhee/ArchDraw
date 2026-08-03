@@ -1,7 +1,9 @@
-import { Pipeline } from '@/lib/pipeline-core/Pipeline';
-import { successResult } from '@/lib/pipeline-core/StageResult';
+import { Pipeline, pipelineStages, toDomainResult } from '@/lib/pipeline-core';
+import type { DomainPipelineResult } from '@/lib/pipeline-core';
+import { successResult, errorResult } from '@/lib/pipeline-core/StageResult';
 import type { StageResult } from '@/lib/pipeline-core/StageResult';
 import type { Stage } from '@/lib/pipeline-core/Stage';
+import type { PipelineContext } from '@/lib/pipeline-core/PipelineContext';
 import type { PipelineResult as CorePipelineResult } from '@/lib/pipeline-core/PipelineResult';
 import type { UserIntent, ReactFlowNode, ReactFlowEdge, LayerType, ServiceType } from '../../types';
 import type { ArchitectureStyle, DiagramScore, PipelineDiagnostics, ValidationIssue } from '../types';
@@ -13,8 +15,8 @@ import type { ConceptDetectionOutput } from './stages/ConceptDetectionStage';
 import { ArchitecturePlanningStage } from './stages/ArchitecturePlanningStage';
 import type { ArchitecturePlan, ArchitecturePlanningInput } from './stages/ArchitecturePlanningStage';
 import { LayoutOverrideStage } from './stages/LayoutOverrideStage';
-import { MermaidParseStage } from './stages/MermaidParseStage';
-import type { MermaidParseOutput } from './stages/MermaidParseStage';
+import { MermaidMaterializeStage } from './stages/MermaidMaterializeStage';
+import type { MermaidMaterializeOutput } from './stages/MermaidMaterializeStage';
 import { ScoreStage } from './stages/ScoreStage';
 import type { ScoreOutput } from './stages/ScoreStage';
 import { ValidationStage } from './stages/ValidationStage';
@@ -27,32 +29,50 @@ export interface AiPipelineData {
   detailLevel: 1 | 2 | 3;
   conceptDetection: ConceptDetectionOutput;
   plan: ArchitecturePlan;
-  parseOutput: MermaidParseOutput;
+  parseOutput: MermaidMaterializeOutput;
   scoreOutput: ScoreOutput;
   validationOutput: ValidationOutput;
 }
 
-const createStages = (): Stage<any, any>[] => {
+const createStages = (): Stage<UserIntent, AiPipelineData>[] => {
   const conceptDetectionStage = new ConceptDetectionStage();
   const architecturePlanningStage = new ArchitecturePlanningStage();
   const layoutOverrideStage = new LayoutOverrideStage();
-  const mermaidParseStage = new MermaidParseStage();
+  const mermaidMaterializeStage = new MermaidMaterializeStage();
   const scoreStage = new ScoreStage();
   const validationStage = new ValidationStage();
 
-  return [
-    conceptDetectionStage,
+  return pipelineStages<UserIntent, AiPipelineData>(
+    {
+      name: 'concept-detection',
+      description: 'Detect implicit concepts from prompt',
+      weight: 1,
+      async execute(userIntent: UserIntent, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
+        const prompt = userIntent.description;
+        const diagramSize = userIntent.diagramSize ?? 'medium';
+        const detailLevel = userIntent.detailLevel ?? 2;
+        const conceptResult = await conceptDetectionStage.execute(prompt, context);
+        if (!conceptResult.success || !conceptResult.data) {
+          return errorResult(conceptResult.error ?? new Error('Concept detection failed'), conceptResult.warnings);
+        }
+        return successResult({
+          userIntent,
+          prompt,
+          diagramSize,
+          detailLevel,
+          conceptDetection: conceptResult.data,
+          plan: {} as ArchitecturePlan,
+          parseOutput: {} as MermaidMaterializeOutput,
+          scoreOutput: {} as ScoreOutput,
+          validationOutput: {} as ValidationOutput,
+        });
+      },
+    },
     {
       name: 'planning-orchestrator',
       description: 'Orchestrate architecture planning with concept detection',
       weight: 5,
-      async execute(data: {
-        userIntent: UserIntent;
-        prompt: string;
-        diagramSize: 'small' | 'medium' | 'large';
-        detailLevel: 1 | 2 | 3;
-        conceptDetection: ConceptDetectionOutput;
-      }): Promise<StageResult<any>> {
+      async execute(data: AiPipelineData, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
         const planningInput: ArchitecturePlanningInput = {
           prompt: data.prompt,
           diagramSize: data.diagramSize,
@@ -61,8 +81,10 @@ const createStages = (): Stage<any, any>[] => {
           existingContext: data.userIntent.existingContext,
           conceptDetection: data.conceptDetection,
         };
-        const planResult = await architecturePlanningStage.execute(planningInput, {} as any);
-        if (!planResult.success) return planResult;
+        const planResult = await architecturePlanningStage.execute(planningInput, context);
+        if (!planResult.success || !planResult.data) {
+          return errorResult(planResult.error ?? new Error('Architecture planning failed'), planResult.warnings);
+        }
         return successResult({ ...data, plan: planResult.data });
       },
     },
@@ -70,30 +92,19 @@ const createStages = (): Stage<any, any>[] => {
       name: 'layout-override',
       description: 'Apply layout direction overrides',
       weight: 1,
-      async execute(data: {
-        userIntent: UserIntent;
-        prompt: string;
-        diagramSize: 'small' | 'medium' | 'large';
-        detailLevel: 1 | 2 | 3;
-        conceptDetection: ConceptDetectionOutput;
-        plan: ArchitecturePlan;
-      }): Promise<StageResult<any>> {
-        const result = await layoutOverrideStage.execute({ plan: data.plan, conceptDetection: data.conceptDetection }, {} as any);
-        if (!result.success) return result;
+      async execute(data: AiPipelineData, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
+        const result = await layoutOverrideStage.execute({ plan: data.plan, conceptDetection: data.conceptDetection }, context);
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Layout override failed'), result.warnings);
+        }
         return successResult({ ...data, plan: result.data });
       },
     },
     {
-      name: 'mermaid-parse',
-      description: 'Parse mermaid and handle retries',
+      name: 'mermaid-materialize',
+      description: 'Materialize mermaid plan (parse, retry, fallback)',
       weight: 3,
-      async execute(data: {
-        userIntent: UserIntent;
-        prompt: string;
-        diagramSize: 'small' | 'medium' | 'large';
-        detailLevel: 1 | 2 | 3;
-        plan: ArchitecturePlan;
-      }): Promise<StageResult<any>> {
+      async execute(data: AiPipelineData, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
         const parseInput = {
           plan: data.plan,
           prompt: data.prompt,
@@ -101,8 +112,10 @@ const createStages = (): Stage<any, any>[] => {
           detailLevel: data.detailLevel,
           model: data.userIntent.model,
         };
-        const result = await mermaidParseStage.execute(parseInput, {} as any);
-        if (!result.success) return result;
+        const result = await mermaidMaterializeStage.execute(parseInput, context);
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Mermaid materialize failed'), result.warnings);
+        }
         return successResult({ ...data, parseOutput: result.data });
       },
     },
@@ -110,14 +123,7 @@ const createStages = (): Stage<any, any>[] => {
       name: 'scoring',
       description: 'Score the diagram',
       weight: 1,
-      async execute(data: {
-        userIntent: UserIntent;
-        prompt: string;
-        diagramSize: 'small' | 'medium' | 'large';
-        detailLevel: 1 | 2 | 3;
-        plan: ArchitecturePlan;
-        parseOutput: MermaidParseOutput;
-      }): Promise<StageResult<any>> {
+      async execute(data: AiPipelineData, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
         const scoreInput = {
           nodes: data.parseOutput.nodes,
           edges: data.parseOutput.edges,
@@ -131,8 +137,10 @@ const createStages = (): Stage<any, any>[] => {
             productionDepth: 'conceptual' as const,
           },
         };
-        const result = await scoreStage.execute(scoreInput, {} as any);
-        if (!result.success) return result;
+        const result = await scoreStage.execute(scoreInput, context);
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Scoring failed'), result.warnings);
+        }
         return successResult({ ...data, scoreOutput: result.data });
       },
     },
@@ -140,15 +148,7 @@ const createStages = (): Stage<any, any>[] => {
       name: 'validation',
       description: 'Validate diagram quality',
       weight: 1,
-      async execute(data: {
-        userIntent: UserIntent;
-        prompt: string;
-        diagramSize: 'small' | 'medium' | 'large';
-        detailLevel: 1 | 2 | 3;
-        plan: ArchitecturePlan;
-        parseOutput: MermaidParseOutput;
-        scoreOutput: ScoreOutput;
-      }): Promise<StageResult<any>> {
+      async execute(data: AiPipelineData, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
         const validationInput = {
           nodes: data.parseOutput.nodes,
           edges: data.parseOutput.edges,
@@ -157,12 +157,14 @@ const createStages = (): Stage<any, any>[] => {
           detailLevel: data.detailLevel,
           parseWarnings: data.parseOutput.parseWarnings,
         };
-        const result = await validationStage.execute(validationInput, {} as any);
-        if (!result.success) return result;
+        const result = await validationStage.execute(validationInput, context);
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Validation failed'), result.warnings);
+        }
         return successResult({ ...data, validationOutput: result.data });
       },
     },
-  ];
+  );
 };
 
 function toReactFlowNode(n: RFNode): ReactFlowNode {
@@ -209,7 +211,7 @@ function toReactFlowEdge(e: RFEdge): ReactFlowEdge {
     labelBgBorderRadius: (d.labelBgBorderRadius as number) || 4,
     labelBgStyle: (d.labelBgStyle as ReactFlowEdge['labelBgStyle']) || { fill: '#ffffff' },
     labelStyle: (d.labelStyle as ReactFlowEdge['labelStyle']) || { fontSize: 12, fontWeight: 400, fill: '#64748b' },
-    style: (d.style as ReactFlowEdge['style']) || { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: 'none' },
+    style: (d.style as ReactFlowEdge['style']) || { stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: 'none' },
     markerEnd: (d.markerEnd as ReactFlowEdge['markerEnd']) || { type: 'arrowclosed', color: '#94a3b8' },
     data: {
       communicationType: (d.communicationType as ReactFlowEdge['data']['communicationType']) || 'sync',
@@ -227,7 +229,7 @@ function toReactFlowEdge(e: RFEdge): ReactFlowEdge {
 export async function runAiMermaidPipelineV2(
   userIntent: UserIntent,
   onProgress?: (step: string, progress: number) => void
-): Promise<PipelineResult> {
+): Promise<DomainPipelineResult<PipelineResult>> {
   const prompt = userIntent.description;
   const diagramSize = userIntent.diagramSize ?? 'medium';
   const detailLevel = userIntent.detailLevel ?? 2;
@@ -240,31 +242,13 @@ export async function runAiMermaidPipelineV2(
     },
   });
 
-  if (!result.success || !result.data) {
-    return {
-      success: false,
-      nodes: [],
-      edges: [],
-      state: {
-        userIntent,
-        rawNodes: [],
-        enrichedNodes: [],
-        edges: [],
-        reactFlowNodes: [],
-        graph: null,
-        score: 0,
-        iteration: 0,
-        history: [],
-        errors: result.errors.map(e => ({ message: e })),
-        useAWS: false,
-        systemIntent: { primary: [], useAWS: false, useAzure: false, useGCP: false },
-      },
-      score: 0,
-      error: 'generation_failed',
-    };
+  const domainResult = toDomainResult(result);
+
+  if (!domainResult.success) {
+    return domainResult;
   }
 
-  const { parseOutput, plan, scoreOutput, validationOutput } = result.data;
+  const { parseOutput, plan, scoreOutput, validationOutput } = domainResult.data;
 
   const pipelineDiagnostics: PipelineDiagnostics = {
     style: plan.styleConfig.theme as ArchitectureStyle,
@@ -286,8 +270,8 @@ export async function runAiMermaidPipelineV2(
       icon: n.data?.icon || 'box',
       subtitle: n.data?.subtitle,
       serviceType: n.data?.serviceType,
-      width: n.width || 180,
-      height: 70,
+      width: n.width || 200,
+      height: 88,
       metadata: {},
     })),
     enrichedNodes: parseOutput.nodes.map(n => ({
@@ -299,8 +283,8 @@ export async function runAiMermaidPipelineV2(
       icon: n.data?.icon || 'box',
       subtitle: n.data?.subtitle,
       serviceType: n.data?.serviceType,
-      width: n.width || 180,
-      height: 70,
+      width: n.width || 200,
+      height: 88,
       metadata: {},
     })),
     edges: parseOutput.edges as unknown as ArchitectureEdge[],
@@ -334,7 +318,7 @@ export async function runAiMermaidPipelineV2(
     return result;
   };
 
-  return {
+  const pipelineResult: PipelineResult = {
     success: true,
     nodes: parseOutput.nodes.map(toReactFlowNodeSafe),
     edges: parseOutput.edges.map(toReactFlowEdge),
@@ -345,5 +329,12 @@ export async function runAiMermaidPipelineV2(
     diagramType: plan.formatConfig.diagramType,
     usedFallback: parseOutput.usedFallback,
     droppedExistingContext: parseOutput.droppedExistingContext,
+  };
+
+  return {
+    success: true,
+    data: pipelineResult,
+    warnings: domainResult.warnings,
+    metrics: domainResult.metrics,
   };
 }

@@ -16,7 +16,7 @@ function createMockAiStages(): Stage<any, any>[] {
           ...input,
           conceptDetection: {
             implicitConcept: null,
-            promptLower: input.prompt.toLowerCase(),
+            promptLower: (input.prompt ?? input.description).toLowerCase(),
             isVerticalRequested: false,
           },
         });
@@ -99,6 +99,7 @@ describe('AiMermaidPipelineV2 (mocked integration)', () => {
     const pipeline = new Pipeline<any, any>('ai-mermaid-pipeline-v2', createMockAiStages());
     const userIntent = {
       description: 'Build a simple web app',
+      prompt: 'Build a simple web app',
       diagramSize: 'medium' as const,
       detailLevel: 2 as const,
       model: 'gpt-4' as const,
@@ -129,7 +130,7 @@ describe('AiMermaidPipelineV2 (mocked integration)', () => {
       },
     ];
     const pipeline = new Pipeline<any, any>('fail-ai-pipeline', failingStages);
-    const userIntent = { description: 'test', diagramSize: 'small' as const, detailLevel: 1 as const, model: 'gpt-4' as const, existingContext: '', style: 'default' as const };
+    const userIntent = { description: 'test', prompt: 'test', diagramSize: 'small' as const, detailLevel: 1 as const, model: 'gpt-4' as const, existingContext: '', style: 'default' as const };
 
     const result = await pipeline.execute(userIntent, new DefaultPipelineContext('test'));
     expect(result.success).toBe(false);
@@ -142,7 +143,7 @@ describe('AiMermaidPipelineV2 (mocked integration)', () => {
     const ctx = new DefaultPipelineContext('test');
     ctx.onProgress = (stage, _pct) => { progressLog.push(`${stage}:${_pct}`); };
 
-    await pipeline.execute({ description: 'test', model: 'gpt-4', diagramSize: 'medium', detailLevel: 2, existingContext: '', style: 'default' }, ctx);
+    await pipeline.execute({ description: 'test', prompt: 'test', model: 'gpt-4', diagramSize: 'medium', detailLevel: 2, existingContext: '', style: 'default' }, ctx);
     expect(progressLog.length).toBeGreaterThanOrEqual(6);
     expect(progressLog[0]).toMatch(/concept-detection/);
     expect(progressLog[progressLog.length - 1]).toMatch(/validation/);

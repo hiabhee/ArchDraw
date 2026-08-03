@@ -2,6 +2,7 @@ import { apiKeyManager } from '../../utils/apiKeyManager';
 import { groqJsonCompletion } from '../../utils/groqJsonCompletion';
 import logger from '@/lib/logger';
 import type { FormatConfig, StyleConfig, InventoryConfig, EdgeConfig } from './types';
+import { themePrimaryColor, themeToNodeTypeStyles, getDiagramTheme } from '@/lib/theme/stylingConstants';
 
 interface PlannerOutput {
   reasoning: string;
@@ -247,7 +248,7 @@ const rateLimiter = new RateLimiter();
     }
   }
 
-  const theme = THEMES.includes(cleaned.theme as any) ? cleaned.theme : 'slate';
+  const theme = THEMES.includes(cleaned.theme as (typeof THEMES)[number]) ? cleaned.theme : 'slate';
 
   const formatConfig: FormatConfig = {
     format: 'mermaid',
@@ -256,11 +257,13 @@ const rateLimiter = new RateLimiter();
   };
 
   const styleConfig: StyleConfig = {
-    primaryColor: '#6366f1',
-    secondaryColor: '#8b5cf6',
-    background: '#1e1e2e',
+    primaryColor: themePrimaryColor(theme),
+    secondaryColor: getDiagramTheme(theme).concerns.data.color,
+    background: getDiagramTheme(theme).light.canvasHint,
+    backgroundColor: getDiagramTheme(theme).light.canvasHint,
     fontFamily: 'Inter, sans-serif',
     theme: theme as 'forest-green' | 'slate' | 'dark-minimal' | 'luxury' | 'default',
+    nodeTypeStyles: themeToNodeTypeStyles(theme),
   };
 
   return {

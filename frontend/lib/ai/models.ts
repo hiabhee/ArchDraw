@@ -11,7 +11,7 @@
  *
  * Field semantics:
  *   - `id`    : the model identifier sent to the provider API (e.g.
- *               'llama-3.3-70b-versatile'). Also used as the wire value for the
+ *               'openai/gpt-oss-120b'). Also used as the wire value for the
  *               `model` field in /api/generate-diagram.
  *   - `label` : human-readable name shown in the UI dropdown.
  *   - `provider`: which key pool / client the orchestrator uses.
@@ -28,11 +28,11 @@ export interface ModelDefinition {
 
 export const MODELS: readonly ModelDefinition[] = [
   // Groq (primary — fast)
+  { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq', supportsStreaming: true },
   { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 (70B)', provider: 'groq' },
   { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 (8B)', provider: 'groq' },
   { id: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS (20B)', provider: 'groq' },
-  // OpenRouter (free fallbacks)
-  { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq' },
+  // OpenRouter (additional options)
   { id: 'google/gemma-4-26b-a4b-it', label: 'Google Gemma 4 (26B)', provider: 'openrouter' },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nvidia Nemotron 3 Super (120B)', provider: 'openrouter' },
   { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Meta Llama 3.3 (70B)', provider: 'openrouter' },
@@ -40,6 +40,10 @@ export const MODELS: readonly ModelDefinition[] = [
 ] as const;
 
 export function getProviderForModel(modelId: string): AIProvider {
+  // openai/gpt-oss-120b is served via Groq
+  if (modelId === 'openai/gpt-oss-120b' || modelId === 'openai/gpt-oss-20b') {
+    return 'groq';
+  }
   return modelId.includes('/') ? 'openrouter' : 'groq';
 }
 

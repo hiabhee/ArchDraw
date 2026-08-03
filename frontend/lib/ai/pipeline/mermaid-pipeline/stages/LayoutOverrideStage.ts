@@ -30,9 +30,9 @@ export class LayoutOverrideStage extends BaseStage<LayoutOverrideInput, Architec
       formatConfig.diagramType = 'graph TD';
       mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
     } else {
-      // Keep the original layout direction from the plan instead of forcing vertical
-      logger.info('[DownstreamGuard] Using planner-suggested layout direction.');
-      // Don't override - let the planner decide what's best
+      logger.info('[DownstreamGuard] Forcing default layout to vertical (graph TD).');
+      formatConfig.diagramType = 'graph TD';
+      mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
     }
 
     return successResult({ ...plan, mermaidCode, formatConfig });
