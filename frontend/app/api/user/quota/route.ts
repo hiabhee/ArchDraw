@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
   const user = await prisma.user.findUnique({
     where: { id: userId! },
     select: {
+      email: true,
       dailyGenerations: true,
       dailyGenerationsDate: true,
       totalGenerations: true,
@@ -60,6 +61,24 @@ export async function GET(req: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ tier, error: 'User not found' }, { status: 404 });
+  }
+
+  const adminEmail = process.env.ALLOWED_ADMIN_EMAIL?.trim().toLowerCase();
+  if (adminEmail && user.email?.toLowerCase() === adminEmail) {
+    return NextResponse.json({
+      tier,
+      aiGenerations: {
+        used: user.totalGenerations,
+        limit: null,
+        window: 'day' as const,
+        total: user.totalGenerations,
+        unlimited: true,
+      },
+      canvases: {
+        current: user._count.userCanvases,
+        limit: quotas.maxCanvases,
+      },
+    });
   }
 
   const today = new Date().toDateString();

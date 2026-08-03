@@ -78,14 +78,43 @@ function sideToPosition(side: string | undefined): Position | undefined {
   return undefined
 }
 
+/**
+ * Collects the ids of every group node that contains `nodeId` (all ancestors
+ * through the parent chain). An edge may always cross its own groups'
+ * boundaries because its endpoints live inside them, so these groups must
+ * not be treated as routing obstacles — otherwise the edge could never leave
+ * (or stay inside) its container.
+ */
+function getAncestorGroupIds(nodeId: string, nodes: Node[]): Set<string> {
+  const result = new Set<string>()
+  const nodeById = new Map(nodes.map((n) => [n.id, n]))
+  const visited = new Set<string>()
+  let currentId = nodeById.get(nodeId)
+  while (currentId && !visited.has(currentId.id)) {
+    visited.add(currentId.id)
+    const parentId = currentId.parentId || (currentId as Node & { parentNode?: string }).parentNode
+    if (!parentId) break
+    const parent = nodeById.get(parentId)
+    if (!parent) break
+    if (isGroupNode(parent)) result.add(parentId)
+    currentId = parent
+  }
+  return result
+}
+
 function buildBlockingNodeRects(
   nodes: Node[],
-  excludedIds: Set<string>
+  excludedIds: Set<string>,
+  passableGroupIds: Set<string> = new Set(),
 ): Map<string, { id: string; x: number; y: number; w: number; h: number }> {
   const nodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>()
   for (const node of nodes) {
     if (excludedIds.has(node.id)) continue
-    if (isGroupNode(node)) continue // Reverted: don't treat group nodes as obstacles
+    if (isGroupNode(node)) {
+      // Edges of a group (their endpoints live inside it) may pass through
+      // that group, but must not slice through any other group's rectangle.
+      if (passableGroupIds.has(node.id)) continue
+    }
     const rect = getNodeRect(node, nodes)
     nodeRects.set(node.id, { id: node.id, ...rect })
   }
@@ -193,11 +222,14 @@ function toHandlerRect(r: ObstacleRect): HandlerRect {
 function buildScorerObstacles(
   nodes: Node[],
   excludedIds: Set<string>,
+  passableGroupIds: Set<string> = new Set(),
 ): Map<string, HandlerRect> {
   const map = new Map<string, HandlerRect>()
   for (const node of nodes) {
     if (excludedIds.has(node.id)) continue
-    if (isGroupNode(node)) continue
+    if (isGroupNode(node)) {
+      if (passableGroupIds.has(node.id)) continue
+    }
     const rect = getNodeRect(node, nodes)
     map.set(node.id, toHandlerRect(rect))
   }
@@ -323,69 +355,6 @@ function resolveEdgeSideOnNode(
 
 export type EdgeRouteDirection = 'LR' | 'TD';
 
-/**
- * Max extra path length (px) over the straight line that still counts as a
- * "very small twist". Anything larger is a genuine detour and stays routed.
- */
-const SNAP_STRAIGHT_MAX_EXCESS = 36;
-
-/**
- * Max slope (minor axis / major axis) for the collapsed straight line.
- * Keeps straightening to near-axis-aligned edges only — anything more
- * diagonal would read as a slanted line rather than a clean straight edge.
- */
-const SNAP_STRAIGHT_MAX_SLOPE = 0.06;
-
-function pathManhattanLengthOf(points: Array<{ x: number; y: number }>): number {
-  let len = 0
-  for (let i = 1; i < points.length; i++) {
-    len += Math.abs(points[i].x - points[i - 1].x) + Math.abs(points[i].y - points[i - 1].y)
-  }
-  return len
-}
-
-/**
- * Collapses a near-straight orthogonal path into a straight segment.
- *
- * The router always draws horizontal/vertical legs, so two anchors that are
- * only a few pixels off-axis produce a tiny Z/L jog that cannot be tuned away
- * by nudging nodes. When the extra path length over the straight line is small,
- * the straight line is still near-axis-aligned, and a straight segment is safe
- * (no obstacle or terminal clipping), render the edge as a single straight line.
- */
-export function snapSmallTwistToStraight(
-  waypoints: Array<{ x: number; y: number }>,
-  source: { x: number; y: number },
-  target: { x: number; y: number },
-  edgeOffset: number,
-  nodeRects: Map<string, { id: string; x: number; y: number; w: number; h: number }> | undefined,
-  sourceRect: ObstacleRect,
-  targetRect: ObstacleRect,
-): Array<{ x: number; y: number }> {
-  if (edgeOffset !== 0) return waypoints
-  if (waypoints.length <= 2) return waypoints
-
-  const dx = target.x - source.x
-  const dy = target.y - source.y
-  const straightLen = Math.sqrt(dx * dx + dy * dy)
-  if (straightLen < 1) return waypoints
-
-  const manhattan = pathManhattanLengthOf(waypoints)
-  const excess = manhattan - straightLen
-  if (excess > SNAP_STRAIGHT_MAX_EXCESS) return waypoints
-  if (excess > Math.max(8, straightLen * 0.4)) return waypoints
-
-  const majorAxis = Math.max(Math.abs(dx), Math.abs(dy))
-  const minorAxis = Math.min(Math.abs(dx), Math.abs(dy))
-  if (minorAxis / majorAxis > SNAP_STRAIGHT_MAX_SLOPE) return waypoints
-
-  const straight: Array<{ x: number; y: number }> = [source, target]
-  if (pathEntersTerminalInterior(straight, sourceRect, targetRect)) return waypoints
-  if (nodeRects && pathCollidesWithRects(straight, nodeRects)) return waypoints
-
-  return straight
-}
-
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
@@ -445,7 +414,14 @@ export function computeEdgeRoute(
   const laneTargetPreference = sideToPosition(edgeData?.laneTargetSide as string)
 
   const excludedIds = new Set([edge.source, edge.target])
-  const scorerObstacles = buildScorerObstacles(nodes, excludedIds)
+  // Groups containing either endpoint are passable (the edge starts/ends
+  // inside them); every other group is an obstacle so edges of one group
+  // never cut across another group's rectangle.
+  const passableGroupIds = new Set<string>([
+    ...getAncestorGroupIds(edge.source, nodes),
+    ...getAncestorGroupIds(edge.target, nodes),
+  ])
+  const scorerObstacles = buildScorerObstacles(nodes, excludedIds, passableGroupIds)
   const srcHandlerRect: HandlerRect = {
     x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h,
   }
@@ -582,7 +558,7 @@ export function computeEdgeRoute(
 
   // Intermediate nodes only for the obstacle map — source/target are added
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
-  const nodeRects = buildBlockingNodeRects(nodes, excludedIds)
+  const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
   const parallelEdges = edges.filter(
     (e) => (e.source === edge.source && e.target === edge.target) || (e.source === edge.target && e.target === edge.source)
@@ -598,17 +574,14 @@ export function computeEdgeRoute(
     sh, th, sourcePosition, targetPosition, edgeOffset,
     nodeRectParam, sourceRect, targetRect,
   )
-  const snapped = snapSmallTwistToStraight(
-    waypoints, sh, th, edgeOffset, nodeRectParam, sourceRect, targetRect,
-  )
-  const svgPath = buildSmoothStepSvg(snapped, 24)
+  const svgPath = buildSmoothStepSvg(waypoints, 24)
 
   return {
     sourcePosition,
     targetPosition,
     sourcePoint: sh,
     targetPoint: th,
-    waypoints: snapped,
+    waypoints,
     svgPath,
   }
 }

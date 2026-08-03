@@ -35,6 +35,10 @@ async function checkGuestQuotaViaDB(
   return { allowed, remaining };
 }
 
+// Admin accounts (ALLOWED_ADMIN_EMAIL) bypass the AI-generation limit entirely.
+const ADMIN_EMAIL = process.env.ALLOWED_ADMIN_EMAIL?.trim().toLowerCase() || null;
+const ADMIN_UNLIMITED_REMAINING = 999;
+
 export async function checkAIGenerationQuota(
   req: NextRequest
 ): Promise<{ allowed: boolean; error?: string; remaining?: number; tier: UserTier }> {
@@ -100,11 +104,15 @@ export async function checkAIGenerationQuota(
 
   const user = await prisma.user.findUnique({
     where: { id: userId! },
-    select: { dailyGenerations: true, dailyGenerationsDate: true },
+    select: { email: true, dailyGenerations: true, dailyGenerationsDate: true },
   });
 
   if (!user) {
     return { allowed: false, error: 'User not found', tier };
+  }
+
+  if (ADMIN_EMAIL && user.email?.toLowerCase() === ADMIN_EMAIL) {
+    return { allowed: true, remaining: ADMIN_UNLIMITED_REMAINING, tier };
   }
 
   const today = new Date().toDateString();

@@ -27,9 +27,10 @@ interface QuotaData {
   tier: string;
   aiGenerations: {
     used: number;
-    limit: number;
+    limit: number | null;
     window: string;
     total?: number;
+    unlimited?: boolean;
   };
   canvases: {
     current: number;
@@ -304,14 +305,15 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
                 <div className="flex items-center justify-between text-[11px] font-medium mb-1.5">
                   <span className="text-text-primary">AI Generations</span>
                   <span className="text-text-secondary">
-                    {quotaData?.aiGenerations.used ?? 0} / {aiLimit}
-                    {tier === 'guest' ? ' (hourly)' : ' (daily)'}
+                    {quotaData?.aiGenerations.unlimited
+                      ? 'Unlimited'
+                      : `${quotaData?.aiGenerations.used ?? 0} / ${aiLimit}${tier === 'guest' ? ' (hourly)' : ' (daily)'}`}
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
                     className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(((quotaData?.aiGenerations.used ?? 0) / aiLimit) * 100, 100)}%` }}
+                    style={{ width: `${quotaData?.aiGenerations.unlimited ? 100 : Math.min(((quotaData?.aiGenerations.used ?? 0) / aiLimit) * 100, 100)}%` }}
                   />
                 </div>
               </div>
