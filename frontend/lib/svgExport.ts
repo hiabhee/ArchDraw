@@ -458,12 +458,13 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
     if (isAsync) strokeColor = '#FBBF24';
     else if (lowerType === 'error' || lowerLabel.includes('error') || lowerLabel.includes('failed')) strokeColor = '#EF4444';
     else if (lowerType === 'success' || lowerLabel.includes('success') || lowerLabel.includes('ok')) strokeColor = '#34D399';
-    else strokeColor = '#60A5FA'; // sync/default bright blue
+    else strokeColor = '#ffffff'; // sync/default white
   } else {
     if (isAsync) strokeColor = '#F59E0B';
     else if (lowerType === 'error' || lowerLabel.includes('error') || lowerLabel.includes('failed')) strokeColor = '#EF4444';
     else if (lowerType === 'success' || lowerLabel.includes('success') || lowerLabel.includes('ok')) strokeColor = '#10B981';
     else if (lowerType === 'sql' || lowerType === 'data' || lowerLabel.includes('sql') || lowerLabel.includes('query') || lowerLabel.includes('cache')) strokeColor = '#3B82F6';
+    else if (connectionType === 'sync') strokeColor = '#000000'; // sync/default black
     else strokeColor = config.color || '#6B7280';
   }
 

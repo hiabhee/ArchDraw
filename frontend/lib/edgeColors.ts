@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { MarkerType } from 'reactflow';
 import type { Edge } from 'reactflow';
 import { useCanvasTheme } from '@/lib/theme';
-import { FLOW_ACCENT, FLOW_ACCENT_MUTED } from '@/lib/theme/stylingConstants';
 
 const EDGE_COLORS = {
   default: '#94a3b8',
@@ -25,8 +24,8 @@ export interface EdgePalette {
 
 /**
  * Resolve a connector's palette from its semantic data.
- * - Solid sync edges form the request path → brand DodgerBlue so the eye can
- *   track flow through the diagram.
+ * - Solid sync edges form the request path → black in light mode / white in
+ *   dark mode so the eye can track flow through the diagram.
  * - Async/dashed edges → amber; observability/health (control-plane) → muted.
  * - stream / event / dep keep their configured semantic colors.
  */
@@ -66,7 +65,7 @@ export function resolveEdgePalette(
     return { stroke: c, markerColor: c };
   }
 
-  const c = isDark ? FLOW_ACCENT_MUTED : FLOW_ACCENT;
+  const c = isDark ? '#ffffff' : '#000000';
   return { stroke: c, markerColor: c };
 }
 
