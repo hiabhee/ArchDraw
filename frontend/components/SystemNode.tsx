@@ -9,6 +9,8 @@ import { FloatingHandles } from './nodes/FloatingHandles';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
+import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import {
   getConcernColor,
@@ -61,7 +63,7 @@ const ACCENT_CYCLE = Object.values(CONCERN_COLORS).map((c) => c.color);
 
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
-  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
+  const cloudProvider = useDiagramStore((s) => s.cloudProvider);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
   const nodeCardRef = useRef<HTMLDivElement>(null);
@@ -109,6 +111,16 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     icon: nodeData.icon,
     color: accentColor,
   });
+  const cloudIcon = resolveCloudIcon(
+    {
+      label: data.label,
+      typeId: nodeData.typeId,
+      technology: nodeData.technology,
+      serviceType: nodeData.serviceType,
+      icon: nodeData.icon,
+    },
+    cloudProvider
+  );
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
   const showStatus = showEditChrome && nodeData.status && nodeData.status !== 'healthy';
@@ -176,6 +188,12 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   });
   const cardWidth = Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
   const cardHeight = Math.max(nodeData.nodeHeight || NODE_HEIGHT, fitted.height);
+  // Cloud icon is ~20% of the node width (Rule 5.2 — fixed slot that never
+  // changes node dimensions), capped so it stays inside the card's content box.
+  const cloudIconSize = Math.max(
+    20,
+    Math.round(Math.min(cardWidth * 0.2, cardHeight - 28))
+  );
 
   return (
       <div
@@ -301,16 +319,34 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
 
         <div className="node-header">
-          {showNodeIcons && (
-            <div className="node-icon-box" aria-hidden="true">
-              <NodeIcon
-                technology={resolvedIcon.technology}
-                fallbackIcon={resolvedIcon.icon}
-                fallbackColor={resolvedIcon.color}
-                size={14}
-              />
-            </div>
-          )}
+          {cloudProvider !== 'off' &&
+            (cloudIcon ? (
+              <div
+                className="node-icon-box"
+                style={{ width: cloudIconSize, height: cloudIconSize }}
+                aria-hidden="true"
+              >
+                {cloudIcon.kind === 'generic' ? (
+                  <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
+                ) : (
+                  <CloudProviderIcon
+                    provider={cloudIcon.kind}
+                    serviceKey={cloudIcon.serviceKey}
+                    size={Math.round(cloudIconSize * 0.72)}
+                    color={cloudIcon.color}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="node-icon-box" aria-hidden="true">
+                <NodeIcon
+                  technology={resolvedIcon.technology}
+                  fallbackIcon={resolvedIcon.icon}
+                  fallbackColor={resolvedIcon.color}
+                  size={14}
+                />
+              </div>
+            ))}
           {labelEdit.isEditing ? (
             <input
               {...labelEdit.inputProps}

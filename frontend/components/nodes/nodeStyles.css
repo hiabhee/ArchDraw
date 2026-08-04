@@ -174,7 +174,6 @@
   justify-content: center;
   flex-shrink: 0;
   background: var(--node-accent-bg);
-  border: 1px solid color-mix(in srgb, var(--node-accent) 18%, transparent);
   box-shadow: none;
 }
 

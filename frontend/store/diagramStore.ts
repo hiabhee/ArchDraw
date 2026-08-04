@@ -1,6 +1,7 @@
 import { create, type StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Connection, Edge, EdgeChange, Node, NodeChange } from 'reactflow';
+import type { CloudProviderToggle } from '@/lib/cloudIcons/types';
 import { componentRegistry } from '@/lib/componentRegistry';
 import { STORAGE_KEYS } from '@/lib/config';
 import { toast } from 'sonner';
@@ -134,6 +135,8 @@ export interface CanvasTab {
   isFavorite?: boolean;
   lastAccessedAt?: number;
   thumbnail?: string;
+  /** Render-only view preference: AWS/Azure icon set or Off. Not in Mermaid IR. */
+  cloudProvider?: CloudProviderToggle;
 }
 
 export interface UserProfile {
@@ -197,7 +200,6 @@ interface DiagramState {
   guideLines: GuideLine[];
   edgeAnimations: boolean;
   showGrid: boolean;
-  showNodeIcons: boolean;
   /** edit = decorative chrome; present = quiet architecture (also used for export). */
   diagramChromeMode: 'edit' | 'present';
   /** Named diagram theme pack (slate / forest-green / …). */
@@ -210,8 +212,9 @@ interface DiagramState {
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
-  toggleNodeIcons: () => void;
-  setShowNodeIcons: (show: boolean) => void;
+  /** Active cloud provider icon set for the current diagram ('off' | 'aws' | 'azure'). */
+  cloudProvider: CloudProviderToggle;
+  setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;
   setDiagramStyleTheme: (theme: string) => void;
   toggleDarkMode: () => void;
@@ -298,6 +301,7 @@ function makeCanvas(name: string, id?: string): CanvasTab {
     name, 
     nodes: [], 
     edges: [], 
+    cloudProvider: 'off',
     createdAt: Date.now(),
     updatedAt: Date.now() 
   };
@@ -666,7 +670,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
       sequenceDiagrams: {},
       pipelineStatus: 'idle',
       pipelineError: null,
-      showNodeIcons: true,
+      cloudProvider: 'off',
       diagramChromeMode: 'edit',
       diagramStyleTheme: 'default',
 
@@ -1378,8 +1382,14 @@ const useDiagramStoreRaw = create<DiagramState>()(
         }
       },
       toggleGrid: () => set({ showGrid: !get().showGrid }),
-      toggleNodeIcons: () => set({ showNodeIcons: !get().showNodeIcons }),
-      setShowNodeIcons: (show) => set({ showNodeIcons: show }),
+      setCloudProvider: (toggle) => {
+        const { activeCanvasId, canvases } = get();
+        const nextCanvases = canvases.map((c) =>
+          c.id === activeCanvasId ? { ...c, cloudProvider: toggle } : c
+        );
+        set({ canvases: nextCanvases });
+        get().saveCanvasToDB(activeCanvasId);
+      },
       setDiagramChromeMode: (mode) => set({ diagramChromeMode: mode }),
       setDiagramStyleTheme: (theme) => set({ diagramStyleTheme: theme }),
       toggleDarkMode: () => {
@@ -2228,7 +2238,6 @@ const useDiagramStoreRaw = create<DiagramState>()(
         activeCanvasId: s.activeCanvasId,
         edgeAnimations: s.edgeAnimations,
         showGrid: s.showGrid,
-        showNodeIcons: s.showNodeIcons,
         diagramChromeMode: s.diagramChromeMode,
         diagramStyleTheme: s.diagramStyleTheme,
         userProfile: s.userProfile,
@@ -2389,6 +2398,10 @@ function deriveNodesAndEdges(state: DiagramState) {
       if (prop === 'edges') {
         const active = target.canvases?.find((c: CanvasTab) => c.id === target.activeCanvasId);
         return active?.edges || [];
+      }
+      if (prop === 'cloudProvider') {
+        const active = target.canvases?.find((c: CanvasTab) => c.id === target.activeCanvasId);
+        return active?.cloudProvider ?? 'off';
       }
       return Reflect.get(target, prop, receiver);
     }

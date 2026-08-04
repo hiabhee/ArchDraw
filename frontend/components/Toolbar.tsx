@@ -11,7 +11,6 @@ import {
   Github,
   ArrowDownToLine, ArrowRightToLine,
   PenTool,
-  Eye, EyeOff,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -28,6 +27,7 @@ import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark }
 
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { CloudProviderIconToggle } from '@/components/CloudProviderIconToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
@@ -234,7 +234,6 @@ export function Toolbar() {
     savingState, userProfile, setSidebarOpen, sidebarOpen,
     activeLayoutPresetId, sequenceDiagrams,
     isPenModeActive, setPenModeActive,
-    showNodeIcons, toggleNodeIcons,
   } = useDiagramStore();
 
   const selectedModel = useModelStore((s) => s.selectedModel);
@@ -772,23 +771,7 @@ export function Toolbar() {
 
             <LayoutToggleButton />
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleNodeIcons}
-              className={`!w-8 sm:!w-9 !h-8 sm:!h-9 ${
-                showNodeIcons
-                  ? 'text-primary bg-primary/15 dark:bg-primary/25 ring-1 ring-primary/40'
-                  : ''
-              }`}
-              title={showNodeIcons ? 'Hide node icons' : 'Show node icons'}
-            >
-              {showNodeIcons ? (
-                <Eye className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-              ) : (
-                <EyeOff className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-              )}
-            </Button>
+            <CloudProviderIconToggle />
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 

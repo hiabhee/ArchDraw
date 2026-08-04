@@ -10,6 +10,8 @@ import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useDiagramStore } from '@/store/diagramStore';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
+import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
 import { CustomNodeIcon, toCustomNodeIconName, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
 import './nodes/nodeStyles.css';
 
@@ -177,15 +179,19 @@ function Label({
   data,
   color,
   nodeId,
+  width,
+  height,
   maxWidth,
 }: {
   data: ShapeNodeData;
   color: string;
   nodeId: string;
+  width: number;
+  height: number;
   maxWidth?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
+  const cloudProvider = useDiagramStore((s) => s.cloudProvider);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,
@@ -203,6 +209,19 @@ function Label({
     color,
   });
   const customVisual = diagramChromeMode === 'edit' ? toCustomNodeIconName(resolvedIcon.icon) : null;
+  const cloudIcon = resolveCloudIcon(
+    {
+      label: data.label,
+      typeId: data.typeId,
+      technology: data.technology,
+      serviceType: data.serviceType,
+      icon: data.icon,
+    },
+    cloudProvider
+  );
+  // Cloud icon is ~20% of the shape width, capped to leave room for the label
+  // text inside the silhouette (Rule 5.2 — fixed slot, no node-size change).
+  const cloudIconSize = Math.max(16, Math.round(Math.min(width * 0.2, height - 28)));
 
   return (
     <div
@@ -210,31 +229,54 @@ function Label({
       className="flex flex-col items-center justify-center text-center px-1 select-none"
       style={{ width: '100%', maxWidth: maxWidth ?? '100%' }}
     >
-      {showNodeIcons && (
-        <>
-          {customVisual ? (
-            <CustomNodeVisual name={customVisual} color={resolvedIcon.color} />
-          ) : (
-            <div
-              className="node-icon-box mb-1"
-              aria-hidden="true"
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                background: `${color}14`,
-              }}
-            >
-              <NodeIcon
-                technology={resolvedIcon.technology}
-                fallbackIcon={resolvedIcon.icon}
-                fallbackColor={resolvedIcon.color}
-                size={14}
+      {cloudProvider !== 'off' &&
+        (cloudIcon ? (
+          <div
+            className="node-icon-box mb-1"
+            aria-hidden="true"
+            style={{
+              width: cloudIconSize,
+              height: cloudIconSize,
+              borderRadius: Math.round(cloudIconSize * 0.27),
+              background: `${color}14`,
+            }}
+          >
+            {cloudIcon.kind === 'generic' ? (
+              <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
+            ) : (
+              <CloudProviderIcon
+                provider={cloudIcon.kind}
+                serviceKey={cloudIcon.serviceKey}
+                size={Math.round(cloudIconSize * 0.72)}
+                color={cloudIcon.color}
               />
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </div>
+        ) : (
+          <>
+            {customVisual ? (
+              <CustomNodeVisual name={customVisual} color={resolvedIcon.color} />
+            ) : (
+              <div
+                className="node-icon-box mb-1"
+                aria-hidden="true"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  background: `${color}14`,
+                }}
+              >
+                <NodeIcon
+                  technology={resolvedIcon.technology}
+                  fallbackIcon={resolvedIcon.icon}
+                  fallbackColor={resolvedIcon.color}
+                  size={14}
+                />
+              </div>
+            )}
+          </>
+        ))}
       {labelEdit.isEditing ? (
         <input
           {...labelEdit.inputProps}
@@ -334,7 +376,7 @@ function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, wi
           transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
         }}
       >
-        <Label data={data} color={color} nodeId={id} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} />
       </div>
       <Handles color={color} nodeId={id} />
     </div>
@@ -366,7 +408,7 @@ function Diamond({ id, data, selected, backplates, isDark, width: W, height: H, 
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
       </div>
     </div>
   );
@@ -399,7 +441,7 @@ function Cylinder({ id, data, selected, backplates, isDark, width: W, height: H,
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: RY }}>
-        <Label data={data} color={color} nodeId={id} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
       </div>
     </div>
   );
@@ -420,7 +462,7 @@ function Circle({ id, data, selected, backplates, isDark, width: W, height: H, l
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
       </div>
     </div>
   );
@@ -447,7 +489,7 @@ function Parallelogram({ id, data, selected, backplates, isDark, width: W, heigh
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
       </div>
     </div>
   );
