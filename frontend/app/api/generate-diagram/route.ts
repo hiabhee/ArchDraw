@@ -3,6 +3,7 @@ import { generateDiagram } from '@/lib/ai/services/orchestrator';
 import { MODELS, isKnownModel } from '@/lib/ai/models';
 import { inferSystemType, inferComplexity } from '@/lib/ai/utils/promptInference';
 import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
+import { get as getCachedDiagram, set as setCachedDiagram } from '@/lib/ai/services/diagramCache';
 import logger from '@/lib/logger';
 import { z } from 'zod';
 import { getClientIP } from '@/lib/server/ip';
@@ -79,6 +80,19 @@ export async function POST(req: NextRequest) {
 
     const { description, systemType, complexity, model, diagramSize, detailLevel } = validatedInput.data as GenerateDiagramInput;
 
+    // Fast path: an identical prompt+model+detail request was generated recently.
+    // Regenerate re-submits the same prompt, so this serves it instantly instead
+    // of re-running the full LLM pipeline (see lib/ai/services/diagramCache.ts).
+    const cached = getCachedDiagram(description, detailLevel, model);
+    if (cached) {
+      return NextResponse.json({
+        success: true,
+        data: cached,
+        progress: [],
+        cached: true,
+      });
+    }
+
     const userIntent: UserIntent = {
       description: description.trim(),
       systemType: systemType ?? inferSystemType(description),
@@ -93,6 +107,8 @@ export async function POST(req: NextRequest) {
     const result = await generateDiagram(userIntent, (progress) => {
       progressEvents.push(progress);
     });
+
+    setCachedDiagram(description, detailLevel, model, result);
 
     // Track usage
     const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);

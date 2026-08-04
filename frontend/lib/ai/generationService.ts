@@ -19,6 +19,8 @@ export interface AIGenerationResult {
     metadata?: Record<string, unknown>;
   };
   progress?: GenerationProgress[];
+  /** True when the server served this from its prompt cache (fast path). */
+  cached?: boolean;
 }
 
 export type GenerationErrorCode = 'generation_failed' | 'repo_ingest_failed' | 'validation_failed' | 'aborted';

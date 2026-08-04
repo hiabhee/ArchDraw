@@ -219,7 +219,7 @@ export default function EditorPage() {
     return () => window.removeEventListener('open-repo-ingest', handleOpen);
   }, []);
 
-  const handleGenerationComplete = useCallback(async (result: { type?: string; nodes?: unknown[]; edges?: unknown[]; metadata?: Record<string, unknown> }, canvasName: string, cached = false) => {
+  const handleGenerationComplete = useCallback(async (result: { type?: string; nodes?: unknown[]; edges?: unknown[]; metadata?: Record<string, unknown> }, canvasName: string, cached = false, replace = false) => {
     if (result.type === 'sequence') {
       const mermaidSyntax = result.metadata?.mermaidSyntax as string;
       const title = (result.metadata?.title as string) || canvasName;
@@ -273,19 +273,26 @@ export default function EditorPage() {
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
 
-      const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
-        store.nodes,
-        store.edges,
-        finalNodes,
-        finalEdges,
-      );
-
-      if (store.nodes.length > 0) {
-        store.pushHistory();
-        store.setNodes(mergedNodes);
-        store.setEdges(mergedEdges);
-      } else {
+      // Regenerate replaces the canvas with the fresh diagram; a new prompt on
+      // a non-empty canvas is appended beside the existing diagram so both stay
+      // visible (see mergeGeneratedNodes).
+      if (replace) {
         importDiagram(finalNodes, finalEdges);
+      } else {
+        const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
+          store.nodes,
+          store.edges,
+          finalNodes,
+          finalEdges,
+        );
+
+        if (store.nodes.length > 0) {
+          store.pushHistory();
+          store.setNodes(mergedNodes);
+          store.setEdges(mergedEdges);
+        } else {
+          importDiagram(finalNodes, finalEdges);
+        }
       }
 
       if (direction) {
@@ -314,7 +321,8 @@ export default function EditorPage() {
   }, [fitView, importDiagram, importSequenceDiagram, renameCanvas]);
 
 
-  const handleGenerate = async (description: string, detailLevelOrSize?: 1 | 2 | 3 | 'small' | 'medium' | 'large') => {
+  const handleGenerate = async (description: string, detailLevelOrSize?: 1 | 2 | 3 | 'small' | 'medium' | 'large', options?: { replace?: boolean }) => {
+    const { replace = false } = options ?? {};
     const selectedModel = useModelStore.getState().selectedModel;
     setProgress(null);
     setLastPrompt(description);
@@ -373,7 +381,7 @@ export default function EditorPage() {
       );
       
       markPipelineDone();
-      handleGenerationComplete(responseData.data, canvasName);
+      handleGenerationComplete(responseData.data, canvasName, !!responseData.cached, replace);
 
       analytics.track({
         event_type: 'diagram_generated',
@@ -474,7 +482,7 @@ export default function EditorPage() {
           showCode={showCodePanel}
           hideCodeButton={isSequenceDiagram}
           isCanvasEmpty={nodes.length === 0}
-          onRegenerate={lastPrompt ? (level) => handleGenerate(lastPrompt, level) : undefined}
+          onRegenerate={lastPrompt ? (level) => handleGenerate(lastPrompt, level, { replace: true }) : undefined}
           hasLastPrompt={!!lastPrompt}
         />
         <AnimatePresence>

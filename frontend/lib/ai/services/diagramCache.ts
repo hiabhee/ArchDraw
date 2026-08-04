@@ -1,4 +1,4 @@
-import type { ArchitectureNode, ArchitectureEdge } from '../types';
+import type { GenerationResult } from '../types';
 import type { PipelineResult } from '@/lib/types/repo-diagram';
 
 const CACHE_TTL_MS = process.env.NODE_ENV === 'development'
@@ -11,9 +11,8 @@ const MAX_CACHE_ENTRIES = 20;
 const PIPELINE_VERSION = 'v6';
 
 export interface CachedDiagram {
-  normalizedPrompt: string;
-  nodes: ArchitectureNode[];
-  edges: ArchitectureEdge[];
+  normalizedKey: string;
+  result: GenerationResult;
   cachedAt: number;
 }
 
@@ -81,50 +80,56 @@ function normalizePrompt(prompt: string): string {
     .replace(/\s+/g, ' ');
 }
 
-export function get(prompt: string): CachedDiagram | null {
-  const normalized = normalizePrompt(prompt);
-  const entry = cache.get(normalized);
+function cacheKey(prompt: string, detailLevel?: 1 | 2 | 3, model?: string): string {
+  return `${normalizePrompt(prompt)}::${detailLevel ?? 'default'}::${model ?? 'default'}`;
+}
+
+export function get(
+  prompt: string,
+  detailLevel?: 1 | 2 | 3,
+  model?: string
+): GenerationResult | null {
+  const key = cacheKey(prompt, detailLevel, model);
+  const entry = cache.get(key);
 
   if (!entry) {
     return null;
   }
 
   if (isExpired(entry.cachedAt)) {
-    cache.delete(normalized);
-    const idx = insertionOrder.indexOf(normalized);
+    cache.delete(key);
+    const idx = insertionOrder.indexOf(key);
     if (idx !== -1) {
       insertionOrder.splice(idx, 1);
     }
     return null;
   }
 
-  return entry;
+  return entry.result;
 }
 
 export function set(
   prompt: string,
-  diagram: {
-    nodes: ArchitectureNode[];
-    edges: ArchitectureEdge[];
-  }
+  detailLevel: 1 | 2 | 3 | undefined,
+  model: string | undefined,
+  result: GenerationResult
 ): void {
-  const normalized = normalizePrompt(prompt);
+  const key = cacheKey(prompt, detailLevel, model);
 
-  if (cache.size >= MAX_CACHE_ENTRIES && !cache.has(normalized)) {
+  if (cache.size >= MAX_CACHE_ENTRIES && !cache.has(key)) {
     evictOldest();
   }
 
   const entry: CachedDiagram = {
-    normalizedPrompt: normalized,
-    nodes: diagram.nodes,
-    edges: diagram.edges,
+    normalizedKey: key,
+    result,
     cachedAt: Date.now(),
   };
 
-  cache.set(normalized, entry);
+  cache.set(key, entry);
 
-  if (!insertionOrder.includes(normalized)) {
-    insertionOrder.push(normalized);
+  if (!insertionOrder.includes(key)) {
+    insertionOrder.push(key);
   }
 }
 
