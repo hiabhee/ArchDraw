@@ -1189,6 +1189,24 @@ body {
   -webkit-user-select: none;
 }
 
+/* ── Editor chrome: block Cmd/Ctrl+A page text selection ──
+   Chrome text (toolbar, canvas nodes, labels) is not selectable so a
+   stray select-all can never highlight the whole page. Interactive
+   text fields keep native selection for editing. */
+.editor-chrome,
+.editor-chrome .react-flow__pane,
+.editor-chrome .react-flow__node {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.editor-chrome input,
+.editor-chrome textarea,
+.editor-chrome [contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    LANDING PAGE — NEUTRAL, ARCHITECTURAL
    ═══════════════════════════════════════════════════════════════ */

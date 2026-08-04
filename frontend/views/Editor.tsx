@@ -118,7 +118,19 @@ export default function EditorPage() {
       // Prevent all global shortcuts if user is typing in an input or contentEditable
       const active = document.activeElement as HTMLElement;
       const activeTag = active?.tagName?.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea' || active?.getAttribute('contenteditable') === 'true') return;
+      const isEditingText = activeTag === 'input' || activeTag === 'textarea' || active?.getAttribute('contenteditable') === 'true';
+
+      // Cmd/Ctrl + A — select all nodes and edges on the canvas
+      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'a' || e.code === 'KeyA')) {
+        // Let inputs/editors keep their native select-all; everywhere else select the canvas elements.
+        if (!isEditingText) {
+          e.preventDefault();
+          useDiagramStore.getState().selectAll();
+        }
+        return;
+      }
+
+      if (isEditingText) return;
 
       // f key — fit view
       if (e.key === 'f') {
@@ -411,7 +423,7 @@ export default function EditorPage() {
 
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 overflow-hidden bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation' }}>
+      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation' }}>
 
         {sequenceDiagrams[activeCanvasId] ? (
           <SequenceDiagramViewer />

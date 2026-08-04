@@ -1849,7 +1849,25 @@ const useDiagramStoreRaw = create<DiagramState>()(
         get().saveCanvasToDB(activeCanvasId);
       },
 
-      selectAll: () => set({ selectedNodeId: null }),
+      selectAll: () => {
+        const { canvases, activeCanvasId } = get();
+        const active = canvases.find((c) => c.id === activeCanvasId);
+        if (!active) return;
+        set({
+          canvases: canvases.map((c) =>
+            c.id === activeCanvasId
+              ? {
+                  ...c,
+                  nodes: c.nodes.map((n) => ({ ...n, selected: true })),
+                  edges: c.edges.map((e) => ({ ...e, selected: true })),
+                }
+              : c
+          ),
+          selectedNodeId: null,
+          selectedNodeIds: active.nodes.map((n) => n.id),
+          selectedEdgeId: null,
+        });
+      },
 
       createGroup: (parentId?: string) => {
         const { nodes, selectedNodeIds, selectedNodeId, pushHistory, activeCanvasId, canvases } = get();
