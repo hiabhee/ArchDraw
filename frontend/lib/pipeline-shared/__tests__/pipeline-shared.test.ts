@@ -101,10 +101,10 @@ describe('applyRfLayout (canonical entry)', () => {
   it('uses roomy compound defaults for optical-grid nodes', () => {
     const tb = defaultCompoundLayoutOptions('TB');
     const lr = defaultCompoundLayoutOptions('LR');
-    expect(tb.nodeSep).toBe(140);
-    expect(tb.rankSep).toBe(200);
-    expect(lr.nodeSep).toBe(180);
-    expect(lr.rankSep).toBe(200);
+    expect(tb.nodeSep).toBe(160);
+    expect(tb.rankSep).toBe(260);
+    expect(lr.nodeSep).toBe(200);
+    expect(lr.rankSep).toBe(260);
   });
 
   it('exposes IntegratedLayoutEngine singleton', () => {

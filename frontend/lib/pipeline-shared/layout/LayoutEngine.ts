@@ -62,8 +62,8 @@ export interface LayoutEngine {
 export function defaultCompoundLayoutOptions(direction: LayoutDirection): LayoutOptions {
   const isVertical = direction === 'TB' || direction === 'BT';
   return {
-    nodeSep: isVertical ? 140 : 180,
-    rankSep: isVertical ? 200 : 200,
+    nodeSep: isVertical ? 160 : 200,
+    rankSep: isVertical ? 260 : 260,
     marginX: 40,
     marginY: 40,
     paddingLeft: 48,
