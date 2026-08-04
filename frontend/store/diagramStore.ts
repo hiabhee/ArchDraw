@@ -19,6 +19,7 @@ migrateLegacyStorage();
 import { addEdge, applyNodeChanges, applyEdgeChanges, MarkerType, Position } from 'reactflow';
 import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
 import { processEdgeManagement } from '@/lib/features/edgeManagement';
+import { mergeParallelEdges } from '@/lib/utils/mergeParallelEdges';
 import { runClarityCompiler } from '@/lib/features/clarityCompiler';
 import { saveUserCanvas as apiSaveUserCanvas, deleteUserCanvasApi as apiDeleteUserCanvas, fetchUserCanvases as apiGetUserCanvases } from '@/lib/api-client';
 import { DEFAULT_EDGE_TYPE, type EdgeType } from '@/data/edgeTypes';
@@ -507,7 +508,7 @@ function normalizeEdges(edges: Edge[]): Edge[] {
     return { ...edge, id };
   });
 
-  return deduplicated.map(normalizeEdge);
+  return mergeParallelEdges(deduplicated.map(normalizeEdge));
 }
 
 function sanitizeNodes(nodes: Node[]): Node[] {
@@ -1515,7 +1516,10 @@ const useDiagramStoreRaw = create<DiagramState>()(
           (e.source === source && e.target === target) || 
           (e.source === target && e.target === source)
         );
-        const finalPendingId = connectedEdge ? connectedEdge.id : newEdge.id;
+        // If the new connection was absorbed into a merged parallel edge, skip
+        // the label editor so its empty draft can't wipe the combined label.
+        const mergedAway = !!connectedEdge && connectedEdge.id !== newEdge.id;
+        const finalPendingId = mergedAway ? null : (connectedEdge ? connectedEdge.id : newEdge.id);
 
         set({ canvases, pendingLabelEdgeId: finalPendingId });
         get().saveCanvasToDB(get().activeCanvasId);
