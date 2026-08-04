@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback, type ElementType } from 'react';
-import { EdgeLabelRenderer } from 'reactflow';
+import { EdgeLabelRenderer, useStore, type ReactFlowState } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { Trash2, Edit3, Check, X, ChevronDown, ArrowUp, ArrowRight, ArrowDown, ArrowLeft, RotateCcw } from 'lucide-react';
 import { EDGE_TYPE_CONFIGS, type EdgeType, type PathType, type EdgePortSide } from '@/data/edgeTypes';
@@ -42,6 +42,8 @@ export function EdgeToolbar({
 }: Props) {
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
+  const zoom = useStore((s: ReactFlowState) => s.transform[2]);
+  const labelScale = Math.min(Math.max(1 / zoom, 1), 2);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(currentLabel || '');
@@ -128,7 +130,8 @@ export function EdgeToolbar({
         className="flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 shadow-lg"
         style={{
           position: 'absolute',
-          transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 24}px)`,
+          transform: `translate(${labelX}px, ${labelY - 24}px) scale(${labelScale}) translate(-50%, -100%)`,
+          transformOrigin: '0 0',
           pointerEvents: 'all',
           zIndex: 20,
         }}

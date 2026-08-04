@@ -55,6 +55,7 @@ export default function SimpleFloatingEdge({
 }: EdgeProps<EdgeData>) {
   const nodeInternals = useStore((s: ReactFlowState) => s.nodeInternals);
   const edges = useStore((s: ReactFlowState) => s.edges);
+  const zoom = useStore((s: ReactFlowState) => s.transform[2]);
   const { getViewport } = useReactFlow();
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
@@ -316,6 +317,14 @@ export default function SimpleFloatingEdge({
     }
   }, [edgePath, labelT, displayLabel, sx, sy, tx, ty]);
 
+  // The edge-label layer lives inside the zoomed viewport, so labels are
+  // positioned in world coordinates; counter-scale them so they stay legible
+  // when zoomed out (never smaller than base size, capped so they don't
+  // balloon and cover the diagram).
+  const labelScale = Math.min(Math.max(1 / zoom, 1), 2);
+  const labelTransform = (x: number, y: number, centering: string) =>
+    `translate(${x}px, ${y}px) scale(${labelScale}) ${centering}`;
+
   const isDragging = useRef(false);
   const [dragging, setDragging] = useState(false);
 
@@ -446,7 +455,8 @@ export default function SimpleFloatingEdge({
             }}
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelPos.x}px, ${labelPos.y}px)`,
+              transform: labelTransform(labelPos.x, labelPos.y, 'translate(-50%, -50%)'),
+              transformOrigin: '0 0',
               pointerEvents: 'all',
               cursor: dragging ? 'grabbing' : 'grab',
               zIndex: 1000,
@@ -471,7 +481,8 @@ export default function SimpleFloatingEdge({
           <div
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -100%) translate(${labelPos.x}px, ${labelPos.y - 16}px)`,
+              transform: labelTransform(labelPos.x, labelPos.y - 16, 'translate(-50%, -100%)'),
+              transformOrigin: '0 0',
               pointerEvents: 'none',
               zIndex: 9999,
             }}
