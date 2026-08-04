@@ -44,18 +44,18 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     getConcernColor(concernHint) ||
     CONCERN_COLORS.compute.color;
 
-  const bg = isDark ? hexToRgba(color, 0.04) : hexToRgba(color, 0.035);
+  const bg = isDark ? hexToRgba(color, 0.09) : hexToRgba(color, 0.05);
   const borderColor = isDark
     ? selected
-      ? hexToRgba(color, 0.55)
-      : 'rgba(255, 255, 255, 0.12)'
+      ? hexToRgba(color, 0.65)
+      : hexToRgba(color, 0.38)
     : selected
-      ? hexToRgba(color, 0.55)
-      : 'rgba(15, 23, 42, 0.12)';
+      ? hexToRgba(color, 0.6)
+      : hexToRgba(color, 0.32);
 
   const borderWidth = selected ? 1.5 : 1;
 
-  const tagText = isDark ? '#94a3b8' : '#64748b';
+  const tagText = isDark ? hexToRgba(color, 0.9) : color;
   const tagBg = isDark ? 'transparent' : 'transparent';
 
   const label = dataRec.groupLabel || dataRec.label || '';

@@ -5,6 +5,11 @@ import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Cop
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
 
+const GROUP_COLOR_OPTIONS = [
+  '#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6',
+  '#3b82f6', '#06b6d4', '#eab308', '#f43f5e', '#64748b',
+];
+
 const SHAPE_OPTIONS: { value: ShapeType; label: string; icon: React.ElementType }[] = [
   { value: 'rectangle', label: 'Rectangle', icon: Square },
   { value: 'rounded-rectangle', label: 'Rounded', icon: Square },
@@ -503,6 +508,27 @@ export function PropertiesPanel() {
                   className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Group color - only for groups */}
+        {(data as { isGroup?: boolean }).isGroup && node && (
+          <div>
+            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
+              <Circle className="w-3 h-3" />
+              Group Color
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {GROUP_COLOR_OPTIONS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => applyToAll({ groupColor: c, accentColor: c })}
+                  className="w-6 h-6 rounded-full border border-border/50 transition-transform hover:scale-110"
+                  style={{ backgroundColor: c }}
+                  title={c}
+                />
+              ))}
             </div>
           </div>
         )}

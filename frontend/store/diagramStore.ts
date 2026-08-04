@@ -119,6 +119,7 @@ export interface NodeData {
   shape?: string;
   serviceType?: string;
   groupLabel?: string;
+  groupColor?: string;
   labelManuallyEdited?: boolean;
   /** Enter inline label edit when the node mounts (edge-drop create). */
   autoStartLabelEdit?: boolean;
