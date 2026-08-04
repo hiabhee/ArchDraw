@@ -22,20 +22,23 @@ function describeExistingContext(ctx: { nodes?: unknown[]; edges?: unknown[] }):
   const lines: string[] = [];
   const nodes = (ctx.nodes ?? []) as Array<Record<string, unknown>>;
   const edges = (ctx.edges ?? []) as Array<Record<string, unknown>>;
+  const MAX_LISTED = 15;
   if (nodes.length > 0) {
     lines.push('Components:');
-    for (const n of nodes) {
+    for (const n of nodes.slice(0, MAX_LISTED)) {
       const label = (n.data as Record<string, unknown> | undefined)?.label ?? n.label ?? n.id;
       lines.push(`  - ${String(label ?? n.id ?? 'unknown')}`);
     }
+    if (nodes.length > MAX_LISTED) lines.push(`  ... and ${nodes.length - MAX_LISTED} more`);
   }
   if (edges.length > 0) {
     lines.push('Connections:');
-    for (const e of edges) {
+    for (const e of edges.slice(0, MAX_LISTED)) {
       const label = e.label ?? (e.data as Record<string, unknown> | undefined)?.label;
       const suffix = label ? ` (${String(label)})` : '';
       lines.push(`  - ${String(e.source ?? '?')} -> ${String(e.target ?? '?')}${suffix}`);
     }
+    if (edges.length > MAX_LISTED) lines.push(`  ... and ${edges.length - MAX_LISTED} more`);
   }
   return lines.join('\n');
 }
@@ -44,36 +47,21 @@ function buildSystemPrompt(): string {
   return `You are an Architecture Planner. Design practical architecture diagrams from user descriptions.
 
 RULES:
-1. EDGE LABELS: Max 2 words, verb-object format: "serves pages", "queries users"
+1. EDGE LABELS: Max 2 words, verb-object: "serves pages", "queries users"
 2. TOPOLOGY: Clients → LB/Gateway → Services → DB/cache/queue. No reverse flows
 3. FLOWS: Show full request/response cycle. Return path = chain reversed
-4. SUBGRAPHS: Every node in a tier (Client, Gateway, Service, Data Layer)
-5. SHAPES: DB=cylinder, Gateway=diamond, Queue=circle, Client=rounded rect, Service=rect
-6. PATTERNS: LBs for HTTP only. Caches for read-heavy DBs. Only implied infrastructure
-7. CONCEPT PROMPTS: Show internal components, group by responsibility, prefer graph LR
-8. SEMANTICS: Show how system WORKS, not just tech list. Async flows in labels
+4. SUBGRAPHS: Group each tier (Client, Gateway, Service, Data). Nest subgraphs ONLY for a real parent/child hierarchy; prefer flat tiers for small diagrams
+5. SHAPES: DB=cylinder [()], Gateway=diamond {}, Queue=circle, Client=rounded rect, Service=rect
+6. PATTERNS: LBs for HTTP only; caches for read-heavy DBs. Show how the system WORKS; async flows in labels
 
 REASONING (step-by-step):
-Step 0: Classify (explicit vs open-ended vs mixed)
-Step 1: List components and purposes
-Step 2: Identify workflow
-Step 3: Trace forward path
-Step 4: Trace return path
-Step 5: Check completeness
-Step 6: Verify edge labels (≤2 words)
-Step 7: Assign shapes and subgraphs
+Classify → list components → trace forward path → trace return path → verify labels ≤2 words → assign shapes and subgraphs.
 
-EXAMPLES:
-
-1) Explicit architecture:
+EXAMPLE:
 Prompt: "Web app login with LB, auth server, Postgres DB"
-Output: {"reasoning":"Explicit architecture. Browser→LB→Auth→DB. Login flow. Complete. Labels concise. Standard shapes.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\\n  subgraph Client\\n    browser[\"Browser\"]\\n  end\\n  subgraph Gateway\\n    lb{\"Load Balancer\"}\\n  end\\n  subgraph Service\\n    auth[\"Auth Server\"]\\n  end\\n  subgraph Data\\n    db[(\"Postgres\")]\\n  end\\n  browser-->|routes| lb\\n  lb-->|authenticates| auth\\n  auth-->|queries| db\\n  db-->|returns| auth\\n  auth-->|returns token| lb\\n  lb-->|serves| browser"}
+Output: {"reasoning":"Explicit. Browser→LB→Auth→DB. Labels concise.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\\n  subgraph Client\\n    b[\"Browser\"]\\n  end\\n  subgraph Gateway\\n    lb{\"Load Balancer\"}\\n  end\\n  subgraph Service\\n    auth[\"Auth Server\"]\\n  end\\n  subgraph Data\\n    db[(\"Postgres\")]\\n  end\\n  b-->|routes| lb\\n  lb-->|authenticates| auth\\n  auth-->|queries| db\\n  db-->|returns| auth\\n  auth-->|returns token| lb\\n  lb-->|serves| b"}
 
-2) Open-ended concept:
-Prompt: "Docker architecture"
-Output: {"reasoning":"Open-ended. Show Docker internals. Client→API→Daemon→Registry→Runtime. Complete lifecycle.","diagramType":"graph TD","theme":"dark-minimal","mermaidCode":"graph TD\\n  client[\"Client\"]\\n  api[\"Docker API\"]\\n  daemon[\"Daemon\"]\\n  registry[(\"Registry\")]\\n  runtime[\"Runtime\"]\\n  client-->|CLI| api\\n  api-->|manages| daemon\\n  daemon-->|pulls| registry\\n  daemon-->|runs| runtime"}
-
-SCHEMA: {"reasoning":"string (Steps 0-7)","diagramType":"graph TD|graph LR","theme":"forest-green|slate|dark-minimal|luxury|default","mermaidCode":"string"}
+SCHEMA: {"reasoning":"string","diagramType":"graph TD|graph LR","theme":"forest-green|slate|dark-minimal|luxury|default","mermaidCode":"string"}
 
 OUTPUT: Return ONLY the JSON object. No markdown fences.`;
 }
@@ -116,10 +104,10 @@ export async function runArchitecturePlanner(
   const systemPrompt = buildSystemPrompt();
 
   const detailGuidance = detailLevel === 1
-    ? 'DIAGRAM SCOPE: KEEP IT SIMPLE. Show only the essential high-level components and their main interactions. Use concise edge labels (2 words or fewer). Skip infrastructure details, async flows, and secondary services. The goal is a quick overview, not a comprehensive architecture.'
+    ? 'DIAGRAM SCOPE: KEEP IT SIMPLE. Essential high-level components and main interactions only; concise edge labels (≤2 words); skip infrastructure, async flows, secondary services.'
     : detailLevel === 2
-    ? 'DIAGRAM SCOPE: MODERATE DETAIL. Show core components and their main interactions. Include edge labels that describe the action and context. Include async flows and infrastructure details only when they are central to the architecture.'
-    : 'DIAGRAM SCOPE: FULL DETAIL. Be comprehensive. Include all components, infrastructure, async flows, caches, queues, and supporting services. Edge labels must be descriptive (action + what + context). Show the complete workflow including background processing and data persistence. Include observability and cross-cutting concerns if relevant.';
+    ? 'DIAGRAM SCOPE: MODERATE DETAIL. Core components and main interactions; edge labels describe action + context; async/infrastructure only when central.'
+    : 'DIAGRAM SCOPE: FULL DETAIL. Comprehensive: all components, infra, async flows, caches, queues, supporting services; descriptive edge labels; full workflow incl. background processing and persistence.';
 
   // Summarize the caller's existing diagram so "edit my diagram" flows
   // modify it rather than regenerating from scratch. Build a compact textual
@@ -138,15 +126,7 @@ export async function runArchitecturePlanner(
 Target Diagram Constraints:
 |- Size level: ${diagramSize}
 |- Maximum nodes: ${maxNodes} total components (subgraphs/layers do not count towards this limit).
-|- ${detailGuidance}
-
-Output must conform to this JSON schema:
-{
-  "reasoning": "string",
-  "diagramType": "graph TD" | "graph LR",
-  "theme": "forest-green" | "slate" | "dark-minimal" | "luxury" | "default",
-  "mermaidCode": "string"
-}`;
+|- ${detailGuidance}`;
 
 /**
  * Simple rate limiter to prevent TPM accumulation
@@ -202,7 +182,7 @@ const rateLimiter = new RateLimiter();
             : userPrompt;
           return await groqJsonCompletion(groq, {
             model: currentModel,
-            reasoning_effort: 'medium',
+            reasoning_effort: 'low',
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: attemptPrompt },
