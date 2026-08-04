@@ -13,17 +13,17 @@ export function useCloudIconSet(provider: CloudProviderId | null): IconSet | nul
 
   useEffect(() => {
     let alive = true;
-    if (!provider) {
-      setIconSet(null);
-      return;
+    if (provider) {
+      preloadCloudIconSet(provider).then((set) => {
+        if (alive) setIconSet(set);
+      });
     }
-    preloadCloudIconSet(provider).then((set) => {
-      if (alive) setIconSet(set);
-    });
     return () => {
       alive = false;
     };
   }, [provider]);
 
-  return iconSet;
+  // Never surface a stale set for a disabled provider; only ever show the
+  // loaded set when the provider is active.
+  return provider ? iconSet : null;
 }
