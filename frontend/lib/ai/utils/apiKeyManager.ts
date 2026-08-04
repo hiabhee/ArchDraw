@@ -42,6 +42,14 @@ export const AVAILABLE_MODELS: ModelConfig[] = MODELS.map((m) => ({
   ...(m.supportsStreaming !== undefined ? { supportsStreaming: m.supportsStreaming } : {}),
 }));
 
+/**
+ * Groq rate limits are enforced per organization, not per API key — so with
+ * all keys on the same account, round-robin across them does not raise the
+ * token/minute ceiling. This flag keeps the round-robin logic available but
+ * unplugged by default; enable it only if keys ever live on separate Groq orgs.
+ */
+const ROUND_ROBIN_GROQ_KEYS = process.env.GROQ_KEY_ROUND_ROBIN === 'true';
+
 class ApiKeyManager {
   private groqKeys: ApiKeyState[] = [];
   private openrouterKeys: ApiKeyState[] = [];
@@ -350,11 +358,24 @@ class ApiKeyManager {
     const store = requestContext.getStore();
     if (store) store.logicalCalls++;
     
-    // Strategy: 1. Try every Groq key (10→1, skipping rate-limited), 2. Fall back to OpenRouter only after all Groq keys are exhausted
+    // Strategy: 1. Try Groq keys in a fixed fallback order (skipping
+    // rate-limited keys), rotating round-robin only when ROUND_ROBIN_GROQ_KEYS
+    // is enabled. 2. Fall back to OpenRouter only after all Groq keys fail.
     
     let lastError: Error | null = null;
-    
-    for (let keyIndex = this.groqKeys.length - 1; keyIndex >= 0; keyIndex--) {
+    const keyCount = this.groqKeys.length;
+    if (keyCount === 0) {
+      throw new Error('No Groq API keys configured');
+    }
+
+    // With round-robin unplugged, walk keys in fixed order (last → first) so
+    // the active behavior is a simple fallback chain. When enabled, cycle
+    // through all keys starting from the last one used.
+    const keyOrder: number[] = ROUND_ROBIN_GROQ_KEYS
+      ? Array.from({ length: keyCount }, (_, i) => (this.currentGroqIndex + i) % keyCount)
+      : Array.from({ length: keyCount }, (_, i) => keyCount - 1 - i);
+
+    for (const keyIndex of keyOrder) {
       const keyState = this.groqKeys[keyIndex];
       const keyNumber = keyIndex + 1;
       lastError = null; // Reset per key so stale errors don't mask actual failure
@@ -376,14 +397,18 @@ class ApiKeyManager {
           const groq = new Groq({ apiKey: keyState.key });
           const result = await operation(groq);
           keyState.consecutiveErrors = 0;
+          if (ROUND_ROBIN_GROQ_KEYS) {
+            // Advance the pointer so the next logical call starts at the next key.
+            this.currentGroqIndex = (keyIndex + 1) % keyCount;
+          }
           logger.log(`[ApiKeyManager] Groq key ${keyNumber} succeeded`);
           return result;
         } catch (error: unknown) {
           const err = error as { status?: number; message?: string };
           lastError = new Error(err.message || 'Unknown error');
           
-          // Fail fast on unrecoverable errors — no key will fix a bad/oversized request
-          if (err.status === 400 || err.status === 402 || err.status === 413 || err.status === 422) {
+          // Fail fast on request-level errors no key rotation can fix
+          if (err.status === 400 || err.status === 402 || err.status === 422) {
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} unrecoverable error ${err.status}: ${err.message} — aborting key rotation`);
             throw lastError;
           }
@@ -392,6 +417,25 @@ class ApiKeyManager {
           if (err.status === 401 || err.status === 403) {
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} auth failed, skipping...`);
             break;
+          }
+          
+          // 413 = TPM (tokens per minute) exhausted. Groq enforces this per
+          // org, so every key on the same account hits it together — rotating
+          // is pointless and only adds latency. Abort and let the caller fall
+          // back. Rotate only when keys are on separate orgs (round-robin on).
+          const isTpmExceeded =
+            err.status === 413 ||
+            (err.message || '').toLowerCase().includes('tokens per minute');
+          if (isTpmExceeded && ROUND_ROBIN_GROQ_KEYS) {
+            keyState.consecutiveErrors++;
+            keyState.isRateLimited = true;
+            logger.log(`[ApiKeyManager] Groq key ${keyNumber} TPM limit hit, rotating to next key...`);
+            await this.delay(2000);
+            break; // try next key
+          }
+          if (isTpmExceeded) {
+            logger.log(`[ApiKeyManager] Groq key ${keyNumber} TPM limit hit — aborting key rotation`);
+            throw lastError;
           }
           
           // Rate limit — back off then try next key
