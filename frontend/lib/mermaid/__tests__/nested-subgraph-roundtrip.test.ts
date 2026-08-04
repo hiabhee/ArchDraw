@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { isDomainSuccess } from '@/lib/pipeline-core';
 
 const NESTED = `graph TD
   subgraph Platform["E-commerce Platform"]
@@ -21,7 +22,8 @@ const NESTED = `graph TD
 
 describe('nested subgraph round-trip', () => {
   it('produces nested groupNodes with parentNode set', async () => {
-    const res = await runMermaidPipeline(NESTED, { direction: 'TD' });
+    const res = await runMermaidPipeline(NESTED);
+    if (!isDomainSuccess(res)) throw new Error(res.error.message);
     const groups = res.data.nodes.filter((n: { type?: string }) => n.type === 'groupNode');
     const outer = groups.find((g) => g.id === 'Platform');
     const inner = groups.find((g) => g.id === 'Storefront');
