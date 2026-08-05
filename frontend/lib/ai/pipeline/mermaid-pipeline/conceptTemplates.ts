@@ -170,10 +170,34 @@ export function trimMermaidByDetailLevel(mermaidCode: string, detailLevel: 1 | 2
 }
 
 function extractConceptSubject(prompt: string): string {
-  let subject = prompt.trim();
-  subject = subject.replace(/[?.!]+$/g, '');
-  subject = subject.replace(/^(please\s+)?(describe|explain|show|draw|create)\s+(the\s+)?/i, '');
-  subject = subject.replace(/^(what\s+is|how\s+does)\s+(the\s+)?/i, '');
+  let subject = prompt.trim().replace(/[?.!]+$/g, '');
+
+  // Strip conversational request prefixes ("can you …", "i want …",
+  // "could you please describe …", "how does … work"). Without this the
+  // whole prompt becomes the subject and leaks into template node labels
+  // (e.g. "Can You Describe Redis In Detail Endpoint").
+  subject = subject.replace(
+    /^(?:please\s+)?(?:can|could|would|will|do|did|should|shall)\s+(?:you|we|i)\s+(?:please\s+)?/i,
+    '',
+  );
+  subject = subject.replace(
+    /^(?:i\s+(?:'d|would)?\s*(?:like|want|need)\s+(?:a|an|to|the)?|i\s+(?:want|need))\s+/i,
+    '',
+  );
+  subject = subject.replace(
+    /^(?:give|show|tell|help|make|draw|build|create|describe|explain|generate|produce|walk|see|get)\s+(?:me|us)?\s+(?:the\s+)?/i,
+    '',
+  );
+  subject = subject.replace(
+    /^(?:what\s+is|what\s+are|what\s+does|how\s+does|how\s+do|how\s+would|how\s+can|how\s+to)\s+(?:the\s+)?/i,
+    '',
+  );
+  subject = subject.replace(/^(?:please\s+)?(?:describe|explain|show|draw|create|generate)\s+(?:the\s+)?/i, '');
+
+  // Trailing politeness / detail phrasings ("… in detail", "… for me").
+  subject = subject.replace(/\s+(?:please|for me|for us|for our team)\s*$/i, '');
+  subject = subject.replace(/\s+(?:in detail|in depth)\s*$/i, '');
+
   subject = subject.replace(/\b(work|works)\b$/i, '');
   subject = subject.replace(/\b(architecture|architectural|diagram|overview|component map|system design)\b/gi, '');
   subject = subject.replace(/\b(of|for|the|a|an)\b/gi, ' ');

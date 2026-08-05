@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectImplicitConceptPrompt, trimMermaidByDetailLevel } from './conceptTemplates';
+import { detectImplicitConceptPrompt, getConceptTemplatePlan, trimMermaidByDetailLevel } from './conceptTemplates';
 import { runAiMermaidPipelineV2 } from './pipeline-v2';
 
 function nodeLabels(result: Awaited<ReturnType<typeof runAiMermaidPipelineV2>>): string[] {
@@ -18,6 +18,19 @@ describe('implicit concept diagram generation', () => {
     expect(detectImplicitConceptPrompt('What is OpenTelemetry architecture')).toMatchObject({ subject: 'OpenTelemetry', domain: 'observability' });
     expect(detectImplicitConceptPrompt('Describe WeirdInfra')).toBeNull();
 
+    // Conversational prompts must be reduced to the subject, not the full
+    // prompt (otherwise the prompt leaks into template node labels).
+    expect(detectImplicitConceptPrompt('Can you describe Redis in detail')).toMatchObject({ subject: 'Redis', domain: 'cache' });
+    expect(detectImplicitConceptPrompt('Could you please explain Postgres in depth')).toMatchObject({ subject: 'Postgres', domain: 'database' });
+    expect(detectImplicitConceptPrompt('What is Redis?')).toMatchObject({ subject: 'Redis', domain: 'cache' });
+
+    const redisPlan = getConceptTemplatePlan({ subject: 'Can You Describe Redis In Detail', domain: 'cache' });
+    expect(redisPlan.mermaidCode).toContain('Can You Describe Redis In Detail Endpoint');
+    const redisConcept = detectImplicitConceptPrompt('Can you describe Redis in detail');
+    expect(redisConcept).not.toBeNull();
+    const cleanPlan = getConceptTemplatePlan(redisConcept!, 3);
+    expect(cleanPlan.mermaidCode).toContain('Redis Endpoint');
+    expect(cleanPlan.mermaidCode).not.toContain('Can You Describe Redis In Detail');
     expect(detectImplicitConceptPrompt('Describe Docker Swarm architecture')).toBeNull();
     expect(detectImplicitConceptPrompt('Describe API Gateway for my ecommerce backend')).toBeNull();
     expect(detectImplicitConceptPrompt('Kafka architecture for payment events using schema registry')).toBeNull();
