@@ -7,7 +7,6 @@
     "dev:frontend": "next dev",
     "dev:mcp": "cd ../mcp-server && npx tsx src/index.ts",
     "postinstall": "prisma generate",
-    "prebuild": "npm run mcp:build",
     "build": "next build",
     "build:all": "npm run build && npm run mcp:build",
     "start": "next start",
@@ -23,7 +22,6 @@
     "eval:test": "vitest --run scripts/eval/__tests__/score.test.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.8",
     "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -38,8 +36,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",
-    "dom2svg": "^1.0.12",
-    "elkjs": "^0.11.1",
     "fflate": "^0.8.3",
     "framer-motion": "^12.38.0",
     "groq-sdk": "^0.9.1",

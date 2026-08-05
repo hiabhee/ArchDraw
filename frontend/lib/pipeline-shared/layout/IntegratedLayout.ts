@@ -1,7 +1,6 @@
 import { DagreLayoutEngine } from './DagreLayout';
-import type { LayoutEngine, LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
+import type { LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
-import type { ElkLayoutEngine } from './ElkLayout';
 
 /** Minimal ReactFlow-shaped graph used by pipeline layout. */
 export interface RFNode {
@@ -35,7 +34,6 @@ export type Direction = 'TD' | 'LR' | 'BT' | 'RL';
 
 export interface IntegratedLayoutOptions {
   direction?: Direction;
-  useElk?: boolean;
   options?: {
     nodeSep?: number;
     rankSep?: number;
@@ -55,19 +53,9 @@ export interface IntegratedLayoutOptions {
  */
 export class IntegratedLayoutEngine {
   private dagreEngine: DagreLayoutEngine;
-  private elkEngine: ElkLayoutEngine | null = null;
 
   constructor() {
-    // Dagre-only by default so Mermaid / client sync paths never pull elkjs.
     this.dagreEngine = new DagreLayoutEngine();
-  }
-
-  private async getElkEngine(): Promise<ElkLayoutEngine> {
-    if (!this.elkEngine) {
-      const { ElkLayoutEngine } = await import('./ElkLayout');
-      this.elkEngine = new ElkLayoutEngine();
-    }
-    return this.elkEngine;
   }
 
   private toLayoutParams(objects: RFObjects, options: IntegratedLayoutOptions): LayoutParams {
@@ -123,25 +111,8 @@ export class IntegratedLayoutEngine {
 
   /** Sync compound layout via Dagre (canonical for Mermaid pipeline). */
   layoutSync(objects: RFObjects, options: IntegratedLayoutOptions = {}): RFObjects {
-    if (options.useElk) {
-      throw new Error('layoutSync does not support ELK; use async layout({ useElk: true })');
-    }
     const params = this.toLayoutParams(objects, options);
     const result = this.dagreEngine.layoutSync(params);
-    return this.fromLayoutResult(objects, result);
-  }
-
-  async layout(objects: RFObjects, options: IntegratedLayoutOptions = {}): Promise<RFObjects> {
-    const { useElk = false } = options;
-    const params = this.toLayoutParams(objects, options);
-
-    let engine: LayoutEngine = this.dagreEngine;
-    if (useElk) {
-      const elk = await this.getElkEngine();
-      if (elk.isAvailable()) engine = elk;
-    }
-
-    const result: LayoutResult = await engine.layout(params);
     return this.fromLayoutResult(objects, result);
   }
 
@@ -172,11 +143,4 @@ export function applyRfLayout(
   options?: IntegratedLayoutOptions['options']
 ): RFObjects {
   return getIntegratedLayoutEngine().layoutSync(objects, { direction, options });
-}
-
-export async function applyRfLayoutAsync(
-  objects: RFObjects,
-  options: IntegratedLayoutOptions = {}
-): Promise<RFObjects> {
-  return getIntegratedLayoutEngine().layout(objects, options);
 }

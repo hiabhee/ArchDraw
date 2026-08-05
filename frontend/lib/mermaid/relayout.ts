@@ -115,6 +115,3 @@ export async function layoutDiagramViaMermaid(
     };
   }
 }
-
-/** @deprecated Prefer {@link layoutDiagramViaMermaid} — same implementation. */
-export const relayoutCanvasViaMermaid = layoutDiagramViaMermaid;

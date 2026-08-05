@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Node, Edge } from 'reactflow';
 import { archdrawNodes, archdrawEdges } from '@/data/templates/archdraw';
-import { layoutDiagramViaMermaid, relayoutCanvasViaMermaid } from './relayout';
+import { layoutDiagramViaMermaid } from './relayout';
 
 function group(id: string, label: string, parent?: string): Node {
   return {
@@ -24,7 +24,7 @@ function node(id: string, label: string, parent?: string): Node {
   return n;
 }
 
-describe('relayoutCanvasViaMermaid', () => {
+describe('layoutDiagramViaMermaid', () => {
   it('sizes an outer group to contain nested group children (LR)', async () => {
     const nodes: Node[] = [
       group('kafka', 'Kafka'),
@@ -37,7 +37,7 @@ describe('relayoutCanvasViaMermaid', () => {
       { id: 'e0', source: 'p0', target: 'p1' } as Edge,
     ];
 
-    const result = await relayoutCanvasViaMermaid(nodes, edges, 'LR');
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
 
     expect(result.success).toBe(true);
     expect(result.nodes.length).toBeGreaterThanOrEqual(5);
@@ -67,7 +67,7 @@ describe('relayoutCanvasViaMermaid', () => {
       { id: 'e1', source: 'api', target: 'db' } as Edge,
     ];
 
-    const result = await relayoutCanvasViaMermaid(nodes, edges, 'TD');
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'TD');
 
     expect(result.success).toBe(true);
     const app = result.nodes.find((n) => n.id === 'app')!;
@@ -80,7 +80,7 @@ describe('relayoutCanvasViaMermaid', () => {
     const nodes: Node[] = [
       { id: 'bad', type: 'groupNode', position: { x: 0, y: 0 }, data: { label: '' } } as Node,
     ];
-    const result = await relayoutCanvasViaMermaid(nodes, [], 'LR');
+    const result = await layoutDiagramViaMermaid(nodes, [], 'LR');
     expect(result.success).toBe(false);
     expect(result.nodes).toBe(nodes);
   });

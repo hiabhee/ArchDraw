@@ -21,7 +21,7 @@ import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
-import { relayoutCanvasViaMermaid } from '@/lib/mermaid/relayout';
+import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
 import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
 
@@ -1147,7 +1147,7 @@ function LayoutToggleButton() {
 
     try {
       const { nodes: layoutedNodes, edges: layoutedEdges, success, warnings } =
-        await relayoutCanvasViaMermaid(nodes, edges, nextDirection);
+        await layoutDiagramViaMermaid(nodes, edges, nextDirection);
       if (!success) {
         toast.error(`Layout toggle failed: ${warnings.join('; ') || 'unknown error'}`);
         return;

@@ -35,7 +35,7 @@ import {
 } from '@/lib/ai/generationService';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
-import { relayoutCanvasViaMermaid } from '@/lib/mermaid/relayout';
+import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
 import { getUserTier } from '@/lib/userQuotas';
 
@@ -269,7 +269,7 @@ export default function EditorPage() {
       const direction = inferDiagramDirection(result);
       const activePresetId = direction ?? store.activeLayoutPresetId;
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
-      const relayouted = await relayoutCanvasViaMermaid(processedNodes, processedEdges, mermaidDirection);
+      const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection);
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
 

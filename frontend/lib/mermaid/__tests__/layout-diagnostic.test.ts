@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runMermaidPipeline } from '../pipeline';
-import { applyLayout } from '../layout';
+import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
 import { buildReactFlowObjects } from '../buildReactFlow';
 import { parseMermaid } from '../parse';
 import { validateAST } from '../validate';
@@ -97,7 +97,10 @@ describe('Layout diagnostic', () => {
     expect(preLayoutChildren.length).toBeGreaterThan(0);
     expect(preLayoutChildren.every(n => n.type === 'shapeNode')).toBe(true);
     
-    const layouted = applyLayout(objects, parseResult.ast.direction);
+    const layouted = applyRfLayout(
+      objects as Parameters<typeof applyRfLayout>[0],
+      parseResult.ast.direction
+    );
     
     // After layout: nodes should have non-zero positions
     layouted.nodes.forEach(n => {
