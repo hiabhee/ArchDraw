@@ -13,6 +13,7 @@ import {
 } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { getPointOnPath, findClosestT } from '@/lib/utils/edgeLabelDrag';
+import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
 import { sideFromHandleId, sideFromDataString, getSharedTerminalEdges } from '@/lib/utils/simpleFloatingEdge';
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
@@ -88,6 +89,14 @@ export default function SimpleFloatingEdge({
       activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
     );
   }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges, activeLayoutPresetId]);
+
+  // Global label placement: positions for every labeled edge are resolved
+  // together (per diagram state) so labels never overlap. The shared engine is
+  // memoized on the store references, so this is cheap after the first edge.
+  const labelLayouts = useMemo(
+    () => computeEdgeLabelLayout(edges, nodeInternals, activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR'),
+    [edges, nodeInternals, activeLayoutPresetId],
+  );
 
   const {
     sourcePosition: sourcePos,
@@ -310,12 +319,14 @@ export default function SimpleFloatingEdge({
 
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
+    const resolved = labelLayouts.get(id);
+    if (resolved) return { x: resolved.x, y: resolved.y, angle: 0 };
     try {
       return getPointOnPath(edgePath, labelT);
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [edgePath, labelT, displayLabel, sx, sy, tx, ty]);
+  }, [labelLayouts, id, displayLabel, edgePath, labelT, sx, sy, tx, ty]);
 
   // The edge-label layer lives inside the zoomed viewport, so labels are
   // positioned in world coordinates; counter-scale them so they stay legible
