@@ -1,5 +1,5 @@
 import { Edge, Node, Position } from 'reactflow'
-import { type ObstacleRect } from '../features/pathPlanner'
+import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {

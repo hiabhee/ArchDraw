@@ -1,1 +1,0 @@
-export { DiagramPagination } from './DiagramPagination';

@@ -96,10 +96,3 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
     });
   }
 }
-
-/** @deprecated Use MermaidMaterializeStage */
-export const MermaidParseStage = MermaidMaterializeStage;
-/** @deprecated Use MermaidMaterializeInput */
-export type MermaidParseInput = MermaidMaterializeInput;
-/** @deprecated Use MermaidMaterializeOutput */
-export type MermaidParseOutput = MermaidMaterializeOutput;
