@@ -85,11 +85,7 @@ export async function POST(req: NextRequest) {
   const entryPage = events.length > 0 ? events[0].page_path : null;
   const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
 
-  // Defer DB writes so the calling client never waits on a cold Neon compute.
-  // The response returns immediately; `after()` runs the writes after the
-  // response is flushed (billed to the function's execution time, not the
-  // user's request latency).
-  after(async () => {
+  const persistAnalytics = async () => {
     const visitorUpdate: Record<string, unknown> = {
       lastSeenAt: new Date(),
       userAgent,
@@ -160,7 +156,19 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error('[Analytics] Background track write failed:', err);
     }
-  });
+  };
+
+  // Defer DB writes so the calling client never waits on a cold Neon compute.
+  // The response returns immediately; `after()` runs the writes after the
+  // response is flushed (billed to the function's execution time, not the
+  // user's request latency).
+  try {
+    after(persistAnalytics);
+  } catch {
+    // In non-request runtimes (e.g. some tests), `after` can be unavailable.
+    // Fall back to inline persistence so payload validation behavior remains consistent.
+    await persistAnalytics();
+  }
 
   return NextResponse.json({ ok: true, recorded: events.length }, { status: 200 });
 }
