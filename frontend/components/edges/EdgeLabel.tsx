@@ -11,6 +11,8 @@ interface EdgeLabelProps {
   labelX: number;
   labelY: number;
   color?: string;
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -33,11 +35,28 @@ function mixHex(a: string, b: string, t: number): string {
   return `rgb(${r}, ${g}, ${bl})`;
 }
 
-export function EdgeLabel({ edgeId, label, color }: EdgeLabelProps) {
+export function EdgeLabel({
+  edgeId,
+  label,
+  color,
+  editing: controlledEditing,
+  onEditingChange,
+}: EdgeLabelProps) {
   const { isDark } = useCanvasTheme();
   const updateEdgeLabel = useDiagramStore((s) => s.updateEdgeLabel);
 
-  const [editing, setEditing] = useState(false);
+  const isControlled = controlledEditing !== undefined;
+  const [internalEditing, setInternalEditing] = useState(false);
+  const editing = isControlled ? controlledEditing : internalEditing;
+
+  const setEditing = useCallback(
+    (value: boolean) => {
+      if (!isControlled) setInternalEditing(value);
+      onEditingChange?.(value);
+    },
+    [isControlled, onEditingChange],
+  );
+
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,17 +70,23 @@ export function EdgeLabel({ edgeId, label, color }: EdgeLabelProps) {
   const enterEdit = useCallback(() => {
     setDraft(label?.trim() ?? '');
     setEditing(true);
-  }, [label]);
+  }, [label, setEditing]);
 
   const commit = useCallback(() => {
     const cleaned = getCleanedText(draft);
     updateEdgeLabel(edgeId, cleaned);
     setEditing(false);
-  }, [edgeId, draft, updateEdgeLabel, getCleanedText]);
+  }, [edgeId, draft, updateEdgeLabel, getCleanedText, setEditing]);
 
   const cancel = useCallback(() => {
     setEditing(false);
-  }, []);
+  }, [setEditing]);
+
+  useEffect(() => {
+    if (controlledEditing) {
+      setDraft(label?.trim() ?? '');
+    }
+  }, [controlledEditing, label]);
 
   useEffect(() => {
     if (editing) {

@@ -84,11 +84,12 @@ export function createEdge(
     id: `${source}-${target}-${crypto.randomUUID()}`,
     source,
     target,
-    type: 'floating',
+    type: 'smoothstep',
     animated: true,
     label,
     style: { strokeWidth: 1.5, stroke: '#94a3b8' },
     markerEnd: { type: 'arrowclosed' as MarkerType, color: '#94a3b8' },
+    data: { pathType: 'Smoothstep' },
     ...extra,
   };
 }

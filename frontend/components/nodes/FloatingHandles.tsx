@@ -33,14 +33,6 @@ function SingleFloatingHandle({ side, type, slotOffset, handleTransition }: Floa
       className={`rh rh--${side} rh--${type}`}
       style={{
         ['--rh-slot' as string]: `${slotOffset}px`,
-        opacity: 0,
-        width: 1,
-        height: 1,
-        minWidth: 1,
-        minHeight: 1,
-        border: 'none',
-        background: 'transparent',
-        pointerEvents: 'none',
         transition: handleTransition,
       }}
     />
@@ -52,7 +44,7 @@ interface FloatingHandlesProps {
 }
 
 /**
- * Invisible floating handles for SystemNode. Slot offsets follow per-side
+ * Floating handles for SystemNode. Slot offsets follow per-side
  * edge direction so incoming-from-above uses a centered top target handle.
  */
 export function FloatingHandles({ nodeId }: FloatingHandlesProps) {

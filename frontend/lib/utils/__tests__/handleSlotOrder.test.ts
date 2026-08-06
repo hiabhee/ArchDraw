@@ -310,4 +310,25 @@ describe('computeDynamicSlotOffsets', () => {
       expect(result.centered).toBe(true);
     });
   });
+
+  describe('bidirectional pair — parallel lanes', () => {
+    it('swaps incoming/outgoing on the forward target side', () => {
+      const nodePositions = new Map([
+        ['web', pos('web', 0, 100)],
+        ['server', pos('server', 400, 100)],
+      ]);
+      const edges: Edge[] = [
+        makeEdge('e1', 'web', 'server', 'source-right', 'target-left'),
+        makeEdge('e2', 'server', 'web', 'source-left', 'target-right'),
+      ];
+
+      const webRight = computeDynamicSlotOffsets('web', Position.Right, edges, nodePositions);
+      expect(webRight.incomingOffset).toBe(GAP);
+      expect(webRight.outgoingOffset).toBe(-GAP);
+
+      const serverLeft = computeDynamicSlotOffsets('server', Position.Left, edges, nodePositions);
+      expect(serverLeft.incomingOffset).toBe(-GAP);
+      expect(serverLeft.outgoingOffset).toBe(GAP);
+    });
+  });
 });

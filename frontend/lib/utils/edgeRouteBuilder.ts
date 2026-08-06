@@ -1,6 +1,7 @@
 import { Edge, Node, Position } from 'reactflow'
 import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
+import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
   selectBestHandlerPair,
@@ -406,10 +407,6 @@ export function computeEdgeRoute(
   // this library free of store reads prevents an inverted layering dependency
   // where a geometry utility would import the UI state container.
 
-  const manualSourceSide =
-    sideToPosition(edgeData?.sourceSide as string) ?? sideFromHandleId(edge.sourceHandle)
-  const manualTargetSide =
-    sideToPosition(edgeData?.targetSide as string) ?? sideFromHandleId(edge.targetHandle)
   const laneSourcePreference = sideToPosition(edgeData?.laneSourceSide as string)
   const laneTargetPreference = sideToPosition(edgeData?.laneTargetSide as string)
 
@@ -429,9 +426,19 @@ export function computeEdgeRoute(
     x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h,
   }
 
+  const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, srcHandlerRect, tgtHandlerRect)
+  let manualSourceSide =
+    sideToPosition(edgeData?.sourceSide as string) ?? sideFromHandleId(edge.sourceHandle)
+  let manualTargetSide =
+    sideToPosition(edgeData?.targetSide as string) ?? sideFromHandleId(edge.targetHandle)
+  if (bidirectionalSides) {
+    manualSourceSide = bidirectionalSides.sourceSide
+    manualTargetSide = bidirectionalSides.targetSide
+  }
+
   // Custom waypoints: keep stored sides when present; only score if missing.
   const customWaypoints = edgeData?.customWaypoints as Array<{ x: number; y: number }> | undefined
-  if (customWaypoints && customWaypoints.length > 0) {
+  if (customWaypoints && customWaypoints.length > 0 && !hasReverseEdge(edge, edges)) {
     let sourcePosition: Position
     let targetPosition: Position
 
@@ -561,7 +568,7 @@ export function computeEdgeRoute(
   const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
   const parallelEdges = edges.filter(
-    (e) => (e.source === edge.source && e.target === edge.target) || (e.source === edge.target && e.target === edge.source)
+    (e) => e.source === edge.source && e.target === edge.target,
   )
   const edgeOffset = parallelEdges.length > 1
     ? (() => {

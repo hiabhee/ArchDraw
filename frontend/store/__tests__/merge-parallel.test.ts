@@ -116,4 +116,49 @@ describe('parallel edge merge (store paths)', () => {
     expect((result[0].data as any).label).toBe('queries');
     expect(useDiagramStore.getState().pendingLabelEdgeId).toBeNull();
   });
+
+  it('onConnect keeps reverse-direction edges as separate connections', () => {
+    useDiagramStore.setState({
+      nodes: [],
+      edges: [],
+      activeCanvasId: 'c1',
+      canvases: [
+        {
+          id: 'c1',
+          name: 'Test',
+          nodes: [],
+          edges: [],
+          cloudProvider: 'off',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ],
+    } as any);
+
+    useDiagramStore.getState().importDiagram(
+      [validNode('a', 'A'), validNode('b', 'B')],
+      [
+        {
+          id: 'e1',
+          source: 'a',
+          target: 'b',
+          type: 'simpleFloating',
+          label: 'request',
+          data: { label: 'request', connectionType: 'sync' },
+        },
+      ] as any
+    );
+
+    useDiagramStore.getState().onConnect({
+      source: 'b',
+      target: 'a',
+      sourceHandle: 'source-left',
+      targetHandle: 'target-right',
+    } as any);
+
+    const result = useDiagramStore.getState().edges;
+    expect(result).toHaveLength(2);
+    expect(result.some((e) => e.source === 'a' && e.target === 'b')).toBe(true);
+    expect(result.some((e) => e.source === 'b' && e.target === 'a')).toBe(true);
+  });
 });

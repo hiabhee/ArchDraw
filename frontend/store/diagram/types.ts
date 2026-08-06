@@ -180,7 +180,7 @@ export interface DiagramState {
   loadTemplate: (nodes: Node[], edges: Edge[]) => void;
   loadDefaultArchitecture: () => void;
   alignConnectedNodes: () => void;
-  recalculateHandles: () => void;
+  recalculateHandles: (nodesOverride?: Node[]) => void;
 
   // ── Fit view ──────────────────────────────────────────────────────────────
   fitView: (options?: FitViewOptions) => void;

@@ -3,10 +3,9 @@
 import ReactFlow, {
   Background, BackgroundVariant, MiniMap,
   useReactFlow, ReactFlowProvider,
-  NodeMouseHandler, EdgeMouseHandler, NodeDragHandler,
+  NodeMouseHandler,   EdgeMouseHandler, NodeDragHandler,
   SelectionMode, ConnectionLineType,
   ConnectionMode, MarkerType,
-  EdgeLabelRenderer,
   type OnSelectionChangeParams,
   type Connection,
   type Edge,
@@ -48,6 +47,7 @@ import { useEdgeColors } from '@/lib/edgeColors';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { createNode, createEdge } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
+import { resolveNodeDropConnection } from '@/lib/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
 function CanvasInner() {
 
@@ -58,14 +58,13 @@ function CanvasInner() {
   const showGrid = useDiagramStore((s) => s.showGrid);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const diagramStyleTheme = useDiagramStore((s) => s.diagramStyleTheme);
-  const pendingLabelEdgeId = useDiagramStore((s) => s.pendingLabelEdgeId);
   const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
   const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
 
   const {
     onNodesChange, onEdgesChange, onConnect, onReconnect,
     setSelectedNodeId, setSelectedNodeIds, setSelectedEdgeId,
-    setPendingLabelEdgeId, updateEdgeData, setCanvasMode,
+    setPendingLabelEdgeId, setCanvasMode,
     setNodes, addNodeOnEdgeDrop,
   } = useDiagramStore(useShallow((s) => ({
     onNodesChange: s.onNodesChange,
@@ -76,7 +75,6 @@ function CanvasInner() {
     setSelectedNodeIds: s.setSelectedNodeIds,
     setSelectedEdgeId: s.setSelectedEdgeId,
     setPendingLabelEdgeId: s.setPendingLabelEdgeId,
-    updateEdgeData: s.updateEdgeData,
     setCanvasMode: s.setCanvasMode,
     setNodes: s.setNodes,
     addNodeOnEdgeDrop: s.addNodeOnEdgeDrop,
@@ -88,8 +86,6 @@ function CanvasInner() {
   useMiddleMousePan();
   useGrouping();
 
-  const [labelDraft, setLabelDraft] = useState('');
-  const labelInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -98,9 +94,11 @@ function CanvasInner() {
   const connectStartRef = useRef<{
     nodeId: string;
     handleType: 'source' | 'target' | null;
+    handleId: string | null;
     startX: number;
     startY: number;
   } | null>(null);
+  const connectSucceededRef = useRef(false);
   // Suppress the pane click that follows the same mouseup as edge-drop create.
   const suppressPaneClickRef = useRef(false);
   
@@ -267,6 +265,8 @@ function CanvasInner() {
         n.position.y !== resolvedNodes[i]?.position.y
       );
 
+      const latestNodes = hasChanges ? resolvedNodes : useDiagramStore.getState().nodes;
+
       if (hasChanges) {
         // setNodes already calls saveCanvasToDB
         setNodes(resolvedNodes);
@@ -277,14 +277,15 @@ function CanvasInner() {
         saveCanvasToDB(activeCanvasId);
       }
 
-      // Recalculate connection handles based on the new layout positions
-      useDiagramStore.getState().recalculateHandles();
+      // Recalculate connection handles from the post-drag node positions
+      useDiagramStore.getState().recalculateHandles(latestNodes);
     },
     [onNodeDragStopSnap, setNodes, saveCanvasToDB, activeCanvasId]
   );
 
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
+      connectSucceededRef.current = false;
       if (!params.nodeId) return;
       const { clientX, clientY } = 'touches' in _event
         ? _event.touches[0]
@@ -292,11 +293,22 @@ function CanvasInner() {
       connectStartRef.current = {
         nodeId: params.nodeId,
         handleType: params.handleType,
+        handleId: params.handleId ?? null,
         startX: clientX,
         startY: clientY,
       };
     },
     []
+  );
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (connection.source && connection.target) {
+        connectSucceededRef.current = true;
+      }
+      onConnect(connection);
+    },
+    [onConnect]
   );
 
   const onConnectEnd: OnConnectEnd = useCallback(
@@ -314,15 +326,61 @@ function CanvasInner() {
       const dy = clientY - start.startY;
       if (Math.sqrt(dx * dx + dy * dy) < 5) return;
 
-      // Check if connection was valid (dropped on a handle)
-      const target = event.target as HTMLElement;
-      const handleEl = target.closest?.('.react-flow__handle');
-      if (handleEl) return; // Dropped on a real handle — normal connect handles it
+      // React Flow already formed a handle-to-handle connection — do not spawn a node.
+      if (connectSucceededRef.current) {
+        connectSucceededRef.current = false;
+        return;
+      }
+
+      // Use the pointer position — event.target is often the pane after a valid connect.
+      const dropTarget = document.elementFromPoint(clientX, clientY);
+
+      const dropNodeEl = dropTarget?.closest('.react-flow__node') as Element | null;
+      if (dropNodeEl) {
+        const targetNodeId = dropNodeEl.getAttribute('data-id');
+        if (targetNodeId && targetNodeId !== start.nodeId) {
+          const connection = resolveNodeDropConnection({
+            nodes: reactFlowInstance.getNodes(),
+            originNodeId: start.nodeId,
+            originHandleType: start.handleType,
+            originHandleId: start.handleId,
+            targetNodeId,
+          });
+          if (connection) {
+            handleConnect(connection);
+            return;
+          }
+        }
+        // Dropped on a node body — never spawn an empty node here.
+        return;
+      }
+
+      if (
+        dropTarget?.closest('.react-flow__handle') ||
+        dropTarget?.closest('.react-flow__edge')
+      ) {
+        return;
+      }
 
       const flowPos = reactFlowInstance.screenToFlowPosition({
         x: clientX,
         y: clientY,
       });
+
+      // Only spawn on empty canvas space — skip if another node is near the drop point.
+      const nearbyPadding = 48;
+      const nearbyNodes = reactFlowInstance.getIntersectingNodes(
+        {
+          x: flowPos.x - nearbyPadding,
+          y: flowPos.y - nearbyPadding,
+          width: nearbyPadding * 2,
+          height: nearbyPadding * 2,
+        },
+        true
+      );
+      if (nearbyNodes.some((node) => node.id !== start.nodeId)) {
+        return;
+      }
 
       const newNodeId = addNodeOnEdgeDrop({
         originNodeId: start.nodeId,
@@ -336,7 +394,7 @@ function CanvasInner() {
         suppressPaneClickRef.current = true;
       }
     },
-    [reactFlowInstance, addNodeOnEdgeDrop]
+    [reactFlowInstance, addNodeOnEdgeDrop, handleConnect]
   );
 
   const onPaneClick = useCallback(() => {
@@ -382,33 +440,17 @@ function CanvasInner() {
     []
   );
 
-  // Label editing logic
+  // Label editing via `edit-edge-label` custom event (inline on the edge).
   useEffect(() => {
     const handleEditEvent = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
-      const edgeId = customEvent.detail;
-      setPendingLabelEdgeId(edgeId);
-      const edge = useDiagramStore.getState().edges.find(edge => edge.id === edgeId);
-      setLabelDraft(edge?.data?.label || edge?.label || '');
+      setPendingLabelEdgeId(customEvent.detail);
     };
     document.addEventListener('edit-edge-label', handleEditEvent);
     return () => {
       document.removeEventListener('edit-edge-label', handleEditEvent);
     };
   }, [setPendingLabelEdgeId]);
-
-  useEffect(() => {
-    if (pendingLabelEdgeId && labelInputRef.current) {
-      labelInputRef.current.focus();
-    }
-  }, [pendingLabelEdgeId]);
-
-  const handleLabelSubmit = () => {
-    if (pendingLabelEdgeId) {
-      updateEdgeData(pendingLabelEdgeId, { label: labelDraft });
-      setPendingLabelEdgeId(null);
-    }
-  };
 
   const coloredEdges = useEdgeColors(edges);
   const themeVars = useMemo(
@@ -430,7 +472,7 @@ function CanvasInner() {
         edges={coloredEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={handleConnect}
         onReconnect={onReconnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
@@ -440,12 +482,6 @@ function CanvasInner() {
         onSelectionChange={onSelectionChange}
         onNodeContextMenu={onNodeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
-        onEdgeDoubleClick={(e, edge) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setPendingLabelEdgeId(edge.id);
-          setLabelDraft(edge.data?.label || edge.label || '');
-        }}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         fitView
@@ -460,6 +496,7 @@ function CanvasInner() {
         zoomOnScroll={false}
         zoomOnPinch={true}
         connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
+        connectionRadius={CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.SmoothStep}
         snapToGrid={CANVAS_CONFIG.snapToGrid}
         snapGrid={CANVAS_CONFIG.snapGrid}
@@ -478,27 +515,6 @@ function CanvasInner() {
         />
         <SVGEdgeMarkerDefs />
         <GuideLines />
-        
-        <EdgeLabelRenderer>
-          {pendingLabelEdgeId && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-auto bg-background/95 backdrop-blur-sm p-4 rounded-xl shadow-xl border border-border flex flex-col gap-3 w-[90vw] max-w-[300px]">
-              <div className="text-sm font-medium">Edit Edge Label</div>
-              <input
-                ref={labelInputRef}
-                value={labelDraft}
-                onChange={(e) => setLabelDraft(e.target.value)}
-                onBlur={handleLabelSubmit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleLabelSubmit();
-                  if (e.key === 'Escape') setPendingLabelEdgeId(null);
-                  e.stopPropagation();
-                }}
-                className="w-full px-3 py-2 text-sm bg-secondary rounded-lg outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="e.g. calls API, sends data"
-              />
-            </div>
-          )}
-        </EdgeLabelRenderer>
       </ReactFlow>
 
       {/* Comet Trail Pen Overlay */}

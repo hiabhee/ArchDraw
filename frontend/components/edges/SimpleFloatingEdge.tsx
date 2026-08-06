@@ -21,7 +21,7 @@ import { useCanvasTheme } from '@/lib/theme';
 import { EdgeLabel } from './EdgeLabel';
 import { EdgeToolbar } from './EdgeToolbar';
 import { EdgeContextMenu } from './EdgeContextMenu';
-import { getEdgeConfig } from '@/data/edgeTypes';
+import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
 import type { EdgeData } from '@/data/edgeTypes';
 import { resolveEdgePalette } from '@/lib/edgeColors';
 
@@ -60,6 +60,9 @@ export default function SimpleFloatingEdge({
   const { getViewport } = useReactFlow();
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
+  const pendingLabelEdgeId = useDiagramStore((s) => s.pendingLabelEdgeId);
+  const setPendingLabelEdgeId = useDiagramStore((s) => s.setPendingLabelEdgeId);
+  const [labelEditing, setLabelEditing] = useState(false);
 
   // Extract primitive data values for stable memoization
   const edgeVariant = data?.edgeVariant;
@@ -109,9 +112,10 @@ export default function SimpleFloatingEdge({
   const [isHovered, setIsHovered] = useState(false);
 
   const intermediateWaypoints = useMemo(() => {
-    if (route.waypoints.length <= 2) return [];
-    return route.waypoints.slice(1, -1);
-  }, [route.waypoints]);
+    const stored = data?.customWaypoints as Array<{ x: number; y: number }> | undefined;
+    if (!stored || stored.length === 0) return [];
+    return stored;
+  }, [data?.customWaypoints]);
 
   const ensureCustomWaypoints = useCallback(() => {
     const currentCustom = useDiagramStore.getState().edges.find(e => e.id === id)?.data?.customWaypoints;
@@ -171,37 +175,15 @@ export default function SimpleFloatingEdge({
   const handleEdgeDoubleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const { x: vpX, y: vpY, zoom } = getViewport();
-    const flowX = (e.clientX - vpX) / zoom;
-    const flowY = (e.clientY - vpY) / zoom;
-    const snappedX = Math.round(flowX / 20) * 20;
-    const snappedY = Math.round(flowY / 20) * 20;
+    setLabelEditing(true);
+  }, []);
 
-    const currentCustom = (data?.customWaypoints as Array<{ x: number; y: number }> | undefined) || [];
-    const points = currentCustom.length > 0
-      ? [route.sourcePoint, ...currentCustom, route.targetPoint]
-      : route.waypoints;
-
-    let bestInsertIndex = points.length - 1;
-    let bestDist = Infinity;
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = points[i], b = points[i + 1];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const len2 = dx * dx + dy * dy;
-      let t = len2 > 0 ? ((flowX - a.x) * dx + (flowY - a.y) * dy) / len2 : 0;
-      t = Math.max(0, Math.min(1, t));
-      const px = a.x + t * dx, py = a.y + t * dy;
-      const dist = (flowX - px) ** 2 + (flowY - py) ** 2;
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestInsertIndex = i + 1;
-      }
+  useEffect(() => {
+    if (pendingLabelEdgeId === id) {
+      setLabelEditing(true);
+      setPendingLabelEdgeId(null);
     }
-
-    const newCustom = [...currentCustom];
-    newCustom.splice(bestInsertIndex - (currentCustom.length > 0 ? 0 : 1), 0, { x: snappedX, y: snappedY });
-    updateEdgeData(id, { customWaypoints: newCustom });
-  }, [data?.customWaypoints, getViewport, id, route.sourcePoint, route.targetPoint, route.waypoints, updateEdgeData]);
+  }, [pendingLabelEdgeId, id, setPendingLabelEdgeId]);
 
   const handleWaypointRemove = useCallback((waypointIndex: number) => {
     return (e: React.MouseEvent) => {
@@ -244,19 +226,10 @@ export default function SimpleFloatingEdge({
       stroke = darkenColor(stroke, isDark ? 10 : 20);
     }
 
-    let strokeDasharray: string | undefined;
-    if (edgeVariant === 'dashed' || isAsync) {
-      strokeDasharray = DIAGRAM_CONSTANTS.edge.dashArray;
-    } else if (edgeVariant === 'dotted') {
-      strokeDasharray = '2,2';
-    } else if (edgeVariant === 'feedback') {
-      strokeDasharray = '12,4,4,4';
-    } else {
-      const edgeTypeConfig = getEdgeConfig(edgeType);
-      if (edgeTypeConfig.dash) {
-        strokeDasharray = edgeTypeConfig.dash;
-      }
-    }
+    const strokeDasharray = resolveEdgeStrokeDasharray(
+      data as Record<string, unknown> | undefined,
+      edgeStyle,
+    );
 
     const opacity = isHoverState ? 1 : isAsync ? 0.75 : 0.65;
 
@@ -349,6 +322,7 @@ export default function SimpleFloatingEdge({
 
   const handleLabelMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (labelEditing) return;
       e.preventDefault();
       e.stopPropagation();
       isDragging.current = true;
@@ -382,7 +356,7 @@ export default function SimpleFloatingEdge({
         window.removeEventListener('mouseup', onMouseUp);
       };
     },
-    [edgePath, getViewport, id, updateEdgeData]
+    [edgePath, getViewport, id, labelEditing, updateEdgeData]
   );
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -424,6 +398,7 @@ export default function SimpleFloatingEdge({
         id={id}
         d={edgePath}
         fill="none"
+        strokeDasharray={strokeStyle.strokeDasharray}
         markerStart={showMergedSourceMarker ? markerStart : undefined}
         markerEnd={showMergedTargetMarker ? markerEnd : undefined}
         className="react-flow__edge-path"
@@ -457,7 +432,7 @@ export default function SimpleFloatingEdge({
           />
         </g>
       ))}
-      {displayLabel && (
+      {(displayLabel || labelEditing) && (
         <EdgeLabelRenderer>
           <div
             onMouseDown={handleLabelMouseDown}
@@ -469,19 +444,21 @@ export default function SimpleFloatingEdge({
               transform: labelTransform(labelPos.x, labelPos.y, 'translate(-50%, -50%)'),
               transformOrigin: '0 0',
               pointerEvents: 'all',
-              cursor: dragging ? 'grabbing' : 'grab',
+              cursor: labelEditing ? 'text' : dragging ? 'grabbing' : 'grab',
               zIndex: 1000,
               userSelect: 'none',
               marginTop: '-2px',
             }}
-            title="Drag to reposition label"
+            title={labelEditing ? undefined : 'Double-click to edit'}
           >
             <EdgeLabel
               edgeId={id}
-              label={displayLabel}
+              label={displayLabel || rawLabel}
               labelX={labelPos.x}
               labelY={labelPos.y}
               color={resolvedStroke}
+              editing={labelEditing}
+              onEditingChange={setLabelEditing}
             />
           </div>
         </EdgeLabelRenderer>
@@ -522,11 +499,6 @@ export default function SimpleFloatingEdge({
         <EdgeToolbar
           edgeId={id}
           currentLabel={data?.label}
-          currentEdgeType={data?.edgeType}
-          currentPathType={data?.pathType}
-          currentSourceSide={data?.sourceSide}
-          currentTargetSide={data?.targetSide}
-          hasCustomWaypoints={!!customWaypoints && customWaypoints.length > 0}
           labelX={labelPos.x}
           labelY={labelPos.y}
         />
@@ -537,11 +509,6 @@ export default function SimpleFloatingEdge({
           edgeId={id}
           position={contextMenu}
           onClose={closeMenu}
-          currentEdgeType={data?.edgeType}
-          currentPathType={data?.pathType}
-          currentSourceSide={data?.sourceSide}
-          currentTargetSide={data?.targetSide}
-          hasCustomWaypoints={!!customWaypoints && customWaypoints.length > 0}
         />,
         document.body
       )}

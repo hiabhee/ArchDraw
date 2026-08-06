@@ -3,7 +3,7 @@ import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import { resolveNodeCollisions } from '@/src/utils/resolveNodeCollisions';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { normalizeNodes, sanitizeNodes, stripReservedLayerNodes } from '../helpers/nodeHelpers';
-import { normalizeEdges, sanitizeEdges } from '../helpers/edgeHelpers';
+import { normalizeEdges, sanitizeEdges, applyBidirectionalEdgeFixes } from '../helpers/edgeHelpers';
 import type { CanvasTab, DiagramState } from '../types';
 
 function createDefaultGuestCanvas(): CanvasTab {
@@ -25,7 +25,10 @@ function normalizeAllCanvases(canvases: CanvasTab[]): CanvasTab[] {
     const cleaned = stripReservedLayerNodes(normalizedNodes);
     const validated = validateAndFixNodes(cleaned);
     const resolved = resolveNodeCollisions(sanitizeNodes(validated));
-    const normalizedEdges = sanitizeEdges(normalizeEdges(c.edges || []));
+    const normalizedEdges = applyBidirectionalEdgeFixes(
+      sanitizeEdges(normalizeEdges(c.edges || [])),
+      resolved,
+    );
 
     return {
       ...c,

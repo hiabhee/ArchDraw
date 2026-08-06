@@ -11,6 +11,7 @@ import { getSimpleEdgePositions, getSimpleHandlePosition, getEdgeShiftOffset, ge
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { getPointOnPath } from '@/lib/utils/edgeLabelDrag';
+import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
 
 interface TextLabelNodeData extends NodeData {
   text?: string;
@@ -69,6 +70,7 @@ interface EdgeRenderData {
   sourcePosition: Position;
   targetPosition: Position;
   data: EdgeData | undefined;
+  style?: Edge['style'];
   selected?: boolean;
   isFloating?: boolean;
   svgPath?: string;
@@ -436,7 +438,7 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
 }
 
 function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
-  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected, isFloating } = edge;
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected, isFloating } = edge;
   
   const edgeType: EdgeType | undefined = data?.edgeType;
   const customPathType: PathType | undefined = data?.pathType;
@@ -468,34 +470,15 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
     else strokeColor = config.color || '#6B7280';
   }
 
-  let dashArray = '';
   let strokeWidth = selected ? 2.5 : 1.5;
   const edgeVariant = data?.edgeVariant;
 
-  if (isDark) {
-    if (edgeVariant === 'dashed' || isAsync) {
-      dashArray = '8,4';
-    } else if (edgeVariant === 'dotted') {
-      dashArray = '2,2';
-    } else if (edgeVariant === 'feedback') {
-      dashArray = '12,4,4,4';
-      strokeWidth = selected ? 3 : 2;
-    }
-  } else {
-    if (edgeVariant === 'dashed') {
-      dashArray = '8,4';
-    } else if (edgeVariant === 'dotted') {
-      dashArray = '2,2';
-    } else if (edgeVariant === 'feedback') {
-      dashArray = '12,4,4,4';
-      strokeWidth = 2;
-    } else if (isAsync) {
-      dashArray = '8,4';
-    }
+  if (edgeVariant === 'feedback') {
+    strokeWidth = selected ? 3 : 2;
   }
-  
-  const isAnimated = (data as EdgeDataExtended)?.animated || config.animated;
-  const strokeDashArray = dashArray || config.dash || 'none';
+
+  const dashArray = resolveEdgeStrokeDasharray(data as Record<string, unknown> | undefined, style);
+  const strokeDashAttr = dashArray ? `stroke-dasharray="${dashArray}"` : '';
   const opacity = selected ? 1 : (isDark ? 0.8 : 0.85);
   
   let d = edge.svgPath;
@@ -584,7 +567,7 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
       stroke="${strokeColor}"
       stroke-width="${strokeWidth}"
       stroke-opacity="${opacity}"
-      stroke-dasharray="${strokeDashArray}"
+      ${strokeDashAttr}
       ${markerEndAttr}
       ${markerStartAttr}
       style="opacity: ${opacity}; ${isDark ? `filter: drop-shadow(0 0 3px ${strokeColor});` : ''}"
@@ -802,6 +785,7 @@ export function generatePureSVG(
       sourcePosition: sourcePos,
       targetPosition: targetPos,
       data: edge.data as EdgeData | undefined,
+      style: edge.style,
       selected: edge.selected,
       isFloating,
       svgPath: svgPath || undefined,
@@ -813,7 +797,7 @@ export function generatePureSVG(
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <!-- 🚨 ARCHDRAW-SVG-EXPORT-V2-JULY-30-2026-FIXES-APPLIED 🚨 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>
+  ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
   <g id="edges">
 ${edgeElements.map(e => '    ' + e.replace(/\n/g, '\n    ')).join('\n')}
   </g>

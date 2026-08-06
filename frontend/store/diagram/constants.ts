@@ -29,4 +29,19 @@ export const KNOWN_NODE_TYPES = new Set([
   'customNode',
 ]);
 
-export const KNOWN_EDGE_TYPES = new Set(['custom', 'simpleFloating', 'default']);
+export const DEFAULT_EDGE_TYPE = 'smoothstep';
+
+export const KNOWN_EDGE_TYPES = new Set([
+  'custom',
+  'simpleFloating',
+  'default',
+  'smoothstep',
+  'floating',
+  'flow',
+  'async',
+  'sync',
+  'stream',
+  'event',
+  'dep',
+  'dotted',
+]);

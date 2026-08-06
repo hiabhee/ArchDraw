@@ -87,7 +87,7 @@ export const createGraphSlice: StateCreator<
     const { source, target, sourceHandle, targetHandle } = connection;
     if (!source || !target) return;
 
-    const newEdge = createEdge(source, target, 'Connection', {
+    const newEdge = createEdge(source, target, '', {
       sourceHandle,
       targetHandle,
     });
@@ -98,14 +98,7 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
 
-    const connectedEdge = edges.find(
-      (e) =>
-        (e.source === source && e.target === target) || (e.source === target && e.target === source)
-    );
-    const mergedAway = !!connectedEdge && connectedEdge.id !== newEdge.id;
-    const finalPendingId = mergedAway ? null : connectedEdge ? connectedEdge.id : newEdge.id;
-
-    set({ canvases, pendingLabelEdgeId: finalPendingId });
+    set({ canvases });
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
@@ -675,8 +668,9 @@ export const createGraphSlice: StateCreator<
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
-  recalculateHandles: () => {
-    const { nodes, edges, activeCanvasId, canvases, activeLayoutPresetId } = get();
+  recalculateHandles: (nodesOverride?: Node[]) => {
+    const { edges, activeCanvasId, canvases, activeLayoutPresetId } = get();
+    const nodes = nodesOverride ?? get().nodes;
     const edgesWithHandles = distributeTargetHandles(nodes, edges, activeLayoutPresetId);
     const nextCanvases = canvases.map((c) =>
       c.id === activeCanvasId ? { ...c, edges: edgesWithHandles, updatedAt: Date.now() } : c

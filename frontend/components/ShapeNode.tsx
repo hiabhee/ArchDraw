@@ -59,12 +59,10 @@ function resolveShapeSize(data: ShapeNodeData): { width: number; height: number;
 const HANDLE_STYLE = (color: string) => ({
   width: 12,
   height: 12,
-  background: '#ffffff',
-  border: `2px solid ${color}60`,
+  background: 'var(--node-card-bg, #ffffff)',
+  border: `2px solid ${color}`,
   borderRadius: '50%',
-  boxShadow: '0 2px 8px hsl(var(--foreground) / 0.15)',
-  opacity: 0,
-  transition: 'opacity 0.15s ease',
+  transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
 });
 
 const CENTER_HANDLE: React.CSSProperties = {

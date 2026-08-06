@@ -7,14 +7,14 @@ function edgeLabel(edge: Edge): string {
 }
 
 function pairKey(source: string, target: string): string {
-  return [source, target].sort().join('\u0001');
+  return `${source}\u0001${target}`;
 }
 
 /**
- * Collapses parallel edges between the same two nodes into a single edge.
- * Labels from every edge are combined ("label A / label B"), and the merged
- * edge is treated as async if any member was async. Self-loops are never
- * merged. The first edge in the array is kept as the visual representative.
+ * Collapses parallel edges in the same direction (same source → target) into a
+ * single edge. Labels from every edge are combined ("label A / label B"), and
+ * the merged edge is treated as async if any member was async. Self-loops and
+ * reverse-direction edges (B → A vs A → B) are never merged together.
  */
 export function mergeParallelEdges(edges: Edge[]): Edge[] {
   const groups = new Map<string, Edge[]>();

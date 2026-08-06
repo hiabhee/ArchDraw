@@ -8,6 +8,8 @@ export const CANVAS_CONFIG = {
   minZoom:           0.1,
   maxZoom:           3,
   connectionMode:    'loose' as ConnectionMode,
+  /** Snap to nearest handle when dropping within this radius (px). */
+  connectionRadius:  120,
   background: {
     variant:         'dots' as BackgroundVariant,
     gap:             20,
@@ -19,7 +21,7 @@ export const CANVAS_CONFIG = {
 // ─── EDGES ───────────────────────────────────────────────────
 
 export const EDGE_CONFIG = {
-  type:              'floating',
+  type:              'smoothstep',
   animated:          true,
   strokeWidth:       1.25,
   strokeColor:       '#64748b',

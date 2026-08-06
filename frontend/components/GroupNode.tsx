@@ -109,6 +109,8 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
         boxSizing: 'border-box',
         cursor: 'pointer',
         boxShadow: 'none',
+        ['--node-accent' as string]: color,
+        ['--node-card-bg' as string]: isDark ? '#1a1d24' : '#ffffff',
       }}
       onClick={handleContainerClick}
       onMouseEnter={handleMouseEnter}

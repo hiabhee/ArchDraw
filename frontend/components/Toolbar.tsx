@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { generatePureSVG } from '@/lib/svgExport';
 import {
   Download, Trash2, Upload,
   Undo2, Redo2, Share2, Loader2, Check,
@@ -30,6 +29,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { CloudProviderIconToggle } from '@/components/CloudProviderIconToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
+import { prepareReactFlowForImageExport } from '@/lib/utils/prepareReactFlowForImageExport';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
@@ -369,6 +369,7 @@ export function Toolbar() {
         const element = document.querySelector('.react-flow') as HTMLElement | null;
         if (!element) return;
         try {
+          prepareReactFlowForImageExport(element);
           const pngDataUrl = await toPng(element, {
             backgroundColor: bgColor,
             pixelRatio: 2,
@@ -411,6 +412,8 @@ export function Toolbar() {
       
       fitView({ padding: 0.1, duration: 300 });
       await new Promise((r) => setTimeout(r, 350));
+
+      prepareReactFlowForImageExport(element);
 
       const dataUrl = await toPng(element, {
         backgroundColor: bgColor,

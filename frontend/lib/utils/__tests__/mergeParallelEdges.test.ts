@@ -37,14 +37,15 @@ describe('mergeParallelEdges', () => {
     expect((merged.data as any).mergedEdgeIds).toEqual(['e1', 'e2']);
   });
 
-  it('merges bidirectional edges between the same pair', () => {
+  it('keeps bidirectional edges between the same pair separate', () => {
     const edges: Edge[] = [
       edge('e1', 'a', 'b', { label: 'queries' }),
       edge('e2', 'b', 'a', { label: 'returns' }),
     ];
-    const [merged] = mergeParallelEdges(edges);
-    expect(mergeParallelEdges(edges)).toHaveLength(1);
-    expect(merged.label).toBe('queries / returns');
+    const result = mergeParallelEdges(edges);
+    expect(result).toHaveLength(2);
+    expect(result.find((e) => e.source === 'a')?.label).toBe('queries');
+    expect(result.find((e) => e.source === 'b')?.label).toBe('returns');
   });
 
   it('drops the default Connection label when a real label exists', () => {

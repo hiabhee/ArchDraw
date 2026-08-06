@@ -1,5 +1,5 @@
 import { Edge, Node, Position } from 'reactflow';
-import { computeDynamicSlotOffsets } from './handleSlotOrder';
+import { computeDynamicSlotOffsets, getBidirectionalLaneOffset } from './handleSlotOrder';
 
 export interface EdgePositions {
   sourcePos: Position;
@@ -215,8 +215,6 @@ export function getEdgeShiftOffset(
   );
   if (!self) return 0;
 
-  if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
-
   const nodePositions = new Map<string, { x: number; y: number; width: number; height: number }>();
   if (nodeInternals) {
     for (const [id, node] of nodeInternals) {
@@ -230,6 +228,11 @@ export function getEdgeShiftOffset(
       });
     }
   }
+
+  const bidirectionalLane = getBidirectionalLaneOffset(self, nodeId, edges, nodePositions);
+  if (bidirectionalLane !== null) return bidirectionalLane;
+
+  if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
 
   const { incomingOffset, outgoingOffset } = computeDynamicSlotOffsets(
     nodeId, side, edges, nodePositions,

@@ -4,16 +4,26 @@ import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
 import { processEdgeManagement } from '@/lib/features/edgeManagement';
 import { mergeParallelEdges } from '@/lib/utils/mergeParallelEdges';
 import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
+import { hasReverseEdge, resolveBidirectionalFacingSides } from '@/lib/utils/handleSlotOrder';
 import { EDGE_CONFIG } from '@/lib/config';
-import { KNOWN_EDGE_TYPES } from '../constants';
+import { KNOWN_EDGE_TYPES, DEFAULT_EDGE_TYPE } from '../constants';
 
 export function normalizeEdge(edge: Edge): Edge {
-  const finalType = edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating';
+  const legacyTypes = new Set(['simpleFloating', 'floating', 'default']);
+  const resolvedType =
+    edge.type && legacyTypes.has(edge.type) ? DEFAULT_EDGE_TYPE : edge.type;
+  const finalType =
+    resolvedType && KNOWN_EDGE_TYPES.has(resolvedType) ? resolvedType : DEFAULT_EDGE_TYPE;
+  const edgeData = (edge.data as Record<string, unknown> | undefined) ?? {};
   return {
     ...edge,
     type: finalType,
     sourceHandle: edge.sourceHandle ?? undefined,
     targetHandle: edge.targetHandle ?? undefined,
+    data: {
+      ...edgeData,
+      pathType: (edgeData.pathType as string | undefined) || 'Smoothstep',
+    },
     markerEnd: edge.markerEnd ?? {
       type: EDGE_CONFIG.markerType,
       color: EDGE_CONFIG.strokeColor,
@@ -69,7 +79,7 @@ export function sanitizeEdges(edges: Edge[]): Edge[] {
     const stroke = edge.style?.stroke || '#94a3b8';
     return {
       ...edge,
-      type: edge.type || 'smoothstep',
+      type: edge.type || DEFAULT_EDGE_TYPE,
       markerEnd: edge.markerEnd || {
         type: MarkerType.ArrowClosed,
         color: typeof stroke === 'string' ? stroke : '#94a3b8',
@@ -83,6 +93,46 @@ export function sanitizeEdges(edges: Edge[]): Edge[] {
   });
 }
 
+function nodeRectForEdge(node: Node, nodes: Node[]) {
+  const pos = getAbsolutePosition(node, nodes);
+  const w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180;
+  const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+  return { x: pos.x, y: pos.y, width: w, height: h };
+}
+
+/**
+ * Bidirectional pairs must use facing sides and auto-routing only.
+ * Stale customWaypoints (e.g. from old double-click bend insertion) cause
+ * crossed "eye" paths that ignore lane offsets.
+ */
+export function applyBidirectionalEdgeFixes(edges: Edge[], nodes: Node[]): Edge[] {
+  return edges.map((edge) => {
+    if (edge.source === edge.target || !hasReverseEdge(edge, edges)) {
+      return edge;
+    }
+
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    const targetNode = nodes.find((n) => n.id === edge.target);
+    if (!sourceNode || !targetNode) return edge;
+
+    const sourceRect = nodeRectForEdge(sourceNode, nodes);
+    const targetRect = nodeRectForEdge(targetNode, nodes);
+    const facing = resolveBidirectionalFacingSides(edge, edges, sourceRect, targetRect);
+    if (!facing) return edge;
+
+    const prior = (edge.data as Record<string, unknown> | undefined) ?? {};
+    const { customWaypoints: _removed, ...rest } = prior;
+
+    return {
+      ...edge,
+      sourceHandle: `source-${positionToSide(facing.sourceSide)}`,
+      targetHandle: `target-${positionToSide(facing.targetSide)}`,
+      data: Object.keys(rest).length > 0 ? rest : undefined,
+      type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
+    };
+  });
+}
+
 export function distributeTargetHandles(
   nodes: Node[],
   edges: Edge[],
@@ -92,7 +142,8 @@ export function distributeTargetHandles(
   const normalized = normalizeEdges(managedEdges);
   const direction = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
-  return normalized.map((edge) => {
+  return applyBidirectionalEdgeFixes(
+    normalized.map((edge) => {
     const sourceNode = nodes.find((n) => n.id === edge.source);
 
     if (!sourceNode) return edge;
@@ -102,7 +153,7 @@ export function distributeTargetHandles(
         ...edge,
         sourceHandle: 'source-top',
         targetHandle: 'target-right',
-        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
       };
     }
 
@@ -112,7 +163,7 @@ export function distributeTargetHandles(
         ...edge,
         sourceHandle: null,
         targetHandle: null,
-        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+        type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
       };
     }
 
@@ -164,7 +215,9 @@ export function distributeTargetHandles(
       ...edge,
       sourceHandle: `source-${positionToSide(handles.sourcePosition)}`,
       targetHandle: `target-${positionToSide(handles.targetPosition)}`,
-      type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : 'simpleFloating',
+      type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
     };
-  });
+  }),
+    nodes,
+  );
 }

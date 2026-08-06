@@ -211,3 +211,40 @@ describe('getCenteredSides', () => {
     expect(centered.has(Position.Left)).toBe(false);
   });
 });
+
+describe('bidirectional edges — parallel lane offsets', () => {
+  const internals = new Map<string, Node>([
+    ['web', node('web', 0, 100)],
+    ['server', node('server', 400, 100)],
+  ]);
+
+  const edges: Edge[] = [
+    {
+      id: 'e1',
+      source: 'web',
+      target: 'server',
+      sourceHandle: 'source-right',
+      targetHandle: 'target-left',
+    },
+    {
+      id: 'e2',
+      source: 'server',
+      target: 'web',
+      sourceHandle: 'source-left',
+      targetHandle: 'target-right',
+    },
+  ];
+
+  it('aligns both ends of each direction on the same lane', () => {
+    const forwardSource = getEdgeShiftOffset('web', 'e1', Position.Right, edges, internals);
+    const forwardTarget = getEdgeShiftOffset('server', 'e1', Position.Left, edges, internals);
+    const reverseSource = getEdgeShiftOffset('server', 'e2', Position.Left, edges, internals);
+    const reverseTarget = getEdgeShiftOffset('web', 'e2', Position.Right, edges, internals);
+
+    expect(forwardSource).toBe(-INCOMING_OUTGOING_GAP);
+    expect(forwardTarget).toBe(-INCOMING_OUTGOING_GAP);
+    expect(reverseSource).toBe(INCOMING_OUTGOING_GAP);
+    expect(reverseTarget).toBe(INCOMING_OUTGOING_GAP);
+    expect(forwardSource).not.toBe(reverseSource);
+  });
+});

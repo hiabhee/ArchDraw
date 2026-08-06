@@ -467,10 +467,9 @@
 }
 
 /* ── ShapeNode Handles ─────────────────────────────────────────── */
-/* Handles stay hidden on hover; they only appear while drawing a connection. */
-.shape-node .react-flow__handle {
-  opacity: 0 !important;
-  pointer-events: none !important;
+.diagram-chrome-edit .react-flow__node.selected .shape-node .react-flow__handle {
+  opacity: 1 !important;
+  pointer-events: all !important;
 }
 
 /* ── Floating Handles (SystemNode) ──────────────────────────────── */
@@ -501,10 +500,23 @@
   transform: translateX(-50%) !important;
 }
 
-/* Keep floating handles invisible on hover (visible only while connecting). */
-.node-card .rh {
-  opacity: 0 !important;
-  pointer-events: none !important;
+/* SystemNode floating handles — visible when node is selected */
+.diagram-chrome-edit .react-flow__node.selected .node-card .rh {
+  opacity: 1 !important;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  border: 2px solid var(--node-accent, #0d9488) !important;
+  background: var(--node-card-bg, #ffffff) !important;
+  border-radius: 50% !important;
+  pointer-events: all !important;
+  z-index: 20 !important;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.diagram-chrome-edit .react-flow__node.selected .node-card .rh:hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent);
 }
 
 /* ── Kind Decorations ─────────────────────────────────────────────
@@ -1029,13 +1041,21 @@
 
 /* ── Active Connection Drag Styling ─────────────────────────────── */
 
-/* 1. Make all handles visible and interactive during a connection drag */
+/* Show handles on all nodes while drawing a connection */
 .react-flow--connection-drawing .react-flow__handle {
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  background: var(--node-card-bg, #ffffff) !important;
+  border: 2px solid var(--node-accent, #0d9488) !important;
+  border-radius: 50% !important;
   opacity: 1 !important;
   pointer-events: all !important;
+  z-index: 20 !important;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* 2. Specific styles for SystemNode floating handles (.rh) during connection drag */
 .react-flow--connection-drawing .node-card .rh {
   opacity: 1 !important;
   width: 12px !important;
@@ -1047,16 +1067,28 @@
   border-radius: 50% !important;
   pointer-events: all !important;
   z-index: 20 !important;
-  transition: opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
+.react-flow--connection-drawing .react-flow__handle:hover,
 .react-flow--connection-drawing .node-card .rh:hover {
-  box-shadow: 0 0 0 3px var(--node-accent, #0d9488) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent);
 }
 
-/* 3. Disable pointer-events on all source handles during connection drawing.
-   This prevents overlapping source handles from intercepting connection drops,
-   allowing the connection line to target and snap to the target handles beneath. */
+/* Source handles yield pointer-events so drops target handles beneath. */
 .react-flow--connection-drawing .react-flow__handle-source {
   pointer-events: none !important;
+}
+
+.react-flow--connection-drawing .react-flow__handle.connecting,
+.react-flow--connection-drawing .react-flow__handle.valid {
+  opacity: 1 !important;
+  pointer-events: all !important;
+}
+
+.react-flow--connection-drawing .react-flow__handle.valid {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 45%, transparent) !important;
+}
+
+.react-flow--connection-drawing .react-flow__handle-target {
+  pointer-events: all !important;
 }
