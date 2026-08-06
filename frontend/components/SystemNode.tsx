@@ -17,6 +17,7 @@ import {
   SIZE_M,
   STATUS_COLORS,
   CONCERN_COLORS,
+  ICON_SIZE,
 } from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import './nodes/nodeStyles.css';
@@ -111,16 +112,19 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     icon: nodeData.icon,
     color: accentColor,
   });
-  const cloudIcon = resolveCloudIcon(
-    {
-      label: data.label,
-      typeId: nodeData.typeId,
-      technology: nodeData.technology,
-      serviceType: nodeData.serviceType,
-      icon: nodeData.icon,
-    },
-    cloudProvider
-  );
+  const cloudIcon =
+    cloudProvider !== 'off'
+      ? resolveCloudIcon(
+          {
+            label: data.label,
+            typeId: nodeData.typeId,
+            technology: nodeData.technology,
+            serviceType: nodeData.serviceType,
+            icon: nodeData.icon,
+          },
+          cloudProvider,
+        )
+      : null;
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
   const showStatus = showEditChrome && nodeData.status && nodeData.status !== 'healthy';
@@ -134,7 +138,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const catStyle = getDarkCategoryStyle(nodeData.layer || nodeData.serviceType);
   const accentSoft = hexToRgba(accentColor, isDark ? 0.08 : 0.04);
-  const accentBg = hexToRgba(accentColor, isDark ? 0.16 : 0.08);
+  const accentBg = hexToRgba(accentColor, isDark ? 0.14 : 0.08);
 
   const handleClick = useCallback(() => {
     setSelectedNodeId(id);
@@ -188,11 +192,9 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   });
   const cardWidth = Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
   const cardHeight = Math.max(nodeData.nodeHeight || NODE_HEIGHT, fitted.height);
-  // Cloud icon is ~20% of the node width (Rule 5.2 — fixed slot that never
-  // changes node dimensions), capped so it stays inside the card's content box.
   const cloudIconSize = Math.max(
-    20,
-    Math.round(Math.min(cardWidth * 0.2, cardHeight - 28))
+    ICON_SIZE.cloudMin,
+    Math.round(Math.min(cardWidth * 0.2, cardHeight - 28)),
   );
 
   return (
@@ -238,120 +240,42 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             </ToolbarButton>
           </div>
         )}
-        {showEditChrome && <div className="node-shine" />}
-
-        {/* Kind decorations — edit chrome only */}
-        {showEditChrome && nodeKind === 'queue' && (
-          <div className="node-kind-bar" aria-hidden="true">
-            {Array.from({ length: 6 }, (_, i) => (
-              <span
-                key={i}
-                className={`node-kind-cell${i < 3 ? ' node-kind-cell--filled' : ''}`}
-              />
-            ))}
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'database' && (
-          <div className="node-kind-bar node-db-records" aria-hidden="true">
-            <div className="node-db-record" style={{ width: '75%' }} />
-            <div className="node-db-record" style={{ width: '90%' }} />
-            <div className="node-db-record" style={{ width: '60%' }} />
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'client' && (
-          <div className="node-kind-bar node-client-bezel" aria-hidden="true">
-            <span className="node-bezel-dot" />
-            <span className="node-bezel-dot" style={{ opacity: 0.55 }} />
-            <span className="node-bezel-dot" style={{ opacity: 0.35 }} />
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'server' && (
-          <div className="node-kind-bar node-server-rack" aria-hidden="true">
-            <div className="node-rack-slot" />
-            <div className="node-rack-slot" />
-            <div className="node-rack-slot" />
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'load-balancer' && (
-          <div className="node-kind-bar node-lb-split" aria-hidden="true">
-            <div className="node-lb-line" />
-            <div className="node-lb-arms">
-              <div className="node-lb-arm" />
-              <div className="node-lb-arm" />
-            </div>
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'ai' && (
-          <div className="node-kind-bar node-ai-nodes" aria-hidden="true">
-            <span className="node-ai-node" />
-            <span className="node-ai-node" />
-            <span className="node-ai-node" />
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'docker' && (
-          <div className="node-kind-bar node-docker-stack" aria-hidden="true">
-            <div className="node-docker-layer" style={{ marginLeft: 0 }} />
-            <div className="node-docker-layer" style={{ marginLeft: 4 }} />
-            <div className="node-docker-layer" style={{ marginLeft: 8 }} />
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'api' && (
-          <div className="node-kind-bar node-api-brackets" aria-hidden="true">
-            <span className="node-api-bracket" />
-            <span className="node-api-dot" />
-            <span className="node-api-bracket node-api-bracket--right" />
-          </div>
-        )}
-
-        {showEditChrome && nodeKind === 'service' && (
-          <div className="node-kind-bar node-service-grid" aria-hidden="true">
-            <span className="node-svc-dot" />
-            <span className="node-svc-dot" />
-            <span className="node-svc-dot" />
-          </div>
-        )}
 
         <div className="node-header">
-          {cloudProvider !== 'off' &&
-            (cloudIcon ? (
-              <div
-                className="node-icon-box"
-                style={{ width: cloudIconSize, height: cloudIconSize }}
-                aria-hidden="true"
-              >
-                {cloudIcon.kind === 'generic' ? (
-                  <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
-                ) : (
-                  <CloudProviderIcon
-                    provider={cloudIcon.kind}
-                    serviceKey={cloudIcon.serviceKey}
-                    size={Math.round(cloudIconSize * 0.72)}
-                    color={cloudIcon.color}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="node-icon-box" aria-hidden="true">
-                <NodeIcon
-                  technology={resolvedIcon.technology}
-                  fallbackIcon={resolvedIcon.icon}
-                  fallbackColor={resolvedIcon.color}
-                  size={14}
+          <div
+            className="node-icon-box"
+            style={
+              cloudIcon
+                ? { width: cloudIconSize, height: cloudIconSize }
+                : undefined
+            }
+            aria-hidden="true"
+          >
+            {cloudIcon ? (
+              cloudIcon.kind === 'generic' ? (
+                <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
+              ) : (
+                <CloudProviderIcon
+                  provider={cloudIcon.kind}
+                  serviceKey={cloudIcon.serviceKey}
+                  size={Math.round(cloudIconSize * 0.72)}
+                  color={cloudIcon.color}
                 />
-              </div>
-            ))}
+              )
+            ) : (
+              <NodeIcon
+                technology={resolvedIcon.technology}
+                fallbackIcon={resolvedIcon.icon}
+                fallbackColor={resolvedIcon.color}
+                size={ICON_SIZE.node}
+              />
+            )}
+          </div>
           {labelEdit.isEditing ? (
             <input
               {...labelEdit.inputProps}
               style={{
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: 600,
                 color: 'var(--node-title-color)',
                 background: 'transparent',
@@ -359,7 +283,8 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 outline: 'none',
                 padding: 0,
                 margin: 0,
-                lineHeight: 1.3,
+                lineHeight: 1.25,
+                letterSpacing: '-0.015em',
                 width: '100%',
                 minWidth: 0,
                 flex: 1,
@@ -376,7 +301,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               onDoubleClick={labelEdit.startEdit}
               style={{
                 cursor: 'text',
-                minHeight: '1.3em',
+                minHeight: '1.25em',
                 opacity: data.label ? 1 : 0.45,
               }}
             >

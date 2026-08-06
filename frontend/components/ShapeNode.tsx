@@ -1,9 +1,14 @@
 'use client';
 
 import { memo, useEffect, useRef } from 'react';
-import { Handle, Position, NodeProps, useUpdateNodeInternals } from 'reactflow';
+import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasTheme } from '@/lib/theme';
-import { LIGHT_NODE_STYLES, DARK_NODE_STYLES, type NodeStyleConfig } from '@/lib/theme/stylingConstants';
+import {
+  LIGHT_NODE_STYLES,
+  DARK_NODE_STYLES,
+  ICON_SIZE,
+  type NodeStyleConfig,
+} from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
@@ -12,7 +17,6 @@ import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
 import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
-import { CustomNodeIcon, toCustomNodeIconName, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
 import './nodes/nodeStyles.css';
 
 export type ShapeType =
@@ -65,101 +69,7 @@ const HANDLE_STYLE = (color: string) => ({
   transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
 });
 
-const CENTER_HANDLE: React.CSSProperties = {
-  opacity: 0,
-  pointerEvents: 'none',
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: 1,
-  height: 1,
-  border: 'none',
-  background: 'transparent',
-  minWidth: 0,
-  minHeight: 0,
-};
-
-function CustomNodeVisual({ name, color }: { name: CustomNodeIconName; color: string }) {
-  const cellCount = name === 'arch-message-queue' ? 8 : 6;
-  const filledCells = name === 'arch-partition' ? 2 : name === 'arch-event-stream' ? 5 : 4;
-
-  if (name === 'arch-web') {
-    return (
-      <div className="node-object node-object-browser" style={{ borderColor: `${color}88` }}>
-        <span style={{ background: color }} />
-        <span style={{ background: color, opacity: 0.55 }} />
-        <span style={{ background: color, opacity: 0.32 }} />
-      </div>
-    );
-  }
-
-  if (name === 'arch-server' || name === 'arch-service') {
-    return (
-      <div className="node-object node-object-lines">
-        <span style={{ width: '86%', background: `${color}18` }} />
-        <span style={{ width: '66%', background: `${color}16` }} />
-        <span style={{ width: '78%', background: `${color}13` }} />
-        <span style={{ width: '52%', background: `${color}11` }} />
-      </div>
-    );
-  }
-
-  if (name === 'arch-database') {
-    return (
-      <div className="node-object node-object-db" style={{ borderColor: `${color}55` }}>
-        <span style={{ background: `${color}30` }} />
-        <span style={{ background: `${color}14`, width: '78%' }} />
-        <span style={{ background: `${color}12`, width: '92%' }} />
-      </div>
-    );
-  }
-
-  if (name === 'arch-message-queue' || name === 'arch-event-stream' || name === 'arch-partition') {
-    return (
-      <div className="node-object node-object-queue" style={{ borderColor: `${color}72`, background: `${color}10` }}>
-        {Array.from({ length: cellCount }, (_, i) => (
-          <span
-            key={i}
-            style={{
-              background: color,
-              opacity: i < filledCells ? 0.9 - i * 0.12 : 0.12,
-            }}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  if (name === 'arch-topic') {
-    return (
-      <div className="node-object node-object-topic" style={{ borderColor: `${color}55` }}>
-        <span style={{ background: `${color}24` }} />
-        <span style={{ background: `${color}16` }} />
-      </div>
-    );
-  }
-
-  if (name === 'arch-api-gateway' || name === 'arch-load-balancer') {
-    return (
-      <div className="node-object node-object-route">
-        <span style={{ borderColor: color }} />
-        <i style={{ background: color }} />
-        <span style={{ borderColor: color }} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="node-object node-object-mark">
-      <CustomNodeIcon name={name} color={color} size={30} />
-    </div>
-  );
-}
-
-/**
- * Node Handles — renders exactly 2 handles per side (one source, one target).
- */
+/** Renders exactly 2 handles per side (one source, one target). */
 function Handles({ color, nodeId }: { color: string; nodeId: string }) {
   const updateNodeInternals = useUpdateNodeInternals();
   const s = HANDLE_STYLE(color);
@@ -168,9 +78,7 @@ function Handles({ color, nodeId }: { color: string; nodeId: string }) {
     updateNodeInternals(nodeId);
   }, [nodeId, updateNodeInternals]);
 
-  return (
-    <NodeHandles handleStyle={s} nodeId={nodeId} />
-  );
+  return <NodeHandles handleStyle={s} nodeId={nodeId} />;
 }
 
 function Label({
@@ -190,7 +98,6 @@ function Label({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cloudProvider = useDiagramStore((s) => s.cloudProvider);
-  const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,
     currentLabel: data.label || '',
@@ -206,20 +113,23 @@ function Label({
     icon: data.icon,
     color,
   });
-  const customVisual = diagramChromeMode === 'edit' ? toCustomNodeIconName(resolvedIcon.icon) : null;
-  const cloudIcon = resolveCloudIcon(
-    {
-      label: data.label,
-      typeId: data.typeId,
-      technology: data.technology,
-      serviceType: data.serviceType,
-      icon: data.icon,
-    },
-    cloudProvider
+  const cloudIcon =
+    cloudProvider !== 'off'
+      ? resolveCloudIcon(
+          {
+            label: data.label,
+            typeId: data.typeId,
+            technology: data.technology,
+            serviceType: data.serviceType,
+            icon: data.icon,
+          },
+          cloudProvider,
+        )
+      : null;
+  const cloudIconSize = Math.max(
+    16,
+    Math.round(Math.min(width * 0.2, height - 28)),
   );
-  // Cloud icon is ~20% of the shape width, capped to leave room for the label
-  // text inside the silhouette (Rule 5.2 — fixed slot, no node-size change).
-  const cloudIconSize = Math.max(16, Math.round(Math.min(width * 0.2, height - 28)));
 
   return (
     <div
@@ -227,67 +137,53 @@ function Label({
       className="flex flex-col items-center justify-center text-center px-1 select-none"
       style={{ width: '100%', maxWidth: maxWidth ?? '100%' }}
     >
-      {cloudProvider !== 'off' &&
-        (cloudIcon ? (
-          <div
-            className="node-icon-box mb-1"
-            aria-hidden="true"
-            style={{
-              width: cloudIconSize,
-              height: cloudIconSize,
-              borderRadius: Math.round(cloudIconSize * 0.27),
-              background: `${color}14`,
-            }}
-          >
-            {cloudIcon.kind === 'generic' ? (
-              <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
-            ) : (
-              <CloudProviderIcon
-                provider={cloudIcon.kind}
-                serviceKey={cloudIcon.serviceKey}
-                size={Math.round(cloudIconSize * 0.72)}
-                color={cloudIcon.color}
-              />
-            )}
-          </div>
+      <div
+        className="node-icon-box mb-1"
+        aria-hidden="true"
+        style={
+          cloudIcon
+            ? {
+                width: cloudIconSize,
+                height: cloudIconSize,
+                borderRadius: Math.round(cloudIconSize * 0.27),
+              }
+            : undefined
+        }
+      >
+        {cloudIcon ? (
+          cloudIcon.kind === 'generic' ? (
+            <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
+          ) : (
+            <CloudProviderIcon
+              provider={cloudIcon.kind}
+              serviceKey={cloudIcon.serviceKey}
+              size={Math.round(cloudIconSize * 0.72)}
+              color={cloudIcon.color}
+            />
+          )
         ) : (
-          <>
-            {customVisual ? (
-              <CustomNodeVisual name={customVisual} color={resolvedIcon.color} />
-            ) : (
-              <div
-                className="node-icon-box mb-1"
-                aria-hidden="true"
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 6,
-                  background: `${color}14`,
-                }}
-              >
-                <NodeIcon
-                  technology={resolvedIcon.technology}
-                  fallbackIcon={resolvedIcon.icon}
-                  fallbackColor={resolvedIcon.color}
-                  size={14}
-                />
-              </div>
-            )}
-          </>
-        ))}
+          <NodeIcon
+            technology={resolvedIcon.technology}
+            fallbackIcon={resolvedIcon.icon}
+            fallbackColor={resolvedIcon.color}
+            size={ICON_SIZE.node}
+          />
+        )}
+      </div>
       {labelEdit.isEditing ? (
         <input
           {...labelEdit.inputProps}
           style={{
-            fontSize: 13,
+            fontSize: 13.5,
             fontWeight: 600,
-            color: 'hsl(var(--foreground))',
+            color: 'var(--node-title-color, hsl(var(--foreground)))',
             background: 'transparent',
             border: 'none',
             outline: 'none',
             padding: 0,
             margin: 0,
             lineHeight: 1.25,
+            letterSpacing: '-0.015em',
             width: '100%',
             textAlign: 'center',
             boxSizing: 'border-box',
@@ -298,7 +194,7 @@ function Label({
         />
       ) : (
         <span
-          className="text-[13px] font-semibold text-foreground leading-snug"
+          className="node-title"
           onDoubleClick={labelEdit.startEdit}
           style={{
             cursor: 'text',
@@ -306,6 +202,8 @@ function Label({
             wordBreak: 'break-word',
             whiteSpace: 'normal',
             maxWidth: '100%',
+            textAlign: 'center',
+            flex: 'none',
           }}
         >
           {data.label}
@@ -313,8 +211,13 @@ function Label({
       )}
       {data.sublabel && (
         <span
-          className="text-[10px] font-medium tracking-wide mt-0.5"
-          style={{ color: `${color}99`, maxWidth: '100%', overflowWrap: 'anywhere' }}
+          className="node-subtitle"
+          style={{
+            maxWidth: '100%',
+            overflowWrap: 'anywhere',
+            marginTop: 2,
+            textAlign: 'center',
+          }}
         >
           {data.sublabel}
         </span>

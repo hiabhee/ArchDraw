@@ -3,7 +3,7 @@
 // ARCHDRAW-SVG-EXPORT-V2: Updated version with fixes - July 30, 2026
 import { Node, Edge, getSmoothStepPath, getBezierPath, getStraightPath, Position } from 'reactflow';
 import { NodeData } from '@/store/diagramStore';
-import { getEdgeConfig, getEffectivePathType, type EdgeData, type EdgeType, type PathType } from '@/data/edgeTypes';
+import { getEffectivePathType, type EdgeData, type EdgeType, type PathType } from '@/data/edgeTypes';
 import { 
   NODE_WIDTH, NODE_HEIGHT, STATUS_COLORS, getConcernColor, LIGHT_NODE_STYLES, DARK_NODE_STYLES, STROKE_WIDTH, BORDER_RADIUS
 } from '@/lib/theme/stylingConstants';
@@ -12,6 +12,7 @@ import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { getPointOnPath } from '@/lib/utils/edgeLabelDrag';
 import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
+import { resolveEdgeVisual } from '@/lib/utils/edgeHierarchy';
 
 interface TextLabelNodeData extends NodeData {
   text?: string;
@@ -255,23 +256,25 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
         rx="${rx}" ry="${rx}"
         ${styleAttr}
       />
-      <g transform="translate(12, 10)">
-        <rect x="0" y="0" width="20" height="20" rx="5" fill="${iconColor}" fill-opacity="0.08" />
-        <rect x="6" y="6" width="8" height="8" rx="2" fill="${iconColor}" />
+      <rect x="0" y="10" width="3" height="${Math.max(12, height - 20)}" rx="1.5" fill="${iconColor}" opacity="0.9" />
+      <g transform="translate(14, 12)">
+        <rect x="0" y="0" width="22" height="22" rx="6" fill="${iconColor}" fill-opacity="0.1" />
+        <circle cx="11" cy="11" r="5" fill="${iconColor}" fill-opacity="0.85" />
         <text
-          x="28" y="14"
+          x="30" y="15"
           fill="${titleColor}"
-          font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-          font-size="13"
+          font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
+          font-size="13.5"
           font-weight="600"
+          letter-spacing="-0.015em"
         >${escapeXml(data.label || 'Service')}</text>
       </g>
       ${data.subtitle ? `
       <text
-        x="12" y="${height - 14}"
+        x="14" y="${height - 12}"
         fill="${subtitleColor}"
-        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-        font-size="10"
+        font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
+        font-size="10.5"
         font-weight="400"
       >${escapeXml(String(data.subtitle))}</text>` : ''}
       ${showStatus ? `
@@ -443,34 +446,14 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   const edgeType: EdgeType | undefined = data?.edgeType;
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
-  const connectionType = data?.connectionType || edgeType || 'sync';
-  const config = getEdgeConfig(connectionType);
-  
-  const lowerLabel = data?.label?.toLowerCase() ?? '';
-  const lowerType = connectionType?.toLowerCase() ?? '';
-  const isAsync = lowerType === 'async' || lowerType === 'publish' || lowerType === 'consume' || ['amqp', 'kafka', 'queue', 'pub/sub', 'event', 'publish', 'consume', 'nats', 'rabbitmq'].some(p => lowerLabel.includes(p));
 
-  // Determine stroke color
-  let strokeColor: string;
+  const visual = resolveEdgeVisual(data as Record<string, unknown> | undefined, isDark);
+  let strokeColor = data?.color || visual.stroke;
   if (selected) {
-    strokeColor = isDark ? '#9CA3AF' : '#374151';
-  } else if (data?.color) {
-    strokeColor = data.color;
-  } else if (isDark) {
-    if (isAsync) strokeColor = '#FBBF24';
-    else if (lowerType === 'error' || lowerLabel.includes('error') || lowerLabel.includes('failed')) strokeColor = '#EF4444';
-    else if (lowerType === 'success' || lowerLabel.includes('success') || lowerLabel.includes('ok')) strokeColor = '#34D399';
-    else strokeColor = '#ffffff'; // sync/default white
-  } else {
-    if (isAsync) strokeColor = '#F59E0B';
-    else if (lowerType === 'error' || lowerLabel.includes('error') || lowerLabel.includes('failed')) strokeColor = '#EF4444';
-    else if (lowerType === 'success' || lowerLabel.includes('success') || lowerLabel.includes('ok')) strokeColor = '#10B981';
-    else if (lowerType === 'sql' || lowerType === 'data' || lowerLabel.includes('sql') || lowerLabel.includes('query') || lowerLabel.includes('cache')) strokeColor = '#3B82F6';
-    else if (connectionType === 'sync') strokeColor = '#000000'; // sync/default black
-    else strokeColor = config.color || '#6B7280';
+    strokeColor = isDark ? '#e2e8f0' : '#1e293b';
   }
 
-  let strokeWidth = selected ? 2.5 : 1.5;
+  let strokeWidth = selected ? visual.strokeWidth + 0.75 : visual.strokeWidth;
   const edgeVariant = data?.edgeVariant;
 
   if (edgeVariant === 'feedback') {
@@ -479,7 +462,7 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
 
   const dashArray = resolveEdgeStrokeDasharray(data as Record<string, unknown> | undefined, style);
   const strokeDashAttr = dashArray ? `stroke-dasharray="${dashArray}"` : '';
-  const opacity = selected ? 1 : (isDark ? 0.8 : 0.85);
+  const opacity = selected ? 1 : visual.opacity;
   
   let d = edge.svgPath;
   let labelX = (sourceX + targetX) / 2;
@@ -510,7 +493,7 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
       <path d="M 0 0 L 10 5 L 0 10 z" fill="${strokeColor}"/>
     </marker>`;
     
-  if (config.markerStart || isBidirectional) {
+  if (isBidirectional) {
     defsSVG += `
     <marker id="${markerStartId}" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto" markerUnits="userSpaceOnUse">
       <path d="M 10 0 L 0 5 L 10 10 z" fill="${strokeColor}"/>
@@ -518,22 +501,21 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
   }
   defsSVG += '\n  </defs>';
 
-  const markerEndAttr = (config.markerEnd || isBidirectional) ? `marker-end="url(#${markerEndId})"` : '';
-  const markerStartAttr = (config.markerStart || isBidirectional) ? `marker-start="url(#${markerStartId})"` : '';
+  const markerEndAttr = `marker-end="url(#${markerEndId})"`;
+  const markerStartAttr = isBidirectional ? `marker-start="url(#${markerStartId})"` : '';
   
   let labelSVG = '';
   if (data?.label && !data?.hideLabel) {
     const labelText = data.label;
-    
-    const bg = isDark ? '#1e2235' : '#fefdf8';
-    const fg = isDark ? '#CBD5E1' : '#6B7280';
-    const border = isDark ? 'rgba(255, 255, 255, 0.1)' : '#e0dbd0';
-    
-    const padding = 12;
-    const charWidth = 6.5;
-    const labelWidth = Math.max(50, labelText.length * charWidth + padding);
-    const labelHeight = 16;
-    
+    const fg = strokeColor || (isDark ? '#CBD5E1' : '#64748b');
+    const knockout = isDark ? '#0f1117' : '#f8fafc';
+    const border = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)';
+    const paddingX = 6;
+    const paddingY = 2;
+    const charWidth = 5.4;
+    const labelWidth = Math.max(36, labelText.length * charWidth + paddingX * 2);
+    const labelHeight = 14 + paddingY * 2;
+
     labelSVG = `
       <g transform="translate(${labelX}, ${labelY})">
         <rect
@@ -541,19 +523,19 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
           y="-${labelHeight / 2}"
           width="${labelWidth}"
           height="${labelHeight}"
-          fill="${bg}"
+          fill="${knockout}"
           stroke="${border}"
           stroke-width="1"
-          rx="4"
+          rx="3"
         />
         <text
           x="0" y="3"
           fill="${fg}"
-          font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-          font-size="${isDark ? 10 : 9}"
-          font-weight="${isDark ? 'bold' : 600}"
+          font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
+          font-size="9"
+          font-weight="500"
           text-anchor="middle"
-          letter-spacing="${isDark ? '0.05em' : '0.04em'}"
+          letter-spacing="0.01em"
         >${escapeXml(labelText)}</text>
       </g>
     `.trim();

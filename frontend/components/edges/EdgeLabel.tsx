@@ -15,13 +15,6 @@ interface EdgeLabelProps {
   onEditingChange?: (editing: boolean) => void;
 }
 
-function hexToRgba(hex: string, alpha: number): string {
-  const match = /^#([0-9a-fA-F]{6})$/.exec(hex);
-  if (!match) return hex;
-  const n = parseInt(match[1], 16);
-  return `rgba(${(n >> 16) & 0xff}, ${(n >> 8) & 0xff}, ${n & 0xff}, ${alpha})`;
-}
-
 /** Blend two hex colors into a fully opaque color. t = fraction of the first. */
 function mixHex(a: string, b: string, t: number): string {
   const pa = /^#([0-9a-fA-F]{6})$/.exec(a);
@@ -62,7 +55,7 @@ export function EdgeLabel({
 
   const getCleanedText = useCallback((txt?: string): string => {
     if (!txt) return '';
-    return txt.trim().toUpperCase();
+    return txt.trim();
   }, []);
 
   const displayText = label?.trim() ? getCleanedText(label) : null;
@@ -109,33 +102,31 @@ export function EdgeLabel({
 
   const inputWidth = Math.max(80, Math.min(150, draft.length * 6 + 32));
 
-  // Tie the chip to its connector: composite the line hue onto an opaque
-  // surface so the label stays solid while still reading as part of the edge.
   const lineColor = color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : undefined;
-  const surface = isDark ? '#0f172a' : '#ffffff';
-  const chipBackground = lineColor
-    ? mixHex(lineColor, surface, isDark ? 0.18 : 0.12)
-    : surface;
+  // Match canvas fill so the label looks transparent but punches a gap in the edge.
+  const knockout = 'hsl(var(--canvas-bg))';
 
   const pillStyle: React.CSSProperties = {
-    background: chipBackground,
-    color: isDark ? '#94a3b8' : '#64748b',
+    background: knockout,
+    color: lineColor
+      ? (isDark ? mixHex(lineColor, '#e2e8f0', 0.55) : mixHex(lineColor, '#334155', 0.45))
+      : isDark ? '#94a3b8' : '#64748b',
     borderRadius: 3,
-    border: lineColor
-      ? `1px solid ${hexToRgba(lineColor, isDark ? 0.45 : 0.4)}`
-      : isDark ? '1px solid rgba(148,163,184,0.12)' : '1px solid rgba(15,23,42,0.08)',
-    fontSize: 8,
-    fontFamily: 'Inter, -apple-system, sans-serif',
+    border: isDark
+      ? '1px solid rgba(148, 163, 184, 0.28)'
+      : '1px solid rgba(15, 23, 42, 0.12)',
+    fontSize: 9,
+    fontFamily: 'Inter, "IBM Plex Sans", system-ui, sans-serif',
     fontWeight: 500,
-    padding: '2px 5px',
-    lineHeight: 1,
+    padding: '2px 6px',
+    lineHeight: 1.2,
     textAlign: 'center',
     outline: 'none',
     boxShadow: 'none',
     position: 'relative',
     zIndex: 1000,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
+    textTransform: 'none',
+    letterSpacing: '0.01em',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',

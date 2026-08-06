@@ -24,6 +24,7 @@ import { EdgeContextMenu } from './EdgeContextMenu';
 import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
 import type { EdgeData } from '@/data/edgeTypes';
 import { resolveEdgePalette } from '@/lib/edgeColors';
+import { isPrimaryEdge } from '@/lib/utils/edgeHierarchy';
 
 /** Darken a hex color by a fixed amount; leaves non-hex colors untouched. */
 function darkenColor(color: string, amount: number): string {
@@ -205,20 +206,21 @@ export default function SimpleFloatingEdge({
   const strokeStyle: React.CSSProperties = useMemo(() => {
     const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark);
     let stroke = edgeStyle?.stroke || palette.stroke;
-    const baseWidth: number = DIAGRAM_CONSTANTS.edge.strokeWidth;
+    const baseWidth = palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth;
 
     if (isBundle) {
       stroke = isDenseBundle ? '#475569' : '#94a3b8';
     }
 
-    const isPrimary = edgeVariant === 'thick' || (data?.connectionType === 'sync' && edgeVariant === 'solid');
+    const isPrimary =
+      palette.isPrimary === true ||
+      isPrimaryEdge(data as Record<string, unknown> | undefined) ||
+      edgeVariant === 'thick';
     const isHoverState = selected || isHovered;
     const strokeWidth =
       isHoverState
         ? baseWidth + 0.75
-        : edgeVariant === 'thick' || isPrimary
-          ? baseWidth + 0.5
-          : baseWidth;
+        : baseWidth;
 
     // Color bump on hover/focus: darken non-accent connectors so they read
     // more strongly when the user is inspecting them.
@@ -231,7 +233,11 @@ export default function SimpleFloatingEdge({
       edgeStyle,
     );
 
-    const opacity = isHoverState ? 1 : isAsync ? 0.75 : 0.65;
+    const opacity = isHoverState
+      ? 1
+      : isBundle
+        ? 0.85
+        : (palette.opacity ?? (isAsync ? 0.92 : 0.9));
 
     return {
       stroke,

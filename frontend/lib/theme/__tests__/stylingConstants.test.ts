@@ -20,8 +20,8 @@ describe('architecture visual tokens', () => {
   });
 
   it('returns muted concern accents', () => {
-    expect(getConcernColor('database')).toBe('#475569');
-    expect(getConcernColor('queue')).toBe('#b45309');
+    expect(getConcernColor('database')).toBe('#334155');
+    expect(getConcernColor('queue')).toBe('#c2410c');
     expect(getConcernColor('service')).toBe('#0f766e');
   });
 

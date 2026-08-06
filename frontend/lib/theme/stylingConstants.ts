@@ -54,13 +54,13 @@ export interface ConcernSwatch {
   label: string;
 }
 
-/** Default (slate) muted semantic accents — used when no diagram theme is set. */
+/** Default muted semantic accents — readable on icons/rails, quiet on fills. */
 export const CONCERN_COLORS: Record<Concern, ConcernSwatch> = {
-  client:   { color: '#64748b', bg: 'rgba(100, 116, 139, 0.06)', label: 'Client' },
-  compute:  { color: '#0f766e', bg: 'rgba(15, 118, 110, 0.06)', label: 'Compute' },
-  data:     { color: '#475569', bg: 'rgba(71, 85, 105, 0.07)',  label: 'Data' },
-  async:    { color: '#b45309', bg: 'rgba(180, 83, 9, 0.06)',   label: 'Async' },
-  external: { color: '#6b7280', bg: 'rgba(107, 114, 128, 0.06)', label: 'External' },
+  client:   { color: '#475569', bg: 'rgba(71, 85, 105, 0.07)',  label: 'Client' },
+  compute:  { color: '#0f766e', bg: 'rgba(15, 118, 110, 0.07)', label: 'Compute' },
+  data:     { color: '#334155', bg: 'rgba(51, 65, 85, 0.08)',   label: 'Data' },
+  async:    { color: '#c2410c', bg: 'rgba(194, 65, 12, 0.07)',  label: 'Async' },
+  external: { color: '#57534e', bg: 'rgba(87, 83, 78, 0.07)',   label: 'External' },
 };
 
 /** Legacy tier keys → concern (kept for call sites). */
@@ -122,16 +122,27 @@ export const STATUS_COLORS = {
 };
 
 export const EDGE_STYLES = {
-  sync:    { color: '#64748b', width: 1.25, dash: '',    animated: false },
-  primary: { color: FLOW_ACCENT, width: 1.75, dash: '',  animated: false },
-  async:   { color: '#b45309', width: 1.25, dash: '6,5', animated: true },
+  sync:    { color: '#94a3b8', width: 1.25, dash: '',    animated: false },
+  primary: { color: FLOW_ACCENT, width: 2, dash: '',     animated: false },
+  async:   { color: '#c2410c', width: 1.25, dash: '6,5', animated: true },
 } as const;
 
 export const EDGE_MARKER_SIZE = { width: 22, height: 22 } as const;
 
+/** Icon slot sizes — recognition first, quiet chip second. */
+export const ICON_SIZE = {
+  node: 18,
+  cloudMin: 20,
+  box: 28,
+} as const;
+
 export const FONTS = {
-  body: '"Inter", "Roboto", system-ui, -apple-system, sans-serif',
-  display: '"Inter", "Roboto", system-ui, sans-serif',
+  body: '"Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif',
+  display: '"Inter", "IBM Plex Sans", system-ui, sans-serif',
+  titleSize: 13.5,
+  titleWeight: 600,
+  subtitleSize: 10.5,
+  subtitleWeight: 400,
 };
 
 // ── Node surface styles ─────────────────────────────────────────────────────
@@ -150,8 +161,8 @@ export interface NodeStyleConfig {
 
 export const LIGHT_NODE_STYLES: NodeStyleConfig = {
   background: '#ffffff',
-  border: 'rgba(15, 23, 42, 0.2)',
-  borderHover: 'rgba(15, 23, 42, 0.32)',
+  border: 'rgba(15, 23, 42, 0.16)',
+  borderHover: 'rgba(15, 23, 42, 0.28)',
   shadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
   shadowSelected: `0 0 0 2px ${FLOW_ACCENT}99, 0 2px 8px rgba(15, 23, 42, 0.06)`,
   titleColor: '#0f172a',
