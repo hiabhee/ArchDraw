@@ -24,7 +24,7 @@ import { TextLabelNode } from '@/components/TextLabelNode';
 import { AnnotationNode } from '@/components/AnnotationNode';
 import SimpleFloatingEdge from '@/components/edges/SimpleFloatingEdge';
 import { useTutorialStore, useTutorialHelpers, sanitizeNode, sanitizeEdge } from '@/store/tutorialStore';
-import { createNode } from '@/lib/factory';
+import { createNode, isBlankInitComponent } from '@/lib/factory';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { DIAGRAM_CONSTANTS, EDGE_MARKER } from '@/constants/diagram';
 import { assignEdgeColors } from '@/lib/edgeColors';
@@ -344,7 +344,8 @@ function TutorialCanvasInner({
       const comp = JSON.parse(raw);
       const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       
-      const newNode = createNode(comp.id, comp.label, position, {
+      const blank = isBlankInitComponent(comp.id);
+      const newNode = createNode(comp.id, blank ? '' : comp.label, position, {
         type: 'systemNode',
         data: {
           componentId: comp.id,
@@ -352,6 +353,7 @@ function TutorialCanvasInner({
           color: comp.color,
           icon: comp.icon,
           technology: comp.technology,
+          ...(blank ? { label: '', autoStartLabelEdit: true } : {}),
         }
       });
       
@@ -377,13 +379,15 @@ function TutorialCanvasInner({
         y: centerY + (Math.random() * 60 - 30),
       };
 
-      const newNode = createNode(component.id, component.label, position, {
+      const blank = isBlankInitComponent(component.id);
+      const newNode = createNode(component.id, blank ? '' : component.label, position, {
         type: 'systemNode',
         data: {
           componentId: component.id,
           category: component.category,
           color: component.color,
           icon: component.icon,
+          ...(blank ? { label: '', autoStartLabelEdit: true } : {}),
         }
       });
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Search, X, Command, Layers, FileText, ArrowRight } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
 import { componentRegistry, type ComponentDefinition } from '@/lib/componentRegistry';
-import { createNode } from '@/lib/factory';
+import { createPaletteNode, isBlankInitComponent } from '@/lib/factory';
 import { getViewportCenter } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
@@ -174,23 +174,13 @@ export function CommandPalette() {
 
   const handleSelectComponent = useCallback((comp: ComponentDefinition) => {
     const serviceType = SERVICE_TYPE_MAP[comp.id] || (comp.category?.toLowerCase().includes('messaging') || comp.category?.toLowerCase().includes('queue') ? 'queue' : comp.category?.toLowerCase().includes('ai') || comp.category?.toLowerCase().includes('ml') ? 'ai' : undefined);
-    const node = createNode(
-      comp.id,
-      comp.label,
-      getViewportCenter(),
-      {
-        type: 'systemNode',
-        data: {
-          componentId: comp.id,
-          category: comp.category,
-          color: comp.color,
-          icon: comp.icon,
-          technology: comp.technology,
-          serviceType,
-        }
-      }
-    );
+    const blank = isBlankInitComponent(comp.id);
+    const node = createPaletteNode(comp, getViewportCenter(), { serviceType, blankInit: blank });
     addNode(node);
+    if (blank) {
+      useDiagramStore.getState().setSelectedNodeId(node.id);
+      useDiagramStore.getState().setSelectedNodeIds([node.id]);
+    }
     setOpen(false);
     setSearch('');
   }, [addNode]);

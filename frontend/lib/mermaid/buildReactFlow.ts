@@ -87,12 +87,14 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         nodeWidth: width,
         nodeHeight: height,
         serviceType,
+        componentType: meta.typeId,
         typeId: meta.typeId,
         color: categoryColor,
         category: meta.category,
         icon: resolvedIcon.icon,
         iconSource: resolvedIcon.source,
         technology: resolvedIcon.technology,
+        tech: resolvedIcon.technology,
       },
       width,
       height,
@@ -115,10 +117,12 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       ? classifyEdge(srcNode, tgtNode, pEdge.label ?? '', pEdge.type)
       : { importance: 'secondary' as const, syncAsync: 'sync' as const, protocol: 'HTTP' };
 
+    const isInvisible = pEdge.type === 'invisible'
     const edgeVariant = pEdge.type === 'dotted' ? 'dashed'
       : pEdge.type === 'thick' ? 'thick'
       : pEdge.type === 'open' ? 'dashed'
       : pEdge.type === 'bidirectional' ? 'bidirectional'
+      : isInvisible ? 'invisible'
       : 'solid'
 
     const rfEdge: RFEdge = {
@@ -128,14 +132,16 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       sourceHandle: null,
       targetHandle: null,
       type: 'simpleFloating',
-      label: pEdge.label ?? undefined,
-      markerStart: pEdge.type === 'bidirectional' ? { type: ARROW_MARKER } : undefined,
-      markerEnd: { type: ARROW_MARKER },
+      label: isInvisible ? undefined : (pEdge.label ?? undefined),
+      // Keep in the graph for layout, but hide drawing (Mermaid `~~~`).
+      hidden: isInvisible || undefined,
+      markerStart: !isInvisible && pEdge.type === 'bidirectional' ? { type: ARROW_MARKER } : undefined,
+      markerEnd: isInvisible ? undefined : { type: ARROW_MARKER },
       data: {
-        label: pEdge.label ?? undefined,
-        connectionType: pEdge.type === 'dotted' ? 'async' : 'sync',
+        label: isInvisible ? undefined : (pEdge.label ?? undefined),
+        connectionType: pEdge.type === 'dotted' || isInvisible ? 'async' : 'sync',
         edgeVariant,
-        importance: semantics.importance,
+        importance: isInvisible ? 'optional' : semantics.importance,
         syncAsync: semantics.syncAsync,
         portType: semantics.portType,
         protocol: semantics.protocol,

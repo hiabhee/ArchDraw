@@ -1,6 +1,46 @@
-import type { ParsedNode, ParsedEdge, ParsedSubgraph, Direction, Shape, EdgeType, ParseResult } from './types'
+import type {
+  ParsedNode,
+  ParsedEdge,
+  ParsedSubgraph,
+  Direction,
+  Shape,
+  EdgeType,
+  ParseResult,
+  ParsedNodeStyle,
+} from './types'
 
 const RESERVED_KEYWORDS = new Set(['end', 'graph', 'flowchart', 'subgraph', 'direction'])
+
+/**
+ * Mermaid arrow tokens. Longer / more-specific forms first so the regex engine
+ * does not stop at a shorter prefix (e.g. `-->` inside `--x` is fine because
+ * `--x` is listed; `~~~` before `~~`).
+ */
+const ARROW_TOKEN =
+  '(?:' +
+  [
+    '<-->',
+    'o--o',
+    'x--x',
+    '~~~~+',
+    '~~~',
+    '==[^=]*==>',
+    '==+>',
+    '-\\.[^.]*\\.->',
+    '-\\.+->',
+    'o--+>',
+    'x--+>',
+    '<--+',
+    '--+>',
+    '---+',
+    '--x',
+    '--o',
+    'o--+',
+    'x--+',
+  ].join('|') +
+  ')'
+
+const ARROW_REGEX = new RegExp(`(?:([A-Za-z0-9_][A-Za-z0-9_\\-]*)@)?(${ARROW_TOKEN})`, 'g')
 
 // Mermaid allows labels that span multiple physical lines, e.g.
 //   P0["Partition 0
@@ -71,6 +111,19 @@ function unescapeLabel(label: string): string {
     .replace(/\\\\/g, '\\')
 }
 
+/** Strip Mermaid markdown-string wrappers and light emphasis markers. */
+function stripMarkdownLabel(label: string): string {
+  let s = label.trim()
+  if (s.startsWith('`') && s.endsWith('`') && s.length >= 2) {
+    s = s.slice(1, -1)
+  }
+  s = s.replace(/\*\*([^*]+)\*\*/g, '$1')
+  s = s.replace(/__([^_]+)__/g, '$1')
+  s = s.replace(/\*([^*]+)\*/g, '$1')
+  s = s.replace(/_([^_]+)_/g, '$1')
+  return s
+}
+
 function normalizeEdgeLabels(text: string): string {
   return text.split('\n').map(line => {
     // Apply the arrow-label rewrite ONLY outside of quoted regions. The previous
@@ -105,11 +158,26 @@ function normalizeEdgeLabels(text: string): string {
       let chunk = line.slice(i, chunkEnd);
       chunk = chunk.replace(/--\s+"([^"]+)"\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|');
       chunk = chunk.replace(/--\s+(.+?)\s*-->/g, (_, label: string) => '-->|' + label.trim() + '|');
+      chunk = chunk.replace(/==\s+"([^"]+)"\s*==>/g, (_, label: string) => '==>|' + label.trim() + '|');
+      chunk = chunk.replace(/==\s+(.+?)\s*==>/g, (_, label: string) => '==>|' + label.trim() + '|');
       out += chunk;
       i = chunkEnd;
     }
     return out;
   }).join('\n')
+}
+
+/** Drop YAML frontmatter (`---` … `---`) that Mermaid accepts before the diagram. */
+function stripFrontmatter(text: string): string {
+  const withoutBom = text.replace(/^\uFEFF/, '')
+  const trimmedStart = withoutBom.replace(/^\s+/, '')
+  if (!trimmedStart.startsWith('---')) return text
+  const close = trimmedStart.indexOf('\n---', 3)
+  if (close === -1) return text
+  let rest = trimmedStart.slice(close + 4)
+  if (rest.startsWith('\r\n')) rest = rest.slice(2)
+  else if (rest.startsWith('\n')) rest = rest.slice(1)
+  return rest
 }
 
 function stripComments(line: string): string {
@@ -136,6 +204,60 @@ function extractId(raw: string): string | null {
   return m ? m[1] : null
 }
 
+/** Map Mermaid `@{ shape: name }` / aliases onto ArchDraw canvas shapes. */
+function mapMermaidShapeName(name: string): Shape {
+  const n = name.toLowerCase().replace(/_/g, '-')
+  switch (n) {
+    case 'diam':
+    case 'diamond':
+    case 'decision':
+    case 'question':
+      return 'diamond'
+    case 'circ':
+    case 'circle':
+    case 'double-circle':
+      return 'circle'
+    case 'cyl':
+    case 'cylinder':
+    case 'db':
+    case 'database':
+    case 'drum':
+      return 'cylinder'
+    case 'hex':
+    case 'hexagon':
+    case 'prepare':
+      return 'hexagon'
+    case 'stadium':
+    case 'pill':
+    case 'terminal':
+    case 'rounded':
+    case 'round':
+    case 'event':
+      return 'rounded'
+    case 'lean-r':
+    case 'lean-right':
+    case 'lean-l':
+    case 'lean-left':
+    case 'parallelogram':
+    case 'trap-b':
+    case 'trap-t':
+    case 'priority':
+    case 'manual':
+    case 'trapezoid':
+    case 'trapezoid-top':
+    case 'trapezoid-bottom':
+    case 'inv-trapezoid':
+    case 'curved-trapezoid':
+    case 'curv-trap':
+    case 'display':
+    case 'asymmetric':
+    case 'asym':
+      return 'parallelogram'
+    default:
+      return 'rectangle'
+  }
+}
+
 function ensureNode(
   raw: string,
   nodes: ParsedNode[],
@@ -150,7 +272,22 @@ function ensureNode(
     id = id + '_node'
   }
 
-  if (nodeIdSet.has(id)) return id
+  if (nodeIdSet.has(id)) {
+    // Upgrade label/shape if this reference carries a definition.
+    const label = extractNodeLabel(raw)
+    const shape = detectShape(raw)
+    const existing = nodes.find(n => n.id === id)
+    if (existing) {
+      if (label) existing.label = label
+      if (shape && raw.slice(id.length).trim().length > 0) existing.shape = shape
+      if (currentSubgraphId && !existing.subgraphId) {
+        existing.subgraphId = currentSubgraphId
+        const sub = subgraphs.find(s => s.id === currentSubgraphId)
+        if (sub && !sub.nodeIds.includes(id)) sub.nodeIds.push(id)
+      }
+    }
+    return id
+  }
   if (subgraphs.some(s => s.id === id)) return id
   const label = extractNodeLabel(raw) || id
   const shape = detectShape(raw)
@@ -185,13 +322,17 @@ function detectShape(line: string): Shape {
     afterId = line.slice(idMatch[0].length).trimStart()
   }
 
+  // Longest openers first.
+  if (afterId.startsWith('(((')) return 'circle' // double-circle → circle on canvas
   if (afterId.startsWith('[(')) return 'cylinder'
   if (afterId.startsWith('((')) return 'circle'
   if (afterId.startsWith('{{')) return 'hexagon'
   if (afterId.startsWith('{')) return 'diamond'
-  if (afterId.startsWith('([')) return 'rounded'
+  if (afterId.startsWith('([')) return 'rounded' // stadium
+  if (afterId.startsWith('[[')) return 'rectangle' // subroutine / framed rect
   if (afterId.startsWith('[/') || afterId.startsWith('[\\')) return 'parallelogram'
   if (afterId.startsWith('[')) return 'rectangle'
+  if (afterId.startsWith('>')) return 'parallelogram' // asymmetric / flag
   if (afterId.startsWith('(')) return 'rounded'
   return 'rectangle'
 }
@@ -211,10 +352,15 @@ function extractNodeLabel(line: string): string | null {
     { open: '[(', close: ')]' },
     { open: '((', close: '))' },
     { open: '{{', close: '}}' },
+    { open: '([', close: '])' },
+    { open: '[[', close: ']]' },
+    // Trapezoids (mixed slashes) before parallelograms (matched slashes).
+    { open: '[/', close: '\\]' },
+    { open: '[\\', close: '/]' },
     { open: '[/', close: '/]' },
     { open: '[\\', close: '\\]' },
-    { open: '([', close: '])' },
     { open: '[', close: ']' },
+    { open: '>', close: ']' },
     { open: '(', close: ')' },
     { open: '{', close: '}' },
   ]
@@ -225,7 +371,7 @@ function extractNodeLabel(line: string): string | null {
       const closeIdx = afterOpen.indexOf(close)
       if (closeIdx !== -1) {
         const content = afterOpen.slice(0, closeIdx)
-        return unescapeLabel(content.replace(/^["']|["']$/g, '')).trim()
+        return stripMarkdownLabel(unescapeLabel(content.replace(/^["']|["']$/g, '')).trim())
       }
     }
   }
@@ -233,26 +379,149 @@ function extractNodeLabel(line: string): string | null {
   return null
 }
 
+/** Split `A & B["x & y"] & C` on top-level `&` only. */
+function splitByAmpersand(segment: string): string[] {
+  const parts: string[] = []
+  let current = ''
+  let depth = 0
+  let inQuote: '"' | "'" | '' = ''
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i]
+    if (inQuote) {
+      current += ch
+      if (ch === '\\' && i + 1 < segment.length) {
+        current += segment[i + 1]
+        i++
+        continue
+      }
+      if (ch === inQuote) inQuote = ''
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch
+      current += ch
+      continue
+    }
+    if (ch === '[' || ch === '(' || ch === '{') depth++
+    if (ch === ']' || ch === ')' || ch === '}') depth = Math.max(0, depth - 1)
+    if (ch === '&' && depth === 0) {
+      const t = current.trim()
+      if (t) parts.push(t)
+      current = ''
+      continue
+    }
+    current += ch
+  }
+  const t = current.trim()
+  if (t) parts.push(t)
+  return parts
+}
+
+function classifyArrow(fullArrow: string): { type: EdgeType; embeddedLabel: string | null } {
+  if (/^~{3,}$/.test(fullArrow)) return { type: 'invisible', embeddedLabel: null }
+  if (fullArrow === '<-->') return { type: 'bidirectional', embeddedLabel: null }
+  if (fullArrow.startsWith('-.')) {
+    const embedded = fullArrow.match(/^-\.(.+)\.->$/)
+    return { type: 'dotted', embeddedLabel: embedded ? embedded[1] : null }
+  }
+  if (fullArrow.startsWith('==')) {
+    const embedded = fullArrow.match(/^==(.+)==>$/)
+    return { type: 'thick', embeddedLabel: embedded ? embedded[1] : null }
+  }
+  if (/^-{3,}$/.test(fullArrow)) return { type: 'open', embeddedLabel: null }
+  if (
+    fullArrow === '--x' ||
+    fullArrow === '--o' ||
+    fullArrow.startsWith('o--') ||
+    fullArrow.startsWith('x--') ||
+    fullArrow === 'o--o' ||
+    fullArrow === 'x--x'
+  ) {
+    return { type: 'open', embeddedLabel: null }
+  }
+  if (fullArrow.startsWith('<--')) return { type: 'arrow', embeddedLabel: null }
+  return { type: 'arrow', embeddedLabel: null }
+}
+
+function parseStyleProps(props: string): ParsedNodeStyle {
+  const style: ParsedNodeStyle = {}
+  for (const part of props.split(',')) {
+    const [rawKey, ...rest] = part.split(':')
+    if (!rawKey || rest.length === 0) continue
+    const key = rawKey.trim().toLowerCase()
+    const value = rest.join(':').trim()
+    if (key === 'fill') style.fill = value
+    else if (key === 'stroke') style.stroke = value
+  }
+  return style
+}
+
+function parseAtShapeBlock(line: string): { id: string; shape?: Shape; label?: string; isEdgeConfig: boolean } | null {
+  const m = line.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)\s*@\s*\{\s*([\s\S]*)\s*\}\s*$/)
+  if (!m) return null
+  const id = m[1]
+  const body = m[2].trim()
+  // Edge animation/curve config: `e1@{ curve: linear }` — no shape/label.
+  const hasShape = /(?:^|,)\s*shape\s*:/i.test(body)
+  const hasLabel = /(?:^|,)\s*label\s*:/i.test(body)
+  if (!hasShape && !hasLabel) {
+    return { id, isEdgeConfig: true }
+  }
+  let shape: Shape | undefined
+  let label: string | undefined
+  const shapeMatch = body.match(/shape\s*:\s*["']?([A-Za-z0-9_-]+)["']?/i)
+  if (shapeMatch) shape = mapMermaidShapeName(shapeMatch[1])
+  const labelMatch = body.match(/label\s*:\s*(?:"([^"]*)"|'([^']*)'|([^,}]+))/i)
+  if (labelMatch) {
+    label = stripMarkdownLabel(unescapeLabel((labelMatch[1] ?? labelMatch[2] ?? labelMatch[3] ?? '').trim()))
+  }
+  return { id, shape, label, isEdgeConfig: false }
+}
+
 export function parseMermaid(mermaidText: string): ParseResult {
   const errors: { line: number; reason: string }[] = []
-  const merged = mergeMultilineLabels(mermaidText)
+  const withoutFrontmatter = stripFrontmatter(mermaidText)
+  const merged = mergeMultilineLabels(withoutFrontmatter)
   const normalized = normalizeEdgeLabels(merged)
   const direction = detectDirection(normalized)
   const subgraphs: ParsedSubgraph[] = []
   const nodes: ParsedNode[] = []
   const edges: ParsedEdge[] = []
   const nodeIdSet = new Set<string>()
+  const classStyles = new Map<string, ParsedNodeStyle>()
+  const nodeClassNames = new Map<string, string[]>()
   let edgeCounter = 0
 
   let currentSubgraphId: string | null = null
   const subgraphStack: string[] = []
   const lines = normalized.split('\n')
 
+  let skipUntilCloseBrace = false
+
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i]
     const cleanLine = stripComments(rawLine)
-    const line = cleanLine.trim()
-    if (!line || line.startsWith('graph') || line.startsWith('flowchart')) {
+    let line = cleanLine.trim()
+
+    if (skipUntilCloseBrace) {
+      if (line.includes('}')) skipUntilCloseBrace = false
+      continue
+    }
+
+    if (!line) continue
+
+    // Accessibility / metadata directives Mermaid accepts but we do not render.
+    if (/^accTitle(?:\s*:|$)/i.test(line) || /^accDescr(?:\s*:|$)/i.test(line)) {
+      if (/^accDescr\s*\{/i.test(line) && !line.includes('}')) {
+        skipUntilCloseBrace = true
+      }
+      continue
+    }
+    if (/^title(\s|:)/i.test(line)) {
+      continue
+    }
+
+    if (line.startsWith('graph') || line.startsWith('flowchart')) {
       continue
     }
 
@@ -268,7 +537,74 @@ export function parseMermaid(mermaidText: string): ParseResult {
       continue
     }
 
-    if (/^(style|classDef|class|linkStyle|click)\s/i.test(line)) {
+    // classDef myClass fill:#f9f,stroke:#333
+    const classDefMatch = line.match(/^classDef\s+(\S+)\s+(.+)$/i)
+    if (classDefMatch) {
+      classStyles.set(classDefMatch[1], parseStyleProps(classDefMatch[2]))
+      continue
+    }
+
+    // class A,B myClass
+    const classAssignMatch = line.match(/^class\s+(\S+)\s+(\S+)\s*$/i)
+    if (classAssignMatch) {
+      const ids = classAssignMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+      const className = classAssignMatch[2]
+      for (const nid of ids) {
+        const list = nodeClassNames.get(nid) ?? []
+        list.push(className)
+        nodeClassNames.set(nid, list)
+      }
+      continue
+    }
+
+    // style A fill:#fff,stroke:#f66
+    const styleMatch = line.match(/^style\s+(\S+)\s+(.+)$/i)
+    if (styleMatch) {
+      const nid = styleMatch[1]
+      const props = parseStyleProps(styleMatch[2])
+      const existing = nodes.find(n => n.id === nid)
+      if (existing) {
+        existing.style = { ...existing.style, ...props }
+      } else {
+        // Node may appear later; stash via a synthetic class name.
+        const synthetic = `__style_${nid}`
+        classStyles.set(synthetic, props)
+        const list = nodeClassNames.get(nid) ?? []
+        list.push(synthetic)
+        nodeClassNames.set(nid, list)
+      }
+      continue
+    }
+
+    if (/^(linkStyle|click)\s/i.test(line)) {
+      continue
+    }
+
+    // Expanded shape syntax: A@{ shape: diamond, label: "X" }
+    const atShape = parseAtShapeBlock(line)
+    if (atShape) {
+      if (atShape.isEdgeConfig) continue
+      const id = atShape.id
+      if (RESERVED_KEYWORDS.has(id.toLowerCase())) continue
+      if (nodeIdSet.has(id)) {
+        const existing = nodes.find(n => n.id === id)
+        if (existing) {
+          if (atShape.label) existing.label = atShape.label
+          if (atShape.shape) existing.shape = atShape.shape
+        }
+      } else if (!subgraphs.some(s => s.id === id)) {
+        nodeIdSet.add(id)
+        nodes.push({
+          id,
+          label: atShape.label ?? id,
+          shape: atShape.shape ?? 'rectangle',
+          subgraphId: currentSubgraphId,
+        })
+        if (currentSubgraphId) {
+          const sub = subgraphs.find(s => s.id === currentSubgraphId)
+          if (sub) sub.nodeIds.push(id)
+        }
+      }
       continue
     }
 
@@ -281,7 +617,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       const labelMatch = afterKw.match(/\s*\[\s*("(.*?)"|'(.*?)'|(.*?))\s*\]\s*$/)
       if (labelMatch) {
         rawId = afterKw.slice(0, afterKw.length - labelMatch[0].length).trim()
-        label = unescapeLabel(labelMatch[2] ?? labelMatch[3] ?? labelMatch[4] ?? null)
+        label = stripMarkdownLabel(unescapeLabel(labelMatch[2] ?? labelMatch[3] ?? labelMatch[4] ?? null))
       } else {
         rawId = afterKw.trim()
       }
@@ -307,92 +643,101 @@ export function parseMermaid(mermaidText: string): ParseResult {
       continue
     }
 
-    const arrowRegex = /(<-->|==(.+?)==>|-\.[^.]*\.->|-\.->|--+>|==+>|---(?!>)|--x|--o)/g
-    const matches = [...line.matchAll(arrowRegex)]
+    ARROW_REGEX.lastIndex = 0
+    const matches = [...line.matchAll(ARROW_REGEX)]
     if (matches.length > 0) {
-      const segmentNodes: string[] = []
-      const edgeSpecs: Array<{ sourceIdx: number; targetIdx: number; label: string | null; type: EdgeType }> = []
+      const segmentNodes: string[][] = []
+      const edgeSpecs: Array<{
+        sourceSeg: number
+        targetSeg: number
+        label: string | null
+        type: EdgeType
+        reverse: boolean
+      }> = []
 
       let lastIndex = 0
       for (let mIdx = 0; mIdx < matches.length; mIdx++) {
         const match = matches[mIdx]
         const arrowIdx = match.index!
-        const fullArrow = match[1]
-
+        const fullArrow = match[2]
         const segment = line.slice(lastIndex, arrowIdx).trim()
 
-        let edgeType: EdgeType = 'arrow'
-        if (fullArrow === '<-->') edgeType = 'bidirectional'
-        else if (fullArrow.startsWith('-.')) edgeType = 'dotted'
-        else if (fullArrow.startsWith('==')) edgeType = 'thick'
-        else if (fullArrow.match(/^-{3,}$/)) edgeType = 'open'
-        else if (fullArrow === '--x' || fullArrow === '--o') edgeType = 'open'
-
-        let edgeLabel: string | null = null
-
-        const embeddedLabelMatch = fullArrow.match(/^-\.(.+)\.->$/)
-        if (embeddedLabelMatch) {
-          edgeLabel = embeddedLabelMatch[1]
-        }
-
-        if (!edgeLabel) {
-          const thickEmbedded = fullArrow.match(/^==(.+)==>$/)
-          if (thickEmbedded) {
-            edgeLabel = thickEmbedded[1]
-          }
-        }
+        const { type: edgeType, embeddedLabel } = classifyArrow(fullArrow)
+        let edgeLabel: string | null = embeddedLabel
+        const reverse = fullArrow.startsWith('<--') && fullArrow !== '<-->'
 
         const nextMatch = matches[mIdx + 1]
         const nextArrowIdx = nextMatch ? nextMatch.index! : line.length
-        let targetPart = line.slice(arrowIdx + fullArrow.length, nextArrowIdx).trim()
+        let targetPart = line.slice(arrowIdx + match[0].length, nextArrowIdx).trim()
 
         let pipeLabelMatch: RegExpMatchArray | null = null
         if (!edgeLabel) {
           pipeLabelMatch = targetPart.match(/^\s*\|"?([^|"]+)"?\|\s*(.*)$/)
           if (pipeLabelMatch) {
-            edgeLabel = pipeLabelMatch[1].trim()
+            edgeLabel = stripMarkdownLabel(pipeLabelMatch[1].trim())
             targetPart = pipeLabelMatch[2].trim()
           }
         }
 
-        const sourceId = ensureNode(segment, nodes, nodeIdSet, currentSubgraphId, subgraphs)
-        if (sourceId) {
-          segmentNodes.push(sourceId)
+        const sourceRefs = splitByAmpersand(segment)
+        const sourceIds: string[] = []
+        for (const ref of sourceRefs) {
+          const sid = ensureNode(ref, nodes, nodeIdSet, currentSubgraphId, subgraphs)
+          if (sid) sourceIds.push(sid)
         }
+        segmentNodes.push(sourceIds)
 
         edgeSpecs.push({
-          sourceIdx: segmentNodes.length - 1,
-          targetIdx: segmentNodes.length,
+          sourceSeg: segmentNodes.length - 1,
+          targetSeg: segmentNodes.length,
           label: edgeLabel,
           type: edgeType,
+          reverse,
         })
 
         if (pipeLabelMatch) {
-          const labelOffset = line.slice(arrowIdx + fullArrow.length).indexOf(pipeLabelMatch[2])
-          lastIndex = arrowIdx + fullArrow.length + labelOffset
+          const labelOffset = line.slice(arrowIdx + match[0].length).indexOf(pipeLabelMatch[2])
+          lastIndex = arrowIdx + match[0].length + Math.max(0, labelOffset)
         } else {
-          lastIndex = arrowIdx + fullArrow.length
+          lastIndex = arrowIdx + match[0].length
         }
       }
 
       const finalSegment = line.slice(lastIndex).trim()
-      const finalNodeId = ensureNode(finalSegment, nodes, nodeIdSet, currentSubgraphId, subgraphs)
-      if (finalNodeId) {
-        segmentNodes.push(finalNodeId)
+      const finalRefs = splitByAmpersand(finalSegment)
+      const finalIds: string[] = []
+      for (const ref of finalRefs) {
+        const fid = ensureNode(ref, nodes, nodeIdSet, currentSubgraphId, subgraphs)
+        if (fid) finalIds.push(fid)
       }
+      segmentNodes.push(finalIds)
 
       for (const spec of edgeSpecs) {
-        const sourceId = segmentNodes[spec.sourceIdx]
-        const targetId = segmentNodes[spec.targetIdx]
-        if (sourceId && targetId) {
-          edges.push({
-            id: `${sourceId}-${targetId}-${spec.label ?? 'nolabel'}-${edgeCounter++}`,
-            source: sourceId,
-            target: targetId,
-            label: spec.label,
-            type: spec.type,
-          })
+        const sources = segmentNodes[spec.sourceSeg] ?? []
+        const targets = segmentNodes[spec.targetSeg] ?? []
+        for (const sourceId of sources) {
+          for (const targetId of targets) {
+            if (!sourceId || !targetId) continue
+            const from = spec.reverse ? targetId : sourceId
+            const to = spec.reverse ? sourceId : targetId
+            edges.push({
+              id: `${from}-${to}-${spec.label ?? 'nolabel'}-${edgeCounter++}`,
+              source: from,
+              target: to,
+              label: spec.label,
+              type: spec.type,
+            })
+          }
         }
+      }
+      continue
+    }
+
+    // Standalone node that may itself be an &-joined declaration list.
+    const standaloneRefs = splitByAmpersand(line)
+    if (standaloneRefs.length > 1) {
+      for (const ref of standaloneRefs) {
+        ensureNode(ref, nodes, nodeIdSet, currentSubgraphId, subgraphs)
       }
       continue
     }
@@ -402,7 +747,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       const id = idMatch[1]
       const rest = idMatch[2].trim()
       const label = extractNodeLabel(line)
-      const shape = rest ? detectShape(rest) : null
+      const detectedShape = rest ? detectShape(line) : null
 
       if (subgraphs.some(s => s.id === id)) {
         const sub = subgraphs.find(s => s.id === id)
@@ -416,7 +761,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
         const existingNode = nodes.find(n => n.id === id)
         if (existingNode) {
           if (label) existingNode.label = label
-          if (shape) existingNode.shape = shape
+          if (detectedShape && rest) existingNode.shape = detectedShape
           if (currentSubgraphId) {
             existingNode.subgraphId = currentSubgraphId
             const sub = subgraphs.find(s => s.id === currentSubgraphId)
@@ -432,7 +777,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       const node: ParsedNode = {
         id,
         label: label || id,
-        shape: shape || 'rectangle',
+        shape: detectedShape || 'rectangle',
         subgraphId: currentSubgraphId,
       }
       nodes.push(node)
@@ -441,6 +786,20 @@ export function parseMermaid(mermaidText: string): ParseResult {
         const sub = subgraphs.find(s => s.id === currentSubgraphId)
         if (sub) sub.nodeIds.push(id)
       }
+    }
+  }
+
+  // Apply classDef / deferred style onto nodes.
+  for (const node of nodes) {
+    const classNames = nodeClassNames.get(node.id)
+    if (!classNames) continue
+    let mergedStyle: ParsedNodeStyle = { ...node.style }
+    for (const cn of classNames) {
+      const props = classStyles.get(cn)
+      if (props) mergedStyle = { ...mergedStyle, ...props }
+    }
+    if (mergedStyle.fill || mergedStyle.stroke) {
+      node.style = mergedStyle
     }
   }
 
@@ -456,12 +815,19 @@ export function parseMermaid(mermaidText: string): ParseResult {
   // a single synthetic error so the caller can retry / fall back.
   const meaningfulLines = lines
     .map((l) => stripComments(l).trim())
-    .filter((l) => l.length > 0 && !l.startsWith('graph') && !l.startsWith('flowchart'));
+    .filter((l) => {
+      if (l.length === 0) return false
+      if (l.startsWith('graph') || l.startsWith('flowchart')) return false
+      if (/^accTitle(?:\s*:|$)/i.test(l) || /^accDescr(?:\s*:|$)/i.test(l)) return false
+      if (/^title(\s|:)/i.test(l)) return false
+      if (/^(style|classDef|class|linkStyle|click)\s/i.test(l)) return false
+      return true
+    })
   if (nodes.length === 0 && edges.length === 0 && meaningfulLines.length > 0) {
     return {
       ok: false,
       errors: [{ line: 1, reason: 'No nodes or edges were parsed from non-empty input.' }],
-    };
+    }
   }
 
   return {

@@ -39,6 +39,14 @@ function estimateLabelSize(text: string): { w: number; h: number } {
   }
 }
 
+/** On-screen pill size at zoom=1 (used for node clearance). */
+function estimateLabelCssSize(text: string): { w: number; h: number } {
+  return {
+    w: Math.max(LABEL_MIN_WIDTH_CSS, text.length * LABEL_WIDTH_PER_CHAR + LABEL_HORIZONTAL_PADDING),
+    h: LABEL_HEIGHT_CSS,
+  }
+}
+
 // ── Smooth orthogonal path, mirrored from collisionFreeEdgePath ────────────
 //
 // computeEdgeRoute produces waypoints that are rendered via buildSmoothStepSvg
@@ -241,6 +249,225 @@ function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number): n
   return 0.5
 }
 
+/**
+ * How close (px) two path samples must be to count as a shared / merged corridor.
+ * Orthogonal routes that join into one trunk sit on top of each other within a
+ * few pixels after the merge corner.
+ */
+const SHARED_PATH_DIST = 22
+const STEM_SAMPLE_COUNT = 48
+/** Minimum unique-stem length (fraction of path) before we treat it as usable. */
+const MIN_UNIQUE_STEM = 0.12
+
+interface PathSample {
+  x: number
+  y: number
+  t: number
+}
+
+function samplePath(segs: PathSegment[], count: number = STEM_SAMPLE_COUNT): PathSample[] {
+  const out: PathSample[] = []
+  for (let i = 0; i <= count; i++) {
+    const t = i / count
+    const p = pointAtFraction(segs, t)
+    out.push({ x: p.x, y: p.y, t })
+  }
+  return out
+}
+
+function sampleNearAny(sample: PathSample, others: PathSample[][], dist: number): boolean {
+  for (const pts of others) {
+    for (const op of pts) {
+      if (Math.hypot(op.x - sample.x, op.y - sample.y) <= dist) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Find how far from the source (and from the target) this path stays unique —
+ * i.e. not overlapping another edge's geometry. Fan-in routes share a long
+ * trunk near the target; labels belong on the unique stem near the source so
+ * each edge keeps a 1:1 label association.
+ */
+export function findUniqueStemRange(
+  mySamples: PathSample[],
+  peerSamples: PathSample[][],
+  shareDist: number = SHARED_PATH_DIST,
+): { uniqueEndFromSource: number; uniqueStartFromTarget: number } {
+  if (mySamples.length === 0) {
+    return { uniqueEndFromSource: 0.5, uniqueStartFromTarget: 0.5 }
+  }
+
+  let uniqueEndFromSource = mySamples[0].t
+  for (const sample of mySamples) {
+    if (!sampleNearAny(sample, peerSamples, shareDist)) {
+      uniqueEndFromSource = sample.t
+    } else if (sample.t > MIN_UNIQUE_STEM * 0.5) {
+      // First shared sample after leaving the source — stem ends here.
+      break
+    }
+  }
+
+  let uniqueStartFromTarget = mySamples[mySamples.length - 1].t
+  for (let i = mySamples.length - 1; i >= 0; i--) {
+    const sample = mySamples[i]
+    if (!sampleNearAny(sample, peerSamples, shareDist)) {
+      uniqueStartFromTarget = sample.t
+    } else if (sample.t < 1 - MIN_UNIQUE_STEM * 0.5) {
+      break
+    }
+  }
+
+  return { uniqueEndFromSource, uniqueStartFromTarget }
+}
+
+/** Minimum length (px) for a unique line segment to host a label. */
+const MIN_LABEL_SEGMENT_LEN = 36
+/** Minimum gap (px) between a label pill and a node bounding box. */
+const NODE_LABEL_GAP = 12
+
+function totalPathLength(segs: PathSegment[]): number {
+  return segs.reduce((sum, seg) => sum + seg.len, 0)
+}
+
+function lineDirection(seg: PathSegment): { dx: number; dy: number } | null {
+  if (seg.type !== 'line' || seg.len < 1e-6) return null
+  return { dx: Math.sign(seg.x1 - seg.x0), dy: Math.sign(seg.y1 - seg.y0) }
+}
+
+/**
+ * Collapse consecutive collinear line segments into one run. Orthogonal routes
+ * often insert a midpoint waypoint on a straight shot (A → mid → B); treating
+ * that as two "first segments" pinned labels against the source node.
+ */
+function coalesceCollinearLineRuns(
+  segs: PathSegment[],
+): Array<{ start: number; end: number; len: number }> {
+  const runs: Array<{ start: number; end: number; len: number }> = []
+  let acc = 0
+  let i = 0
+  while (i < segs.length) {
+    const seg = segs[i]
+    const dir = lineDirection(seg)
+    if (!dir) {
+      acc += seg.len
+      i += 1
+      continue
+    }
+    const start = acc
+    let end = acc + seg.len
+    let j = i + 1
+    while (j < segs.length) {
+      const next = segs[j]
+      const nextDir = lineDirection(next)
+      if (!nextDir || nextDir.dx !== dir.dx || nextDir.dy !== dir.dy) break
+      end += next.len
+      j += 1
+    }
+    runs.push({ start, end, len: end - start })
+    acc = end
+    i = j
+  }
+  return runs
+}
+
+/**
+ * Arc-length fraction range of the first long unique collinear run after the
+ * source (fan-in) or before the target (fan-out). Collinear mid-waypoints are
+ * merged so a straight edge is one run (labels sit mid-gap, not flush to the
+ * node). L-shaped fan-in still uses the private vertical/horizontal drop.
+ */
+export function uniqueSegmentTRange(
+  segs: PathSegment[],
+  stem: { uniqueEndFromSource: number; uniqueStartFromTarget: number },
+  preferSourceStem: boolean,
+): { lo: number; hi: number; mid: number } | null {
+  const total = totalPathLength(segs)
+  if (total <= 0) return null
+  const runs = coalesceCollinearLineRuns(segs)
+
+  if (preferSourceStem) {
+    const uniqueEndLen = stem.uniqueEndFromSource * total
+    for (const run of runs) {
+      if (run.start >= uniqueEndLen - 1) break
+      if (run.len < MIN_LABEL_SEGMENT_LEN) continue
+      const usableEnd = Math.min(run.end, uniqueEndLen)
+      const usableLen = usableEnd - run.start
+      if (usableLen >= MIN_LABEL_SEGMENT_LEN * 0.6) {
+        const lo = run.start / total
+        const hi = usableEnd / total
+        // Center the run; slight source bias only when the unique stem is a
+        // short private drop (fan-in), not the whole edge.
+        const bias = stem.uniqueEndFromSource < 0.85 ? 0.45 : 0.5
+        const mid = (run.start + usableLen * bias) / total
+        return { lo: lo + 0.01, hi: Math.max(lo + 0.02, hi - 0.02), mid }
+      }
+    }
+    return null
+  }
+
+  const uniqueStartLen = stem.uniqueStartFromTarget * total
+  let best: { lo: number; hi: number; mid: number } | null = null
+  for (const run of runs) {
+    if (run.end <= uniqueStartLen + 1) continue
+    if (run.len < MIN_LABEL_SEGMENT_LEN) continue
+    const usableStart = Math.max(run.start, uniqueStartLen)
+    const usableLen = run.end - usableStart
+    if (usableLen >= MIN_LABEL_SEGMENT_LEN * 0.6) {
+      const lo = usableStart / total
+      const hi = run.end / total
+      const bias = 1 - stem.uniqueStartFromTarget < 0.85 ? 0.55 : 0.5
+      const mid = (usableStart + usableLen * bias) / total
+      best = { lo: lo + 0.01, hi: Math.max(lo + 0.02, hi - 0.02), mid }
+    }
+  }
+  return best
+}
+
+/**
+ * Prefer a label on the first private path segment (fan-in) or last private
+ * segment (fan-out). Falls back to the parallel/midpoint heuristic.
+ */
+export function preferredTForUniqueStem(
+  edge: Edge,
+  parallelEdges: Edge[],
+  labelOrder: number,
+  stem: { uniqueEndFromSource: number; uniqueStartFromTarget: number },
+  segs?: PathSegment[],
+): number {
+  const data = edge.data as Record<string, unknown> | undefined
+  if (typeof data?.labelT === 'number') return data.labelT
+
+  const fromSourceLen = stem.uniqueEndFromSource
+  const fromTargetLen = 1 - stem.uniqueStartFromTarget
+
+  if (segs && fromSourceLen >= MIN_UNIQUE_STEM && fromSourceLen >= fromTargetLen) {
+    const range = uniqueSegmentTRange(segs, stem, true)
+    if (range) return Math.max(0.06, Math.min(0.85, range.mid))
+  }
+
+  if (segs && fromTargetLen >= MIN_UNIQUE_STEM) {
+    const range = uniqueSegmentTRange(segs, stem, false)
+    if (range) return Math.max(0.15, Math.min(0.94, range.mid))
+  }
+
+  // Legacy stem midpoint if segment picking failed.
+  if (fromSourceLen >= MIN_UNIQUE_STEM && fromSourceLen >= fromTargetLen) {
+    const lo = 0.08
+    const hi = Math.max(lo + 0.04, stem.uniqueEndFromSource * 0.5)
+    return Math.max(0.08, Math.min(0.5, (lo + hi) / 2))
+  }
+
+  if (fromTargetLen >= MIN_UNIQUE_STEM) {
+    const lo = Math.min(0.92, 0.5 + stem.uniqueStartFromTarget * 0.5)
+    const hi = 0.92
+    return Math.max(0.5, Math.min(0.92, (lo + hi) / 2))
+  }
+
+  return getPreferredT(edge, parallelEdges, labelOrder)
+}
+
 // ── Collision resolution ───────────────────────────────────────────────────
 
 interface PlacedRect {
@@ -264,6 +491,10 @@ interface LabelWorkItem {
   edgeId: string
   preferredT: number
   size: { w: number; h: number }
+  /** Visual pill size for node-gap checks (zoom=1). */
+  cssSize: { w: number; h: number }
+  segs: PathSegment[]
+  basePerp: number
   candidates: LabelCandidate[]
   sortX: number
   sortY: number
@@ -280,7 +511,13 @@ function offsetPerpendicular(segs: PathSegment[], t: number, offset: number): { 
   return { x: (-dy / len) * offset, y: (dx / len) * offset }
 }
 
-function buildCandidates(segs: PathSegment[], preferredT: number, perpOffset: number): LabelCandidate[] {
+function buildCandidates(
+  segs: PathSegment[],
+  preferredT: number,
+  perpOffset: number,
+  /** When set, prefer / search this range first (unique stem). */
+  preferredRange?: { lo: number; hi: number },
+): LabelCandidate[] {
   const mk = (t: number): LabelCandidate => {
     const base = pointAtFraction(segs, t)
     const off = offsetPerpendicular(segs, t, perpOffset)
@@ -288,16 +525,40 @@ function buildCandidates(segs: PathSegment[], preferredT: number, perpOffset: nu
   }
   const candidates: LabelCandidate[] = [mk(preferredT)]
   const STEP = 0.01
-  for (let t = 0.05; t <= 0.95 + 1e-9; t += STEP) {
+  const lo = preferredRange ? Math.max(0.05, preferredRange.lo) : 0.05
+  const hi = preferredRange ? Math.min(0.95, preferredRange.hi) : 0.95
+
+  // Prefer unique-stem samples first, then fall back to the full path so
+  // collision resolution can still escape a crowded stem.
+  for (let t = lo; t <= hi + 1e-9; t += STEP) {
     candidates.push(mk(t))
   }
+  if (preferredRange) {
+    for (let t = 0.05; t <= 0.95 + 1e-9; t += STEP) {
+      if (t >= lo && t <= hi) continue
+      candidates.push(mk(t))
+    }
+  }
+
   candidates.sort((a, b) => {
+    const inRange = (t: number) =>
+      !preferredRange || (t >= lo - 1e-9 && t <= hi + 1e-9)
+    const aIn = inRange(a.t)
+    const bIn = inRange(b.t)
+    if (aIn !== bIn) return aIn ? -1 : 1
     const da = Math.abs(a.t - preferredT)
     const db = Math.abs(b.t - preferredT)
     if (da !== db) return da - db
     return Math.abs(a.t - 0.5) - Math.abs(b.t - 0.5)
   })
   return candidates
+}
+
+interface RoutedEdge {
+  edge: Edge
+  segs: PathSegment[]
+  samples: PathSample[]
+  label: string
 }
 
 function computeLayout(
@@ -307,16 +568,35 @@ function computeLayout(
 ): Map<string, EdgeLabelAnchor> {
   const nodes = Array.from(nodeInternals.values())
 
-  const workItems: LabelWorkItem[] = []
-  for (const edge of edges) {
-    const label = getDisplayLabel(edge)
-    if (!label) continue
+  // Inflate node boxes so label pills keep a visible gap from node borders.
+  const nodeObstacles: PlacedRect[] = nodes.map((n) => {
+    const w = n.width ?? 160
+    const h = n.height ?? 80
+    const x = (n.positionAbsolute?.x ?? n.position.x) - NODE_LABEL_GAP
+    const y = (n.positionAbsolute?.y ?? n.position.y) - NODE_LABEL_GAP
+    return { x, y, w: w + 2 * NODE_LABEL_GAP, h: h + 2 * NODE_LABEL_GAP }
+  })
 
+  // Pass 1: route every edge so fan-in/fan-out sharing can be detected even
+  // against unlabeled siblings that occupy the same corridor.
+  const routed: RoutedEdge[] = []
+  for (const edge of edges) {
     const route = computeEdgeRoute(edge, nodes, edges, direction)
     if (!route.waypoints || route.waypoints.length < 2) continue
-
     const segs = buildPathSegments(route.waypoints)
     if (segs.length === 0) continue
+    routed.push({
+      edge,
+      segs,
+      samples: samplePath(segs),
+      label: getDisplayLabel(edge),
+    })
+  }
+
+  const workItems: LabelWorkItem[] = []
+  for (const item of routed) {
+    if (!item.label) continue
+    const { edge, segs } = item
 
     const parallelEdges = edges
       .filter(
@@ -333,7 +613,51 @@ function computeLayout(
         ? (labelOrder - (parallelEdges.length - 1) / 2) * PARALLEL_LABEL_STACK_GAP
         : 0
 
-    const preferredT = getPreferredT(edge, parallelEdges, labelOrder)
+    // Peers for sharing: other routed edges (especially same target / source).
+    // Prefer same-endpoint peers so unrelated crossings don't end the stem early.
+    const sameEndpointPeers = routed
+      .filter(
+        (r) =>
+          r.edge.id !== edge.id &&
+          (r.edge.target === edge.target ||
+            r.edge.source === edge.source ||
+            r.edge.target === edge.source ||
+            r.edge.source === edge.target),
+      )
+      .map((r) => r.samples)
+    const peerSamples =
+      sameEndpointPeers.length > 0
+        ? sameEndpointPeers
+        : routed.filter((r) => r.edge.id !== edge.id).map((r) => r.samples)
+
+    const hasPeers = peerSamples.length > 0
+    const stem = hasPeers
+      ? findUniqueStemRange(item.samples, peerSamples)
+      : { uniqueEndFromSource: 0.5, uniqueStartFromTarget: 0.5 }
+    const preferredT = hasPeers
+      ? preferredTForUniqueStem(edge, parallelEdges, labelOrder, stem, segs)
+      : getPreferredT(edge, parallelEdges, labelOrder)
+
+    let preferredRange: { lo: number; hi: number } | undefined
+    if (hasPeers && typeof data?.labelT !== 'number') {
+      const fromSourceLen = stem.uniqueEndFromSource
+      const fromTargetLen = 1 - stem.uniqueStartFromTarget
+      if (fromSourceLen >= MIN_UNIQUE_STEM && fromSourceLen >= fromTargetLen) {
+        const segRange = uniqueSegmentTRange(segs, stem, true)
+        preferredRange = segRange
+          ? { lo: segRange.lo, hi: segRange.hi }
+          : { lo: 0.06, hi: Math.max(0.12, Math.min(0.45, stem.uniqueEndFromSource * 0.55)) }
+      } else if (fromTargetLen >= MIN_UNIQUE_STEM) {
+        const segRange = uniqueSegmentTRange(segs, stem, false)
+        preferredRange = segRange
+          ? { lo: segRange.lo, hi: segRange.hi }
+          : {
+              lo: Math.min(0.88, Math.max(0.55, stem.uniqueStartFromTarget + 0.02)),
+              hi: 0.94,
+            }
+      }
+    }
+
     const preferredBase = pointAtFraction(segs, preferredT)
     const preferredOff = offsetPerpendicular(segs, preferredT, perpOffset)
     const preferred = { x: preferredBase.x + preferredOff.x, y: preferredBase.y + preferredOff.y }
@@ -341,8 +665,11 @@ function computeLayout(
     workItems.push({
       edgeId: edge.id,
       preferredT,
-      size: estimateLabelSize(label),
-      candidates: buildCandidates(segs, preferredT, perpOffset),
+      size: estimateLabelSize(item.label),
+      cssSize: estimateLabelCssSize(item.label),
+      segs,
+      basePerp: perpOffset,
+      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange),
       sortX: preferred.x,
       sortY: preferred.y,
     })
@@ -353,16 +680,49 @@ function computeLayout(
 
   const placed: PlacedRect[] = []
   const result = new Map<string, EdgeLabelAnchor>()
+  /** Try path-aligned first, then nudge off the wire to clear tight node gaps. */
+  const NODE_ESCAPE_PERPS = [0, 22, -22, 36, -36, 52, -52, 70, -70]
 
   for (const item of workItems) {
-    let chosen = item.candidates[0]
-    for (const cand of item.candidates) {
+    const pointFor = (t: number, perp: number): LabelCandidate => {
+      const base = pointAtFraction(item.segs, t)
+      const off = offsetPerpendicular(item.segs, t, item.basePerp + perp)
+      return { t, x: base.x + off.x, y: base.y + off.y }
+    }
+    const cssRectAt = (cand: LabelCandidate): PlacedRect => ({
+      x: cand.x - item.cssSize.w / 2,
+      y: cand.y - item.cssSize.h / 2,
+      w: item.cssSize.w,
+      h: item.cssSize.h,
+    })
+    const clearOfNodes = (cand: LabelCandidate) =>
+      !nodeObstacles.some((n) => rectsOverlap(n, cssRectAt(cand)))
+    const clearOfLabels = (cand: LabelCandidate) => {
       const rect = { x: cand.x - item.size.w / 2, y: cand.y - item.size.h / 2, w: item.size.w, h: item.size.h }
-      if (!placed.some((p) => rectsOverlap(p, rect))) {
-        chosen = cand
-        break
+      return !placed.some((p) => rectsOverlap(p, rect))
+    }
+
+    let chosen: LabelCandidate | null = null
+    for (const escape of NODE_ESCAPE_PERPS) {
+      for (const base of item.candidates) {
+        const cand = escape === 0 ? base : pointFor(base.t, escape)
+        if (clearOfLabels(cand) && clearOfNodes(cand)) {
+          chosen = cand
+          break
+        }
+      }
+      if (chosen) break
+    }
+    if (!chosen) {
+      for (const cand of item.candidates) {
+        if (clearOfLabels(cand)) {
+          chosen = cand
+          break
+        }
       }
     }
+    if (!chosen) chosen = item.candidates[0]
+
     placed.push({ x: chosen.x - item.size.w / 2, y: chosen.y - item.size.h / 2, w: item.size.w, h: item.size.h })
     result.set(item.edgeId, { x: chosen.x, y: chosen.y, t: chosen.t })
   }

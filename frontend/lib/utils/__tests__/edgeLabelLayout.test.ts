@@ -156,4 +156,129 @@ describe('computeEdgeLabelLayout', () => {
     expect(rb.get('e1')!.y).toBeCloseTo(240, 0)
     expect(ra).not.toBe(rb)
   })
+
+  it('places fan-in labels on unique stems, not the shared trunk', () => {
+    // Three sources stacked vertically, one target to the right — routes drop
+    // then join a shared horizontal trunk into the target (the screenshot case).
+    const nodes = [
+      makeNode('n1', 100, 40),
+      makeNode('n2', 100, 160),
+      makeNode('n3', 100, 280),
+      makeNode('sink', 700, 160),
+    ]
+    const edges = [
+      makeEdge('e1', 'n1', 'sink', { label: 'sends update' }),
+      makeEdge('e2', 'n2', 'sink', { label: 'stores comment' }),
+      makeEdge('e3', 'n3', 'sink', { label: 'stores like' }),
+    ]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+
+    const a1 = res.get('e1')!
+    const a2 = res.get('e2')!
+    const a3 = res.get('e3')!
+    expect(a1).toBeDefined()
+    expect(a2).toBeDefined()
+    expect(a3).toBeDefined()
+
+    // Each label should sit near its own source's y (unique vertical stem),
+    // not stacked on the shared horizontal mid-corridor (~y of sink center).
+    const sinkCenterY = 160 + 40
+    expect(Math.abs(a1.y - sinkCenterY)).toBeGreaterThan(30)
+    expect(Math.abs(a3.y - sinkCenterY)).toBeGreaterThan(30)
+
+    // Labels must remain associated with distinct vertical positions.
+    const ys = [a1.y, a2.y, a3.y].sort((x, y) => x - y)
+    expect(ys[1] - ys[0]).toBeGreaterThan(20)
+    expect(ys[2] - ys[1]).toBeGreaterThan(20)
+
+    // And stay off the far-right shared trunk (closer to sources than sink).
+    const sinkLeft = 700
+    expect(a1.x).toBeLessThan(sinkLeft - 80)
+    expect(a2.x).toBeLessThan(sinkLeft - 80)
+    expect(a3.x).toBeLessThan(sinkLeft - 80)
+
+    expect(overlaps(rectOf(a1, 'sends update'), rectOf(a2, 'stores comment'))).toBe(false)
+    expect(overlaps(rectOf(a2, 'stores comment'), rectOf(a3, 'stores like'))).toBe(false)
+  })
+
+  it('places labels on vertical drops into a shared horizontal bus', () => {
+    const nodes = [
+      makeNode('notif', 80, 40, 200, 80),
+      makeNode('comment', 320, 40, 200, 80),
+      makeNode('like', 560, 40, 200, 80),
+      makeNode('sink', 400, 400, 200, 80),
+    ]
+    const edges = [
+      makeEdge('e1', 'notif', 'sink', {
+        label: 'sends update',
+        // Force bottom→top so routes drop then join a shared bus.
+      }),
+      makeEdge('e2', 'comment', 'sink', { label: 'stores comment' }),
+      makeEdge('e3', 'like', 'sink', { label: 'stores like' }),
+    ]
+    // Attach explicit handles like the canvas does after connection.
+    edges[0].sourceHandle = 'source-bottom'
+    edges[0].targetHandle = 'target-top'
+    edges[1].sourceHandle = 'source-bottom'
+    edges[1].targetHandle = 'target-top'
+    edges[2].sourceHandle = 'source-bottom'
+    edges[2].targetHandle = 'target-top'
+
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'TD')
+    const a1 = res.get('e1')!
+    const a2 = res.get('e2')!
+    const a3 = res.get('e3')!
+
+    // Labels must sit on the private vertical legs (near each source's x),
+    // not on the shared horizontal bus at y≈260.
+    expect(a1.x).toBeCloseTo(80 + 100, 0)
+    expect(a2.x).toBeCloseTo(320 + 100, 0)
+    expect(a3.x).toBeCloseTo(560 + 100, 0)
+    expect(a1.y).toBeLessThan(250)
+    expect(a2.y).toBeLessThan(250)
+    expect(a3.y).toBeLessThan(250)
+    expect(Math.abs(a1.x - a2.x)).toBeGreaterThan(100)
+    expect(Math.abs(a2.x - a3.x)).toBeGreaterThan(100)
+  })
+
+  it('keeps a gap between chain-edge labels and their source nodes', () => {
+    // Mid-path waypoints on a straight shot used to split the edge into two
+    // segments and park the label flush against the source (BOP / Wellhead).
+    const nodes = [
+      makeNode('bop', 100, 100, 200, 88),
+      makeNode('wh', 400, 100, 200, 88),
+      makeNode('next', 700, 100, 200, 88),
+    ]
+    const edges = [
+      makeEdge('e1', 'bop', 'wh', { label: 'controls pressure' }),
+      makeEdge('e2', 'wh', 'next', { label: 'safely contains' }),
+    ]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+    const a1 = res.get('e1')!
+    const a2 = res.get('e2')!
+
+    const cssSize = (text: string) => ({
+      w: Math.max(30, text.length * 6 + 12),
+      h: 14,
+    })
+    const gap = 12
+    const overlapsNode = (
+      anchor: { x: number; y: number },
+      text: string,
+      node: { x: number; y: number; w: number; h: number },
+    ) => {
+      const s = cssSize(text)
+      const lr = { x: anchor.x - s.w / 2, y: anchor.y - s.h / 2, w: s.w, h: s.h }
+      const nr = { x: node.x - gap, y: node.y - gap, w: node.w + 2 * gap, h: node.h + 2 * gap }
+      return lr.x < nr.x + nr.w && lr.x + lr.w > nr.x && lr.y < nr.y + nr.h && lr.y + lr.h > nr.y
+    }
+
+    expect(overlapsNode(a1, 'controls pressure', { x: 100, y: 100, w: 200, h: 88 })).toBe(false)
+    expect(overlapsNode(a1, 'controls pressure', { x: 400, y: 100, w: 200, h: 88 })).toBe(false)
+    expect(overlapsNode(a2, 'safely contains', { x: 400, y: 100, w: 200, h: 88 })).toBe(false)
+    expect(overlapsNode(a2, 'safely contains', { x: 700, y: 100, w: 200, h: 88 })).toBe(false)
+    // Prefer mid-gap along the path, not the old source-hugging ~0.225.
+    expect(a1.t).toBeGreaterThan(0.35)
+    expect(a2.t).toBeGreaterThan(0.35)
+  })
 })

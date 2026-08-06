@@ -48,6 +48,9 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
       description: 'Plan architecture via LLM or concept template',
       weight: 5,
       async execute(data: AiPipelineData, context: PipelineContext): Promise<StageResult<AiPipelineData>> {
+        if (!data.conceptDetection) {
+          return errorResult(new Error('Architecture planning requires concept detection'));
+        }
         const planningInput: ArchitecturePlanningInput = {
           prompt: data.prompt,
           diagramSize: data.diagramSize,

@@ -1,12 +1,19 @@
 export type Direction = 'TD' | 'LR' | 'BT' | 'RL'
 export type Shape = 'rectangle' | 'diamond' | 'circle' | 'rounded' | 'cylinder' | 'hexagon' | 'parallelogram'
-export type EdgeType = 'arrow' | 'dotted' | 'thick' | 'open' | 'bidirectional'
+export type EdgeType = 'arrow' | 'dotted' | 'thick' | 'open' | 'bidirectional' | 'invisible'
+
+export interface ParsedNodeStyle {
+  fill?: string
+  stroke?: string
+}
 
 export interface ParsedNode {
   id: string
   label: string
   shape: Shape
   subgraphId: string | null
+  /** Optional Mermaid style/classDef fill+stroke applied at build time. */
+  style?: ParsedNodeStyle
 }
 
 export interface ParsedEdge {

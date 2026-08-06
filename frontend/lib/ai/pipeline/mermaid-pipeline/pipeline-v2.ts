@@ -1,6 +1,5 @@
 import { Pipeline, toDomainResult } from '@/lib/pipeline-core';
 import type { DomainPipelineResult } from '@/lib/pipeline-core';
-import type { PipelineResult as CorePipelineResult } from '@/lib/pipeline-core/PipelineResult';
 import type { UserIntent, LayerType, ArchitectureEdge } from '../../types';
 import type { ArchitectureStyle, DiagramScore, PipelineDiagnostics } from '../types';
 import type { PipelineResult, PipelineState } from './types';
@@ -15,9 +14,9 @@ export async function runAiMermaidPipelineV2(
   userIntent: UserIntent,
   onProgress?: (step: string, progress: number) => void
 ): Promise<DomainPipelineResult<PipelineResult>> {
-  const pipeline = new Pipeline('ai-mermaid-pipeline-v2', createAiMermaidStages());
+  const pipeline = new Pipeline<UserIntent, AiPipelineData>('ai-mermaid-pipeline-v2', createAiMermaidStages());
 
-  const result: CorePipelineResult<AiPipelineData> = await pipeline.execute(userIntent, {
+  const result = await pipeline.execute(userIntent, {
     onProgress: (stage: string, progress: number) => {
       onProgress?.(stage, progress);
     },

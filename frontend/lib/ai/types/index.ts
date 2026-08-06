@@ -175,6 +175,8 @@ export interface ReactFlowNode {
   type: string;
   position: { x: number; y: number };
   parentId?: string;
+  /** Alias kept for React Flow / importDiagram parent resolution. */
+  parentNode?: string;
   data: {
     label: string;
     icon: string;
@@ -188,10 +190,23 @@ export interface ReactFlowNode {
     tier?: string;
     tierColor?: string;
     subtitle?: string;
+    sublabel?: string;
     tech?: string;
+    technology?: string;
     status?: 'healthy' | 'warning' | 'error' | 'unknown';
     isExternal?: boolean;
     hideTierTag?: boolean;
+    /** Canvas silhouette from Mermaid build (rectangle, cylinder, …). */
+    shape?: string;
+    color?: string;
+    accentColor?: string;
+    category?: string;
+    componentType?: string;
+    typeId?: string;
+    iconSource?: string;
+    nodeWidth?: number;
+    nodeHeight?: number;
+    [key: string]: unknown;
   };
   width?: number;
   height?: number;
@@ -224,15 +239,23 @@ export interface ReactFlowEdge {
     strokeDasharray: string;
   };
   markerEnd: { type: string; color: string };
+  markerStart?: { type: string; color: string };
+  hidden?: boolean;
   data: {
     communicationType: CommunicationType;
     pathType: PathType;
     label: string;
-    edgeVariant?: 'solid' | 'dashed' | 'dotted' | 'feedback';
+    edgeVariant?: 'solid' | 'dashed' | 'dotted' | 'feedback' | 'thick' | 'bidirectional' | 'invisible';
     labelX?: number;
     labelY?: number;
     labelAngle?: number;
     waypoints?: { x: number; y: number }[];
+    importance?: string;
+    connectionType?: string;
+    syncAsync?: string;
+    portType?: string;
+    protocol?: string;
+    [key: string]: unknown;
   };
 }
 

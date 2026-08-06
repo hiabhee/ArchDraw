@@ -1,5 +1,13 @@
 [
   {
+    "id": "research",
+    "label": "Research",
+    "category": "Compute",
+    "color": "#64748b",
+    "icon": "FileText",
+    "description": "Blank node that appears empty on the canvas so you can name it immediately — use it for notes, open questions, or WIP components."
+  },
+  {
     "id": "client_web",
     "label": "Web",
     "category": "Client & Entry",

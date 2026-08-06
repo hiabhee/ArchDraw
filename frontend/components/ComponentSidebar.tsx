@@ -7,7 +7,7 @@ import { componentRegistry, CORE_COMPONENTS, AWS_COMPONENTS, DB_COMPONENTS, SERV
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useDiagramStore } from '@/store/diagramStore';
-import { createNode } from '@/lib/factory';
+import { createPaletteNode, isBlankInitComponent } from '@/lib/factory';
 import { getViewportCenter } from '@/lib/utils';
 
 const SERVICE_TYPE_MAP: Record<string, string> = {
@@ -167,26 +167,16 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
   const handleAdd = (comp: ComponentEntry) => {
     const center = getViewportCenter();
     const serviceType = SERVICE_TYPE_MAP[comp.id] || (comp.category?.toLowerCase().includes('messaging') || comp.category?.toLowerCase().includes('queue') ? 'queue' : comp.category?.toLowerCase().includes('ai') || comp.category?.toLowerCase().includes('ml') ? 'ai' : undefined);
-    const node = createNode(
-      comp.id,
-      comp.label,
-      center,
-      {
-        type: 'systemNode',
-        data: {
-          componentId: comp.id,
-          category: comp.category,
-          color: comp.color,
-          icon: comp.icon,
-          technology: comp.technology,
-          serviceType,
-        }
-      }
-    );
+    const blank = isBlankInitComponent(comp.id);
+    const node = createPaletteNode(comp, center, { serviceType, blankInit: blank });
     if (node) {
       const store = useDiagramStore.getState();
       store.pushHistory();
       store.importDiagram([...store.nodes, node], store.edges);
+      if (blank) {
+        store.setSelectedNodeId(node.id);
+        store.setSelectedNodeIds([node.id]);
+      }
     }
   };
 

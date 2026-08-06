@@ -22,10 +22,13 @@ describe('Mermaid Full Syntax Coverage', () => {
       I[("big circle")]
       J[["subroutine"]]
       K[("database")]
-      L{{"hexagonal"}}`);
+      L{{"hexagonal"}}
+      M([stadium])
+      N>asymmetric]
+      O(((double circle)))`);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.ast.nodes.length).toBe(12);
+      expect(r.ast.nodes.length).toBe(15);
       const shapes = Object.fromEntries(r.ast.nodes.map(n => [n.id, n.shape]));
       expect(shapes['A']).toBe('rectangle');
       expect(shapes['B']).toBe('rounded');
@@ -39,6 +42,9 @@ describe('Mermaid Full Syntax Coverage', () => {
       expect(shapes['J']).toBe('rectangle');
       expect(shapes['K']).toBe('cylinder');
       expect(shapes['L']).toBe('hexagon');
+      expect(shapes['M']).toBe('rounded');
+      expect(shapes['N']).toBe('parallelogram');
+      expect(shapes['O']).toBe('circle');
     }
   });
 
@@ -377,6 +383,119 @@ Consumer 1"]
     if (r.ok) {
       expect(r.ast.nodes.map(n => n.id)).toEqual(['A', 'B', 'C', 'D']);
       expect(r.ast.edges.length).toBe(1);
+    }
+  });
+
+  it('ampersand multi-node edges', () => {
+    const r = p(`flowchart TB
+      A & B --> C & D
+      E --> F & G`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.map(n => n.id).sort()).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+      expect(r.ast.edges.length).toBe(6);
+      const pairs = r.ast.edges.map(e => `${e.source}->${e.target}`).sort();
+      expect(pairs).toEqual(['A->C', 'A->D', 'B->C', 'B->D', 'E->F', 'E->G']);
+    }
+  });
+
+  it('invisible links ~~~', () => {
+    const r = p(`graph LR
+      A ~~~ B
+      C --> D`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.edges.length).toBe(2);
+      const inv = r.ast.edges.find(e => e.source === 'A' && e.target === 'B');
+      expect(inv?.type).toBe('invisible');
+      expect(r.ast.edges.find(e => e.source === 'C')?.type).toBe('arrow');
+    }
+  });
+
+  it('@{ shape } expanded syntax', () => {
+    const r = p(`flowchart LR
+      A@{ shape: diamond, label: "Decide" }
+      B@{ shape: stadium, label: "Start" }
+      C@{ shape: cyl, label: "DB" }
+      A --> B --> C`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const byId = Object.fromEntries(r.ast.nodes.map(n => [n.id, n]));
+      expect(byId.A.shape).toBe('diamond');
+      expect(byId.A.label).toBe('Decide');
+      expect(byId.B.shape).toBe('rounded');
+      expect(byId.B.label).toBe('Start');
+      expect(byId.C.shape).toBe('cylinder');
+      expect(r.ast.edges.length).toBe(2);
+    }
+  });
+
+  it('markdown string labels', () => {
+    const r = p(`flowchart LR
+      A["\`**Bold** and _italic_\`"]
+      B["\`Line1
+Line2\`"]
+      A --> B`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.find(n => n.id === 'A')?.label).toBe('Bold and italic');
+      expect(r.ast.nodes.find(n => n.id === 'B')?.label).toBe('Line1\nLine2');
+    }
+  });
+
+  it('YAML frontmatter and accTitle/accDescr are ignored', () => {
+    const r = p(`---
+title: Demo
+config:
+  theme: dark
+---
+flowchart LR
+  accTitle: Accessible title
+  accDescr: A longer description
+  A --> B`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.map(n => n.id)).toEqual(['A', 'B']);
+      expect(r.ast.edges.length).toBe(1);
+      expect(r.ast.direction).toBe('LR');
+    }
+  });
+
+  it('classDef and style apply fill to nodes', () => {
+    const r = p(`graph LR
+      classDef hot fill:#ff0000,stroke:#111
+      A["Hot"]
+      B["Styled"]
+      class A hot
+      style B fill:#00ff00,stroke:#222
+      A --> B`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.find(n => n.id === 'A')?.style?.fill).toBe('#ff0000');
+      expect(r.ast.nodes.find(n => n.id === 'B')?.style?.fill).toBe('#00ff00');
+      expect(r.ast.nodes.find(n => n.id === 'B')?.style?.stroke).toBe('#222');
+    }
+  });
+
+  it('edge ids before arrows are accepted', () => {
+    const r = p(`flowchart LR
+      A e1@--> B
+      A e2@==> C`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.edges.length).toBe(2);
+      expect(r.ast.edges[0].type).toBe('arrow');
+      expect(r.ast.edges[1].type).toBe('thick');
+    }
+  });
+
+  it('chained ampersand segments', () => {
+    const r = p(`flowchart LR
+      a --> b & c --> d`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const pairs = r.ast.edges.map(e => `${e.source}->${e.target}`).sort();
+      expect(pairs).toEqual(['a->b', 'a->c', 'b->d', 'c->d']);
     }
   });
 });

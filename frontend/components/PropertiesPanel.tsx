@@ -285,7 +285,7 @@ export function PropertiesPanel() {
   const isShapeNode = node?.type === 'shapeNode';
 
   const accent = data.accentColor || data.color || '#3b82f6';
-  const currentType = data.componentType || 'service';
+  const currentType = data.componentType || data.typeId || data.serviceType || 'service';
 
   const statusColor = data.status === 'warning' ? '#F59E0B' : data.status === 'error' ? '#EF4444' : data.status === 'unknown' ? '#6B7280' : '#10B981';
 
