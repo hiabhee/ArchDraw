@@ -109,7 +109,7 @@ function enrichRepoEdges(edges: Edge[], enrichedNodes: Node[]): Edge[] {
  */
 export function parseAndValidateRepoDiagram(
   ndjson: string,
-  direction: 'LR' | 'TB' = 'TB'
+  direction: 'LR' | 'TB' = 'LR'
 ): ImportRepoDiagramResult | null {
   const { nodes: rfNodes, edges: rfEdges } = parseRepoNdjsonToReactFlow(ndjson);
 

@@ -59,7 +59,7 @@ export class IntegratedLayoutEngine {
   }
 
   private toLayoutParams(objects: RFObjects, options: IntegratedLayoutOptions): LayoutParams {
-    const direction = this.mapDirection(options.direction ?? 'TD');
+    const direction = this.mapDirection(options.direction ?? 'LR');
     const defaults = defaultCompoundLayoutOptions(direction);
     return {
       nodes: objects.nodes.map(node => ({
@@ -139,7 +139,7 @@ export function getIntegratedLayoutEngine(): IntegratedLayoutEngine {
 /** Documented canonical helper for Mermaid / pipeline RF graphs. */
 export function applyRfLayout(
   objects: RFObjects,
-  direction: Direction = 'TD',
+  direction: Direction = 'LR',
   options?: IntegratedLayoutOptions['options']
 ): RFObjects {
   return getIntegratedLayoutEngine().layoutSync(objects, { direction, options });

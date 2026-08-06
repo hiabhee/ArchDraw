@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { MODELS, getProviderForModel as sharedGetProviderForModel } from '@/lib/ai/models';
+import { DEFAULT_GENERATION_MODEL, MODELS, getProviderForModel as sharedGetProviderForModel } from '@/lib/ai/models';
 
 /**
  * Client view of the canonical model registry (`lib/ai/models.ts`). Re-exported
@@ -23,6 +23,6 @@ type ModelStore = {
 };
 
 export const useModelStore = create<ModelStore>((set) => ({
-  selectedModel: 'openai/gpt-oss-120b',
+  selectedModel: DEFAULT_GENERATION_MODEL,
   setSelectedModel: (model) => set({ selectedModel: model }),
 }));

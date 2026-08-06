@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import Groq from 'groq-sdk';
 import logger from '@/lib/logger';
-import { MODELS, type AIProvider } from '@/lib/ai/models';
+import { DEFAULT_GENERATION_MODEL, MODELS, type AIProvider } from '@/lib/ai/models';
 
 // Ambient request ID for LLM call counting — no signature changes needed downstream
 // Two counters:
@@ -547,7 +547,7 @@ export class OpenRouterClient {
 
   constructor(apiKey: string, model?: string) {
     this.apiKey = apiKey;
-    this.model = OpenRouterClient.mapModel(model) || 'openai/gpt-oss-120b';
+    this.model = OpenRouterClient.mapModel(model) || DEFAULT_GENERATION_MODEL;
     
     this.chat = {
       completions: {

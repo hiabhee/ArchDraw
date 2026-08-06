@@ -267,7 +267,7 @@ export default function EditorPage() {
       // (parent groups resized to contain nested children) without requiring a
       // manual toggle. Falls back to the AI pipeline's own layout on failure.
       const direction = inferDiagramDirection(result);
-      const activePresetId = direction ?? store.activeLayoutPresetId;
+      const activePresetId = direction ?? 'layered-lr';
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
       const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection);
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
@@ -339,15 +339,20 @@ export default function EditorPage() {
 
     renameCanvas(activeCanvasId, canvasName);
 
-    // Sync layout preset dropdown with prompt layout direction
+    // Default horizontal (LR); user can switch to vertical via the layout toggler.
     if (!isGitHubRepoUrl(description)) {
       const promptLower = description.toLowerCase();
-      const isHorizontalRequested = promptLower.includes('horizontal') || promptLower.includes('horizontally') || promptLower.includes('left-to-right') || promptLower.includes('left to right') || promptLower.includes('graph lr') || promptLower.includes('horizontal layout');
-      if (isHorizontalRequested) {
-        useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
-      } else {
-        useDiagramStore.getState().setActiveLayoutPresetId('layered-tb');
-      }
+      const isVerticalRequested =
+        promptLower.includes('vertical') ||
+        promptLower.includes('vertically') ||
+        promptLower.includes('top-to-bottom') ||
+        promptLower.includes('top to bottom') ||
+        promptLower.includes('graph td') ||
+        promptLower.includes('graph tb') ||
+        promptLower.includes('vertical layout');
+      useDiagramStore.getState().setActiveLayoutPresetId(isVerticalRequested ? 'layered-tb' : 'layered-lr');
+    } else {
+      useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
     }
 
     startGeneration();

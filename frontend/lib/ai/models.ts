@@ -27,9 +27,9 @@ export interface ModelDefinition {
 }
 
 export const MODELS: readonly ModelDefinition[] = [
-  // Groq (primary — fast)
-  { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq', supportsStreaming: true },
+  // Groq (primary — higher TPM for long prompts)
   { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 (70B)', provider: 'groq' },
+  { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq', supportsStreaming: true },
   { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 (8B)', provider: 'groq' },
   { id: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS (20B)', provider: 'groq' },
   // OpenRouter (additional options)
@@ -38,6 +38,12 @@ export const MODELS: readonly ModelDefinition[] = [
   { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Meta Llama 3.3 (70B)', provider: 'openrouter' },
   { id: 'meta-llama/llama-3.2-3b-instruct', label: 'Meta Llama 3.2 (3B)', provider: 'openrouter' },
 ] as const;
+
+/** Default model for prompt → diagram generation (longer context, higher TPM on Groq). */
+export const DEFAULT_GENERATION_MODEL = 'llama-3.3-70b-versatile';
+
+/** Fallback when the primary model hits TPM limits or fails. */
+export const FALLBACK_GENERATION_MODEL = 'openai/gpt-oss-120b';
 
 export function getProviderForModel(modelId: string): AIProvider {
   // openai/gpt-oss-120b is served via Groq

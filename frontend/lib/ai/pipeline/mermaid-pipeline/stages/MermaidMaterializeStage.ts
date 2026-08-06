@@ -49,15 +49,15 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
 
     if (!isDomainSuccess(parseResult) || parseResult.data.nodes.length === 0) {
       logger.warn('[Pipeline] Planner failed or returned 0 nodes. Retrying with stronger instructions...');
-      const retryPrompt = `${prompt}\n\nIMPORTANT: Generate valid, complete Mermaid flowchart code containing at least 3-6 components.`;
+      const retryPrompt = `${prompt}\n\nIMPORTANT: Classify the user's intent first. Generate valid Mermaid with 3-6 components that match the topic — do NOT default to Browser, Load Balancer, and Database unless the prompt requires a web stack.`;
       try {
         const retryPlan = await runArchitecturePlanner(retryPrompt, diagramSize, detailLevel, model);
-        const retryCode = retryPlan.mermaidCode.replace(/^graph LR/m, 'graph TD');
+        const retryCode = retryPlan.mermaidCode.replace(/^graph TD/m, 'graph LR');
         parseResult = await runMermaidPipeline(retryCode);
         currentPlan = {
           ...currentPlan,
           mermaidCode: retryCode,
-          formatConfig: { ...currentPlan.formatConfig, diagramType: 'graph TD' },
+          formatConfig: { ...currentPlan.formatConfig, diagramType: 'graph LR' },
           reasoning: retryPlan.reasoning,
         };
       } catch {
@@ -70,7 +70,7 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
       usedFallback = true;
       const fallback = generateFallbackPlan(prompt);
       currentPlan = { ...currentPlan, ...fallback };
-      const fallbackCode = fallback.mermaidCode.replace(/^graph LR/m, 'graph TD');
+      const fallbackCode = fallback.mermaidCode.replace(/^graph TD/m, 'graph LR');
       parseResult = await runMermaidPipeline(fallbackCode);
       currentPlan.mermaidCode = fallbackCode;
 

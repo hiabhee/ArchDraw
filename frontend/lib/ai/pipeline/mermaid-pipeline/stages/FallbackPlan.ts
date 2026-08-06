@@ -1,7 +1,7 @@
 import { themePrimaryColor, themeToNodeTypeStyles, getDiagramTheme } from '@/lib/theme/stylingConstants';
 
 export function generateFallbackPlan(prompt: string) {
-  const mermaidCode = `graph TD
+  const mermaidCode = `graph LR
   subgraph CLIENT["Client Layer"]
     user["User"]
   end
@@ -24,7 +24,7 @@ export function generateFallbackPlan(prompt: string) {
   return {
     formatConfig: {
       format: 'mermaid' as const,
-      diagramType: 'graph TD' as const,
+      diagramType: 'graph LR' as const,
       optionalVariants: [],
     },
     styleConfig: {

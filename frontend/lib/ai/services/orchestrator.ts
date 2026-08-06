@@ -96,7 +96,7 @@ function phaseForStep(step: string): GenerationProgress['phase'] {
   const lower = step.toLowerCase();
   // Map to actual stage names from AI pipeline
   if (lower === 'concept-detection') return 'planning';
-  if (lower === 'planning-orchestrator') return 'planning';
+  if (lower === 'architecture-planning' || lower === 'planning-orchestrator') return 'planning';
   if (lower === 'layout-override') return 'layout';
   if (lower === 'mermaid-materialize') return 'generating';
   if (lower === 'scoring') return 'scoring';

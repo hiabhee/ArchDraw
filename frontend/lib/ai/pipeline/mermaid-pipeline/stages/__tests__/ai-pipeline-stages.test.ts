@@ -64,7 +64,7 @@ describe('LayoutOverrideStage', () => {
     inEditMode: false,
   };
 
-  it('forces vertical layout by default when no concept or explicit request', async () => {
+  it('forces horizontal layout by default when no concept or explicit vertical request', async () => {
     const conceptDetection: ConceptDetectionOutput = {
       implicitConcept: null,
       promptLower: 'build a web app',
@@ -72,8 +72,8 @@ describe('LayoutOverrideStage', () => {
     };
     const result = await stage.execute({ plan: basePlan, conceptDetection }, createContext());
     expect(result.success).toBe(true);
-    expect(result.data!.formatConfig.diagramType).toBe('graph TD');
-    expect(result.data!.mermaidCode).toContain('graph TD');
+    expect(result.data!.formatConfig.diagramType).toBe('graph LR');
+    expect(result.data!.mermaidCode).toContain('graph LR');
   });
 
   it('uses LR layout for implicit concepts', async () => {
@@ -107,8 +107,8 @@ describe('generateFallbackPlan', () => {
   it('generates a valid fallback plan', () => {
     const plan = generateFallbackPlan('test prompt');
     expect(plan.formatConfig.format).toBe('mermaid');
-    expect(plan.formatConfig.diagramType).toBe('graph TD');
-    expect(plan.mermaidCode).toContain('graph TD');
+    expect(plan.formatConfig.diagramType).toBe('graph LR');
+    expect(plan.mermaidCode).toContain('graph LR');
     expect(plan.mermaidCode).toContain('API Gateway');
     expect(plan.mermaidCode).toContain('Database');
     expect(plan.styleConfig.primaryColor).toBe('#0f766e');
