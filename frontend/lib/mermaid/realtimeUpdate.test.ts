@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { unwrapDomainResult } from '@/lib/pipeline-core';
 import { useDiagramStore } from '@/store/diagramStore';
 import { runMermaidPipeline } from './pipeline';
 import { getDeterministicColor } from './planTranslator';
@@ -17,13 +18,12 @@ describe('Mermaid Editor Real-time Updates', () => {
   web_browser["Web Browser"] -->|requests| load_balancer["Load Balancer"]
   load_balancer -->|routes| web_server["Web Server"]`;
 
-    const res = await runMermaidPipeline(code);
-    expect(res.success).toBe(true);
-    expect(res.data.nodes.length).toBeGreaterThan(0);
-    expect(res.data.edges.length).toBeGreaterThan(0);
+    const data = unwrapDomainResult(await runMermaidPipeline(code));
+    expect(data.nodes.length).toBeGreaterThan(0);
+    expect(data.edges.length).toBeGreaterThan(0);
 
     const store = useDiagramStore.getState();
-    store.importDiagram(res.data.nodes as Node[], res.data.edges as Edge[]);
+    store.importDiagram(data.nodes as Node[], data.edges as Edge[]);
 
     // Deriving nodes and edges from store should return the imported elements
     const updatedNodes = useDiagramStore.getState().nodes;
@@ -44,25 +44,24 @@ describe('Mermaid Editor Real-time Updates', () => {
   end
   custom_circle(("Explicit Circle Shape"))`;
 
-    const res = await runMermaidPipeline(code);
-    expect(res.success).toBe(true);
+    const data = unwrapDomainResult(await runMermaidPipeline(code));
     
     // Group node and 2 leaf nodes = 3 nodes total
-    expect(res.data.nodes.length).toBe(3);
+    expect(data.nodes.length).toBe(3);
 
-    const dbNode = res.data.nodes.find(n => n.id === 'postgres_db');
+    const dbNode = data.nodes.find((n) => n.id === 'postgres_db');
     expect(dbNode).toBeDefined();
     // Database should be cylinder
     expect(dbNode?.data?.shape).toBe('cylinder');
     // Data layer category should be slate (#1e293b)
     expect(dbNode?.data?.color).toBe('#1e293b');
 
-    const circleNode = res.data.nodes.find(n => n.id === 'custom_circle');
+    const circleNode = data.nodes.find((n) => n.id === 'custom_circle');
     expect(circleNode).toBeDefined();
     // Explicit circle brackets (("...")) should map to circle
     expect(circleNode?.data?.shape).toBe('circle');
 
-    const groupNode = res.data.nodes.find(n => n.id === 'DATA_TIER');
+    const groupNode = data.nodes.find((n) => n.id === 'DATA_TIER');
     expect(groupNode).toBeDefined();
     expect(groupNode?.data?.color).toBe(getDeterministicColor('DATA_TIER'));
   });

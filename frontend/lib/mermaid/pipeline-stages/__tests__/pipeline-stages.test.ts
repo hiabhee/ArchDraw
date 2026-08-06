@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { unwrapDomainResult } from '@/lib/pipeline-core';
 import { ParseStage } from '../ParseStage';
 import { ValidateStage } from '../ValidateStage';
 import { BuildStage } from '../BuildStage';
@@ -151,21 +152,20 @@ describe('Pipeline integration - full Mermaid pipeline', () => {
   it('processes valid mermaid code end-to-end', async () => {
     const { runMermaidPipeline } = await import('../../pipeline');
     const result = await runMermaidPipeline(validMermaidCode);
+    const data = unwrapDomainResult(result);
 
-    expect(result.success).toBe(true);
-    expect(result.data.nodes.length).toBeGreaterThan(0);
-    expect(result.data.edges.length).toBeGreaterThan(0);
-    expect(result.data.nodes.every(n => n.position.x !== 0 || n.position.y !== 0)).toBe(true);
+    expect(data.nodes.length).toBeGreaterThan(0);
+    expect(data.edges.length).toBeGreaterThan(0);
+    expect(data.nodes.every((n) => n.position.x !== 0 || n.position.y !== 0)).toBe(true);
   });
 
   it('returns partial result for minimal mermaid code', async () => {
     const { runMermaidPipeline } = await import('../../pipeline');
-    const result = await runMermaidPipeline(`graph TD
-      A[Single Node]`);
+    const data = unwrapDomainResult(await runMermaidPipeline(`graph TD
+      A[Single Node]`));
 
-    expect(result.success).toBe(true);
-    expect(result.data.nodes.length).toBe(1);
-    expect(result.data.edges.length).toBe(0);
+    expect(data.nodes.length).toBe(1);
+    expect(data.edges.length).toBe(0);
   });
 
   it('composes production path from class stages', async () => {

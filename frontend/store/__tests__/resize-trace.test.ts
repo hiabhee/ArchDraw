@@ -47,7 +47,7 @@ describe('resize trace', () => {
     const node = useDiagramStore.getState().nodes.find((n) => n.id === 'grp-1');
     expect(node?.position.x).toBe(140);
     expect(node?.width).toBe(260);
-    expect(node?.position.x + (node?.width ?? 0)).toBe(400); // right edge preserved
+    expect((node?.position.x ?? 0) + (node?.width ?? 0)).toBe(400); // right edge preserved
   });
 
   it('keeps left edge fixed when dragging right handle', () => {

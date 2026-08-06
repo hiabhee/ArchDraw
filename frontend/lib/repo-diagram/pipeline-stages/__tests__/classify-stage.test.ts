@@ -3,7 +3,6 @@ import { ClassifyStage } from '../ClassifyStage';
 import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
 import type { EnrichmentInput } from '../enrichment-types';
 import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/types/repo-diagram';
-import type { ImportGraph } from '@/lib/repo-diagram/import-graph';
 
 function minimalSnapshot(overrides: Partial<RepoSnapshot> = {}): RepoSnapshot {
   return {
@@ -33,7 +32,7 @@ function baseInput(overrides: Partial<EnrichmentInput> = {}): EnrichmentInput {
     snapshot,
     subsystems: [] as Subsystem[],
     signals: [] as StaticSignal[],
-    importGraph: { edges: new Map(), external: new Set() } as ImportGraph,
+    importGraph: { edges: new Map(), external: new Map(), unresolved: new Map() },
     baselineNodes: [],
     baselineEdges: [],
     workflows: [],

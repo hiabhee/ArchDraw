@@ -64,7 +64,7 @@ export interface RFNode {
   position: { x: number; y: number }
   data: Record<string, unknown>
   parentNode?: string
-  extent?: 'parent'
+  extent?: 'parent' | [[number, number], [number, number]]
   width?: number
   height?: number
   style?: Record<string, unknown>

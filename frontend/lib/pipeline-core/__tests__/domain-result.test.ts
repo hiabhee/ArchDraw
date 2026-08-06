@@ -24,9 +24,11 @@ describe('DomainResult', () => {
       const domainResult = toDomainResult(pipelineResult);
 
       expect(isDomainSuccess(domainResult)).toBe(true);
-      expect(domainResult.data).toEqual({ nodes: [], edges: [] });
-      expect(domainResult.warnings).toEqual([]);
-      expect(domainResult.metrics).toBeDefined();
+      if (isDomainSuccess(domainResult)) {
+        expect(domainResult.data).toEqual({ nodes: [], edges: [] });
+        expect(domainResult.warnings).toEqual([]);
+        expect(domainResult.metrics).toBeDefined();
+      }
     });
 
     it('converts failed pipeline result to domain failure with inferred code', () => {
@@ -43,10 +45,12 @@ describe('DomainResult', () => {
       const domainResult = toDomainResult(pipelineResult);
 
       expect(isDomainFailure(domainResult)).toBe(true);
-      expect(domainResult.code).toBe('parse_failed');
-      expect(domainResult.error).toBeDefined();
-      expect(domainResult.warnings).toEqual(['warning1']);
-      expect(domainResult.aborted).toBe(false);
+      if (isDomainFailure(domainResult)) {
+        expect(domainResult.code).toBe('parse_failed');
+        expect(domainResult.error).toBeDefined();
+        expect(domainResult.warnings).toEqual(['warning1']);
+        expect(domainResult.aborted).toBe(false);
+      }
     });
 
     it('converts aborted pipeline result to domain failure with aborted code', () => {
@@ -63,8 +67,10 @@ describe('DomainResult', () => {
       const domainResult = toDomainResult(pipelineResult);
 
       expect(isDomainFailure(domainResult)).toBe(true);
-      expect(domainResult.code).toBe('aborted');
-      expect(domainResult.aborted).toBe(true);
+      if (isDomainFailure(domainResult)) {
+        expect(domainResult.code).toBe('aborted');
+        expect(domainResult.aborted).toBe(true);
+      }
     });
   });
 

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { unwrapDomainResult } from '@/lib/pipeline-core';
 import { runMermaidPipeline } from '../pipeline';
 import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
 import { buildReactFlowObjects } from '../buildReactFlow';
@@ -27,10 +28,9 @@ const flatCode = `graph LR
 
 describe('Layout diagnostic', () => {
   it('pipeline produces non-zero positions for all nodes', async () => {
-    const result = await runMermaidPipeline(nestedCode);
-    expect(result.success).toBe(true);
-    expect(result.data.nodes.length).toBeGreaterThan(0);
-    result.data.nodes.forEach(n => {
+    const data = unwrapDomainResult(await runMermaidPipeline(nestedCode));
+    expect(data.nodes.length).toBeGreaterThan(0);
+    data.nodes.forEach((n) => {
       expect(typeof n.position.x).toBe('number');
       expect(typeof n.position.y).toBe('number');
       // All nodes should have non-zero position (layout actually happened)
@@ -39,8 +39,7 @@ describe('Layout diagnostic', () => {
   });
 
   it('pipeline positions nodes hierarchically (TD)', async () => {
-    const result = await runMermaidPipeline(nestedCode);
-    const nodes = result.data.nodes;
+    const nodes = unwrapDomainResult(await runMermaidPipeline(nestedCode)).nodes;
     // Group nodes should have correct dimensions
     const groups = nodes.filter(n => n.type === 'groupNode');
     for (const g of groups) {
@@ -59,11 +58,11 @@ describe('Layout diagnostic', () => {
   });
 
   it('pipeline preserves parentNode', async () => {
-    const result = await runMermaidPipeline(nestedCode);
-    const withParent = result.data.nodes.filter(n => n.parentNode);
+    const nodes = unwrapDomainResult(await runMermaidPipeline(nestedCode)).nodes;
+    const withParent = nodes.filter((n) => n.parentNode);
     // A, B are in FRONTEND; C, D are in BACKEND
     expect(withParent.length).toBe(4);
-    for (const n of result.data.nodes) {
+    for (const n of nodes) {
       if (n.id === 'A' || n.id === 'B') {
         expect(n.parentNode).toBe('FRONTEND');
       } else if (n.id === 'C' || n.id === 'D') {
@@ -73,10 +72,9 @@ describe('Layout diagnostic', () => {
   });
 
   it('pipeline handles flat diagram (no subgraphs)', async () => {
-    const result = await runMermaidPipeline(flatCode);
-    expect(result.success).toBe(true);
-    expect(result.data.nodes.length).toBe(3);
-    result.data.nodes.forEach(n => {
+    const data = unwrapDomainResult(await runMermaidPipeline(flatCode));
+    expect(data.nodes.length).toBe(3);
+    data.nodes.forEach((n) => {
       expect(n.position.x !== 0 || n.position.y !== 0).toBe(true);
     });
   });
@@ -98,7 +96,7 @@ describe('Layout diagnostic', () => {
     expect(preLayoutChildren.every(n => n.type === 'shapeNode')).toBe(true);
     
     const layouted = applyRfLayout(
-      objects as Parameters<typeof applyRfLayout>[0],
+      objects as unknown as Parameters<typeof applyRfLayout>[0],
       parseResult.ast.direction
     );
     

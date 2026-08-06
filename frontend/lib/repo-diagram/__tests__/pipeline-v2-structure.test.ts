@@ -39,6 +39,14 @@ describe('repo-pipeline-v2 cache terminal path', () => {
       edgeCount: 0,
       workflowCount: 0,
       workflows: [],
+      repoMeta: {
+        hasAppDir: false,
+        hasPagesDir: false,
+        hasPrisma: false,
+        hasMiddleware: false,
+        hasEnvExample: false,
+        packageJson: null,
+      },
       repoProfile: {
         repoType: 'unknown',
         architecturePattern: 'unknown',
@@ -62,12 +70,23 @@ describe('repo-pipeline-v2 cache terminal path', () => {
     const ingestOut: IngestionOutput = {
       snapshot: {
         repoUrl: 'https://github.com/acme/demo',
+        owner: 'acme',
+        repo: 'demo',
         headSha: 'abc1234deadbeef',
         fileTree: [],
         selectedFiles: [],
+        phase1Files: [],
         phase2Files: [],
-        surfaceClassification: { primaryLanguage: 'ts' },
-      } as IngestionOutput['snapshot'],
+        repoMeta: {
+          hasAppDir: false,
+          hasPagesDir: false,
+          hasPrisma: false,
+          hasMiddleware: false,
+          hasEnvExample: false,
+          packageJson: null,
+        },
+        surfaceClassification: { primaryLanguage: 'ts' } as IngestionOutput['snapshot']['surfaceClassification'],
+      },
       FILE_BUDGETS: { 1: 500, 2: 1000, 3: 2000 },
     };
 

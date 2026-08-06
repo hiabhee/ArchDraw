@@ -215,7 +215,7 @@ export interface ReactFlowNode {
     height: number;
   };
   zIndex?: number;
-  extent?: 'parent';
+  extent?: 'parent' | [[number, number], [number, number]];
   style?: Record<string, unknown>;
 }
 
