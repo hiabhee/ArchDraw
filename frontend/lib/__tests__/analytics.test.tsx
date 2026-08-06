@@ -4,6 +4,18 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/editor',
 }));
 
+// `after()` requires a live Next.js request scope, which doesn't exist when the
+// route handler is invoked directly in unit tests. Run the deferred work inline.
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>();
+  return {
+    ...actual,
+    after: (cb: () => void | Promise<void>) => {
+      void cb();
+    },
+  };
+});
+
 vi.mock('@/lib/prisma', () => ({
   default: {
     visitor: {
