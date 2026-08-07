@@ -1,5 +1,5 @@
 import { Edge, Node } from 'reactflow'
-import { computeEdgeRoute, type EdgeRouteDirection } from './edgeRouteBuilder'
+import { computeEdgeRoute, isGroupNode, type EdgeRouteDirection } from './edgeRouteBuilder'
 
 export interface EdgeLabelAnchor {
   x: number
@@ -36,14 +36,6 @@ function estimateLabelSize(text: string): { w: number; h: number } {
   return {
     w: cssWidth * LABEL_SAFE_SCALE,
     h: LABEL_HEIGHT_CSS * LABEL_SAFE_SCALE,
-  }
-}
-
-/** On-screen pill size at zoom=1 (used for node clearance). */
-function estimateLabelCssSize(text: string): { w: number; h: number } {
-  return {
-    w: Math.max(LABEL_MIN_WIDTH_CSS, text.length * LABEL_WIDTH_PER_CHAR + LABEL_HORIZONTAL_PADDING),
-    h: LABEL_HEIGHT_CSS,
   }
 }
 
@@ -324,8 +316,14 @@ export function findUniqueStemRange(
 
 /** Minimum length (px) for a unique line segment to host a label. */
 const MIN_LABEL_SEGMENT_LEN = 36
-/** Minimum gap (px) between a label pill and a node bounding box. */
-const NODE_LABEL_GAP = 12
+/**
+ * Minimum gap (px) between a label pill and a node bounding box.
+ * Node clearance uses the same doubled safe size as label-label clearance:
+ * labels render counter-scaled up to LABEL_SAFE_SCALE (2x) at low zoom, so a
+ * world-space rect of twice the CSS pill guarantees the pill never overlaps a
+ * node on screen at ANY zoom level.
+ */
+const NODE_LABEL_GAP = 16
 
 function totalPathLength(segs: PathSegment[]): number {
   return segs.reduce((sum, seg) => sum + seg.len, 0)
@@ -491,8 +489,6 @@ interface LabelWorkItem {
   edgeId: string
   preferredT: number
   size: { w: number; h: number }
-  /** Visual pill size for node-gap checks (zoom=1). */
-  cssSize: { w: number; h: number }
   segs: PathSegment[]
   basePerp: number
   candidates: LabelCandidate[]
@@ -569,13 +565,17 @@ function computeLayout(
   const nodes = Array.from(nodeInternals.values())
 
   // Inflate node boxes so label pills keep a visible gap from node borders.
-  const nodeObstacles: PlacedRect[] = nodes.map((n) => {
-    const w = n.width ?? 160
-    const h = n.height ?? 80
-    const x = (n.positionAbsolute?.x ?? n.position.x) - NODE_LABEL_GAP
-    const y = (n.positionAbsolute?.y ?? n.position.y) - NODE_LABEL_GAP
-    return { x, y, w: w + 2 * NODE_LABEL_GAP, h: h + 2 * NODE_LABEL_GAP }
-  })
+  // Group containers are not label obstacles: edges and their labels legally
+  // cross subgraph boundaries, so a label may sit on/over a group box.
+  const nodeObstacles: PlacedRect[] = nodes
+    .filter((n) => !isGroupNode(n))
+    .map((n) => {
+      const w = n.width ?? 160
+      const h = n.height ?? 80
+      const x = (n.positionAbsolute?.x ?? n.position.x) - NODE_LABEL_GAP
+      const y = (n.positionAbsolute?.y ?? n.position.y) - NODE_LABEL_GAP
+      return { x, y, w: w + 2 * NODE_LABEL_GAP, h: h + 2 * NODE_LABEL_GAP }
+    })
 
   // Pass 1: route every edge so fan-in/fan-out sharing can be detected even
   // against unlabeled siblings that occupy the same corridor.
@@ -666,7 +666,6 @@ function computeLayout(
       edgeId: edge.id,
       preferredT,
       size: estimateLabelSize(item.label),
-      cssSize: estimateLabelCssSize(item.label),
       segs,
       basePerp: perpOffset,
       candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange),
@@ -681,7 +680,7 @@ function computeLayout(
   const placed: PlacedRect[] = []
   const result = new Map<string, EdgeLabelAnchor>()
   /** Try path-aligned first, then nudge off the wire to clear tight node gaps. */
-  const NODE_ESCAPE_PERPS = [0, 22, -22, 36, -36, 52, -52, 70, -70]
+  const NODE_ESCAPE_PERPS = [0, 22, -22, 36, -36, 52, -52, 70, -70, 96, -96, 128, -128]
 
   for (const item of workItems) {
     const pointFor = (t: number, perp: number): LabelCandidate => {
@@ -690,10 +689,10 @@ function computeLayout(
       return { t, x: base.x + off.x, y: base.y + off.y }
     }
     const cssRectAt = (cand: LabelCandidate): PlacedRect => ({
-      x: cand.x - item.cssSize.w / 2,
-      y: cand.y - item.cssSize.h / 2,
-      w: item.cssSize.w,
-      h: item.cssSize.h,
+      x: cand.x - item.size.w / 2,
+      y: cand.y - item.size.h / 2,
+      w: item.size.w,
+      h: item.size.h,
     })
     const clearOfNodes = (cand: LabelCandidate) =>
       !nodeObstacles.some((n) => rectsOverlap(n, cssRectAt(cand)))
@@ -712,6 +711,17 @@ function computeLayout(
         }
       }
       if (chosen) break
+    }
+    // Overlapping a node is worse than touching another label, so when no
+    // candidate clears both, prefer staying off the node even at the cost of a
+    // label-label overlap; only fall back to label-clear as a last resort.
+    if (!chosen) {
+      for (const cand of item.candidates) {
+        if (clearOfNodes(cand)) {
+          chosen = cand
+          break
+        }
+      }
     }
     if (!chosen) {
       for (const cand of item.candidates) {

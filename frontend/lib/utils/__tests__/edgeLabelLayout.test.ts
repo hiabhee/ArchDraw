@@ -241,6 +241,127 @@ describe('computeEdgeLabelLayout', () => {
     expect(Math.abs(a2.x - a3.x)).toBeGreaterThan(100)
   })
 
+  it('does not treat group containers as label obstacles', () => {
+    // Edge runs from a child of a group to an external node. The label sits on
+    // the segment that crosses the group boundary — group boxes are not label
+    // obstacles, so the label stays on the wire instead of being pushed off.
+    const group = {
+      id: 'grp',
+      type: 'groupNode',
+      position: { x: 0, y: 80 },
+      width: 500,
+      height: 120,
+      data: { label: 'Cluster', isGroup: true },
+    } as Node
+    const a = {
+      id: 'a',
+      type: 'system',
+      position: { x: 100, y: 110 },
+      parentId: 'grp',
+      width: 160,
+      height: 80,
+      data: {},
+    } as Node
+    const b = makeNode('b', 600, 110)
+    const edges = [makeEdge('e1', 'a', 'b', { label: 'CALL' })]
+
+    const res = computeEdgeLabelLayout(edges, nodeInternals([group, a, b]), 'LR')
+    const anchor = res.get('e1')!
+    expect(anchor).toBeDefined()
+
+    // The label stays on the wire midpoint (an L-shaped route: the child's
+    // absolute y is offset by the group's position), not pushed off the group.
+    const route = computeEdgeRoute(edges[0], [group, a, b], edges, 'LR')
+    const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+    expect(anchor.x).toBeCloseTo(expected.x, 0)
+    expect(anchor.y).toBeCloseTo(expected.y, 0)
+
+    // And that midpoint sits inside the group box — groups are not obstacles.
+    expect(anchor.x).toBeGreaterThan(0)
+    expect(anchor.x).toBeLessThan(500)
+    expect(anchor.y).toBeGreaterThan(80)
+    expect(anchor.y).toBeLessThan(200)
+  })
+
+  it('keeps labels off nodes even at the doubled (zoomed-out) scale', () => {
+    // Labels render counter-scaled up to 2x when zoomed out, so the engine
+    // reserves the doubled pill rect against node boxes. The tight chain
+    // layout forces the label off the wire entirely — it must still clear
+    // both nodes at the doubled size.
+    const nodes = [
+      makeNode('bop', 100, 100, 200, 88),
+      makeNode('wh', 400, 100, 200, 88),
+    ]
+    const edges = [makeEdge('e1', 'bop', 'wh', { label: 'controls pressure' })]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+    const a = res.get('e1')!
+    expect(a).toBeDefined()
+
+    const safe = reservedSize('controls pressure')
+    const gap = 16
+    const lr = { x: a.x - safe.w / 2, y: a.y - safe.h / 2, w: safe.w, h: safe.h }
+    for (const n of nodes) {
+      const nr = {
+        x: n.position.x - gap,
+        y: n.position.y - gap,
+        w: (n.width ?? 160) + 2 * gap,
+        h: (n.height ?? 80) + 2 * gap,
+      }
+      expect(overlaps(lr, nr)).toBe(false)
+    }
+  })
+
+  it('never overlaps any node at the doubled scale across a busy diagram', () => {
+    // Grid of nodes with many crossing edges. Every label's doubled (safe)
+    // rect must clear every node box (inflated by the layout gap) — this is
+    // what guarantees no on-screen label/node overlap at any zoom level.
+    const grid = (col: number, row: number) => makeNode(`n${row}_${col}`, col * 300, row * 200)
+    const nodes = [
+      grid(0, 0), grid(1, 0), grid(2, 0),
+      grid(0, 1), grid(1, 1), grid(2, 1),
+      grid(0, 2), grid(1, 2), grid(2, 2),
+    ]
+    const edges = [
+      makeEdge('e1', 'n0_0', 'n1_0', { label: 'API call' }),
+      makeEdge('e2', 'n1_0', 'n2_0', { label: 'PROCESS' }),
+      makeEdge('e3', 'n0_0', 'n0_1', { label: 'EVENT' }),
+      makeEdge('e4', 'n0_1', 'n1_1', { label: 'DB QUERY' }),
+      makeEdge('e5', 'n1_1', 'n2_1', { label: 'STREAM' }),
+      makeEdge('e6', 'n0_2', 'n1_2', { label: 'LOAD' }),
+      makeEdge('e7', 'n1_2', 'n2_2', { label: 'SYNC' }),
+      makeEdge('e8', 'n2_0', 'n2_1', { label: 'CACHE' }),
+      makeEdge('e9', 'n0_0', 'n2_2', { label: 'REQUEST' }),
+      makeEdge('e10', 'n0_2', 'n2_0', { label: 'FALLBACK' }),
+    ]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+    const gap = 16
+    const nodeRects = nodes.map((n) => ({
+      x: n.position.x - gap,
+      y: n.position.y - gap,
+      w: (n.width ?? 160) + 2 * gap,
+      h: (n.height ?? 80) + 2 * gap,
+    }))
+    for (const [id, label] of [
+      ['e1', 'API call'],
+      ['e2', 'PROCESS'],
+      ['e3', 'EVENT'],
+      ['e4', 'DB QUERY'],
+      ['e5', 'STREAM'],
+      ['e6', 'LOAD'],
+      ['e7', 'SYNC'],
+      ['e8', 'CACHE'],
+      ['e9', 'REQUEST'],
+      ['e10', 'FALLBACK'],
+    ]) {
+      const anchor = res.get(id)!
+      const safe = reservedSize(label)
+      const lr = { x: anchor.x - safe.w / 2, y: anchor.y - safe.h / 2, w: safe.w, h: safe.h }
+      for (const nr of nodeRects) {
+        expect(overlaps(lr, nr)).toBe(false)
+      }
+    }
+  })
+
   it('keeps a gap between chain-edge labels and their source nodes', () => {
     // Mid-path waypoints on a straight shot used to split the edge into two
     // segments and park the label flush against the source (BOP / Wellhead).

@@ -61,7 +61,7 @@ function getNodeRect(node: Node, nodes: Node[]): ObstacleRect {
   return { x: pos.x, y: pos.y, w, h }
 }
 
-function isGroupNode(node: Node): boolean {
+export function isGroupNode(node: Node): boolean {
   return (
     node.type === 'groupNode' ||
     node.type === 'frameNode' ||
