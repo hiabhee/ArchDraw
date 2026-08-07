@@ -77,6 +77,33 @@ describe('DagreLayoutEngine', () => {
     expect(result.edges).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
   });
+
+  it('reroutes edges to/from subgraphs without crashing', async () => {
+    const engine = new DagreLayoutEngine();
+    const result = await engine.layout({
+      nodes: [
+        { id: 'G', width: 200, height: 200, isGroup: true },
+        { id: 'a', width: 100, height: 50, parentId: 'G' },
+        { id: 'b', width: 100, height: 50 },
+        { id: 'c', width: 100, height: 50 },
+      ],
+      edges: [
+        { id: 'b-G', source: 'b', target: 'G' },
+        { id: 'G-c', source: 'G', target: 'c' },
+      ],
+      direction: 'TB',
+    });
+
+    expect(result.nodes).toHaveLength(4);
+    result.nodes.forEach(n => {
+      expect(n.x).toBeDefined();
+      expect(n.y).toBeDefined();
+    });
+    // Original subgraph endpoints are preserved in the returned edges
+    expect(result.edges).toHaveLength(2);
+    expect(result.edges.find(e => e.id === 'b-G')?.target).toBe('G');
+    expect(result.edges.find(e => e.id === 'G-c')?.source).toBe('G');
+  });
 });
 
 describe('applyRfLayout (canonical entry)', () => {

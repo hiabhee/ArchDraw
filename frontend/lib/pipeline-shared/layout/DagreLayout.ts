@@ -96,7 +96,36 @@ export class DagreLayoutEngine implements LayoutEngine {
       }
     }
 
-    for (const edge of params.edges) {
+    // dagre compound layout does not support edges whose source or target is a
+    // cluster (subgraph) node — it crashes with `Cannot set properties of
+    // undefined (setting 'rank')`. Reroute such edges onto a representative
+    // descendant leaf node so the graph lays out, then restore the original
+    // endpoints when mapping points back. A leaf that is reachable through the
+    // nearest subgraph ancestor acts as its proxy; deeper leaves are preferred.
+    const subgraphIdSet = new Set(subgraphIds);
+    const proxyFor = new Map<string, string>();
+    for (const node of params.nodes) {
+      if (subgraphIdSet.has(node.id)) continue;
+      let current = parentMap.get(node.id);
+      while (current && subgraphIdSet.has(current)) {
+        if (!proxyFor.has(current)) proxyFor.set(current, node.id);
+        current = parentMap.get(current);
+      }
+    }
+
+    const layoutEdges = params.edges.map(edge => {
+      const source = proxyFor.get(edge.source) ?? edge.source;
+      const target = proxyFor.get(edge.target) ?? edge.target;
+      // If either endpoint still resolves to a subgraph (e.g. an empty group),
+      // drop the edge from the layout pass — it cannot be placed by dagre.
+      if (subgraphIdSet.has(source) || subgraphIdSet.has(target)) {
+        return null;
+      }
+      return { ...edge, source, target };
+    });
+
+    for (const edge of layoutEdges) {
+      if (!edge) continue;
       g.setEdge(edge.source, edge.target);
     }
 
@@ -153,8 +182,12 @@ export class DagreLayoutEngine implements LayoutEngine {
       }
     }
 
-    const positionedEdges: PositionedEdge[] = params.edges.map(edge => {
-      const dagreEdge = g.edge(edge.source, edge.target);
+    const positionedEdges: PositionedEdge[] = params.edges.map((edge, index) => {
+      const layoutEdge = layoutEdges[index];
+      if (!layoutEdge) {
+        return { ...edge, points: undefined };
+      }
+      const dagreEdge = g.edge(layoutEdge.source, layoutEdge.target);
       return {
         ...edge,
         points: dagreEdge?.points?.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
