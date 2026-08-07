@@ -10,8 +10,8 @@ import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
-import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
-import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
+import { resolveAutoCloudIcon } from '@/lib/cloudIcons/autoResolution';
+import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import {
   getConcernColor,
@@ -65,7 +65,6 @@ const ACCENT_CYCLE = Object.values(CONCERN_COLORS).map((c) => c.color);
 
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
-  const cloudProvider = useDiagramStore((s) => s.cloudProvider);
   const iconMode = useDiagramStore((s) => s.iconMode);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
@@ -114,19 +113,14 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     icon: nodeData.icon,
     color: accentColor,
   });
-  const cloudIcon =
-    cloudProvider !== 'off'
-      ? resolveCloudIcon(
-          {
-            label: data.label,
-            typeId: nodeData.typeId,
-            technology: nodeData.technology,
-            serviceType: nodeData.serviceType,
-            icon: nodeData.icon,
-          },
-          cloudProvider,
-        )
-      : null;
+  const providerIcon = resolveAutoCloudIcon({
+    label: data.label,
+    typeId: nodeData.typeId,
+    componentId: (nodeData as { componentId?: string }).componentId,
+    technology: nodeData.technology,
+    serviceType: nodeData.serviceType,
+    icon: nodeData.icon,
+  });
   const showIcon = resolveNodeIconVisibility(iconMode, nodeData.showIcon, resolvedIcon.source === 'manual');
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
@@ -249,23 +243,19 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           <div
             className="node-icon-box"
             style={
-              cloudIcon
+              providerIcon
                 ? { width: cloudIconSize, height: cloudIconSize }
                 : undefined
             }
             aria-hidden="true"
           >
-            {cloudIcon ? (
-              cloudIcon.kind === 'generic' ? (
-                <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
-              ) : (
-                <CloudProviderIcon
-                  provider={cloudIcon.kind}
-                  serviceKey={cloudIcon.serviceKey}
-                  size={Math.round(cloudIconSize * 0.72)}
-                  color={cloudIcon.color}
-                />
-              )
+            {providerIcon ? (
+              <ProviderServiceIcon
+                provider={providerIcon.kind}
+                serviceKey={providerIcon.serviceKey}
+                size={Math.round(cloudIconSize * 0.72)}
+                color={providerIcon.color}
+              />
             ) : (
               <NodeIcon
                 technology={resolvedIcon.technology}

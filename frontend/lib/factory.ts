@@ -55,6 +55,8 @@ export function createPaletteNode(
     height,
     data: {
       componentId: comp.id,
+      typeId: comp.id,
+      componentType: comp.id,
       category: comp.category,
       color: comp.color,
       accentColor: comp.color,

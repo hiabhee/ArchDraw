@@ -36,7 +36,8 @@ describe('resolveNodeIcon', () => {
     expect(resolveNodeIcon({ label: 'Elasticsearch' }).icon).toBe('arch-search');
     expect(resolveNodeIcon({ label: 'CDN Edge' }).icon).toBe('arch-cdn');
     expect(resolveNodeIcon({ label: 'Vector Store' }).icon).toBe('arch-vector');
-    expect(resolveNodeIcon({ label: 'Lambda Function' }).icon).toBe('arch-function');
+    expect(resolveNodeIcon({ label: 'Lambda Function' }).icon).toBe('aws-lambda');
+    expect(resolveNodeIcon({ label: 'EC2 Instance' }).icon).toBe('aws-ec2');
     expect(resolveNodeIcon({ label: 'WAF Firewall' }).icon).toBe('arch-firewall');
   });
 

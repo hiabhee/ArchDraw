@@ -16,8 +16,8 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
-import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
-import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
+import { resolveAutoCloudIcon } from '@/lib/cloudIcons/autoResolution';
+import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
 import './nodes/nodeStyles.css';
 
 export type ShapeType =
@@ -99,7 +99,6 @@ function Label({
   maxWidth?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cloudProvider = useDiagramStore((s) => s.cloudProvider);
   const iconMode = useDiagramStore((s) => s.iconMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,
@@ -116,19 +115,14 @@ function Label({
     icon: data.icon,
     color,
   });
-  const cloudIcon =
-    cloudProvider !== 'off'
-      ? resolveCloudIcon(
-          {
-            label: data.label,
-            typeId: data.typeId,
-            technology: data.technology,
-            serviceType: data.serviceType,
-            icon: data.icon,
-          },
-          cloudProvider,
-        )
-      : null;
+  const providerIcon = resolveAutoCloudIcon({
+    label: data.label,
+    typeId: data.typeId ?? data.componentType,
+    componentId: (data as ShapeNodeData & { componentId?: string }).componentId,
+    technology: data.technology,
+    serviceType: data.serviceType,
+    icon: data.icon,
+  });
   const cloudIconSize = Math.max(
     16,
     Math.round(Math.min(width * 0.2, height - 28)),
@@ -146,7 +140,7 @@ function Label({
         className="node-icon-box mb-1"
         aria-hidden="true"
         style={
-          cloudIcon
+          providerIcon
             ? {
                 width: cloudIconSize,
                 height: cloudIconSize,
@@ -155,17 +149,13 @@ function Label({
             : undefined
         }
       >
-        {cloudIcon ? (
-          cloudIcon.kind === 'generic' ? (
-            <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
-          ) : (
-            <CloudProviderIcon
-              provider={cloudIcon.kind}
-              serviceKey={cloudIcon.serviceKey}
-              size={Math.round(cloudIconSize * 0.72)}
-              color={cloudIcon.color}
-            />
-          )
+        {providerIcon ? (
+          <ProviderServiceIcon
+            provider={providerIcon.kind}
+            serviceKey={providerIcon.serviceKey}
+            size={Math.round(cloudIconSize * 0.72)}
+            color={providerIcon.color}
+          />
         ) : (
           <NodeIcon
             technology={resolvedIcon.technology}

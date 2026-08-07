@@ -1,5 +1,8 @@
 import { iconRegistry } from '@/lib/iconRegistry';
 import { normalizeArchIconName } from '@/lib/iconAliases';
+import { classifyCloudNode, getNodeProviderAffinity, normalizeCloudLabel } from '@/lib/cloudIcons/classifier';
+import { CLOUD_BRAND_COLORS } from '@/lib/cloudIcons/dictionaries';
+import { AWS_COMPONENTS, DB_COMPONENTS, SERVICES_COMPONENTS } from '@/lib/componentRegistry';
 
 export type NodeIconSource = 'manual' | 'technology' | 'component' | 'label' | 'serviceType' | 'fallback';
 
@@ -216,6 +219,21 @@ const LABEL_MATCHERS: Array<{
   { source: 'label', icon: 'arch-service', test: /\b(service|processor|microservice)\b/i },
 ];
 
+const LABEL_TO_TECHNOLOGY = new Map<string, string>(
+  [...AWS_COMPONENTS, ...DB_COMPONENTS, ...SERVICES_COMPONENTS]
+    .filter((comp) => comp.technology)
+    .flatMap((comp) => [
+      [normalizeCloudLabel(comp.label), comp.technology!] as const,
+      [comp.id, comp.technology!] as const,
+    ]),
+);
+
+function technologyFromLabel(label?: string): string | undefined {
+  const normalized = normalizeCloudLabel(label);
+  if (!normalized) return undefined;
+  return LABEL_TO_TECHNOLOGY.get(normalized);
+}
+
 function getTechnologyEntry(technology?: string) {
   return technology ? iconRegistry[technology] : undefined;
 }
@@ -224,27 +242,72 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
   const fallbackColor = input.color || '#6B7280';
 
   // Explicit custom/AWS icons win immediately.
-  if (input.icon?.startsWith('arch-') || input.icon?.startsWith('aws-')) {
+  if (input.icon?.startsWith('arch-') || input.icon?.startsWith('aws-') || input.icon?.startsWith('azure-')) {
     return { icon: input.icon, color: fallbackColor, technology: input.technology, source: 'manual' };
   }
 
-  const techEntry = getTechnologyEntry(input.technology);
+  const resolvedTechnology = input.technology ?? technologyFromLabel(input.label);
+  const techEntry = getTechnologyEntry(resolvedTechnology);
   if (techEntry) {
     // If the technology uses a custom icon, return it directly
     if (techEntry.kind === 'custom' || techEntry.icon.startsWith('arch-')) {
-      return { icon: techEntry.icon, color: techEntry.color, technology: input.technology, source: 'technology' };
+      return { icon: techEntry.icon, color: techEntry.color, technology: resolvedTechnology, source: 'technology' };
     }
-    // For AWS icons, return the AWS icon name
-    if (techEntry.kind === 'aws') {
-      return { icon: techEntry.icon, color: techEntry.color, technology: input.technology, source: 'technology' };
+    // AWS / Azure service keys keep their provider icon id
+    if (techEntry.kind === 'aws' || resolvedTechnology?.startsWith('azure-')) {
+      return { icon: techEntry.icon, color: techEntry.color, technology: resolvedTechnology, source: 'technology' };
     }
     // Normalize lucide icon names to distinctive arch glyphs when possible
     return {
       icon: normalizeArchIconName(techEntry.icon) || techEntry.icon,
       color: techEntry.color,
-      technology: input.technology,
+      technology: resolvedTechnology,
       source: 'technology',
     };
+  }
+
+  const cloudInput = {
+    label: input.label,
+    typeId: input.typeId || input.componentType,
+    componentId: (input as ResolveNodeIconInput & { componentId?: string }).componentId,
+    technology: input.technology,
+    serviceType: input.serviceType,
+    icon: input.icon,
+  };
+  const affinity = getNodeProviderAffinity(cloudInput);
+  if (affinity) {
+    const serviceKey =
+      [input.technology, input.typeId, input.componentType, cloudInput.componentId, input.icon].find((key) =>
+        key?.startsWith(`${affinity}-`),
+      ) ?? null;
+    if (serviceKey) {
+      return {
+        icon: serviceKey,
+        color: CLOUD_BRAND_COLORS[affinity],
+        technology: serviceKey,
+        source: 'technology',
+      };
+    }
+  }
+
+  const cloudCls = classifyCloudNode(cloudInput);
+  if (cloudCls.tier === 'cloudService') {
+    if (cloudCls.state === 'matchedAWS' && cloudCls.awsMatch) {
+      return {
+        icon: cloudCls.awsMatch,
+        color: CLOUD_BRAND_COLORS.aws,
+        technology: cloudCls.awsMatch,
+        source: 'label',
+      };
+    }
+    if (cloudCls.state === 'matchedAzure' && cloudCls.azureMatch) {
+      return {
+        icon: cloudCls.azureMatch,
+        color: CLOUD_BRAND_COLORS.azure,
+        technology: cloudCls.azureMatch,
+        source: 'label',
+      };
+    }
   }
 
   const componentKey = input.typeId || input.componentType;
