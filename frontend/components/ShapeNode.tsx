@@ -100,7 +100,7 @@ function Label({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cloudProvider = useDiagramStore((s) => s.cloudProvider);
-  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
+  const iconMode = useDiagramStore((s) => s.iconMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,
     currentLabel: data.label || '',
@@ -133,7 +133,7 @@ function Label({
     16,
     Math.round(Math.min(width * 0.2, height - 28)),
   );
-  const showIcon = resolveNodeIconVisibility(showNodeIcons, data.showIcon);
+  const showIcon = resolveNodeIconVisibility(iconMode, data.showIcon, resolvedIcon.source === 'manual');
 
   return (
     <div

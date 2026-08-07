@@ -118,7 +118,7 @@ export interface DiagramState {
   guideLines: GuideLine[];
   edgeAnimations: boolean;
   showGrid: boolean;
-  showNodeIcons: boolean;
+  iconMode: import('@/lib/utils/nodeIconVisibility').NodeIconMode;
   diagramChromeMode: 'edit' | 'present';
   diagramStyleTheme: string;
   darkMode: boolean;
@@ -129,8 +129,7 @@ export interface DiagramState {
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
-  toggleNodeIcons: () => void;
-  setShowNodeIcons: (show: boolean) => void;
+  setIconMode: (mode: import('@/lib/utils/nodeIconVisibility').NodeIconMode) => void;
   cloudProvider: CloudProviderToggle;
   setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;

@@ -7,7 +7,7 @@ export type UiSlice = Pick<
   | 'guideLines'
   | 'edgeAnimations'
   | 'showGrid'
-  | 'showNodeIcons'
+  | 'iconMode'
   | 'diagramChromeMode'
   | 'diagramStyleTheme'
   | 'darkMode'
@@ -19,8 +19,7 @@ export type UiSlice = Pick<
   | 'setGuideLines'
   | 'toggleEdgeAnimations'
   | 'toggleGrid'
-  | 'toggleNodeIcons'
-  | 'setShowNodeIcons'
+  | 'setIconMode'
   | 'setCloudProvider'
   | 'setDiagramChromeMode'
   | 'setDiagramStyleTheme'
@@ -43,7 +42,7 @@ export const createUiSlice: StateCreator<
   guideLines: [],
   edgeAnimations: true,
   showGrid: true,
-  showNodeIcons: true,
+  iconMode: 'all',
   diagramChromeMode: 'edit',
   diagramStyleTheme: 'default',
   darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') === 'dark' : false,
@@ -59,8 +58,7 @@ export const createUiSlice: StateCreator<
   setDetailLevel: (level) => set({ detailLevel: level }),
   setPenModeActive: (active) => set({ isPenModeActive: active }),
   toggleGrid: () => set({ showGrid: !get().showGrid }),
-  toggleNodeIcons: () => set({ showNodeIcons: !get().showNodeIcons }),
-  setShowNodeIcons: (show) => set({ showNodeIcons: show }),
+  setIconMode: (mode) => set({ iconMode: mode }),
   setCloudProvider: (toggle) => {
     const { activeCanvasId, canvases } = get();
     const nextCanvases = canvases.map((c) =>

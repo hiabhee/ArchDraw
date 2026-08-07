@@ -66,7 +66,7 @@ const ACCENT_CYCLE = Object.values(CONCERN_COLORS).map((c) => c.color);
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
   const cloudProvider = useDiagramStore((s) => s.cloudProvider);
-  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
+  const iconMode = useDiagramStore((s) => s.iconMode);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
   const nodeCardRef = useRef<HTMLDivElement>(null);
@@ -127,7 +127,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           cloudProvider,
         )
       : null;
-  const showIcon = resolveNodeIconVisibility(showNodeIcons, nodeData.showIcon);
+  const showIcon = resolveNodeIconVisibility(iconMode, nodeData.showIcon, resolvedIcon.source === 'manual');
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
   const showStatus = showEditChrome && nodeData.status && nodeData.status !== 'healthy';

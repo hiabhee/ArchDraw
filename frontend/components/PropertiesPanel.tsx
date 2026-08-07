@@ -127,7 +127,7 @@ function EdgePropertiesPanel() {
 export function PropertiesPanel() {
   const {
     selectedNodeId, selectedNodeIds, nodes, updateNodeSize, setSelectedNodeId, setSelectedNodeIds,
-    selectedEdgeId, showNodeIcons,
+    selectedEdgeId, iconMode,
   } = useDiagramStore();
 
   const isMulti = selectedNodeIds.length > 1 && !selectedNodeId;
@@ -247,7 +247,7 @@ export function PropertiesPanel() {
   const currentIcon = data.icon?.startsWith('arch-') || data.icon?.startsWith('aws-')
     ? data.icon
     : resolvedIcon.icon;
-  const iconVisible = resolveNodeIconVisibility(showNodeIcons, data.showIcon);
+  const iconVisible = resolveNodeIconVisibility(iconMode, data.showIcon);
   const iconQuery = iconSearch.trim().toLowerCase();
   const filteredIcons = ARCH_ICON_CATALOG.filter((entry) => {
     if (iconCategory !== 'all' && entry.category !== iconCategory) return false;

@@ -7,7 +7,7 @@ export function diagramPersistPartialize(s: DiagramState) {
     activeCanvasId: s.activeCanvasId,
     edgeAnimations: s.edgeAnimations,
     showGrid: s.showGrid,
-    showNodeIcons: s.showNodeIcons,
+    iconMode: s.iconMode,
     diagramChromeMode: s.diagramChromeMode,
     diagramStyleTheme: s.diagramStyleTheme,
     userProfile: s.userProfile,

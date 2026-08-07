@@ -33,8 +33,15 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useModalStore } from '@/store/modalStore';
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 
 type SettingsTab = 'general' | 'profile' | 'editor' | 'ai' | 'security' | 'notifications' | 'billing';
+
+const ICON_MODES: { value: NodeIconMode; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'off', label: 'Off' },
+];
 
 interface SettingsPanelProps {
   open: boolean;
@@ -85,7 +92,7 @@ function SettingRow({ icon: Icon, title, desc, children }: { icon?: React.Elemen
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const { user, signOut } = useAuthStore();
-  const { showGrid, toggleGrid, showNodeIcons, setShowNodeIcons, edgeAnimations, userProfile, canvases } = useDiagramStore();
+  const { showGrid, toggleGrid, iconMode, setIconMode, edgeAnimations, userProfile, canvases } = useDiagramStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const ref = useRef<HTMLDivElement>(null);
   
@@ -108,7 +115,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const [portfolio, setPortfolio] = useState('');
   const [language, setLanguage] = useState('en');
 
-  const trackToggle = (setting: string, value: boolean) => {
+  const trackToggle = (setting: string, value: boolean | string) => {
     if (typeof window !== 'undefined') {
       analytics.track({
         event_type: 'settings_interaction',
@@ -408,8 +415,22 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                   <Toggle enabled={showLabels} onChange={(val) => { setShowLabels(val); trackToggle('show_labels', val); }} />
                 </SettingRow>
 
-                <SettingRow icon={LayoutGrid} title="Show node icons" desc="Display icons on diagram nodes">
-                  <Toggle enabled={showNodeIcons} onChange={(val) => { setShowNodeIcons(val); trackToggle('show_node_icons', val); }} />
+                <SettingRow icon={LayoutGrid} title="Show node icons" desc="All: every icon · Normal: hide icons picked from Properties · Off: none">
+                  <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
+                    {ICON_MODES.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => { setIconMode(m.value); trackToggle('icon_mode', m.value); }}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                          iconMode === m.value
+                            ? 'bg-primary/15 text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </SettingRow>
                 
                 <SettingRow icon={Keyboard} title="Keyboard shortcuts hints" desc="Show shortcut tooltips">

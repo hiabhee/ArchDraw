@@ -26,7 +26,7 @@ import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark }
 
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { CloudProviderIconToggle } from '@/components/CloudProviderIconToggle';
+import { NodeIconModeToggle } from '@/components/NodeIconModeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
 import { prepareReactFlowForImageExport } from '@/lib/utils/prepareReactFlowForImageExport';
@@ -774,7 +774,7 @@ export function Toolbar() {
 
             <LayoutToggleButton />
 
-            <CloudProviderIconToggle />
+            <NodeIconModeToggle />
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 
