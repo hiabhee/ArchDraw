@@ -91,7 +91,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const result = await runMermaidPipeline(newCode);
 
         if (!result.success) {
-          setError(result.warnings.join('; '));
+          setError((result.error?.message ?? result.warnings.join('; ')) || 'Failed to render Mermaid diagram.');
           return;
         }
 
@@ -294,6 +294,11 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
           data: edge.data,
           animated: edge.animated,
         }));
+
+        if (processedNodes.length === 0 && processedEdges.length === 0) {
+          setError('No nodes or edges were parsed from this Mermaid code. Check that it contains at least one node and try again.');
+          return;
+        }
 
         importDiagram(processedNodes, processedEdges);
 

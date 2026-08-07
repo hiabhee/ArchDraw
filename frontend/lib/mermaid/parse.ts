@@ -199,6 +199,43 @@ function stripComments(line: string): string {
   return line
 }
 
+/**
+ * Split a single line into Mermaid statements on top-level `;`. Mermaid treats
+ * `;` as a statement separator, so `graph TD; A-->B;` is equivalent to the two
+ * lines `graph TD` and `A-->B`. Semicolons inside quoted labels are preserved.
+ */
+function splitStatements(line: string): string[] {
+  const statements: string[] = []
+  let current = ''
+  let inQuote: '"' | "'" | '' = ''
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuote) {
+      current += ch
+      if (ch === '\\' && i + 1 < line.length) {
+        current += line[i + 1]
+        i++
+      } else if (ch === inQuote) {
+        inQuote = ''
+      }
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch
+      current += ch
+      continue
+    }
+    if (ch === ';') {
+      statements.push(current)
+      current = ''
+      continue
+    }
+    current += ch
+  }
+  statements.push(current)
+  return statements
+}
+
 function extractId(raw: string): string | null {
   const m = raw.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)/)
   return m ? m[1] : null
@@ -501,14 +538,19 @@ export function parseMermaid(mermaidText: string): ParseResult {
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i]
     const cleanLine = stripComments(rawLine)
-    let line = cleanLine.trim()
+    const blockLine = cleanLine.trim()
 
     if (skipUntilCloseBrace) {
-      if (line.includes('}')) skipUntilCloseBrace = false
+      if (blockLine.includes('}')) skipUntilCloseBrace = false
       continue
     }
 
-    if (!line) continue
+    if (!blockLine) continue
+
+    for (const statement of splitStatements(blockLine)) {
+      const line = statement.trim()
+
+      if (!line) continue
 
     // Accessibility / metadata directives Mermaid accepts but we do not render.
     if (/^accTitle(?:\s*:|$)/i.test(line) || /^accDescr(?:\s*:|$)/i.test(line)) {
@@ -786,6 +828,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
         const sub = subgraphs.find(s => s.id === currentSubgraphId)
         if (sub) sub.nodeIds.push(id)
       }
+    }
     }
   }
 

@@ -55,6 +55,67 @@ describe('Mermaid Parser Subgraphs with Spaces', () => {
   });
 });
 
+describe('Mermaid Parser Semicolon-Delimited Statements', () => {
+  it('should parse semicolon-delimited statements on the header line', () => {
+    const code = `graph TD; A-->B; A-->C; B-->D; C-->D;`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(4);
+      expect(res.ast.edges.length).toBe(4);
+      expect(res.ast.edges.map(e => `${e.source}->${e.target}`).sort()).toEqual(['A->B', 'A->C', 'B->D', 'C->D']);
+    }
+  });
+
+  it('should parse semicolon-delimited statements mixed with newlines', () => {
+    const code = `graph TD;\n  A-->B;\n  B-->C;`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(3);
+      expect(res.ast.edges.length).toBe(2);
+    }
+  });
+
+  it('should preserve semicolons inside quoted labels', () => {
+    const code = `graph LR
+  A["semi;colon"] --> B`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(2);
+      const a = res.ast.nodes.find(n => n.id === 'A');
+      expect(a?.label).toBe('semi;colon');
+    }
+  });
+
+  it('should parse semicolon-delimited subgraph statements', () => {
+    const code = `graph TD
+  subgraph G["Group"]; A; B; end
+  A --> B`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.subgraphs.length).toBe(1);
+      expect(res.ast.nodes.length).toBe(2);
+      expect(res.ast.nodes.every(n => n.subgraphId === 'G')).toBe(true);
+      expect(res.ast.edges.length).toBe(1);
+    }
+  });
+
+  it('should parse edge statements with trailing semicolons on separate lines', () => {
+    const code = `graph TD
+  A-->B;
+  B-->C;`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(3);
+      expect(res.ast.edges.length).toBe(2);
+    }
+  });
+});
+
 describe('Node Classification Precedence', () => {
   it('should prioritize name-based matching over group name', () => {
     // Database named "postgres_db" inside "Service Layer" group should be a database shape
