@@ -28,6 +28,7 @@
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-slot": "^1.2.4",
+    "@react-icons-cloud/aws": "^0.2.0",
     "@reactflow/node-resizer": "^2.2.14",
     "@upstash/redis": "^1.37.0",
     "@vercel/analytics": "^2.0.1",

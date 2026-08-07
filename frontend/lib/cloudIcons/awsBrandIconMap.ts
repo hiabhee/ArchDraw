@@ -1,0 +1,65 @@
+/**
+ * Maps canonical `aws-*` service keys to @react-icons-cloud/aws components.
+ * Falls back to path-based CloudProviderIcon when a key is absent.
+ */
+import type { ComponentType, SVGProps } from 'react';
+import {
+  ResAmazonEC2Instance48,
+  ResAWSLambdaLambdaFunction48,
+  ResAmazonElasticContainerServiceContainer148,
+  ResAmazonElasticKubernetesServiceEKSOnOutposts48,
+  ResAmazonSimpleStorageServiceBucket48,
+  ResAmazonAuroraAmazonRDSInstance48,
+  ResAmazonDynamoDBTable48,
+  ResAmazonElastiCacheCacheNode48,
+  ResAmazonAPIGatewayEndpoint48,
+  ResAmazonCloudFrontDownloadDistribution48,
+  ResElasticLoadBalancingApplicationLoadBalancer48,
+  ResAmazonSimpleQueueServiceQueue48,
+  ResAmazonSimpleNotificationServiceTopic48,
+  ResAmazonEventBridgeCustomEventBus48,
+  ResAmazonCloudWatchAlarm48,
+  ResAmazonRedshiftAutoCopy48,
+  ResAmazonMSKAmazonMSKConnect48,
+  ResAmazonOpenSearchServiceClusterAdministratorNode48,
+  ResAmazonRoute53HostedZone48,
+  ResAmazonElasticFileSystemEFSIntelligentTiering48,
+  ResAmazonSimpleStorageServiceGlacierArchive48,
+  ResAmazonDocumentDBElasticClusters48,
+  ResAWSShieldAWSShieldAdvanced48,
+  ResAWSElasticBeanstalkApplication48,
+  ResAWSCloudTrailCloudTrailLake48,
+  ResAmazonSageMakerAICanvas48,
+} from '@react-icons-cloud/aws';
+
+export type AwsBrandIconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
+
+export const AWS_BRAND_ICON_MAP: Record<string, AwsBrandIconComponent> = {
+  'aws-ec2': ResAmazonEC2Instance48,
+  'aws-lambda': ResAWSLambdaLambdaFunction48,
+  'aws-ecs': ResAmazonElasticContainerServiceContainer148,
+  'aws-eks': ResAmazonElasticKubernetesServiceEKSOnOutposts48,
+  'aws-s3': ResAmazonSimpleStorageServiceBucket48,
+  'aws-rds': ResAmazonAuroraAmazonRDSInstance48,
+  'aws-dynamodb': ResAmazonDynamoDBTable48,
+  'aws-elasticache': ResAmazonElastiCacheCacheNode48,
+  'aws-api-gateway': ResAmazonAPIGatewayEndpoint48,
+  'aws-cloudfront': ResAmazonCloudFrontDownloadDistribution48,
+  'aws-alb': ResElasticLoadBalancingApplicationLoadBalancer48,
+  'aws-elb': ResElasticLoadBalancingApplicationLoadBalancer48,
+  'aws-sqs': ResAmazonSimpleQueueServiceQueue48,
+  'aws-sns': ResAmazonSimpleNotificationServiceTopic48,
+  'aws-eventbridge': ResAmazonEventBridgeCustomEventBus48,
+  'aws-cloudwatch': ResAmazonCloudWatchAlarm48,
+  'aws-redshift': ResAmazonRedshiftAutoCopy48,
+  'aws-msk': ResAmazonMSKAmazonMSKConnect48,
+  'aws-opensearch': ResAmazonOpenSearchServiceClusterAdministratorNode48,
+  'aws-route53': ResAmazonRoute53HostedZone48,
+  'aws-efs': ResAmazonElasticFileSystemEFSIntelligentTiering48,
+  'aws-glacier': ResAmazonSimpleStorageServiceGlacierArchive48,
+  'aws-documentdb': ResAmazonDocumentDBElasticClusters48,
+  'aws-shield': ResAWSShieldAWSShieldAdvanced48,
+  'aws-beanstalk': ResAWSElasticBeanstalkApplication48,
+  'aws-cloudtrail': ResAWSCloudTrailCloudTrailLake48,
+  'aws-sagemaker': ResAmazonSageMakerAICanvas48,
+};

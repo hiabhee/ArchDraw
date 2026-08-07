@@ -19,8 +19,11 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { iconRegistry } from '@/lib/iconRegistry';
-import { AWSIcon, getAWSIcon } from './icons/AWSIcon';
 import { CustomNodeIcon, toCustomNodeIconName, isCustomNodeIcon } from './icons/CustomNodeIcon';
+import { ProviderServiceIcon } from './icons/ProviderServiceIcon';
+import { TechnologyBrandIcon } from './icons/TechnologyBrandIcon';
+import { getTechnologyBrandSlug } from '@/lib/brandIcons';
+import type { CloudProviderId } from '@/lib/cloudIcons/types';
 
 const LUCIDE_MAP: Record<string, LucideIcon> = {
   Server, Zap, Boxes, Box, CircleDot, Sprout,
@@ -40,6 +43,12 @@ const LUCIDE_MAP: Record<string, LucideIcon> = {
   Upload, User, Play, Clock, MessageCircle, ArrowLeftRight, Inbox,
 };
 
+function parseProviderServiceKey(iconName: string): { provider: CloudProviderId; serviceKey: string } | null {
+  if (iconName.startsWith('aws-')) return { provider: 'aws', serviceKey: iconName };
+  if (iconName.startsWith('azure-')) return { provider: 'azure', serviceKey: iconName };
+  return null;
+}
+
 interface NodeIconProps {
   technology?: string;
   fallbackIcon?: string;
@@ -51,12 +60,29 @@ export function NodeIcon({ technology, fallbackIcon, fallbackColor, size = 18 }:
   const entry = technology ? iconRegistry[technology] : undefined;
   const iconName = entry?.icon ?? fallbackIcon ?? 'Server';
   const color = entry?.color ?? fallbackColor ?? '#6B7280';
-  
+
+  if (technology && getTechnologyBrandSlug(technology) && entry?.kind !== 'aws') {
+    return <TechnologyBrandIcon technology={technology} size={size} color={color} />;
+  }
+
   if (entry?.kind === 'aws') {
-    const awsIcon = getAWSIcon(entry.icon);
-    if (awsIcon) {
-      return <AWSIcon iconId={entry.icon} size={size} color={color} />;
-    }
+    return <ProviderServiceIcon provider="aws" serviceKey={entry.icon} size={size} color={color} />;
+  }
+
+  const providerFromIcon = parseProviderServiceKey(iconName);
+  if (providerFromIcon) {
+    return (
+      <ProviderServiceIcon
+        provider={providerFromIcon.provider}
+        serviceKey={providerFromIcon.serviceKey}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  if (technology?.startsWith('azure-')) {
+    return <ProviderServiceIcon provider="azure" serviceKey={technology} size={size} color={color} />;
   }
 
   // Handle custom icons (arch-*) from icon registry
