@@ -85,7 +85,7 @@ function SettingRow({ icon: Icon, title, desc, children }: { icon?: React.Elemen
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const { user, signOut } = useAuthStore();
-  const { showGrid, toggleGrid, edgeAnimations, userProfile, canvases } = useDiagramStore();
+  const { showGrid, toggleGrid, showNodeIcons, setShowNodeIcons, edgeAnimations, userProfile, canvases } = useDiagramStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const ref = useRef<HTMLDivElement>(null);
   
@@ -406,6 +406,10 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 
                 <SettingRow icon={Eye} title="Show node labels" desc="Display component labels">
                   <Toggle enabled={showLabels} onChange={(val) => { setShowLabels(val); trackToggle('show_labels', val); }} />
+                </SettingRow>
+
+                <SettingRow icon={LayoutGrid} title="Show node icons" desc="Display icons on diagram nodes">
+                  <Toggle enabled={showNodeIcons} onChange={(val) => { setShowNodeIcons(val); trackToggle('show_node_icons', val); }} />
                 </SettingRow>
                 
                 <SettingRow icon={Keyboard} title="Keyboard shortcuts hints" desc="Show shortcut tooltips">

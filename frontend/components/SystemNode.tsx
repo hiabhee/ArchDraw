@@ -9,6 +9,7 @@ import { FloatingHandles } from './nodes/FloatingHandles';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
 import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
@@ -65,6 +66,7 @@ const ACCENT_CYCLE = Object.values(CONCERN_COLORS).map((c) => c.color);
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
   const cloudProvider = useDiagramStore((s) => s.cloudProvider);
+  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
   const nodeCardRef = useRef<HTMLDivElement>(null);
@@ -125,6 +127,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           cloudProvider,
         )
       : null;
+  const showIcon = resolveNodeIconVisibility(showNodeIcons, nodeData.showIcon);
 
   const statusColor = STATUS_COLORS[nodeData.status || 'healthy'];
   const showStatus = showEditChrome && nodeData.status && nodeData.status !== 'healthy';
@@ -242,6 +245,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
 
         <div className="node-header">
+          {showIcon && (
           <div
             className="node-icon-box"
             style={
@@ -271,6 +275,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               />
             )}
           </div>
+          )}
           {labelEdit.isEditing ? (
             <input
               {...labelEdit.inputProps}

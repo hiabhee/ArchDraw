@@ -1,9 +1,13 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Inbox, GitBranch, Monitor, Box } from 'lucide-react';
+import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Search } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
+import { CustomNodeIcon, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
+import { ARCH_ICON_CATALOG, ARCH_ICON_CATEGORY_LABELS, type ArchIconCategory } from '@/lib/archIconCatalog';
+import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 
 const GROUP_COLOR_OPTIONS = [
   '#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6',
@@ -27,23 +31,6 @@ const TIER_ICONS: Record<string, React.ElementType> = {
   data: Database,
   observe: Activity,
 };
-
-const COMPONENT_TYPE_OPTIONS = [
-  { value: 'service', label: 'Service', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#4F46E5' },
-  { value: 'database', label: 'Database', icon: Database, shape: 'cylinder' as ShapeType, category: 'data', color: '#1e293b' },
-  { value: 'queue', label: 'Message Queue', icon: Inbox, shape: 'circle' as ShapeType, category: 'messaging', color: '#0891b2' },
-  { value: 'load-balancer', label: 'Load Balancer', icon: GitBranch, shape: 'diamond' as ShapeType, category: 'networking', color: '#1E90FF' },
-  { value: 'client', label: 'Client', icon: Monitor, shape: 'rounded-rectangle' as ShapeType, category: 'client', color: '#2563EB' },
-  { value: 'external-service', label: 'External', icon: Globe, shape: 'diamond' as ShapeType, category: 'external', color: '#64748b' },
-  { value: 'observability', label: 'Observability', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#475569' },
-  { value: 'api-gateway', label: 'API Gateway', icon: Shield, shape: 'diamond' as ShapeType, category: 'gateway', color: '#7c3aed' },
-  { value: 'cache', label: 'Cache', icon: Zap, shape: 'cylinder' as ShapeType, category: 'data', color: '#f59e0b' },
-  { value: 'function', label: 'Function', icon: Server, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#ec4899' },
-  { value: 'cdn', label: 'CDN', icon: Globe, shape: 'circle' as ShapeType, category: 'edge', color: '#10b981' },
-  { value: 'auth-service', label: 'Auth Service', icon: Shield, shape: 'rounded-rectangle' as ShapeType, category: 'security', color: '#6366f1' },
-  { value: 'monitoring', label: 'Monitoring', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#0ea5e9' },
-  { value: 'container', label: 'Container', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#06b6d4' },
-];
 
 const TECH_LABELS: Record<string, string> = {
   postgres: 'PostgreSQL',
@@ -94,7 +81,7 @@ function EdgePropertiesPanel() {
   if (!edge) return null;
 
   return (
-    <div className="floating-panel p-4">
+    <div className="floating-panel z-50 overflow-y-auto p-4 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-[72px] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-[180px] sm:w-80 max-h-[calc(100dvh-200px)]">
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm font-medium">Edge Properties</span>
         <button 
@@ -140,7 +127,7 @@ function EdgePropertiesPanel() {
 export function PropertiesPanel() {
   const {
     selectedNodeId, selectedNodeIds, nodes, updateNodeSize, setSelectedNodeId, setSelectedNodeIds,
-    selectedEdgeId,
+    selectedEdgeId, showNodeIcons,
   } = useDiagramStore();
 
   const isMulti = selectedNodeIds.length > 1 && !selectedNodeId;
@@ -154,6 +141,8 @@ export function PropertiesPanel() {
   const labelRef = useRef<HTMLInputElement>(null);
   const [localLabel, setLocalLabel] = useState(node?.data?.label ?? '');
   const [prevNode, setPrevNode] = useState(node);
+  const [iconSearch, setIconSearch] = useState('');
+  const [iconCategory, setIconCategory] = useState<ArchIconCategory | 'all'>('all');
 
   if (node !== prevNode) {
     setPrevNode(node);
@@ -171,45 +160,6 @@ export function PropertiesPanel() {
     store.pushHistory();
     for (const id of targetIds) {
       store.updateNodeData(id, updates);
-    }
-  }, [targetIds]);
-
-  const applyTypeChange = useCallback((typeValue: string) => {
-    const option = COMPONENT_TYPE_OPTIONS.find((o) => o.value === typeValue);
-    if (!option) return;
-    useDiagramStore.getState().pushHistory();
-    for (const id of targetIds) {
-      const existing = useDiagramStore.getState().nodes.find((n) => n.id === id);
-      if (!existing) continue;
-      const isSystemNode = existing.type === 'systemNode' || existing.type === 'architectureNode' || existing.type === 'baseNode';
-      if (isSystemNode) {
-        const newNode = {
-          ...existing,
-          type: 'shapeNode' as const,
-          data: {
-            ...existing.data,
-            shape: option.shape,
-            componentType: option.value,
-            category: option.category,
-            icon: option.icon.name,
-            color: option.color,
-            accentColor: option.color,
-          },
-        };
-        useDiagramStore.getState().importDiagram(
-          useDiagramStore.getState().nodes.map((n) => n.id === id ? newNode : n),
-          useDiagramStore.getState().edges
-        );
-      } else {
-        useDiagramStore.getState().updateNodeData(id, {
-          shape: option.shape,
-          componentType: option.value,
-          category: option.category,
-          icon: option.icon.name,
-          color: option.color,
-          accentColor: option.color,
-        });
-      }
     }
   }, [targetIds]);
 
@@ -285,7 +235,25 @@ export function PropertiesPanel() {
   const isShapeNode = node?.type === 'shapeNode';
 
   const accent = data.accentColor || data.color || '#3b82f6';
-  const currentType = data.componentType || data.typeId || data.serviceType || 'service';
+  const resolvedIcon = resolveNodeIcon({
+    label: data.label,
+    typeId: data.typeId,
+    componentType: data.componentType,
+    serviceType: data.serviceType,
+    technology: data.technology || data.tech,
+    icon: data.icon,
+    color: accent,
+  });
+  const currentIcon = data.icon?.startsWith('arch-') || data.icon?.startsWith('aws-')
+    ? data.icon
+    : resolvedIcon.icon;
+  const iconVisible = resolveNodeIconVisibility(showNodeIcons, data.showIcon);
+  const iconQuery = iconSearch.trim().toLowerCase();
+  const filteredIcons = ARCH_ICON_CATALOG.filter((entry) => {
+    if (iconCategory !== 'all' && entry.category !== iconCategory) return false;
+    if (!iconQuery) return true;
+    return entry.label.toLowerCase().includes(iconQuery) || entry.id.includes(iconQuery);
+  });
 
   const statusColor = data.status === 'warning' ? '#F59E0B' : data.status === 'error' ? '#EF4444' : data.status === 'unknown' ? '#6B7280' : '#10B981';
 
@@ -296,17 +264,8 @@ export function PropertiesPanel() {
   if (!node && !isMulti) return null;
 
   return (
-    <div 
-      className="floating-panel p-4 overflow-y-auto"
-      style={{ 
-        minWidth: 260,
-        position: 'fixed',
-        top: 96,
-        right: 20,
-        bottom: 110,
-        maxHeight: 'calc(100vh - 206px)',
-        maxWidth: 'calc(100vw - 32px)',
-      }}
+    <div
+      className="floating-panel z-50 overflow-y-auto p-4 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-[72px] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-[180px] sm:w-80 max-h-[calc(100dvh-200px)]"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
@@ -353,34 +312,82 @@ export function PropertiesPanel() {
           </div>
         )}
 
-        {/* Component Type */}
+        {/* Icon */}
         <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-            <Server className="w-3 h-3" />
-            Component Type
-          </label>
-          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-            {COMPONENT_TYPE_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isSelected = currentType === option.value;
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Search className="w-3 h-3" />
+              Icon
+            </label>
+            <button
+              type="button"
+              onClick={() => applyToAll({ showIcon: !iconVisible })}
+              className={`px-2 py-1 rounded-md text-[9px] font-medium transition-colors ${
+                iconVisible ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'
+              }`}
+            >
+              {iconVisible ? 'Visible' : 'Hidden'}
+            </button>
+          </div>
+          {data.showIcon !== undefined && (
+            <p className="text-[9px] text-muted-foreground/60 mb-2">
+              This node overrides the global icon setting.
+            </p>
+          )}
+          <div className={`flex items-center gap-2 mb-2 px-2 py-1.5 bg-secondary rounded-lg${iconVisible ? '' : ' opacity-50'}`}>
+            <CustomNodeIcon name={currentIcon as CustomNodeIconName} color={accent} size={20} />
+            <span className="text-[10px] text-muted-foreground truncate">{currentIcon.replace('arch-', '').replace(/-/g, ' ')}</span>
+          </div>
+          <input
+            type="text"
+            value={iconSearch}
+            placeholder="Search icons..."
+            onChange={(e) => setIconSearch(e.target.value)}
+            className="w-full px-3 py-2 mb-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <div className="flex flex-wrap gap-1 mb-2">
+            <button
+              onClick={() => setIconCategory('all')}
+              className={`px-2 py-1 rounded-md text-[9px] transition-colors ${
+                iconCategory === 'all' ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'
+              }`}
+            >
+              All
+            </button>
+            {(Object.keys(ARCH_ICON_CATEGORY_LABELS) as ArchIconCategory[]).map((category) => (
+              <button
+                key={category}
+                onClick={() => setIconCategory(category)}
+                className={`px-2 py-1 rounded-md text-[9px] transition-colors ${
+                  iconCategory === category ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground'
+                }`}
+              >
+                {ARCH_ICON_CATEGORY_LABELS[category]}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto pr-1">
+            {filteredIcons.map((entry) => {
+              const isSelected = currentIcon === entry.id;
               return (
                 <button
-                  key={option.value}
-                  onClick={() => applyTypeChange(option.value)}
-                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-[10px] transition-all ${
+                  key={entry.id}
+                  onClick={() => applyToAll({ icon: entry.id })}
+                  className={`flex items-center justify-center p-1.5 rounded-lg transition-all ${
                     isSelected
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+                      ? 'bg-primary/15 border border-primary/30'
+                      : 'bg-secondary hover:bg-secondary/80 border border-transparent'
                   }`}
-                  title={option.label}
-                  style={isSelected ? { borderColor: option.color, color: option.color } : undefined}
+                  title={entry.label}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{option.label}</span>
+                  <CustomNodeIcon name={entry.id as CustomNodeIconName} color={isSelected ? accent : '#6B7280'} size={18} />
                 </button>
               );
             })}
           </div>
+          {filteredIcons.length === 0 && (
+            <p className="text-[9px] text-muted-foreground/60 mt-1">No icons match your search.</p>
+          )}
           {isMulti && (
             <p className="text-[9px] text-muted-foreground/60 mt-1.5">
               Applies to all {targetIds.length} selected nodes

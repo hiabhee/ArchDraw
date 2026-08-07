@@ -37,6 +37,8 @@ export interface NodeData {
   labelManuallyEdited?: boolean;
   /** Enter inline label edit when the node mounts (edge-drop create). */
   autoStartLabelEdit?: boolean;
+  /** When set, overrides the global show-node-icons preference for this node. */
+  showIcon?: boolean;
 }
 
 export interface CanvasTab {
@@ -116,6 +118,7 @@ export interface DiagramState {
   guideLines: GuideLine[];
   edgeAnimations: boolean;
   showGrid: boolean;
+  showNodeIcons: boolean;
   diagramChromeMode: 'edit' | 'present';
   diagramStyleTheme: string;
   darkMode: boolean;
@@ -126,6 +129,8 @@ export interface DiagramState {
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
+  toggleNodeIcons: () => void;
+  setShowNodeIcons: (show: boolean) => void;
   cloudProvider: CloudProviderToggle;
   setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;

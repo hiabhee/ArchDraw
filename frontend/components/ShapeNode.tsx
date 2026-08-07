@@ -15,6 +15,7 @@ import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useDiagramStore } from '@/store/diagramStore';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
 import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
 import './nodes/nodeStyles.css';
@@ -42,6 +43,7 @@ export interface ShapeNodeData {
   serviceType?: string;
   nodeWidth?: number;
   nodeHeight?: number;
+  showIcon?: boolean;
 }
 
 /** Fit to optical grid; wrap long labels inside the silhouette mid-band. */
@@ -98,6 +100,7 @@ function Label({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cloudProvider = useDiagramStore((s) => s.cloudProvider);
+  const showNodeIcons = useDiagramStore((s) => s.showNodeIcons);
   const labelEdit = useInlineLabelEdit({
     nodeId,
     currentLabel: data.label || '',
@@ -130,6 +133,7 @@ function Label({
     16,
     Math.round(Math.min(width * 0.2, height - 28)),
   );
+  const showIcon = resolveNodeIconVisibility(showNodeIcons, data.showIcon);
 
   return (
     <div
@@ -137,6 +141,7 @@ function Label({
       className="flex flex-col items-center justify-center text-center px-1 select-none"
       style={{ width: '100%', maxWidth: maxWidth ?? '100%' }}
     >
+      {showIcon && (
       <div
         className="node-icon-box mb-1"
         aria-hidden="true"
@@ -170,6 +175,7 @@ function Label({
           />
         )}
       </div>
+      )}
       {labelEdit.isEditing ? (
         <input
           {...labelEdit.inputProps}
