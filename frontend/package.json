@@ -19,7 +19,9 @@
     "eval:repo": "tsx scripts/eval/run-eval.ts",
     "eval:repo:report": "tsx scripts/eval/run-eval.ts --report",
     "eval:golden": "tsx scripts/eval/gen-golden.ts",
-    "eval:test": "vitest --run scripts/eval/__tests__/score.test.ts"
+    "eval:test": "vitest --run scripts/eval/__tests__/score.test.ts",
+    "lint:tutorials": "tsx scripts/lint-tutorials.ts",
+    "lint:tutorials:strict": "tsx scripts/lint-tutorials.ts --strict"
   },
   "dependencies": {
     "@prisma/adapter-neon": "^7.8.0",

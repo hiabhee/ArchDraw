@@ -23,6 +23,8 @@ import shopifyTutorial_default from './shopify-architecture';
 import doordashTutorial_default from './doordash-architecture';
 import githubTutorial_default from './github-architecture';
 import urlShortenerTutorial_default from './url-shortener-architecture';
+import rateLimiterTutorial_default from './rate-limiter-architecture';
+import todoApiTutorial_default from './todo-api-architecture';
 import ragTutorial_default from './rag-application-architecture';
 import aiAgentTutorial_default from './ai-agent-system-architecture';
 
@@ -46,6 +48,8 @@ const shopifyTutorial = shopifyTutorial_default;
 const doordashTutorial = doordashTutorial_default;
 const githubTutorial = githubTutorial_default;
 const urlShortenerTutorial = urlShortenerTutorial_default;
+const rateLimiterTutorial = rateLimiterTutorial_default;
+const todoApiTutorial = todoApiTutorial_default;
 const ragTutorial = ragTutorial_default;
 const aiAgentTutorial = aiAgentTutorial_default;
 
@@ -71,6 +75,8 @@ export {
   doordashTutorial,
   githubTutorial,
   urlShortenerTutorial,
+  rateLimiterTutorial,
+  todoApiTutorial,
   ragTutorial,
   aiAgentTutorial,
 };
@@ -96,6 +102,8 @@ export const TUTORIALS: AnyTutorial[] = [
   doordashTutorial,
   githubTutorial,
   urlShortenerTutorial,
+  rateLimiterTutorial,
+  todoApiTutorial,
   ragTutorial,
   aiAgentTutorial,
 ];

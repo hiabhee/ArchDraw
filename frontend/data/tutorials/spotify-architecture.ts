@@ -15,12 +15,45 @@ const spotifyTutorial = defineTutorial({
       title: 'Music Streaming Platform',
       steps: [
         step({
-          component: 'Web Client',
-          nodeType: 'client_web',
+          component: 'Audio CDN',
+          nodeType: 'audio_cdn',
+          noConnect: true,
           phases: {
             context: {
               heading: 'Welcome to Spotify Architecture',
-              body: "Let's build Spotify from scratch. 600 million users, 100 million songs and podcasts, and a recommendation system that feels like it reads your mind.",
+              body: "Spotify streams billions of hours monthly — playback starts at the Audio CDN edge closest to each listener.",
+            },
+            intro: {
+              heading: 'Do you know about Audio CDNs?',
+              body: "Spotify's Audio CDN delivers audio files from edge locations close to listeners.",
+            },
+            teaching: {
+              heading: 'Deep dive: Audio CDN',
+              body: "Spotify uses multiple CDN providers simultaneously. A song request goes to whichever CDN has the lowest latency for your location. The top 10,000 songs account for 80% of streams — pre-cached everywhere.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Audio CDN', and add it to the canvas.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'This is the first step, so no connections needed yet.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Audio CDN added. Now the Web Client.',
+            },
+          },
+          hints: ['Search for "Audio CDN"'],
+        }),
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
+          parent: 'Audio CDN',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 2',
+              body: 'Clients request manifests and audio segments from the CDN while managing queues, offline downloads, and social features.',
             },
             intro: {
               heading: 'Do you know about Web Clients?',
@@ -36,46 +69,14 @@ const spotifyTutorial = defineTutorial({
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'This is the first step, so no connections needed yet.',
+              body: 'Connect Audio CDN \u2192 Web Client.',
             },
             celebration: {
               heading: 'Great job!',
-              body: 'Web Client added. Now the Audio CDN.',
+              body: 'Web Client added. Now the API Gateway.',
             },
           },
-          hints: ['Press \u2318K to open component search', 'Search for "Web Client"'],
-        }),
-        step({
-          component: 'Audio CDN',
-          nodeType: 'audio_cdn',
-          parent: 'Web Client',
-          phases: {
-            context: {
-              heading: 'Level 1: Step 2',
-              body: 'Adding the Audio CDN \u2014 delivers audio from edge locations.',
-            },
-            intro: {
-              heading: 'Do you know about Audio CDNs?',
-              body: "Spotify's Audio CDN delivers audio files from edge locations close to listeners.",
-            },
-            teaching: {
-              heading: 'Deep dive: Audio CDN',
-              body: "Spotify uses multiple CDN providers simultaneously. A song request goes to whichever CDN has the lowest latency for your location. The top 10,000 songs account for 80% of streams \u2014 pre-cached everywhere.",
-            },
-            action: {
-              heading: 'Your turn!',
-              body: "Press \u2318K, search for 'Audio CDN', and add it to the canvas.",
-            },
-            connecting: {
-              heading: 'Connect it up',
-              body: 'Connect Web Client \u2192 Audio CDN.',
-            },
-            celebration: {
-              heading: 'Great job!',
-              body: 'Audio CDN added. Now the API Gateway.',
-            },
-          },
-          hints: ['Search for "Audio CDN"', 'Connect Web Client to Audio CDN'],
+          hints: ['Search for "Web Client"', 'Connect Audio CDN to Web Client'],
         }),
         step({
           component: 'API Gateway',
@@ -84,7 +85,7 @@ const spotifyTutorial = defineTutorial({
           phases: {
             context: {
               heading: 'Level 1: Step 3',
-              body: 'Adding the API Gateway \u2014 handles non-audio requests.',
+              body: 'Adding the API Gateway — handles non-audio requests.',
             },
             intro: {
               heading: 'Do you know about API Gateways?',
@@ -168,10 +169,106 @@ const spotifyTutorial = defineTutorial({
             },
             celebration: {
               heading: 'Great job!',
-              body: 'Auth Service added. Tutorial complete! You have built Spotify.',
+              body: 'Auth Service added. Now the Recommendation Service.',
             },
           },
           hints: ['Search for "Auth Service"', 'Connect Load Balancer to it'],
+        }),
+        step({
+          component: 'Recommendation Service',
+          nodeType: 'recommendation_service',
+          parent: 'Load Balancer',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 6',
+              body: 'Adding the Recommendation Service — powers Discover Weekly and personalized playlists.',
+            },
+            intro: {
+              heading: 'Do you know about Recommendation Services?',
+              body: "Spotify's recommendation engine analyzes listening history, skips, and playlist adds to surface new music.",
+            },
+            teaching: {
+              heading: 'Deep dive: Recommendation Service',
+              body: "Collaborative filtering compares your taste to similar listeners. The service runs batch jobs overnight and serves pre-computed candidates in milliseconds at request time.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Recommendation Service', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect Load Balancer \u2192 Recommendation Service.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Recommendation Service added. Now the Database.',
+            },
+          },
+          hints: ['Search for "Recommendation Service"', 'Connect Load Balancer to it'],
+        }),
+        step({
+          component: 'Database',
+          nodeType: 'sql_db',
+          parent: 'Auth Service',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 7',
+              body: 'Adding the Database — stores user profiles, playlists, and listening history.',
+            },
+            intro: {
+              heading: 'Do you know about Databases?',
+              body: "Spotify's metadata database tracks songs, artists, albums, and user library state.",
+            },
+            teaching: {
+              heading: 'Deep dive: Database',
+              body: "Playlist edits and follow actions need ACID guarantees. Audio files stay in object storage/CDN — the database only stores pointers and social graph edges.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Database', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect Auth Service \u2192 Database.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Database added. Now transcoding workers.',
+            },
+          },
+          hints: ['Search for "Database"', 'Connect Auth Service to it'],
+        }),
+        step({
+          component: 'Transcoding Worker',
+          nodeType: 'transcoding_worker',
+          parent: 'Audio CDN',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 8',
+              body: 'Adding the Transcoding Worker — converts master audio into Ogg Vorbis and AAC bitrates.',
+            },
+            intro: {
+              heading: 'Do you know about Transcoding Workers?',
+              body: 'Workers transform uploaded masters into every bitrate the client might request.',
+            },
+            teaching: {
+              heading: 'Deep dive: Transcoding Worker',
+              body: "New podcast episodes and user uploads enter a GPU/CPU farm that produces 96kbps through 320kbps streams. Without transcoding, playback would fail on cellular networks.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Transcoding', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect Audio CDN \u2192 Transcoding Worker.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Transcoding Worker added. Your Spotify architecture is complete!',
+            },
+          },
+          hints: ['Search for "Transcoding"', 'Connect Audio CDN to it'],
         }),
       ],
     }),

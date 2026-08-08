@@ -1,7 +1,7 @@
 import type { TutorialDefinition } from '@/lib/tutorial/schema';
 import type { ValidationRule } from '@/lib/tutorial/schema';
 
-const tutorialFiles = import.meta.glob('./**/*.ts', { eager: true });
+const tutorialFiles = import.meta.glob('../../../data/tutorials/*-architecture.ts', { eager: true });
 
 const forbiddenImports = ['react', 'zustand', '@/store'];
 
@@ -51,6 +51,19 @@ function validateTutorialDefinition(tutorial: unknown, filePath: string): TestRe
           if (!s.title) errors.push(`Level ${i} Step ${j}: missing title`);
           if (!s.phases || typeof s.phases !== 'object') {
             errors.push(`Level ${i} Step ${j}: missing phases`);
+          } else {
+            const phases = s.phases as Record<string, unknown>;
+            const teaching = phases.teaching as Record<string, unknown> | undefined;
+            if (!teaching || typeof teaching !== 'object') {
+              errors.push(`Level ${i} Step ${j}: missing teaching phase`);
+            } else {
+              if (!teaching.heading || typeof teaching.heading !== 'string' || !teaching.heading.trim()) {
+                errors.push(`Level ${i} Step ${j}: teaching phase missing heading`);
+              }
+              if (!teaching.body || typeof teaching.body !== 'string' || !teaching.body.trim()) {
+                errors.push(`Level ${i} Step ${j}: teaching phase missing body`);
+              }
+            }
           }
           if (!Array.isArray(s.validation)) {
             errors.push(`Level ${i} Step ${j}: missing validation array`);
@@ -90,5 +103,38 @@ describe('Tutorial Definitions Validation', () => {
 
     expect(failures).toEqual([]);
     expect(failed).toBe(0);
+  });
+
+  it('teaching phases are enriched with whyItMatters/tradeoff callouts', () => {
+    // The `step()` builder auto-fills these from COMPONENT_TOOLTIPS. If the
+    // builder wiring breaks, coverage drops to 0 — this guards the enrichment
+    // path while Phase 4 content migration fills the remaining gaps.
+    let teachingCount = 0;
+    let withWhy = 0;
+    let withTradeoff = 0;
+    const missing: string[] = [];
+
+    for (const [path, mod] of Object.entries(tutorialFiles)) {
+      if (!path.includes('-architecture.ts')) continue;
+      const tutorial = (mod as { default?: TutorialDefinition }).default;
+      if (!tutorial) continue;
+
+      for (const level of tutorial.levels) {
+        for (const step of level.steps) {
+          const teaching = step.phases?.teaching;
+          if (!teaching) continue;
+          teachingCount += 1;
+          if (teaching.whyItMatters) withWhy += 1;
+          if (teaching.tradeoff) withTradeoff += 1;
+          if (!teaching.whyItMatters && !teaching.tradeoff) {
+            missing.push(`${tutorial.id}/${step.id}`);
+          }
+        }
+      }
+    }
+
+    expect(teachingCount).toBeGreaterThan(0);
+    expect(withWhy).toBeGreaterThan(0);
+    expect(withTradeoff).toBeGreaterThan(0);
   });
 });

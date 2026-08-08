@@ -9,6 +9,7 @@ const urlShortenerTutorial = defineTutorial({
   tags: ['caching', 'analytics', 'api'],
   icon: 'Link',
   color: '#8B3DFF',
+  recommendedOrder: 1,
 
   levels: [
     level({
@@ -143,6 +144,38 @@ const urlShortenerTutorial = defineTutorial({
             },
           },
           hints: ['Search for "In-Memory Cache"', 'Connect Load Balancer to it'],
+        }),
+        step({
+          component: 'Auth Service',
+          nodeType: 'auth_service',
+          parent: 'API Gateway',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 5',
+              body: 'Adding Auth Service — issues API keys and protects shorten endpoints from abuse.',
+            },
+            intro: {
+              heading: 'Do you know about Auth Services?',
+              body: 'Auth validates API keys for programmatic shortening while browser redirects stay public.',
+            },
+            teaching: {
+              heading: 'Deep dive: Auth Service',
+              body: 'Bots can spam shorten endpoints to burn short codes. Per-key quotas and CAPTCHA on anonymous creates keep the namespace healthy.',
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Auth Service', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect API Gateway \u2192 Auth Service.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Auth Service added. Request path complete!',
+            },
+          },
+          hints: ['Search for "Auth Service"', 'Connect API Gateway to it'],
         }),
       ],
     }),
