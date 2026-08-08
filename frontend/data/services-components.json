@@ -4,7 +4,8 @@
     "label": "Supabase Auth",
     "category": "Auth & Identity",
     "color": "#3ecf8e",
-    "icon": "Shield"
+    "icon": "Shield",
+    "technology": "supabase-auth"
   },
   {
     "id": "clerk",
@@ -53,7 +54,8 @@
     "label": "Supabase DB",
     "category": "Database & Storage",
     "color": "#3ecf8e",
-    "icon": "Database"
+    "icon": "Database",
+    "technology": "supabase"
   },
   {
     "id": "firebase_firestore",
@@ -753,7 +755,8 @@
     "label": "Supabase Realtime",
     "category": "Realtime",
     "color": "#3ecf8e",
-    "icon": "Activity"
+    "icon": "Activity",
+    "technology": "supabase"
   },
   {
     "id": "livekit",

@@ -143,6 +143,7 @@ const LABEL_MATCHERS: Array<{
   color?: string;
   test: RegExp;
 }> = [
+  { source: 'label', icon: 'arch-database', technology: 'supabase', test: /\bsupabase\b/i },
   { source: 'label', icon: 'arch-grpc', test: /\b(grpc|protobuf)\b/i },
   { source: 'label', icon: 'arch-scheduler', test: /\b(scheduler|cron|scheduled job)\b/i },
   { source: 'label', icon: 'arch-batch', test: /\b(batch|bulk process)\b/i },

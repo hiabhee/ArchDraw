@@ -191,8 +191,16 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const cardHeight = Math.max(nodeData.nodeHeight || NODE_HEIGHT, fitted.height);
   const cloudIconSize = Math.max(
     ICON_SIZE.cloudMin,
-    Math.round(Math.min(cardWidth * 0.2, cardHeight - 28)),
+    Math.round(Math.min(cardWidth * 0.3, cardHeight - 20)),
   );
+  const iconBoxSize = providerIcon
+    ? cloudIconSize
+    : nodeKind === 'database' || nodeKind === 'ai'
+      ? ICON_SIZE.boxLarge
+      : ICON_SIZE.box;
+  const iconGlyphSize = providerIcon
+    ? Math.round(cloudIconSize * 0.78)
+    : ICON_SIZE.node;
 
   return (
       <div
@@ -242,18 +250,14 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           {showIcon && (
           <div
             className="node-icon-box"
-            style={
-              providerIcon
-                ? { width: cloudIconSize, height: cloudIconSize }
-                : undefined
-            }
+            style={{ width: iconBoxSize, height: iconBoxSize }}
             aria-hidden="true"
           >
             {providerIcon ? (
               <ProviderServiceIcon
                 provider={providerIcon.kind}
                 serviceKey={providerIcon.serviceKey}
-                size={Math.round(cloudIconSize * 0.72)}
+                size={iconGlyphSize}
                 color={providerIcon.color}
               />
             ) : (
@@ -261,7 +265,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 technology={resolvedIcon.technology}
                 fallbackIcon={resolvedIcon.icon}
                 fallbackColor={resolvedIcon.color}
-                size={ICON_SIZE.node}
+                size={iconGlyphSize}
               />
             )}
           </div>

@@ -3,8 +3,9 @@ import { debounce } from '../helpers/debounce';
 import type { DiagramState } from '../types';
 
 /** Debounced persist of a single canvas tab to the API (authenticated users only). */
-export const debouncedSaveCanvasToDB = debounce(async (canvasId: string, get: () => DiagramState) => {
-  if (!process.env.DATABASE_URL) return;
+async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Promise<void> {
+  const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+  if (!authEnabled) return;
   const state = get();
   if (!state.userProfile || state.userProfile.id === 'guest') return;
   const canvas = state.canvases.find((c) => c.id === canvasId);
@@ -24,10 +25,21 @@ export const debouncedSaveCanvasToDB = debounce(async (canvasId: string, get: ()
   } catch {
     state.setSavingState('idle');
   }
+}
+
+export async function flushCanvasSaveToDB(canvasId: string, get: () => DiagramState): Promise<void> {
+  debouncedSaveCanvasToDB.cancel();
+  await saveCanvasToDBNow(canvasId, get);
+}
+
+/** Debounced persist of a single canvas tab to the API (authenticated users only). */
+export const debouncedSaveCanvasToDB = debounce((canvasId: string, get: () => DiagramState) => {
+  void saveCanvasToDBNow(canvasId, get);
 }, 1500);
 
 export async function deleteCanvasFromDB(canvasId: string, get: () => DiagramState): Promise<void> {
-  if (!process.env.DATABASE_URL) return;
+  const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+  if (!authEnabled) return;
   const state = get();
   if (!state.userProfile || state.userProfile.id === 'guest') return;
   try {

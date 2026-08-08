@@ -74,9 +74,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized) return;
 
+    const { sessionExpired } = useAuthStore.getState();
+
     if (!user) {
       prevUserIdRef.current = null;
-      useDiagramStore.getState().setUserProfile(null);
+      useDiagramStore.getState().setUserProfile(null, { preserveCanvases: sessionExpired });
       return;
     }
 

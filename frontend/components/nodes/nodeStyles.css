@@ -76,12 +76,12 @@
     font-size: 12px;
   }
   .node-icon-box {
-    width: 22px;
-    height: 22px;
+    width: 35px;
+    height: 35px;
   }
   .node-icon {
-    width: 10px;
-    height: 10px;
+    width: 16px;
+    height: 16px;
   }
 
   /* Queue mobile */
@@ -97,13 +97,13 @@
     min-height: 72px;
   }
   .node-queue .node-icon-box {
-    width: 32px;
-    height: 32px;
-    flex: 0 0 32px;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
   }
   .node-queue .node-icon {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
   }
 
   /* Database mobile */
@@ -111,13 +111,13 @@
     min-height: 90px;
   }
   .node-database .node-icon-box {
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
+    width: 35px;
+    height: 35px;
+    flex: 0 0 35px;
   }
   .node-database .node-icon {
-    width: 12px;
-    height: 12px;
+    width: 15px;
+    height: 15px;
   }
 
   /* Server mobile */
@@ -130,13 +130,13 @@
     min-height: 80px;
   }
   .node-ai .node-icon-box {
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
+    width: 35px;
+    height: 35px;
+    flex: 0 0 35px;
   }
   .node-ai .node-icon {
-    width: 12px;
-    height: 12px;
+    width: 15px;
+    height: 15px;
   }
 
   /* Docker mobile */
@@ -180,9 +180,9 @@
 }
 
 .node-icon-box {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  width: 45px;
+  height: 45px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -192,8 +192,8 @@
 }
 
 .node-icon {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 3px;
   background: var(--node-accent);
 }
@@ -563,15 +563,15 @@
 }
 
 .node-queue .node-icon-box {
-  border-radius: 7px;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  border-radius: 11px;
+  width: 45px;
+  height: 45px;
+  flex: 0 0 45px;
 }
 
 .node-queue .node-icon {
-  width: 14px;
-  height: 14px;
+  width: 23px;
+  height: 23px;
 }
 
 .node-queue .node-title {
@@ -626,14 +626,14 @@
 
 .node-database .node-icon-box {
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 53px;
+  height: 53px;
+  flex: 0 0 53px;
 }
 
 .node-database .node-icon {
-  width: 16px;
-  height: 16px;
+  width: 25px;
+  height: 25px;
 }
 
 /* Table-record rows — three horizontal bars of varying width,
@@ -794,14 +794,14 @@
 
 .node-ai .node-icon-box {
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 53px;
+  height: 53px;
+  flex: 0 0 53px;
 }
 
 .node-ai .node-icon {
-  width: 16px;
-  height: 16px;
+  width: 25px;
+  height: 25px;
 }
 
 /* Neural-node pattern: three dots with the middle one elevated,

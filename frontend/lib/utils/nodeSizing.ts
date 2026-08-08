@@ -4,7 +4,7 @@
  * from their usable mid-band so silhouettes stay compact.
  */
 
-import { SIZE_S, SIZE_M, SIZE_L, clampToSizeGrid, SHAPE_LANE_HEIGHT_CAP } from '@/lib/theme/stylingConstants';
+import { SIZE_S, SIZE_M, SIZE_L, clampToSizeGrid, SHAPE_LANE_HEIGHT_CAP, ICON_SIZE } from '@/lib/theme/stylingConstants';
 
 /** Soft ceiling for rare callers that opt into wider cards. */
 export const SIZE_XL = 280;
@@ -15,8 +15,8 @@ const AVG_CHAR_WIDTH = 7.2; // ~13–14px semibold
 const LINE_HEIGHT = 18;
 const PADDING_Y = 36;
 const MIN_HEIGHT = 80;
-/** Extra vertical room when an icon sits above the label. */
-const ICON_STACK = 28;
+/** Vertical room for icon above label — keep aligned with ICON_SIZE.box. */
+const ICON_STACK = ICON_SIZE.box + 12;
 
 export type ShapeFit =
   | 'rectangle'
@@ -33,9 +33,9 @@ export type ShapeFit =
 const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
   rectangle: 0.88,
   'rounded-rectangle': 0.88,
-  diamond: 0.48,
+  diamond: 0.42,
   parallelogram: 0.72,
-  circle: 0.48,
+  circle: 0.42,
   cylinder: 0.85,
 };
 
@@ -48,6 +48,9 @@ const SHAPE_HEIGHT_FACTOR: Record<ShapeFit, number> = {
   circle: 1.1,
   cylinder: 1.08,
 };
+
+/** Legacy compact icon stack for diamonds (excluded from enlarged icons). */
+const DIAMOND_ICON_STACK = ICON_SIZE.diamond.box + 8;
 
 /** Default max width: diamonds/circles stay on the optical grid. */
 const SHAPE_MAX_WIDTH: Record<ShapeFit, number> = {
@@ -107,6 +110,7 @@ export function calculateNodeDimensions(
   const minWidth = options.minWidth ?? (shape === 'diamond' || shape === 'circle' ? SIZE_S : SIZE_M);
   const minHeight = options.minHeight ?? MIN_HEIGHT;
   const maxWidth = options.maxWidth ?? SHAPE_MAX_WIDTH[shape];
+  const iconStack = shape === 'diamond' ? DIAMOND_ICON_STACK : ICON_STACK;
 
   const lines = [
     ...String(label || 'Service').split(/\n/),
@@ -129,13 +133,11 @@ export function calculateNodeDimensions(
   }
 
   let height =
-    Math.max(minHeight, wrappedLines * LINE_HEIGHT + PADDING_Y + ICON_STACK) * heightFactor;
+    Math.max(minHeight, wrappedLines * LINE_HEIGHT + PADDING_Y + iconStack) * heightFactor;
 
   // Keep diamonds / circles roughly balanced so labels stay in the mid-band.
   if (shape === 'diamond' || shape === 'circle') {
     height = Math.max(height, Math.round(width * 0.52));
-    // Lane cap: stop silhouettes from towering over adjacent rectangles so
-    // mixed-shape rows stay vertically aligned in denser graphs.
     height = Math.min(height, SHAPE_LANE_HEIGHT_CAP);
   }
 

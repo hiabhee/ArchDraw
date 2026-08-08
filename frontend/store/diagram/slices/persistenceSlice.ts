@@ -4,12 +4,16 @@ import { toast } from 'sonner';
 import { STORAGE_KEYS } from '@/lib/config';
 import { fetchUserCanvases as apiGetUserCanvases } from '@/lib/api-client';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
-import type { DiagramState, CanvasTab } from '../types';
+import type { DiagramState, CanvasTab, SetUserProfileOptions } from '../types';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { mergeCanvases } from '../helpers/canvasHelpers';
 import { normalizeNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges } from '../helpers/edgeHelpers';
 import { debouncedSaveCanvasToDB } from '../persistence/dbSave';
+
+function hasCanvasContent(canvases: CanvasTab[]): boolean {
+  return canvases.some((c) => (c.nodes?.length ?? 0) > 0 || (c.edges?.length ?? 0) > 0);
+}
 
 export type PersistenceSlice = Pick<
   DiagramState,
@@ -29,9 +33,18 @@ export const createPersistenceSlice: StateCreator<
 > = (set, get) => ({
   userProfile: null,
 
-  setUserProfile: (profile) => {
+  setUserProfile: (profile, options?: SetUserProfileOptions) => {
     const isGuest = !profile || profile.id === 'guest';
+    if (isGuest && options?.preserveCanvases) {
+      set({ userProfile: profile });
+      return;
+    }
     if (isGuest) {
+      const existing = get();
+      if (hasCanvasContent(existing.canvases)) {
+        set({ userProfile: profile });
+        return;
+      }
       let guestCanvas;
       const guestSaved = typeof window !== 'undefined' ? localStorage.getItem('archdraw-guest-canvas') : null;
       if (guestSaved) {
@@ -80,7 +93,8 @@ export const createPersistenceSlice: StateCreator<
   setSavingState: (s) => set({ savingState: s }),
 
   loadCanvasesFromDB: async () => {
-    if (!process.env.DATABASE_URL) return;
+    const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
+    if (!authEnabled) return;
     const { activeCanvasId, canvases: localCanvases } = get();
     try {
       const { useAuthStore } = await import('@/store/authStore');

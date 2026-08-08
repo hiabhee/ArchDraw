@@ -136,6 +136,12 @@ function markGuestSessionActive(): void {
   }
 }
 
+function hasCanvasContent(canvases: CanvasTab[] | undefined): boolean {
+  return Boolean(
+    canvases?.some((c) => (c.nodes?.length ?? 0) > 0 || (c.edges?.length ?? 0) > 0),
+  );
+}
+
 /**
  * Post-rehydration migration: guest session rules + normalize all canvas graphs.
  * Mutates `state` in place (Zustand persist contract).
@@ -146,7 +152,12 @@ export function rehydrateDiagramState(state: DiagramState): void {
     typeof window !== 'undefined' && !sessionStorage.getItem('archdraw-session-active');
 
   if (isGuest && isNewSession) {
-    rehydrateGuestNewSession(state);
+    // Fresh guest tab — but keep persisted diagrams (e.g. after session expiry).
+    if (hasCanvasContent(state.canvases)) {
+      markGuestSessionActive();
+    } else {
+      rehydrateGuestNewSession(state);
+    }
   } else if (isGuest) {
     loadGuestCanvasesFromLocalStorage(state);
     markGuestSessionActive();

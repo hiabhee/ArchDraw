@@ -64,6 +64,11 @@ export interface UserProfile {
   avatar_url?: string;
 }
 
+export interface SetUserProfileOptions {
+  /** Keep in-memory / persisted canvases (e.g. session expired while editing). */
+  preserveCanvases?: boolean;
+}
+
 export interface HistoryEntry {
   nodes: Node[];
   edges: Edge[];
@@ -100,7 +105,7 @@ export interface DiagramState {
 
   // ── User / Auth ───────────────────────────────────────────────────────────
   userProfile: UserProfile | null;
-  setUserProfile: (profile: UserProfile | null) => void;
+  setUserProfile: (profile: UserProfile | null, options?: SetUserProfileOptions) => void;
   loadCanvasesFromDB: () => Promise<void>;
   saveCanvasToDB: (canvasId: string) => void;
   savingState: 'idle' | 'saving' | 'saved';

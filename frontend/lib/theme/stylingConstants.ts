@@ -131,9 +131,16 @@ export const EDGE_MARKER_SIZE = { width: 22, height: 22 } as const;
 
 /** Icon slot sizes — recognition first, quiet chip second. */
 export const ICON_SIZE = {
-  node: 18,
-  cloudMin: 20,
-  box: 28,
+  node: 30,
+  cloudMin: 35,
+  box: 45,
+  boxLarge: 53,
+  /** Diamonds stay compact — excluded from the enlarged icon treatment. */
+  diamond: {
+    node: 18,
+    cloudMin: 20,
+    box: 28,
+  },
 } as const;
 
 export const FONTS = {

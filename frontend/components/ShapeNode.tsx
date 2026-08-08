@@ -10,6 +10,11 @@ import {
   type NodeStyleConfig,
 } from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import {
+  diamondClipPath,
+  getDiamondLabelNudge,
+  getShapeLabelMaxWidth,
+} from '@/lib/utils/shapeTextLayout';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -49,17 +54,11 @@ export interface ShapeNodeData {
 /** Fit to optical grid; wrap long labels inside the silhouette mid-band. */
 function resolveShapeSize(data: ShapeNodeData): { width: number; height: number; labelMaxWidth: number } {
   const fitted = calculateNodeDimensions(data.label || '', data.sublabel, { shape: data.shape });
-  const width = Math.max(data.nodeWidth ?? 0, fitted.width);
-  const height = Math.max(data.nodeHeight ?? 0, fitted.height);
-  // Keep text inside silhouette: diamonds/circles use a narrower mid-band.
-  // Band fractions must stay aligned with SHAPE_TEXT_BAND in nodeSizing.ts.
-  const band =
-    data.shape === 'diamond' || data.shape === 'circle'
-      ? 0.48
-      : data.shape === 'parallelogram'
-        ? 0.72
-        : 0.88;
-  return { width, height, labelMaxWidth: Math.max(72, Math.round(width * band)) };
+  return {
+    width: Math.max(data.nodeWidth ?? 0, fitted.width),
+    height: Math.max(data.nodeHeight ?? 0, fitted.height),
+    labelMaxWidth: getShapeLabelMaxWidth(data.shape, Math.max(data.nodeWidth ?? 0, fitted.width), 'title'),
+  };
 }
 
 const HANDLE_STYLE = (color: string) => ({
@@ -90,6 +89,7 @@ function Label({
   width,
   height,
   maxWidth,
+  shape,
 }: {
   data: ShapeNodeData;
   color: string;
@@ -97,6 +97,7 @@ function Label({
   width: number;
   height: number;
   maxWidth?: number;
+  shape?: ShapeType;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iconMode = useDiagramStore((s) => s.iconMode);
@@ -115,45 +116,57 @@ function Label({
     icon: data.icon,
     color,
   });
-  const providerIcon = resolveAutoCloudIcon({
-    label: data.label,
-    typeId: data.typeId ?? data.componentType,
-    componentId: (data as ShapeNodeData & { componentId?: string }).componentId,
-    technology: data.technology,
-    serviceType: data.serviceType,
-    icon: data.icon,
-  });
+  const providerIcon =
+    shape === 'diamond'
+      ? null
+      : resolveAutoCloudIcon({
+          label: data.label,
+          typeId: data.typeId ?? data.componentType,
+          componentId: (data as ShapeNodeData & { componentId?: string }).componentId,
+          technology: data.technology,
+          serviceType: data.serviceType,
+          icon: data.icon,
+        });
+  const iconSizes = shape === 'diamond' ? ICON_SIZE.diamond : ICON_SIZE;
   const cloudIconSize = Math.max(
-    16,
-    Math.round(Math.min(width * 0.2, height - 28)),
+    iconSizes.cloudMin,
+    Math.round(Math.min(width * (shape === 'diamond' ? 0.2 : 0.3), height - (shape === 'diamond' ? 28 : 20))),
   );
+  const iconBoxSize = providerIcon ? cloudIconSize : iconSizes.box;
+  const iconGlyphSize = providerIcon
+    ? Math.round(cloudIconSize * 0.78)
+    : iconSizes.node;
   const showIcon = resolveNodeIconVisibility(iconMode, data.showIcon, resolvedIcon.source === 'manual');
+  const sublabelMaxWidth = getShapeLabelMaxWidth(shape, width, 'subtitle');
+  const labelNudge = getDiamondLabelNudge(shape, showIcon, Boolean(data.sublabel));
 
   return (
     <div
       ref={containerRef}
       className="flex flex-col items-center justify-center text-center px-1 select-none"
-      style={{ width: '100%', maxWidth: maxWidth ?? '100%' }}
+      style={{
+        width: '100%',
+        maxWidth: maxWidth ?? '100%',
+        transform: labelNudge ? `translateY(${labelNudge}px)` : undefined,
+      }}
     >
       {showIcon && (
       <div
         className="node-icon-box mb-1"
         aria-hidden="true"
-        style={
-          providerIcon
-            ? {
-                width: cloudIconSize,
-                height: cloudIconSize,
-                borderRadius: Math.round(cloudIconSize * 0.27),
-              }
-            : undefined
-        }
+        style={{
+          width: iconBoxSize,
+          height: iconBoxSize,
+          ...(providerIcon
+            ? { borderRadius: Math.round(iconBoxSize * 0.27) }
+            : {}),
+        }}
       >
         {providerIcon ? (
           <ProviderServiceIcon
             provider={providerIcon.kind}
             serviceKey={providerIcon.serviceKey}
-            size={Math.round(cloudIconSize * 0.72)}
+            size={iconGlyphSize}
             color={providerIcon.color}
           />
         ) : (
@@ -161,7 +174,7 @@ function Label({
             technology={resolvedIcon.technology}
             fallbackIcon={resolvedIcon.icon}
             fallbackColor={resolvedIcon.color}
-            size={ICON_SIZE.node}
+            size={iconGlyphSize}
           />
         )}
       </div>
@@ -209,10 +222,12 @@ function Label({
         <span
           className="node-subtitle"
           style={{
-            maxWidth: '100%',
+            maxWidth: sublabelMaxWidth,
             overflowWrap: 'anywhere',
             marginTop: 2,
             textAlign: 'center',
+            fontSize: shape === 'diamond' || shape === 'circle' ? 10 : undefined,
+            lineHeight: 1.2,
           }}
         >
           {data.sublabel}
@@ -273,7 +288,7 @@ function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, wi
           transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
         }}
       >
-        <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} />
       </div>
       <Handles color={color} nodeId={id} />
     </div>
@@ -304,8 +319,17 @@ function Diamond({ id, data, selected, backplates, isDark, width: W, height: H, 
         />
       </svg>
       <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          clipPath: diamondClipPath(W, H),
+        }}
+      >
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="diamond" />
       </div>
     </div>
   );
@@ -338,7 +362,7 @@ function Cylinder({ id, data, selected, backplates, isDark, width: W, height: H,
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: RY }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" />
       </div>
     </div>
   );
@@ -359,7 +383,7 @@ function Circle({ id, data, selected, backplates, isDark, width: W, height: H, l
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="circle" />
       </div>
     </div>
   );
@@ -386,7 +410,7 @@ function Parallelogram({ id, data, selected, backplates, isDark, width: W, heigh
       </svg>
       <Handles color={color} nodeId={id} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="parallelogram" />
       </div>
     </div>
   );
