@@ -68,6 +68,8 @@ export interface TutorialDefinition {
   icon?: string;
   color?: string;
   category?: string;
+  /** Funnel position for the catalog "Start here" section (1, 2, 3, …). */
+  recommendedOrder?: number;
 }
 
 export interface TutorialSession {

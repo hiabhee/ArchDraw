@@ -35,6 +35,45 @@ export function getCurrentPhase(
   return step.phases[session.phase] ?? null;
 }
 
+export function getTotalStepCount(tutorial: TutorialDefinition): number {
+  return tutorial.levels.reduce((acc, level) => acc + level.steps.length, 0);
+}
+
+export interface TutorialStatus {
+  isComplete: boolean;
+  /** Percentage of total steps completed, 0–100. */
+  progressPercent: number;
+  completedStepIds: string[];
+  completedLevelIds: string[];
+  /** 1-indexed */
+  currentLevel: number;
+  /** 1-indexed */
+  currentStep: number;
+}
+
+/**
+ * Single source of truth for tutorial completion + progress.
+ * Derived purely from the session + definition so every consumer
+ * (player, catalog cards, LearnClient) agrees on the same numbers.
+ */
+export function deriveTutorialStatus(
+  session: TutorialSession,
+  tutorial: TutorialDefinition
+): TutorialStatus {
+  const totalSteps = getTotalStepCount(tutorial);
+  const isComplete = isTutorialComplete(session, tutorial);
+  const progressPercent =
+    totalSteps > 0 ? Math.round((session.completedStepIds.length / totalSteps) * 100) : 0;
+  return {
+    isComplete,
+    progressPercent,
+    completedStepIds: session.completedStepIds,
+    completedLevelIds: session.completedLevelIds,
+    currentLevel: session.levelIndex + 1,
+    currentStep: session.stepIndex + 1,
+  };
+}
+
 export function getProgress(
   session: TutorialSession,
   tutorial: TutorialDefinition
@@ -177,6 +216,21 @@ export function checkValidation(
 
 export function forceAdvance(session: TutorialSession, tutorial: TutorialDefinition): TutorialSession {
   return advancePhase(session, tutorial);
+}
+
+export interface AdvanceResult {
+  session: TutorialSession;
+  /** True when the advance moved into a new level (not the final completion). */
+  crossedLevel: boolean;
+}
+
+export function advanceWithResult(
+  session: TutorialSession,
+  tutorial: TutorialDefinition
+): AdvanceResult {
+  const prevLevelIndex = session.levelIndex;
+  const newSession = advancePhase(session, tutorial);
+  return { session: newSession, crossedLevel: newSession.levelIndex > prevLevelIndex };
 }
 
 export function resetSession(tutorial: TutorialDefinition): TutorialSession {
