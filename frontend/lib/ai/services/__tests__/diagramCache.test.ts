@@ -5,7 +5,7 @@ import type { GenerationResult } from '../../types';
 function makeResult(id: string): GenerationResult {
   return {
     type: 'architecture',
-    nodes: [{ id, type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: id, icon: '', layer: 'compute' } }] as any,
+    nodes: [{ id, type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: id, icon: '', layer: 'compute' } }],
     edges: [],
     metadata: {
       totalNodes: 1,

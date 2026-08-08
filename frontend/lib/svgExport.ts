@@ -616,8 +616,8 @@ export function generatePureSVG(
   
   const preparedNodes = nodes.map(node => {
     // Use actual measured dimensions from React Flow, not hardcoded defaults
-    const measuredWidth = (node as any).measured?.width;
-    const measuredHeight = (node as any).measured?.height;
+    const measuredWidth = (node as Node & { measured?: { width?: number } }).measured?.width;
+    const measuredHeight = (node as Node & { measured?: { height?: number } }).measured?.height;
     
     let w = node.width ?? node.data?.nodeWidth ?? measuredWidth ?? NODE_WIDTH;
     let h = node.height ?? node.data?.nodeHeight ?? measuredHeight ?? NODE_HEIGHT;

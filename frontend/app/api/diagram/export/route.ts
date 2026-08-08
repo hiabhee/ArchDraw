@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Node, Edge } from 'reactflow';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
@@ -82,8 +83,8 @@ export async function POST(request: NextRequest) {
         // Generate SVG directly in the API
         console.log('🚨 API SVG Export: Generating SVG for session', validated.sessionId);
         const svgContent = generatePureSVG(
-          diagram.nodes as any[],
-          diagram.edges as any[],
+          diagram.nodes as Node[],
+          diagram.edges as Edge[],
           true, // default to dark mode
           '#0f172a' // default background
         );

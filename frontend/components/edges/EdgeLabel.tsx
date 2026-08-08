@@ -75,11 +75,17 @@ export function EdgeLabel({
     setEditing(false);
   }, [setEditing]);
 
-  useEffect(() => {
-    if (controlledEditing) {
-      setDraft(label?.trim() ?? '');
-    }
-  }, [controlledEditing, label]);
+  // When entering controlled editing (or the label changes while editing),
+  // resync the draft with the current label. Done during render so there is
+  // no stale-input flash after paint.
+  const [prevSync, setPrevSync] = useState<{ label?: string; controlled: boolean | undefined }>({
+    label,
+    controlled: controlledEditing,
+  });
+  if (controlledEditing && (controlledEditing !== prevSync.controlled || label !== prevSync.label)) {
+    setDraft(label?.trim() ?? '');
+    setPrevSync({ label, controlled: controlledEditing });
+  }
 
   useEffect(() => {
     if (editing) {

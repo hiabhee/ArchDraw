@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { NextRequest } from 'next/server';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/editor',
@@ -35,7 +36,20 @@ vi.mock('@/lib/prisma', () => ({
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function parseBeaconBody(beaconSpy: ReturnType<typeof vi.fn>): any {
+interface TrackingEvent {
+  event_type: string;
+  event_name?: string;
+  page_path: string;
+  payload?: Record<string, unknown>;
+}
+
+interface TrackingPayload {
+  session_id: string;
+  anon_id?: string;
+  events: TrackingEvent[];
+}
+
+function parseBeaconBody(beaconSpy: ReturnType<typeof vi.fn>): Promise<string> {
   const [, blob] = beaconSpy.mock.calls[beaconSpy.mock.calls.length - 1];
   // jsdom Blob doesn't have text(), use arrayBuffer
   return new Promise<string>((resolve) => {
@@ -45,12 +59,12 @@ function parseBeaconBody(beaconSpy: ReturnType<typeof vi.fn>): any {
   });
 }
 
-function parseFetchBody(fetchSpy: ReturnType<typeof vi.fn>): any {
+function parseFetchBody(fetchSpy: ReturnType<typeof vi.fn>): TrackingPayload {
   const calls = fetchSpy.mock.calls.filter(
-    (c: any[]) => c[0] === '/api/track'
+    (c) => c[0] === '/api/track'
   ) as Array<[string, RequestInit]>;
   expect(calls.length).toBeGreaterThan(0);
-  return JSON.parse(calls[calls.length - 1][1].body as string);
+  return JSON.parse(calls[calls.length - 1][1].body as string) as TrackingPayload;
 }
 
 describe('Analytics integration: client → server contract', () => {
@@ -146,7 +160,7 @@ describe('Analytics integration: client → server contract', () => {
       },
     });
 
-    const res = await POST(mockReq as any);
+    const res = await POST(mockReq as NextRequest);
     expect(res.status).toBe(200);
 
     const json = await res.json();
@@ -184,7 +198,7 @@ describe('Analytics integration: client → server contract', () => {
       },
     });
 
-    const res = await POST(mockReq as any);
+    const res = await POST(mockReq as NextRequest);
     expect(res.status).toBe(200);
   });
 
@@ -219,7 +233,7 @@ describe('Analytics integration: client → server contract', () => {
       },
     });
 
-    const res = await POST(mockReq as any);
+    const res = await POST(mockReq as NextRequest);
     expect(res.status).toBe(200);
   });
 
@@ -243,7 +257,7 @@ describe('Analytics integration: client → server contract', () => {
       },
     });
 
-    const res = await POST(mockReq as any);
+    const res = await POST(mockReq as NextRequest);
     expect(res.status).toBe(400);
   });
 
@@ -261,10 +275,10 @@ describe('Analytics integration: client → server contract', () => {
     expect(clientBody.session_id).toMatch(UUID_RE);
 
     const pageView = clientBody.events.find(
-      (e: { event_type: string }) => e.event_type === 'page_view'
+      (e: TrackingEvent) => e.event_type === 'page_view'
     );
     expect(pageView).toBeTruthy();
-    expect(pageView.page_path).toBe('/editor');
+    expect(pageView!.page_path).toBe('/editor');
 
     const { POST } = await import('@/app/api/track/route');
     const req = new Request('http://localhost/api/track', {
@@ -279,7 +293,7 @@ describe('Analytics integration: client → server contract', () => {
       },
     });
 
-    const res = await POST(mockReq as any);
+    const res = await POST(mockReq as NextRequest);
     expect(res.status).toBe(200);
   });
 
@@ -301,10 +315,10 @@ describe('Analytics integration: client → server contract', () => {
     expect(clientBody.session_id).toMatch(UUID_RE);
 
     const clickEvent = clientBody.events.find(
-      (e: { event_name: string }) => e.event_name === 'hero_cta'
+      (e: TrackingEvent) => e.event_name === 'hero_cta'
     );
     expect(clickEvent).toBeTruthy();
-    expect(clickEvent.payload.text).toContain('Get started');
+    expect(clickEvent!.payload?.text).toContain('Get started');
 
     const { POST } = await import('@/app/api/track/route');
     const req = new Request('http://localhost/api/track', {
@@ -319,7 +333,7 @@ describe('Analytics integration: client → server contract', () => {
       },
     });
 
-    const res = await POST(mockReq as any);
+    const res = await POST(mockReq as NextRequest);
     expect(res.status).toBe(200);
 
     document.body.removeChild(btn);

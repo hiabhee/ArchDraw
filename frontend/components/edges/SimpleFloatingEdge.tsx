@@ -61,8 +61,6 @@ export default function SimpleFloatingEdge({
   const { getViewport } = useReactFlow();
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
-  const pendingLabelEdgeId = useDiagramStore((s) => s.pendingLabelEdgeId);
-  const setPendingLabelEdgeId = useDiagramStore((s) => s.setPendingLabelEdgeId);
   const [labelEditing, setLabelEditing] = useState(false);
 
   // Extract primitive data values for stable memoization
@@ -179,12 +177,17 @@ export default function SimpleFloatingEdge({
     setLabelEditing(true);
   }, []);
 
+  // React to the store "edit label" command (raised by EdgeContextMenu /
+  // Canvas). This is an external-store event, so subscribe to the store rather
+  // than setting state synchronously inside an effect.
   useEffect(() => {
-    if (pendingLabelEdgeId === id) {
-      setLabelEditing(true);
-      setPendingLabelEdgeId(null);
-    }
-  }, [pendingLabelEdgeId, id, setPendingLabelEdgeId]);
+    return useDiagramStore.subscribe((state, prevState) => {
+      if (state.pendingLabelEdgeId === id && prevState.pendingLabelEdgeId !== id) {
+        setLabelEditing(true);
+        useDiagramStore.getState().setPendingLabelEdgeId(null);
+      }
+    });
+  }, [id]);
 
   const handleWaypointRemove = useCallback((waypointIndex: number) => {
     return (e: React.MouseEvent) => {

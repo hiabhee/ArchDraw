@@ -149,7 +149,7 @@ describe('ValidationStage', () => {
     }, createContext());
 
     expect(result.success).toBe(true);
-    const reasoningIssues = result.data!.semanticIssues.filter((i: any) => i.type === 'REASONING_MISSING');
+    const reasoningIssues = result.data!.semanticIssues.filter((i) => i.type === 'REASONING_MISSING');
     expect(reasoningIssues.length).toBeGreaterThan(0);
   });
 
