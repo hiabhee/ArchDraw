@@ -12,8 +12,10 @@ function nodeTypeId(n: Node): string {
 
 /**
  * Generate a human-readable error message from an unmet ValidationRule.
+ * `nodes`/`edges` are used to pick which sub-rule inside an `all_of` is
+ * actually failing, so users are told what to do next.
  */
-function describeUnmetRule(rule: ValidationRule): string {
+function describeUnmetRule(rule: ValidationRule, nodes?: Node[], edges?: Edge[]): string {
   switch (rule.type) {
     case 'node_exists': {
       const name = rule.label ?? rule.nodeType.replace(/_/g, ' ');
@@ -35,8 +37,11 @@ function describeUnmetRule(rule: ValidationRule): string {
     }
     case 'all_of': {
       for (const sub of rule.rules) {
-        const msg = describeUnmetRule(sub);
-        if (msg) return msg;
+        const isUnmet = nodes && edges ? !evaluateValidationRule(sub, nodes, edges) : true;
+        if (isUnmet) {
+          const msg = describeUnmetRule(sub, nodes, edges);
+          if (msg) return msg;
+        }
       }
       return 'Complete all required actions.';
     }
@@ -69,7 +74,7 @@ function validateSchemaStep(
   // Return the first unmet rule's descriptive message
   return {
     valid: false,
-    message: describeUnmetRule(unmet[0]),
+    message: describeUnmetRule(unmet[0], nodes, edges),
   };
 }
 
