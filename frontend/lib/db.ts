@@ -109,6 +109,22 @@ export async function deleteTutorialProgress(userId: string, tutorialId: string)
   }));
 }
 
+export async function getTutorialCachedResponse(questionHash: string) {
+  return prisma.tutorialResponseCache.findUnique({
+    where: { questionHash },
+  });
+}
+
+export async function upsertTutorialCachedResponse(questionHash: string, response: string) {
+  return withRetry(() =>
+    prisma.tutorialResponseCache.upsert({
+      where: { questionHash },
+      create: { questionHash, response },
+      update: { response },
+    })
+  );
+}
+
 // ── Shared Canvases ──────────────────────────────────────────────────────────
 // RLS equivalent: anyone can read/insert (public)
 

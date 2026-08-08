@@ -411,6 +411,15 @@ function TutorialCanvasInner({
     return () => { delete (window as Window & { __tutorialOpenPalette?: typeof openPaletteWithQuery }).__tutorialOpenPalette; };
   }, [openPaletteWithQuery]);
 
+  // Expose fitView so GuidePanel can re-fit after auto-layout
+  const fitCanvas = useCallback(() => {
+    reactFlowInstance.fitView({ maxZoom: 0.7 });
+  }, [reactFlowInstance]);
+  useEffect(() => {
+    (window as Window & { __tutorialFitView?: typeof fitCanvas }).__tutorialFitView = fitCanvas;
+    return () => { delete (window as Window & { __tutorialFitView?: typeof fitCanvas }).__tutorialFitView; };
+  }, [fitCanvas]);
+
   const coloredEdges = useMemo(() => assignEdgeColors(edges), [edges]);
 
   return (

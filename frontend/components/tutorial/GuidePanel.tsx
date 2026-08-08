@@ -2,9 +2,20 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { Node, Edge } from 'reactflow';
+import { Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 import { useTutorialStore, useTutorialHelpers } from '@/store/tutorialStore';
+import { useAuthStore } from '@/store/authStore';
 import type { PhaseName, PhaseContent } from '@/lib/tutorial/schema';
+import {
+  canRequestExplain,
+  explainOverrideKey,
+  isExplainPhase,
+  nextExplainVariantIndex,
+} from '@/lib/tutorial/explainQuota';
 import { validateStep, getStepRequirements, isNodeTypeMet, isEdgeMet, type StepRequirements } from '@/lib/tutorialValidation';
+import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
+import { analytics } from '@/lib/analytics';
 
 const PHASE_BUTTONS: Record<PhaseName, { label: string; action: PhaseName | 'next_step' }> = {
   context: { label: 'Got it', action: 'intro' },
@@ -95,13 +106,20 @@ function PhaseRenderer({
   phase,
   content,
   onContinue,
-  continueAfterMs = 20000,
+  continueAfterMs = 45000,
   validationError,
   allRequirementsMet,
   isActionPhase,
   requirements,
   nodes,
   edges,
+  tutorialId,
+  stepId,
+  explainContent,
+  onExplainDifferent,
+  explainLoading,
+  explainDisabled,
+  explainDisabledReason,
 }: {
   phase: PhaseName;
   content: PhaseContent;
@@ -113,6 +131,14 @@ function PhaseRenderer({
   requirements?: StepRequirements;
   nodes?: Node[];
   edges?: Edge[];
+  tutorialId?: string;
+  stepId?: string;
+  componentLabel?: string;
+  explainContent?: PhaseContent;
+  onExplainDifferent?: () => void;
+  explainLoading?: boolean;
+  explainDisabled?: boolean;
+  explainDisabledReason?: string;
 }) {
   const [showContinueAnyway, setShowContinueAnyway] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -150,32 +176,47 @@ function PhaseRenderer({
 
   const buttonConfig = PHASE_BUTTONS[phase];
   const showChecklist = isActionPhase && requirements && nodes && edges;
+  const displayContent = explainContent ?? content;
+  const showExplainButton = isExplainPhase(phase) && onExplainDifferent;
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">{content.heading}</h3>
-        <div className="text-sm text-muted-foreground whitespace-pre-wrap">{content.body}</div>
+        <h3 className="text-lg font-semibold text-foreground mb-2">{displayContent.heading}</h3>
+        <div className="text-sm text-muted-foreground whitespace-pre-wrap">{displayContent.body}</div>
       </div>
 
-      {phase === 'teaching' && content.whyItMatters && (
+      {showExplainButton && (
+        <button
+          type="button"
+          onClick={onExplainDifferent}
+          disabled={explainLoading || explainDisabled}
+          title={explainDisabled ? explainDisabledReason : undefined}
+          className="self-start inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          {explainLoading ? 'Rewriting…' : 'Explain differently'}
+        </button>
+      )}
+
+      {phase === 'teaching' && displayContent.whyItMatters && (
         <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-sm">
           <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
             Without this
           </p>
           <p className="text-amber-700 dark:text-amber-300 leading-relaxed">
-            {content.whyItMatters}
+            {displayContent.whyItMatters}
           </p>
         </div>
       )}
 
-      {phase === 'teaching' && content.tradeoff && (
+      {phase === 'teaching' && displayContent.tradeoff && (
         <div className="p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-sm">
           <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
             Tradeoff
           </p>
           <p className="text-blue-700 dark:text-blue-300 leading-relaxed">
-            {content.tradeoff}
+            {displayContent.tradeoff}
           </p>
         </div>
       )}
@@ -220,9 +261,18 @@ function PhaseRenderer({
         {phase === 'celebration' && !celebrationReady ? '✓ Nice work!' : (allRequirementsMet && isActionPhase ? '✓ Continue' : buttonConfig.label)}
       </button>
 
-      {showContinueAnyway && (
+      {showContinueAnyway && showHint && (
         <button
-          onClick={onContinue}
+          onClick={() => {
+            if (tutorialId && stepId) {
+              analytics.track({
+                event_type: 'tutorial_step_skipped',
+                page_path: typeof window !== 'undefined' ? window.location.pathname : '/tutorials',
+                payload: { tutorial_id: tutorialId, step_id: stepId },
+              });
+            }
+            onContinue();
+          }}
           className="self-end text-sm text-muted-foreground hover:text-foreground underline"
         >
           Continue anyway
@@ -234,9 +284,11 @@ function PhaseRenderer({
 
 // ── Guide Panel ──────────────────────────────────────────────────────────────
 export function GuidePanel() {
-  const { session, advancePhase, advanceManually, isLoading, activeTutorial, exitTutorial, nodes, edges, setHighlight } = useTutorialStore();
+  const { session, advancePhase, advanceManually, isLoading, activeTutorial, exitTutorial, nodes, edges, setHighlight, setNodes, setEdges, tutorialLayoutEnabled, getProgress, recordExplainUsage } = useTutorialStore();
+  const { user } = useAuthStore();
   const { currentStep, currentPhase, progress, isComplete } = useTutorialHelpers();
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [explainLoading, setExplainLoading] = useState(false);
   const prevStepIdRef = useRef<string | null>(null);
 
   // Extract requirements for the current step
@@ -306,6 +358,100 @@ export function GuidePanel() {
     }
   }
 
+  const tutorialProgress = activeTutorial ? getProgress(activeTutorial.id) : null;
+  const isAuthenticated = Boolean(user && user.id !== 'guest');
+
+  const componentLabel = useMemo(() => {
+    if (!currentStep) return 'this component';
+    return currentStep.title.replace(/^Add (the )?/i, '') || 'this component';
+  }, [currentStep]);
+
+  const explainQuota = useMemo(() => {
+    if (!activeTutorial || !currentStep) {
+      return { allowed: false, reason: undefined };
+    }
+    return canRequestExplain({
+      isAuthenticated,
+      stepExplainCounts: tutorialProgress?.stepExplainCounts,
+      stepId: currentStep.id,
+    });
+  }, [activeTutorial, currentStep, isAuthenticated, tutorialProgress]);
+
+  const explainContent = useMemo(() => {
+    if (!currentPhase || !currentStep || !session || !isExplainPhase(session.phase)) {
+      return currentPhase ?? undefined;
+    }
+    const override = tutorialProgress?.explainOverrides?.[
+      explainOverrideKey(currentStep.id, session.phase)
+    ];
+    if (!override) return currentPhase;
+    return { ...currentPhase, heading: override.heading, body: override.body };
+  }, [currentPhase, currentStep, session, tutorialProgress]);
+
+  const handleExplainDifferent = useCallback(async () => {
+    if (!activeTutorial || !currentStep || !session || !currentPhase || !isExplainPhase(session.phase)) {
+      return;
+    }
+    if (!explainQuota.allowed) {
+      toast.error(explainQuota.reason ?? 'Explain limit reached');
+      return;
+    }
+
+    setExplainLoading(true);
+    try {
+      const variantIndex = nextExplainVariantIndex(tutorialProgress?.stepExplainCounts, currentStep.id);
+      const res = await fetch('/api/tutorials/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tutorialId: activeTutorial.id,
+          stepId: currentStep.id,
+          phase: session.phase,
+          component: componentLabel,
+          heading: currentPhase.heading,
+          body: currentPhase.body,
+          variantIndex,
+          stepExplainCount: tutorialProgress?.stepExplainCounts?.[currentStep.id] ?? 0,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? 'Could not rewrite explanation');
+        return;
+      }
+
+      recordExplainUsage(activeTutorial.id, currentStep.id, session.phase, {
+        heading: data.heading ?? currentPhase.heading,
+        body: data.body ?? currentPhase.body,
+      });
+
+      analytics.track({
+        event_type: 'tutorial_explain_requested',
+        page_path: typeof window !== 'undefined' ? window.location.pathname : '/tutorials',
+        payload: {
+          tutorial_id: activeTutorial.id,
+          step_id: currentStep.id,
+          phase: session.phase,
+          cached: Boolean(data.cached),
+        },
+      });
+    } catch {
+      toast.error('Could not reach the explain service');
+    } finally {
+      setExplainLoading(false);
+    }
+  }, [
+    activeTutorial,
+    currentStep,
+    session,
+    currentPhase,
+    explainQuota,
+    tutorialProgress,
+    componentLabel,
+    recordExplainUsage,
+  ]);
+
   const handleContinue = useCallback(() => {
     setValidationError(null);
 
@@ -317,11 +463,27 @@ export function GuidePanel() {
           return;
         }
       }
+      // Auto-layout once the step is satisfied, then advance. Fire-and-forget:
+      // manual drags are preserved until this point, and the Mermaid round-trip
+      // keeps the growing diagram readable across steps.
+      if (tutorialLayoutEnabled && nodes.length > 1) {
+        layoutDiagramViaMermaid(nodes, edges, 'LR')
+          .then((res) => {
+            if (res.success) {
+              setNodes(res.nodes);
+              setEdges(res.edges);
+              window.setTimeout(() => {
+                (window as Window & { __tutorialFitView?: () => void }).__tutorialFitView?.();
+              }, 50);
+            }
+          })
+          .catch(() => {});
+      }
       advanceManually();
     } else {
       advancePhase();
     }
-  }, [session, advancePhase, advanceManually, currentStep, nodes, edges]);
+  }, [session, advancePhase, advanceManually, currentStep, nodes, edges, setNodes, setEdges, tutorialLayoutEnabled]);
 
   if (isLoading || !activeTutorial || !session) {
     return (
@@ -382,14 +544,22 @@ export function GuidePanel() {
           key={`${session.stepIndex}-${session.phase}`}
           phase={session.phase}
           content={currentPhase}
+          explainContent={explainContent}
+          onExplainDifferent={isAuthenticated ? handleExplainDifferent : undefined}
+          explainLoading={explainLoading}
+          explainDisabled={!explainQuota.allowed}
+          explainDisabledReason={explainQuota.reason}
           onContinue={handleContinue}
-          continueAfterMs={currentStep.continueAfterMs ?? 20000}
+          continueAfterMs={currentStep.continueAfterMs ?? 45000}
           validationError={validationError}
           allRequirementsMet={allRequirementsMet}
           isActionPhase={isActionPhase}
           requirements={requirements ?? undefined}
           nodes={nodes}
           edges={edges}
+          tutorialId={activeTutorial.id}
+          stepId={currentStep.id}
+          componentLabel={componentLabel}
         />
 
         {currentStep.hints.length > 0 && (
