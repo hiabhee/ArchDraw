@@ -80,17 +80,14 @@ export async function POST(request: NextRequest) {
 
     if (format === 'png' || format === 'svg') {
       if (format === 'svg') {
-        // Generate SVG directly in the API
-        console.log('🚨 API SVG Export: Generating SVG for session', validated.sessionId);
         const svgContent = generatePureSVG(
           diagram.nodes as Node[],
           diagram.edges as Edge[],
-          true, // default to dark mode
-          '#0f172a' // default background
+          true,
+          '#0f172a',
+          'LR',
         );
-        
-        console.log('🚨 API SVG Export: SVG generated, size:', svgContent.length);
-        
+
         return new NextResponse(svgContent, {
           headers: {
             'Content-Type': 'image/svg+xml',

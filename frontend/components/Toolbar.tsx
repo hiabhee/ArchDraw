@@ -29,7 +29,16 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { NodeIconModeToggle } from '@/components/NodeIconModeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { analytics } from '@/lib/analytics';
-import { prepareReactFlowForImageExport } from '@/lib/utils/prepareReactFlowForImageExport';
+import {
+  prepareReactFlowForImageExport,
+  reactFlowExportFilter,
+  resolveExportBackgroundColor,
+  restoreReactFlowAfterImageExport,
+  waitForReactFlowFrame,
+} from '@/lib/utils/prepareReactFlowForImageExport';
+import { captureReactFlowSvg, getUtf8ByteLength, MAX_SVG_EXPORT_BYTES } from '@/lib/utils/optimizeSvgExport';
+import { computeDiagramCropRect, cropRasterDataUrl } from '@/lib/utils/exportCrop';
+import { reactFlowRef } from '@/lib/reactFlowRef';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
@@ -351,85 +360,76 @@ export function Toolbar() {
     
     const isSvg = format.startsWith('svg-');
     const bgType = format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
-    const bgColor = bgType === 'dark' ? '#000000' : bgType === 'light' ? '#ffffff' : undefined;
     
     const { fitView } = useDiagramStore.getState();
     
     // We strictly use the user's current canvas node style (darkMode).
     // Exporting with a different background should NOT change the nodes' styling
     // to prevent the "Nodes losing plates" issue.
-    const originalCanvasDarkMode = useDiagramStore.getState().darkMode;
 
     setIsExporting(true);
     
-    try {
+    let edgeSnapshots: ReturnType<typeof prepareReactFlowForImageExport> = [];
 
-      if (isSvg) {
-        const { toPng } = await import('html-to-image');
-        const element = document.querySelector('.react-flow') as HTMLElement | null;
-        if (!element) return;
-        try {
-          prepareReactFlowForImageExport(element);
-          const pngDataUrl = await toPng(element, {
-            backgroundColor: bgColor,
-            pixelRatio: 2,
-            cacheBust: true,
-            filter: (node: HTMLElement) => {
-              const cls = node.classList;
-              if (!cls) return true;
-              return (
-                !cls.contains('react-flow__minimap') &&
-                !cls.contains('react-flow__controls') &&
-                !cls.contains('react-flow__panel') &&
-                !cls.contains('react-flow__background')
-              );
-            },
-          });
-          const pngBlob = await dataUrlToBlob(
-            shouldWatermark(tier, 'png') ? await addWatermark(pngDataUrl) : pngDataUrl
-          );
-          downloadFile(pngBlob, getExportFilename('png'));
-          toast.success('Exported as PNG (SVG export temporarily disabled)');
-          analytics.track({
-            event_type: 'export',
-            event_name: 'png_fallback',
-            page_path: window.location.pathname,
-            payload: { format: 'png-fallback', success: true },
-          });
-        } catch (error) {
-          logger.error('PNG export failed:', error);
-          toast.error('Export failed');
-        }
+    try {
+      const element = document.querySelector('.react-flow') as HTMLElement | null;
+      if (!element) {
+        toast.error('Canvas not ready. Please try again.');
         return;
       }
-      
+
+      const bgColor = resolveExportBackgroundColor(bgType, element);
+
+      fitView({ padding: 0.1, duration: 300 });
+      await waitForReactFlowFrame(400);
+
+      edgeSnapshots = prepareReactFlowForImageExport(element);
+
+      const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
+      const isTransparent = bgType === 'transparent';
+      const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
+      const cropRect =
+        isTransparent && reactFlowRef.instance
+          ? computeDiagramCropRect(exportNodes, reactFlowRef.instance.getViewport(), 0.1)
+          : null;
+
+      if (isSvg) {
+        const svgContent = await captureReactFlowSvg(element, {
+          backgroundColor: bgColor,
+          cacheBust: true,
+          crop: cropRect,
+          pixelRatio: isTransparent ? 2 : undefined,
+        });
+        downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
+        if (getUtf8ByteLength(svgContent) > MAX_SVG_EXPORT_BYTES) {
+          toast.warning('Exported as SVG, but the file is still above 3 MB');
+        } else {
+          toast.success(isTransparent ? 'Exported as SVG (no background)' : 'Exported as SVG');
+        }
+        analytics.track({
+          event_type: 'export',
+          event_name: 'svg',
+          page_path: window.location.pathname,
+          payload: { format, success: true },
+        });
+        return;
+      }
+
       const { toPng } = await import('html-to-image');
       
-      const pixelRatio = 5;
-      
-      const element = document.querySelector('.react-flow') as HTMLElement | null;
-      if (!element) return;
-      
-      fitView({ padding: 0.1, duration: 300 });
-      await new Promise((r) => setTimeout(r, 350));
+      const pixelRatio = isTransparent ? 2 : 5;
 
-      prepareReactFlowForImageExport(element);
-
-      const dataUrl = await toPng(element, {
+      let dataUrl = await toPng(element, {
         backgroundColor: bgColor,
         pixelRatio,
         cacheBust: true,
-        filter: (node: HTMLElement) => {
-          const cls = node.classList;
-          if (!cls) return true;
-          return (
-            !cls.contains('react-flow__minimap') &&
-            !cls.contains('react-flow__controls') &&
-            !cls.contains('react-flow__panel') &&
-            !cls.contains('react-flow__background')
-          );
-        },
+        filter: exportFilter,
       });
+
+      if (cropRect) {
+        const cropped = await cropRasterDataUrl(dataUrl, cropRect, pixelRatio, 'image/png');
+        dataUrl = cropped.dataUrl;
+      }
 
       let finalDataUrl = dataUrl;
       if (shouldWatermark(tier, 'png')) {
@@ -457,7 +457,7 @@ export function Toolbar() {
         });
       } else {
         downloadFile(await dataUrlToBlob(finalDataUrl), getExportFilename('png'));
-        toast.success(`Exported as PNG`);
+        toast.success(isTransparent ? 'Exported as PNG (no background)' : 'Exported as PNG');
         analytics.track({
           event_type: 'export',
           event_name: 'png',
@@ -474,6 +474,9 @@ export function Toolbar() {
         payload: { format: 'unknown', success: false, error: String(err) },
       });
     } finally {
+      if (edgeSnapshots.length > 0) {
+        restoreReactFlowAfterImageExport(edgeSnapshots);
+      }
       setIsExporting(false);
     }
   };
@@ -830,6 +833,14 @@ export function Toolbar() {
                     className="w-full justify-start rounded-none"
                   >
                     PNG
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleExport('png-transparent')}
+                    className="w-full justify-start rounded-none"
+                  >
+                    PNG (No Background)
                   </Button>
                   <div className="px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>
