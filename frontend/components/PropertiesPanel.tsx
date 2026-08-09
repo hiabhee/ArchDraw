@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Search } from 'lucide-react';
+import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Search, Hexagon, Cloud, Smartphone, User, SquareDashed, Monitor } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
 import { CustomNodeIcon, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
@@ -14,13 +14,35 @@ const GROUP_COLOR_OPTIONS = [
   '#3b82f6', '#06b6d4', '#eab308', '#f43f5e', '#64748b',
 ];
 
-const SHAPE_OPTIONS: { value: ShapeType; label: string; icon: React.ElementType }[] = [
-  { value: 'rectangle', label: 'Rectangle', icon: Square },
-  { value: 'rounded-rectangle', label: 'Rounded', icon: Square },
-  { value: 'diamond', label: 'Diamond', icon: Diamond },
-  { value: 'cylinder', label: 'Cylinder', icon: CylinderIcon },
-  { value: 'circle', label: 'Circle', icon: Disc },
-  { value: 'parallelogram', label: 'Parallel', icon: SlidersHorizontal },
+const SHAPE_GROUPS: { label: string; options: { value: ShapeType; label: string; icon: React.ElementType }[] }[] = [
+  {
+    label: 'Basic',
+    options: [
+      { value: 'rectangle', label: 'Rectangle', icon: Square },
+      { value: 'rounded-rectangle', label: 'Rounded', icon: Square },
+      { value: 'diamond', label: 'Diamond', icon: Diamond },
+      { value: 'cylinder', label: 'Cylinder', icon: CylinderIcon },
+      { value: 'circle', label: 'Circle', icon: Disc },
+      { value: 'parallelogram', label: 'Parallel', icon: SlidersHorizontal },
+    ],
+  },
+  {
+    label: 'Semantic',
+    options: [
+      { value: 'hexagon', label: 'Hexagon', icon: Hexagon },
+      { value: 'cloud', label: 'Cloud', icon: Cloud },
+      { value: 'shield', label: 'Shield', icon: Shield },
+      { value: 'dashed-rectangle', label: 'Dashed', icon: SquareDashed },
+    ],
+  },
+  {
+    label: 'Clients',
+    options: [
+      { value: 'monitor', label: 'Monitor', icon: Monitor },
+      { value: 'mobile', label: 'Mobile', icon: Smartphone },
+      { value: 'actor', label: 'Actor', icon: User },
+    ],
+  },
 ];
 
 const TIER_ICONS: Record<string, React.ElementType> = {
@@ -334,6 +356,41 @@ export function PropertiesPanel() {
               This node overrides the global icon setting.
             </p>
           )}
+          {isShapeNode && iconVisible && (
+            <div className="mb-2">
+              <span className="text-[9px] text-muted-foreground/80 block mb-1.5">Label display</span>
+              <div className="grid grid-cols-3 gap-1">
+                {([
+                  { mode: 'auto' as const, label: 'Auto', value: undefined },
+                  { mode: 'on' as const, label: 'Icon only', value: true },
+                  { mode: 'off' as const, label: 'With label', value: false },
+                ]).map(({ mode, label, value }) => {
+                  const current = (data as { iconOnly?: boolean }).iconOnly;
+                  const isSelected =
+                    mode === 'auto' ? current === undefined
+                      : mode === 'on' ? current === true
+                        : current === false;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => applyToAll({ iconOnly: value })}
+                      className={`px-2 py-1.5 rounded-lg text-[9px] font-medium transition-colors ${
+                        isSelected
+                          ? 'bg-primary/15 text-primary border border-primary/30'
+                          : 'bg-secondary text-muted-foreground border border-transparent'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[9px] text-muted-foreground/60 mt-1.5">
+                Auto hides the label for recognized brand logos on cylinders and rounded nodes.
+              </p>
+            </div>
+          )}
           <div className={`flex items-center gap-2 mb-2 px-2 py-1.5 bg-secondary rounded-lg${iconVisible ? '' : ' opacity-50'}`}>
             <CustomNodeIcon name={currentIcon as CustomNodeIconName} color={accent} size={20} />
             <span className="text-[10px] text-muted-foreground truncate">{currentIcon.replace('arch-', '').replace(/-/g, ' ')}</span>
@@ -404,26 +461,35 @@ export function PropertiesPanel() {
               <span className="text-[9px] text-muted-foreground/60 normal-case">(Shape Node)</span>
             )}
           </label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {SHAPE_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isSelected = currentShape === option.value;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => handleShapeChange(option.value)}
-                  className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[10px] transition-all ${
-                    isSelected
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
-                  }`}
-                  title={option.label}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="truncate w-full text-center">{option.label}</span>
-                </button>
-              );
-            })}
+          <div className="space-y-3">
+            {SHAPE_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">
+                  {group.label}
+                </p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {group.options.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = currentShape === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => handleShapeChange(option.value)}
+                        className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[10px] transition-all ${
+                          isSelected
+                            ? 'bg-primary/15 text-primary border border-primary/30'
+                            : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+                        }`}
+                        title={option.label}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="truncate w-full text-center">{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
           {!isShapeNode && !isMulti && (
             <p className="text-[9px] text-muted-foreground/60 mt-1.5">

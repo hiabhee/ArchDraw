@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Position, type Node } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
+import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import {
   getCenteredSides,
   resolveSideFromEdgeHandles,
@@ -23,11 +24,12 @@ function buildNodePositions(
   for (const n of nodes) {
     const x = n.positionAbsolute?.x ?? n.position.x;
     const y = n.positionAbsolute?.y ?? n.position.y;
+    const { width, height } = getEffectiveNodeDimensions(n);
     map.set(n.id, {
       x,
       y,
-      width: n.width ?? (n.data as { nodeWidth?: number })?.nodeWidth ?? 180,
-      height: n.height ?? (n.data as { nodeHeight?: number })?.nodeHeight ?? 70,
+      width,
+      height,
     });
   }
   return map;

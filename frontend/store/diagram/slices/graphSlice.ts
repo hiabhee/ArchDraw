@@ -7,6 +7,7 @@ import { getNodeShape } from '@/lib/nodeShapes';
 import { getStrictPortConfig } from '@/lib/componentPorts';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import { createNode, createEdge } from '@/lib/factory';
+import { isTextNode } from '@/lib/mermaid/textNodes';
 import type { DiagramState, NodeData } from '../types';
 import { MAX_GUEST_NODES, MAX_AUTH_NODES } from '../constants';
 import { stripReservedLayerNodes, normalizeNodes } from '../helpers/nodeHelpers';
@@ -106,7 +107,8 @@ export const createGraphSlice: StateCreator<
     const state = get();
     const isGuest = !state.userProfile || state.userProfile.id === 'guest';
     const nodeLimit = isGuest ? MAX_GUEST_NODES : MAX_AUTH_NODES;
-    if (state.nodes.length >= nodeLimit) {
+    // Node caps count shape/leaf nodes only — text title/note elements are excluded.
+    if (state.nodes.filter((n) => !isTextNode(n)).length >= nodeLimit) {
       toast.error(
         isGuest
           ? `Guest limit: ${nodeLimit} nodes per canvas. Sign in for ${MAX_AUTH_NODES}.`
@@ -166,7 +168,8 @@ export const createGraphSlice: StateCreator<
     const state = get();
     const isGuest = !state.userProfile || state.userProfile.id === 'guest';
     const nodeLimit = isGuest ? MAX_GUEST_NODES : MAX_AUTH_NODES;
-    if (state.nodes.length >= nodeLimit) {
+    // Node caps count shape/leaf nodes only — text title/note elements are excluded.
+    if (state.nodes.filter((n) => !isTextNode(n)).length >= nodeLimit) {
       toast.error(
         isGuest
           ? `Guest limit: ${nodeLimit} nodes per canvas. Sign in for ${MAX_AUTH_NODES}.`
@@ -271,6 +274,11 @@ export const createGraphSlice: StateCreator<
         style,
         ...(size.width !== undefined && { width: size.width }),
         ...(size.height !== undefined && { height: size.height }),
+        data: {
+          ...n.data,
+          ...(size.width !== undefined && { nodeWidth: size.width }),
+          ...(size.height !== undefined && { nodeHeight: size.height }),
+        },
       };
     });
     const canvases = get().canvases.map((c) =>

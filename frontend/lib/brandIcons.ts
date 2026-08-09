@@ -76,6 +76,8 @@ export const TECHNOLOGY_BRAND_SLUGS: Record<string, string> = {
   okta: 'okta',
   keycloak: 'keycloak',
   firebase: 'firebase',
+  ansible: 'ansible',
+  celery: 'celery',
   gcp: 'googlecloud',
   'gcp-compute-engine': 'googlecloud',
   'gcp-cloud-functions': 'googlecloud',
@@ -86,11 +88,50 @@ export const TECHNOLOGY_BRAND_SLUGS: Record<string, string> = {
   'gcp-firestore': 'firebase',
 };
 
-export function getTechnologyBrandSlug(technology?: string): string | null {
-  if (!technology) return null;
-  return TECHNOLOGY_BRAND_SLUGS[technology] ?? null;
+/** Map common node labels to iconRegistry technology keys (for brand logos). */
+const LABEL_BRAND_HINTS: Array<{ technology: string; test: RegExp }> = [
+  { technology: 'redis', test: /\bredis\b/i },
+  { technology: 'postgresql', test: /\b(postgres|postgresql)\b/i },
+  { technology: 'mysql', test: /\bmysql\b/i },
+  { technology: 'mongodb', test: /\b(mongodb|mongo)\b/i },
+  { technology: 'docker', test: /\bdocker\b/i },
+  { technology: 'nginx', test: /\bnginx\b/i },
+  { technology: 'vault', test: /\bvault\b/i },
+  { technology: 'consul', test: /\bconsul\b/i },
+  { technology: 'sentry', test: /\bsentry\b/i },
+  { technology: 'neo4j', test: /\bneo4j\b/i },
+  { technology: 'kafka', test: /\bkafka\b/i },
+  { technology: 'rabbitmq', test: /\brabbitmq\b/i },
+  { technology: 'elasticsearch', test: /\b(elasticsearch|elastic)\b/i },
+  { technology: 'cassandra', test: /\bcassandra\b/i },
+  { technology: 'kubernetes', test: /\b(kubernetes|k8s)\b/i },
+  { technology: 'ansible', test: /\bansible\b/i },
+  { technology: 'celery', test: /\bcelery\b/i },
+  { technology: 'grafana', test: /\bgrafana\b/i },
+  { technology: 'prometheus', test: /\bprometheus\b/i },
+  { technology: 'datadog', test: /\bdatadog\b/i },
+  { technology: 'supabase', test: /\bsupabase\b/i },
+  { technology: 'prisma', test: /\bprisma\b/i },
+];
+
+export function inferBrandTechnologyFromLabel(label?: string): string | undefined {
+  const text = label ?? '';
+  const match = LABEL_BRAND_HINTS.find((hint) => hint.test.test(text));
+  if (!match) return undefined;
+  return getTechnologyBrandSlug(match.technology) ? match.technology : undefined;
 }
 
-export function technologyBrandIconUrl(slug: string): string {
-  return `https://cdn.jsdelivr.net/npm/simple-icons@v11/icons/${slug}.svg`;
+export function getTechnologyBrandSlug(technology?: string): string | null {
+  if (!technology) return null;
+  if (TECHNOLOGY_BRAND_SLUGS[technology]) return TECHNOLOGY_BRAND_SLUGS[technology];
+  // AWS/Azure service keys (e.g. aws-dynamodb) — use provider icons instead.
+  return null;
+}
+
+export function technologyBrandIconUrl(slug: string, brandColor?: string): string {
+  if (brandColor) {
+    const hex = brandColor.replace('#', '');
+    return `https://cdn.simpleicons.org/${slug}/${hex}`;
+  }
+  return `https://cdn.simpleicons.org/${slug}`;
 }

@@ -1,5 +1,6 @@
 import { Edge, Node, Position } from 'reactflow';
 import { computeDynamicSlotOffsets, getBidirectionalLaneOffset } from './handleSlotOrder';
+import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
 export interface EdgePositions {
   sourcePos: Position;
@@ -13,8 +14,7 @@ const EDGE_ENDPOINT_GAP = 12;
 export function getNodeCenter(node: Node) {
   const x = node.positionAbsolute?.x ?? node.position.x;
   const y = node.positionAbsolute?.y ?? node.position.y;
-  const width = node.width ?? 160;
-  const height = node.height ?? 80;
+  const { width, height } = getEffectiveNodeDimensions(node);
   return { cx: x + width / 2, cy: y + height / 2, x, y, width, height };
 }
 
@@ -220,11 +220,12 @@ export function getEdgeShiftOffset(
     for (const [id, node] of nodeInternals) {
       const x = node.positionAbsolute?.x ?? node.position.x;
       const y = node.positionAbsolute?.y ?? node.position.y;
+      const { width, height } = getEffectiveNodeDimensions(node);
       nodePositions.set(id, {
         x,
         y,
-        width: node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180,
-        height: node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70,
+        width,
+        height,
       });
     }
   }
@@ -274,12 +275,13 @@ export function getBoundaryAnchor(
   height: number,
   position: Position,
   shiftOffset: number = 0,
+  contentBiasY: number = 0,
 ): { x: number; y: number } {
   switch (position) {
     case Position.Left:
-      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset };
+      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset + contentBiasY };
     case Position.Right:
-      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset };
+      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset + contentBiasY };
     case Position.Top:
       return { x: nodeX + width / 2 + shiftOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:
@@ -294,16 +296,17 @@ export function getSimpleHandlePosition(
   height: number,
   position: Position,
   shiftOffset: number = 0,
-  handleType: HandleType = 'source'
+  handleType: HandleType = 'source',
+  contentBiasY: number = 0,
 ): { x: number; y: number } {
   void handleType;
   const axisOffset = shiftOffset;
 
   switch (position) {
     case Position.Left:
-      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset };
+      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset + contentBiasY };
     case Position.Right:
-      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset };
+      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset + contentBiasY };
     case Position.Top:
       return { x: nodeX + width / 2 + axisOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:

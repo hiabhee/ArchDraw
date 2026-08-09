@@ -2,6 +2,7 @@ import type { Node, Edge } from 'reactflow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from './pipeline';
 import { isDomainSuccess } from '@/lib/pipeline-core';
+import { resolveShapeNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
 export interface RelayoutCanvasResult {
   nodes: Node[];
@@ -28,6 +29,23 @@ function isGroupNode(node: Node): boolean {
     node.type === 'frameNode' ||
     (node.data as { isGroup?: boolean } | undefined)?.isGroup === true
   );
+}
+
+function dimensionsForNode(node: Node): { width?: number; height?: number } {
+  if (node.type !== 'shapeNode') {
+    return { width: node.width ?? undefined, height: node.height ?? undefined };
+  }
+  const data = node.data as Record<string, unknown>;
+  const dims = resolveShapeNodeDimensions({
+    label: String(data.label ?? ''),
+    sublabel: (data.sublabel ?? data.subtitle) as string | undefined,
+    shape: data.shape as string | undefined,
+    serviceType: data.serviceType as string | undefined,
+    cylinderAxis: data.cylinderAxis as 'vertical' | 'horizontal' | undefined,
+    nodeWidth: data.nodeWidth as number | undefined,
+    nodeHeight: data.nodeHeight as number | undefined,
+  });
+  return dims;
 }
 
 /**
@@ -68,8 +86,17 @@ export async function layoutDiagramViaMermaid(
       const originalNode = originalNodeMap.get(newNode.id);
       if (!originalNode) return newNode as Node;
 
-      const width = newNode.width || originalNode.width;
-      const height = newNode.height || originalNode.height;
+      const mergedData = {
+        ...originalNode.data,
+        shape: newNode.data?.shape || originalNode.data?.shape,
+      };
+
+      const shapeDims = dimensionsForNode({
+        ...originalNode,
+        data: mergedData,
+      } as Node);
+      const width = shapeDims.width ?? newNode.width ?? originalNode.width;
+      const height = shapeDims.height ?? newNode.height ?? originalNode.height;
       const group = isGroupNode(originalNode) || isGroupNode(newNode as Node);
 
       return {
@@ -88,10 +115,9 @@ export async function layoutDiagramViaMermaid(
             }
           : originalNode.style,
         data: {
-          ...originalNode.data,
-          shape: newNode.data?.shape || originalNode.data?.shape,
-          nodeWidth: newNode.data?.nodeWidth || originalNode.data?.nodeWidth,
-          nodeHeight: newNode.data?.nodeHeight || originalNode.data?.nodeHeight,
+          ...mergedData,
+          nodeWidth: width,
+          nodeHeight: height,
         },
       } as Node;
     });

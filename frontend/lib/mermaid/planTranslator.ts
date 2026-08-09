@@ -35,8 +35,8 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('load balancer') || lower.includes('lb') ||
     lower.includes('gateway') || lower.includes('api gateway') ||
     lower.includes('proxy') || lower.includes('ingress') ||
-    lower.includes('traff') || lower.includes('gw')
-  ) return { shape: 'diamond', serviceType: 'load-balancer' }
+    lower.includes('nginx') || lower.includes('traff') || lower.includes('gw')
+  ) return { shape: 'hexagon', serviceType: 'load-balancer' }
 
   if (
     lower.includes('queue') || lower.includes('broker') ||
@@ -44,19 +44,42 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('message bus') || lower.includes('event') ||
     lower.includes('pub/sub') || lower.includes('stream') ||
     lower.includes('topic') || lower.includes('mq')
-  ) return { shape: 'circle', serviceType: 'queue' }
+  ) return { shape: 'cylinder', serviceType: 'queue' }
+
+  if (
+    lower.includes('firewall') || lower.includes('waf') ||
+    lower.includes('vault') || lower.includes('oauth') ||
+    lower.includes('keycloak') || lower.includes('secrets') ||
+    lower.includes('jwt') || lower.includes('tls') ||
+    lower.includes('ssl') || lower.includes('auth') ||
+    lower.includes('identity') || lower.includes('sso')
+  ) return { shape: 'shield', serviceType: 'security' }
 
   if (
     lower.includes('external') || lower.includes('third party') ||
     lower.includes('saas') || lower.includes('cdn') ||
-    lower.includes('cloud') || lower.includes('vpc')
-  ) return { shape: 'hexagon', serviceType: 'external-service' }
+    lower.includes('cloud') || lower.includes('vpc') ||
+    lower.includes('stripe') || lower.includes('sendgrid')
+  ) return { shape: 'cloud', serviceType: 'external-service' }
 
   if (
-    lower === 'user' || lower === 'client' ||
-    lower.includes('browser') || lower.includes('mobile') ||
-    lower.includes('desktop') || lower.includes('app')
-  ) return { shape: 'rounded', serviceType: 'client' }
+    lower === 'user' || lower === 'actor' || lower === 'customer' ||
+    lower.includes('person') || lower === 'admin' || lower === 'operator'
+  ) return { shape: 'actor', serviceType: 'actor' }
+
+  if (
+    lower.includes('mobile') || lower.includes('ios') ||
+    lower.includes('android') || lower.includes('react native') ||
+    lower.includes('flutter')
+  ) return { shape: 'mobile', serviceType: 'mobile' }
+
+  if (
+    lower === 'client' ||
+    lower.includes('browser') || lower.includes('webapp') ||
+    lower.includes('frontend') || lower.includes('spa') ||
+    lower.includes('pwa') || lower.includes('desktop') ||
+    lower.includes('web') || lower.includes('app')
+  ) return { shape: 'monitor', serviceType: 'client' }
 
   if (
     lower.includes('log') || lower.includes('monitor') ||
@@ -67,14 +90,20 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
   // 2. Group name fallback (if name is ambiguous/generic, e.g. "Auth" or "Billing")
   if (groupName) {
     const g = groupName.toLowerCase()
-    if (g.includes('client')) {
-      return { shape: 'rounded', serviceType: 'client' }
+    if (g.includes('client') || g.includes('user') || g.includes('customer')) {
+      return { shape: 'monitor', serviceType: 'client' }
     }
     if (g.includes('data') || g.includes('storage') || g.includes('database')) {
       return { shape: 'cylinder', serviceType: 'database' }
     }
     if (g.includes('gateway') || g.includes('lb') || g.includes('load')) {
-      return { shape: 'diamond', serviceType: 'load-balancer' }
+      return { shape: 'hexagon', serviceType: 'load-balancer' }
+    }
+    if (g.includes('security') || g.includes('auth')) {
+      return { shape: 'shield', serviceType: 'security' }
+    }
+    if (g.includes('external') || g.includes('third') || g.includes('saas')) {
+      return { shape: 'cloud', serviceType: 'external-service' }
     }
     if (g.includes('observability') || g.includes('monitor') || g.includes('log')) {
       return { shape: 'rounded', serviceType: 'observability' }
@@ -90,7 +119,10 @@ export const SERVICE_TYPE_META: Record<string, { typeId: string; icon: string; c
   'load-balancer':    { typeId: 'load-balancer',    icon: 'GitBranch', category: 'networking' },
   'queue':            { typeId: 'queue',             icon: 'Inbox',     category: 'messaging' },
   'external-service': { typeId: 'external-service',  icon: 'Globe',     category: 'external' },
+  'security':         { typeId: 'security',          icon: 'Shield',    category: 'compute' },
   'client':           { typeId: 'client',            icon: 'Monitor',   category: 'client' },
+  'mobile':           { typeId: 'mobile',            icon: 'Smartphone', category: 'client' },
+  'actor':            { typeId: 'actor',             icon: 'User',      category: 'client' },
   'observability':    { typeId: 'observability',     icon: 'Activity',  category: 'observability' },
   'service':          { typeId: 'service',           icon: 'Box',       category: 'compute' },
 }

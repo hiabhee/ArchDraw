@@ -1,6 +1,7 @@
 import { Edge, Node, Position } from 'reactflow'
 import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
+import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
 import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
@@ -56,8 +57,7 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
 
 function getNodeRect(node: Node, nodes: Node[]): ObstacleRect {
   const pos = getAbsolutePosition(node, nodes)
-  const w = node.width ?? (node as Node & { measured?: { width?: number } }).measured?.width ?? node.data?.nodeWidth ?? 160
-  const h = node.height ?? (node as Node & { measured?: { height?: number } }).measured?.height ?? node.data?.nodeHeight ?? 80
+  const { width: w, height: h } = getEffectiveNodeDimensions(node)
   return { x: pos.x, y: pos.y, w, h }
 }
 
@@ -472,8 +472,14 @@ export function computeEdgeRoute(
       undefined, undefined,
       (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, direction, scorerObstacles),
     )
-    const sh = getBoundaryAnchor(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, sourcePosition, sourceShift)
-    const th = getBoundaryAnchor(targetRect.x, targetRect.y, targetRect.w, targetRect.h, targetPosition, targetShift)
+    const sh = getBoundaryAnchor(
+      sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
+      sourcePosition, sourceShift,
+    )
+    const th = getBoundaryAnchor(
+      targetRect.x, targetRect.y, targetRect.w, targetRect.h,
+      targetPosition, targetShift,
+    )
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints)
 
@@ -560,8 +566,14 @@ export function computeEdgeRoute(
     edge.target, edge.id, targetPosition, edges, nodeMap, 24,
     undefined, undefined, resolveSide,
   )
-  const sh = getBoundaryAnchor(sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, sourcePosition, sourceShift)
-  const th = getBoundaryAnchor(targetRect.x, targetRect.y, targetRect.w, targetRect.h, targetPosition, targetShift)
+  const sh = getBoundaryAnchor(
+    sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
+    sourcePosition, sourceShift,
+  )
+  const th = getBoundaryAnchor(
+    targetRect.x, targetRect.y, targetRect.w, targetRect.h,
+    targetPosition, targetShift,
+  )
 
   // Intermediate nodes only for the obstacle map — source/target are added
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.

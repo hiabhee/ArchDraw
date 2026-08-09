@@ -15,7 +15,7 @@ export function TechnologyBrandIcon({ technology, size = 18, color }: Technology
 
   return (
     <img
-      src={technologyBrandIconUrl(slug)}
+      src={technologyBrandIconUrl(slug, color)}
       alt=""
       aria-hidden
       width={size}
@@ -23,8 +23,9 @@ export function TechnologyBrandIcon({ technology, size = 18, color }: Technology
       style={{
         width: size,
         height: size,
+        maxWidth: size,
+        maxHeight: size,
         objectFit: 'contain',
-        ...(color ? { filter: 'none' } : {}),
       }}
       draggable={false}
     />

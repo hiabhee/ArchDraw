@@ -162,7 +162,7 @@ Editor chrome: `frontend/views/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, 
 | Component | Type id (typical) | Behavior |
 |-----------|-------------------|----------|
 | **SystemNode** | `systemNode` | Card UI (header/footer, accent, status). Uses `FloatingHandles`. Sized via `calculateNodeDimensions` (grid-capped). |
-| **ShapeNode** | `shapeNode` | Silhouette shapes: rectangle, rounded-rectangle, **diamond**, cylinder, circle, parallelogram. Uses `NodeHandles`. Dynamic fit + mid-band label clamp. |
+| **ShapeNode** | `shapeNode` | Silhouette shapes: rectangle, rounded-rectangle, **diamond**, cylinder, circle, parallelogram, **hexagon, cloud, shield, actor, monitor, mobile, dashed-rectangle**. Uses `NodeHandles`. Dynamic fit + mid-band label clamp. |
 | **GroupNode** | `groupNode` | Subgraph / container; resizable; hosts children with parent ids. |
 | **AnnotationNode** | annotation | Callouts / notes |
 | **TextLabelNode** | text label | Free text on canvas |
@@ -171,11 +171,28 @@ Shape config / palette: `frontend/constants/nodeShapeConfig.ts`, `PropertiesPane
 
 Icons: `NodeIcon.tsx`, `components/icons/`, `lib/nodeIconResolver.ts`.
 
+### Shape semantics (visual vocabulary)
+
+Single source of truth: `frontend/lib/shapeRegistry.ts` (`ShapeType`, `VARIANT_TO_SHAPE`, `shapeForServiceType`). Editor, AI pipeline (`classifyNode` in `planTranslator.ts`), and Mermaid round-trip all resolve through it.
+
+| Silhouette | Role | Mermaid token |
+|------------|------|---------------|
+| `hexagon` | Load balancer / ingress / gateway / proxy | native `id{{"Label"}}` |
+| `cloud` | External / SaaS / third-party (Stripe, CDN, providers) | `%% archdraw-shape` directive |
+| `shield` | Auth / WAF / Vault / secrets / TLS | `%% archdraw-shape` directive |
+| `monitor` | Web / desktop client, browser, frontend | `%% archdraw-shape` directive |
+| `mobile` | iOS / Android client | `%% archdraw-shape` directive |
+| `actor` | End user / person / customer / admin | `%% archdraw-shape` directive |
+| `dashed-rectangle` | Out-of-system / optional / future scope | `%% archdraw-shape` directive |
+
+Non-native shapes round-trip via `%% archdraw-shape: {"id":"<id>","shape":"<shape>"}` (parse in `lib/mermaid/parse.ts`, emit in `mermaidTranslator.ts`). `buildReactFlow.ts` precedence: directive override → native Mermaid token → `classifyNode`. Mermaid native hexagon is `id{{"label"}}` (no directive).
+
 ### Node sizing
 
 `frontend/lib/utils/nodeSizing.ts`:
 
-- Snaps to 160/200/240; optional soft XL/XXL constants for callers that pass `maxWidth`.
+- Snaps to 160/200/240 (plus `SIZE_XS = 120` for compact shapes like `actor`/`mobile`); optional soft XL/XXL constants for callers that pass `maxWidth`.
+- Per-shape width/height bands: hexagon 160–200 / 88–96, cloud 200–240 / 96–112, shield 160–200 / 96–112, actor 120–160 / 88–100, monitor 200–240 / 100–120, mobile 120–160 / 100–130, dashed-rectangle 160–240 / 88–112.
 - Shape text bands must stay aligned with `ShapeNode.resolveShapeSize` (`diamond`/`circle` → `0.48`).
 - Used by ShapeNode, SystemNode, Mermaid build, layout utils, repo import.
 

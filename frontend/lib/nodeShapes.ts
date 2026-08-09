@@ -1,3 +1,10 @@
+/**
+ * @deprecated Legacy shape vocabulary (pill/stack/queue/dashed-rect …).
+ * The canonical silhouette set + variant/service-type mapping now lives in
+ * `frontend/lib/shapeRegistry.ts` (`VARIANT_TO_SHAPE`, `shapeForServiceType`).
+ * Kept for call sites that still read `getShapeConfig` / `getNodeShape`; do not
+ * extend this module — add new shapes to `shapeRegistry` instead.
+ */
 export type NodeShape = 
   | 'rounded-square'
   | 'pill'

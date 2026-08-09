@@ -39,6 +39,15 @@ export function clampToSizeGrid(width: number): number {
   return SIZE_L;
 }
 
+/** Uniform icon slot for brand / prominent icons inside cylinders and rounded rects. */
+export const PROMINENT_ICON_SLOT_PX = 48;
+/** Glyph fills ~88% of slot so logos with different SVG padding look equal. */
+export const PROMINENT_ICON_GLYPH_RATIO = 0.88;
+
+export function prominentIconGlyphSize(): number {
+  return Math.round(PROMINENT_ICON_SLOT_PX * PROMINENT_ICON_GLYPH_RATIO);
+}
+
 // ── Semantic concerns (color = meaning) ─────────────────────────────────────
 
 export type Concern =

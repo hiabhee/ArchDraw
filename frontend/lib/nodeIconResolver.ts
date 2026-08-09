@@ -2,6 +2,7 @@ import { iconRegistry } from '@/lib/iconRegistry';
 import { normalizeArchIconName } from '@/lib/iconAliases';
 import { classifyCloudNode, getNodeProviderAffinity, normalizeCloudLabel } from '@/lib/cloudIcons/classifier';
 import { CLOUD_BRAND_COLORS } from '@/lib/cloudIcons/dictionaries';
+import { inferBrandTechnologyFromLabel } from '@/lib/brandIcons';
 import { AWS_COMPONENTS, DB_COMPONENTS, SERVICES_COMPONENTS } from '@/lib/componentRegistry';
 
 export type NodeIconSource = 'manual' | 'technology' | 'component' | 'label' | 'serviceType' | 'fallback';
@@ -207,10 +208,17 @@ const LABEL_MATCHERS: Array<{
   { source: 'label', icon: 'arch-api-gateway', test: /\b(api gateway|gateway|bff|rest api)\b/i },
   { source: 'label', icon: 'arch-load-balancer', test: /\b(load balancer|balancer|lb|ingress)\b/i },
   { source: 'label', icon: 'arch-message-queue', test: /\b(queue|message queue|mq|pub\/sub|pubsub)\b/i },
-  { source: 'label', icon: 'arch-event-stream', test: /\bkafka\b/i },
-  { source: 'label', icon: 'arch-message-queue', test: /\brabbitmq\b/i },
-  { source: 'label', icon: 'arch-database', test: /\b(postgres|postgresql|mysql|sqlite|rds|sql)\b/i },
-  { source: 'label', icon: 'arch-cache', test: /\b(redis|cache|memcached|elasticache)\b/i },
+  { source: 'label', icon: 'arch-event-stream', technology: 'kafka', test: /\bkafka\b/i },
+  { source: 'label', icon: 'arch-message-queue', technology: 'rabbitmq', test: /\brabbitmq\b/i },
+  { source: 'label', icon: 'arch-proxy', technology: 'nginx', test: /\bnginx\b/i },
+  { source: 'label', icon: 'arch-docker', technology: 'docker', test: /\bdocker\b/i },
+  { source: 'label', icon: 'arch-server', test: /\b(gunicorn|uwsgi|uvicorn)\b/i },
+  { source: 'label', icon: 'arch-database', technology: 'postgresql', test: /\b(postgres|postgresql)\b/i },
+  { source: 'label', icon: 'arch-database', technology: 'mysql', test: /\bmysql\b/i },
+  { source: 'label', icon: 'arch-database', technology: 'mongodb', test: /\b(mongodb|mongo)\b/i },
+  { source: 'label', icon: 'arch-database', test: /\b(sqlite|rds|sql)\b/i },
+  { source: 'label', icon: 'arch-cache', technology: 'redis', test: /\bredis\b/i },
+  { source: 'label', icon: 'arch-cache', test: /\b(cache|memcached|elasticache)\b/i },
   { source: 'label', icon: 'arch-storage', test: /\b(storage|bucket|blob|s3)\b/i },
   { source: 'label', icon: 'arch-auth', test: /\b(auth|login|identity|oauth|session|cognito)\b/i },
   { source: 'label', icon: 'arch-ai', test: /\b(ai|llm|model|openai|claude|gemini)\b/i },
@@ -247,7 +255,8 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     return { icon: input.icon, color: fallbackColor, technology: input.technology, source: 'manual' };
   }
 
-  const resolvedTechnology = input.technology ?? technologyFromLabel(input.label);
+  const resolvedTechnology =
+    input.technology ?? technologyFromLabel(input.label) ?? inferBrandTechnologyFromLabel(input.label);
   const techEntry = getTechnologyEntry(resolvedTechnology);
   if (techEntry) {
     // If the technology uses a custom icon, return it directly

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { calculateNodeDimensions, fitWidthToContent, SIZE_L, SIZE_M, SIZE_S } from '@/lib/utils/nodeSizing';
+import {
+  calculateNodeDimensions,
+  fitWidthToContent,
+  SIZE_L,
+  SIZE_M,
+  SIZE_S,
+  SIZE_XS,
+} from '@/lib/utils/nodeSizing';
 import { SHAPE_LANE_HEIGHT_CAP } from '@/lib/theme/stylingConstants';
 
 describe('calculateNodeDimensions', () => {
@@ -49,5 +56,73 @@ describe('calculateNodeDimensions', () => {
     expect(fitWidthToContent(230)).toBe(SIZE_L);
     expect(fitWidthToContent(300, SIZE_S, SIZE_L)).toBe(SIZE_L);
     expect(fitWidthToContent(300, SIZE_S, 320)).toBe(320);
+  });
+
+  it('grows horizontal pipe height for 2nd and 3rd label lines', () => {
+    const single = calculateNodeDimensions('Kafka Topic', undefined, {
+      shape: 'cylinder',
+      cylinderAxis: 'horizontal',
+    });
+    const twoLines = calculateNodeDimensions('Kafka', 'Topic', {
+      shape: 'cylinder',
+      cylinderAxis: 'horizontal',
+    });
+    const threeLines = calculateNodeDimensions('Line one\nLine two\nLine three', undefined, {
+      shape: 'cylinder',
+      cylinderAxis: 'horizontal',
+    });
+
+    expect(single.height).toBe(40);
+    expect(twoLines.height).toBe(52);
+    expect(threeLines.height).toBe(58);
+    expect(twoLines.height).toBeGreaterThan(single.height);
+    expect(threeLines.height).toBeGreaterThan(twoLines.height);
+  });
+});
+
+describe('semantic silhouette sizing', () => {
+  const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
+    hexagon: { wMin: SIZE_S, wMax: 200, hMin: 88, hMax: 96 },
+    cloud: { wMin: 200, wMax: SIZE_L, hMin: 96, hMax: 112 },
+    shield: { wMin: SIZE_S, wMax: 200, hMin: 96, hMax: 112 },
+    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 88, hMax: 100 },
+    monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 120 },
+    mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 130 },
+    'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 88, hMax: 112 },
+  };
+
+  for (const [shape, band] of Object.entries(bands)) {
+    it(`keeps ${shape} within its width band (${band.wMin}–${band.wMax})`, () => {
+      const dims = calculateNodeDimensions('Semantic Load Balancer', undefined, { shape });
+      expect(dims.width).toBeGreaterThanOrEqual(band.wMin);
+      expect(dims.width).toBeLessThanOrEqual(band.wMax);
+    });
+
+    it(`keeps ${shape} within its height band (${band.hMin}–${band.hMax})`, () => {
+      const dims = calculateNodeDimensions('Semantic Load Balancer', undefined, { shape });
+      expect(dims.height).toBeGreaterThanOrEqual(band.hMin);
+      expect(dims.height).toBeLessThanOrEqual(band.hMax);
+    });
+  }
+
+  it('hexagon stays under the shared lane cap like diamond', () => {
+    const hex = calculateNodeDimensions('API Gateway', undefined, { shape: 'hexagon' });
+    const diamond = calculateNodeDimensions('API Gateway', undefined, { shape: 'diamond' });
+    expect(hex.height).toBeLessThanOrEqual(SHAPE_LANE_HEIGHT_CAP);
+    expect(Math.abs(hex.height - diamond.height)).toBeLessThanOrEqual(24);
+  });
+
+  it('actor and mobile use the compact size tier', () => {
+    const actor = calculateNodeDimensions('Alice', undefined, { shape: 'actor' });
+    const mobile = calculateNodeDimensions('Mobile App', undefined, { shape: 'mobile' });
+    expect(actor.width).toBeLessThanOrEqual(SIZE_S);
+    expect(mobile.width).toBeLessThanOrEqual(SIZE_S);
+    expect(actor.width).toBeGreaterThanOrEqual(SIZE_XS);
+    expect(mobile.width).toBeGreaterThanOrEqual(SIZE_XS);
+  });
+
+  it('fitWidthToContent supports the extra-small tier', () => {
+    expect(fitWidthToContent(110, SIZE_XS, SIZE_S)).toBe(SIZE_XS);
+    expect(fitWidthToContent(140, SIZE_XS, SIZE_S)).toBe(SIZE_S);
   });
 });

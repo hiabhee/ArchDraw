@@ -39,6 +39,8 @@ export interface NodeData {
   autoStartLabelEdit?: boolean;
   /** When set, overrides the global show-node-icons preference for this node. */
   showIcon?: boolean;
+  /** true = icon only, false = always show label, undefined = auto (brand logos hide label). */
+  iconOnly?: boolean;
 }
 
 export interface CanvasTab {
