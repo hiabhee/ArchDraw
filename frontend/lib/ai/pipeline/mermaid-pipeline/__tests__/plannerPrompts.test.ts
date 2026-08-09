@@ -40,6 +40,16 @@ describe('plannerPrompts', () => {
     expect(prompt).toContain('Example 4');
   });
 
+  it('teaches the title/note directive format', () => {
+    const prompt = buildPlannerSystemPrompt();
+    expect(prompt).toContain('archdraw-text');
+    expect(prompt).toContain('archdraw-note');
+    expect(prompt).toContain('anchor":"top"');
+    expect(prompt).toContain('do NOT count toward the node limit');
+    // Few-shot examples imitate the directive line
+    expect(prompt).toContain('archdraw-text: {\\"id\\":\\"title\\"');
+  });
+
   it('user prompt reinforces intent-first design', () => {
     const user = buildPlannerUserPrompt('agent loop with tools', {
       diagramSize: 'medium',
@@ -48,6 +58,7 @@ describe('plannerPrompts', () => {
     });
     expect(user).toContain('classify the intent');
     expect(user).toContain('do not default to Browser');
+    expect(user).toContain('Title');
   });
 
   it('maps diagram sizes to node caps', () => {

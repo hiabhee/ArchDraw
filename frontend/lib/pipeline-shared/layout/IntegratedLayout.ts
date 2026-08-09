@@ -1,6 +1,7 @@
 import { DagreLayoutEngine } from './DagreLayout';
 import type { LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
+import { isTextNode } from '@/lib/mermaid/textNodes';
 
 /** Minimal ReactFlow-shaped graph used by pipeline layout. */
 export interface RFNode {
@@ -15,7 +16,6 @@ export interface RFNode {
   extent?: 'parent' | [[number, number], [number, number]];
   [key: string]: unknown;
 }
-
 export interface RFEdge {
   id: string;
   source: string;
@@ -111,9 +111,26 @@ export class IntegratedLayoutEngine {
 
   /** Sync compound layout via Dagre (canonical for Mermaid pipeline). */
   layoutSync(objects: RFObjects, options: IntegratedLayoutOptions = {}): RFObjects {
-    const params = this.toLayoutParams(objects, options);
+    const textNodes = objects.nodes.filter(node => isTextNode(node));
+    if (textNodes.length === 0) {
+      const params = this.toLayoutParams(objects, options);
+      const result = this.dagreEngine.layoutSync(params);
+      return this.fromLayoutResult(objects, result);
+    }
+
+    // Free-text / annotation nodes never participate in Dagre ranking — they
+    // are placed after layout by `placeTextNodes`.
+    const shapeObjects: RFObjects = {
+      nodes: objects.nodes.filter(node => !isTextNode(node)),
+      edges: objects.edges,
+    };
+    const params = this.toLayoutParams(shapeObjects, options);
     const result = this.dagreEngine.layoutSync(params);
-    return this.fromLayoutResult(objects, result);
+    const layouted = this.fromLayoutResult(shapeObjects, result);
+    return {
+      nodes: [...layouted.nodes, ...textNodes],
+      edges: layouted.edges,
+    };
   }
 
   private mapDirection(direction: Direction): LayoutDirection {

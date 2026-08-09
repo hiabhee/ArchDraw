@@ -4,7 +4,11 @@ import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Handle, Position, NodeProps, NodeResizer, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
-import type { TextSize } from './TextLabelNode';
+import {
+  ANNOTATION_FONT_SIZE,
+  ANNOTATION_FONT_WEIGHT,
+  type TextSize,
+} from '@/lib/utils/textSizing';
 
 export interface AnnotationNodeData {
   title?: string;
@@ -15,19 +19,9 @@ export interface AnnotationNodeData {
   bodyBold?: boolean;
 }
 
-const FONT_SIZE_MAP: Record<TextSize, number> = {
-  small: 20,
-  medium: 24,
-  large: 28,
-  heading: 32,
-};
+const FONT_SIZE_MAP: Record<TextSize, number> = ANNOTATION_FONT_SIZE;
 
-const FONT_WEIGHT_MAP: Record<TextSize, number> = {
-  small: 400,
-  medium: 500,
-  large: 600,
-  heading: 700,
-};
+const FONT_WEIGHT_MAP: Record<TextSize, number> = ANNOTATION_FONT_WEIGHT;
 
 interface SizeButtonProps {
   size: TextSize;

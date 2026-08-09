@@ -5,6 +5,7 @@ import { getUserCanvases, upsertUserCanvas } from '@/lib/db';
 import { headers } from 'next/headers';
 import { getUserTier, getUserQuotas } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
+import { isTextNode } from '@/lib/mermaid/textNodes';
 
 const putSchema = z.object({
   id: z.string().min(1),
@@ -38,7 +39,9 @@ export async function PUT(req: NextRequest) {
   }
   const body = parsed.data;
 
-  if (body.nodes && Array.isArray(body.nodes) && body.nodes.length > quotas.maxNodesPerCanvas) {
+  // Node caps count shape/leaf nodes only; text elements (title/notes) are excluded.
+  const shapeNodeCount = (body.nodes ?? []).filter((n: { type?: string }) => !isTextNode(n)).length;
+  if (shapeNodeCount > quotas.maxNodesPerCanvas) {
     return NextResponse.json(
       {
         error: `Canvas too large. Maximum ${quotas.maxNodesPerCanvas} nodes allowed for your tier.`,

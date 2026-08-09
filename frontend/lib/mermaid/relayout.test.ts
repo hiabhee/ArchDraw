@@ -104,4 +104,108 @@ describe('layoutDiagramViaMermaid', () => {
       expect(laid?.parentNode).toBe(orig.parentNode);
     }
   });
+
+  it('keeps a top heading through the LR/TB relayout round-trip', async () => {
+    const nodes: Node[] = [
+      {
+        id: 'title',
+        type: 'textLabelNode',
+        position: { x: 0, y: 0 },
+        data: { text: 'Order Checkout', fontSize: 'heading', anchor: 'top' },
+      } as Node,
+      node('checkout', 'Checkout API'),
+      node('pay', 'Payment Service'),
+      node('orders', 'Order Store'),
+    ];
+    const edges: Edge[] = [
+      { id: 'e0', source: 'checkout', target: 'pay' } as Edge,
+      { id: 'e1', source: 'checkout', target: 'orders' } as Edge,
+    ];
+
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'TD');
+
+    expect(result.success).toBe(true);
+    const title = result.nodes.find((n) => n.id === 'title')!;
+    expect(title.type).toBe('textLabelNode');
+    expect((title.data as { text?: string }).text).toBe('Order Checkout');
+    // Heading rides above the graph content in the flow direction
+    const checkout = result.nodes.find((n) => n.id === 'checkout')!;
+    expect(title.position.y + (title.height ?? 0)).toBeLessThan(checkout.position.y);
+  });
+
+  it('keeps anchor none free-text at its stored position through relayout', async () => {
+    const nodes: Node[] = [
+      {
+        id: 'free',
+        type: 'textLabelNode',
+        position: { x: 320, y: 210 },
+        data: { text: 'freeform note', anchor: 'none' },
+      } as Node,
+      node('api', 'API'),
+      node('db', 'DB'),
+    ];
+    const edges: Edge[] = [{ id: 'e0', source: 'api', target: 'db' } as Edge];
+
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+
+    expect(result.success).toBe(true);
+    const free = result.nodes.find((n) => n.id === 'free')!;
+    expect(free.type).toBe('textLabelNode');
+    expect(free.position.x).toBe(320);
+    expect(free.position.y).toBe(210);
+  });
+
+  it('keeps an annotation node with its title/body through relayout', async () => {
+    const nodes: Node[] = [
+      {
+        id: 'note1',
+        type: 'annotationNode',
+        position: { x: 0, y: 0 },
+        data: { title: 'Async', body: 'via queue', anchor: 'node', anchorTarget: 'api' },
+      } as Node,
+      node('api', 'API'),
+      node('db', 'DB'),
+    ];
+    const edges: Edge[] = [{ id: 'e0', source: 'api', target: 'db' } as Edge];
+
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+
+    expect(result.success).toBe(true);
+    const note = result.nodes.find((n) => n.id === 'note1')!;
+    expect(note.type).toBe('annotationNode');
+    expect((note.data as { title?: string }).title).toBe('Async');
+    expect((note.data as { body?: string }).body).toBe('via queue');
+    const api = result.nodes.find((n) => n.id === 'api')!;
+    expect(note.position.x).toBeGreaterThan(api.position.x + (api.width ?? 0));
+  });
+
+  it('preserves horizontal pipe height after relayout (not vertical drum height)', async () => {
+    const nodes: Node[] = [
+      {
+        id: 'broker',
+        type: 'shapeNode',
+        position: { x: 0, y: 0 },
+        data: {
+          label: 'Brokerage API',
+          sublabel: 'Connector',
+          shape: 'cylinder',
+          serviceType: 'queue',
+          cylinderAxis: 'horizontal',
+          nodeWidth: 240,
+          nodeHeight: 112,
+        },
+        width: 240,
+        height: 112,
+      } as Node,
+    ];
+    const edges: Edge[] = [];
+
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+
+    expect(result.success).toBe(true);
+    const broker = result.nodes.find((n) => n.id === 'broker')!;
+    expect(broker.height).toBeLessThanOrEqual(52);
+    expect(broker.height).toBeGreaterThanOrEqual(40);
+    expect((broker.data as { nodeHeight?: number }).nodeHeight).toBe(broker.height);
+  });
 });

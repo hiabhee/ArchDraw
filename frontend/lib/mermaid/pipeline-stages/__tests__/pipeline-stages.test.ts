@@ -78,6 +78,34 @@ describe('BuildStage', () => {
     expect(result.data!.nodes.length).toBeGreaterThan(0);
     expect(result.data!.edges.length).toBeGreaterThan(0);
   });
+
+  it('builds textLabelNode / annotationNode from archdraw directives', async () => {
+    const parseStage = new ParseStage();
+    const code = `graph LR
+  %% archdraw-text: {"id":"title","text":"System Architecture","size":"heading","anchor":"top"}
+  %% archdraw-note: {"id":"n1","title":"Note","body":"async via queue","anchor":"node","anchorTarget":"A"}
+  A[API]-->B[(DB)]`;
+    const parseResult = await parseStage.execute(code, createContext());
+    expect(parseResult.success).toBe(true);
+
+    const stage = new BuildStage();
+    const result = await stage.execute(parseResult.data!, createContext());
+    expect(result.success).toBe(true);
+
+    const textNode = result.data!.nodes.find((n) => n.id === 'title');
+    expect(textNode).toBeDefined();
+    expect(textNode!.type).toBe('textLabelNode');
+    expect(textNode!.data).toMatchObject({ text: 'System Architecture', fontSize: 'heading', anchor: 'top' });
+    expect(textNode!.width).toBeGreaterThan(0);
+
+    const noteNode = result.data!.nodes.find((n) => n.id === 'n1');
+    expect(noteNode).toBeDefined();
+    expect(noteNode!.type).toBe('annotationNode');
+    expect(noteNode!.data).toMatchObject({ title: 'Note', body: 'async via queue', anchor: 'node', anchorTarget: 'A' });
+
+    // Text nodes never spawn edges
+    expect(result.data!.edges).toHaveLength(1);
+  });
 });
 
 describe('LayoutStage', () => {
@@ -171,6 +199,6 @@ describe('Pipeline integration - full Mermaid pipeline', () => {
   it('composes production path from class stages', async () => {
     const { createMermaidPipelineStages } = await import('../../pipeline');
     const names = createMermaidPipelineStages().map(s => s.name);
-    expect(names).toEqual(['parse', 'validate', 'build', 'layout', 'size', 'validate-output']);
+    expect(names).toEqual(['parse', 'validate', 'build', 'layout', 'size', 'place-text', 'validate-output']);
   });
 });

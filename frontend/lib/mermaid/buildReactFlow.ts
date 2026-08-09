@@ -2,6 +2,8 @@ import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor
 import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
 import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../utils/nodeSizing'
+import { resolveCylinderAxis } from '../utils/cylinderAxis'
+import { estimateTextNodeSize, estimateAnnotationNodeSize } from '../utils/textSizing'
 import { classifyEdge } from './edgeClassifier'
 import { resolveNodeIcon } from '@/lib/nodeIconResolver'
 const ARROW_MARKER = 'arrowclosed'
@@ -39,6 +41,52 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     nodes.push(rfNode)
   }
 
+  // Create free-text / annotation nodes from `%% archdraw-text|note` directives
+  for (const text of ast.texts) {
+    const anchoredToSubgraph = text.anchor === 'subgraph' && !!text.anchorTarget && subgraphNodes.has(text.anchorTarget)
+    const baseData: Record<string, unknown> = {
+      anchor: text.anchor,
+      ...(text.anchorTarget ? { anchorTarget: text.anchorTarget } : {}),
+    }
+    let rfNode: RFNode
+    if (text.kind === 'note') {
+      const dims = estimateAnnotationNodeSize(text.title, text.body)
+      rfNode = {
+        id: text.id,
+        type: 'annotationNode',
+        position: text.anchor === 'none' && text.position ? { ...text.position } : { x: 0, y: 0 },
+        data: {
+          ...baseData,
+          title: text.title ?? 'Note',
+          body: text.body ?? '',
+          titleSize: text.size ?? 'heading',
+          bodySize: 'medium',
+        },
+        width: dims.width,
+        height: dims.height,
+      }
+    } else {
+      const dims = estimateTextNodeSize(text.text ?? '', text.size)
+      rfNode = {
+        id: text.id,
+        type: 'textLabelNode',
+        position: text.anchor === 'none' && text.position ? { ...text.position } : { x: 0, y: 0 },
+        data: {
+          ...baseData,
+          text: text.text ?? '',
+          fontSize: text.size ?? 'medium',
+        },
+        width: dims.width,
+        height: dims.height,
+      }
+    }
+    if (anchoredToSubgraph) {
+      rfNode.parentNode = text.anchorTarget
+      rfNode.extent = 'parent'
+    }
+    nodes.push(rfNode)
+  }
+
   // Create leaf nodes
   for (const pNode of ast.nodes) {
     let label = pNode.label
@@ -50,8 +98,6 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       subtitle = parts.slice(1).join(' \u00B7 ').trim()
     }
 
-    const { width, height } = calculateNodeDimensions(label, subtitle)
-    
     // Find parent group name for classification
     let parentGroupName: string | undefined
     if (pNode.subgraphId) {
@@ -62,7 +108,13 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     }
 
     const { shape: classifiedShape, serviceType } = classifyNode(label, parentGroupName)
-    const finalShape = pNode.shape !== 'rectangle' ? pNode.shape : classifiedShape
+    const finalShape = pNode.shapeOverride ?? (pNode.shape !== 'rectangle' ? pNode.shape : classifiedShape)
+    const rfShape = finalShape === 'rounded' ? 'rounded-rectangle' : finalShape
+    const cylinderAxis = rfShape === 'cylinder' ? resolveCylinderAxis({ serviceType, label }) : undefined
+    const { width, height } = calculateNodeDimensions(label, subtitle, {
+      shape: rfShape,
+      cylinderAxis,
+    })
 
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service']
     const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1'
@@ -83,9 +135,10 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         label,
         subtitle,
         sublabel: subtitle,
-        shape: finalShape === 'rounded' ? 'rounded-rectangle' : finalShape,
+        shape: rfShape,
         nodeWidth: width,
         nodeHeight: height,
+        ...(cylinderAxis ? { cylinderAxis } : {}),
         serviceType,
         componentType: meta.typeId,
         typeId: meta.typeId,

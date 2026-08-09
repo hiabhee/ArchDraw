@@ -8,7 +8,7 @@ const MAX_CACHE_ENTRIES = 20;
 
 // Bump this string whenever the pipeline logic changes to automatically
 // invalidate all cached results without needing a server restart.
-const PIPELINE_VERSION = 'v6';
+const PIPELINE_VERSION = 'v7';
 
 export interface CachedDiagram {
   normalizedKey: string;

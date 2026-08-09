@@ -201,5 +201,42 @@ describe('implicit concept diagram generation', () => {
     expect(trimmed).toContain('b1 --> c1');
     expect(trimmed).not.toContain('c1 --> o1');
   });
+
+  it('adds a canned title directive from the concept subject', () => {
+    const plan = getConceptTemplatePlan({ subject: 'Docker', domain: 'container-runtime', template: 'docker' }, 3);
+    expect(plan.mermaidCode).toContain('%% archdraw-text: {"id":"title","text":"Docker","size":"heading","anchor":"top"}');
+    expect(plan.mermaidCode.indexOf('%% archdraw-text')).toBeLessThan(plan.mermaidCode.indexOf('subgraph'));
+
+    const redisPlan = getConceptTemplatePlan({ subject: 'Redis', domain: 'cache' }, 3);
+    expect(redisPlan.mermaidCode).toContain('"text":"Redis"');
+  });
+
+  it('keeps the title directive when trimming OPS bands', () => {
+    const mermaid = `graph LR
+  %% archdraw-text: {"id":"title","text":"Kafka","size":"heading","anchor":"top"}
+  subgraph A["A"]
+    a1["A1"]
+  end
+  subgraph B["B"]
+    b1["B1"]
+  end
+  subgraph C["C"]
+    c1["C1"]
+  end
+  subgraph OPS["Operations"]
+    o1["Metrics"]
+  end
+  a1 --> b1
+  b1 --> c1
+  c1 --> o1
+`;
+    const trimmed = trimMermaidByDetailLevel(mermaid, 2);
+    expect(trimmed).toContain('%% archdraw-text: {"id":"title","text":"Kafka","size":"heading","anchor":"top"}');
+    expect(trimmed).not.toContain('subgraph OPS');
+    expect(trimmed).not.toContain('Metrics');
+    expect(trimmed).toContain('a1 --> b1');
+    expect(trimmed).toContain('b1 --> c1');
+    expect(trimmed).not.toContain('c1 --> o1');
+  });
 });
 

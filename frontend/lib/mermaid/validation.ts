@@ -1,4 +1,5 @@
 import type { RFNode, RFEdge, ValidationReport, ValidationWarning, Direction } from './types'
+import { isTextNode } from './textNodes'
 
 const labelArtifacts = ['-->', '---', ' -- ', '|', '["']
 
@@ -6,9 +7,9 @@ export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], directio
   const warnings: ValidationWarning[] = []
   const nodeIds = new Set(nodes.map(n => n.id))
 
-  // 1. Node label artifacts
+  // 1. Node label artifacts (free-text labels may contain `|` or `-->` legitimately)
   for (const node of nodes) {
-    if (node.type === 'groupNode') continue
+    if (node.type === 'groupNode' || isTextNode(node)) continue
     const label = (node.data?.label as string) ?? ''
     if (labelArtifacts.some(a => label.includes(a))) {
       warnings.push({ type: 'NODE_LABEL_ARTIFACT', nodeId: node.id, message: `Node ${node.id} label contains edge syntax: "${label}"` })

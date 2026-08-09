@@ -12,6 +12,7 @@ import {
   BuildStage,
   LayoutStage,
   SizeStage,
+  TextPlacementStage,
   FinalValidationStage,
 } from './pipeline-stages'
 
@@ -36,6 +37,7 @@ const validateStage = new ValidateStage()
 const buildStage = new BuildStage()
 const layoutStage = new LayoutStage()
 const sizeStage = new SizeStage()
+const textPlacementStage = new TextPlacementStage()
 const finalValidationStage = new FinalValidationStage()
 
 /** Composes class stages with accumulating MermaidPipelineData. Exported for tests. */
@@ -112,6 +114,18 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
           ...input,
           objects: { nodes: result.data, edges: input.objects.edges },
         })
+      },
+    },
+    {
+      name: 'place-text',
+      description: 'Anchor free-text nodes after layout',
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.objects) return errorResult(new Error('No objects to place text on'))
+        const result = await textPlacementStage.execute(input.objects, context)
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Text placement failed'), result.warnings)
+        }
+        return successResult({ ...input, objects: result.data })
       },
     },
     {

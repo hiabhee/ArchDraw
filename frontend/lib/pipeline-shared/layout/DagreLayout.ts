@@ -113,12 +113,24 @@ export class DagreLayoutEngine implements LayoutEngine {
       }
     }
 
+    // A subgraph only becomes a real dagre cluster once a node is nested in it
+    // via `g.setParent`. An empty subgraph has no children, so dagre treats it
+    // as an ordinary node and its edges lay out normally — only clusters with
+    // members need the proxy reroute above.
+    const clusterIds = new Set<string>();
+    for (const childId of parentMap.keys()) {
+      const parentId = parentMap.get(childId)!;
+      if (subgraphIds.has(parentId)) clusterIds.add(parentId);
+    }
+
     const layoutEdges = params.edges.map(edge => {
       const source = proxyFor.get(edge.source) ?? edge.source;
       const target = proxyFor.get(edge.target) ?? edge.target;
-      // If either endpoint still resolves to a subgraph (e.g. an empty group),
-      // drop the edge from the layout pass — it cannot be placed by dagre.
-      if (subgraphIdSet.has(source) || subgraphIdSet.has(target)) {
+      // If either endpoint still resolves to a real cluster (a subgraph that
+      // actually contains children), drop the edge from the layout pass — it
+      // cannot be placed by dagre. Edges to empty subgraphs are kept so the
+      // group is laid out inside the flow rather than stranded at rank 0.
+      if (clusterIds.has(source) || clusterIds.has(target)) {
         return null;
       }
       return { ...edge, source, target };

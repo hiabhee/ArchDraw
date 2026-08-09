@@ -46,8 +46,11 @@ function describeExistingContext(ctx: { nodes?: unknown[]; edges?: unknown[] }):
   if (nodes.length > 0) {
     lines.push('Components:');
     for (const n of nodes.slice(0, MAX_LISTED)) {
-      const label = (n.data as Record<string, unknown> | undefined)?.label ?? n.label ?? n.id;
-      lines.push(`  - ${String(label ?? n.id ?? 'unknown')}`);
+      const data = n.data as Record<string, unknown> | undefined;
+      const type = String(n.type ?? '');
+      const isText = type === 'textLabelNode' || type === 'annotationNode';
+      const label = data?.label ?? data?.text ?? data?.title ?? n.label ?? n.id;
+      lines.push(`  - ${isText ? `[${type}] ` : ''}${String(label ?? n.id ?? 'unknown')}`);
     }
     if (nodes.length > MAX_LISTED) lines.push(`  ... and ${nodes.length - MAX_LISTED} more`);
   }

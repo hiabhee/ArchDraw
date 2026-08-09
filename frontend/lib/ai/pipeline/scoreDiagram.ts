@@ -1,6 +1,7 @@
 import logger from '@/lib/logger';
 import { Node, Edge } from 'reactflow';
 import type { DiagramScore, ArchitectureStylePlan, ArchitectureStyle } from './types';
+import { isTextNode } from '@/lib/mermaid/textNodes';
 
 const GENERIC_TEMPLATE_LABELS = [
   'api gateway',
@@ -55,7 +56,7 @@ export function scoreDiagram(
     prompt?: string;
   }
 ): DiagramScore {
-  const nonGroupNodes = nodes.filter((n) => n.type !== 'groupNode');
+  const nonGroupNodes = nodes.filter((n) => n.type !== 'groupNode' && !isTextNode(n));
   const groups = nodes.filter((n) => n.type === 'groupNode');
   const hasGroupsWithChildren = groups.some((g) =>
     nodes.some((c) => (c.data as { parentId?: string })?.parentId === g.id)

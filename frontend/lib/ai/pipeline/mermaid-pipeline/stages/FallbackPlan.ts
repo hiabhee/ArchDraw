@@ -1,7 +1,9 @@
 import { themePrimaryColor, themeToNodeTypeStyles, getDiagramTheme } from '@/lib/theme/stylingConstants';
 
 export function generateFallbackPlan(prompt: string) {
+  const title = (prompt.trim().slice(0, 60) || 'System Architecture').replace(/"/g, '\\"');
   const mermaidCode = `graph LR
+  %% archdraw-text: {"id":"title","text":"${title}","size":"heading","anchor":"top"}
   subgraph CLIENT["Client Layer"]
     user["User"]
   end

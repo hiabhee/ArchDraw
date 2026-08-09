@@ -90,7 +90,24 @@ export function getConceptTemplatePlan(
       reasoning: `${plan.reasoning} Detail level L${detailLevel}: trimmed secondary / ops bands to match the requested scope.`,
     };
   }
+  plan = {
+    ...plan,
+    mermaidCode: withTitleDirective(plan.mermaidCode, concept.subject),
+  };
   return plan;
+}
+
+/** Canned `%% archdraw-text` heading for concept templates (from the subject). */
+function titleDirective(title: string): string {
+  const escaped = title.replace(/"/g, '\\"');
+  return `  %% archdraw-text: {"id":"title","text":"${escaped}","size":"heading","anchor":"top"}`;
+}
+
+/** Insert the title directive on the line right after `graph …`. */
+function withTitleDirective(mermaidCode: string, title: string): string {
+  if (mermaidCode.includes('%% archdraw-text:')) return mermaidCode;
+  const [firstLine, ...rest] = mermaidCode.split('\n');
+  return [firstLine, titleDirective(title), ...rest].join('\n');
 }
 
 /**
@@ -293,10 +310,12 @@ function genericApiEdgeMermaid(subject: string): string {
   subgraph EDGE["Edge Layer"]
     entry["${subject} Entry Point"]
     tls["TLS Termination"]
+    %% archdraw-shape: {"id":"waf","shape":"shield"}
     waf["WAF / Filtering"]
   end
   subgraph ROUTING["Routing Plane"]
     rules{"Routing Rules"}
+    %% archdraw-shape: {"id":"balancing","shape":"hexagon"}
     balancing["Load Balancing"]
     health["Health Checks"]
   end
@@ -774,11 +793,13 @@ const apiGatewayMermaid = `graph LR
   subgraph EDGE["Edge Protection"]
     dns["DNS"]
     cdn["CDN"]
+    %% archdraw-shape: {"id":"waf","shape":"shield"}
     waf["WAF"]
   end
   subgraph GATEWAY["API Gateway Runtime"]
     listener["HTTPS Listener"]
     router{"Route Matcher"}
+    %% archdraw-shape: {"id":"proxy","shape":"hexagon"}
     proxy["Reverse Proxy"]
   end
   subgraph POLICIES["Request Policies"]

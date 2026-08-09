@@ -7,7 +7,11 @@ import type {
   EdgeType,
   ParseResult,
   ParsedNodeStyle,
+  ParsedText,
+  TextSize,
+  TextAnchor,
 } from './types'
+import { SUPPORTED_SHAPES, type ShapeType } from '@/lib/shapeRegistry'
 
 const RESERVED_KEYWORDS = new Set(['end', 'graph', 'flowchart', 'subgraph', 'direction'])
 
@@ -111,7 +115,62 @@ function unescapeLabel(label: string): string {
     .replace(/\\\\/g, '\\')
 }
 
-/** Strip Mermaid markdown-string wrappers and light emphasis markers. */
+/**
+ * Strip Mermaid markdown-string wrappers, light emphasis markers, and inline
+ * HTML formatting tags, then decode HTML entities. Mermaid renders `<b>`,
+ * `<i>`, `<u>`, … as styled text and `&nbsp;` / `&amp;` / `&bull;` as
+ * characters; the canvas shows plain labels, so tags and entities must not leak
+ * through literally. `<br>` / `<br/>` are intentionally left intact — the build
+ * stage splits those into label + subtitle.
+ */
+const HTML_FORMAT_TAG = /<\/?(?:b|strong|i|em|u|s|mark|sub|sup|small|code|kbd|del|ins)(?:\s[^>]*)?>/gi
+
+const HTML_ENTITIES: Record<string, string> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  bull: '•',
+  middot: '·',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  laquo: '«',
+  raquo: '»',
+  plusmn: '±',
+  times: '×',
+  divide: '÷',
+  larr: '←',
+  uarr: '↑',
+  rarr: '→',
+  darr: '↓',
+  check: '✓',
+}
+
+const HTML_ENTITY_PATTERN = /&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g
+
+/** Decode named + numeric HTML entities (`&nbsp;`, `&#39;`, `&#x27;`, …). */
+function decodeHtmlEntities(s: string): string {
+  return s.replace(HTML_ENTITY_PATTERN, (match, entity: string) => {
+    if (entity[0] === '#') {
+      const hex = entity[1] === 'x' || entity[1] === 'X'
+      const code = hex ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10)
+      if (Number.isNaN(code)) return match
+      try {
+        return String.fromCodePoint(code)
+      } catch {
+        return match
+      }
+    }
+    return HTML_ENTITIES[entity.toLowerCase()] ?? match
+  })
+}
+
 function stripMarkdownLabel(label: string): string {
   let s = label.trim()
   if (s.startsWith('`') && s.endsWith('`') && s.length >= 2) {
@@ -121,6 +180,8 @@ function stripMarkdownLabel(label: string): string {
   s = s.replace(/__([^_]+)__/g, '$1')
   s = s.replace(/\*([^*]+)\*/g, '$1')
   s = s.replace(/_([^_]+)_/g, '$1')
+  s = s.replace(HTML_FORMAT_TAG, '')
+  s = decodeHtmlEntities(s)
   return s
 }
 
@@ -197,6 +258,102 @@ function stripComments(line: string): string {
     }
   }
   return line
+}
+
+const TEXT_SIZE_VALUES: TextSize[] = ['small', 'medium', 'large', 'heading']
+const TEXT_ANCHOR_VALUES: TextAnchor[] = ['top', 'subgraph', 'node', 'none']
+
+/**
+ * Parse an ArchDraw free-text directive, e.g.
+ *   %% archdraw-text: {"id":"title","text":"System Architecture","size":"heading","anchor":"top"}
+ *   %% archdraw-note: {"id":"n1","title":"Note","body":"...","anchor":"none","x":120,"y":40}
+ * Mermaid treats these as plain comments (invisible to stock renderers), but
+ * the pipeline captures them so text nodes round-trip through the canonical
+ * Mermaid path. Returns null when the line is not a valid directive.
+ */
+function parseArchdrawDirective(rawLine: string): ParsedText | null {
+  const trimmed = rawLine.trim()
+  if (!trimmed.startsWith('%%')) return null
+  const m = trimmed.match(/^%%\s*archdraw-(text|note)\s*:\s*(.*)$/i)
+  if (!m) return null
+  const kind: ParsedText['kind'] = m[1].toLowerCase() === 'note' ? 'note' : 'text'
+  const payload = m[2].trim()
+  const open = payload.indexOf('{')
+  const close = payload.lastIndexOf('}')
+  if (open === -1 || close === -1 || close <= open) return null
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(payload.slice(open, close + 1)) as Record<string, unknown>
+  } catch {
+    return null
+  }
+
+  if (typeof parsed.id !== 'string' || parsed.id.length === 0) return null
+
+  const size =
+    typeof parsed.size === 'string' && TEXT_SIZE_VALUES.includes(parsed.size as TextSize)
+      ? (parsed.size as TextSize)
+      : undefined
+  const anchor =
+    typeof parsed.anchor === 'string' && TEXT_ANCHOR_VALUES.includes(parsed.anchor as TextAnchor)
+      ? (parsed.anchor as TextAnchor)
+      : 'none'
+
+  const base: ParsedText = {
+    id: parsed.id,
+    kind,
+    size,
+    anchor,
+    anchorTarget:
+      typeof parsed.anchorTarget === 'string' && parsed.anchorTarget.length > 0
+        ? parsed.anchorTarget
+        : undefined,
+    position:
+      typeof parsed.x === 'number' && typeof parsed.y === 'number'
+        ? { x: parsed.x, y: parsed.y }
+        : null,
+  }
+
+  if (kind === 'note') {
+    base.title = typeof parsed.title === 'string' ? parsed.title : undefined
+    base.body = typeof parsed.body === 'string' ? parsed.body : undefined
+    if (!base.title && !base.body) return null
+  } else {
+    base.text = typeof parsed.text === 'string' ? parsed.text : ''
+    if (!base.text) return null
+  }
+
+  return base
+}
+
+/**
+ * Parse a `%% archdraw-shape: {"id":"lb","shape":"hexagon"}` override
+ * directive. Mermaid renders the node with its native (rectangle) token; the
+ * pipeline applies the silhouette on build. Returns null when invalid.
+ */
+function parseArchdrawShapeDirective(rawLine: string): { id: string; shape: ShapeType } | null {
+  const trimmed = rawLine.trim()
+  if (!trimmed.startsWith('%%')) return null
+  const m = trimmed.match(/^%%\s*archdraw-shape\s*:\s*(.*)$/i)
+  if (!m) return null
+  const payload = m[1].trim()
+  const open = payload.indexOf('{')
+  const close = payload.lastIndexOf('}')
+  if (open === -1 || close === -1 || close <= open) return null
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(payload.slice(open, close + 1)) as Record<string, unknown>
+  } catch {
+    return null
+  }
+
+  if (typeof parsed.id !== 'string' || parsed.id.length === 0) return null
+  if (typeof parsed.shape !== 'string' || !SUPPORTED_SHAPES.includes(parsed.shape as ShapeType)) {
+    return null
+  }
+  return { id: parsed.id, shape: parsed.shape as ShapeType }
 }
 
 /**
@@ -524,9 +681,11 @@ export function parseMermaid(mermaidText: string): ParseResult {
   const subgraphs: ParsedSubgraph[] = []
   const nodes: ParsedNode[] = []
   const edges: ParsedEdge[] = []
+  const texts: ParsedText[] = []
   const nodeIdSet = new Set<string>()
   const classStyles = new Map<string, ParsedNodeStyle>()
   const nodeClassNames = new Map<string, string[]>()
+  const shapeOverrides = new Map<string, ShapeType>()
   let edgeCounter = 0
 
   let currentSubgraphId: string | null = null
@@ -537,6 +696,19 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i]
+
+    const textElement = parseArchdrawDirective(rawLine)
+    if (textElement) {
+      texts.push(textElement)
+      continue
+    }
+
+    const shapeDirective = parseArchdrawShapeDirective(rawLine)
+    if (shapeDirective) {
+      shapeOverrides.set(shapeDirective.id, shapeDirective.shape)
+      continue
+    }
+
     const cleanLine = stripComments(rawLine)
     const blockLine = cleanLine.trim()
 
@@ -846,6 +1018,12 @@ export function parseMermaid(mermaidText: string): ParseResult {
     }
   }
 
+  // Apply `%% archdraw-shape` silhouette overrides onto parsed nodes.
+  for (const [id, shape] of shapeOverrides) {
+    const node = nodes.find(n => n.id === id)
+    if (node) node.shapeOverride = shape
+  }
+
   if (errors.length > 0) {
     return { ok: false, errors }
   }
@@ -875,6 +1053,6 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
   return {
     ok: true,
-    ast: { direction, nodes, edges, subgraphs },
+    ast: { direction, nodes, edges, subgraphs, texts },
   }
 }

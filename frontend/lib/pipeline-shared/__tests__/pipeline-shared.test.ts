@@ -104,6 +104,33 @@ describe('DagreLayoutEngine', () => {
     expect(result.edges.find(e => e.id === 'b-G')?.target).toBe('G');
     expect(result.edges.find(e => e.id === 'G-c')?.source).toBe('G');
   });
+
+  it('keeps edges to an empty subgraph so it lays out inside the flow', async () => {
+    const engine = new DagreLayoutEngine();
+    const result = await engine.layout({
+      nodes: [
+        { id: 'KAFKA', width: 220, height: 100, isGroup: true },
+        { id: 'PRODUCER', width: 200, height: 111 },
+        { id: 'ANALYTICS', width: 200, height: 111 },
+      ],
+      edges: [
+        { id: 'PRODUCER-KAFKA', source: 'PRODUCER', target: 'KAFKA' },
+        { id: 'KAFKA-ANALYTICS', source: 'KAFKA', target: 'ANALYTICS' },
+      ],
+      direction: 'LR',
+    });
+
+    expect(result.warnings).toEqual([]);
+    // Every edge participates in the layout (has routed points)…
+    expect(result.edges.find(e => e.id === 'PRODUCER-KAFKA')?.points?.length).toBeGreaterThan(0);
+    expect(result.edges.find(e => e.id === 'KAFKA-ANALYTICS')?.points?.length).toBeGreaterThan(0);
+    // …and the empty group sits between its in/out neighbours, not at rank 0.
+    const producer = result.nodes.find(n => n.id === 'PRODUCER')!;
+    const kafka = result.nodes.find(n => n.id === 'KAFKA')!;
+    const analytics = result.nodes.find(n => n.id === 'ANALYTICS')!;
+    expect(producer.x).toBeLessThan(kafka.x);
+    expect(kafka.x).toBeLessThan(analytics.x);
+  });
 });
 
 describe('applyRfLayout (canonical entry)', () => {

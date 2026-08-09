@@ -1,5 +1,6 @@
 import type { RFNode } from './types'
 import { SUBGRAPH_PADDING } from './types'
+import { isTextNode } from './textNodes'
 
 interface ParentUpdate {
   position: { x: number; y: number }
@@ -11,20 +12,31 @@ export function sizeSubgraphs(nodes: RFNode[]): RFNode[] {
   const groupIds = new Set(nodes.filter(n => n.type === 'groupNode').map(n => n.id))
 
   const childIdsByParent = new Map<string, string[]>()
+  const boundChildIdsByParent = new Map<string, string[]>()
   for (const node of nodes) {
     if (node.parentNode && groupIds.has(node.parentNode)) {
       if (!childIdsByParent.has(node.parentNode)) {
         childIdsByParent.set(node.parentNode, [])
       }
       childIdsByParent.get(node.parentNode)!.push(node.id)
+      // Free-text / annotation nodes are placed after layout and must not
+      // inflate the group bounding box.
+      if (!isTextNode(node)) {
+        if (!boundChildIdsByParent.has(node.parentNode)) {
+          boundChildIdsByParent.set(node.parentNode, [])
+        }
+        boundChildIdsByParent.get(node.parentNode)!.push(node.id)
+      }
     }
   }
 
   // Compute bounding box of children (using absolute positions) and derive new parent bounds
   const parentUpdates = new Map<string, ParentUpdate>()
-  for (const [parentId, childIds] of childIdsByParent) {
+  for (const [parentId, childIds] of boundChildIdsByParent) {
+    // Fall back to all children (incl. text) when a group only contains text.
+    const boundIds = childIds.length > 0 ? childIds : (childIdsByParent.get(parentId) ?? [])
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const childId of childIds) {
+    for (const childId of boundIds) {
       const child = nodes.find(n => n.id === childId)
       if (!child) continue
       const cx = child.position.x

@@ -3,15 +3,20 @@
 import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { NodeProps, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
+import {
+  TEXT_LABEL_FONT_SIZE,
+  TEXT_LABEL_FONT_WEIGHT,
+  type TextSize,
+} from '@/lib/utils/textSizing';
 
 export interface TextLabelNodeData {
   text: string;
-  fontSize?: 'small' | 'medium' | 'large' | 'heading';
+  fontSize?: TextSize;
   bold?: boolean;
   color?: string;
 }
 
-export type TextSize = 'small' | 'medium' | 'large' | 'heading';
+export type { TextSize } from '@/lib/utils/textSizing';
 
 const FONT_SIZE_MAP: Record<TextSize, number> = {
   small: 24,
@@ -41,8 +46,8 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
     updateNodeInternals(id);
   }, [id, updateNodeInternals]);
   
-  const fontSize = FONT_SIZE_MAP[currentSize];
-  const fontWeight = isBold ? 700 : FONT_WEIGHT_MAP[currentSize];
+  const fontSize = TEXT_LABEL_FONT_SIZE[currentSize];
+  const fontWeight = isBold ? 700 : TEXT_LABEL_FONT_WEIGHT[currentSize];
   const color = data.color ?? 'hsl(var(--foreground))';
 
   const SIZE_ORDER: TextSize[] = useMemo(() => ['small', 'medium', 'large', 'heading'], []);

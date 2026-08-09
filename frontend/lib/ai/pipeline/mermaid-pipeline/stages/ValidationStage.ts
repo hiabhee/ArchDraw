@@ -4,6 +4,7 @@ import type { RFNode, RFEdge } from '@/lib/mermaid/types';
 import type { ArchitectureEdge, LayerType, ServiceType } from '../../../types';
 import type { ValidationIssue, ArchitectureStyle, DiagramScore } from '../../types';
 import { classifyNode } from '@/lib/mermaid/planTranslator';
+import { isTextNode } from '@/lib/mermaid/textNodes';
 
 function validateReasoningField(reasoning?: string, nodesCount?: number): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -49,7 +50,7 @@ function validateTopologyAndSize(
 ): ValidationIssue[] {
   const semanticIssues: ValidationIssue[] = [];
   const maxNodes = detailLevel === 1 ? 7 : detailLevel === 2 ? 12 : 20;
-  const leafNodes = nodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode');
+  const leafNodes = nodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode' && !isTextNode(n));
 
   if (leafNodes.length > maxNodes) {
     semanticIssues.push({
@@ -143,7 +144,7 @@ export class ValidationStage extends BaseStage<ValidationInput, ValidationOutput
   async execute(input: ValidationInput, _context: PipelineContext): Promise<StageResult<ValidationOutput>> {
     const reasoningIssues = validateReasoningField(
       input.reasoning,
-      input.nodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode').length
+      input.nodes.filter(n => n.type !== 'groupNode' && n.type !== 'frameNode' && !isTextNode(n)).length
     );
 
     const topologyIssues = validateTopologyAndSize(
