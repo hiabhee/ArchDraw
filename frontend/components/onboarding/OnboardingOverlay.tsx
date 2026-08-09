@@ -167,7 +167,7 @@ function OnboardingOverlayInner() {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.6)',
+            background: 'hsl(0 0% 0% / 0.45)',
             zIndex: 9999,
             pointerEvents: 'none',
           }}

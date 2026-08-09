@@ -63,7 +63,7 @@ export function SpotlightHighlight({ targetSelector, padding = 10 }: SpotlightPr
               width: rect.width + padding * 2,
               height: rect.height + padding * 2,
               borderRadius: 10,
-              boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)',
+              boxShadow: '0 0 0 9999px hsl(0 0% 0% / 0.45)',
               zIndex: 9999,
               pointerEvents: 'none',
             }}
@@ -83,9 +83,9 @@ export function SpotlightHighlight({ targetSelector, padding = 10 }: SpotlightPr
               width: rect.width + padding * 2,
               height: rect.height + padding * 2,
               borderRadius: 10,
-              border: '1px solid rgba(99,102,241,0.9)',
+              border: '1px solid rgba(30, 144, 255, 0.85)',
               boxShadow:
-                '0 0 0 4px rgba(99,102,241,0.15), 0 0 30px 6px rgba(99,102,241,0.3)',
+                '0 0 0 4px rgba(30, 144, 255, 0.12), 0 0 24px 4px rgba(30, 144, 255, 0.22)',
               zIndex: 10000,
               pointerEvents: 'none',
             }}
@@ -116,7 +116,7 @@ export function SpotlightHighlight({ targetSelector, padding = 10 }: SpotlightPr
                 width: 80,
                 height: '100%',
                 background:
-                  'linear-gradient(90deg, transparent, rgba(129,140,248,0.25), transparent)',
+                  'linear-gradient(90deg, transparent, rgba(30, 144, 255, 0.2), transparent)',
                 transform: 'skewX(-12deg)',
               }}
             />

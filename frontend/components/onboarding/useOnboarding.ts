@@ -18,9 +18,9 @@ export interface OnboardingStep {
 export const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
-    title: 'Welcome to ArchFlow',
+    title: 'Welcome to ArchDraw',
     description:
-      'Build system architecture diagrams by dragging components onto the canvas, connecting them, and exporting or sharing with your team. This guide walks you through the key features in ~1 minute.',
+      'Describe your architecture in plain English, refine it on the canvas, and export or share with your team. This quick guide covers the essentials in ~1 minute.',
     targetSelector: null,
     cardPosition: 'center',
     handAnimation: 'none',

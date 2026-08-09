@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, Check } from 'lucide-react';
 
 interface StepCardProps {
   step: number;
@@ -43,46 +44,35 @@ export function StepCard({
       initial={{ opacity: 0, y: 16, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.97 }}
-      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       style={{
         position: 'fixed',
         top: position.top,
         left: position.left,
         width: 'min(320px, calc(100vw - 32px))',
         maxHeight: 'calc(100vh - 80px)',
-        overflowY: 'auto',
-        background: 'linear-gradient(135deg, #1a1d2e 0%, #141624 100%)',
-        border: '1px solid rgba(89,89,89,0.35)',
-        borderRadius: 16,
-        padding: '22px 26px',
-        boxShadow:
-          '0 0 0 1px rgba(89,89,89,0.08), 0 12px 40px rgba(0,0,0,0.55), 0 0 60px rgba(89,89,89,0.06)',
-        zIndex: 10000,
-        pointerEvents: 'all',
       }}
+      className="z-[10000] pointer-events-auto overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-[0_8px_32px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)]"
     >
-      {/* Step progress dots */}
-      <div style={{ display: 'flex', gap: 5, marginBottom: 12, alignItems: 'center' }}>
+      {/* Step progress */}
+      <div className="flex items-center gap-1.5 mb-4">
         {Array.from({ length: totalSteps }).map((_, i) => (
           <motion.div
             key={i}
             animate={{
-              background: i < step ? '#595959' : i === step - 1 ? '#8A8A8A' : '#2d3148',
-              scale: i === step - 1 ? 1.35 : 1,
+              scale: i === step - 1 ? 1.25 : 1,
             }}
             transition={{ duration: 0.3 }}
-            style={{ width: 7, height: 7, borderRadius: '50%' }}
+            className={`h-1.5 rounded-full transition-colors duration-300 ${
+              i < step - 1
+                ? 'w-4 bg-brand'
+                : i === step - 1
+                  ? 'w-6 bg-brand'
+                  : 'w-1.5 bg-border'
+            }`}
           />
         ))}
-        <span
-          style={{
-            marginLeft: 8,
-            fontSize: 11,
-            color: '#4b5563',
-            fontFamily: 'inherit',
-            letterSpacing: '0.02em',
-          }}
-        >
+        <span className="ml-2 text-[11px] font-medium text-muted-foreground tracking-wide">
           Step {step} of {totalSteps}
         </span>
       </div>
@@ -92,14 +82,7 @@ export function StepCard({
         initial={{ opacity: 0, x: -6 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.08, duration: 0.3 }}
-        style={{
-          fontSize: 16,
-          fontWeight: 700,
-          color: '#f9fafb',
-          margin: '0 0 8px',
-          fontFamily: 'inherit',
-          letterSpacing: '-0.01em',
-        }}
+        className="text-base font-bold text-foreground tracking-tight mb-2"
       >
         {title}
       </motion.p>
@@ -110,13 +93,7 @@ export function StepCard({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.14, duration: 0.3 }}
-        style={{
-          fontSize: 13,
-          color: '#8b95a8',
-          lineHeight: 1.65,
-          margin: '0 0 16px',
-          fontFamily: 'inherit',
-        }}
+        className="text-[13px] text-muted-foreground leading-relaxed mb-4"
       >
         {description}
       </motion.p>
@@ -128,80 +105,50 @@ export function StepCard({
             initial={{ opacity: 0, scale: 0.85, y: 4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 7,
-              background: 'rgba(34,197,94,0.1)',
-              border: '1px solid rgba(34,197,94,0.25)',
-              borderRadius: 20,
-              padding: '5px 12px',
-              marginBottom: 14,
-              fontSize: 12,
-              color: '#4ade80',
-              fontWeight: 600,
-              fontFamily: 'inherit',
-            }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="inline-flex items-center gap-2 rounded-full border border-[#22C55E]/25 bg-[#DCFCE7] px-3 py-1.5 mb-4 text-xs font-semibold text-[#16A34A]"
           >
-            <motion.span
-              animate={{ scale: [1, 1.3, 1] }}
-              transition={{ duration: 0.4, ease: 'backOut' }}
-            >
-              ✓
-            </motion.span>
+            <Check className="w-3.5 h-3.5" />
             Component added! Click Next to continue.
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Button row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <motion.button
+      {/* Actions */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
           onClick={onSkip}
-          whileHover={{ color: '#9ca3af' }}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#4b5563',
-            fontSize: 12,
-            cursor: 'pointer',
-            padding: '6px 0',
-            fontFamily: 'inherit',
-          }}
+          className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer py-1.5"
         >
           Skip guide
-        </motion.button>
+        </button>
 
         <motion.button
           ref={primaryBtnRef}
+          type="button"
           onClick={onNext}
           disabled={!!nextDisabled}
-          whileHover={!nextDisabled ? { scale: 1.04, background: '#8A8A8A' } : {}}
-          whileTap={!nextDisabled ? { scale: 0.97 } : {}}
+          whileHover={!nextDisabled ? { scale: 1.02 } : {}}
+          whileTap={!nextDisabled ? { scale: 0.98 } : {}}
           transition={{ duration: 0.15 }}
-          style={{
-            background: nextDisabled
-              ? '#252840'
-              : 'linear-gradient(135deg, #595959, #8A8A8A)',
-            border: 'none',
-            color: nextDisabled ? '#4b5563' : '#fff',
-            fontSize: 13,
-            fontWeight: 700,
-            borderRadius: 10,
-            padding: '9px 20px',
-            cursor: nextDisabled ? 'not-allowed' : 'pointer',
-            fontFamily: 'inherit',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            boxShadow: nextDisabled
-              ? 'none'
-              : '0 2px 12px rgba(99,102,241,0.4)',
-            letterSpacing: '-0.01em',
-          }}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-5 py-2 text-[13px] font-semibold transition-all ${
+            nextDisabled
+              ? 'bg-muted text-muted-foreground cursor-not-allowed'
+              : 'bg-brand text-white hover:bg-brand-hover shadow-[0_4px_16px_rgba(30,144,255,0.30)] cursor-pointer'
+          }`}
         >
-          {isLastStep ? 'Finish ✓' : 'Next →'}
+          {isLastStep ? (
+            <>
+              Finish
+              <Check className="w-3.5 h-3.5" />
+            </>
+          ) : (
+            <>
+              Next
+              <ArrowRight className="w-3.5 h-3.5" />
+            </>
+          )}
         </motion.button>
       </div>
     </motion.div>
