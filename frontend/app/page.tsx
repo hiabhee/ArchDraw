@@ -268,16 +268,16 @@ function HeroSection() {
       <div className="max-w-[1280px] mx-auto flex flex-col items-center text-center relative z-10">
         <div className="inline-flex items-center gap-2 text-xs font-semibold text-text-primary bg-[#f1f1eb] border border-border rounded-full px-4 py-1.5 mb-8 shadow-inner animate-fade-in">
           <span className="w-1.5 h-1.5 rounded-full bg-[#27a644]" />
-          AI-powered diagramming <span className="text-text-secondary">· Now in beta</span>
+          ChatGPT for architecture diagrams <span className="text-text-secondary">· Now in beta</span>
         </div>
         <h1
           className={`text-text-primary font-bold leading-[1.05] tracking-tight max-w-[950px] ${outfit.className}`}
           style={{ fontSize: 'clamp(2.5rem, 5.5vw, 4.5rem)' }}
         >
-          From idea to architecture diagram in one prompt — not one hour.
+          Build accurate architecture diagrams in seconds — not hours.
         </h1>
         <p className="mt-6 max-w-[650px] text-base md:text-lg text-text-secondary leading-relaxed font-medium">
-          Describe your system in plain English or Mermaid. ArchDraw&apos;s AI pipeline handles structure, layout, and styling — so you get a clean, presentation-ready diagram in seconds, not after an hour of dragging boxes in draw.io.
+          Describe your system in plain English or Mermaid. ArchDraw lays it out for design reviews, docs, and onboarding — so you stop fighting draw.io.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 mt-10">
