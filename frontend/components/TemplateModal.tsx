@@ -32,7 +32,7 @@ export function TemplateModal({ onClose }: Props) {
 
   /** Same Mermaid → Dagre path as the toolbar layout toggler. */
   const layoutTemplate = async (t: Template): Promise<{ nodes: Node[]; edges: Edge[] }> => {
-    const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR');
+    const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR', { title: t.name });
     if (!result.success) {
       toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
       return { nodes: t.nodes, edges: t.edges };

@@ -36,7 +36,6 @@ import {
   restoreReactFlowAfterImageExport,
   waitForReactFlowFrame,
 } from '@/lib/utils/prepareReactFlowForImageExport';
-import { captureReactFlowSvg, getUtf8ByteLength, MAX_SVG_EXPORT_BYTES } from '@/lib/utils/optimizeSvgExport';
 import { computeDiagramCropRect, cropRasterDataUrl } from '@/lib/utils/exportCrop';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { Button } from '@/components/ui/button';
@@ -373,6 +372,45 @@ export function Toolbar() {
 
     try {
       const element = document.querySelector('.react-flow') as HTMLElement | null;
+      const isTransparent = bgType === 'transparent';
+
+      if (isSvg) {
+        const state = useDiagramStore.getState();
+        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+        const exportNodes = reactFlowRef.instance?.getNodes() ?? state.nodes;
+
+        let svgBg = 'none';
+        if (!isTransparent) {
+          if (bgType === 'dark') {
+            svgBg = '#000000';
+          } else if (element) {
+            svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
+          } else {
+            svgBg = '#ffffff';
+          }
+        }
+
+        const { generatePureSVG } = await import('@/lib/svgExport');
+        const svgContent = generatePureSVG(
+          exportNodes,
+          state.edges,
+          state.darkMode,
+          svgBg,
+          layoutDirection,
+        );
+        downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
+        toast.success(
+          isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG',
+        );
+        analytics.track({
+          event_type: 'export',
+          event_name: 'svg',
+          page_path: window.location.pathname,
+          payload: { format, vector: true, success: true },
+        });
+        return;
+      }
+
       if (!element) {
         toast.error('Canvas not ready. Please try again.');
         return;
@@ -386,34 +424,11 @@ export function Toolbar() {
       edgeSnapshots = prepareReactFlowForImageExport(element);
 
       const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
-      const isTransparent = bgType === 'transparent';
       const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
       const cropRect =
         isTransparent && reactFlowRef.instance
           ? computeDiagramCropRect(exportNodes, reactFlowRef.instance.getViewport(), 0.1)
           : null;
-
-      if (isSvg) {
-        const svgContent = await captureReactFlowSvg(element, {
-          backgroundColor: bgColor,
-          cacheBust: true,
-          crop: cropRect,
-          pixelRatio: isTransparent ? 2 : undefined,
-        });
-        downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
-        if (getUtf8ByteLength(svgContent) > MAX_SVG_EXPORT_BYTES) {
-          toast.warning('Exported as SVG, but the file is still above 3 MB');
-        } else {
-          toast.success(isTransparent ? 'Exported as SVG (no background)' : 'Exported as SVG');
-        }
-        analytics.track({
-          event_type: 'export',
-          event_name: 'svg',
-          page_path: window.location.pathname,
-          payload: { format, success: true },
-        });
-        return;
-      }
 
       const { toPng } = await import('html-to-image');
       
@@ -1157,11 +1172,12 @@ function LayoutToggleButton() {
 
   const handleToggle = async () => {
     const store = useDiagramStore.getState();
-    const { nodes, edges } = store;
+    const { nodes, edges, activeCanvasId, canvases } = store;
+    const canvasName = canvases.find((c) => c.id === activeCanvasId)?.name;
 
     try {
       const { nodes: layoutedNodes, edges: layoutedEdges, success, warnings } =
-        await layoutDiagramViaMermaid(nodes, edges, nextDirection);
+        await layoutDiagramViaMermaid(nodes, edges, nextDirection, { title: canvasName });
       if (!success) {
         toast.error(`Layout toggle failed: ${warnings.join('; ') || 'unknown error'}`);
         return;

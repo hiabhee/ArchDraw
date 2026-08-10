@@ -3,6 +3,7 @@ import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTr
 import { runMermaidPipeline } from './pipeline';
 import { isDomainSuccess } from '@/lib/pipeline-core';
 import { resolveShapeNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
+import { ensureDiagramHeading } from './diagramHeading';
 
 export interface RelayoutCanvasResult {
   nodes: Node[];
@@ -12,6 +13,11 @@ export interface RelayoutCanvasResult {
 }
 
 export type LayoutDirection = 'TD' | 'LR';
+
+export interface RelayoutOptions {
+  /** Used when the graph has no top heading yet (templates, manual diagrams). */
+  title?: string;
+}
 
 /** Map toolbar / store preset ids to Mermaid graph direction. */
 export function directionFromPresetId(presetId: string | null | undefined): LayoutDirection {
@@ -61,14 +67,17 @@ function dimensionsForNode(node: Node): { width?: number; height?: number } {
 export async function layoutDiagramViaMermaid(
   nodes: Node[],
   edges: Edge[],
-  direction: LayoutDirection = 'LR'
+  direction: LayoutDirection = 'LR',
+  options: RelayoutOptions = {},
 ): Promise<RelayoutCanvasResult> {
   if (nodes.length === 0) {
     return { nodes, edges, success: true, warnings: [] };
   }
 
+  const nodesWithHeading = ensureDiagramHeading(nodes, options.title);
+
   try {
-    const mermaid = reactFlowToMermaid(nodes, edges, direction);
+    const mermaid = reactFlowToMermaid(nodesWithHeading, edges, direction);
     const result = await runMermaidPipeline(mermaid);
 
     if (!isDomainSuccess(result)) {
@@ -80,7 +89,7 @@ export async function layoutDiagramViaMermaid(
       };
     }
 
-    const originalNodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const originalNodeMap = new Map(nodesWithHeading.map((n) => [n.id, n]));
 
     const preservedNodes = result.data.nodes.map((newNode) => {
       const originalNode = originalNodeMap.get(newNode.id);
@@ -124,7 +133,7 @@ export async function layoutDiagramViaMermaid(
 
     // Keep any original nodes the pipeline dropped (e.g. freeform annotations)
     const laidOutIds = new Set(preservedNodes.map((n) => n.id));
-    const orphans = nodes.filter((n) => !laidOutIds.has(n.id));
+    const orphans = nodesWithHeading.filter((n) => !laidOutIds.has(n.id));
 
     return {
       nodes: orphans.length > 0 ? [...preservedNodes, ...orphans] : preservedNodes,

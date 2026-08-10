@@ -88,7 +88,8 @@ describe('layoutDiagramViaMermaid', () => {
   it('layouts the ArchDraw template (same path as template load + toggler)', async () => {
     const result = await layoutDiagramViaMermaid(archdrawNodes, archdrawEdges, 'LR');
     expect(result.success).toBe(true);
-    expect(result.nodes).toHaveLength(archdrawNodes.length);
+    expect(result.nodes).toHaveLength(archdrawNodes.length + 1);
+    expect(result.nodes.some((n) => n.id === 'title' && n.type === 'textLabelNode')).toBe(true);
 
     let moved = 0;
     for (const n of result.nodes) {
@@ -103,6 +104,32 @@ describe('layoutDiagramViaMermaid', () => {
       const laid = result.nodes.find((n) => n.id === orig.id);
       expect(laid?.parentNode).toBe(orig.parentNode);
     }
+  });
+
+  it('adds a template heading and keeps it above the graph when toggling LR/TD', async () => {
+    const nodes: Node[] = [
+      node('checkout', 'Checkout API'),
+      node('pay', 'Payment Service'),
+      node('orders', 'Order Store'),
+    ];
+    const edges: Edge[] = [
+      { id: 'e0', source: 'checkout', target: 'pay' } as Edge,
+      { id: 'e1', source: 'checkout', target: 'orders' } as Edge,
+    ];
+
+    const lr = await layoutDiagramViaMermaid(nodes, edges, 'LR', { title: 'Order Checkout' });
+    expect(lr.success).toBe(true);
+    const titleLR = lr.nodes.find((n) => n.id === 'title')!;
+    expect(titleLR.type).toBe('textLabelNode');
+    expect((titleLR.data as { text?: string }).text).toBe('Order Checkout');
+    expect((titleLR.data as { anchor?: string }).anchor).toBe('top');
+
+    const td = await layoutDiagramViaMermaid(lr.nodes, lr.edges, 'TD');
+    expect(td.success).toBe(true);
+    const titleTD = td.nodes.find((n) => n.id === 'title')!;
+    const checkoutTD = td.nodes.find((n) => n.id === 'checkout')!;
+    expect((titleTD.data as { anchor?: string }).anchor).toBe('top');
+    expect(titleTD.position.y + (titleTD.height ?? 0)).toBeLessThan(checkoutTD.position.y);
   });
 
   it('keeps a top heading through the LR/TB relayout round-trip', async () => {

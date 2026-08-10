@@ -22,6 +22,17 @@ export const TEXT_LABEL_FONT_WEIGHT: Record<TextSize, number> = {
   heading: 700,
 }
 
+/** Canvas ink for free-text labels (not palette / factory purple). */
+export const TEXT_LABEL_COLOR_LIGHT = '#000000'
+export const TEXT_LABEL_COLOR_DARK = '#f5f5f5'
+
+const LEGACY_FACTORY_TEXT_LABEL_COLORS = new Set(['#6366f1', '#6366F1'])
+
+export function resolveTextLabelColor(color?: string, isDark = false): string {
+  if (color && !LEGACY_FACTORY_TEXT_LABEL_COLORS.has(color)) return color
+  return isDark ? TEXT_LABEL_COLOR_DARK : TEXT_LABEL_COLOR_LIGHT
+}
+
 export const ANNOTATION_FONT_SIZE: Record<TextSize, number> = {
   small: 20,
   medium: 24,

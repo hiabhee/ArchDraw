@@ -10,7 +10,7 @@ import {
   Maximize2, ChevronRight, GitBranch
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { createNode } from '@/lib/factory';
+import { createNode, createTextLabelNode } from '@/lib/factory';
 
 export interface ContextMenuState {
   x: number;
@@ -58,8 +58,11 @@ export function ContextMenu({ menu, onClose }: Props) {
   }, [pushHistory, onClose, appendNode]);
 
   const addTextLabel = useCallback((fontSize: 'small' | 'medium' | 'large' | 'heading') => {
-    addAtPosition('textLabelNode', { text: 'Label', fontSize });
-  }, [addAtPosition]);
+    const pos = getViewportCenter();
+    pushHistory();
+    appendNode(createTextLabelNode(pos, { fontSize, autoStartEdit: true }));
+    onClose();
+  }, [pushHistory, appendNode, onClose]);
 
   const duplicateNode = useCallback(() => {
     if (!menu.nodeId) return;

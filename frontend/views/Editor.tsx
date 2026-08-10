@@ -13,7 +13,7 @@ import { FloatingAIBar } from '@/components/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/GenerationProgress';
 import { useDiagramStore } from '@/store/diagramStore';
-import { createNode } from '@/lib/factory';
+import { createTextLabelNode } from '@/lib/factory';
 import { getViewportCenter } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/lib/ai/utils/modelStore';
@@ -147,7 +147,7 @@ export default function EditorPage() {
         const { pushHistory, appendNode } = useDiagramStore.getState();
         const pos = getViewportCenter();
         pushHistory();
-        appendNode(createNode('textLabelNode', 'Label', pos, { type: 'textLabelNode', data: { text: 'Label', fontSize: 'medium' } }));
+        appendNode(createTextLabelNode(pos, { autoStartEdit: true }));
         return;
       }
 
@@ -269,7 +269,9 @@ export default function EditorPage() {
       const direction = inferDiagramDirection(result);
       const activePresetId = direction ?? 'layered-lr';
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
-      const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection);
+      const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
+        title: canvasName,
+      });
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
 

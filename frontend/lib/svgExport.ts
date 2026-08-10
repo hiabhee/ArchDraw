@@ -19,6 +19,7 @@ import { resolveEdgeVisual } from '@/lib/utils/edgeHierarchy';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
 import { resolveCylinderAxis } from '@/lib/utils/cylinderAxis';
 import { semanticShapeBodySvg } from '@/lib/utils/shapeSilhouetteSvg';
+import { resolveTextLabelColor } from '@/lib/utils/textSizing';
 
 interface TextLabelNodeData extends NodeData {
   text?: string;
@@ -354,7 +355,7 @@ function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
   };
   const fontSize = sizeMap[sizeStr] || 18;
   const fontWeight = extData.bold ? 700 : 500;
-  const color = data.color || (isDark ? '#CBD5E1' : '#1F2937');
+  const color = resolveTextLabelColor(data.color, isDark);
   
   const lines = textVal.split('\n');
   const tspanElements = lines.map((line: string, idx: number) => `
@@ -461,17 +462,21 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
                     getConcernColor((data as { layer?: string; label?: string }).layer || (data as { label?: string }).label) ||
                     '#0f766e';
   
-  const bgRgba = hexToRgba(groupColor, isDark ? 0.04 : 0.035);
-  const borderColor = isDark 
-    ? (selected ? hexToRgba(groupColor, 0.55) : 'rgba(255, 255, 255, 0.12)')
-    : (selected ? hexToRgba(groupColor, 0.55) : 'rgba(15, 23, 42, 0.12)');
-  
+  const bgRgba = hexToRgba(groupColor, isDark ? 0.09 : 0.05);
+  const borderColor = isDark
+    ? selected
+      ? hexToRgba(groupColor, 0.65)
+      : hexToRgba(groupColor, 0.38)
+    : selected
+      ? hexToRgba(groupColor, 0.6)
+      : hexToRgba(groupColor, 0.32);
+
   const borderWidth = selected ? 1.5 : 1;
-  
-  const label = (data as { groupLabel?: string; label?: string })?.groupLabel || 
+
+  const label = (data as { groupLabel?: string; label?: string })?.groupLabel ||
                (data as { label?: string })?.label || '';
-  
-  const tagText = isDark ? '#94a3b8' : '#64748b';
+
+  const tagText = isDark ? hexToRgba(groupColor, 0.9) : groupColor;
   
   return `
     <g transform="translate(${x}, ${y})">

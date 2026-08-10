@@ -29,12 +29,18 @@ describe('Mermaid Editor Real-time Updates', () => {
     const updatedNodes = useDiagramStore.getState().nodes;
     const updatedEdges = useDiagramStore.getState().edges;
 
-    expect(updatedNodes.length).toBe(3);
+    // importDiagram ensures a top-anchored heading (canvas name) on top of the graph
+    expect(updatedNodes.length).toBe(4);
     expect(updatedEdges.length).toBe(2);
 
     const wbNode = updatedNodes.find(n => n.id === 'web_browser');
     expect(wbNode).toBeDefined();
     expect(wbNode?.data?.label).toBe('Web Browser');
+
+    const titleNode = updatedNodes.find(n => n.id === 'title');
+    expect(titleNode).toBeDefined();
+    expect(titleNode?.type).toBe('textLabelNode');
+    expect((titleNode?.data as { anchor?: string }).anchor).toBe('top');
   });
 
   it('should correctly classify shapes and colors based on node name and parent group, and respect explicit shape brackets', async () => {

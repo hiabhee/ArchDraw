@@ -136,7 +136,9 @@ function CanvasInner() {
       const newCanvasId = addCanvas(template.name);
 
       void (async () => {
-        const layouted = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR');
+        const layouted = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', {
+          title: template.name,
+        });
         const nodes = layouted.success ? layouted.nodes : template.nodes;
         const edges = layouted.success ? layouted.edges : template.edges;
         importDiagram(nodes, edges);

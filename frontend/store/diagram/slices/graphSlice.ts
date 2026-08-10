@@ -8,6 +8,9 @@ import { getStrictPortConfig } from '@/lib/componentPorts';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import { createNode, createEdge } from '@/lib/factory';
 import { isTextNode } from '@/lib/mermaid/textNodes';
+import { ensureDiagramHeading } from '@/lib/mermaid/diagramHeading';
+import { placeTextNodes } from '@/lib/mermaid/textPlacement';
+import type { RFNode } from '@/lib/mermaid/types';
 import type { DiagramState, NodeData } from '../types';
 import { MAX_GUEST_NODES, MAX_AUTH_NODES } from '../constants';
 import { stripReservedLayerNodes, normalizeNodes } from '../helpers/nodeHelpers';
@@ -324,9 +327,13 @@ export const createGraphSlice: StateCreator<
 
     const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId);
 
+    const activeCanvas = get().canvases.find((c) => c.id === get().activeCanvasId);
+    const withHeading = ensureDiagramHeading(clarityNodes, activeCanvas?.name);
+    const placedNodes = placeTextNodes(withHeading as RFNode[]) as Node[];
+
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId
-        ? { ...c, nodes: clarityNodes, edges: edgesWithHandles, updatedAt: Date.now() }
+        ? { ...c, nodes: placedNodes, edges: edgesWithHandles, updatedAt: Date.now() }
         : c
     );
     set({ canvases, clarityReport: report });

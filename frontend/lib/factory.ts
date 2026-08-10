@@ -3,6 +3,7 @@ import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry, type ComponentDefinition } from '@/lib/componentRegistry';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT, type TextSize } from '@/lib/utils/textSizing';
 import { shapeForServiceType } from '@/lib/shapeRegistry';
 
 /** Palette id for a blank node that opens inline rename on place. */
@@ -123,6 +124,29 @@ export function createNode(
       technology: resolvedIcon.technology ?? def?.technology,
     },
   };
+}
+
+/** Free-text label node — used by T key, context menu, and Mermaid text directives. */
+export function createTextLabelNode(
+  position: { x: number; y: number },
+  options?: { fontSize?: TextSize; text?: string; autoStartEdit?: boolean },
+): Node {
+  const fontSize = options?.fontSize ?? 'medium';
+  const autoStartEdit = options?.autoStartEdit ?? false;
+  const text = options?.text ?? (autoStartEdit ? '' : 'Label');
+  const dims = estimateTextNodeSize(text || 'Text', fontSize);
+
+  return createNode('textLabelNode', text || 'Label', position, {
+    type: 'textLabelNode',
+    width: dims.width,
+    height: dims.height,
+    data: {
+      text,
+      fontSize,
+      autoStartTextEdit: autoStartEdit,
+      color: TEXT_LABEL_COLOR_LIGHT,
+    },
+  });
 }
 
 // ─── EDGE FACTORY ────────────────────────────────────────────
