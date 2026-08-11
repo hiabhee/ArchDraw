@@ -14,7 +14,7 @@
  *   Every node pair is evaluated identically.
  */
 
-import { Position } from 'reactflow';
+import { Position } from '@/lib/utils/edgePositions';
 import { segmentIntersectsRect } from './collisionFreeEdgePath';
 
 export interface HandlerRect {
@@ -69,6 +69,8 @@ export function anchorOnBoundary(
       return { x: rect.x + rect.width / 2, y: rect.y };
     case Position.Bottom:
       return { x: rect.x + rect.width / 2, y: rect.y + rect.height };
+    default:
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   }
 }
 
@@ -89,6 +91,8 @@ export function anchorOutsideBoundary(
       return { x: rect.x + rect.width / 2, y: rect.y - gap };
     case Position.Bottom:
       return { x: rect.x + rect.width / 2, y: rect.y + rect.height + gap };
+    default:
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height + gap };
   }
 }
 
@@ -101,6 +105,7 @@ export function outwardDirection(side: Position): { dx: number; dy: number } {
     case Position.Right:  return { dx: 1, dy: 0 };
     case Position.Top:    return { dx: 0, dy: -1 };
     case Position.Bottom: return { dx: 0, dy: 1 };
+    default:              return { dx: 0, dy: 1 };
   }
 }
 

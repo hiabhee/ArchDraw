@@ -1,4 +1,5 @@
-import { Edge, Node, Position } from 'reactflow'
+import type { Edge, Node } from 'reactflow'
+import { Position } from '@/lib/utils/edgePositions'
 import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'

@@ -1,4 +1,4 @@
-import { Position } from 'reactflow';
+import { Position } from '@/lib/utils/edgePositions';
 
 const DEFAULT_BORDER_RADIUS = 24;
 
@@ -479,6 +479,8 @@ function getOutwardDirection(position: Position): { dx: number; dy: number } {
     case Position.Top:
       return { dx: 0, dy: -1 };
     case Position.Bottom:
+      return { dx: 0, dy: 1 };
+    default:
       return { dx: 0, dy: 1 };
   }
 }

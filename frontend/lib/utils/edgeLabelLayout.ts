@@ -1,4 +1,4 @@
-import { Edge, Node } from 'reactflow'
+import type { Edge, Node } from 'reactflow'
 import { computeEdgeRoute, isGroupNode, type EdgeRouteDirection } from './edgeRouteBuilder'
 
 export interface EdgeLabelAnchor {

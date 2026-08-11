@@ -1,4 +1,5 @@
-import { Edge, Node, Position } from 'reactflow';
+import type { Edge, Node } from 'reactflow';
+import { Position } from '@/lib/utils/edgePositions';
 import { computeDynamicSlotOffsets, getBidirectionalLaneOffset } from './handleSlotOrder';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
@@ -286,6 +287,8 @@ export function getBoundaryAnchor(
       return { x: nodeX + width / 2 + shiftOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:
       return { x: nodeX + width / 2 + shiftOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
+    default:
+      return { x: nodeX + width / 2, y: nodeY + height / 2 };
   }
 }
 
@@ -311,5 +314,7 @@ export function getSimpleHandlePosition(
       return { x: nodeX + width / 2 + axisOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:
       return { x: nodeX + width / 2 + axisOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
+    default:
+      return { x: nodeX + width / 2, y: nodeY + height / 2 };
   }
 }

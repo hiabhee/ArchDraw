@@ -1,4 +1,5 @@
-import { Position, type Edge } from 'reactflow';
+import type { Edge } from 'reactflow';
+import { Position } from '@/lib/utils/edgePositions';
 import { facingSideToward, type HandlerRect } from './handlerPairScorer';
 import { resolveSideFromEdgeHandles } from './simpleFloatingEdge';
 
