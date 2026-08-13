@@ -20,7 +20,7 @@ const FAQS: FAQItem[] = [
   },
   {
     q: 'How is this different from draw.io or Lucidchart?',
-    a: 'Those tools make you manually drag, connect, and align every box. ArchDraw uses AI to handle layout automatically — you describe the system, the diagram takes shape.',
+    a: 'ArchDraw generates the diagram for you. draw.io and Lucidchart are drawing canvases where you drag, connect, and align every box by hand; ArchDraw turns a plain-English description, a Mermaid snippet, or a GitHub repo URL into a fully auto-laid-out architecture diagram. See the comparison table in the section above for a full feature breakdown.',
   },
   {
     q: 'Can I export and share?',
@@ -32,6 +32,19 @@ const FAQS: FAQItem[] = [
   },
 ];
 
+const FAQ_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQS.map((faq) => ({
+    '@type': 'Question',
+    name: faq.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: faq.a,
+    },
+  })),
+};
+
 export function FAQ() {
   const [open, setOpen] = useState<number | null>(0);
 
@@ -40,6 +53,10 @@ export function FAQ() {
       id="faq"
       className="py-24 px-6 bg-[#f1f1eb]/40 border-t border-[#e4e4df]"
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }}
+      />
       <div className="max-w-[760px] mx-auto">
         <motion.div
           className="text-center mb-12"

@@ -50,13 +50,13 @@ export const metadata: Metadata = {
     title: 'ArchDraw — Visual System Architecture Design Tool',
     description: 'Design production-ready system architecture diagrams visually.',
     siteName: 'ArchDraw',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'ArchDraw System Architecture Design Tool' }],
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw System Architecture Design Tool' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ArchDraw — Visual System Architecture Design Tool',
     description: 'Design production-ready system architecture diagrams visually.',
-    images: ['/og-image.png'],
+    images: ['/api/og/home'],
   },
   robots: {
     index: true,
@@ -79,6 +79,34 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'Organization',
+                  '@id': 'https://archdraw.app/#organization',
+                  name: 'ArchDraw',
+                  url: 'https://archdraw.app',
+                  logo: 'https://archdraw.app/api/og/home',
+                  description:
+                    'AI-assisted system architecture diagramming tool that turns plain English, Mermaid, or a GitHub repo URL into styled, auto-laid-out architecture diagrams.',
+                  sameAs: ['https://github.com/hiabhee/ArchDraw'],
+                },
+                {
+                  '@type': 'WebSite',
+                  '@id': 'https://archdraw.app/#website',
+                  url: 'https://archdraw.app',
+                  name: 'ArchDraw',
+                  publisher: { '@id': 'https://archdraw.app/#organization' },
+                  inLanguage: 'en-US',
+                },
+              ],
+            }),
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `
