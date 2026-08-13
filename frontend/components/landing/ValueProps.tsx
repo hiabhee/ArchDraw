@@ -97,7 +97,7 @@ export function ValueProps() {
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.3 }}
         >
-          <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-[#10B981]" /> 10× faster than draw.io</span>
+          <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-[#10B981]" /> AI auto-layout — no manual alignment</span>
           <span className="text-[#e4e4df]">•</span>
           <span className="flex items-center gap-1.5"><Code2 className="w-3 h-3 text-[#1E90FF]" /> Mermaid-compatible</span>
           <span className="text-[#e4e4df]">•</span>

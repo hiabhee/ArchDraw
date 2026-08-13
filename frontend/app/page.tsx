@@ -12,6 +12,7 @@ import { InteractiveDemo } from '@/components/landing/InteractiveDemo';
 import { ValueProps } from '@/components/landing/ValueProps';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { UseCases } from '@/components/landing/UseCases';
+import { Comparison } from '@/components/landing/Comparison';
 import { FounderNote } from '@/components/landing/FounderNote';
 import { Pricing } from '@/components/landing/Pricing';
 import { FAQ } from '@/components/landing/FAQ';
@@ -337,6 +338,7 @@ export default function LandingPage() {
         </div>
         <HowItWorks />
         <UseCases />
+        <Comparison />
         <div id="founder">
           <FounderNote />
         </div>

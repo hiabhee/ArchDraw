@@ -14,6 +14,8 @@ const COLUMNS = [
     title: 'Resources',
     links: [
       { label: 'Docs', href: '/docs' },
+      { label: 'MCP Server', href: '/mcp' },
+      { label: 'Repo → Diagram', href: '/repo-diagram' },
       { label: 'Examples', href: '/dashboard/templates' },
       { label: 'Tutorials', href: '/tutorials' },
       { label: 'Blog', href: '/blogs' },
