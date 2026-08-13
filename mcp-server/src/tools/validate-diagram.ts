@@ -1,21 +1,12 @@
 import { getDiagramState } from '../lib/diagram-state.js';
+import { TIER_RANK } from '../lib/constants.js';
+import type { TierType } from '../types/index.js';
 
 interface Issue {
   severity: 'error' | 'warning' | 'suggestion';
   nodeId?: string;
   message: string;
 }
-
-/** Tier order for direction enforcement (lower index = further left/upstream) */
-const TIER_ORDER: Record<string, number> = {
-  client:   0,
-  edge:     1,
-  compute:  2,
-  async:    3,
-  data:     4,
-  external: 5,
-  observe:  6,
-};
 
 function getTier(node: { data: { layer?: string; tier?: string } }): string {
   return (node.data.tier || node.data.layer || 'compute').toLowerCase();
@@ -141,10 +132,10 @@ export async function validateDiagram(): Promise<{
     if (!sourceNode || !targetNode) continue;
     if (sourceNode.data?.isGroup || targetNode.data?.isGroup) continue;
 
-    const sourceTier = getTier(sourceNode);
-    const targetTier = getTier(targetNode);
-    const sourceTierOrder = TIER_ORDER[sourceTier] ?? 2;
-    const targetTierOrder = TIER_ORDER[targetTier] ?? 2;
+    const sourceTier = getTier(sourceNode) as TierType;
+    const targetTier = getTier(targetNode) as TierType;
+    const sourceTierOrder = TIER_RANK[sourceTier] ?? 2;
+    const targetTierOrder = TIER_RANK[targetTier] ?? 2;
 
     // Severe backward: data/compute → client (e.g., database connecting to Web App)
     if (sourceTierOrder > 1 && targetTierOrder === 0) {

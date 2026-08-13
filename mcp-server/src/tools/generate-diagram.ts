@@ -1,29 +1,22 @@
 import type { ArchitectureNode, ArchitectureEdge, ReactFlowNode, ReactFlowEdge, TierType } from '../types/index.js';
 import type { GenerateDiagramInput } from '../lib/schema.js';
 import { runELKLayout, validateLayout } from '../lib/elk-runner.js';
-import { getTierColor } from '../lib/node-catalog.js';
-
-const DEFAULT_NODE_WIDTH = 160;
-const DEFAULT_NODE_HEIGHT = 80;
-const DEFAULT_GROUP_WIDTH = 500;
-const DEFAULT_GROUP_HEIGHT = 280;
-
-/** Canonical tier colors — keep in sync with frontend stylingConstants.ts */
-const TIER_COLORS: Record<TierType, string> = {
-  client:   '#64748b', // slate
-  edge:     '#6366f1', // indigo
-  compute:  '#0d9488', // teal
-  async:    '#d97706', // amber
-  data:     '#3b82f6', // blue
-  external: '#ec4899', // rose
-  observe:  '#8b5cf6', // violet
-};
-
-const LAYER_ORDER = ['client', 'edge', 'compute', 'async', 'data', 'external', 'observe'];
+import { parseUserPrompt } from '../lib/parse-prompt.js';
+import { fetchWithTimeout } from '../lib/http.js';
+import {
+  TIER_COLORS,
+  TIER_ORDER,
+  TIER_RANK,
+  COMM_COLORS,
+  DEFAULT_NODE_WIDTH,
+  DEFAULT_NODE_HEIGHT,
+  DEFAULT_GROUP_WIDTH,
+  DEFAULT_GROUP_HEIGHT,
+} from '../lib/constants.js';
 
 function assignTierFromLayer(layer: string): TierType {
   const normalized = layer.toLowerCase();
-  if (LAYER_ORDER.includes(normalized)) return normalized as TierType;
+  if (TIER_ORDER.includes(normalized as TierType)) return normalized as TierType;
   return 'compute';
 }
 
@@ -90,11 +83,6 @@ function validateNodes(nodes: ArchitectureNode[], techStack?: string[], customFe
   return errors;
 }
 
-/** Tier rank for direction validation — lower number = further left (upstream) */
-const TIER_RANK: Record<string, number> = {
-  client: 0, edge: 1, compute: 2, async: 3, data: 4, external: 5, observe: 6,
-};
-
 function validateEdgeTopology(
   nodes: ArchitectureNode[],
   edges: Array<{ source: string; target: string; label?: string; id?: string }>
@@ -144,8 +132,8 @@ function validateEdgeTopology(
     if (!sourceNode || !targetNode) continue;
     if (sourceNode.isGroup || targetNode.isGroup) continue;
 
-    const sourceTier = (sourceNode.tier || sourceNode.layer || 'compute').toLowerCase();
-    const targetTier = (targetNode.tier || targetNode.layer || 'compute').toLowerCase();
+    const sourceTier = (sourceNode.tier || sourceNode.layer || 'compute').toLowerCase() as TierType;
+    const targetTier = (targetNode.tier || targetNode.layer || 'compute').toLowerCase() as TierType;
     const sourceRank = TIER_RANK[sourceTier] ?? 2;
     const targetRank = TIER_RANK[targetTier] ?? 2;
 
@@ -219,7 +207,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
       const label = input.label || 'AI Diagram';
       
-      const saveResponse = await fetch(`${API_BASE}/api/diagram/load`, {
+      const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -300,33 +288,16 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       errors.push('WARNING: No group nodes provided. Best practice: wrap related nodes in group containers (isGroup:true) for visual clarity.');
     }
 
-    // Extract tech/feature context for fidelity checks
-    const techStack = input.techStack || [];
-    const customFeatures = input.customFeatures || [];
-
-    // Auto-extract tech mentions from userPrompt if techStack not explicitly provided
-    if (input.userPrompt && techStack.length === 0) {
-      const knownTech = [
-        'AWS Lambda', 'EC2', 'ECS', 'EKS', 'S3', 'DynamoDB', 'RDS', 'Aurora', 'CloudFront', 'API Gateway',
-        'SQS', 'SNS', 'Kinesis', 'Kafka', 'RabbitMQ', 'Redis', 'Elasticsearch', 'OpenSearch',
-        'PostgreSQL', 'MySQL', 'MongoDB', 'Cassandra', 'Firebase',
-        'Next.js', 'React', 'Vue', 'Angular', 'Svelte',
-        'Node.js', 'Express', 'FastAPI', 'Django', 'Spring Boot', 'Go', 'Rust',
-        'GraphQL', 'gRPC', 'WebSocket', 'REST',
-        'Docker', 'Kubernetes', 'Terraform', 'Nginx', 'Cloudflare',
-        'Stripe', 'Twilio', 'SendGrid', 'Auth0', 'Cognito',
-        'Prometheus', 'Grafana', 'Datadog', 'Sentry', 'Jaeger',
-        'GCP', 'Azure', 'Vercel', 'Railway', 'Supabase',
-        'HLS', 'DASH', 'FFmpeg', 'Transcoding', 'DRM', 'Widevine', 'FairPlay',
-        'Tailwind', 'TypeScript', 'Python', 'Java', 'Go',
-      ];
-      const promptLower = input.userPrompt.toLowerCase();
-      for (const tech of knownTech) {
-        if (promptLower.includes(tech.toLowerCase())) {
-          techStack.push(tech);
-        }
-      }
-    }
+    // Extract tech/feature context for fidelity checks.
+    // If the caller did not pass an explicit techStack/customFeatures, derive
+    // them from the userPrompt via the shared prompt parser (single source).
+    const parsedPrompt = input.userPrompt ? parseUserPrompt(input.userPrompt) : null;
+    const techStack = input.techStack && input.techStack.length > 0
+      ? [...input.techStack]
+      : parsedPrompt?.detectedTechStack || [];
+    const customFeatures = input.customFeatures && input.customFeatures.length > 0
+      ? [...input.customFeatures]
+      : parsedPrompt?.customFeatures || [];
 
     const architectureNodes: ArchitectureNode[] = input.nodes.map((node: NodeInput, index: number) => {
       const layer = node.layer || node.tier || 'compute';
@@ -340,7 +311,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         subtitle: node.subtitle || '',
         layer: tier,
         tier: tier,
-        tierColor: node.tierColor || getTierColor(tier) || TIER_COLORS[tier],
+        tierColor: node.tierColor || TIER_COLORS[tier],
         accentColor: node.accentColor,
         groupColor: node.groupColor,
         status: node.status,
@@ -407,17 +378,9 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       };
     }
 
-    const commColors: Record<string, { color: string; dash: string }> = {
-      sync:   { color: '#3B82F6', dash: '' },
-      async:  { color: '#F59E0B', dash: '8,6' },
-      stream: { color: '#10B981', dash: '10,4,2,4' },
-      event:  { color: '#8B5CF6', dash: '4,4' },
-      dep:    { color: '#6B7280', dash: '6,6' },
-    };
-
     const architectureEdges: ArchitectureEdge[] = (input.edges || []).map((edge, index) => {
-      const commType = edge.communicationType || 'sync';
-      const commStyle = commColors[commType] || commColors.sync;
+      const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
+      const commStyle = COMM_COLORS[commType] || COMM_COLORS.sync;
       // Use provided label; for async/stream/event, fall back to comm type description
       const label = edge.label?.trim() || 'Connection';
 
@@ -429,7 +392,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         pathType: (edge.pathType ?? 'Smoothstep') as ArchitectureEdge['pathType'],
         label,
         labelPosition: 'center' as const,
-        animated: commType !== 'sync' && commType !== 'dep',
+        animated: commStyle.animated,
         style: {
           stroke: commStyle.color,
           strokeDasharray: commStyle.dash,
@@ -455,7 +418,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
 
     try {
       const label = input.label || input.nodes[0]?.label || 'AI Diagram';
-      const saveResponse = await fetch(`${API_BASE}/api/diagram/load`, {
+      const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

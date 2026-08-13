@@ -374,7 +374,7 @@ export default function DocsPage() {
   "mcpServers": {
     "archdraw-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/archdraw/mcp-server/index.js"],
+      "args": ["/absolute/path/to/archdraw/mcp-server/dist/index.js"],
       "env": {
         "WORKSPACE_PATH": "/absolute/path/to/diagrams"
       }

@@ -2,19 +2,10 @@ import type { ArchitectureNode, ArchitectureEdge, TierType } from '../types/inde
 import type { FixLayoutInput } from '../lib/schema.js';
 import { runELKLayout, validateLayout } from '../lib/elk-runner.js';
 import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
+import { TIER_COLORS, COMM_COLORS, type CommStyle } from '../lib/constants.js';
 
 const DEFAULT_NODE_WIDTH = 220;
 const DEFAULT_NODE_HEIGHT = 80;
-
-const TIER_COLORS: Record<TierType, string> = {
-  client: '#5A5A5A',
-  edge: '#6B7B8D',
-  compute: '#14b8a6',
-  async: '#f59e0b',
-  data: '#3b82f6',
-  external: '#f97316',
-  observe: '#6b7280',
-};
 
 interface InputNode {
   id: string;
@@ -81,15 +72,8 @@ export async function fixLayout(input: FixLayoutInput): Promise<{
 
     const nodeIdSet = new Set(architectureNodes.map(n => n.id));
     const architectureEdges: ArchitectureEdge[] = inputEdges.map((edge: InputEdge, index: number) => {
-      const commType = edge.communicationType || 'sync';
-      const commColors: Record<string, { color: string; dash: string }> = {
-        sync: { color: '#94a3b8', dash: '' },
-        async: { color: '#f59e0b', dash: '8,4' },
-        stream: { color: '#10b981', dash: '4,2' },
-        event: { color: '#ec4899', dash: '2,3' },
-        dep: { color: '#94a3b8', dash: '6,6' },
-      };
-      const commStyle = commColors[commType] || commColors.sync;
+      const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
+      const commStyle: CommStyle = COMM_COLORS[commType] || COMM_COLORS.sync;
 
       if (!nodeIdSet.has(edge.source)) {
         errors.push(`Edge ${edge.id || index}: invalid source node ${edge.source}`);

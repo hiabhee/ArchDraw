@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { ComponentDefinition, NodeTypeSummary, TierType } from '../types/index.js';
+import { TIER_COLORS } from './constants.js';
 
 let cachedComponents: ComponentDefinition[] | null = null;
 
@@ -112,16 +113,7 @@ export function getTierFromCategory(category: string): TierType | null {
 }
 
 export function getTierColor(tier: TierType): string {
-  const tierColors: Record<TierType, string> = {
-    client: '#3b82f6',
-    edge: '#3b82f6',
-    compute: '#14b8a6',
-    async: '#f59e0b',
-    data: '#f97316',
-    observe: '#6b7280',
-    external: '#64748b',
-  };
-  return tierColors[tier] || '#3b82f6';
+  return TIER_COLORS[tier] || '#3b82f6';
 }
 
 export function getLayerFromTier(tier: TierType): string {

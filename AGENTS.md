@@ -333,13 +333,17 @@ UI: `components/RepoDiagramGenerator.tsx`.
 
 ## 12. MCP server
 
-Package: `mcp-server/`. Dev: `npm run dev:mcp` from `frontend/`.
+Package: `mcp-server/` (self-contained `node_modules`, zod 3 + SDK 1.29 + elkjs). Dev: `npm run dev:mcp` from `frontend/` (runs `tsx src/index.ts`). Tests: `cd mcp-server && npm test` (vitest, colocated `__tests__/`). CI builds + tests it independently of `frontend/`.
+
+`mcp-server/tsconfig.json` has **no** `paths`/`typeRoots` aliases — imports resolve through real package exports so `tsx` and `node dist/` stay in sync. Do not reintroduce `../frontend/node_modules` path maps (they break `tsx` at runtime by loading `.d.ts` as modules).
+
+Canonical MCP constants (tier colors/order, comm styles, fallback positions): `mcp-server/src/lib/constants.ts`. Session-aware working state + `sessionId` fallback: `mcp-server/src/lib/diagram-state.ts` (syncs via `/api/diagram/session/[sessionId]`). HTTP calls use `fetchWithTimeout` (`mcp-server/src/lib/http.ts`).
 
 Tools (under `mcp-server/src/tools/`):
 
 `generate-diagram`, `update-diagram`, `validate-diagram`, `fix-layout`, `apply-template`, `export-diagram`, `list-nodes`, `save-checkpoint`, `load-checkpoint`, `read-me`.
 
-Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
+`generate_diagram` is Mermaid-first: pass `mermaid` (graph LR/TD, subgraphs) to run the web pipeline via `/api/diagram/load`; JSON `nodes`/`edges` is the legacy ELK path. Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
 
 ---
 

@@ -163,7 +163,7 @@ export type SaveCheckpointInput = z.infer<typeof SaveCheckpointInputSchema>;
 export type LoadCheckpointInput = z.infer<typeof LoadCheckpointInputSchema>;
 
 export const ExportDiagramInputSchema = z.object({
-  sessionId: z.string().min(1).describe('Session ID from a previous diagram generation'),
+  sessionId: z.string().optional().describe('Session ID from a previous diagram generation. Omit to use the most recent session.'),
   format: z.enum(['json', 'png', 'svg']).default('json').describe('Export format: json (diagram data), png/svg (export instructions)'),
 });
 

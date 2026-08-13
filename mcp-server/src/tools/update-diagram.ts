@@ -1,27 +1,73 @@
-import type { ReactFlowNode, ReactFlowEdge, TierType } from '../types/index.js';
+import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { UpdateDiagramInput } from '../lib/schema.js';
 import { getDiagramState, setDiagramState } from '../lib/diagram-state.js';
-import { runELKLayout } from '../lib/elk-runner.js';
-import type { ArchitectureNode, ArchitectureEdge } from '../types/index.js';
+import { fetchWithTimeout } from '../lib/http.js';
+import {
+  TIER_COLORS,
+  COMM_COLORS,
+  TIER_X_POSITIONS_LR,
+  DEFAULT_NODE_WIDTH,
+  DEFAULT_NODE_HEIGHT,
+  DEFAULT_GROUP_WIDTH,
+  DEFAULT_GROUP_HEIGHT,
+  type CommStyle,
+} from '../lib/constants.js';
 
-/** Canonical tier colors — keep in sync with frontend tierColors.ts */
-const TIER_COLORS: Record<string, string> = {
-  client:   '#64748b',
-  edge:     '#6366f1',
-  compute:  '#0d9488',
-  async:    '#d97706',
-  data:     '#3b82f6',
-  external: '#8b5cf6',
-  observe:  '#6b7280',
-};
+const VERTICAL_GAP = 80;
 
-const COMM_COLORS: Record<string, { color: string; dash: string; animated: boolean }> = {
-  sync: { color: '#94a3b8', dash: '', animated: false },
-  async: { color: '#f59e0b', dash: '8,4', animated: true },
-  stream: { color: '#10b981', dash: '4,2', animated: true },
-  event: { color: '#ec4899', dash: '2,3', animated: true },
-  dep: { color: '#94a3b8', dash: '6,6', animated: true },
-};
+function tierOf(node: ReactFlowNode): string {
+  const tier = (node.data?.tier || node.data?.layer || 'compute').toLowerCase();
+  return tier;
+}
+
+/** Find a non-colliding spot for a new node below the existing nodes of its tier. */
+function findPlacement(nodes: ReactFlowNode[], tier: string): { x: number; y: number } {
+  const sameTier = nodes.filter(n => tierOf(n) === tier);
+  if (sameTier.length === 0) {
+    return { x: TIER_X_POSITIONS_LR[tier as keyof typeof TIER_X_POSITIONS_LR] ?? 50, y: 80 };
+  }
+  const maxBottom = Math.max(...sameTier.map(n => n.position.y + (n.height || DEFAULT_NODE_HEIGHT)));
+  const x = sameTier[0].position.x;
+  return { x, y: maxBottom + VERTICAL_GAP };
+}
+
+function buildEdge(edge: {
+  source: string;
+  target: string;
+  communicationType?: string;
+  label?: string;
+  pathType?: string;
+}, id: string): ReactFlowEdge {
+  const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
+  const commStyle: CommStyle = COMM_COLORS[commType] || COMM_COLORS.sync;
+  const label = edge.label || '';
+  const pathType = edge.pathType || 'smooth';
+
+  return {
+    id,
+    source: edge.source,
+    target: edge.target,
+    type: 'simpleFloating',
+    animated: commStyle.animated,
+    label,
+    labelShowBg: true,
+    labelBgPadding: [8, 4] as [number, number],
+    labelBgBorderRadius: 4,
+    labelBgStyle: { fill: '#1e1e2e', fillOpacity: 0.9 },
+    labelStyle: { fontSize: 10, fontWeight: 600, fill: '#e2e8f0' },
+    style: {
+      stroke: commStyle.color,
+      strokeWidth: 2,
+      strokeDasharray: commStyle.dash,
+    },
+    markerEnd: { type: 'arrowclosed' as string, color: commStyle.color },
+    data: {
+      communicationType: commType as 'sync' | 'async' | 'stream' | 'event' | 'dep',
+      pathType: pathType as ReactFlowEdge['data']['pathType'],
+      label,
+    },
+  };
+}
 
 export async function updateDiagram(input: UpdateDiagramInput): Promise<{
   success: boolean;
@@ -36,10 +82,12 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
     edgesRemoved: number;
     nodesRepositioned: number;
   };
+  sessionId?: string;
+  diagramUrl?: string;
   error?: string;
 }> {
   const state = getDiagramState();
-  
+
   if (state.nodes.length === 0 && state.edges.length === 0) {
     return {
       success: false,
@@ -53,8 +101,12 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
 
   const changes = { nodesAdded: 0, nodesRemoved: 0, nodesUpdated: 0, edgesAdded: 0, edgesRemoved: 0, nodesRepositioned: 0 };
 
-  let nodes = [...state.nodes];
-  let edges = [...state.edges];
+  let nodes = state.nodes.map(n => ({
+    ...n,
+    position: { ...n.position },
+    data: { ...n.data },
+  }));
+  let edges = state.edges.map(e => ({ ...e }));
 
   if (input.removeNodeIds && input.removeNodeIds.length > 0) {
     const removeSet = new Set(input.removeNodeIds);
@@ -71,29 +123,37 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
   }
 
   if (input.addNodes && input.addNodes.length > 0) {
-    const newNodes: ReactFlowNode[] = input.addNodes.map(node => ({
-      id: node.id,
-      type: 'systemNode',
-      position: { x: 0, y: 0 },
-      data: {
-        label: node.label,
-        icon: node.icon || (node.isGroup ? 'layers' : 'box'),
-        layer: node.tier as TierType,
-        tier: node.tier as TierType,
-        tierColor: node.tierColor || TIER_COLORS[node.tier] || TIER_COLORS.compute,
-        accentColor: node.accentColor,
-        subtitle: node.subtitle,
-        status: node.status,
-        isGroup: node.isGroup,
-        parentNode: node.parentId,
-        groupColor: node.groupColor,
-      },
-      width: node.isGroup ? (node.width || 500) : (node.width || 200),
-      height: node.isGroup ? (node.height || 280) : (node.height || 70),
-      zIndex: node.isGroup ? 0 : 1,
-    }));
+    const newNodes: ReactFlowNode[] = input.addNodes.map(node => {
+      const tier = (node.tier || 'compute').toLowerCase();
+      const isGroup = node.isGroup === true;
+      const placement = findPlacement(nodes, tier);
+
+      return {
+        id: node.id,
+        type: isGroup ? 'groupNode' : 'systemNode',
+        position: placement,
+        data: {
+          label: node.label,
+          icon: node.icon || (isGroup ? 'layers' : 'box'),
+          layer: tier as ReactFlowNode['data']['layer'],
+          tier: tier as ReactFlowNode['data']['tier'],
+          tierColor: node.tierColor || TIER_COLORS[tier as keyof typeof TIER_COLORS] || TIER_COLORS.compute,
+          accentColor: node.accentColor,
+          subtitle: node.subtitle,
+          status: node.status,
+          isGroup,
+          parentId: node.parentId,
+          groupColor: node.groupColor,
+        },
+        width: isGroup ? (node.width || DEFAULT_GROUP_WIDTH) : (node.width || DEFAULT_NODE_WIDTH),
+        height: isGroup ? (node.height || DEFAULT_GROUP_HEIGHT) : (node.height || DEFAULT_NODE_HEIGHT),
+        zIndex: isGroup ? 0 : 1,
+        ...(node.parentId ? { parentNode: node.parentId } : {}),
+      };
+    });
     nodes = [...nodes, ...newNodes];
     changes.nodesAdded = input.addNodes.length;
+    changes.nodesRepositioned += input.addNodes.length;
   }
 
   if (input.updateNodes && input.updateNodes.length > 0) {
@@ -106,9 +166,9 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
         if (update.accentColor !== undefined) node.data.accentColor = update.accentColor;
         if (update.status !== undefined) node.data.status = update.status;
         if (update.tier) {
-          node.data.layer = update.tier as TierType;
-          node.data.tier = update.tier as TierType;
-          node.data.tierColor = update.tierColor || TIER_COLORS[update.tier] || TIER_COLORS.compute;
+          node.data.layer = update.tier as ReactFlowNode['data']['layer'];
+          node.data.tier = update.tier as ReactFlowNode['data']['tier'];
+          node.data.tierColor = update.tierColor || TIER_COLORS[update.tier as keyof typeof TIER_COLORS] || TIER_COLORS.compute;
         } else if (update.tierColor) {
           node.data.tierColor = update.tierColor;
         }
@@ -119,83 +179,39 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
 
   if (input.addEdges && input.addEdges.length > 0) {
     let edgeIndex = edges.length;
-    const newEdges: ReactFlowEdge[] = input.addEdges.map(edge => {
-      const id = `edge-${edgeIndex++}`;
-      const commType = edge.communicationType || 'sync';
-      const commStyle = COMM_COLORS[commType];
-      return {
-        id,
-        source: edge.source,
-        target: edge.target,
-        sourceHandle: 'right',
-        targetHandle: 'left',
-        type: 'step',
-        animated: commStyle.animated,
-        label: edge.label || '',
-        labelShowBg: true,
-        labelBgPadding: [8, 4] as [number, number],
-        labelBgBorderRadius: 4,
-        labelBgStyle: { fill: '#1e1e2e', fillOpacity: 0.9 },
-        labelStyle: { fontSize: 10, fontWeight: 600, fill: '#e2e8f0' },
-        style: {
-          stroke: commStyle.color,
-          strokeWidth: 2,
-          strokeDasharray: commStyle.dash,
-        },
-        markerEnd: { type: 'arrowclosed', color: commStyle.color },
-        data: {
-          communicationType: commType as 'sync' | 'async' | 'stream' | 'event' | 'dep',
-          pathType: 'smooth',
-          label: edge.label || '',
-        },
-      };
-    });
+    const newEdges: ReactFlowEdge[] = input.addEdges.map(edge => buildEdge(edge, `edge-${edgeIndex++}`));
     edges = [...edges, ...newEdges];
     changes.edgesAdded = input.addEdges.length;
   }
 
-  const architectureNodes: ArchitectureNode[] = nodes.map(n => ({
-    id: n.id,
-    type: n.type,
-    label: n.data.label,
-    subtitle: n.data.subtitle,
-    layer: n.data.layer,
-    tier: n.data.tier,
-    tierColor: n.data.tierColor,
-    width: n.width || 180,
-    height: n.height || 70,
-    icon: n.data.icon || 'box',
-    metadata: {},
-  }));
+  setDiagramState({ nodes, edges });
 
-  const architectureEdges: ArchitectureEdge[] = edges.map(e => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    communicationType: e.data?.communicationType || 'sync',
-    pathType: e.data?.pathType || 'smooth',
-    label: e.label || '',
-    labelPosition: 'center',
-    animated: e.animated,
-    style: {
-      stroke: e.style?.stroke || '#94a3b8',
-      strokeDasharray: e.style?.strokeDasharray || '',
-      strokeWidth: 2,
-    },
-    markerEnd: 'arrowclosed',
-    markerStart: 'none',
-  }));
+  let sessionId: string | undefined;
+  let diagramUrl: string | undefined;
 
-  const layoutResult = await runELKLayout(architectureNodes, architectureEdges, { direction: 'RIGHT' });
-  
-  changes.nodesRepositioned = layoutResult.nodes.length;
-  
-  setDiagramState({
-    nodes: layoutResult.nodes,
-    edges: layoutResult.edges,
-  });
+  // Best-effort persistence: save the updated canvas to a new share session so
+  // the result is viewable in the editor. Never fail the update if the API is down.
+  const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+  try {
+    const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodes,
+        edges,
+        label: 'Updated MCP Diagram',
+        source: 'mcp',
+      }),
+    });
+    if (saveResponse.ok) {
+      const saveData = await saveResponse.json() as { sessionId: string; url?: string };
+      sessionId = saveData.sessionId;
+      const urlPath = saveData.url || `/editor?session=${saveData.sessionId}`;
+      diagramUrl = `${API_BASE}${urlPath}`;
+    }
+  } catch {
+    // ignore — local state is still updated
+  }
 
   const changeSummary = [
     changes.nodesAdded > 0 ? `${changes.nodesAdded} node(s) added` : '',
@@ -203,14 +219,17 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
     changes.nodesUpdated > 0 ? `${changes.nodesUpdated} node(s) updated` : '',
     changes.edgesAdded > 0 ? `${changes.edgesAdded} edge(s) added` : '',
     changes.edgesRemoved > 0 ? `${changes.edgesRemoved} edge(s) removed` : '',
-    `${changes.nodesRepositioned} node(s) repositioned`,
   ].filter(Boolean).join(', ');
+
+  const urlLine = diagramUrl ? `\n\nView the updated diagram: ${diagramUrl}` : '';
 
   return {
     success: true,
-    nodes: layoutResult.nodes,
-    edges: layoutResult.edges,
-    message: `Diagram updated. ${changeSummary}.`,
+    nodes,
+    edges,
+    message: `Diagram updated. ${changeSummary}.${urlLine}`,
     changes,
+    sessionId,
+    diagramUrl,
   };
 }

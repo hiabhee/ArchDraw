@@ -1,11 +1,13 @@
 import { getDiagramState } from '../lib/diagram-state.js';
 import { ExportDiagramInputSchema } from '../lib/schema.js';
+import { fetchWithTimeout } from '../lib/http.js';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
 
 export async function exportDiagram(input: unknown) {
   const validated = ExportDiagramInputSchema.parse(input);
-  const { sessionId, format } = validated;
+  const format = validated.format;
+  const sessionId = validated.sessionId || getDiagramState().sessionId;
 
   const state = getDiagramState();
   if (state.nodes.length === 0) {
@@ -15,8 +17,26 @@ export async function exportDiagram(input: unknown) {
     };
   }
 
+  if (format === 'json') {
+    return {
+      success: true,
+      format: 'json',
+      nodes: state.nodes,
+      edges: state.edges,
+      label: 'ArchDraw Diagram',
+      message: 'Diagram exported as JSON. You can save this data to a file.',
+    };
+  }
+
+  if (!sessionId) {
+    return {
+      success: false,
+      error: 'No sessionId available for this diagram. Export as JSON instead, or generate a diagram first.',
+    };
+  }
+
   try {
-    const response = await fetch(`${API_BASE}/api/diagram/export`, {
+    const response = await fetchWithTimeout(`${API_BASE}/api/diagram/export`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, format }),
@@ -31,17 +51,6 @@ export async function exportDiagram(input: unknown) {
     }
 
     const data = await response.json() as { nodes?: unknown[]; edges?: unknown[]; label?: string; editorUrl?: string };
-
-    if (format === 'json') {
-      return {
-        success: true,
-        format: 'json',
-        nodes: data.nodes,
-        edges: data.edges,
-        label: data.label,
-        message: 'Diagram exported as JSON. You can save this data to a file.',
-      };
-    }
 
     return {
       success: true,

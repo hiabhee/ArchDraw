@@ -1,6 +1,8 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { ApplyTemplateInput } from '../lib/schema.js';
 import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
+import { COMM_COLORS } from '../lib/constants.js';
+import { fetchWithTimeout } from '../lib/http.js';
 import type { TierType } from '../types/index.js';
 
 interface TemplateNode {
@@ -321,6 +323,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         position: { x: TIER_X[tier] || 650, y },
         data: {
           label: node.label,
+          subtitle: node.label,
           icon: node.icon,
           layer: normalizedTier,
           tier: normalizedTier,
@@ -334,14 +337,12 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     });
 
     const reactFlowEdges: ReactFlowEdge[] = templateEdges.map((edge, idx) => {
-      const commColors: Record<string, { color: string; dash: string; animated: boolean }> = {
-        sync: { color: '#94a3b8', dash: '', animated: false },
-        async: { color: '#f59e0b', dash: '8,4', animated: true },
-        stream: { color: '#10b981', dash: '4,2', animated: true },
-        event: { color: '#ec4899', dash: '2,3', animated: true },
-        dep: { color: '#94a3b8', dash: '6,6', animated: true },
-      };
-      const commStyle = commColors[edge.communicationType] || commColors.sync;
+      const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
+      const commStyle = COMM_COLORS[commType] || COMM_COLORS.sync;
+      const edgeLabel = commType === 'async' ? 'async message'
+        : commType === 'stream' ? 'stream'
+        : commType === 'event' ? 'event'
+        : '';
 
       return {
         id: `edge-${idx}`,
@@ -349,7 +350,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         target: edge.target,
         type: 'smooth',
         animated: commStyle.animated,
-        label: '',
+        label: edgeLabel,
         labelShowBg: true,
         labelBgPadding: [8, 4] as [number, number],
         labelBgBorderRadius: 4,
@@ -362,9 +363,9 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         },
         markerEnd: { type: 'arrowclosed', color: commStyle.color },
         data: {
-          communicationType: edge.communicationType as 'sync' | 'async' | 'stream' | 'event' | 'dep',
+          communicationType: commType as 'sync' | 'async' | 'stream' | 'event' | 'dep',
           pathType: 'smooth',
-          label: '',
+          label: edgeLabel,
         },
       };
     });
@@ -375,7 +376,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
 
     try {
-      const saveResponse = await fetch(`${API_BASE}/api/diagram/load`, {
+      const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,9 +1,18 @@
 import type { ArchitectureNode, ArchitectureEdge, ReactFlowNode, ReactFlowEdge, TierType } from '../types/index.js';
 import type { ElkNode as LocalElkNode, ElkEdge as LocalElkEdge } from '../types/index.js';
 import type { ElkNode as ElkApiNode } from 'elkjs/lib/elk-api.js';
+import {
+  COMM_COLORS,
+  TIER_COLORS,
+  TIER_ORDER,
+  TIER_X_POSITIONS_LR,
+  DEFAULT_NODE_WIDTH,
+  DEFAULT_NODE_HEIGHT,
+  type LayoutDirection,
+} from './constants.js';
 
 export interface LayoutOptions {
-  direction?: 'RIGHT' | 'DOWN' | 'LEFT' | 'UP';
+  direction?: LayoutDirection;
   spacingMultiplier?: number;
 }
 
@@ -13,50 +22,9 @@ export interface LayoutResult {
   elkPositions: Array<{ id: string; x: number; y: number; width: number; height: number }>;
 }
 
-const TIER_X_POSITIONS_LR: Record<TierType, number> = {
-  client: 50,
-  edge: 400,
-  compute: 750,
-  async: 1200,
-  data: 1550,
-  external: 1900,
-  observe: 2250,
-};
-
-const TIER_ORDER: TierType[] = [
-  'client',
-  'edge',
-  'compute',
-  'async',
-  'data',
-  'external',
-  'observe',
-];
-
-
-const DEFAULT_NODE_WIDTH = 160;
-const DEFAULT_NODE_HEIGHT = 80;
 const MIN_VERTICAL_GAP = 80;
 const COLLISION_BUFFER = 20;
 const MIN_CANVAS_HEIGHT = 1200;
-
-const TIER_COLORS: Record<TierType, string> = {
-  client:   '#64748b', // slate
-  edge:     '#6366f1', // indigo
-  compute:  '#0d9488', // teal
-  async:    '#d97706', // amber
-  data:     '#3b82f6', // blue
-  external: '#ec4899', // rose
-  observe:  '#8b5cf6', // violet
-};
-
-const COMM_COLORS: Record<string, { color: string; dash: string; animated: boolean }> = {
-  sync:   { color: '#3B82F6', dash: '', animated: false },
-  async:  { color: '#F59E0B', dash: '8,6', animated: true },
-  stream: { color: '#10B981', dash: '10,4,2,4', animated: true },
-  event:  { color: '#8B5CF6', dash: '4,4', animated: true },
-  dep:    { color: '#6B7280', dash: '6,6', animated: true },
-};
 
 interface PlacedNode {
   id: string;
@@ -234,12 +202,12 @@ function createReactFlowEdge(
   };
 }
 
-export function generateELKOptions(_direction: string = 'RIGHT', density: 'low' | 'medium' | 'high' = 'medium'): Record<string, string> {
+export function generateELKOptions(direction: LayoutDirection = 'RIGHT', density: 'low' | 'medium' | 'high' = 'medium'): Record<string, string> {
   const spacingMultiplier = density === 'high' ? 1.5 : density === 'medium' ? 1.2 : 1.0;
   
   const options: Record<string, string> = {
     'elk.algorithm': 'layered',
-    'elk.direction': 'RIGHT',
+    'elk.direction': direction,
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
     'elk.edgeRouting': 'ORTHOGONAL',
     'elk.portConstraints': 'FIXED_SIDE',
@@ -381,6 +349,7 @@ export async function runELKLayout(
         width: pos?.width ?? width,
         height: pos?.height ?? height,
         zIndex: node.isGroup ? 0 : 1,
+        ...(node.parentId ? { parentNode: node.parentId } : {}),
       };
     });
     
@@ -444,42 +413,146 @@ export async function runELKLayout(
   }
 }
 
+function tierAnchorForDirection(direction: LayoutDirection): Record<TierType, number> {
+  const lr = TIER_X_POSITIONS_LR;
+  if (direction === 'LEFT') {
+    const max = Math.max(...TIER_ORDER.map(t => lr[t]));
+    const reversed = {} as Record<TierType, number>;
+    for (const tier of TIER_ORDER) reversed[tier] = max - lr[tier];
+    return reversed;
+  }
+  if (direction === 'DOWN') {
+    // Row layout — the anchor becomes the top Y coordinate of each tier.
+    return { ...lr };
+  }
+  if (direction === 'UP') {
+    const max = Math.max(...TIER_ORDER.map(t => lr[t]));
+    const reversed = {} as Record<TierType, number>;
+    for (const tier of TIER_ORDER) reversed[tier] = max - lr[tier];
+    return reversed;
+  }
+  return { ...lr };
+}
+
+function calculateCanvasWidth(nodesByTier: Map<TierType, ArchitectureNode[]>): number {
+  let maxNodesInLayer = 0;
+  for (const [, tierNodes] of nodesByTier) {
+    maxNodesInLayer = Math.max(maxNodesInLayer, tierNodes.length);
+  }
+  return maxNodesInLayer * (DEFAULT_NODE_WIDTH + MIN_VERTICAL_GAP) + 200;
+}
+
+function findNonCollidingX(
+  startX: number,
+  y: number,
+  width: number,
+  height: number,
+  placedNodes: PlacedNode[],
+  canvasWidth: number
+): number {
+  let x = startX;
+  const maxAttempts = 100;
+  let attempts = 0;
+
+  while (checkCollision({ x, y, width, height }, placedNodes) && attempts < maxAttempts) {
+    x += MIN_VERTICAL_GAP / 2;
+    if (x + width > canvasWidth - 50) {
+      x = 50;
+    }
+    attempts++;
+  }
+
+  return Math.max(50, Math.min(x, canvasWidth - width - 50));
+}
+
+function distributeNodesHorizontally(
+  nodes: ArchitectureNode[],
+  startY: number,
+  canvasWidth: number,
+  placedNodes: PlacedNode[],
+  tier: TierType
+): PlacedNode[] {
+  if (nodes.length === 0) return [];
+
+  const nodeCount = nodes.length;
+  const totalWidth = nodeCount * DEFAULT_NODE_WIDTH + (nodeCount - 1) * MIN_VERTICAL_GAP;
+  const startX = Math.max(50, (canvasWidth - totalWidth) / 2);
+
+  const placed: PlacedNode[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const width = node.width || DEFAULT_NODE_WIDTH;
+    const height = node.height || DEFAULT_NODE_HEIGHT;
+
+    let x = startX + i * (width + MIN_VERTICAL_GAP);
+    x = findNonCollidingX(x, startY, width, height, [...placedNodes, ...placed], canvasWidth);
+
+    placed.push({
+      id: node.id,
+      x,
+      y: startY,
+      width,
+      height,
+      tier,
+    });
+  }
+
+  return placed;
+}
+
 export function runFallbackLayout(
   nodes: ArchitectureNode[],
   edges: ArchitectureEdge[],
-  _options: LayoutOptions = {}
+  options: LayoutOptions = {}
 ): LayoutResult {
+  const direction = options.direction || 'RIGHT';
+  const isRowLayout = direction === 'DOWN' || direction === 'UP';
   const nodesByTier = getNodesByTier(nodes);
-  const canvasHeight = calculateCanvasHeight(nodesByTier);
-  
+  const tierAnchor = tierAnchorForDirection(direction);
+  const canvasHeight = isRowLayout
+    ? TIER_ORDER.length * (DEFAULT_NODE_HEIGHT + MIN_VERTICAL_GAP) + 200
+    : calculateCanvasHeight(nodesByTier);
+  const canvasWidth = isRowLayout ? calculateCanvasWidth(nodesByTier) : 0;
+
   const placedNodes: PlacedNode[] = [];
-  
+
   for (const tier of TIER_ORDER) {
     const tierNodes = nodesByTier.get(tier) || [];
-    const tierX = TIER_X_POSITIONS_LR[tier];
-    const tierPlaced = distributeNodesVertically(
-      tierNodes,
-      tierX,
-      canvasHeight,
-      placedNodes,
-      tier
-    );
-    placedNodes.push(...tierPlaced);
+    const anchor = tierAnchor[tier];
+    if (isRowLayout) {
+      const tierPlaced = distributeNodesHorizontally(
+        tierNodes,
+        anchor,
+        canvasWidth,
+        placedNodes,
+        tier
+      );
+      placedNodes.push(...tierPlaced);
+    } else {
+      const tierPlaced = distributeNodesVertically(
+        tierNodes,
+        anchor,
+        canvasHeight,
+        placedNodes,
+        tier
+      );
+      placedNodes.push(...tierPlaced);
+    }
   }
-  
+
   const nodePositionMap = new Map(placedNodes.map(p => [p.id, p]));
-  
+
   const reactFlowNodes: ReactFlowNode[] = nodes.map(node => {
     const placed = nodePositionMap.get(node.id);
     const tier = placed?.tier || normalizeTier(node.tier || node.layer);
     const width = node.width || DEFAULT_NODE_WIDTH;
     const height = node.height || DEFAULT_NODE_HEIGHT;
-    
+
     return {
       id: node.id,
       type: node.isGroup ? 'groupNode' : 'systemNode',
       position: {
-        x: placed?.x ?? TIER_X_POSITIONS_LR[tier],
+        x: placed?.x ?? tierAnchorForDirection(direction)[tier],
         y: placed?.y ?? 200,
       },
       data: {
@@ -498,21 +571,22 @@ export function runFallbackLayout(
       width: placed?.width ?? width,
       height: placed?.height ?? height,
       zIndex: node.isGroup ? 0 : 1,
+      ...(node.parentId ? { parentNode: node.parentId } : {}),
     };
   });
-  
+
   const reactFlowEdges: ReactFlowEdge[] = edges.map(edge => {
     const sourceNode = nodePositionMap.get(edge.source);
     const targetNode = nodePositionMap.get(edge.target);
-    
+
     if (sourceNode && targetNode) {
       return createReactFlowEdge(edge, sourceNode, targetNode);
     }
-    
-    const commType = edge.communicationType || 'sync';
+
+    const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
     const commStyle = COMM_COLORS[commType] || COMM_COLORS.sync;
     const pathType = edge.pathType || 'smooth';
-    
+
     return {
       id: edge.id,
       source: edge.source,
@@ -539,7 +613,7 @@ export function runFallbackLayout(
       },
     };
   });
-  
+
   const elkPositions = placedNodes.map(p => ({
     id: p.id,
     x: p.x,
@@ -547,7 +621,7 @@ export function runFallbackLayout(
     width: p.width,
     height: p.height,
   }));
-  
+
   return {
     nodes: reactFlowNodes,
     edges: reactFlowEdges,
