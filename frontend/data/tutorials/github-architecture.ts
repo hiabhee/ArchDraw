@@ -171,7 +171,7 @@ const githubTutorial = defineTutorial({
         }),
         step({
           component: 'Worker',
-          nodeType: 'worker',
+          nodeType: 'worker_job',
           parent: 'Load Balancer',
           phases: {
             context: { heading: 'Step 7: Worker', body: 'GitHub Actions runs CI/CD jobs in ephemeral containers when you push code or open a pull request.' },

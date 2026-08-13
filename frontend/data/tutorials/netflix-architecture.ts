@@ -116,16 +116,76 @@ const netflixTutorial = defineTutorial({
     level({
       title: 'Production Ready',
       steps: [
-        step({ component: 'User Service', nodeType: 'user_service', parent: 'Auth Service' }),
-        step({ component: 'SQL Database', nodeType: 'sql_db', parent: 'User Service' }),
-        step({ component: 'Recommendation Engine',           nodeType: 'recommendation_service', parent: 'User Service' }),
+        step({
+          component: 'User Service',
+          nodeType: 'user_service',
+          parent: 'Auth Service',
+          phases: {
+            teaching: {
+              heading: 'Deep dive: User Service',
+              body: "Netflix's User Service is the source of truth for accounts: profiles, device management, watch history, and parental controls. When a viewer opens the app, the client resolves their profile here before anything else renders.",
+              whyItMatters: 'Every request that personalizes content starts at the User Service — a failure here blocks profile loading and recommendations for all subscribers.',
+              tradeoff: 'Centralizing user data makes it a privacy-sensitive single point of failure; it must be replicated and sharded carefully while still enforcing strict access controls.',
+            },
+          },
+        }),
+        step({
+          component: 'SQL Database',
+          nodeType: 'sql_db',
+          parent: 'User Service',
+          phases: {
+            teaching: {
+              heading: 'Deep dive: SQL Database',
+              body: "The SQL Database stores user accounts, profiles, and playback state relationally. Netflix needs strong consistency here — subscription plans and concurrent-stream limits are enforced with transactions.",
+              whyItMatters: 'Billing and device limits depend on ACID guarantees; losing or corrupting this data would break subscriber state.',
+              tradeoff: 'Relational databases are harder to scale horizontally, so hot profile reads are offloaded to caches and read replicas while the primary stays the source of truth.',
+            },
+          },
+        }),
+        step({
+          component: 'Recommendation Engine',
+          nodeType: 'recommendation_service',
+          parent: 'User Service',
+          phases: {
+            teaching: {
+              heading: 'Deep dive: Recommendation Engine',
+              body: "Netflix's Recommendation Engine personalizes the home screen — every row, title order, and artwork is ranked by machine learning models trained on viewing and engagement signals.",
+              whyItMatters: 'Recommendations drive the majority of what members watch; without personalization the catalog feels static and retention drops.',
+              tradeoff: 'Personalization is compute- and data-hungry and can trap users in filter bubbles, so the system deliberately trades precision for discovery and exploration.',
+            },
+          },
+        }),
       ],
     }),
     level({
       title: 'Expert Architecture',
       steps: [
-        step({ component: 'Worker', nodeType: 'worker_job', parent: 'Object Storage' }),
-        step({ component: 'Content Catalog', nodeType: 'data_catalog', parent: 'API Gateway' }),
+        step({
+          component: 'Worker',
+          nodeType: 'worker_job',
+          parent: 'Object Storage',
+          phases: {
+            teaching: {
+              heading: 'Deep dive: Worker',
+              body: "Encoding workers pull source masters from Object Storage and transcode each title into 120+ formats — different codecs, bitrates, and resolutions for every device type.",
+              whyItMatters: 'Without background encoding, there would be no adaptive bitrate streaming and playback would buffer constantly on slower connections.',
+              tradeoff: 'Transcoding is expensive in CPU and bandwidth; work must be queued and scheduled so it never starves interactive traffic, and formats need re-encoding as codecs evolve.',
+            },
+          },
+        }),
+        step({
+          component: 'Content Catalog',
+          nodeType: 'data_catalog',
+          parent: 'API Gateway',
+          phases: {
+            teaching: {
+              heading: 'Deep dive: Content Catalog',
+              body: "The Content Catalog is the metadata layer behind every title — synopses, artwork, genres, cast, and licensing windows. The API Gateway reads it to render the home screen, search, and browse.",
+              whyItMatters: 'The catalog turns a raw streaming pipe into a product; search, recommendations, and the entire browsing experience are built on it.',
+              tradeoff: 'Catalog metadata is edited by many teams and changes with licensing deals, so it is cached for fast reads but must be carefully invalidated to avoid stale titles.',
+            },
+          },
+        }),
       ],
     }),
   ],

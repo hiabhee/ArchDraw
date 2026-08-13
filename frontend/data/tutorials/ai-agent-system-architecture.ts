@@ -113,7 +113,7 @@ const aiAgentTutorial = defineTutorial({
         }),
         step({
           component: 'Observability',
-          nodeType: 'observability',
+          nodeType: 'observability_service',
           parent: 'Agent Orchestrator',
           phases: {
             context: { heading: 'Level 2: Observability', body: 'Agent traces, token usage, and tool latency must be visible in real time for debugging runaway loops.' },

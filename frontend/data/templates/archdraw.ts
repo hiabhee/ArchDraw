@@ -545,7 +545,7 @@ export const archdrawNodes: Node[] = [
     data: {
       label: 'GitHub API', subtitle: 'Tarball + contents',
       shape: 'hexagon', nodeWidth: 200, nodeHeight: 80,
-      serviceType: 'external', typeId: 'external_api', color: '#6b7280',
+      serviceType: 'external', typeId: 'third_party_api', color: '#6b7280',
       category: 'Client & Entry', icon: 'Github',
     },
     width: 200, height: 80, parentNode: 'grp_repo', extent: 'parent',
