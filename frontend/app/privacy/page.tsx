@@ -5,6 +5,13 @@ import { Navbar } from '@/components/landing/Navbar';
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'ArchDraw Privacy Policy — how we collect, use, and protect your data.',
+  openGraph: {
+    type: 'website',
+    url: 'https://archdraw.app/privacy',
+    title: 'Privacy Policy — ArchDraw',
+    description: 'How ArchDraw collects, uses, and protects your data.',
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw Privacy Policy' }],
+  },
 };
 
 export default function PrivacyPage() {

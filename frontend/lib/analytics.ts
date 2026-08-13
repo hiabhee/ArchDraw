@@ -102,6 +102,57 @@ function getUtmParams(): Record<string, string> {
   return utm;
 }
 
+const AI_REFERRERS: Array<[string, string]> = [
+  ['chat.openai.com', 'ChatGPT'],
+  ['chatgpt.com', 'ChatGPT'],
+  ['openai.com', 'ChatGPT'],
+  ['claude.ai', 'Claude'],
+  ['claude.com', 'Claude'],
+  ['anthropic.com', 'Claude'],
+  ['gemini.google.com', 'Gemini'],
+  ['bard.google.com', 'Gemini'],
+  ['aistudio.google.com', 'Gemini'],
+  ['perplexity.ai', 'Perplexity'],
+  ['copilot.microsoft.com', 'Copilot'],
+  ['you.com', 'You.com'],
+  ['poe.com', 'Poe'],
+  ['meta.ai', 'Meta AI'],
+];
+
+const AI_UTM_SOURCES = ['chatgpt', 'claude', 'gemini', 'perplexity', 'copilot', 'poe', 'metaai', 'meta-ai'];
+
+interface AiSource {
+  source: string;
+  referrer: string;
+  utmSource?: string;
+}
+
+function detectAiSource(): AiSource | null {
+  if (typeof window === 'undefined') return null;
+
+  const referrer = document.referrer || '';
+  if (referrer) {
+    try {
+      const host = new URL(referrer).hostname.toLowerCase();
+      const match = AI_REFERRERS.find(([domain]) => host === domain || host.endsWith(`.${domain}`));
+      if (match) return { source: match[1], referrer };
+    } catch {
+      // malformed referrer — fall through to UTM check
+    }
+  }
+
+  const utmSource = new URLSearchParams(window.location.search).get('utm_source')?.toLowerCase();
+  if (utmSource) {
+    const matched = AI_UTM_SOURCES.find((token) => utmSource.includes(token));
+    if (matched) {
+      const label = AI_REFERRERS.find(([, name]) => name.toLowerCase().includes(matched.replace('-', '')))?.[1] || 'AI';
+      return { source: label, referrer, utmSource };
+    }
+  }
+
+  return null;
+}
+
 async function flush(useBeacon = false) {
   if (state.queue.length === 0) return;
 
@@ -222,6 +273,22 @@ function init() {
   });
 
   window.addEventListener('beforeunload', () => flush(true));
+
+  // Log traffic arriving from AI assistants (ChatGPT, Claude, Gemini, Perplexity…)
+  // as a distinct ai_referral event so it shows up separately from organic search.
+  const aiSource = detectAiSource();
+  if (aiSource) {
+    track({
+      event_type: 'ai_referral',
+      event_name: aiSource.source,
+      page_path: window.location.pathname,
+      payload: {
+        source: aiSource.source,
+        referrer: aiSource.referrer,
+        ...(aiSource.utmSource ? { utm_source: aiSource.utmSource } : {}),
+      },
+    });
+  }
 
   setupClickTracking();
 }

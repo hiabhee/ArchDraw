@@ -5,6 +5,18 @@ import { blogs } from '@/data/blogs';
 export const metadata = {
   title: 'Engineering Blog — ArchDraw',
   description: 'Deep explanations of how we built our interactive diagramming canvas, AI layout compilation, and database synchronization.',
+  openGraph: {
+    type: 'website',
+    url: 'https://archdraw.app/blogs',
+    title: 'Engineering Blog — ArchDraw',
+    description: 'Deep explanations of how we built our interactive diagramming canvas, AI layout compilation, and database synchronization.',
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw Engineering Blog' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Engineering Blog — ArchDraw',
+    images: ['/api/og/home'],
+  },
 };
 
 function BlogDocsHeader({ activeTab }: { activeTab: 'docs' | 'blogs' }) {

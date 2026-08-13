@@ -9,13 +9,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const tutorial = getTutorialById(id);
-  if (!tutorial) return { title: 'Tutorial Not Found | ArchFlow' };
+  if (!tutorial) return { title: 'Tutorial Not Found | ArchDraw' };
 
   const keywords = [
     ...(tutorial.tags ?? []),
     'system design',
     'architecture diagram',
-    'ArchFlow',
+    'ArchDraw',
   ].join(', ');
 
   const ogImage = `/api/og/tutorial/${id}`;

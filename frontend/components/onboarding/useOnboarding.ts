@@ -40,7 +40,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     id: 'templates',
     title: 'Start from a Template',
     description:
-      "Don't start from scratch. Load a pre-built architecture: ArchFlow's own system design, a ChatGPT-like LLM stack, or an Instagram-like social platform. Auto-layout is applied instantly.",
+      "Don't start from scratch. Load a pre-built architecture: ArchDraw's own system design, a ChatGPT-like LLM stack, or an Instagram-like social platform. Auto-layout is applied instantly.",
     targetSelector: '[data-onboarding="templates-btn"]',
     cardPosition: 'below',
     handAnimation: 'tap',

@@ -23,6 +23,19 @@ export async function generateMetadata({ params }: BlogDetailProps) {
   return {
     title: `${post.title} — ArchDraw`,
     description: post.summary,
+    openGraph: {
+      type: 'article',
+      url: `https://archdraw.app/blogs/${post.slug}`,
+      title: `${post.title} — ArchDraw`,
+      description: post.summary,
+      images: [{ url: '/api/og/home', width: 1200, height: 630, alt: post.title }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${post.title} — ArchDraw`,
+      description: post.summary,
+      images: ['/api/og/home'],
+    },
   };
 }
 

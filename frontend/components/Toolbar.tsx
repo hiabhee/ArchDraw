@@ -161,7 +161,7 @@ function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ArchFlow Diagram</title>
+  <title>ArchDraw Diagram</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -209,7 +209,7 @@ function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
   <div class="container">
     <div class="header">
       <span class="title">Architecture Diagram</span>
-      <span class="badge">Created with ArchFlow</span>
+      <span class="badge">Created with ArchDraw</span>
     </div>
     <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
       <defs>
@@ -350,7 +350,7 @@ export function Toolbar() {
   width="100%" 
   height="600" 
   style="border:none;border-radius:12px;"
-  title="ArchFlow Diagram"
+  title="ArchDraw Diagram"
 ></iframe>`;
       await navigator.clipboard.writeText(iframeCode);
       toast.success('Embed code (iframe) copied to clipboard');

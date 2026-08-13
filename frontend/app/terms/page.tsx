@@ -5,6 +5,13 @@ import { Navbar } from '@/components/landing/Navbar';
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'ArchDraw Terms of Service.',
+  openGraph: {
+    type: 'website',
+    url: 'https://archdraw.app/terms',
+    title: 'Terms of Service — ArchDraw',
+    description: 'The terms of service for using ArchDraw.',
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw Terms of Service' }],
+  },
 };
 
 export default function TermsPage() {
