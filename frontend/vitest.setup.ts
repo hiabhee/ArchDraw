@@ -1,4 +1,11 @@
 import '@testing-library/jest-dom';
+import { config } from 'dotenv';
+import path from 'path';
+
+// Load .env.local so API keys are available in process.env during tests.
+// This mirrors what Next.js does at runtime but Vitest does not do by default.
+config({ path: path.resolve(__dirname, '.env.local') });
+config({ path: path.resolve(__dirname, '.env') }); // fallback for non-secret defaults
 
 const createStorageMock = (): Storage => {
   const store = new Map<string, string>();

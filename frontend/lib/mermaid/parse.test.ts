@@ -125,7 +125,7 @@ describe('Node Classification Precedence', () => {
 
     // Queue named "event_stream" inside "Service Layer" group should be a queue
     const queueRes = classifyNode('event_stream', 'Service Layer');
-    expect(queueRes.shape).toBe('cylinder');
+    expect(queueRes.shape).toBe('queue');
     expect(queueRes.serviceType).toBe('queue');
 
     // Load balancer inside "Data Layer" group should be load-balancer shape (hexagon silhouette)
@@ -136,7 +136,7 @@ describe('Node Classification Precedence', () => {
 
   it('should fall back to group name if node name is generic', () => {
     // Generic name "auth" inside "Client Layer" — auth/authN match the security
-    // concern first (shield silhouette), so group fallback never applies.
+    // concern first (rounded-rectangle silhouette), so group fallback never applies.
     const clientRes = classifyNode('auth', 'Client Layer');
     expect(clientRes.serviceType).toBe('security');
 

@@ -4,7 +4,7 @@ import { semanticShapeBodySvg } from '@/lib/utils/shapeSilhouetteSvg';
 const surface = { fill: '#fff', stroke: '#000', strokeWidth: 1.5 };
 
 describe('semanticShapeBodySvg', () => {
-  const shapes = ['hexagon', 'cloud', 'shield', 'actor', 'monitor', 'mobile', 'dashed-rectangle'] as const;
+  const shapes = ['hexagon', 'cloud', 'actor', 'monitor', 'mobile', 'dashed-rectangle', 'queue', 'cache', 'function', 'container', 'bucket'] as const;
 
   it.each(shapes)('renders a distinct SVG body for %s', (shape) => {
     const svg = semanticShapeBodySvg(shape, 200, 100, surface, false);

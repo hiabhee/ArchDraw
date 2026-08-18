@@ -84,11 +84,16 @@ describe('semantic silhouette sizing', () => {
   const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
     hexagon: { wMin: SIZE_S, wMax: 200, hMin: 88, hMax: 96 },
     cloud: { wMin: 200, wMax: SIZE_L, hMin: 96, hMax: 112 },
-    shield: { wMin: SIZE_S, wMax: 200, hMin: 96, hMax: 112 },
     actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 88, hMax: 100 },
     monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 120 },
     mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 130 },
     'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 88, hMax: 112 },
+    // New architecture-native shapes
+    queue: { wMin: SIZE_M, wMax: SIZE_L, hMin: 56, hMax: 72 },
+    cache: { wMin: SIZE_S, wMax: SIZE_M, hMin: 88, hMax: 104 },
+    function: { wMin: SIZE_S, wMax: SIZE_M, hMin: 88, hMax: 104 },
+    container: { wMin: SIZE_M, wMax: SIZE_L, hMin: 96, hMax: 120 },
+    bucket: { wMin: SIZE_S, wMax: SIZE_M, hMin: 96, hMax: 112 },
   };
 
   for (const [shape, band] of Object.entries(bands)) {

@@ -81,10 +81,10 @@ describe('reactFlowToMermaid text round-trip', () => {
     if (res.ok) expect(res.ast.texts).toHaveLength(0);
   });
 
-  it('round-trips directive-only shapes (cloud/shield/actor/monitor/mobile) via %% archdraw-shape', () => {
+  it('round-trips directive-only shapes (cloud/actor/monitor/mobile/dashed-rectangle) via %% archdraw-shape', () => {
     const nodes: Node[] = [
       rfNode('stripe', 'shapeNode', { label: 'Stripe', shape: 'cloud' }),
-      rfNode('waf', 'shapeNode', { label: 'WAF', shape: 'shield' }),
+      rfNode('waf', 'shapeNode', { label: 'WAF', shape: 'dashed-rectangle' }),
       rfNode('alice', 'shapeNode', { label: 'Alice', shape: 'actor' }),
       rfNode('web', 'shapeNode', { label: 'Web', shape: 'monitor' }),
       rfNode('app', 'shapeNode', { label: 'App', shape: 'mobile' }),
@@ -95,7 +95,7 @@ describe('reactFlowToMermaid text round-trip', () => {
     const mermaid = reactFlowToMermaid(nodes, edges, 'TD');
 
     expect(mermaid).toContain('%% archdraw-shape: {"id":"stripe","shape":"cloud"}');
-    expect(mermaid).toContain('%% archdraw-shape: {"id":"waf","shape":"shield"}');
+    expect(mermaid).toContain('%% archdraw-shape: {"id":"waf","shape":"dashed-rectangle"}');
     expect(mermaid).toContain('%% archdraw-shape: {"id":"alice","shape":"actor"}');
     expect(mermaid).toContain('%% archdraw-shape: {"id":"web","shape":"monitor"}');
     expect(mermaid).toContain('%% archdraw-shape: {"id":"app","shape":"mobile"}');
@@ -107,7 +107,7 @@ describe('reactFlowToMermaid text round-trip', () => {
     if (!res.ok) return;
     const byId = new Map(res.ast.nodes.map((n) => [n.id, n]));
     expect(byId.get('stripe')?.shapeOverride).toBe('cloud');
-    expect(byId.get('waf')?.shapeOverride).toBe('shield');
+    expect(byId.get('waf')?.shapeOverride).toBe('dashed-rectangle');
     expect(byId.get('alice')?.shapeOverride).toBe('actor');
     expect(byId.get('web')?.shapeOverride).toBe('monitor');
     expect(byId.get('app')?.shapeOverride).toBe('mobile');
@@ -117,7 +117,7 @@ describe('reactFlowToMermaid text round-trip', () => {
     const objects = buildReactFlowObjects(res.ast);
     const shapeOf = (id: string) => objects.nodes.find((n) => n.id === id)?.data?.shape;
     expect(shapeOf('stripe')).toBe('cloud');
-    expect(shapeOf('waf')).toBe('shield');
+    expect(shapeOf('waf')).toBe('dashed-rectangle');
     expect(shapeOf('alice')).toBe('actor');
     expect(shapeOf('web')).toBe('monitor');
     expect(shapeOf('app')).toBe('mobile');

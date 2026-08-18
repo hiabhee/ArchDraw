@@ -52,4 +52,43 @@ describe('resolveNodeIcon', () => {
     expect(resolveNodeIcon({ technology: 'kubernetes' }).icon).toBe('arch-kubernetes');
     expect(resolveNodeIcon({ technology: 'elasticsearch' }).icon).toBe('arch-search');
   });
+
+  it('uses technology branding before manual arch icon coloring', () => {
+    expect(resolveNodeIcon({
+      label: 'Kubernetes',
+      technology: 'kubernetes',
+      icon: 'arch-kubernetes',
+      color: '#6366f1',
+    })).toMatchObject({
+      icon: 'arch-kubernetes',
+      color: '#326CE5',
+      technology: 'kubernetes',
+      source: 'technology',
+    });
+  });
+
+  it('infers technology branding from a specific technology icon', () => {
+    expect(resolveNodeIcon({
+      label: 'Cluster',
+      icon: 'arch-kubernetes',
+      color: '#6366f1',
+    })).toMatchObject({
+      color: '#326CE5',
+      technology: 'kubernetes',
+      source: 'technology',
+    });
+  });
+
+  it('uses brand blue for generic manual icons without a technology', () => {
+    expect(resolveNodeIcon({
+      label: 'General Service',
+      icon: 'arch-service',
+      color: '#6366f1',
+    })).toMatchObject({
+      icon: 'arch-service',
+      color: '#1E90FF',
+      technology: undefined,
+      source: 'manual',
+    });
+  });
 });

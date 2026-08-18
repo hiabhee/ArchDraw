@@ -362,6 +362,28 @@ describe('computeEdgeLabelLayout', () => {
     }
   })
 
+  it('centers labels on independent edges that only share a node endpoint', () => {
+    const nodes = [
+      makeNode('a', 100, 100),
+      makeNode('b', 400, 100),
+      makeNode('c', 700, 100),
+    ]
+    const edges = [
+      makeEdge('e1', 'a', 'b', { label: 'FIRST' }),
+      makeEdge('e2', 'b', 'c', { label: 'SECOND' }),
+    ]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+
+    for (const edge of edges) {
+      const route = computeEdgeRoute(edge, nodes, edges, 'LR')
+      const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+      const anchor = res.get(edge.id)!
+      expect(anchor.t).toBeCloseTo(0.5, 2)
+      expect(anchor.x).toBeCloseTo(expected.x, 0)
+      expect(anchor.y).toBeCloseTo(expected.y, 0)
+    }
+  })
+
   it('keeps a gap between chain-edge labels and their source nodes', () => {
     // Mid-path waypoints on a straight shot used to split the edge into two
     // segments and park the label flush against the source (BOP / Wellhead).
