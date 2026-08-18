@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Search, Hexagon, Cloud, Smartphone, User, SquareDashed, Monitor } from 'lucide-react';
+import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Search, Hexagon, Cloud, Smartphone, User, SquareDashed, Monitor, Inbox, Box, Code2, HardDrive, FileText, Files, ArrowRight } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
 import { CustomNodeIcon, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
@@ -31,8 +31,14 @@ const SHAPE_GROUPS: { label: string; options: { value: ShapeType; label: string;
     options: [
       { value: 'hexagon', label: 'Hexagon', icon: Hexagon },
       { value: 'cloud', label: 'Cloud', icon: Cloud },
-      { value: 'shield', label: 'Shield', icon: Shield },
       { value: 'dashed-rectangle', label: 'Dashed', icon: SquareDashed },
+      { value: 'queue', label: 'Queue', icon: Inbox },
+      { value: 'cache', label: 'Cache', icon: Zap },
+      { value: 'function', label: 'Function', icon: Code2 },
+      { value: 'container', label: 'Container', icon: Box },
+      { value: 'bucket', label: 'Bucket', icon: HardDrive },
+      { value: 'document', label: 'Document', icon: FileText },
+      { value: 'documents', label: 'Documents', icon: Files },
     ],
   },
   {
@@ -90,7 +96,7 @@ const TECH_LABELS: Record<string, string> = {
 };
 
 function EdgePropertiesPanel() {
-  const { selectedEdgeId, edges, updateEdgeLabel, setSelectedEdgeId } = useDiagramStore();
+  const { selectedEdgeId, edges, updateEdgeLabel, updateEdgeData, setSelectedEdgeId } = useDiagramStore();
   const edge = edges.find((e) => e.id === selectedEdgeId);
   const [localLabel, setLocalLabel] = useState(edge?.data?.label ?? '');
   const [prevEdge, setPrevEdge] = useState(edge);
@@ -101,6 +107,17 @@ function EdgePropertiesPanel() {
   }
 
   if (!edge) return null;
+
+  const currentEdgeType = (edge.data?.edgeType || edge.data?.connectionType || 'sync') as string;
+
+  const handleEdgeTypeChange = (type: 'sync' | 'async') => {
+    if (!selectedEdgeId) return;
+    updateEdgeData(selectedEdgeId, { 
+      edgeType: type,
+      connectionType: type,
+      async: type === 'async',
+    });
+  };
 
   return (
     <div className="floating-panel z-50 overflow-y-auto p-4 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-[72px] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-[180px] sm:w-80 max-h-[calc(100dvh-200px)]">
@@ -115,10 +132,56 @@ function EdgePropertiesPanel() {
       </div>
 
       <div className="mt-4 space-y-4">
+        {/* Edge Type Selection */}
+        <div>
+          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
+            Edge Type
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleEdgeTypeChange('sync')}
+              className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs transition-all ${
+                currentEdgeType === 'sync'
+                  ? 'bg-primary/15 text-primary border border-primary/30'
+                  : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <div className="w-8 h-0.5 bg-current rounded"></div>
+                <ArrowRight className="w-3 h-3" />
+              </div>
+              <span className="font-medium">Sync</span>
+              <span className="text-[9px] text-muted-foreground/70">Solid line</span>
+            </button>
+            <button
+              onClick={() => handleEdgeTypeChange('async')}
+              className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs transition-all ${
+                currentEdgeType === 'async'
+                  ? 'bg-primary/15 text-primary border border-primary/30'
+                  : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <svg width="32" height="2" viewBox="0 0 32 2" className="text-current">
+                  <line x1="0" y1="1" x2="32" y2="1" stroke="currentColor" strokeWidth="2" strokeDasharray="4 3" />
+                </svg>
+                <ArrowRight className="w-3 h-3" />
+              </div>
+              <span className="font-medium">Async</span>
+              <span className="text-[9px] text-muted-foreground/70">Dashed line</span>
+            </button>
+          </div>
+          <p className="text-[9px] text-muted-foreground/60 mt-2 leading-relaxed">
+            <strong>Sync:</strong> Synchronous calls (HTTP, gRPC, direct)<br />
+            <strong>Async:</strong> Return/response messages, async operations
+          </p>
+        </div>
+
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Double-click the edge on canvas to add a label.
         </p>
         
+        {/* Label */}
         <div>
           <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
             Label
@@ -196,14 +259,7 @@ export function PropertiesPanel() {
 
   const handleDuplicate = () => {
     if (!node) return;
-    const newId = `${node.id}-copy-${Date.now()}`;
-    useDiagramStore.getState().addNode({
-      ...node,
-      id: newId,
-      position: { x: node.position.x + 30, y: node.position.y + 30 },
-      data: { ...node.data, label: `${node.data.label} (copy)` },
-    });
-    useDiagramStore.getState().setSelectedNodeIds([newId]);
+    useDiagramStore.getState().duplicateNode(node.id);
   };
 
   const handleStatusChange = () => {

@@ -146,6 +146,101 @@ export const blogs: BlogPost[] = [
     ]
   },
   {
+    slug: 'setup-mcp-claude-desktop',
+    title: 'How to set up the ArchDraw MCP server in Claude Desktop',
+    kicker: 'MCP Setup',
+    category: 'Integrations',
+    readTime: '6 min',
+    date: 'Aug 13, 2026',
+    summary:
+      'A step-by-step guide to connecting the ArchDraw MCP server to Claude Desktop so Claude can generate, edit, validate, and export architecture diagrams directly from the chat window.',
+    sections: [
+      {
+        heading: 'What you need before you start',
+        body:
+          'You need three things before connecting the server: a recent Node.js runtime (18 or newer) so the server can run, a local clone of the ArchDraw repository, and Claude Desktop itself. The MCP server lives inside the repository in the `mcp-server/` directory — it is a self-contained Node process, so nothing needs to be hosted or deployed. If you want the server to persist diagram session files, create a folder for them too (for example `~/ArchDraw/diagrams`); you will point `WORKSPACE_PATH` at it in a later step.',
+        bullets: [
+          'Node.js 18+ — check with `node --version`',
+          'A local clone of the ArchDraw repository (the server builds from `mcp-server/`)',
+          'Claude Desktop, installed and signed in',
+        ],
+        code: `node --version`,
+      },
+      {
+        heading: 'Install dependencies and build the server',
+        body:
+          'The server talks to MCP clients over standard input/output (stdio), so it must be compiled before Claude can launch it. Open a terminal, move into the `mcp-server` directory, install its dependencies, and build. TypeScript compiles the source into `dist/index.js`, which is the file you will point Claude at. During development you can also run `npm run dev` to launch the server straight from source with tsx.',
+        code: `cd mcp-server
+npm install
+npm run build`,
+      },
+      {
+        heading: 'Open your Claude Desktop configuration file',
+        body:
+          'Claude Desktop reads its MCP configuration from a local JSON file. The exact path depends on your operating system:',
+        bullets: [
+          'macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`',
+          'Windows: `%APPDATA%\\Claude\\claude_desktop_config.json`',
+          'Linux: `~/.config/Claude/claude_desktop_config.json`',
+        ],
+      },
+      {
+        heading: 'Register the server in the config file',
+        body:
+          'Add an `mcpServers` block to the JSON. Each entry names a server and describes how Claude should launch it: the command to run (`node`), the absolute path to the compiled server (`dist/index.js`), and an optional `WORKSPACE_PATH` environment variable pointing at the folder where diagram session files are written. Replace the two paths below with real ones.',
+        code: `{
+  "mcpServers": {
+    "archdraw-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/to/archdraw/mcp-server/dist/index.js"],
+      "env": {
+        "WORKSPACE_PATH": "/absolute/path/to/diagrams"
+      }
+    }
+  }
+}`,
+        bullets: [
+          '`command` — how to start the process; if `node` is not on Claude\'s PATH, use the full binary path from `which node`',
+          '`args` — the absolute path to `mcp-server/dist/index.js`',
+          '`env.WORKSPACE_PATH` — where diagram session files are saved; create the folder before launching Claude',
+        ],
+      },
+      {
+        heading: 'Restart Claude Desktop and verify the connection',
+        body:
+          'MCP servers are discovered at startup, so fully quit Claude Desktop (Cmd+Q on macOS) and reopen it. Open a chat and click the tools icon to see the connected server, or simply ask Claude what it can do. The `read_me` tool returns the full server reference — asking for it first is a good habit.',
+        code: `"Draw a three-tier architecture: a React frontend, a Node API behind an API gateway, and a PostgreSQL database"`,
+      },
+      {
+        heading: 'What Claude can do once connected',
+        body:
+          'Once the server is registered, Claude can drive the entire diagram workflow from the chat window. The server exposes these tools over stdio:',
+        bullets: [
+          '`read_me` — the full server reference; call it first to learn the rules and domain checklist',
+          '`generate_diagram` — turn a prompt or Mermaid snippet into a laid-out diagram',
+          '`update_diagram` — add nodes, rewire edges, and change tiers on the current canvas',
+          '`validate_diagram` and `fix_layout` — run structural checks and repair the layout',
+          '`apply_template` and `list_templates` — load curated architecture templates',
+          '`save_checkpoint` and `load_checkpoint` — snapshot and restore diagram state',
+          '`export_diagram` — export as JSON, Mermaid, PNG, or SVG',
+          '`list_node_types` — look up available components and icons',
+          '`get_diagram_state` — inspect the current canvas nodes and edges',
+        ],
+      },
+      {
+        heading: 'Troubleshooting',
+        body: 'Most connection issues come from paths, PATH resolution, or forgetting to restart Claude. Walk through these in order:',
+        bullets: [
+          'The server shows as failed to start — make sure `args` points at `mcp-server/dist/index.js` and that you ran `npm run build` after the latest changes.',
+          '`node` is not found — replace `"node"` in the config with the full binary path from `which node`.',
+          'Tools do not appear after editing the config — quit Claude Desktop completely (Cmd+Q), not just the window, and reopen it.',
+          'Config file is invalid — check Claude\'s log file (`claude_mcp_logs.txt`, stored next to the config) for JSON parse errors.',
+          'No session files are written — create the `WORKSPACE_PATH` directory before starting Claude.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'templates-authored-layouts',
     title: 'How we preserved authored coordinates and achieved high-fidelity template previews',
     kicker: 'Templates',

@@ -26,7 +26,9 @@ import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
 import { useCallback, useEffect, useRef, DragEvent, useState, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
-import { diagramThemeCssVars } from '@/lib/theme/stylingConstants';
+import { resolveCanvasTokens, ensureSketchFontLoaded } from '@/lib/theme/renderStyles';
+import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
+import '@/components/nodes/nodeStyles.css';
 import { cn } from '@/lib/utils';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 
@@ -455,17 +457,29 @@ function CanvasInner() {
   }, [setPendingLabelEdgeId]);
 
   const coloredEdges = useEdgeColors(edges);
+  const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const themeVars = useMemo(
-    () => diagramThemeCssVars(diagramStyleTheme, isDark),
-    [diagramStyleTheme, isDark],
+    () => resolveCanvasTokens({ renderStyleId: diagramRenderStyle, colorThemeId: diagramStyleTheme, isDark }).cssVars,
+    [diagramStyleTheme, diagramRenderStyle, isDark],
   );
+
+  // Self-host Nanum Pen Script when sketch is active (next/font + CDN fallback).
+  useEffect(() => {
+    if (diagramRenderStyle !== 'sketch') return;
+    ensureSketchFontLoaded();
+  }, [diagramRenderStyle]);
+
+  const isSketch = diagramRenderStyle === 'sketch';
 
   return (
     <div 
       className={cn(
         'w-full h-full relative transition-colors duration-200 bg-[hsl(var(--canvas-bg))] overscroll-contain',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
+        isSketch && sketchHandwritingFont.className,
       )}
+      data-render-style={diagramRenderStyle}
+      data-color-theme={diagramStyleTheme}
       onDragOver={(e) => e.preventDefault()}
       style={{ overscrollBehavior: 'contain', ...themeVars }}
     >

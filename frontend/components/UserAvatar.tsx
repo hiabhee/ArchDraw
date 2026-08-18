@@ -415,7 +415,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                   <Toggle enabled={showLabels} onChange={(val) => { setShowLabels(val); trackToggle('show_labels', val); }} />
                 </SettingRow>
 
-                <SettingRow icon={LayoutGrid} title="Show node icons" desc="All: every icon · Normal: hide icons picked from Properties · Off: none">
+                <SettingRow icon={LayoutGrid} title="Show node icons" desc="All/Normal: show all icons (manual & auto) · Off: hide all icons">
                   <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
                     {ICON_MODES.map((m) => (
                       <button

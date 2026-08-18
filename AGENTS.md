@@ -60,6 +60,14 @@ Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc
 - Canvas + SVG export truth: `frontend/lib/theme/stylingConstants.ts` (optical size grid, concerns, themes).
 - Chrome / dashboard: use semantic Tailwind tokens from `CONTRIBUTING.md` (`bg-surface-page`, `text-text-primary`, `bg-accent`, …). Avoid ad-hoc purple/indigo landing tropes when building branded UI from scratch; preserve existing product look when editing existing surfaces.
 
+### Render style vs color theme
+
+- **`diagramRenderStyle`** (`precision` | `sketch`, store `uiSlice.ts`) controls **how** shapes/edges/groups are drawn — stroke engine, fonts, shadows. **`diagramStyleTheme`** (default/slate/…, `stylingConstants.ts`) controls **colors**. They are orthogonal: sketch uses the same concern colors as precision. Do not overload `diagramStyleTheme` with render-engine metadata (AI planner + persisted canvases depend on it).
+- Canvas geometry truth: `frontend/lib/theme/shapeGeometry/index.ts` → `getShapePrimitives(shape, W, H, axis?)`. Both `ShapeNode.tsx` (canvas) and `svgExport.ts` render the same primitives through a `StrokeRenderer` (`getStrokeRenderer('crisp'|'rough')` in `renderStyles/strokeRenderer/`). Never hand-roll divergent shape paths in one renderer.
+- Sketch specifics: rough.js + deterministic `seedFor(id)`; **board-like shape bodies** (rectangle/rounded-rect/parallelogram/hexagon/cloud/monitor/mobile) use **cross-hatch** fills on warm paper (`SKETCH_PAPER_TINT` / `SKETCH_PAPER_DARK` in `sketch.ts`) — the darker paper keeps the hatch visible instead of transparent; small silhouettes + cylinders stay **solid** (sketch SystemNode cards are transparent so their rough body shows through); hachure is reserved for group zones; Patrick Hand + Caveat loaded lazily via `<link>` only when sketch is active; CSS scoping lives in `components/nodes/nodeStyles.css` under `[data-render-style='sketch']` (descendant selectors — the attribute is on the canvas wrapper, not `.react-flow` itself).
+- `setDiagramRenderStyle` is a **view preference** — never push it onto the diagram undo stack (same rule as `diagramStyleTheme` / grid toggles).
+- See `docs/diagram-aesthetic-themes-plan.md` for the full contract.
+
 ### Layout rule (critical)
 
 **Canonical canvas layout** for templates, AI generation, repo diagrams, and the toolbar LR/TB toggler is:
@@ -386,6 +394,7 @@ When changing sizing, update `lib/utils/__tests__/nodeSizing.test.ts`.
 |------|------------|
 | Node look / shape | `ShapeNode.tsx`, `SystemNode.tsx`, `nodeStyles.css`, `stylingConstants.ts` |
 | Node size | `nodeSizing.ts` |
+| Render style (precision/sketch) | `shapeGeometry/index.ts`, `renderStyles/*`, `ShapeNode.tsx`, `nodeStyles.css`, `Toolbar.tsx` |
 | Handles | `NodeHandles.tsx`, `FloatingHandles.tsx`, `useHandleSlotLayout.ts` |
 | Edge path | `edgeRouteBuilder.ts`, `SimpleFloatingEdge.tsx` |
 | Auto layout | `relayout.ts`, `DagreLayout.ts`, `LayoutEngine.ts` |

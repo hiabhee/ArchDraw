@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { useDiagramStore } from '@/store/diagramStore';
 import { assignEdgeColors } from '@/lib/edgeColors';
+import { resolveCanvasTokens, ensureSketchFontLoaded } from '@/lib/theme/renderStyles';
+import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme';
@@ -85,6 +87,26 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   const [downloaded, setDownloaded] = useState(false);
   const { isDark, setTheme } = useTheme();
   const { fitView } = useReactFlow();
+
+  // Preserve the creator's render style (if any) from the share URL.
+  // Read in an effect (not a state initializer) so SSR/hydration always
+  // agree on the first render.
+  const [renderStyle, setRenderStyle] = useState<'precision' | 'sketch'>('precision');
+
+  useEffect(() => {
+    const style = new URLSearchParams(window.location.search).get('style');
+    if (style === 'sketch') setRenderStyle('sketch');
+  }, []);
+
+  useEffect(() => {
+    useDiagramStore.setState({ diagramRenderStyle: renderStyle });
+    if (renderStyle === 'sketch') ensureSketchFontLoaded();
+  }, [renderStyle]);
+
+  const themeVars = useMemo(
+    () => resolveCanvasTokens({ renderStyleId: renderStyle, colorThemeId: 'slate', isDark }).cssVars,
+    [renderStyle, isDark],
+  );
 
   const nodes = useMemo(
     () => normalizeNodes((canvas?.nodes as unknown[]) || []),
@@ -158,7 +180,11 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   };
 
   return (
-    <div className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground`}>
+    <div
+      className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground ${renderStyle === 'sketch' ? sketchHandwritingFont.className : ''}`}
+      style={themeVars as React.CSSProperties}
+      data-render-style={renderStyle}
+    >
       {/* Top banner */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[hsl(var(--canvas-bg))]/95 backdrop-blur-sm border-b border-border/40">
         <div className="flex items-center gap-2">

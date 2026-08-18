@@ -120,7 +120,7 @@ function TopNav() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className="text-sm text-[#575752] hover:text-[#1c1c1a] py-2.5 transition-colors font-medium"
+                className="text-sm text-[#575752] hover:text-[#1c1c1a] py-3 transition-colors font-medium"
               >
                 {link.label}
               </a>
@@ -129,14 +129,14 @@ function TopNav() {
             <a
               href="/dashboard"
               onClick={() => setMenuOpen(false)}
-              className="text-sm text-[#575752] hover:text-[#1c1c1a] py-2.5 transition-colors font-medium"
+              className="text-sm text-[#575752] hover:text-[#1c1c1a] py-3 transition-colors font-medium"
             >
               Sign in
             </a>
             <a
               href="/dashboard"
               onClick={() => setMenuOpen(false)}
-              className="text-sm font-semibold text-center text-white bg-brand hover:bg-brand-hover px-4 py-2.5 rounded-lg transition-colors"
+              className="text-sm font-semibold text-center text-white bg-brand hover:bg-brand-hover px-4 py-3 rounded-lg transition-colors"
             >
               Get started free
             </a>

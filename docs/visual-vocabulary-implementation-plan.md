@@ -21,7 +21,7 @@ Give diagrams a **richer visual language** so readers infer *role*, *zone*, *pha
 
 **Non-goals (do not implement in this plan):**
 
-- Hand-drawn / Excalidraw sketch theme.
+- ~~Hand-drawn / Excalidraw sketch theme~~ → **superseded**: now shipped as the `sketch` render style in [`diagram-aesthetic-themes-plan.md`](./diagram-aesthetic-themes-plan.md).
 - Full infographic / poster layout engine (stacked panels with diagram + bullet columns).
 - Arbitrary illustration library (speedometers, custom art).
 - Replacing canonical Mermaid → Dagre layout for the toolbar LR/TB toggler.
