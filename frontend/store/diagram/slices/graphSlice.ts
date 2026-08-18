@@ -24,6 +24,7 @@ export type GraphSlice = Pick<
   | 'addNodeOnEdgeDrop'
   | 'addNode'
   | 'removeNode'
+  | 'duplicateNode'
   | 'updateNodeData'
   | 'updateNodeSize'
   | 'updateEdgeData'
@@ -38,6 +39,7 @@ export type GraphSlice = Pick<
   | 'loadDefaultArchitecture'
   | 'alignConnectedNodes'
   | 'recalculateHandles'
+  | 'fixMissingLabels'
 >;
 
 export const createGraphSlice: StateCreator<
@@ -255,7 +257,92 @@ export const createGraphSlice: StateCreator<
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
+  /**
+   * Single duplicate-node path shared by every UI entry point (node toolbar,
+   * properties panel, context menu) so copies are always identical.
+   *
+   * Transient React Flow / UI-only fields are dropped; structural metadata
+   * (shape, typeId, serviceType, size, group membership) is preserved.
+   */
+  duplicateNode: (nodeId, options) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    if (!node) return undefined;
+
+    const offset = options?.offset ?? { x: 30, y: 30 };
+    const labelSuffix = options?.labelSuffix ?? ' (copy)';
+
+    get().pushHistory();
+
+    const TRANSIENT_FIELDS = new Set([
+      'selected',
+      'dragging',
+      'resizing',
+      'measured',
+      'internals',
+      'dragHandle',
+      'positionAbsolute',
+    ]);
+
+    const newId = `${nodeId}-copy-${Date.now()}`;
+    const clone: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (!TRANSIENT_FIELDS.has(key)) clone[key] = value;
+    }
+    const newNode: Node = {
+      ...(clone as Node),
+      id: newId,
+      selected: false,
+      position: {
+        x: node.position.x + offset.x,
+        y: node.position.y + offset.y,
+      },
+      data: {
+        ...node.data,
+        label: `${node.data?.label ?? ''}${labelSuffix}`,
+      },
+    };
+
+    const nodes = [...get().nodes.map((n) => ({ ...n, selected: false })), newNode];
+    const canvases = get().canvases.map((c) =>
+      c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
+    );
+    set({ canvases, selectedNodeId: newId, selectedNodeIds: [newId] });
+    get().saveCanvasToDB(get().activeCanvasId);
+    return newId;
+  },
+
   updateNodeData: (id, data) => {
+    // If shape is being changed, recalculate dimensions
+    if (data.shape) {
+      const node = get().nodes.find((n) => n.id === id);
+      if (node) {
+        const { calculateNodeDimensions } = require('@/lib/utils/nodeSizing');
+        const label = node.data?.label || '';
+        const subtitle = node.data?.subtitle || '';
+        const newDimensions = calculateNodeDimensions(label, subtitle, { shape: data.shape });
+        
+        // Update both data and dimensions
+        const nodes = get().nodes.map((n) =>
+          n.id === id
+            ? {
+                ...n,
+                data: { ...n.data, ...data },
+                style: { ...n.style, width: newDimensions.width, height: newDimensions.height },
+                width: newDimensions.width,
+                height: newDimensions.height,
+              }
+            : n
+        );
+        const canvases = get().canvases.map((c) =>
+          c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
+        );
+        set({ canvases });
+        get().saveCanvasToDB(get().activeCanvasId);
+        return;
+      }
+    }
+    
+    // Normal path for non-shape updates
     const nodes = get().nodes.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, ...data } } : n
     );
@@ -692,5 +779,43 @@ export const createGraphSlice: StateCreator<
     );
     set({ canvases: nextCanvases });
     get().saveCanvasToDB(activeCanvasId);
+  },
+
+  /**
+   * Utility to fix nodes with missing labels or iconOnly=true.
+   * Ensures all nodes have visible labels.
+   */
+  fixMissingLabels: () => {
+    const { nodes, activeCanvasId, canvases } = get();
+    let fixed = false;
+
+    const updatedNodes = nodes.map((node) => {
+      const hasNoLabel = !node.data?.label || node.data.label.trim() === '';
+      const hasIconOnly = node.data?.iconOnly === true;
+
+      if (hasNoLabel || hasIconOnly) {
+        fixed = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            label: node.data?.label || 'Service',
+            iconOnly: false,
+          },
+        };
+      }
+      return node;
+    });
+
+    if (fixed) {
+      const newCanvases = canvases.map((c) =>
+        c.id === activeCanvasId ? { ...c, nodes: updatedNodes, updatedAt: Date.now() } : c
+      );
+      set({ canvases: newCanvases });
+      get().saveCanvasToDB(activeCanvasId);
+      toast.success('Fixed nodes with missing labels');
+    } else {
+      toast.info('No nodes need fixing - all labels are visible');
+    }
   },
 });

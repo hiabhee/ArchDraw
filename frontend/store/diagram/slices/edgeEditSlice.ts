@@ -12,6 +12,7 @@ export type EdgeEditSlice = Pick<
   | 'pendingLabelEdgeId'
   | 'setPendingLabelEdgeId'
   | 'updateEdgeLabel'
+  | 'updateEdgeData'
   | 'deleteEdge'
   | 'onReconnect'
 >;
@@ -32,6 +33,17 @@ export const createEdgeEditSlice: StateCreator<
   updateEdgeLabel: (edgeId, label) => {
     const edges = get().edges.map((e) =>
       e.id === edgeId ? { ...e, label: label.trim(), data: { ...e.data, label: label.trim() } } : e
+    );
+    const canvases = get().canvases.map((c) =>
+      c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
+    );
+    set({ canvases });
+    get().saveCanvasToDB(get().activeCanvasId);
+  },
+
+  updateEdgeData: (edgeId, dataUpdates) => {
+    const edges = get().edges.map((e) =>
+      e.id === edgeId ? { ...e, data: { ...e.data, ...dataUpdates } } : e
     );
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
