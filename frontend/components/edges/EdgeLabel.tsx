@@ -4,6 +4,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
+import {
+  SKETCH_INK_LIGHT_TITLE,
+  SKETCH_INK_DARK_TITLE,
+} from '@/lib/theme/renderStyles';
 
 interface EdgeLabelProps {
   edgeId: string;
@@ -36,6 +41,7 @@ export function EdgeLabel({
   onEditingChange,
 }: EdgeLabelProps) {
   const { isDark } = useCanvasTheme();
+  const { renderStyleId } = useDiagramAesthetics();
   const updateEdgeLabel = useDiagramStore((s) => s.updateEdgeLabel);
 
   const isControlled = controlledEditing !== undefined;
@@ -111,33 +117,69 @@ export function EdgeLabel({
   const lineColor = color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : undefined;
   // Match canvas fill so the label looks transparent but punches a gap in the edge.
   const knockout = 'hsl(var(--canvas-bg))';
+  const sketch = renderStyleId === 'sketch';
 
-  const pillStyle: React.CSSProperties = {
-    background: knockout,
-    color: lineColor
-      ? (isDark ? mixHex(lineColor, '#e2e8f0', 0.55) : mixHex(lineColor, '#334155', 0.45))
-      : isDark ? '#94a3b8' : '#64748b',
-    borderRadius: 3,
-    border: isDark
-      ? '1px solid rgba(148, 163, 184, 0.28)'
-      : '1px solid rgba(15, 23, 42, 0.12)',
-    fontSize: 9,
-    fontFamily: 'Inter, "IBM Plex Sans", system-ui, sans-serif',
-    fontWeight: 500,
-    padding: '2px 6px',
-    lineHeight: 1.2,
-    textAlign: 'center',
-    outline: 'none',
-    boxShadow: 'none',
-    position: 'relative',
-    zIndex: 1000,
-    textTransform: 'none',
-    letterSpacing: '0.01em',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    verticalAlign: 'middle',
-  };
+  // Sketch labels sit on a paper/chalk pill — text is warm ink, tinted only
+  // when the user hand-picked an edge color. Precision labels blend with
+  // slate so they stay legible over the canvas knockout.
+  const textColor = lineColor
+    ? sketch
+      ? isDark
+        ? mixHex(lineColor, SKETCH_INK_DARK_TITLE, 0.3)
+        : mixHex(lineColor, SKETCH_INK_LIGHT_TITLE, 0.3)
+      : (isDark ? mixHex(lineColor, '#e2e8f0', 0.55) : mixHex(lineColor, '#334155', 0.45))
+    : sketch
+      ? isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
+      : isDark ? '#94a3b8' : '#64748b';
+
+  const pillStyle: React.CSSProperties = sketch
+    ? {
+        background: isDark ? '#24262b' : '#f7f2e8',  // Sketch paper colors
+        color: textColor,
+        borderRadius: 8,
+        border: isDark
+          ? '1.5px solid rgba(245, 242, 235, 0.25)'
+          : '1.5px solid rgba(92, 74, 48, 0.22)',
+        padding: '3px 8px',
+        lineHeight: 1.2,
+        textAlign: 'center',
+        outline: 'none',
+        boxShadow: isDark
+          ? '0 1px 3px rgba(0, 0, 0, 0.3)'
+          : '0 1px 2px rgba(15, 23, 42, 0.08)',
+        position: 'relative',
+        zIndex: 1000,
+        textTransform: 'none',
+        letterSpacing: '0.02em',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        verticalAlign: 'middle',
+      }
+    : {
+        background: knockout,
+        color: textColor,
+        borderRadius: 3,
+        border: isDark
+          ? '1px solid rgba(148, 163, 184, 0.28)'
+          : '1px solid rgba(15, 23, 42, 0.12)',
+        fontSize: 9,
+        fontFamily: 'Inter, "IBM Plex Sans", system-ui, sans-serif',
+        fontWeight: 500,
+        padding: '2px 6px',
+        lineHeight: 1.2,
+        textAlign: 'center',
+        outline: 'none',
+        boxShadow: 'none',
+        position: 'relative',
+        zIndex: 1000,
+        textTransform: 'none',
+        letterSpacing: '0.01em',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        verticalAlign: 'middle',
+      };
 
   if (!displayText && !editing) {
     return null;
@@ -149,6 +191,7 @@ export function EdgeLabel({
         <motion.input
           key="edit"
           ref={inputRef}
+          className={sketch ? 'edge-label-pill' : undefined}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -168,6 +211,7 @@ export function EdgeLabel({
       ) : (
         <motion.span
           key="read"
+          className={sketch ? 'edge-label-pill' : undefined}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

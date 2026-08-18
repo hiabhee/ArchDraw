@@ -1,11 +1,14 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { NodeProps, NodeResizer, useUpdateNodeInternals } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { getConcernColor, CONCERN_COLORS } from '@/lib/theme/stylingConstants';
+import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
+import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodes/nodeStyles.css';
 
@@ -14,12 +17,27 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [box, setBox] = useState({ width: 0, height: 0 });
   const { isDark } = useCanvasTheme();
+  const aesthetics = useDiagramAesthetics();
+  const sketch = aesthetics.renderStyleId === 'sketch';
 
   useEffect(() => {
     updateNodeInternals(id);
   }, [id, updateNodeInternals]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setBox({ width, height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const handleResizeEnd = () => {
     const state = useDiagramStore.getState();
@@ -44,16 +62,49 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     getConcernColor(concernHint) ||
     CONCERN_COLORS.compute.color;
 
-  const bg = isDark ? hexToRgba(color, 0.09) : hexToRgba(color, 0.05);
-  const borderColor = isDark
-    ? selected
+  // Sketch groups keep the concern tint at a softer opacity so the dashed
+  // boundary reads as a penciled swimlane but still carries the color cue.
+  const bg = sketch
+    ? isDark ? hexToRgba(color, 0.06) : hexToRgba(color, 0.04)
+    : isDark ? hexToRgba(color, 0.09) : hexToRgba(color, 0.05);
+  const borderColor = selected
+    ? isDark
       ? hexToRgba(color, 0.65)
-      : hexToRgba(color, 0.38)
-    : selected
-      ? hexToRgba(color, 0.6)
-      : hexToRgba(color, 0.32);
+      : hexToRgba(color, 0.6)
+    : sketch
+      ? isDark
+        ? hexToRgba(color, 0.30)
+        : hexToRgba(color, 0.25)
+      : isDark
+        ? hexToRgba(color, 0.38)
+        : hexToRgba(color, 0.32);
 
   const borderWidth = selected ? 1.5 : 1;
+  const borderStyle: 'dashed' | 'solid' = sketch ? 'dashed' : 'solid';
+
+  // Sketch body: rough rounded-rect (wobbly dashed border + tinted solid
+  // fill) replacing the crisp CSS border. Same geometry → renderer path as
+  // SystemNode / ShapeNode. Recomputed on resize via `box`.
+  const sketchBody = useMemo(() => {
+    if (!sketch || box.width <= 0) return '';
+    const w = box.width + 4;
+    const h = box.height + 4;
+    const prims = getShapePrimitives('rounded-rectangle', w, h).map((p) =>
+      p.rx ? { ...p, rx: Math.max(p.rx, Math.round(aesthetics.borderRadius)) } : p,
+    );
+    const surface: RenderSurface = {
+      fill: bg,
+      stroke: borderColor,
+      strokeWidth: borderWidth,
+    };
+    return renderSketchSurface({
+      primitives: prims,
+      surface,
+      seedId: id,
+      isDark,
+      shape: 'rounded-rectangle',
+    });
+  }, [sketch, box.width, box.height, bg, borderColor, borderWidth, aesthetics.borderRadius, id, isDark]);
 
   const tagText = isDark ? hexToRgba(color, 0.9) : color;
   const tagBg = isDark ? 'transparent' : 'transparent';
@@ -99,24 +150,43 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
 
   return (
     <div
+      ref={containerRef}
       style={{
         width: '100%',
         height: '100%',
-        backgroundColor: bg,
-        border: `${borderWidth}px solid ${borderColor}`,
-        borderRadius: 12,
+        // In sketch the rough SVG rect is the surface — drop the CSS bg/border.
+        backgroundColor: sketch ? 'transparent' : bg,
+        border: sketch ? 'none' : `${borderWidth}px ${borderStyle} ${borderColor}`,
+        borderRadius: sketch ? 0 : 12,
         position: 'relative',
         boxSizing: 'border-box',
         cursor: 'pointer',
         boxShadow: 'none',
         ['--node-accent' as string]: color,
-        ['--node-card-bg' as string]: isDark ? '#1a1d24' : '#ffffff',
+        ['--node-card-bg' as string]: sketch
+          ? aesthetics.colors.nodeFill
+          : isDark ? '#1a1d24' : '#ffffff',
       }}
       onClick={handleContainerClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onDragStart={(e) => e.preventDefault()}
     >
+      {sketch && sketchBody && (
+        <svg
+          style={{
+            position: 'absolute',
+            top: -2,
+            left: -2,
+            width: box.width + 4,
+            height: box.height + 4,
+            zIndex: 0,
+            pointerEvents: 'none',
+            overflow: 'visible',
+          }}
+          dangerouslySetInnerHTML={{ __html: sketchBody }}
+        />
+      )}
       <NodeResizer
         isVisible={!!selected || isHovered}
         minWidth={150}
@@ -133,6 +203,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
       />
       {/* Quiet caption label */}
       <div
+        className={sketch ? 'group-label' : undefined}
         style={{
           position: 'absolute',
           top: 8,

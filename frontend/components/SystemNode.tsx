@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import { NodeProps } from 'reactflow';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
@@ -13,6 +13,9 @@ import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { resolveAutoCloudIcon } from '@/lib/cloudIcons/autoResolution';
 import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
+import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
+import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import {
   getConcernColor,
   SIZE_M,
@@ -68,6 +71,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const iconMode = useDiagramStore((s) => s.iconMode);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
+  const aesthetics = useDiagramAesthetics();
   const nodeCardRef = useRef<HTMLDivElement>(null);
   const showEditChrome = diagramChromeMode !== 'present';
 
@@ -143,18 +147,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const handleDuplicate = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    const nodes = useDiagramStore.getState().nodes;
-    const node = nodes.find(n => n.id === id);
-    if (node) {
-      const newId = `${id}-copy-${Date.now()}`;
-      useDiagramStore.getState().addNode({
-        ...node,
-        id: newId,
-        position: { x: node.position.x + 30, y: node.position.y + 30 },
-        data: { ...node.data, label: `${node.data.label} (copy)` },
-      });
-      useDiagramStore.getState().setSelectedNodeIds([newId]);
-    }
+    useDiagramStore.getState().duplicateNode(id);
   }, [id]);
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
@@ -202,6 +195,47 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     ? Math.round(cloudIconSize * 0.78)
     : ICON_SIZE.node;
 
+  const sketch = aesthetics.renderStyleId === 'sketch';
+  // Sketch body: a rough SVG rounded-rect that bleeds ~2px past the card so
+  // its wobbly border is fully visible once the crisp CSS border is removed.
+  // Uses the same shapeGeometry → strokeRenderer path as ShapeNode.
+  const sketchCardBody = useMemo(() => {
+    if (!sketch) return '';
+    const w = cardWidth + 4;
+    const h = cardHeight + 4;
+    const prims = getShapePrimitives('rounded-rectangle', w, h).map((p) =>
+      p.rx ? { ...p, rx: Math.max(p.rx, Math.round(aesthetics.borderRadius)) } : p,
+    );
+    const surface: RenderSurface = {
+      fill: aesthetics.cssVars['--arch-node-fill'] ?? aesthetics.colors.nodeFill,
+      stroke: aesthetics.colors.nodeStroke,
+      strokeWidth: aesthetics.strokeWidth,
+    };
+    return renderSketchSurface({
+      primitives: prims,
+      surface,
+      seedId: id,
+      isDark,
+      shape: 'rounded-rectangle',
+    });
+  }, [sketch, cardWidth, cardHeight, aesthetics, id, isDark]);
+
+  // M4 — accent wash: a rough scribble of the concern color behind the icon
+  // box in sketch, replacing the crisp `--node-accent-bg` block.
+  const sketchAccentWash = useMemo(() => {
+    if (!sketch) return '';
+    const renderer = getStrokeRenderer('rough');
+    const s = iconBoxSize + 6;
+    const surface: RenderSurface = {
+      fill: hexToRgba(accentColor, isDark ? 0.18 : 0.1),
+      stroke: 'none',
+      strokeWidth: 0,
+    };
+    return applyShapeSurface(getShapePrimitives('circle', s, s), surface)
+      .map((p) => renderer.renderPrimitive(p, renderer.seedFor(`${id}-wash`)))
+      .join('\n');
+  }, [sketch, iconBoxSize, accentColor, isDark, id]);
+
   return (
       <div
         className={`node-wrapper${selected ? ' selected' : ''}${nodeKind ? ` node-${nodeKind}` : ''}`}
@@ -215,6 +249,22 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           ['--node-status-color' as string]: statusColor,
         }}
       >
+        {sketch && sketchCardBody && (
+          <svg
+            className="node-sketch-body"
+            style={{
+              position: 'absolute',
+              top: -2,
+              left: -2,
+              width: cardWidth + 4,
+              height: cardHeight + 4,
+              zIndex: 3,
+              pointerEvents: 'none',
+              overflow: 'visible',
+            }}
+            dangerouslySetInnerHTML={{ __html: sketchCardBody }}
+          />
+        )}
         <div
           ref={nodeCardRef}
           className={`group node-card${nodeKind === 'database' ? ' node-card-db' : ''}`}
@@ -253,6 +303,22 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             style={{ width: iconBoxSize, height: iconBoxSize }}
             aria-hidden="true"
           >
+            {sketch && sketchAccentWash && (
+              <svg
+                className="node-sketch-accent"
+                style={{
+                  position: 'absolute',
+                  top: -3,
+                  left: -3,
+                  width: iconBoxSize + 6,
+                  height: iconBoxSize + 6,
+                  zIndex: 0,
+                  pointerEvents: 'none',
+                  overflow: 'visible',
+                }}
+                dangerouslySetInnerHTML={{ __html: sketchAccentWash }}
+              />
+            )}
             {providerIcon ? (
               <ProviderServiceIcon
                 provider={providerIcon.kind}
@@ -266,6 +332,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 fallbackIcon={resolvedIcon.icon}
                 fallbackColor={resolvedIcon.color}
                 size={iconGlyphSize}
+                renderStyle={aesthetics.renderStyleId}
               />
             )}
           </div>
@@ -274,8 +341,9 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             <input
               {...labelEdit.inputProps}
               style={{
-                fontSize: 13.5,
-                fontWeight: 600,
+                fontSize: sketch ? 15 : 13.5,
+                fontWeight: sketch ? 400 : 600,
+                fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
                 color: 'var(--node-title-color)',
                 background: 'transparent',
                 border: 'none',
@@ -283,7 +351,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 padding: 0,
                 margin: 0,
                 lineHeight: 1.25,
-                letterSpacing: '-0.015em',
+                letterSpacing: sketch ? '0.02em' : '-0.015em',
                 width: '100%',
                 minWidth: 0,
                 flex: 1,

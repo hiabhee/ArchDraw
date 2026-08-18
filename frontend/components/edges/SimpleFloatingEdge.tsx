@@ -12,7 +12,13 @@ import {
   Edge,
 } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
-import { getPointOnPath, findClosestT } from '@/lib/utils/edgeLabelDrag';
+import {
+  getPointOnPath,
+  findClosestT,
+  shortenSvgPathEnd,
+  SKETCH_ARROWHEAD_TRIM_PX,
+} from '@/lib/utils/edgeLabelDrag';
+import { buildSmoothStepSvg, trimWaypointsEnd } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
 import { sideFromHandleId, sideFromDataString, getSharedTerminalEdges } from '@/lib/utils/simpleFloatingEdge';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -25,6 +31,8 @@ import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
 import type { EdgeData } from '@/data/edgeTypes';
 import { resolveEdgePalette } from '@/lib/edgeColors';
 import { isPrimaryEdge } from '@/lib/utils/edgeHierarchy';
+import { getStrokeRenderer } from '@/lib/theme/renderStyles';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 
 /** Darken a hex color by a fixed amount; leaves non-hex colors untouched. */
 function darkenColor(color: string, amount: number): string {
@@ -34,6 +42,28 @@ function darkenColor(color: string, amount: number): string {
   const g = Math.max(0, ((n >> 8) & 0xff) - amount);
   const b = Math.max(0, (n & 0xff) - amount);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function buildSolidArrowheadPath(
+  tip: { x: number; y: number },
+  angle: number,
+  length = 14,
+  width = 12,
+): string {
+  const backX = tip.x - Math.cos(angle) * length;
+  const backY = tip.y - Math.sin(angle) * length;
+  const normalX = Math.cos(angle + Math.PI / 2);
+  const normalY = Math.sin(angle + Math.PI / 2);
+  const halfWidth = width / 2;
+  const left = {
+    x: backX + normalX * halfWidth,
+    y: backY + normalY * halfWidth,
+  };
+  const right = {
+    x: backX - normalX * halfWidth,
+    y: backY - normalY * halfWidth,
+  };
+  return `M ${tip.x} ${tip.y} L ${left.x} ${left.y} L ${right.x} ${right.y} Z`;
 }
 
 export default function SimpleFloatingEdge({
@@ -53,7 +83,6 @@ export default function SimpleFloatingEdge({
   sourceHandleId,
   targetHandleId,
   markerEnd,
-  markerStart,
 }: EdgeProps<EdgeData>) {
   const nodeInternals = useStore((s: ReactFlowState) => s.nodeInternals);
   const edges = useStore((s: ReactFlowState) => s.edges);
@@ -106,7 +135,14 @@ export default function SimpleFloatingEdge({
     sourcePoint: { x: sx, y: sy },
     targetPoint: { x: tx, y: ty },
     svgPath: edgePath,
+    waypoints: routeWaypoints,
   } = route;
+
+  // React Flow can briefly render an edge before both terminals are in
+  // nodeInternals; keep the last good path so sketch overlays don't blink out.
+  const edgePathRef = useRef('');
+  if (edgePath) edgePathRef.current = edgePath;
+  const stableEdgePath = edgePath || edgePathRef.current;
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -205,9 +241,17 @@ export default function SimpleFloatingEdge({
   }, [data?.customWaypoints, id, route.waypoints, updateEdgeData]);
 
   const { isDark } = useCanvasTheme();
+  const { renderStyleId, colors } = useDiagramAesthetics();
+  const sketch = renderStyleId === 'sketch';
+  const sketchInk = useMemo(
+    () => sketch
+      ? { primary: colors.edgePrimary, default: colors.edgeDefault, async: colors.edgeAsync }
+      : undefined,
+    [sketch, colors.edgePrimary, colors.edgeDefault, colors.edgeAsync],
+  );
 
   const strokeStyle: React.CSSProperties = useMemo(() => {
-    const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark);
+    const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark, sketch, sketchInk);
     let stroke = edgeStyle?.stroke || palette.stroke;
     const baseWidth = palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth;
 
@@ -249,9 +293,84 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle, data]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle, data, sketch, sketchInk]);
 
   const resolvedStroke = typeof strokeStyle.stroke === 'string' ? strokeStyle.stroke : undefined;
+  const arrowheadColor = resolvedStroke ?? '#94a3b8';
+
+  // Same-side terminal merge: edges that share this terminal side land on one
+  // handler. Only the first edge by id draws the arrowhead so the join reads
+  // as a single connection (multiple paths, one tip).
+  const showMergedTargetMarker = useMemo(() => {
+    const currentTargetSide =
+      sideFromDataString(data?.targetSide) ??
+      sideFromHandleId(targetHandleId) ??
+      targetPos;
+    const siblings = getSharedTerminalEdges(
+      id, target, currentTargetSide, edges, nodeInternals, 'target',
+    );
+    if (siblings.length <= 1) return true;
+    return siblings[0]?.id === id;
+  }, [edges, target, targetPos, targetHandleId, nodeInternals, id, data?.targetSide]);
+
+  const sketchDrawPath = useMemo(() => {
+    if (!stableEdgePath) return '';
+    if (routeWaypoints.length >= 2) {
+      return buildSmoothStepSvg(
+        trimWaypointsEnd(routeWaypoints, SKETCH_ARROWHEAD_TRIM_PX),
+        24,
+      );
+    }
+    return shortenSvgPathEnd(stableEdgePath, SKETCH_ARROWHEAD_TRIM_PX);
+  }, [stableEdgePath, routeWaypoints]);
+
+  const precisionArrowheadPath = useMemo(() => {
+    if (sketch || !showMergedTargetMarker || !markerEnd || !stableEdgePath) return '';
+    try {
+      const pathEnd =
+        routeWaypoints.length >= 2
+          ? routeWaypoints[routeWaypoints.length - 2]
+          : getPointOnPath(stableEdgePath, 0.98);
+      const endAngle = Math.atan2(ty - pathEnd.y, tx - pathEnd.x);
+      return buildSolidArrowheadPath({ x: tx, y: ty }, endAngle);
+    } catch {
+      return '';
+    }
+  }, [sketch, showMergedTargetMarker, markerEnd, stableEdgePath, routeWaypoints, tx, ty]);
+
+  const sketchMarkup = useMemo(() => {
+    if (!sketch || !sketchDrawPath) return '';
+    const rough = getStrokeRenderer('rough');
+    const seed = rough.seedFor(id);
+    // Sketch palette: warm hand-ink spine + thinned strokes (from resolved tokens).
+    const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark, true, sketchInk);
+    // In sketch mode, always use the palette stroke (not data.color) to ensure consistent hand-drawn ink
+    const strokeColor = palette.stroke;
+    const width = palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth;
+    const dasharray = strokeStyle.strokeDasharray ? String(strokeStyle.strokeDasharray) : undefined;
+    const pathSVG = rough.renderEdgePath(
+      sketchDrawPath,
+      { d: sketchDrawPath, stroke: strokeColor, strokeWidth: width, dasharray, opacity: 1 },
+      seed,
+    );
+    const parts = [pathSVG];
+    if (showMergedTargetMarker) {
+      try {
+        const pathEnd =
+          routeWaypoints.length >= 2
+            ? trimWaypointsEnd(routeWaypoints, SKETCH_ARROWHEAD_TRIM_PX).at(-1)!
+            : getPointOnPath(sketchDrawPath, 1);
+        const endAngle = Math.atan2(ty - pathEnd.y, tx - pathEnd.x);
+        parts.push(rough.renderArrowhead({ x: tx, y: ty }, endAngle, strokeColor, seed));
+      } catch {
+        // ignore — fall back to no arrowhead
+      }
+    }
+    return parts.join('\n');
+  }, [
+    sketch, sketchDrawPath, strokeStyle.strokeDasharray, showMergedTargetMarker,
+    routeWaypoints, tx, ty, id, data, isDark, sketchInk,
+  ]);
 
   const rawLabel = responseLabel
     ? `${label || data?.label || ''} / ${responseLabel}`
@@ -271,44 +390,16 @@ export default function SimpleFloatingEdge({
   const labelOrder = Math.max(0, parallelEdges.findIndex((edge) => edge.id === id));
   const labelT = data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
 
-  // Same-side terminal merge: edges that share this target side land on one
-  // handler. Only the first edge by id draws the arrowhead so the join reads
-  // as a single connection (multiple paths, one tip).
-  const showMergedTargetMarker = useMemo(() => {
-    const currentTargetSide =
-      sideFromDataString(data?.targetSide) ??
-      sideFromHandleId(targetHandleId) ??
-      targetPos;
-    const siblings = getSharedTerminalEdges(
-      id, target, currentTargetSide, edges, nodeInternals, 'target',
-    );
-    if (siblings.length <= 1) return true;
-    return siblings[0]?.id === id;
-  }, [edges, target, targetPos, targetHandleId, nodeInternals, id, data?.targetSide]);
-
-  const showMergedSourceMarker = useMemo(() => {
-    if (!markerStart) return false;
-    const currentSourceSide =
-      sideFromDataString(data?.sourceSide) ??
-      sideFromHandleId(sourceHandleId) ??
-      sourcePos;
-    const siblings = getSharedTerminalEdges(
-      id, source, currentSourceSide, edges, nodeInternals, 'source',
-    );
-    if (siblings.length <= 1) return true;
-    return siblings[0]?.id === id;
-  }, [edges, source, sourcePos, sourceHandleId, nodeInternals, id, markerStart, data?.sourceSide]);
-
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     const resolved = labelLayouts.get(id);
     if (resolved) return { x: resolved.x, y: resolved.y, angle: 0 };
     try {
-      return getPointOnPath(edgePath, labelT);
+      return getPointOnPath(stableEdgePath, labelT);
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayouts, id, displayLabel, edgePath, labelT, sx, sy, tx, ty]);
+  }, [labelLayouts, id, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty]);
 
   // The edge-label layer lives inside the zoomed viewport, so labels are
   // positioned in world coordinates; counter-scale them so they stay legible
@@ -342,7 +433,7 @@ export default function SimpleFloatingEdge({
         const { x: vpX, y: vpY, zoom } = getViewport();
         const flowX = (ev.clientX - vpX) / zoom;
         const flowY = (ev.clientY - vpY) / zoom;
-        const newT = findClosestT(edgePath, flowX, flowY);
+        const newT = findClosestT(stableEdgePath, flowX, flowY);
         if (useDiagramStore.getState().activeCanvasId) {
           updateEdgeData(id, { labelT: newT });
         }
@@ -365,7 +456,7 @@ export default function SimpleFloatingEdge({
         window.removeEventListener('mouseup', onMouseUp);
       };
     },
-    [edgePath, getViewport, id, labelEditing, updateEdgeData]
+    [stableEdgePath, getViewport, id, labelEditing, updateEdgeData]
   );
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -392,7 +483,7 @@ export default function SimpleFloatingEdge({
   return (
     <>
       <path
-        d={edgePath}
+        d={stableEdgePath}
         fill="none"
         strokeWidth={20}
         stroke="transparent"
@@ -405,18 +496,34 @@ export default function SimpleFloatingEdge({
       />
       <path
         id={id}
-        d={edgePath}
+        d={stableEdgePath}
         fill="none"
-        strokeDasharray={strokeStyle.strokeDasharray}
-        markerStart={showMergedSourceMarker ? markerStart : undefined}
-        markerEnd={showMergedTargetMarker ? markerEnd : undefined}
+        strokeDasharray={sketch ? undefined : strokeStyle.strokeDasharray}
         className="react-flow__edge-path"
-        style={strokeStyle}
+        style={sketch ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : strokeStyle}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       />
+
+      {precisionArrowheadPath ? (
+        <path
+          d={precisionArrowheadPath}
+          fill={arrowheadColor}
+          stroke={arrowheadColor}
+          strokeWidth={0}
+          style={{
+            opacity: strokeStyle.opacity,
+            pointerEvents: 'none',
+            transition: 'fill 0.2s, stroke 0.2s, opacity 0.2s',
+          }}
+        />
+      ) : null}
+
+      {sketch && sketchMarkup ? (
+        <g className="arch-sketch-edge" dangerouslySetInnerHTML={{ __html: sketchMarkup }} />
+      ) : null}
 
       {selected && intermediateWaypoints.length > 0 && intermediateWaypoints.map((wp, idx) => (
         <g key={`wp-${idx}`} style={{ pointerEvents: 'all' }}>

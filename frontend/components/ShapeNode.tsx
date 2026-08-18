@@ -32,6 +32,16 @@ import { TechnologyBrandIcon } from '@/components/icons/TechnologyBrandIcon';
 import { getTechnologyBrandSlug } from '@/lib/brandIcons';
 import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import { type ShapeType } from '@/lib/shapeRegistry';
+import { getShapePrimitives, type ShapeGeometryAxis } from '@/lib/theme/shapeGeometry';
+import {
+  applyShapeSurface,
+  getStrokeRenderer,
+  resolveRenderSurface,
+  renderSketchSurface,
+  type RenderSurface,
+  type ShapePrimitive,
+} from '@/lib/theme/renderStyles';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import './nodes/nodeStyles.css';
 
 export type { ShapeType };
@@ -42,7 +52,9 @@ export type ShapeLabelLayout = 'default' | 'icon-brand' | 'pipe-text';export fun
   iconMode: NodeIconMode,
 ): ShapeLabelLayout {
   if (iconMode === 'off' || !shape) return 'default';
-  if (shape === 'cylinder' && resolveCylinderAxis(data) === 'horizontal') return 'pipe-text';
+  // Queue shape uses pipe-text layout (horizontal label)
+  if (shape === 'queue') return 'pipe-text';
+  // Cylinder (vertical drum) and other large shapes use icon-brand layout
   if (shape === 'cylinder' || shape === 'rounded-rectangle' || shape === 'circle') return 'icon-brand';
   // Semantic silhouettes prefer prominent icons too (LB logos, auth shields, web clients).
   if (shape !== 'diamond' && nodeHasProminentBrand(data)) return 'icon-brand';
@@ -142,6 +154,7 @@ function Label({
   height,
   maxWidth,
   shape,
+  sketch = false,
 }: {
   data: ShapeNodeData;
   color: string;
@@ -150,6 +163,7 @@ function Label({
   height: number;
   maxWidth?: number;
   shape?: ShapeType;
+  sketch?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iconMode = useDiagramStore((s) => s.iconMode);
@@ -209,7 +223,9 @@ function Label({
   const isPipeMultiline = isPipeText && pipeLineCount > 1;
   const sublabelMaxWidth = getShapeLabelMaxWidth(shape, width, 'subtitle');
   const labelNudge = getDiamondLabelNudge(shape, showIcon && !isIconBrand, Boolean(sublabel));
-  const autoIconOnly = isIconBrand && showIcon && hasBrandLogo;
+  // Auto-hide labels for brand logos ONLY if iconMode is explicitly controlling it
+  // Default behavior: always show labels alongside icons
+  const autoIconOnly = false;  // Changed: never auto-hide labels
   const iconOnly =
     data.iconOnly === true ? showIcon
       : data.iconOnly === false ? false
@@ -244,7 +260,7 @@ function Label({
         width: '100%',
         maxWidth: maxWidth ?? '100%',
         transform: labelNudge ? `translateY(${labelNudge}px)` : undefined,
-        padding: isPipeText ? '0 12px' : undefined,
+        padding: isPipeText ? '0 12px' : sketch ? '6px 8px' : undefined,
         cursor: iconOnly ? 'text' : undefined,
       }}
     >
@@ -283,8 +299,9 @@ function Label({
         <input
           {...labelEdit.inputProps}
           style={{
-            fontSize: 13.5,
-            fontWeight: 600,
+            fontSize: sketch ? 15 : 13.5,
+            fontWeight: sketch ? 400 : 600,
+            fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
             color: 'var(--node-title-color, hsl(var(--foreground)))',
             background: 'transparent',
             border: 'none',
@@ -292,7 +309,7 @@ function Label({
             padding: 0,
             margin: 0,
             lineHeight: 1.25,
-            letterSpacing: '-0.015em',
+            letterSpacing: sketch ? '0.02em' : '-0.015em',
             width: '100%',
             textAlign: 'center',
             boxSizing: 'border-box',
@@ -313,8 +330,10 @@ function Label({
             maxWidth: '100%',
             textAlign: 'center',
             flex: 'none',
-            fontSize: isIconBrand ? 11 : isPipeText ? 11 : undefined,
-            fontWeight: isIconBrand ? 500 : undefined,
+            fontSize: sketch ? 15 : (isIconBrand ? 11 : isPipeText ? 11 : undefined),
+            fontWeight: sketch ? 400 : (isIconBrand ? 500 : undefined),
+            fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
+            letterSpacing: sketch ? '0.02em' : undefined,
             lineHeight: isPipeMultiline ? 1.15 : undefined,
             textOverflow: isPipeText && !isPipeMultiline ? 'ellipsis' : undefined,
             overflow: isPipeText && !isPipeMultiline ? 'hidden' : undefined,
@@ -333,6 +352,9 @@ function Label({
             textAlign: 'center',
             fontSize: shape === 'diamond' || shape === 'circle' ? 10 : isPipeText ? 10 : undefined,
             lineHeight: 1.2,
+            fontFamily: sketch ? 'var(--arch-font-subtitle, "Nanum Pen Script", cursive)' : undefined,
+            fontWeight: sketch ? 400 : undefined,
+            letterSpacing: sketch ? '0.02em' : undefined,
           }}
         >
           {sublabel}
@@ -369,23 +391,15 @@ function resolveShapeSurface(
   styles: NodeStyleConfig,
   selected: boolean,
   accentColor: string,
+  sketch = false,
 ) {
-  const fill = isDark ? styles.background : '#ffffff';
-  const stroke = selected
-    ? accentColor
-    : isDark
-      ? 'rgba(255, 255, 255, 0.12)'
-      : 'rgba(15, 23, 42, 0.14)';
-  const strokeWidth = selected ? 2 : 1.25;
-  const boxShadow = selected ? styles.shadowSelected : styles.shadow;
-  const dropShadow = isDark
-    ? selected
-      ? 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4))'
-      : 'drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35))'
-    : selected
-      ? 'drop-shadow(0 2px 8px rgba(15, 23, 42, 0.06))'
-      : 'drop-shadow(0 1px 2px rgba(15, 23, 42, 0.04))';
-  return { fill, stroke, strokeWidth, boxShadow, dropShadow };
+  return resolveRenderSurface({
+    renderStyleId: sketch ? 'sketch' : 'precision',
+    isDark,
+    selected,
+    accentColor,
+    nodeStyle: styles,
+  });
 }
 
 const SVG_SURFACE_STYLE = (width: number, height: number) => ({
@@ -399,6 +413,65 @@ const SVG_SURFACE_STYLE = (width: number, height: number) => ({
   pointerEvents: 'none' as const,
 });
 
+/** Render style-agnostic primitives through the crisp stroke renderer. */
+function renderPrimitivesSvg(primitives: ShapePrimitive[], surface: RenderSurface): string {
+  return applyShapeSurface(primitives, surface)
+    .map((p) => getStrokeRenderer('crisp').renderPrimitive(p, 0))
+    .join('\n');
+}
+
+/** Rough (sketch) shape body — same geometry, wobbly stroke + cross-hatch fill. */
+function renderSketchBodySvg(
+  shape: ShapeType,
+  width: number,
+  height: number,
+  surface: RenderSurface,
+  seed: number,
+  isDark: boolean,
+  axis?: ShapeGeometryAxis,
+): string {
+  return renderSketchSurface({
+    primitives: getShapePrimitives(shape, width, height, axis, true), // Pass true for isSketch
+    surface,
+    seedId: seed,
+    isDark,
+    shape,
+  });
+}
+
+/** Deterministic per-node seed so sketch wobble is stable across re-renders. */
+function sketchSeed(id: string): number {
+  return getStrokeRenderer('rough').seedFor(id);
+}
+
+function SketchBody({
+  shape,
+  width,
+  height,
+  surface,
+  seed,
+  axis,
+  isDark,
+}: {
+  shape: ShapeType;
+  width: number;
+  height: number;
+  surface: RenderSurface;
+  seed: number;
+  axis?: ShapeGeometryAxis;
+  isDark: boolean;
+}) {
+  const body = renderSketchBodySvg(shape, width, height, surface, seed, isDark, axis);
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={SVG_SURFACE_STYLE(width, height)}
+      dangerouslySetInnerHTML={{ __html: body }}
+    />
+  );
+}
+
 type ShapeShellProps = {
   id: string;
   data: ShapeNodeData;
@@ -409,14 +482,27 @@ type ShapeShellProps = {
   width: number;
   height: number;
   labelMaxWidth: number;
+  sketch?: boolean;
 };
 
 // ── Individual shape renderers ────────────────────────────────────────────────
 
-function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth }: ShapeShellProps & { rounded: boolean }) {
+function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch }: ShapeShellProps & { rounded: boolean }) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
-  const r = rounded ? 10 : 6;
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const r = getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', width, height)[0].rx ?? 6;
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
+        {backplates.length > 0 && <Backplates layers={backplates} borderRadius={r} />}
+        <SketchBody shape={rounded ? 'rounded-rectangle' : 'rectangle'} width={width} height={height} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} sketch />
+        </div>
+        <Handles color={color} nodeId={id} />
+      </div>
+    );
+  }
   return (
     <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
       {backplates.length > 0 && <Backplates layers={backplates} borderRadius={r} />}
@@ -443,10 +529,23 @@ function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, wi
   );
 }
 
-function Diamond({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Diamond({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
-  const points = `${W / 2},4 ${W - 4},${H / 2} ${W / 2},${H - 4} 4,${H / 2}`;
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="diamond" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', clipPath: diamondClipPath(W, H) }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="diamond" sketch />
+        </div>
+      </div>
+    );
+  }
+  const primitives = getShapePrimitives('diamond', W, H);
+  const points = primitives[0].points ?? '';
+  const body = renderPrimitivesSvg(primitives, surface);
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       {backplates.map((layer, i) => (
@@ -454,14 +553,7 @@ function Diamond({ id, data, selected, backplates, isDark, styles, width: W, hei
           <polygon points={points} fill={layer.color} />
         </svg>
       ))}
-      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }}>
-        <polygon
-          points={points}
-          fill={surface.fill}
-          stroke={surface.stroke}
-          strokeWidth={surface.strokeWidth}
-        />
-      </svg>
+      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }} dangerouslySetInnerHTML={{ __html: body }} />
       <Handles color={color} nodeId={id} />
       <div
         style={{
@@ -479,23 +571,24 @@ function Diamond({ id, data, selected, backplates, isDark, styles, width: W, hei
   );
 }
 
-function Cylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
-  const axis = resolveCylinderAxis(data);
-  if (axis === 'horizontal') {
+function Cylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+  // Cylinder is ONLY for vertical drums (databases)
+  // For horizontal pipes/queues, use shape='queue' instead
+  const color = data.accentColor ?? data.color ?? '#0f766e';
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  
+  if (sketch) {
     return (
-      <HorizontalPipeCylinder
-        id={id}
-        data={data}
-        selected={selected}
-        backplates={backplates}
-        isDark={isDark}
-        styles={styles}
-        width={W}
-        height={H}
-        labelMaxWidth={labelMaxWidth}
-      />
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="cylinder" width={W} height={H} surface={surface} seed={sketchSeed(id)} axis="vertical" isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" sketch />
+        </div>
+      </div>
     );
   }
+  
   return (
     <VerticalDrumCylinder
       id={id}
@@ -520,9 +613,9 @@ function cylinderShades(isDark: boolean, styles: NodeStyleConfig) {
   return { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge };
 }
 
-function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
   const { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge } = cylinderShades(isDark, styles);
   const RY = Math.max(10, Math.round(H * 0.12));
   const rx = (W - 4) / 2;
@@ -607,9 +700,11 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
   );
 }
 
-function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+// Legacy: HorizontalPipeCylinder kept for backward compatibility with old diagrams
+// New diagrams should use shape='queue' instead of shape='cylinder' with cylinderAxis='horizontal'
+function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
   const { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge } = cylinderShades(isDark, styles);
   const inset = 2;
   const R = Math.max(8, Math.round((H - inset * 2) / 2));
@@ -709,20 +804,43 @@ function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles
   );
 }
 
-function Circle({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Circle({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    // Scale up the rough.js body so the circle looks bigger in sketch mode.
+    const sketchScale = 1.3;
+    const sW = Math.round(W * sketchScale);
+    const sH = Math.round(H * sketchScale);
+    const offsetX = Math.round((sW - W) / 2);
+    const offsetY = Math.round((sH - H) / 2);
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        {backplates.length > 0 && <Backplates layers={backplates} borderRadius="50%" />}
+        <div style={{ position: 'absolute', top: -offsetY, left: -offsetX, width: sW, height: sH, pointerEvents: 'none' }}>
+          <SketchBody shape="circle" width={sW} height={sH} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        </div>
+        <Handles color={color} nodeId={id} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            clipPath: `ellipse(${(W / 2) - 4}px ${(H / 2) - 4}px at ${W / 2}px ${H / 2}px)`,
+          }}
+        >
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="circle" sketch />
+        </div>
+      </div>
+    );
+  }
+  const body = renderPrimitivesSvg(getShapePrimitives('circle', W, H), surface);
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       {backplates.length > 0 && <Backplates layers={backplates} borderRadius="50%" />}
-      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }}>
-        <ellipse
-          cx={W / 2} cy={H / 2} rx={W / 2 - 2} ry={H / 2 - 2}
-          fill={surface.fill}
-          stroke={surface.stroke}
-          strokeWidth={surface.strokeWidth}
-        />
-      </svg>
+      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }} dangerouslySetInnerHTML={{ __html: body }} />
       <Handles color={color} nodeId={id} />
       <div
         style={{
@@ -740,9 +858,20 @@ function Circle({ id, data, selected, backplates, isDark, styles, width: W, heig
   );
 }
 
-function Parallelogram({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Parallelogram({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="parallelogram" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="parallelogram" sketch />
+        </div>
+      </div>
+    );
+  }
   const SKEW = Math.min(20, Math.round(W * 0.08));
   const pts = `${SKEW},2 ${W - 2},2 ${W - SKEW - 2},${H - 2} 2,${H - 2}`;
   return (
@@ -769,9 +898,20 @@ function Parallelogram({ id, data, selected, backplates, isDark, styles, width: 
 }
 
 /** Flat-top hexagon — ingress / load balancers / gateways. */
-function Hexagon({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Hexagon({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="hexagon" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="hexagon" sketch />
+        </div>
+      </div>
+    );
+  }
   const inset = 2;
   const qx = Math.max(10, Math.round(W * 0.22));
   const pts = [
@@ -820,9 +960,20 @@ function cloudSilhouette(W: number): string {
   ].join(' ');
 }
 
-function Cloud({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Cloud({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#57534e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="cloud" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cloud" sketch />
+        </div>
+      </div>
+    );
+  }
   const d = cloudSilhouette(W);
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -838,41 +989,21 @@ function Cloud({ id, data, selected, isDark, styles, width: W, height: H, labelM
 }
 
 /** Rounded shield — auth, WAF, secrets, Vault. */
-function Shield({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
-  const color = data.accentColor ?? data.color ?? '#7c3aed';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
-  const inset = 2;
-  const topY = Math.max(5, Math.round(H * 0.05));
-  const d = [
-    `M ${W / 2} ${topY}`,
-    `L ${W - inset} ${Math.round(H * 0.3)}`,
-    `Q ${W - inset} ${Math.round(H * 0.62)} ${W / 2} ${H - inset}`,
-    `Q ${inset} ${Math.round(H * 0.62)} ${inset} ${Math.round(H * 0.3)}`,
-    'Z',
-  ].join(' ');
-  const clip = `polygon(${W / 2}px ${topY}px, ${W - inset}px ${Math.round(H * 0.3)}px, ${W / 2}px ${H - inset}px, ${inset}px ${Math.round(H * 0.3)}px)`;
-  return (
-    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-      {backplates.map((layer, i) => (
-        <svg key={i} width={W} height={H} style={{ position: 'absolute', transform: `translate(${layer.offset}px, ${layer.offset}px)`, zIndex: -1, overflow: 'visible' }}>
-          <path d={d} fill={layer.color} />
-        </svg>
-      ))}
-      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }}>
-        <path d={d} fill={surface.fill} stroke={surface.stroke} strokeWidth={surface.strokeWidth} strokeLinejoin="round" />
-      </svg>
-      <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', clipPath: clip }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="shield" />
-      </div>
-    </div>
-  );
-}
-
 /** Person glyph — end users / actors. Icon-friendly, label below head. */
-function Actor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Actor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#475569';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="actor" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="actor" sketch />
+        </div>
+      </div>
+    );
+  }
   const headCY = Math.round(H * 0.3);
   const headR = Math.max(8, Math.round(H * 0.17));
   const shoulderY = Math.round(H * 0.95);
@@ -899,9 +1030,20 @@ function Actor({ id, data, selected, isDark, styles, width: W, height: H, labelM
 }
 
 /** Minimal monitor — web / desktop clients. Rounded screen + stand notch. */
-function Monitor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Monitor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#2563eb';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="monitor" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="monitor" sketch />
+        </div>
+      </div>
+    );
+  }
   const inset = 2;
   const screenH = H - 20;
   const screenR = 6;
@@ -929,9 +1071,20 @@ function Monitor({ id, data, selected, isDark, styles, width: W, height: H, labe
 }
 
 /** Tall phone — mobile clients. Rounded rect + speaker notch. */
-function Mobile({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth }: ShapeShellProps) {
+function Mobile({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#2563eb';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="mobile" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="mobile" sketch />
+        </div>
+      </div>
+    );
+  }
   const inset = 2;
   const r = Math.max(6, Math.round(W * 0.09));
   return (
@@ -950,9 +1103,20 @@ function Mobile({ id, data, selected, isDark, styles, width: W, height: H, label
 }
 
 /** Out-of-system / optional scope — dashed border, near-transparent fill. */
-function DashedRectangle({ id, data, selected, isDark, styles, width, height, labelMaxWidth }: ShapeShellProps) {
+function DashedRectangle({ id, data, selected, isDark, styles, width, height, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#64748b';
-  const surface = resolveShapeSurface(isDark, styles, selected, color);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="dashed-rectangle" width={width} height={height} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape="dashed-rectangle" sketch />
+        </div>
+        <Handles color={color} nodeId={id} />
+      </div>
+    );
+  }
   const r = 10;
   return (
     <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
@@ -979,10 +1143,69 @@ function DashedRectangle({ id, data, selected, isDark, styles, width, height, la
   );
 }
 
+// ── document (single document with folded corner) ────────────────────────────
+
+/** Document with folded corner — files, reports, configs. */
+function Document({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+  const color = data.accentColor ?? data.color ?? '#0f766e';
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="document" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="document" sketch />
+        </div>
+      </div>
+    );
+  }
+  const body = renderPrimitivesSvg(getShapePrimitives('document', W, H), surface);
+  return (
+    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }} dangerouslySetInnerHTML={{ __html: body }} />
+      <Handles color={color} nodeId={id} />
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="document" />
+      </div>
+    </div>
+  );
+}
+
+// ── documents (stacked multiple documents) ────────────────────────────────────
+
+/** Multiple stacked documents — document collections, file sets. */
+function Documents({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+  const color = data.accentColor ?? data.color ?? '#0f766e';
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="documents" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="documents" sketch />
+        </div>
+      </div>
+    );
+  }
+  const body = renderPrimitivesSvg(getShapePrimitives('documents', W, H), surface);
+  return (
+    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+      <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }} dangerouslySetInnerHTML={{ __html: body }} />
+      <Handles color={color} nodeId={id} />
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="documents" />
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const { isDark } = useCanvasTheme();
+  const { renderStyleId } = useDiagramAesthetics();
   const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   const backplates = styles.backplates;
   const { width, height, labelMaxWidth } = resolveShapeSize(data);
@@ -1008,6 +1231,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     backplates,
     isDark,
     styles,
+    sketch: renderStyleId === 'sketch',
     ...sized,
   };
 
@@ -1015,15 +1239,17 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     switch (data.shape) {
       case 'diamond':          return <Diamond {...shellProps} />;
       case 'cylinder':         return <Cylinder {...shellProps} />;
+      case 'queue':            return <HorizontalPipeCylinder {...shellProps} />;
       case 'circle':           return <Circle {...shellProps} />;
       case 'parallelogram':    return <Parallelogram {...shellProps} />;
       case 'hexagon':          return <Hexagon {...shellProps} />;
       case 'cloud':            return <Cloud {...shellProps} />;
-      case 'shield':           return <Shield {...shellProps} />;
       case 'actor':            return <Actor {...shellProps} />;
       case 'monitor':          return <Monitor {...shellProps} />;
       case 'mobile':           return <Mobile {...shellProps} />;
       case 'dashed-rectangle': return <DashedRectangle {...shellProps} />;
+      case 'document':         return <Document {...shellProps} />;
+      case 'documents':        return <Documents {...shellProps} />;
       case 'rounded-rectangle': return <Rectangle {...shellProps} rounded />;
       default:                 return <Rectangle {...shellProps} rounded={false} />;
     }

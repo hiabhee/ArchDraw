@@ -2,13 +2,12 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import {
-  Download, Trash2, Upload,
+  Trash2, Upload,
   Undo2, Redo2, Share2, Loader2, Check,
   GraduationCap, MoreHorizontal, HelpCircle,
   PanelLeftClose, LayoutTemplate, FolderOpen,
   LayoutDashboard,
   Github,
-  ArrowDownToLine, ArrowRightToLine,
   PenTool,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -20,24 +19,12 @@ import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
-import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
-import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
-
+import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NodeIconModeToggle } from '@/components/NodeIconModeToggle';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
-import { analytics } from '@/lib/analytics';
-import {
-  prepareReactFlowForImageExport,
-  reactFlowExportFilter,
-  resolveExportBackgroundColor,
-  restoreReactFlowAfterImageExport,
-  waitForReactFlowFrame,
-} from '@/lib/utils/prepareReactFlowForImageExport';
-import { computeDiagramCropRect, cropRasterDataUrl } from '@/lib/utils/exportCrop';
-import { reactFlowRef } from '@/lib/reactFlowRef';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
@@ -49,55 +36,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { ExportControls } from '@/components/toolbar/ExportControls';
+import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
+import { RenderStyleToggle } from '@/components/toolbar/ThemeToggles';
 
-type ExportFormat = 'png-dark' | 'png-light' | 'png-transparent' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
 
-interface EmbedNode {
-  id: string;
-  width?: number | null;
-  height?: number | null;
-  position: { x: number; y: number };
-  data?: Record<string, unknown>;
-}
-
-interface EmbedEdge {
-  source: string;
-  target: string;
-  data?: Record<string, unknown>;
-  style?: React.CSSProperties;
-}
-
-function escapeXml(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-async function addWatermark(dataUrl: string): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(dataUrl); return; }
-      ctx.drawImage(img, 0, 0);
-      const fontSize = Math.max(16, Math.floor(img.width / 50));
-      ctx.font = `${fontSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
-      ctx.textAlign = 'right';
-      ctx.fillText('Made with ArchDraw — Sign in to remove', img.width - fontSize, img.height - fontSize);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
 
 function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
   const svgWidth = 1200;
@@ -251,8 +194,6 @@ export function Toolbar() {
   const isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -397,6 +338,7 @@ export function Toolbar() {
           state.darkMode,
           svgBg,
           layoutDirection,
+          state.diagramRenderStyle,
         );
         downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
         toast.success(
@@ -567,7 +509,8 @@ export function Toolbar() {
       if (response.ok && data.sessionId) {
         // Prefer the current origin so local/staging links stay on the same host.
         const baseUrl = window.location.origin;
-        const shareUrl = `${baseUrl}/share/${data.sessionId}`;
+        const currentStyle = useDiagramStore.getState().diagramRenderStyle;
+        const shareUrl = `${baseUrl}/share/${data.sessionId}${currentStyle === 'sketch' ? '?style=sketch' : ''}`;
         setShareUrl(shareUrl);
         setShareSessionId(data.sessionId);
         setShareAccessType('anyone');
@@ -792,6 +735,8 @@ export function Toolbar() {
 
             <LayoutToggleButton />
 
+            <RenderStyleToggle />
+
             <NodeIconModeToggle />
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
@@ -817,90 +762,7 @@ export function Toolbar() {
             </Button>
           </span>
 
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setExportOpen(!exportOpen)}
-              disabled={isExporting}
-              className="!w-8 sm:!w-9 !h-8 sm:!h-9"
-            >
-              {isExporting ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
-            </Button>
-
-            {exportOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setExportOpen(false)} />
-                <div
-                  className="absolute right-0 top-full mt-3 w-56 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
-                  style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
-                >
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Image</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isDark = useDiagramStore.getState().darkMode;
-                      handleExport(isDark ? 'png-dark' : 'png-light');
-                    }}
-                    className="w-full justify-start rounded-none"
-                  >
-                    PNG
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleExport('png-transparent')}
-                    className="w-full justify-start rounded-none"
-                  >
-                    PNG (No Background)
-                  </Button>
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleExport('svg-transparent')}
-                    className="w-full justify-start rounded-none"
-                  >
-                    SVG (No Background)
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isDark = useDiagramStore.getState().darkMode;
-                      handleExport(isDark ? 'svg-dark' : 'svg-light');
-                    }}
-                    className="w-full justify-start rounded-none"
-                  >
-                    SVG (With Background)
-                  </Button>
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Other</p>
-                  </div>
-                  {([
-                    { label: 'JSON', format: 'json' },
-                    { label: 'PDF', format: 'pdf' },
-                    { label: 'HTML Embed', format: 'html-embed' },
-                  ] as { label: string; format: ExportFormat }[]).map(({ label, format }) => (
-                    <Button
-                      key={format}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleExport(format)}
-                      className="w-full justify-start rounded-none"
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <ExportControls getExportFilename={getExportFilename} />
 
           <div className="relative">
             <Button
@@ -1163,46 +1025,3 @@ export function Toolbar() {
   );
 }
 
-function LayoutToggleButton() {
-  const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
-
-  const isVertical = activeLayoutPresetId === 'layered-tb';
-  const nextLabel = isVertical ? 'Left → Right' : 'Top → Bottom';
-  const nextDirection = isVertical ? 'LR' : 'TD';
-
-  const handleToggle = async () => {
-    const store = useDiagramStore.getState();
-    const { nodes, edges, activeCanvasId, canvases } = store;
-    const canvasName = canvases.find((c) => c.id === activeCanvasId)?.name;
-
-    try {
-      const { nodes: layoutedNodes, edges: layoutedEdges, success, warnings } =
-        await layoutDiagramViaMermaid(nodes, edges, nextDirection, { title: canvasName });
-      if (!success) {
-        toast.error(`Layout toggle failed: ${warnings.join('; ') || 'unknown error'}`);
-        return;
-      }
-
-      store.importDiagram(layoutedNodes, layoutedEdges);
-      store.setActiveLayoutPresetId(nextDirection === 'LR' ? 'layered-lr' : 'layered-tb');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Layout toggle failed');
-    }
-  };
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleToggle}
-      className="!w-8 sm:!w-9 !h-8 sm:!h-9"
-      title={`Layout: ${isVertical ? 'Top → Bottom' : 'Left → Right'} (click for ${nextLabel})`}
-    >
-      {isVertical ? (
-        <ArrowDownToLine className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-      ) : (
-        <ArrowRightToLine className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-      )}
-    </Button>
-  );
-}
