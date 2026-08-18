@@ -66,16 +66,20 @@ export async function generateDiagramFromPrompt(
   });
 
   if (!response.ok) {
-    let errorData: { details?: string; error?: string };
+    let errorData: { details?: string; error?: string; userMessage?: string };
     try {
       errorData = await response.json();
     } catch {
       errorData = {};
     }
+    
+    // Use userMessage if available (user-friendly message), otherwise fall back to details
+    const message = errorData.userMessage || errorData.details || errorData.error || 'Generation failed';
+    
     throw new GenerationServiceError(
-      errorData.details || errorData.error || 'Generation failed',
+      message,
       'generation_failed',
-      { status: response.status },
+      { status: response.status, errorCode: errorData.error },
     );
   }
 

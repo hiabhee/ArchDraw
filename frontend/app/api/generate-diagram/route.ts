@@ -130,6 +130,33 @@ export async function POST(req: NextRequest) {
     logger.error('[API] Generation failed:', error);
 
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    const err = error as Error & { status?: number };
+    
+    // Check for payment/credit issues
+    if (err.status === 402 || message.includes('402') || message.includes('Payment')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'payment_required',
+          details: 'AI service quota exceeded. Please try again later or contact support.',
+          userMessage: 'The AI service is temporarily unavailable due to quota limits. Please try again in a few minutes.',
+        },
+        { status: 503 } // Service Unavailable is more appropriate than 502
+      );
+    }
+
+    // Check for rate limiting
+    if (err.status === 429 || message.includes('rate limit') || message.includes('Too many requests')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'rate_limited',
+          details: message,
+          userMessage: 'Too many requests. Please wait a moment and try again.',
+        },
+        { status: 429 }
+      );
+    }
 
     return NextResponse.json(
       {

@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import Groq from 'groq-sdk';
 import logger from '@/lib/logger';
-import { DEFAULT_GENERATION_MODEL, MODELS, type AIProvider } from '@/lib/ai/models';
+import { DEFAULT_GENERATION_MODEL, MODELS, type AIProvider, getCheaperModel, getRecommendedMaxTokens } from '@/lib/ai/models';
 
 // Ambient request ID for LLM call counting — no signature changes needed downstream
 // Two counters:
@@ -565,6 +565,72 @@ export class OpenRouterClient {
   }): Promise<{ 
     choices: { message: { content: string } }[] 
   }> {
+    const targetModel = OpenRouterClient.mapModel(options.model) || this.model;
+    const requestedMaxTokens = options.max_tokens ?? 4096;
+    
+    // First attempt with requested model and tokens
+    const result = await this.attemptCompletion(targetModel, options, requestedMaxTokens);
+    
+    // If successful, return
+    if (result.success) {
+      return result.data!;
+    }
+    
+    // If 402 error (insufficient credits), try cheaper alternatives
+    if (result.status === 402 && result.affordableTokens) {
+      logger.log(`[OpenRouterClient] Insufficient credits for ${requestedMaxTokens} tokens (can afford ${result.affordableTokens})`);
+      
+      // Strategy 1: Try with reduced tokens on the same model
+      if (result.affordableTokens >= 1024) {
+        logger.log(`[OpenRouterClient] Retrying with reduced tokens: ${result.affordableTokens}`);
+        const retryResult = await this.attemptCompletion(targetModel, options, result.affordableTokens);
+        if (retryResult.success) {
+          logger.log(`[OpenRouterClient] Success with reduced tokens`);
+          return retryResult.data!;
+        }
+      }
+      
+      // Strategy 2: Try a cheaper model with original token count
+      const cheaperModel = getCheaperModel(targetModel);
+      if (cheaperModel && cheaperModel !== targetModel) {
+        logger.log(`[OpenRouterClient] Trying cheaper model: ${cheaperModel}`);
+        const cheaperResult = await this.attemptCompletion(cheaperModel, options, requestedMaxTokens);
+        if (cheaperResult.success) {
+          logger.log(`[OpenRouterClient] Success with cheaper model: ${cheaperModel}`);
+          return cheaperResult.data!;
+        }
+        
+        // Strategy 3: Cheaper model + reduced tokens
+        if (result.affordableTokens >= 1024) {
+          logger.log(`[OpenRouterClient] Trying cheaper model with reduced tokens`);
+          const finalResult = await this.attemptCompletion(cheaperModel, options, result.affordableTokens);
+          if (finalResult.success) {
+            logger.log(`[OpenRouterClient] Success with cheaper model and reduced tokens`);
+            return finalResult.data!;
+          }
+        }
+      }
+    }
+    
+    // All strategies failed, throw the original error
+    throw result.error!;
+  }
+
+  private async attemptCompletion(
+    model: string,
+    options: {
+      messages: { role: string; content: string }[];
+      temperature?: number;
+      stream?: boolean;
+    },
+    maxTokens: number
+  ): Promise<{ 
+    success: boolean; 
+    data?: { choices: { message: { content: string } }[] };
+    status?: number;
+    affordableTokens?: number;
+    error?: Error;
+  }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
     
@@ -578,10 +644,10 @@ export class OpenRouterClient {
           'X-Title': 'ArchDraw',
         },
         body: JSON.stringify({
-          model: OpenRouterClient.mapModel(options.model) || this.model,
+          model,
           messages: options.messages,
           temperature: options.temperature ?? 0.7,
-          max_tokens: options.max_tokens ?? 4096,
+          max_tokens: maxTokens,
           stream: false,
         }),
         signal: controller.signal,
@@ -590,18 +656,37 @@ export class OpenRouterClient {
 
       if (!response.ok) {
         const errorText = await response.text();
+        
+        // Parse 402 error to extract affordable token count
+        let affordableTokens: number | undefined;
+        if (response.status === 402) {
+          const match = errorText.match(/can only afford (\d+)/i);
+          if (match) {
+            affordableTokens = parseInt(match[1], 10);
+          }
+        }
+        
         const error = new Error(`OpenRouter API error: ${response.status} - ${errorText}`) as Error & { status?: number };
         error.status = response.status;
-        throw error;
+        
+        return {
+          success: false,
+          status: response.status,
+          affordableTokens,
+          error,
+        };
       }
 
-      return response.json();
+      const data = await response.json();
+      return { success: true, data };
+      
     } catch (error) {
       clearTimeout(timeout);
       if ((error as Error).name === 'AbortError') {
-        throw new Error('OpenRouter request timed out after 60s');
+        const timeoutError = new Error('OpenRouter request timed out after 15s');
+        return { success: false, error: timeoutError };
       }
-      throw error;
+      return { success: false, error: error as Error };
     }
   }
 }
