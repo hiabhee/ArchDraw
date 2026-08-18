@@ -23,7 +23,11 @@ import { CustomNodeIcon, toCustomNodeIconName, isCustomNodeIcon } from './icons/
 import { ProviderServiceIcon } from './icons/ProviderServiceIcon';
 import { TechnologyBrandIcon } from './icons/TechnologyBrandIcon';
 import { getTechnologyBrandSlug } from '@/lib/brandIcons';
+import { filterIconForMode, shouldUseBrandLogoInMode, type RenderStyleId } from '@/lib/iconModeFilter';
+import { normalizeColor } from '@/lib/semanticColors';
 import type { CloudProviderId } from '@/lib/cloudIcons/types';
+
+const GENERIC_ICON_COLOR = '#0891B2'; // Cyan-600 - semantic default
 
 const LUCIDE_MAP: Record<string, LucideIcon> = {
   Server, Zap, Boxes, Box, CircleDot, Sprout,
@@ -54,15 +58,32 @@ interface NodeIconProps {
   fallbackIcon?: string;
   fallbackColor?: string;
   size?: number;
+  renderStyle?: RenderStyleId;
 }
 
-export function NodeIcon({ technology, fallbackIcon, fallbackColor, size = 18 }: NodeIconProps) {
+export function NodeIcon({ 
+  technology, 
+  fallbackIcon, 
+  fallbackColor, 
+  size = 18,
+  renderStyle = 'precision', // Default to precision for backwards compatibility
+}: NodeIconProps) {
   const entry = technology ? iconRegistry[technology] : undefined;
-  const iconName = entry?.icon ?? fallbackIcon ?? 'Server';
-  const color = entry?.color ?? fallbackColor ?? '#6B7280';
+  let iconName = entry?.icon ?? fallbackIcon ?? 'Server';
+  
+  // Apply mode-specific filtering: in sketch mode, replace brand logos with role glyphs
+  iconName = filterIconForMode(iconName, technology, renderStyle);
+  
+  // Normalize color (replace legacy purple with semantic colors)
+  const normalizedFallbackColor = normalizeColor(fallbackColor, iconName);
+  const color = entry?.color ?? normalizedFallbackColor ?? GENERIC_ICON_COLOR;
 
+  // Technology brand logos: only render in modes where they're allowed
   if (technology && getTechnologyBrandSlug(technology) && entry?.kind !== 'aws') {
-    return <TechnologyBrandIcon technology={technology} size={size} color={color} />;
+    if (shouldUseBrandLogoInMode(technology, renderStyle)) {
+      return <TechnologyBrandIcon technology={technology} size={size} color={color} />;
+    }
+    // If brand logo suppressed in sketch mode, fall through to render the filtered glyph
   }
 
   if (entry?.kind === 'aws') {
@@ -113,7 +134,7 @@ export function NodeIcon({ technology, fallbackIcon, fallbackColor, size = 18 }:
   return <Icon size={size} style={{ color }} strokeWidth={2} />;
 }
 
-export function resolveNodeColor(technology?: string, fallbackColor?: string): string {
+export function resolveNodeColor(technology?: string, fallbackColor?: string, iconName?: string): string {
   if (technology && iconRegistry[technology]) return iconRegistry[technology].color;
-  return fallbackColor ?? '#6B7280';
+  return normalizeColor(fallbackColor, iconName) ?? GENERIC_ICON_COLOR;
 }

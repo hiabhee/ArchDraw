@@ -66,25 +66,9 @@ export function ContextMenu({ menu, onClose }: Props) {
 
   const duplicateNode = useCallback(() => {
     if (!menu.nodeId) return;
-    const node = nodes.find((n) => n.id === menu.nodeId);
-    if (!node) return;
-    pushHistory();
-    
-    const { id, position, data, type, ...rest } = node;
-    const newPos = { x: position.x + 24, y: position.y + 24 };
-    const typeId = (data?.typeId as string) || type || 'systemNode';
-    const label = (data?.label as string) || 'Unnamed';
-    
-    const newNode = createNode(typeId, label, newPos, { 
-      type, 
-      data, 
-      ...rest, 
-      selected: false 
-    });
-
-    appendNode(newNode);
+    useDiagramStore.getState().duplicateNode(menu.nodeId);
     onClose();
-  }, [menu.nodeId, nodes, pushHistory, onClose, appendNode]);
+  }, [menu.nodeId, onClose]);
 
   const deleteNode = useCallback(() => {
     if (menu.nodeId) { setConfirmDelete(true); }

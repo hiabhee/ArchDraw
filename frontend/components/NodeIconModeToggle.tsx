@@ -4,15 +4,20 @@ import { Image } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
 import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 
-/** Icons are visible in "all" and "normal" modes; only "off" hides them. */
+/** 
+ * Icons are visible in "all" and "normal" modes; only "off" hides them.
+ * Note: "all" and "normal" now behave identically - both show all icons.
+ * This ensures manually selected icons are always visible alongside auto-detected ones.
+ */
 function isOn(mode: NodeIconMode): boolean {
   return mode === 'all' || mode === 'normal';
 }
 
 /**
- * Compact On / Off control for node icons. 'On' maps to All (every icon),
- * 'Off' hides every icon; the finer All / Normal / Off choice lives in
- * Settings. The image glyph hints that this controls node icons.
+ * Compact On / Off control for node icons. 'On' shows all icons (manual and auto-detected),
+ * 'Off' hides every icon. The finer All / Normal / Off choice lives in Settings,
+ * though All and Normal now behave identically for better UX consistency.
+ * The image glyph hints that this controls node icons.
  */
 export function NodeIconModeToggle() {
   const iconMode = useDiagramStore((s) => s.iconMode);

@@ -464,6 +464,223 @@
     "icon": "Server"
   },
   {
+    "id": "aws_ecs",
+    "label": "AWS ECS",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Container"
+  },
+  {
+    "id": "aws_eks",
+    "label": "AWS EKS",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Container"
+  },
+  {
+    "id": "aws_fargate",
+    "label": "AWS Fargate",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Container"
+  },
+  {
+    "id": "aws_eventbridge",
+    "label": "AWS EventBridge",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Workflow"
+  },
+  {
+    "id": "aws_step_functions",
+    "label": "AWS Step Functions",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Workflow"
+  },
+  {
+    "id": "aws_api_gateway",
+    "label": "AWS API Gateway",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Globe"
+  },
+  {
+    "id": "aws_appsync",
+    "label": "AWS AppSync",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Workflow"
+  },
+  {
+    "id": "aws_elasticache",
+    "label": "AWS ElastiCache",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Database"
+  },
+  {
+    "id": "aws_aurora",
+    "label": "AWS Aurora",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Database"
+  },
+  {
+    "id": "aws_kinesis",
+    "label": "AWS Kinesis",
+    "category": "Cloud Infrastructure",
+    "color": "#ff9900",
+    "icon": "Workflow"
+  },
+  {
+    "id": "gcp_cloud_functions",
+    "label": "GCP Cloud Functions",
+    "category": "Cloud Infrastructure",
+    "color": "#4285f4",
+    "icon": "Zap"
+  },
+  {
+    "id": "gcp_gke",
+    "label": "GCP GKE",
+    "category": "Cloud Infrastructure",
+    "color": "#4285f4",
+    "icon": "Container"
+  },
+  {
+    "id": "gcp_cloud_storage",
+    "label": "GCP Cloud Storage",
+    "category": "Cloud Infrastructure",
+    "color": "#4285f4",
+    "icon": "HardDrive"
+  },
+  {
+    "id": "gcp_bigquery",
+    "label": "GCP BigQuery",
+    "category": "Cloud Infrastructure",
+    "color": "#4285f4",
+    "icon": "Database"
+  },
+  {
+    "id": "gcp_cloud_tasks",
+    "label": "GCP Cloud Tasks",
+    "category": "Cloud Infrastructure",
+    "color": "#4285f4",
+    "icon": "CheckSquare"
+  },
+  {
+    "id": "firebase_hosting",
+    "label": "Firebase Hosting",
+    "category": "Cloud Infrastructure",
+    "color": "#ffca28",
+    "icon": "Globe"
+  },
+  {
+    "id": "azure_app_service",
+    "label": "Azure App Service",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "Server"
+  },
+  {
+    "id": "azure_aks",
+    "label": "Azure AKS",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "Container"
+  },
+  {
+    "id": "azure_container_instances",
+    "label": "Azure Container Instances",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "Container"
+  },
+  {
+    "id": "azure_service_bus",
+    "label": "Azure Service Bus",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "MessageSquare"
+  },
+  {
+    "id": "azure_cosmos_db",
+    "label": "Azure Cosmos DB",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "Database"
+  },
+  {
+    "id": "azure_blob_storage",
+    "label": "Azure Blob Storage",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "HardDrive"
+  },
+  {
+    "id": "azure_event_grid",
+    "label": "Azure Event Grid",
+    "category": "Cloud Infrastructure",
+    "color": "#0078d4",
+    "icon": "Grid"
+  },
+  {
+    "id": "digitalocean_droplets",
+    "label": "DigitalOcean Droplets",
+    "category": "Cloud Infrastructure",
+    "color": "#0080ff",
+    "icon": "Server"
+  },
+  {
+    "id": "digitalocean_app_platform",
+    "label": "DO App Platform",
+    "category": "Cloud Infrastructure",
+    "color": "#0080ff",
+    "icon": "Server"
+  },
+  {
+    "id": "digitalocean_spaces",
+    "label": "DO Spaces",
+    "category": "Cloud Infrastructure",
+    "color": "#0080ff",
+    "icon": "HardDrive"
+  },
+  {
+    "id": "heroku",
+    "label": "Heroku",
+    "category": "Cloud Infrastructure",
+    "color": "#430098",
+    "icon": "Server"
+  },
+  {
+    "id": "netlify",
+    "label": "Netlify",
+    "category": "Cloud Infrastructure",
+    "color": "#00c7b7",
+    "icon": "Globe"
+  },
+  {
+    "id": "cloudflare_pages",
+    "label": "Cloudflare Pages",
+    "category": "Cloud Infrastructure",
+    "color": "#f6821f",
+    "icon": "Globe"
+  },
+  {
+    "id": "cloudflare_kv",
+    "label": "Cloudflare KV",
+    "category": "Cloud Infrastructure",
+    "color": "#f6821f",
+    "icon": "Database"
+  },
+  {
+    "id": "cloudflare_durable_objects",
+    "label": "CF Durable Objects",
+    "category": "Cloud Infrastructure",
+    "color": "#f6821f",
+    "icon": "Box"
+  },
+  {
     "id": "datadog",
     "label": "Datadog",
     "category": "Observability",

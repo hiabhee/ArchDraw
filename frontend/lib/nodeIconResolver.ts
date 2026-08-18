@@ -4,8 +4,10 @@ import { classifyCloudNode, getNodeProviderAffinity, normalizeCloudLabel } from 
 import { CLOUD_BRAND_COLORS } from '@/lib/cloudIcons/dictionaries';
 import { inferBrandTechnologyFromLabel } from '@/lib/brandIcons';
 import { AWS_COMPONENTS, DB_COMPONENTS, SERVICES_COMPONENTS } from '@/lib/componentRegistry';
+import { resolveKubernetesRole, isKubernetesContext } from '@/lib/kubernetes';
+import { resolveSemanticColorForIcon, normalizeColor } from '@/lib/semanticColors';
 
-export type NodeIconSource = 'manual' | 'technology' | 'component' | 'label' | 'serviceType' | 'fallback';
+export type NodeIconSource = 'manual' | 'kubernetes-role' | 'explicit-role' | 'technology' | 'component' | 'label' | 'serviceType' | 'fallback';
 
 export interface ResolveNodeIconInput {
   label?: string;
@@ -24,6 +26,8 @@ export interface ResolvedNodeIcon {
   technology?: string;
   source: NodeIconSource;
 }
+
+const GENERIC_ICON_COLOR = '#0891B2'; // Cyan-600 - changed from blue
 
 const COMPONENT_ICON_MAP: Record<string, Pick<ResolvedNodeIcon, 'icon' | 'technology'>> = {
   client_web: { icon: 'arch-web' },
@@ -243,20 +247,52 @@ function technologyFromLabel(label?: string): string | undefined {
   return LABEL_TO_TECHNOLOGY.get(normalized);
 }
 
+const ICON_TO_TECHNOLOGY: Record<string, string> = {
+  'arch-docker': 'docker',
+  'arch-kubernetes': 'kubernetes',
+};
+
+function technologyFromIcon(icon?: string): string | undefined {
+  if (!icon) return undefined;
+  return ICON_TO_TECHNOLOGY[icon];
+}
+
 function getTechnologyEntry(technology?: string) {
   return technology ? iconRegistry[technology] : undefined;
 }
 
 export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
-  const fallbackColor = input.color || '#6B7280';
-
-  // Explicit custom/AWS icons win immediately.
+  const isDark = false; // TODO: pass from theme context when available
+  
+  // PRIORITY 1: Manual icon override (explicitly set from properties panel)
+  // Explicit custom/AWS/Azure icons are always manual when no technology can be resolved
   if (input.icon?.startsWith('arch-') || input.icon?.startsWith('aws-') || input.icon?.startsWith('azure-')) {
-    return { icon: input.icon, color: fallbackColor, technology: input.technology, source: 'manual' };
+    const color = normalizeColor(input.color, input.icon, isDark);
+    return { icon: input.icon, color, technology: input.technology, source: 'manual' };
   }
 
+  // PRIORITY 2: Kubernetes role resolution (role-specific icons before generic k8s logo)
+  // Check if this is a Kubernetes component and resolve its specific role
   const resolvedTechnology =
-    input.technology ?? technologyFromLabel(input.label) ?? inferBrandTechnologyFromLabel(input.label);
+    input.technology ??
+    technologyFromLabel(input.label) ??
+    inferBrandTechnologyFromLabel(input.label) ??
+    technologyFromIcon(input.icon);
+  
+  if (isKubernetesContext(input.label, resolvedTechnology)) {
+    const k8sRole = resolveKubernetesRole(input.label);
+    if (k8sRole) {
+      const color = normalizeColor(input.color, k8sRole.icon, isDark);
+      return {
+        icon: k8sRole.icon,
+        color,
+        technology: resolvedTechnology,
+        source: 'kubernetes-role',
+      };
+    }
+  }
+
+  // PRIORITY 3: Technology with custom arch-* icons or provider icons
   const techEntry = getTechnologyEntry(resolvedTechnology);
   if (techEntry) {
     // If the technology uses a custom icon, return it directly
@@ -276,6 +312,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     };
   }
 
+  // PRIORITY 4: Cloud provider affinity (AWS/Azure from palette or repo import)
   const cloudInput = {
     label: input.label,
     typeId: input.typeId || input.componentType,
@@ -300,6 +337,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     }
   }
 
+  // PRIORITY 5: Cloud service classification (label-based AWS/Azure matching)
   const cloudCls = classifyCloudNode(cloudInput);
   if (cloudCls.tier === 'cloudService') {
     if (cloudCls.state === 'matchedAWS' && cloudCls.awsMatch) {
@@ -320,56 +358,69 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     }
   }
 
+  // PRIORITY 6: Component type mapping (from palette components)
   const componentKey = input.typeId || input.componentType;
   const componentIcon = componentKey ? COMPONENT_ICON_MAP[componentKey] : undefined;
   if (componentIcon) {
-    // Component icons are already custom icon names (arch-*), so pass them through
+    const color = normalizeColor(input.color, componentIcon.icon, isDark);
     return {
       icon: componentIcon.icon,
-      color: fallbackColor,
+      color,
       technology: componentIcon.technology,
       source: 'component',
     };
   }
 
-  // Lucide names from the palette / properties panel → arch-* glyphs
+  // PRIORITY 7: Lucide icon names from properties panel → arch-* glyphs
   const normalizedManual = normalizeArchIconName(input.icon);
   if (normalizedManual && input.icon?.trim()) {
+    const color = normalizeColor(input.color, normalizedManual, isDark);
     return {
       icon: normalizedManual,
-      color: fallbackColor,
+      color,
       technology: input.technology,
       source: 'manual',
     };
   }
 
+  // PRIORITY 8: Label pattern matching
   const label = input.label || '';
   const labelMatch = LABEL_MATCHERS.find((matcher) => matcher.test.test(label));
   if (labelMatch) {
     // Label matchers may return either custom icons or lucide icons
     if (labelMatch.icon.startsWith('arch-')) {
+      const color = normalizeColor(labelMatch.color || input.color, labelMatch.icon, isDark);
       return {
         icon: labelMatch.icon,
-        color: labelMatch.color || fallbackColor,
+        color,
         technology: labelMatch.technology,
         source: 'label',
       };
     }
     // For non-custom icons, check if there's a technology entry
     const labelTechEntry = getTechnologyEntry(labelMatch.technology);
+    const finalColor = normalizeColor(
+      labelTechEntry?.color || labelMatch.color || input.color,
+      labelMatch.icon,
+      isDark
+    );
     return {
       icon: labelTechEntry?.icon || labelMatch.icon,
-      color: labelTechEntry?.color || labelMatch.color || fallbackColor,
+      color: finalColor,
       technology: labelMatch.technology,
       source: 'label',
     };
   }
 
+  // PRIORITY 9: Service type mapping
   const serviceIcon = input.serviceType ? SERVICE_TYPE_ICON_MAP[input.serviceType] : undefined;
   if (serviceIcon) {
-    // Service type icons are already custom icon names (arch-*), so pass them through
-    return { icon: serviceIcon, color: fallbackColor, technology: input.technology, source: 'serviceType' };
+    const color = normalizeColor(input.color, serviceIcon, isDark);
+    return { icon: serviceIcon, color, technology: input.technology, source: 'serviceType' };
   }
 
-  return { icon: 'arch-service', color: fallbackColor, technology: input.technology, source: 'fallback' };
+  // PRIORITY 10: Final fallback
+  const fallbackIcon = 'arch-service';
+  const fallbackColor = normalizeColor(input.color, fallbackIcon, isDark);
+  return { icon: fallbackIcon, color: fallbackColor, technology: input.technology, source: 'fallback' };
 }

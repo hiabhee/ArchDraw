@@ -39,7 +39,7 @@ function tint(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function CustomNodeIcon({ name, color = '#6366f1', size = 18 }: CustomNodeIconProps) {
+export function CustomNodeIcon({ name, color = '#1E90FF', size = 18 }: CustomNodeIconProps) {
   const rawId = useId().replace(/:/g, '');
   const grad = `nodeIconGrad${rawId}`;
   const glow = `nodeIconGlow${rawId}`;
