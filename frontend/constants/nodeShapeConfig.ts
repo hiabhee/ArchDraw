@@ -20,12 +20,12 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   // Service types
   service: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
   api: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  worker: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  worker: { width: 180, height: 96, variant: 'FUNCTION', fillOpacity: 0.1, strokeOpacity: 0.4 },
   auth: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
   gateway: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
   proxy: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  function: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  scheduler: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  function: { width: 180, height: 96, variant: 'FUNCTION', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  scheduler: { width: 180, height: 96, variant: 'FUNCTION', fillOpacity: 0.1, strokeOpacity: 0.4 },
   compute: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
   generic: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
@@ -34,7 +34,7 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   postgres: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
   mysql: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
   mongodb: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  redis: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  redis: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
   cassandra: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
   dynamodb: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
   elasticsearch: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
@@ -43,25 +43,25 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   firestore: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
   supabase: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
-  // Cache types (diamonds)
-  cache: { width: 160, height: 88, variant: 'DIAMOND', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  memcached: { width: 160, height: 88, variant: 'DIAMOND', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  elasticache: { width: 160, height: 88, variant: 'DIAMOND', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  // Cache types (new CACHE silhouette; legacy DIAMOND kept for backward compat only)
+  cache: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  memcached: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  elasticache: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
-  // Queue types (pill-shaped — pill silhouette on L grid (240))
-  queue: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  kafka: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  rabbitmq: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  sqs: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  sns: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  pubsub: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  eventbus: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  nats: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  kinesis: { width: 240, height: 88, variant: 'PILL_HORIZONTAL', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  // Queue types (new QUEUE silhouette — message-lane horizontal shape)
+  queue: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  kafka: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  rabbitmq: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  sqs: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  sns: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  pubsub: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  eventbus: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  nats: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  kinesis: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
-  // CDN types (diamonds)
-  cdn: { width: 160, height: 88, variant: 'DIAMOND', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  varnish: { width: 160, height: 88, variant: 'DIAMOND', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  // CDN / edge cache (new CACHE silhouette)
+  cdn: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  varnish: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // AI / ML types
   ai: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
@@ -69,8 +69,13 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   // Server types
   server: { width: 200, height: 88, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
-  // Container types
-  docker: { width: 200, height: 90, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  // Container / Pod types (new CONTAINER silhouette)
+  docker: { width: 220, height: 104, variant: 'CONTAINER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  container: { width: 220, height: 104, variant: 'CONTAINER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  pod: { width: 220, height: 104, variant: 'CONTAINER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  kubernetes: { width: 220, height: 104, variant: 'CONTAINER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  k8s: { width: 220, height: 104, variant: 'CONTAINER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  deployment: { width: 220, height: 104, variant: 'CONTAINER', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // External/Cloud types
   external: { width: 240, height: 96, variant: 'CLOUD', fillOpacity: 0.08, strokeOpacity: 0.4 },
@@ -97,15 +102,15 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   envoy: { width: 200, height: 90, variant: 'HEXAGON', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // Firewall/Security types (shield)
-  firewall: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  waf: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  vault: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  keycloak: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  oauth: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  jwt: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  ssl: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  tls: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  certmanager: { width: 200, height: 96, variant: 'SHIELD', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  firewall: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  waf: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  vault: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  keycloak: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  oauth: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  jwt: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  ssl: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  tls: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  certmanager: { width: 200, height: 96, variant: 'ROUNDED_SQUARE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // Client types (monitor screen)
   client: { width: 200, height: 100, variant: 'MONITOR_SCREEN', fillOpacity: 0.1, strokeOpacity: 0.4 },
@@ -132,9 +137,9 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   operator: { width: 160, height: 88, variant: 'USER_CIRCLE', fillOpacity: 0.1, strokeOpacity: 0.4 },
   developer: { width: 160, height: 88, variant: 'USER_CIRCLE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
-  // Background job types (gear)
+  // Background job types (function silhouette for lambdas/workers; gear fallback stays)
   backgroundjob: { width: 160, height: 88, variant: 'GEAR', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  cronjob: { width: 160, height: 88, variant: 'GEAR', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  cronjob: { width: 180, height: 96, variant: 'FUNCTION', fillOpacity: 0.1, strokeOpacity: 0.4 },
   processor: { width: 160, height: 88, variant: 'GEAR', fillOpacity: 0.1, strokeOpacity: 0.4 },
   consumer: { width: 160, height: 88, variant: 'GEAR', fillOpacity: 0.1, strokeOpacity: 0.4 },
   daemon: { width: 160, height: 88, variant: 'GEAR', fillOpacity: 0.1, strokeOpacity: 0.4 },
@@ -152,8 +157,13 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   jaeger: { width: 200, height: 96, variant: 'CHART', fillOpacity: 0.1, strokeOpacity: 0.4 },
   zipkin: { width: 200, height: 96, variant: 'CHART', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
-  // Storage types (cylinder)
-  storage: { width: 200, height: 112, variant: 'CYLINDER', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  // Object / blob storage (new BUCKET silhouette)
+  storage: { width: 180, height: 104, variant: 'BUCKET', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  s3: { width: 180, height: 104, variant: 'BUCKET', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  gcs: { width: 180, height: 104, variant: 'BUCKET', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  blob: { width: 180, height: 104, variant: 'BUCKET', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  azureblob: { width: 180, height: 104, variant: 'BUCKET', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  minio: { width: 180, height: 104, variant: 'BUCKET', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // Monitor types
   monitor: { width: 200, height: 100, variant: 'MONITOR_SCREEN', fillOpacity: 0.1, strokeOpacity: 0.4 },

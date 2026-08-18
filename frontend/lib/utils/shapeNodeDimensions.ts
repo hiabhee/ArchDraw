@@ -26,10 +26,14 @@ export function resolveShapeNodeDimensions(data: ShapeNodeDimensionInput): {
   const subtitle = (data.sublabel ?? data.subtitle ?? '').trim() || undefined;
   const fitted = calculateNodeDimensions(data.label || '', subtitle, options);
 
-  const width = Math.max(data.nodeWidth ?? 0, fitted.width);
-  // Cylinder height is axis-specific — never inherit a mismatched nodeHeight from relayout.
+  // Some shapes have axis-specific sizing — ignore stale stored dimensions.
+  const ignoreStored = shape === 'document' || shape === 'documents' || shape === 'cylinder' || shape === 'queue';
+  const width = ignoreStored ? fitted.width : Math.max(data.nodeWidth ?? 0, fitted.width);
+  // Cylinder/queue height is axis-specific — never inherit a mismatched nodeHeight.
   const height =
-    shape === 'cylinder' ? fitted.height : Math.max(data.nodeHeight ?? 0, fitted.height);
+    ignoreStored
+      ? fitted.height
+      : Math.max(data.nodeHeight ?? 0, fitted.height);
 
   return { width, height };
 }

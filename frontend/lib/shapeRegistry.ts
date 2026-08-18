@@ -6,6 +6,9 @@
  * recognition power as the original shape family. This module maps
  * `nodeShapeConfig` variants → canvas `ShapeType` and service types → shapes,
  * so editor, AI pipeline, and Mermaid round-trip agree.
+ *
+ * Phase 1 extension: five architecture-native custom silhouettes added:
+ * queue, cache, function, container, bucket.
  */
 
 import { NODE_SHAPE_CONFIG } from '@/constants/nodeShapeConfig';
@@ -20,11 +23,18 @@ export type ShapeType =
   | 'parallelogram'
   | 'hexagon'
   | 'cloud'
-  | 'shield'
   | 'actor'
   | 'monitor'
   | 'mobile'
-  | 'dashed-rectangle';
+  | 'dashed-rectangle'
+  // Architecture-native semantic silhouettes (Phase 1)
+  | 'queue'
+  | 'cache'
+  | 'function'
+  | 'container'
+  | 'bucket'
+  | 'document'
+  | 'documents';
 
 /** nodeShapeConfig `variant` → canvas `ShapeType`. */
 export const VARIANT_TO_SHAPE: Record<string, ShapeType> = {
@@ -34,17 +44,34 @@ export const VARIANT_TO_SHAPE: Record<string, ShapeType> = {
   PILL_HORIZONTAL: 'cylinder',
   CLOUD: 'cloud',
   HEXAGON: 'hexagon',
-  SHIELD: 'shield',
   MONITOR_SCREEN: 'monitor',
   MOBILE_PHONE: 'mobile',
   USER_CIRCLE: 'actor',
   GEAR: 'rounded-rectangle',
   CHART: 'rounded-rectangle',
+  // New architecture-native variants
+  QUEUE: 'queue',
+  CACHE: 'cache',
+  FUNCTION: 'function',
+  CONTAINER: 'container',
+  BUCKET: 'bucket',
+  DOCUMENT: 'document',
+  DOCUMENTS: 'documents',
 };
 
 /** Canonical shape set the system can render (variant-derived + directive-only silhouettes). */
 export const SUPPORTED_SHAPES: ShapeType[] = [
-  ...new Set<ShapeType>([...Object.values(VARIANT_TO_SHAPE), 'dashed-rectangle']),
+  ...new Set<ShapeType>([
+    ...Object.values(VARIANT_TO_SHAPE),
+    'dashed-rectangle',
+    'queue',
+    'cache',
+    'function',
+    'container',
+    'bucket',
+    'document',
+    'documents',
+  ]),
 ];
 
 /** True when a shape is only expressible via `%% archdraw-shape` directives. */
@@ -77,12 +104,52 @@ export function shapeFromServiceConfigKey(key: string): ShapeType {
 }
 
 const SERVICE_TYPE_TO_SHAPE: Record<string, ShapeType> = {
-  // Data
+  // Data - use cylinder for vertical database drums
   database: 'cylinder',
-  cache: 'cylinder',
-  storage: 'cylinder',
-  // Queues — horizontal pipe
-  queue: 'cylinder',
+  // Queues / Async Streams - use dedicated 'queue' shape (not cylinder!)
+  queue: 'queue',
+  kafka: 'queue',
+  rabbitmq: 'queue',
+  sqs: 'queue',
+  sns: 'queue',
+  pubsub: 'queue',
+  eventbus: 'queue',
+  nats: 'queue',
+  kinesis: 'queue',
+  'message-queue': 'queue',
+  messagequeue: 'queue',
+  // Cache / Memory Stores (new: 'cache' silhouette)
+  cache: 'cache',
+  redis: 'cache',
+  memcached: 'cache',
+  elasticache: 'cache',
+  cdn: 'cache',
+  varnish: 'cache',
+  // Serverless Functions (new: 'function' silhouette)
+  function: 'function',
+  lambda: 'function',
+  cloudfunction: 'function',
+  cloudfunctions: 'function',
+  edgeworker: 'function',
+  worker: 'function',
+  scheduler: 'function',
+  cronjob: 'function',
+  // Container / Pod (new: 'container' silhouette)
+  docker: 'container',
+  container: 'container',
+  pod: 'container',
+  kubernetes: 'container',
+  k8s: 'container',
+  deployment: 'container',
+  // Object / Blob Storage (new: 'bucket' silhouette)
+  storage: 'bucket',
+  objectstorage: 'bucket',
+  'object-storage': 'bucket',
+  s3: 'bucket',
+  gcs: 'bucket',
+  blob: 'bucket',
+  azureblob: 'bucket',
+  minio: 'bucket',
   // Ingress / LB
   'load-balancer': 'hexagon',
   loadbalancer: 'hexagon',
@@ -98,16 +165,7 @@ const SERVICE_TYPE_TO_SHAPE: Record<string, ShapeType> = {
   aws: 'cloud',
   gcp: 'cloud',
   azure: 'cloud',
-  // Security
-  firewall: 'shield',
-  waf: 'shield',
-  vault: 'shield',
-  oauth: 'shield',
-  auth: 'shield',
-  jwt: 'shield',
-  tls: 'shield',
-  ssl: 'shield',
-  keycloak: 'shield',
+  // Security — falls back to default rounded-rectangle
   // Clients
   client: 'monitor',
   browser: 'monitor',

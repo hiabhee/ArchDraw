@@ -21,14 +21,29 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
   // 1. Name-based primary check (high-confidence visual symbols)
   if (
     lower.includes('database') || lower.includes('db') ||
-    lower.includes('cache') || lower.includes('redis') ||
     lower.includes('postgres') || lower.includes('mysql') ||
     lower.includes('mongodb') || lower.includes('dynamodb') ||
     lower.includes('cassandra') || lower.includes('data store') ||
-    lower.includes('lake') || lower.includes('store') ||
-    lower.includes('storage') || lower.includes('warehouse') ||
-    lower.includes('s3') || lower.includes('bucket') ||
+    lower.includes('lake') || lower.includes('warehouse') ||
     lower.includes('firestore')
+  ) return { shape: 'cylinder', serviceType: 'database' }
+
+  if (
+    lower.includes('cache') || lower.includes('redis') ||
+    lower.includes('memcached') || lower.includes('elasticache') ||
+    lower.includes('cdn cache') || lower.includes('varnish')
+  ) return { shape: 'cache', serviceType: 'cache' }
+
+  if (
+    lower.includes('s3') || lower.includes('bucket') ||
+    lower.includes('blob') || lower.includes('gcs') ||
+    lower.includes('object storage') || lower.includes('object-storage') ||
+    lower.includes('azureblob') || lower.includes('minio')
+  ) return { shape: 'bucket', serviceType: 'storage' }
+
+  if (
+    lower.includes('store') || lower.includes('storage') ||
+    lower.includes('warehouse') || lower.includes('lake')
   ) return { shape: 'cylinder', serviceType: 'database' }
 
   if (
@@ -43,8 +58,11 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('kafka') || lower.includes('rabbitmq') ||
     lower.includes('message bus') || lower.includes('event') ||
     lower.includes('pub/sub') || lower.includes('stream') ||
-    lower.includes('topic') || lower.includes('mq')
-  ) return { shape: 'cylinder', serviceType: 'queue' }
+    lower.includes('topic') || lower.includes('mq') ||
+    lower.includes('nats') || lower.includes('kinesis') ||
+    lower.includes('sqs') || lower.includes('sns') ||
+    lower.includes('pubsub') || lower.includes('eventbus')
+  ) return { shape: 'queue', serviceType: 'queue' }
 
   if (
     lower.includes('firewall') || lower.includes('waf') ||
@@ -53,7 +71,22 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('jwt') || lower.includes('tls') ||
     lower.includes('ssl') || lower.includes('auth') ||
     lower.includes('identity') || lower.includes('sso')
-  ) return { shape: 'shield', serviceType: 'security' }
+  ) return { shape: 'rounded-rectangle', serviceType: 'security' }
+
+  if (
+    lower.includes('lambda') || lower.includes('cloud function') ||
+    lower.includes('edge worker') || lower.includes('serverless') ||
+    lower.includes('function') || lower.includes('webhook') ||
+    lower.includes('cronjob') || lower.includes('cron job') ||
+    lower.includes('scheduled')
+  ) return { shape: 'function', serviceType: 'function' }
+
+  if (
+    lower.includes('docker') || lower.includes('container') ||
+    lower.includes(' pod') || lower.startsWith('pod') ||
+    lower.includes('kubernetes') || lower.includes('k8s') ||
+    lower.includes('deployment')
+  ) return { shape: 'container', serviceType: 'container' }
 
   if (
     lower.includes('external') || lower.includes('third party') ||
@@ -100,7 +133,7 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
       return { shape: 'hexagon', serviceType: 'load-balancer' }
     }
     if (g.includes('security') || g.includes('auth')) {
-      return { shape: 'shield', serviceType: 'security' }
+      return { shape: 'rounded-rectangle', serviceType: 'security' }
     }
     if (g.includes('external') || g.includes('third') || g.includes('saas')) {
       return { shape: 'cloud', serviceType: 'external-service' }
@@ -125,6 +158,11 @@ export const SERVICE_TYPE_META: Record<string, { typeId: string; icon: string; c
   'actor':            { typeId: 'actor',             icon: 'User',      category: 'client' },
   'observability':    { typeId: 'observability',     icon: 'Activity',  category: 'observability' },
   'service':          { typeId: 'service',           icon: 'Box',       category: 'compute' },
+  // New architecture-native service types
+  'cache':            { typeId: 'cache',             icon: 'Zap',       category: 'data' },
+  'function':         { typeId: 'function',          icon: 'Code',      category: 'serverless' },
+  'container':        { typeId: 'container',         icon: 'Box',       category: 'compute' },
+  'storage':          { typeId: 'storage',           icon: 'HardDrive', category: 'storage' },
 }
 
 // Category-based color overrides (applied on top of theme primary color)
@@ -136,4 +174,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'client':         '#2563EB',
   'observability':  '#475569',
   'compute':        '#4F46E5',
+  'serverless':     '#7c3aed',
+  'storage':        '#0369a1',
 }

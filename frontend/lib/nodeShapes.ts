@@ -12,7 +12,6 @@ export type NodeShape =
   | 'stack'
   | 'queue'
   | 'dashed-rect'
-  | 'shield'
   | 'minimal'
   | 'gradient-glow'
   | 'worker';
@@ -63,8 +62,8 @@ export const SHAPE_CONFIGS: Record<string, ShapeConfig> = {
   // Tier 3: Services
   'Compute': { shape: 'rounded-square', size: 'normal', visualWeight: 'normal', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#2563EB' },
   'Serverless': { shape: 'rounded-square', size: 'normal', visualWeight: 'normal', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#2563EB' },
-  'Auth & Security': { shape: 'shield', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
-  'Authentication': { shape: 'shield', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
+  'Auth & Security': { shape: 'rounded-square', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
+  'Authentication': { shape: 'rounded-square', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
   'AI / ML': { shape: 'gradient-glow', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 120, maxHeight: 150, tier: 3, color: '#2563EB' },
   'Worker': { shape: 'worker', size: 'normal', visualWeight: 'normal', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#2563EB' },
   'Messaging & Events': { shape: 'queue', size: 'medium', visualWeight: 'normal', minWidth: 200, minHeight: 130, maxHeight: 160, tier: 3, color: '#D97706' },
