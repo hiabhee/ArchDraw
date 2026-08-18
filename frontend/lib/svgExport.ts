@@ -13,7 +13,7 @@ import {
 } from '@/lib/theme/stylingConstants';
 import { computeEdgeRoute, type EdgeRouteDirection } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
-import { getPointOnPath } from '@/lib/utils/edgeLabelDrag';
+import { getPointOnPath, shortenSvgPathEnd, SKETCH_ARROWHEAD_TRIM_PX } from '@/lib/utils/edgeLabelDrag';
 import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
 import { resolveEdgeVisual } from '@/lib/utils/edgeHierarchy';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
@@ -21,6 +21,31 @@ import { resolveCylinderAxis } from '@/lib/utils/cylinderAxis';
 import { semanticShapeBodySvg } from '@/lib/utils/shapeSilhouetteSvg';
 import { resolveTextLabelColor } from '@/lib/utils/textSizing';
 import { Position } from '@/lib/utils/edgePositions';
+import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
+import {
+  applyShapeSurface,
+  getRenderStyle,
+  getStrokeRenderer,
+  renderSketchBodyMarkup,
+  SKETCH_PAPER_TINT,
+  SKETCH_PAPER_DARK,
+  SKETCH_PAPER_DARK_BORDER,
+  SKETCH_INK_LIGHT_BORDER,
+  SKETCH_INK_LIGHT_TITLE,
+  SKETCH_INK_LIGHT_SUBTITLE,
+  SKETCH_INK_DARK_TITLE,
+  SKETCH_INK_DARK_SUBTITLE,
+  SKETCH_GROUP_FILL_LIGHT,
+  SKETCH_GROUP_STROKE_LIGHT,
+  SKETCH_GROUP_FILL_DARK,
+  SKETCH_GROUP_STROKE_DARK,
+  sketchEdgeInk,
+  resolveRenderSurface,
+  renderSketchSurface,
+  type DiagramRenderStyleId,
+  type RenderSurface,
+  type ShapePrimitive,
+} from '@/lib/theme/renderStyles';
 
 // --- Local edge path geometry (ported from @reactflow/core, pure functions) ---
 // Kept dependency-free so this module can be imported from server routes:
@@ -393,6 +418,28 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function buildSolidArrowheadPath(
+  tip: { x: number; y: number },
+  angle: number,
+  length = 14,
+  width = 12,
+): string {
+  const backX = tip.x - Math.cos(angle) * length;
+  const backY = tip.y - Math.sin(angle) * length;
+  const normalX = Math.cos(angle + Math.PI / 2);
+  const normalY = Math.sin(angle + Math.PI / 2);
+  const halfWidth = width / 2;
+  const left = {
+    x: backX + normalX * halfWidth,
+    y: backY + normalY * halfWidth,
+  };
+  const right = {
+    x: backX - normalX * halfWidth,
+    y: backY - normalY * halfWidth,
+  };
+  return `M ${tip.x} ${tip.y} L ${left.x} ${left.y} L ${right.x} ${right.y} Z`;
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -460,21 +507,7 @@ function nodeDepth(node: Node, nodeMap: Map<string, Node>): number {
   return depth;
 }
 
-function resolveShapeSurfaceSvg(
-  isDark: boolean,
-  selected: boolean,
-  accentColor: string,
-): { fill: string; stroke: string; strokeWidth: number } {
-  const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
-  const fill = isDark ? styles.background : '#ffffff';
-  const stroke = selected
-    ? accentColor
-    : isDark
-      ? 'rgba(255, 255, 255, 0.12)'
-      : 'rgba(15, 23, 42, 0.14)';
-  const strokeWidth = selected ? 2 : 1.25;
-  return { fill, stroke, strokeWidth };
-}
+
 
 function getTierColorNormalized(layer?: string): string {
   return getConcernColor(layer);
@@ -603,8 +636,13 @@ function getPath(
   return { path, labelX, labelY };
 }
 
-function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
+function renderSystemNode(
+  node: SystemNodeRenderData,
+  isDark: boolean,
+  renderStyleId: DiagramRenderStyleId = 'precision',
+): string {
   const { x, y, width, height, data, selected } = node;
+  const sketch = renderStyleId === 'sketch';
   
   const tierColor = getTierColorNormalized(data.layer);
   const accentColor = data.accentColor || data.color || tierColor || '#0f766e';
@@ -639,6 +677,58 @@ function renderSystemNode(node: SystemNodeRenderData, isDark: boolean): string {
     styleAttr = selected
       ? `style="filter: drop-shadow(0 1px 2px rgba(15,23,42,0.06));"`
       : '';
+  }
+
+  if (sketch) {
+    // Warm ink type on paper/chalk — not precision slate.
+    titleColor = isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE;
+    subtitleColor = isDark ? SKETCH_INK_DARK_SUBTITLE : SKETCH_INK_LIGHT_SUBTITLE;
+    const surface = resolveRenderSurface({
+      renderStyleId: 'sketch',
+      isDark,
+      selected: selected ?? false,
+      accentColor,
+    });
+    const renderer = getStrokeRenderer('rough');
+    const seed = renderer.seedFor(node.id);
+    const card = renderSketchSurface({
+      primitives: getShapePrimitives('rounded-rectangle', width, height),
+      surface,
+      seedId: seed,
+      isDark,
+      shape: 'rounded-rectangle',
+    });
+    const hand = getRenderStyle('sketch').fonts.title;
+
+    return `
+      <g transform="translate(${x}, ${y})">
+        ${card}
+        <g transform="translate(16, 14)">
+          <rect x="0" y="0" width="24" height="24" rx="6" fill="${iconColor}" fill-opacity="0.12" />
+          <circle cx="12" cy="12" r="5" fill="${iconColor}" fill-opacity="0.85" />
+          <text
+            x="32" y="16"
+            fill="${titleColor}"
+            font-family="${hand}"
+            font-size="15"
+            font-weight="${sketch ? 500 : 600}"
+            letter-spacing="${sketch ? '0.015em' : '-0.015em'}"
+          >${escapeXml(data.label || 'Service')}</text>
+        </g>
+        ${data.subtitle ? `
+        <text
+          x="16" y="${height - 14}"
+          fill="${subtitleColor}"
+          fill-opacity="0.7"
+          font-family="${hand}"
+          font-size="11"
+          font-weight="400"
+          letter-spacing="0.01em"
+        >${escapeXml(String(data.subtitle))}</text>` : ''}
+        ${showStatus ? `
+        <circle cx="${width - 14}" cy="${height - 14}" r="3" fill="${statusColor}" />` : ''}
+      </g>
+    `.trim();
   }
 
   const strokeW = selected ? 2 : STROKE_WIDTH;
@@ -795,7 +885,11 @@ function renderAnnotationNode(node: SystemNodeRenderData, isDark: boolean): stri
   `.trim();
 }
 
-function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
+function renderGroupNode(
+  node: SystemNodeRenderData,
+  isDark: boolean,
+  renderStyleId: DiagramRenderStyleId = 'precision',
+): string {
   const { x, y, width, height, data, selected } = node;
   
   const groupColor = (data as { accentColor?: string; groupColor?: string })?.accentColor || 
@@ -804,14 +898,22 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
                     getConcernColor((data as { layer?: string; label?: string }).layer || (data as { label?: string }).label) ||
                     '#0f766e';
   
-  const bgRgba = hexToRgba(groupColor, isDark ? 0.09 : 0.05);
-  const borderColor = isDark
-    ? selected
+  const sketch = renderStyleId === 'sketch';
+  // Sketch groups are warm neutral zones (tokenized fill/stroke) so the dashed
+  // box reads as a penciled boundary, not a colored swimlane; the concern tint
+  // stays on the caption label and the selected state.
+  const bgRgba = sketch
+    ? isDark ? SKETCH_GROUP_FILL_DARK : SKETCH_GROUP_FILL_LIGHT
+    : hexToRgba(groupColor, isDark ? 0.09 : 0.05);
+  const borderColor = selected
+    ? isDark
       ? hexToRgba(groupColor, 0.65)
-      : hexToRgba(groupColor, 0.38)
-    : selected
-      ? hexToRgba(groupColor, 0.6)
-      : hexToRgba(groupColor, 0.32);
+      : hexToRgba(groupColor, 0.6)
+    : sketch
+      ? isDark ? SKETCH_GROUP_STROKE_DARK : SKETCH_GROUP_STROKE_LIGHT
+      : isDark
+        ? hexToRgba(groupColor, 0.38)
+        : hexToRgba(groupColor, 0.32);
 
   const borderWidth = selected ? 1.5 : 1;
 
@@ -819,9 +921,24 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
                (data as { label?: string })?.label || '';
 
   const tagText = isDark ? hexToRgba(groupColor, 0.9) : groupColor;
-  
-  return `
-    <g transform="translate(${x}, ${y})">
+
+  let zone = '';
+  if (sketch) {
+    const renderer = getStrokeRenderer('rough');
+    const seed = renderer.seedFor(`group-${x}-${y}`);
+    zone = renderSketchBodyMarkup(
+      getShapePrimitives('rounded-rectangle', width, height),
+      {
+        fill: bgRgba,
+        stroke: borderColor,
+        strokeWidth: Math.max(1.5, borderWidth),
+      },
+      seed,
+      isDark,
+      'group',  // Pass 'group' shape type for solid fill (no hatch)
+    );
+  } else {
+    zone = `
       <rect
         x="0" y="0"
         width="${width}" height="${height}"
@@ -829,52 +946,82 @@ function renderGroupNode(node: SystemNodeRenderData, isDark: boolean): string {
         stroke="${borderColor}"
         stroke-width="${borderWidth}"
         rx="12" ry="12"
-      />
+      />`;
+  }
+
+  return `
+    <g transform="translate(${x}, ${y})">
+      ${zone}
       ${label ? `
       <text
-        x="12" y="18"
+        x="12" y="20"
         fill="${tagText}"
-        font-family="Inter, Roboto, system-ui, -apple-system, sans-serif"
-        font-size="11"
-        font-weight="500"
-        letter-spacing="0.04em"
+        font-family="${sketch ? getRenderStyle('sketch').fonts.title : 'Inter, Roboto, system-ui, -apple-system, sans-serif'}"
+        font-size="${sketch ? 15 : 11}"
+        font-weight="${sketch ? 500 : 500}"
+        letter-spacing="${sketch ? '0.02em' : '0.04em'}"
       >${escapeXml(label)}</text>` : ''}
     </g>
   `.trim();
 }
 
-function renderShapeNode(node: SystemNodeRenderData, isDark: boolean): string {
+function renderShapeNode(
+  node: SystemNodeRenderData,
+  isDark: boolean,
+  renderStyleId: DiagramRenderStyleId = 'precision',
+): string {
   const { x, y, width: W, height: H, data, selected } = node;
   const shapeData = data as ShapeNodeData;
   const shape = shapeData.shape || 'rounded-rectangle';
   const color = shapeData.accentColor ?? shapeData.color ?? getConcernColor(shapeData.layer) ?? '#0f766e';
-  const surface = resolveShapeSurfaceSvg(isDark, selected ?? false, color);
+  const sketch = renderStyleId === 'sketch';
+  const surface = resolveRenderSurface({
+    renderStyleId,
+    isDark,
+    selected: selected ?? false,
+    accentColor: color,
+  });
   const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
-  const titleColor = styles.titleColor;
-  const subtitleColor = styles.subtitleColor;
+  // Sketch titles/subtitles are warm ink (brown on paper, chalk on board) —
+  // not the precision slate.
+  const titleColor = sketch
+    ? isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
+    : styles.titleColor;
+  const subtitleColor = sketch
+    ? isDark ? SKETCH_INK_DARK_SUBTITLE : SKETCH_INK_LIGHT_SUBTITLE
+    : styles.subtitleColor;
   const title = shapeData.label || '';
   const subtitle = shapeData.sublabel;
 
+  const renderer = getStrokeRenderer(sketch ? 'rough' : 'crisp');
+  const seed = renderer.seedFor(node.id);
+  const renderBody = (primitives: ShapePrimitive[]): string => {
+    if (sketch) {
+      return renderSketchSurface({
+        primitives,
+        surface,
+        seedId: seed,
+        isDark,
+        shape,
+      });
+    }
+    return applyShapeSurface(primitives, surface)
+      .map((p) => renderer.renderPrimitive(p, seed))
+      .join('\n');
+  };
+
   let body = '';
   switch (shape) {
-    case 'diamond': {
-      const pts = `${W / 2},4 ${W - 4},${H / 2} ${W / 2},${H - 4} 4,${H / 2}`;
-      body = `<polygon points="${pts}" fill="${surface.fill}" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />`;
+    case 'diamond':
+    case 'circle':
+    case 'parallelogram':
+      body = renderBody(getShapePrimitives(shape, W, H));
       break;
-    }
-    case 'circle': {
-      body = `<ellipse cx="${W / 2}" cy="${H / 2}" rx="${W / 2 - 2}" ry="${H / 2 - 2}" fill="${surface.fill}" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />`;
-      break;
-    }
-    case 'parallelogram': {
-      const skew = Math.min(16, Math.round(W * 0.08));
-      const pts = `${skew},4 ${W - 4},4 ${W - skew - 4},${H - 4} 4,${H - 4}`;
-      body = `<polygon points="${pts}" fill="${surface.fill}" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />`;
-      break;
-    }
     case 'cylinder': {
       const axis = resolveCylinderAxis(shapeData);
-      if (axis === 'horizontal') {
+      if (renderStyleId === 'sketch') {
+        body = renderBody(getShapePrimitives('cylinder', W, H, axis, true));  // Pass true for sketch mode
+      } else if (axis === 'horizontal') {
         const inset = 2;
         const R = Math.max(8, Math.round((H - inset * 2) / 2));
         const midY = H / 2;
@@ -903,20 +1050,23 @@ function renderShapeNode(node: SystemNodeRenderData, isDark: boolean): string {
       break;
     }
     default: {
-      const semantic = semanticShapeBodySvg(shape, W, H, surface, isDark);
+      const semantic = semanticShapeBodySvg(shape, W, H, surface, isDark, renderStyleId);
       if (semantic) {
         body = semantic;
         break;
       }
       const rounded = shape === 'rounded-rectangle';
-      const r = rounded ? 10 : 6;
-      body = `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="${r}" ry="${r}" fill="${surface.fill}" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />`;
-      break;
+      body = renderBody(getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', W, H));
     }
   }
 
   const titleY = subtitle ? H / 2 - 4 : H / 2 + 4;
   const subtitleY = H / 2 + 12;
+  const fontFamily = getRenderStyle(renderStyleId).fonts.title;
+  // Sketch subtitles read as penciled secondary text — lighter, smaller, muted.
+  const titleFontSize = sketch ? 15 : 13.5;  // Increased from 14 for better prominence
+  const subtitleFontSize = sketch ? 11 : 10.5;  // Reduced from 11.5 for better hierarchy
+  const subtitleFillOpacity = sketch ? 0.7 : 1;  // Reduced from 0.75 for more subtlety
 
   return `
     <g transform="translate(${x}, ${y})">
@@ -925,33 +1075,45 @@ function renderShapeNode(node: SystemNodeRenderData, isDark: boolean): string {
       <text
         x="${W / 2}" y="${titleY}"
         fill="${titleColor}"
-        font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
-        font-size="13.5"
-        font-weight="600"
+        font-family="${fontFamily}"
+        font-size="${titleFontSize}"
+        font-weight="${sketch ? 500 : 600}"
         text-anchor="middle"
-        letter-spacing="-0.015em"
+        letter-spacing="${sketch ? '0.015em' : '-0.015em'}"
       >${escapeXml(title)}</text>` : ''}
       ${subtitle ? `
       <text
         x="${W / 2}" y="${subtitleY}"
         fill="${subtitleColor}"
-        font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
-        font-size="10.5"
+        fill-opacity="${subtitleFillOpacity}"
+        font-family="${fontFamily}"
+        font-size="${subtitleFontSize}"
         font-weight="400"
         text-anchor="middle"
+        letter-spacing="${sketch ? '0.01em' : '0'}"
       >${escapeXml(subtitle)}</text>` : ''}
     </g>
   `.trim();
 }
 
-function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
+function renderEdge(
+  edge: EdgeRenderData,
+  isDark: boolean,
+  renderStyleId: DiagramRenderStyleId = 'precision',
+): string {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected, isFloating } = edge;
   
+  const isSketch = renderStyleId === 'sketch';
   const edgeType: EdgeType | undefined = data?.edgeType;
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
 
-  const visual = resolveEdgeVisual(data as Record<string, unknown> | undefined, isDark);
+  const visual = resolveEdgeVisual(
+    data as Record<string, unknown> | undefined,
+    isDark,
+    isSketch,
+    isSketch ? sketchEdgeInk(isDark) : undefined,
+  );
   let strokeColor = data?.color || visual.stroke;
   if (selected) {
     strokeColor = isDark ? '#e2e8f0' : '#1e293b';
@@ -989,41 +1151,46 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
     }
   }
   
-  const isBidirectional = (data as EdgeDataExtended)?.isBidirectional;
+  const rough = getStrokeRenderer('rough');
+  const seed = rough.seedFor(id);
 
-  const markerEndId = `arrow-${id}`;
-  const markerStartId = `arrow-start-${id}`;
-  
-  let defsSVG = `<defs>
-    <marker id="${markerEndId}" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="${strokeColor}"/>
-    </marker>`;
-    
-  if (isBidirectional) {
-    defsSVG += `
-    <marker id="${markerStartId}" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M 10 0 L 0 5 L 10 10 z" fill="${strokeColor}"/>
-    </marker>`;
-  }
-  defsSVG += '\n  </defs>';
-
-  const markerEndAttr = `marker-end="url(#${markerEndId})"`;
-  const markerStartAttr = isBidirectional ? `marker-start="url(#${markerStartId})"` : '';
-  
   let labelSVG = '';
   if (data?.label && !data?.hideLabel) {
     const labelText = data.label;
-    const fg = strokeColor || (isDark ? '#CBD5E1' : '#64748b');
+    // Sketch labels are warm ink — a hand-picked edge color stays (like the
+    // canvas EdgeLabel); precision blends the edge color with slate.
+    const customColor = data.color && /^#[0-9a-fA-F]{6}$/.test(data.color) ? data.color : undefined;
+    const fg = customColor
+      ? customColor
+      : isSketch
+        ? (isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE)
+        : (strokeColor || (isDark ? '#CBD5E1' : '#64748b'));
     const knockout = isDark ? '#0f1117' : '#f8fafc';
     const border = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)';
-    const paddingX = 6;
-    const paddingY = 2;
-    const charWidth = 5.4;
+    const sketchBorder = isDark ? 'rgba(245, 242, 235, 0.20)' : 'rgba(92, 74, 48, 0.15)';  // Lighter borders for sketch
+    const paddingX = isSketch ? 4 : 6;  // Reduced padding for sketch
+    const paddingY = isSketch ? 1.5 : 2;  // Reduced padding for sketch
+    const charWidth = isSketch ? 4.8 : 5.4;  // Smaller char width for reduced font
     const labelWidth = Math.max(36, labelText.length * charWidth + paddingX * 2);
-    const labelHeight = 14 + paddingY * 2;
+    const labelHeight = (isSketch ? 12 : 14) + paddingY * 2;  // Smaller height for sketch
 
-    labelSVG = `
-      <g transform="translate(${labelX}, ${labelY})">
+    let labelBox = '';
+    if (isSketch) {
+      // Penciled label box: rough paper rectangle with quiet ink border.
+      const boxBody = renderSketchBodyMarkup(
+        getShapePrimitives('rounded-rectangle', labelWidth, labelHeight),
+        {
+          fill: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,
+          stroke: sketchBorder,  // Use lighter sketch border
+          strokeWidth: 0.9,  // Reduced from 1.25 for lighter border
+        },
+        seed,
+        isDark,
+        'rounded-rectangle',
+      );
+      labelBox = `<g transform="translate(${-labelWidth / 2}, ${-labelHeight / 2})">${boxBody}</g>`;
+    } else {
+      labelBox = `
         <rect
           x="-${labelWidth / 2}"
           y="-${labelHeight / 2}"
@@ -1033,22 +1200,34 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
           stroke="${border}"
           stroke-width="1"
           rx="3"
-        />
+        />`;
+    }
+
+    labelSVG = `
+      <g transform="translate(${labelX}, ${labelY})">
+        ${labelBox}
         <text
           x="0" y="3"
           fill="${fg}"
-          font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
-          font-size="9"
+          font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
+          font-size="${isSketch ? 9 : 9}"
           font-weight="500"
           text-anchor="middle"
-          letter-spacing="0.01em"
+          letter-spacing="${isSketch ? '0' : '0.01em'}"
         >${escapeXml(labelText)}</text>
       </g>
     `.trim();
   }
   
-  return `
-    ${defsSVG}
+  const sketchDrawPath = isSketch ? shortenSvgPathEnd(d, SKETCH_ARROWHEAD_TRIM_PX) : d;
+
+  const pathSVG = isSketch
+    ? rough.renderEdgePath(
+        sketchDrawPath,
+        { d: sketchDrawPath, stroke: strokeColor, strokeWidth, dasharray: dashArray ?? undefined, opacity },
+        seed,
+      )
+    : `
     <path
       d="${d}"
       fill="none"
@@ -1056,10 +1235,26 @@ function renderEdge(edge: EdgeRenderData, isDark: boolean): string {
       stroke-width="${strokeWidth}"
       stroke-opacity="${opacity}"
       ${strokeDashAttr}
-      ${markerEndAttr}
-      ${markerStartAttr}
       style="opacity: ${opacity}; ${isDark ? `filter: drop-shadow(0 0 3px ${strokeColor});` : ''}"
-    />
+    />`.trim();
+
+  let arrowheadSVG = '';
+  if (d) {
+    try {
+      const end = { x: targetX, y: targetY };
+      const pathEnd = isSketch ? getPointOnPath(sketchDrawPath, 1) : getPointOnPath(d, 0.98);
+      const angle = Math.atan2(end.y - pathEnd.y, end.x - pathEnd.x);
+      arrowheadSVG = isSketch
+        ? rough.renderArrowhead(end, angle, strokeColor, seed)
+        : `<path data-edge-marker="solid-arrowhead" d="${buildSolidArrowheadPath(end, angle)}" fill="${strokeColor}" stroke="${strokeColor}" stroke-width="0" opacity="${opacity}"/>`;
+    } catch {
+      // ignore — fall back to no arrowhead
+    }
+  }
+
+  return `
+    ${pathSVG}
+    ${arrowheadSVG}
     ${labelSVG}
   `.trim();
 }
@@ -1098,6 +1293,7 @@ export function generatePureSVG(
   isDark: boolean = true,
   backgroundColor: string = '#0f172a',
   layoutDirection: EdgeRouteDirection = 'LR',
+  renderStyleId: DiagramRenderStyleId = 'precision',
 ): string {
   const rawNodeMap = new Map(nodes.map((n) => [n.id, n]));
 
@@ -1161,11 +1357,11 @@ export function generatePureSVG(
     } else if (node.type === 'annotationNode') {
       nodeElements.push(renderAnnotationNode(nodeData, isDark));
     } else if (node.type === 'groupNode' || node.type === 'group') {
-      nodeElements.push(renderGroupNode(nodeData, isDark));
+      nodeElements.push(renderGroupNode(nodeData, isDark, renderStyleId));
     } else if (node.type === 'shapeNode') {
-      nodeElements.push(renderShapeNode(nodeData, isDark));
+      nodeElements.push(renderShapeNode(nodeData, isDark, renderStyleId));
     } else {
-      nodeElements.push(renderSystemNode(nodeData, isDark));
+      nodeElements.push(renderSystemNode(nodeData, isDark, renderStyleId));
     }
   }
 
@@ -1265,7 +1461,7 @@ export function generatePureSVG(
       labelY,
     };
 
-    edgeElements.push(renderEdge(edgeData, isDark));
+    edgeElements.push(renderEdge(edgeData, isDark, renderStyleId));
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -1279,4 +1475,3 @@ ${nodeElements.map((n) => '    ' + n.replace(/\n/g, '\n    ')).join('\n')}
   </g>
 </svg>`.trim();
 }
-
