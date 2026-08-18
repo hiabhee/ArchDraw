@@ -128,6 +128,7 @@ export interface DiagramState {
   iconMode: import('@/lib/utils/nodeIconVisibility').NodeIconMode;
   diagramChromeMode: 'edit' | 'present';
   diagramStyleTheme: string;
+  diagramRenderStyle: import('@/lib/theme/renderStyles').DiagramRenderStyleId;
   darkMode: boolean;
   sidebarOpen: boolean;
   canvasMode: 'empty' | 'editing' | 'template';
@@ -141,6 +142,7 @@ export interface DiagramState {
   setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;
   setDiagramStyleTheme: (theme: string) => void;
+  setDiagramRenderStyle: (style: import('@/lib/theme/renderStyles').DiagramRenderStyleId) => void;
   toggleDarkMode: () => void;
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
@@ -171,6 +173,10 @@ export interface DiagramState {
     position?: { x: number; y: number }
   ) => void;
   removeNode: (id: string) => void;
+  duplicateNode: (nodeId: string, options?: {
+    offset?: { x: number; y: number };
+    labelSuffix?: string;
+  }) => string | undefined;
   updateNodeData: (id: string, data: Partial<NodeData>) => void;
   updateNodeSize: (id: string, size: { width?: number; height?: number }) => void;
   updateEdgeData: (id: string, data: Record<string, unknown>) => void;
@@ -192,6 +198,7 @@ export interface DiagramState {
   loadDefaultArchitecture: () => void;
   alignConnectedNodes: () => void;
   recalculateHandles: (nodesOverride?: Node[]) => void;
+  fixMissingLabels: () => void;
 
   // ── Fit view ──────────────────────────────────────────────────────────────
   fitView: (options?: FitViewOptions) => void;
@@ -204,6 +211,7 @@ export interface DiagramState {
   pendingLabelEdgeId: string | null;
   setPendingLabelEdgeId: (id: string | null) => void;
   updateEdgeLabel: (edgeId: string, label: string) => void;
+  updateEdgeData: (edgeId: string, dataUpdates: Record<string, unknown>) => void;
 
   // ── AI Streaming ──────────────────────────────────────────────────────────
   setNodes: (nodes: Node[]) => void;

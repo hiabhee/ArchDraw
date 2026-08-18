@@ -10,6 +10,7 @@ export function diagramPersistPartialize(s: DiagramState) {
     iconMode: s.iconMode,
     diagramChromeMode: s.diagramChromeMode,
     diagramStyleTheme: s.diagramStyleTheme,
+    diagramRenderStyle: s.diagramRenderStyle,
     userProfile: s.userProfile,
   };
 }

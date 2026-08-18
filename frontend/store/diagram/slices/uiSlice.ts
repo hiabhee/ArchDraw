@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import { applyThemeChange } from '@/lib/themeBridge';
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { DiagramState } from '../types';
 
 export type UiSlice = Pick<
@@ -10,6 +11,7 @@ export type UiSlice = Pick<
   | 'iconMode'
   | 'diagramChromeMode'
   | 'diagramStyleTheme'
+  | 'diagramRenderStyle'
   | 'darkMode'
   | 'sidebarOpen'
   | 'canvasMode'
@@ -23,6 +25,7 @@ export type UiSlice = Pick<
   | 'setCloudProvider'
   | 'setDiagramChromeMode'
   | 'setDiagramStyleTheme'
+  | 'setDiagramRenderStyle'
   | 'toggleDarkMode'
   | 'setSidebarOpen'
   | 'setCanvasMode'
@@ -45,6 +48,7 @@ export const createUiSlice: StateCreator<
   iconMode: 'all',
   diagramChromeMode: 'edit',
   diagramStyleTheme: 'default',
+  diagramRenderStyle: 'precision',
   darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') === 'dark' : false,
   sidebarOpen: false,
   canvasMode: 'empty',
@@ -69,6 +73,7 @@ export const createUiSlice: StateCreator<
   },
   setDiagramChromeMode: (mode) => set({ diagramChromeMode: mode }),
   setDiagramStyleTheme: (theme) => set({ diagramStyleTheme: theme }),
+  setDiagramRenderStyle: (style: DiagramRenderStyleId) => set({ diagramRenderStyle: style }),
   toggleDarkMode: () => {
     applyThemeChange(!get().darkMode);
   },

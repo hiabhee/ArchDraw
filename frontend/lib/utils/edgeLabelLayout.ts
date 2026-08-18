@@ -276,6 +276,26 @@ function sampleNearAny(sample: PathSample, others: PathSample[][], dist: number)
   return false
 }
 
+/** Fraction of path samples that overlap a peer corridor (fan-in / fan-out merge). */
+const MIN_SHARED_PATH_FRACTION = 0.08
+
+/**
+ * True when this edge's rendered geometry shares a corridor with a peer — not
+ * merely when endpoints touch the same node.
+ */
+export function pathMergesWithPeers(
+  mySamples: PathSample[],
+  peerSamples: PathSample[][],
+  shareDist: number = SHARED_PATH_DIST,
+): boolean {
+  if (peerSamples.length === 0 || mySamples.length === 0) return false
+  let shared = 0
+  for (const sample of mySamples) {
+    if (sampleNearAny(sample, peerSamples, shareDist)) shared++
+  }
+  return shared / mySamples.length >= MIN_SHARED_PATH_FRACTION
+}
+
 /**
  * Find how far from the source (and from the target) this path stays unique —
  * i.e. not overlapping another edge's geometry. Fan-in routes share a long
@@ -630,16 +650,16 @@ function computeLayout(
         ? sameEndpointPeers
         : routed.filter((r) => r.edge.id !== edge.id).map((r) => r.samples)
 
-    const hasPeers = peerSamples.length > 0
-    const stem = hasPeers
+    const pathMerges = pathMergesWithPeers(item.samples, peerSamples)
+    const stem = pathMerges
       ? findUniqueStemRange(item.samples, peerSamples)
       : { uniqueEndFromSource: 0.5, uniqueStartFromTarget: 0.5 }
-    const preferredT = hasPeers
+    const preferredT = pathMerges
       ? preferredTForUniqueStem(edge, parallelEdges, labelOrder, stem, segs)
       : getPreferredT(edge, parallelEdges, labelOrder)
 
     let preferredRange: { lo: number; hi: number } | undefined
-    if (hasPeers && typeof data?.labelT !== 'number') {
+    if (pathMerges && typeof data?.labelT !== 'number') {
       const fromSourceLen = stem.uniqueEndFromSource
       const fromTargetLen = 1 - stem.uniqueStartFromTarget
       if (fromSourceLen >= MIN_UNIQUE_STEM && fromSourceLen >= fromTargetLen) {

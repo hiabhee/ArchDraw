@@ -2,8 +2,9 @@
 import { useMemo } from 'react';
 import { MarkerType } from 'reactflow';
 import type { Edge } from 'reactflow';
-import { useCanvasTheme } from '@/lib/theme';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import { resolveEdgeVisual } from '@/lib/utils/edgeHierarchy';
+import type { SketchEdgeInk } from '@/lib/theme/renderStyles';
 
 /** Marker bounding box — bolder arrowheads that stay legible in dense graphs. */
 export const EDGE_MARKER_SIZE = 26;
@@ -20,12 +21,16 @@ export interface EdgePalette {
  * Resolve a connector's palette from its semantic data.
  * Primary/spine edges form the request path; secondary sync stays muted;
  * async/dashed → amber; observability/health (control-plane) → quieter still.
+ * In sketch the structural inks come from the resolved sketch palette
+ * (`aesthetics.colors.*` → `ink`) so edges read as warm hand-ink, not UI.
  */
 export function resolveEdgePalette(
   data: Record<string, unknown> | undefined,
   isDark: boolean,
+  sketch = false,
+  ink?: Partial<SketchEdgeInk>,
 ): EdgePalette {
-  const visual = resolveEdgeVisual(data, isDark);
+  const visual = resolveEdgeVisual(data, isDark, sketch, ink);
   return {
     stroke: visual.stroke,
     markerColor: visual.markerColor,
@@ -36,13 +41,18 @@ export function resolveEdgePalette(
 }
 
 export function useEdgeColors(edges: Edge[]): Edge[] {
-  const { isDark } = useCanvasTheme();
+  const { isDark, renderStyleId, colors } = useDiagramAesthetics();
+  const sketch = renderStyleId === 'sketch';
 
   return useMemo(() => {
     return edges.map((edge) => {
       const palette = resolveEdgePalette(
         edge.data as Record<string, unknown> | undefined,
         isDark,
+        sketch,
+        sketch
+          ? { primary: colors.edgePrimary, default: colors.edgeDefault, async: colors.edgeAsync }
+          : undefined,
       );
       return {
         ...edge,
@@ -61,14 +71,21 @@ export function useEdgeColors(edges: Edge[]): Edge[] {
         labelStyle: { ...edge.labelStyle, fill: palette.stroke },
       };
     });
-  }, [edges, isDark]);
+  }, [edges, isDark, sketch, colors.edgePrimary, colors.edgeDefault, colors.edgeAsync]);
 }
 
-export function assignEdgeColors(edges: Edge[], isDark: boolean = true): Edge[] {
+export function assignEdgeColors(
+  edges: Edge[],
+  isDark: boolean = true,
+  sketch = false,
+  ink?: Partial<SketchEdgeInk>,
+): Edge[] {
   return edges.map((edge) => {
     const palette = resolveEdgePalette(
       edge.data as Record<string, unknown> | undefined,
       isDark,
+      sketch,
+      ink,
     );
     return {
       ...edge,
