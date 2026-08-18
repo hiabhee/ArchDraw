@@ -111,9 +111,11 @@ export async function layoutDiagramViaMermaid(
       return {
         ...newNode,
         type: originalNode.type,
-        parentNode: originalNode.parentNode,
-        parentId: (originalNode as { parentId?: string }).parentId,
-        extent: originalNode.extent,
+        // Use the NEW parent relationships from the Mermaid pipeline, not the original ones.
+        // The Mermaid round-trip correctly preserves subgraph/group structure.
+        parentNode: newNode.parentNode,
+        parentId: (newNode as { parentId?: string }).parentId,
+        extent: newNode.extent || originalNode.extent,
         width,
         height,
         style: group

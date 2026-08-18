@@ -4,6 +4,17 @@ import logger from './logger';
 import { calculateNodeDimensions } from './utils/nodeSizing';
 import { getTierForCategory } from './nodeShapes';
 
+/**
+ * @deprecated This local Dagre wrapper is a legacy entry-point.
+ * New callers should use `applyRfLayout` from
+ * `@/lib/pipeline-shared/layout/IntegratedLayout` instead, which is the
+ * canonical engine shared by the AI pipeline, the Mermaid round-trip, and the
+ * toolbar layout toggler.
+ *
+ * Remaining internal callers (as of the DRY/SRP cleanup) should be migrated
+ * and this file deleted once empty.
+ */
+
 function wouldCreateCycle(childId: string, parentId: string, parentMap: Map<string, string>): boolean {
   if (childId === parentId) return true;
   let current = parentId;

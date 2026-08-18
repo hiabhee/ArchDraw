@@ -310,7 +310,6 @@ function genericApiEdgeMermaid(subject: string): string {
   subgraph EDGE["Edge Layer"]
     entry["${subject} Entry Point"]
     tls["TLS Termination"]
-    %% archdraw-shape: {"id":"waf","shape":"shield"}
     waf["WAF / Filtering"]
   end
   subgraph ROUTING["Routing Plane"]
@@ -793,7 +792,6 @@ const apiGatewayMermaid = `graph LR
   subgraph EDGE["Edge Protection"]
     dns["DNS"]
     cdn["CDN"]
-    %% archdraw-shape: {"id":"waf","shape":"shield"}
     waf["WAF"]
   end
   subgraph GATEWAY["API Gateway Runtime"]

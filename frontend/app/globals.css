@@ -451,6 +451,13 @@ body {
   outline-offset: 2px;
 }
 
+/* Override ReactFlow's default selection box-shadow to prevent double stroke */
+.react-flow__node.selected,
+.react-flow__node.selected:focus,
+.react-flow__node.selected:focus-visible {
+  box-shadow: none !important;
+}
+
 .react-flow__selection {
   background: hsl(40 6% 25% / 0.04) !important;
   border-radius: 8px !important;

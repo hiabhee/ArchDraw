@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { DashboardClient } from '@/components/dashboard/DashboardClient';
-import { getLayoutedElements } from '@/lib/layoutUtils';
 import { TEMPLATES } from '@/data/templates/index';
+
 
 export const metadata = {
   title: 'Dashboard | ArchDraw',

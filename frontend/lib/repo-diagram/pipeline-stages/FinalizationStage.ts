@@ -11,6 +11,7 @@ import type { CacheWriteShared } from './shared-keys';
 import { REPO_SHARED } from './shared-keys';
 import { setSharedTyped } from '@/lib/pipeline-core';
 import { normalizeId } from './internal-helpers';
+import { detailLevelFromContext } from './context-utils';
 
 export interface FinalizationInput {
   snapshot: RepoSnapshot;
@@ -27,12 +28,6 @@ export interface FinalizationInput {
   preVerifierHighEdgeCount: number;
   detailLevel?: 1 | 2 | 3;
   repoUrl?: string;
-}
-
-function detailLevelFromContext(context: PipelineContext, fallback?: 1 | 2 | 3): 1 | 2 | 3 {
-  const fromMeta = context.metadata.detailLevel;
-  if (fromMeta === 1 || fromMeta === 2 || fromMeta === 3) return fromMeta;
-  return fallback ?? 2;
 }
 
 function sanitizeRepoGraph(

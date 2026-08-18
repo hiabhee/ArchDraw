@@ -4,15 +4,10 @@ import { buildStaticDetectionReport, formatDetectionReport } from '@/lib/repo-di
 import { classifyRepository } from '@/lib/agents/repo-classifier';
 import { buildFallbackRepoProfile } from '@/lib/agents/repo-deep-classifier';
 import { buildDependencyIntelligence, buildSummariesForLLM, gatherPass2Files } from './internal-helpers';
+import { detailLevelFromContext } from './context-utils';
 import type { EnrichmentInput, RepoEnrichmentState } from './enrichment-types';
 import { emptyDegraded } from './enrichment-types';
 import logger from '@/lib/logger';
-
-function detailLevelFromContext(context: PipelineContext, fallback?: 1 | 2 | 3): 1 | 2 | 3 {
-  const fromMeta = context.metadata.detailLevel;
-  if (fromMeta === 1 || fromMeta === 2 || fromMeta === 3) return fromMeta;
-  return fallback ?? 2;
-}
 
 export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentState> {
   constructor() {
