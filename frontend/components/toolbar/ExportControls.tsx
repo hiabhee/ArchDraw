@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, forwardRef, useImperativeHandle } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -180,7 +180,11 @@ interface ExportControlsProps {
   getExportFilename: (ext: string) => string;
 }
 
-export function ExportControls({ getExportFilename }: ExportControlsProps) {
+export interface ExportControlsHandle {
+  handleExport: (format: ExportFormat) => void;
+}
+
+export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsProps>(function ExportControls({ getExportFilename }, ref) {
   const { nodes, edges } = useDiagramStore();
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
@@ -380,6 +384,8 @@ export function ExportControls({ getExportFilename }: ExportControlsProps) {
     doExport(format);
   };
 
+  useImperativeHandle(ref, () => ({ handleExport }), [handleExport]);
+
   return (
     <>
       <div className="relative">
@@ -446,4 +452,4 @@ export function ExportControls({ getExportFilename }: ExportControlsProps) {
       )}
     </>
   );
-}
+})

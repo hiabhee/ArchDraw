@@ -19,6 +19,7 @@ import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
+import { analytics } from '@/lib/analytics';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
 import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { useOnboardingStore } from '@/store/onboardingStore';
@@ -36,144 +37,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { ExportControls } from '@/components/toolbar/ExportControls';
+import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
 import { RenderStyleToggle } from '@/components/toolbar/ThemeToggles';
 
-
-
-function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
-  const svgWidth = 1200;
-  const svgHeight = 800;
-  
-  const nodeMap = new Map<string, { x: number; y: number; width: number; height: number }>();
-  const renderedNodes = nodes.map(node => {
-    const width = node.width || 140;
-    const height = node.height || 72;
-    nodeMap.set(node.id, { x: node.position.x, y: node.position.y, width, height });
-    return {
-      ...node,
-      width,
-      height,
-      color: (node.data?.color as string) || '#6B7280',
-      label: (node.data?.label as string) || node.id,
-    };
-  });
-  
-  const renderedEdges = edges.map(edge => ({
-    source: edge.source,
-    target: edge.target,
-    label: (edge.data?.label as string) || '',
-    color: edge.style?.stroke || '#64748b',
-  }));
-  
-  const nodesSVG = renderedNodes.map(node => {
-    const { position: { x, y }, width, height, color, label } = node;
-    return `
-    <g transform="translate(${x}, ${y})" class="node">
-      <rect width="${width}" height="${height}" rx="8" fill="#1e293b" stroke="${color}" stroke-width="2"/>
-      <rect width="${width}" height="4" rx="2" fill="${color}"/>
-      <text x="${width/2}" y="${height/2 + 5}" text-anchor="middle" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="12" font-weight="500">${escapeXml(label)}</text>
-    </g>`;
-  }).join('');
-  
-  const edgesSVG = renderedEdges.map(edge => {
-    const source = nodeMap.get(edge.source);
-    const target = nodeMap.get(edge.target);
-    if (!source || !target) return '';
-    
-    const sx = source.x + source.width;
-    const sy = source.y + source.height / 2;
-    const tx = target.x;
-    const ty = target.y + target.height / 2;
-    const mx = (sx + tx) / 2;
-    
-    const path = `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
-    const labelX = (sx + tx) / 2;
-    const labelY = (sy + ty) / 2 - 8;
-    
-    return `
-    <g class="edge">
-      <path d="${path}" fill="none" stroke="${edge.color}" stroke-width="2" marker-end="url(#arrowhead)"/>
-      ${edge.label ? `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="10">${escapeXml(edge.label)}</text>` : ''}
-    </g>`;
-  }).join('');
-  
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ArchDraw Diagram</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      background: #0f172a; 
-      min-height: 100vh; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center;
-      padding: 20px;
-    }
-    .container {
-      background: #1e293b;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 20px;
-      max-width: 100%;
-      overflow: auto;
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .title {
-      color: #f1f5f9;
-      font-family: system-ui, sans-serif;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .badge {
-      background: linear-gradient(135deg, #595959, #8A8A8A);
-      color: white;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-size: 10px;
-      font-weight: 500;
-    }
-    svg { display: block; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <span class="title">Architecture Diagram</span>
-      <span class="badge">Created with ArchDraw</span>
-    </div>
-    <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
-      <defs>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
-        </marker>
-      </defs>
-      <!-- Grid pattern -->
-      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.5"/>
-      </pattern>
-      <rect width="100%" height="100%" fill="url(#grid)"/>
-      <!-- Edges -->
-      ${edgesSVG}
-      <!-- Nodes -->
-      ${nodesSVG}
-    </svg>
-  </div>
-</body>
-</html>`;
-}
 
 export function Toolbar() {
   const router = useRouter();
@@ -207,6 +74,8 @@ export function Toolbar() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [upgradeModal, setUpgradeModal] = useState<{ feature: string; message: string; benefits: string[] } | null>(null);
 
+  const exportControlsRef = useRef<ExportControlsHandle>(null);
+
   const openGuide = useOnboardingStore((s) => s.open);
 
   useCallback(getVisibleCanvases, [getVisibleCanvases])();
@@ -239,215 +108,6 @@ export function Toolbar() {
     const canvasName = activeCanvas?.name;
     if (!canvasName) return `archdraw-export.${extension}`;
     return `${sanitizeFilename(canvasName)}.${extension}`;
-  };
-
-  const downloadFile = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
-          return;
-        }
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error('Failed to convert to blob'));
-          }
-        }, 'image/png');
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = dataUrl;
-    });
-  };
-
-  const doExport = async (format: ExportFormat) => {
-    setExportOpen(false);
-    if (format === 'json') {
-      const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: 'application/json' });
-      downloadFile(blob, getExportFilename('json'));
-      toast.success('Exported as JSON');
-      return;
-    }
-    if (format === 'html-embed') {
-      const htmlContent = generateEmbedHTML(nodes as EmbedNode[], edges as EmbedEdge[]);
-      const iframeCode = `<iframe 
-  src="data:text/html,${encodeURIComponent(htmlContent)}" 
-  width="100%" 
-  height="600" 
-  style="border:none;border-radius:12px;"
-  title="ArchDraw Diagram"
-></iframe>`;
-      await navigator.clipboard.writeText(iframeCode);
-      toast.success('Embed code (iframe) copied to clipboard');
-      return;
-    }
-    
-    const isSvg = format.startsWith('svg-');
-    const bgType = format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
-    
-    const { fitView } = useDiagramStore.getState();
-    
-    // We strictly use the user's current canvas node style (darkMode).
-    // Exporting with a different background should NOT change the nodes' styling
-    // to prevent the "Nodes losing plates" issue.
-
-    setIsExporting(true);
-    
-    let edgeSnapshots: ReturnType<typeof prepareReactFlowForImageExport> = [];
-
-    try {
-      const element = document.querySelector('.react-flow') as HTMLElement | null;
-      const isTransparent = bgType === 'transparent';
-
-      if (isSvg) {
-        const state = useDiagramStore.getState();
-        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
-        const exportNodes = reactFlowRef.instance?.getNodes() ?? state.nodes;
-
-        let svgBg = 'none';
-        if (!isTransparent) {
-          if (bgType === 'dark') {
-            svgBg = '#000000';
-          } else if (element) {
-            svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
-          } else {
-            svgBg = '#ffffff';
-          }
-        }
-
-        const { generatePureSVG } = await import('@/lib/svgExport');
-        const svgContent = generatePureSVG(
-          exportNodes,
-          state.edges,
-          state.darkMode,
-          svgBg,
-          layoutDirection,
-          state.diagramRenderStyle,
-        );
-        downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
-        toast.success(
-          isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG',
-        );
-        analytics.track({
-          event_type: 'export',
-          event_name: 'svg',
-          page_path: window.location.pathname,
-          payload: { format, vector: true, success: true },
-        });
-        return;
-      }
-
-      if (!element) {
-        toast.error('Canvas not ready. Please try again.');
-        return;
-      }
-
-      const bgColor = resolveExportBackgroundColor(bgType, element);
-
-      fitView({ padding: 0.1, duration: 300 });
-      await waitForReactFlowFrame(400);
-
-      edgeSnapshots = prepareReactFlowForImageExport(element);
-
-      const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
-      const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
-      const cropRect =
-        isTransparent && reactFlowRef.instance
-          ? computeDiagramCropRect(exportNodes, reactFlowRef.instance.getViewport(), 0.1)
-          : null;
-
-      const { toPng } = await import('html-to-image');
-      
-      const pixelRatio = isTransparent ? 2 : 5;
-
-      let dataUrl = await toPng(element, {
-        backgroundColor: bgColor,
-        pixelRatio,
-        cacheBust: true,
-        filter: exportFilter,
-      });
-
-      if (cropRect) {
-        const cropped = await cropRasterDataUrl(dataUrl, cropRect, pixelRatio, 'image/png');
-        dataUrl = cropped.dataUrl;
-      }
-
-      let finalDataUrl = dataUrl;
-      if (shouldWatermark(tier, 'png')) {
-        finalDataUrl = await addWatermark(dataUrl);
-      }
-      
-      if (format.includes('pdf')) {
-        const { jsPDF } = await import('jspdf');
-        const img = new window.Image();
-        img.src = finalDataUrl;
-        await new Promise<void>((r) => { img.onload = () => r(); });
-        const pdf = new jsPDF({
-          orientation: img.width > img.height ? 'landscape' : 'portrait',
-          unit: 'px',
-          format: [img.width, img.height],
-        });
-        pdf.addImage(finalDataUrl, 'PNG', 0, 0, img.width, img.height);
-        pdf.save(getExportFilename('pdf'));
-        toast.success('Exported as PDF');
-        analytics.track({
-          event_type: 'export',
-          event_name: 'pdf',
-          page_path: window.location.pathname,
-          payload: { format: 'pdf', success: true },
-        });
-      } else {
-        downloadFile(await dataUrlToBlob(finalDataUrl), getExportFilename('png'));
-        toast.success(isTransparent ? 'Exported as PNG (no background)' : 'Exported as PNG');
-        analytics.track({
-          event_type: 'export',
-          event_name: 'png',
-          page_path: window.location.pathname,
-          payload: { format: format, pixel_ratio: pixelRatio, success: true },
-        });
-      }
-    } catch (err) {
-      toast.error('Export failed. Please try again.');
-      logger.error(err);
-      analytics.track({
-        event_type: 'export',
-        page_path: window.location.pathname,
-        payload: { format: 'unknown', success: false, error: String(err) },
-      });
-    } finally {
-      if (edgeSnapshots.length > 0) {
-        restoreReactFlowAfterImageExport(edgeSnapshots);
-      }
-      setIsExporting(false);
-    }
-  };
-
-  const handleExport = (format: ExportFormat) => {
-    if (!isExportFormatAllowed(tier, format)) {
-      setUpgradeModal({
-        feature: 'export',
-        message: `${format.toUpperCase().replace(/-\d+x$/, '')} export is available for signed-in users.`,
-        benefits: UPGRADE_BENEFITS.export,
-      });
-      return;
-    }
-    doExport(format);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -553,7 +213,7 @@ export function Toolbar() {
     };
     const handleTriggerDownload = () => {
       const currentIsDark = useDiagramStore.getState().darkMode;
-      doExport(currentIsDark ? 'png-dark' : 'png-light');
+      exportControlsRef.current?.handleExport(currentIsDark ? 'png-dark' : 'png-light');
     };
 
     window.addEventListener('trigger-share', handleTriggerShare);
@@ -762,7 +422,7 @@ export function Toolbar() {
             </Button>
           </span>
 
-          <ExportControls getExportFilename={getExportFilename} />
+          <ExportControls ref={exportControlsRef} getExportFilename={getExportFilename} />
 
           <div className="relative">
             <Button
