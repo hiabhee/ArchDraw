@@ -7,6 +7,7 @@ import { isDomainSuccess } from '@/lib/pipeline-core';
 import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { getSessionFromRequest, logUsage } from '@/lib/middleware/quotaCheck';
 
+export const runtime = 'nodejs';
 
 export interface ShareUser {
   email: string;
@@ -14,6 +15,34 @@ export interface ShareUser {
   role: 'owner' | 'editor' | 'viewer';
   addedAt: number;
 }
+
+const PostSchema = z.object({
+  nodes: z.array(z.any()).optional().default([]),
+  edges: z.array(z.any()).optional().default([]),
+  label: z.string().optional(),
+  mermaid: z.string().optional(),
+  accessType: z.string().optional(),
+  linkPermission: z.string().optional(),
+  users: z.array(z.any()).optional(),
+});
+
+const PatchSchema = z.object({
+  sessionId: z.string().min(1),
+  accessType: z.string().optional(),
+  linkPermission: z.string().optional(),
+});
+
+const PutSchema = z.object({
+  sessionId: z.string().min(1),
+  email: z.string().email(),
+  name: z.string().optional(),
+  role: z.enum(['editor', 'viewer']),
+});
+
+const DeleteSchema = z.object({
+  sessionId: z.string().min(1),
+  email: z.string(),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +56,12 @@ export async function POST(req: NextRequest) {
     // made the tool unusable. POST creates a public sharedCanvas record which
     // is intentionally world-writable; the sharing admin (PATCH/PUT/DELETE)
     // below remains guarded by userId/ownerId checks.
-    const body = await req.json();
+    const raw = await req.json();
+    const parsed = PostSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const body = parsed.data;
 
     let nodes = body.nodes || [];
     let edges = body.edges || [];
@@ -81,8 +115,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, accessType, linkPermission } = body;
+    const raw = await req.json();
+    const parsed = PatchSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { sessionId, accessType, linkPermission } = parsed.data;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
@@ -115,8 +153,12 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, email, name, role } = body;
+    const raw = await req.json();
+    const parsed = PutSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { sessionId, email, name, role } = parsed.data;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
@@ -130,7 +172,7 @@ export async function PUT(req: NextRequest) {
     const users = (shared.users as unknown as ShareUser[]).filter(u => u.email !== email);
     users.push({
       email,
-      name,
+      name: name || '',
       role: role === 'editor' ? 'editor' : 'viewer',
       addedAt: Date.now(),
     });
@@ -157,8 +199,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, email } = body;
+    const raw = await req.json();
+    const parsed = DeleteSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { sessionId, email } = parsed.data;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
