@@ -211,7 +211,6 @@ export interface DiagramState {
   pendingLabelEdgeId: string | null;
   setPendingLabelEdgeId: (id: string | null) => void;
   updateEdgeLabel: (edgeId: string, label: string) => void;
-  updateEdgeData: (edgeId: string, dataUpdates: Record<string, unknown>) => void;
 
   // ── AI Streaming ──────────────────────────────────────────────────────────
   setNodes: (nodes: Node[]) => void;
