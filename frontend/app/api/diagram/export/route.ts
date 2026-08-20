@@ -6,6 +6,8 @@ import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } fr
 import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
 import { generatePureSVG } from '@/lib/svgExport';
 
+export const runtime = 'nodejs';
+
 interface DiagramData {
   nodes: unknown[];
   edges: unknown[];

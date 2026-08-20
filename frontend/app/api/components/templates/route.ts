@@ -3,6 +3,8 @@ import { getComponentTemplatesByIds } from '@/lib/db';
 import { getUserTier } from '@/lib/userQuotas';
 import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
 
+export const runtime = 'nodejs';
+
 export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get('ids');
   if (!idsParam) {
