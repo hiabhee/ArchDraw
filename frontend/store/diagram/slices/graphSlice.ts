@@ -10,6 +10,7 @@ import { createNode, createEdge } from '@/lib/factory';
 import { isTextNode } from '@/lib/mermaid/textNodes';
 import { ensureDiagramHeading } from '@/lib/mermaid/diagramHeading';
 import { placeTextNodes } from '@/lib/mermaid/textPlacement';
+import logger from '@/lib/logger';
 import type { RFNode } from '@/lib/mermaid/types';
 import type { DiagramState, NodeData } from '../types';
 import { MAX_GUEST_NODES, MAX_AUTH_NODES } from '../constants';
@@ -409,7 +410,7 @@ export const createGraphSlice: StateCreator<
     );
 
     if (report.warnings.length > 0) {
-      console.log('[ClarityCompiler]', report.warnings.join('; '));
+      logger.warn('[ClarityCompiler]', report.warnings.join('; '));
     }
 
     const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId);
@@ -523,9 +524,9 @@ export const createGraphSlice: StateCreator<
     const selected = nodes.filter((n) => idsToGroup.includes(n.id));
     const isNested = !!parentId;
 
-    const PAD_SIDE = isNested ? 30 : 60;
-    const PAD_TOP = isNested ? 40 : 72;
-    const PAD_BOT = isNested ? 30 : 60;
+    const PAD_SIDE = isNested ? 10 : 14;
+    const PAD_TOP = isNested ? 18 : 24;
+    const PAD_BOT = isNested ? 8 : 10;
 
     const rawMinX = Math.min(...selected.map((n) => n.position.x));
     const rawMinY = Math.min(...selected.map((n) => n.position.y));

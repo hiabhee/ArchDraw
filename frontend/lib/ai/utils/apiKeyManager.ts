@@ -307,7 +307,7 @@ class ApiKeyManager {
       }
 
       try {
-        const groq = new Groq({ apiKey: keyInfo.key });
+        const groq = new Groq({ apiKey: keyInfo.key, timeout: 60_000 });
         const result = await operation(groq);
         this.releaseKey(provider, keyInfo.index);
         this.clearKeyError(provider, keyInfo.index);
@@ -394,7 +394,7 @@ class ApiKeyManager {
         keyState.lastUsed = Date.now();
         if (store) store.networkAttempts++;
         try {
-          const groq = new Groq({ apiKey: keyState.key });
+          const groq = new Groq({ apiKey: keyState.key, timeout: 60_000 });
           const result = await operation(groq);
           keyState.consecutiveErrors = 0;
           if (ROUND_ROBIN_GROQ_KEYS) {
@@ -530,14 +530,14 @@ export class OpenRouterClient {
   };
 
   private static groqToOpenRouter: Record<string, string> = {
-    'llama-3.3-70b-versatile': 'meta-llama/llama-3.3-70b-instruct',
-    'llama-3.1-8b-instant': 'meta-llama/llama-3.1-8b-instruct',
+    'openai/gpt-oss-120b': 'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b': 'openai/gpt-oss-20b',
+    'qwen/qwen3.6-27b': 'qwen/qwen3.6-27b',
     'llama-3.1-70b-versatile': 'meta-llama/llama-3.1-70b-instruct',
     'llama-3.2-1b-preview': 'meta-llama/llama-3.2-1b-instruct',
     'llama-3.2-3b-preview': 'meta-llama/llama-3.2-3b-instruct',
     'gpt-4o-mini': 'openai/gpt-4o-mini',
     'gpt-4o': 'openai/gpt-4o',
-    'openai/gpt-oss-120b': 'openai/gpt-oss-120b',
   };
 
   private static mapModel(model?: string): string | undefined {
