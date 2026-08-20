@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -15,14 +16,19 @@ export async function GET(req: NextRequest) {
   const denied = await requireAdmin(req);
   if (denied) return denied;
 
-  return NextResponse.json({
-    hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
-    hasGoogleSecret: !!process.env.GOOGLE_CLIENT_SECRET,
-    hasGithubClientId: !!process.env.GITHUB_CLIENT_ID,
-    hasGithubSecret: !!process.env.GITHUB_CLIENT_SECRET,
-    hasBetterAuthSecret: !!process.env.BETTER_AUTH_SECRET,
-    betterAuthSecretLength: process.env.BETTER_AUTH_SECRET?.length ?? 0,
-    betterAuthUrl: process.env.BETTER_AUTH_URL ?? null,
-    nodeEnv: process.env.NODE_ENV ?? null,
-  });
+  try {
+    return NextResponse.json({
+      hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasGoogleSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      hasGithubClientId: !!process.env.GITHUB_CLIENT_ID,
+      hasGithubSecret: !!process.env.GITHUB_CLIENT_SECRET,
+      hasBetterAuthSecret: !!process.env.BETTER_AUTH_SECRET,
+      betterAuthSecretLength: process.env.BETTER_AUTH_SECRET?.length ?? 0,
+      betterAuthUrl: process.env.BETTER_AUTH_URL ?? null,
+      nodeEnv: process.env.NODE_ENV ?? null,
+    });
+  } catch (error) {
+    logger.error('Test env error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

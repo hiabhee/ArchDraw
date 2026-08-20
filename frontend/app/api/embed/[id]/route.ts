@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis, redisKeys } from '@/lib/redis';
 import prisma from '@/lib/prisma';
 import { getClientIP } from '@/lib/server/ip';
+import logger from '@/lib/logger';
+
+export const runtime = 'nodejs';
 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -59,8 +62,9 @@ interface DiagramResponse {
 
 const ALLOWED_ORIGINS = [
   'https://archdraw.hiabhee.online',
-  'http://localhost:3000',
-  'http://localhost:3001',
+  ...(process.env.NODE_ENV !== 'production'
+    ? ['http://localhost:3000', 'http://localhost:3001']
+    : []),
 ];
 
 export async function GET(
@@ -75,83 +79,88 @@ export async function GET(
     );
   }
 
-  const { id } = await params;
-  const origin = request.headers.get('origin') || '';
-  
-  // Validate origin
-  const corsOrigin = ALLOWED_ORIGINS.includes(origin) 
-    ? origin 
-    : ALLOWED_ORIGINS[0];
-
-  // Check if ID is valid UUID format
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(id)) {
-    return NextResponse.json(
-      { error: 'Invalid ID format' }, 
-      { status: 400, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
-    );
-  }
-
-  // Try Redis cache first
-  let data: SharedCanvas | null = null;
   try {
-    data = await redis.get<SharedCanvas>(redisKeys.sharedCanvas(id));
-  } catch {
-    // Redis failed, continue to Neon
-  }
+    const { id } = await params;
+    const origin = request.headers.get('origin') || '';
+    
+    // Validate origin
+    const corsOrigin = ALLOWED_ORIGINS.includes(origin) 
+      ? origin 
+      : ALLOWED_ORIGINS[0];
 
-  // Neon/Prisma fallback
-  if (!data) {
-    const row = await prisma.sharedCanvas.findUnique({
-      where: { id },
-    });
-
-    if (!row) {
+    // Check if ID is valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
       return NextResponse.json(
-        { error: 'Diagram not found' }, 
-        { status: 404, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
+        { error: 'Invalid ID format' }, 
+        { status: 400, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
       );
     }
 
-    if (row.expiresAt && new Date(row.expiresAt) < new Date()) {
-      return NextResponse.json(
-        { error: 'Share link has expired' }, 
-        { status: 410, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
-      );
+    // Try Redis cache first
+    let data: SharedCanvas | null = null;
+    try {
+      data = await redis.get<SharedCanvas>(redisKeys.sharedCanvas(id));
+    } catch {
+      // Redis failed, continue to DB
     }
 
-    // Prisma uses canvasName; clients expect canvas_name.
-    data = {
-      id: row.id,
-      canvas_name: row.canvasName,
-      nodes: (row.nodes as unknown[]) ?? [],
-      edges: (row.edges as unknown[]) ?? [],
+    // DB fallback
+    if (!data) {
+      const row = await prisma.sharedCanvas.findUnique({
+        where: { id },
+      });
+
+      if (!row) {
+        return NextResponse.json(
+          { error: 'Diagram not found' }, 
+          { status: 404, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
+        );
+      }
+
+      if (row.expiresAt && new Date(row.expiresAt) < new Date()) {
+        return NextResponse.json(
+          { error: 'Share link has expired' }, 
+          { status: 410, headers: { 'Access-Control-Allow-Origin': corsOrigin } }
+        );
+      }
+
+      // Prisma uses canvasName; clients expect canvas_name.
+      data = {
+        id: row.id,
+        canvas_name: row.canvasName,
+        nodes: (row.nodes as unknown[]) ?? [],
+        edges: (row.edges as unknown[]) ?? [],
+      };
+
+      // Cache to Redis with 24-hour TTL
+      try {
+        await redis.set(redisKeys.sharedCanvas(id), data, { ex: 86400 });
+      } catch {
+        // Redis write failed, continue
+      }
+    }
+
+    const response: DiagramResponse = {
+      id: data.id,
+      canvas_name: data.canvas_name || 'Shared Diagram',
+      nodes: data.nodes || [],
+      edges: data.edges || [],
     };
 
-    // Cache to Redis with 24-hour TTL
-    try {
-      await redis.set(redisKeys.sharedCanvas(id), data, { ex: 86400 });
-    } catch {
-      // Redis write failed, continue
-    }
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
+        'Access-Control-Allow-Origin': corsOrigin,
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'X-Frame-Options': 'ALLOWALL',
+      },
+    });
+  } catch (error) {
+    logger.error('Embed GET error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const response: DiagramResponse = {
-    id: data.id,
-    canvas_name: data.canvas_name || 'Shared Diagram',
-    nodes: data.nodes || [],
-    edges: data.edges || [],
-  };
-
-  return NextResponse.json(response, {
-    headers: {
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400',
-      'Access-Control-Allow-Origin': corsOrigin,
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'X-Frame-Options': 'ALLOWALL',
-    },
-  });
 }
 
 export async function OPTIONS(request: NextRequest) {
