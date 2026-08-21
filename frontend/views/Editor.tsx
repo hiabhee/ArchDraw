@@ -209,8 +209,10 @@ export default function EditorPage() {
         // Command palette handles its own Cmd+K, don't open canvas sidebar
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    // Capture phase so component-level stopPropagation (inline editors, panels)
+    // can never swallow global shortcuts. Text-editing guards live in the handler.
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, []);
 
   // Unsaved changes warning for guests
