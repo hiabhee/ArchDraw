@@ -82,10 +82,10 @@ describe('RoughStrokeRenderer', () => {
       renderer.seedFor('system-1'),
     );
     expect(markup).toContain('<path');
-    // Outline carries the stroke; the paper fill is cross-hatched as strokes.
+    // Outline carries the stroke; the paper fill is a solid underlay.
     expect(markup).toContain('stroke="#1e293b"');
     expect(markup).toContain('stroke-width="1.75"');
-    expect(markup).toContain('stroke="#fffef9"');
+    expect(markup).toContain('fill="#fffef9"');
   });
 
   it('boosts faint theme-token strokes so sketch borders read as ink', () => {
@@ -106,9 +106,9 @@ describe('RoughStrokeRenderer', () => {
 
   it('renders an arrowhead at a point', () => {
     const markup = renderer.renderArrowhead({ x: 100, y: 50 }, Math.PI, '#0f766e', 8);
-    expect(markup).toContain('<path');
-    // Open chevron — two bare ink arms meeting at the tip, no filled blob.
-    expect(markup.match(/<path/g)?.length).toBe(2);
+    expect(markup).toContain('<polygon');
+    // Solid filled triangle — a single closed arrowhead polygon.
+    expect(markup.match(/<polygon/g)?.length).toBe(1);
   });
 });
 

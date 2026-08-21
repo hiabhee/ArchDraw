@@ -140,9 +140,13 @@ export default function SimpleFloatingEdge({
 
   // React Flow can briefly render an edge before both terminals are in
   // nodeInternals; keep the last good path so sketch overlays don't blink out.
-  const edgePathRef = useRef('');
-  if (edgePath) edgePathRef.current = edgePath;
-  const stableEdgePath = edgePath || edgePathRef.current;
+  // Storing prior-render info via a conditional setState during render is the
+  // React-sanctioned pattern (docs: "storing information from previous renders").
+  const [lastGoodEdgePath, setLastGoodEdgePath] = useState('');
+  if (edgePath && edgePath !== lastGoodEdgePath) {
+    setLastGoodEdgePath(edgePath);
+  }
+  const stableEdgePath = edgePath || lastGoodEdgePath;
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -372,13 +376,14 @@ export default function SimpleFloatingEdge({
     routeWaypoints, tx, ty, id, data, isDark, sketchInk,
   ]);
 
-  const rawLabel = responseLabel
-    ? `${label || data?.label || ''} / ${responseLabel}`
+  const rawLabel = responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
+    ? `${label || data?.label || ''} / ${responseLabel.trim()}`
     : (typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : ''));
 
   const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : [];
-  const displayLabel =
-    words.length === 0 ? '' : words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ');
+  const truncated = words.length === 0 ? '' : words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ');
+  // Remove trailing slash (handles both "A/" and "A / " cases)
+  const displayLabel = truncated.replace(/\s*\/\s*$/, '').trim();
 
   const parallelEdges = useMemo(
     () => edges.filter((edge) =>

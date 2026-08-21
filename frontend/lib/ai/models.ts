@@ -32,10 +32,10 @@ export interface ModelDefinition {
 
 export const MODELS: readonly ModelDefinition[] = [
   // Groq (primary — higher TPM for long prompts)
-  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 (70B)', provider: 'groq', costTier: 3, recommendedMaxTokens: 4096 },
   { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq', supportsStreaming: true, costTier: 4, recommendedMaxTokens: 4096 },
-  { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 (8B)', provider: 'groq', costTier: 1, recommendedMaxTokens: 2048 },
   { id: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS (20B)', provider: 'groq', costTier: 2, recommendedMaxTokens: 3072 },
+  { id: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 (27B)', provider: 'groq', costTier: 2, recommendedMaxTokens: 4096 },
+  { id: 'groq/compound-mini', label: 'Groq Compound Mini', provider: 'groq', costTier: 1, recommendedMaxTokens: 8192 },
   // OpenRouter (additional options)
   { id: 'google/gemma-4-26b-a4b-it', label: 'Google Gemma 4 (26B)', provider: 'openrouter', costTier: 2, recommendedMaxTokens: 3072 },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nvidia Nemotron 3 Super (120B)', provider: 'openrouter', costTier: 5, recommendedMaxTokens: 4096 },
@@ -44,7 +44,7 @@ export const MODELS: readonly ModelDefinition[] = [
 ] as const;
 
 /** Default model for prompt → diagram generation (longer context, higher TPM on Groq). */
-export const DEFAULT_GENERATION_MODEL = 'llama-3.3-70b-versatile';
+export const DEFAULT_GENERATION_MODEL = 'groq/compound-mini';
 
 /** Fallback when the primary model hits TPM limits or fails. */
 export const FALLBACK_GENERATION_MODEL = 'openai/gpt-oss-120b';
@@ -62,7 +62,7 @@ export function getCheaperModel(currentModel: string): string | null {
   
   // Find a cheaper OpenRouter model
   const cheaper = MODELS
-    .filter(m => m.provider === 'openrouter' && m.costTier && m.costTier < current.costTier)
+    .filter(m => m.provider === 'openrouter' && m.costTier && m.costTier < current.costTier!)
     .sort((a, b) => (b.costTier || 0) - (a.costTier || 0))[0]; // Get the most capable cheaper model
   
   return cheaper?.id || BUDGET_FALLBACK_MODEL;
@@ -79,8 +79,13 @@ export function getRecommendedMaxTokens(modelId: string, requestedTokens: number
 }
 
 export function getProviderForModel(modelId: string): AIProvider {
-  // openai/gpt-oss-120b is served via Groq
-  if (modelId === 'openai/gpt-oss-120b' || modelId === 'openai/gpt-oss-20b') {
+  // Models served via Groq
+  if (
+    modelId === 'openai/gpt-oss-120b' ||
+    modelId === 'openai/gpt-oss-20b' ||
+    modelId === 'qwen/qwen3.6-27b' ||
+    modelId === 'groq/compound-mini'
+  ) {
     return 'groq';
   }
   return modelId.includes('/') ? 'openrouter' : 'groq';

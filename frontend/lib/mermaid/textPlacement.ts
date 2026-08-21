@@ -74,6 +74,22 @@ export function placeTextNodes(nodes: RFNode[]): RFNode[] {
 
   let topStack = 0;
 
+  // Absolute boxes of everything a text element must not sit on top of.
+  const occupied = nodes
+    .filter(n => !isTextNode(n))
+    .map(n => {
+      const p = getAbsPosition(n);
+      return { x: p.x, y: p.y, w: n.width ?? 0, h: n.height ?? 0 };
+    });
+  const COLLISION_MARGIN = 8;
+  const collides = (x: number, y: number, w: number, h: number): boolean =>
+    occupied.some(b =>
+      x < b.x + b.w + COLLISION_MARGIN &&
+      x + w + COLLISION_MARGIN > b.x &&
+      y < b.y + b.h + COLLISION_MARGIN &&
+      y + h + COLLISION_MARGIN > b.y
+    );
+
   const place = (node: RFNode): RFNode => {
     const data = (node.data ?? {}) as Record<string, unknown>;
     const anchor = (data.anchor as string) ?? 'none';
@@ -104,7 +120,20 @@ export function placeTextNodes(nodes: RFNode[]): RFNode[] {
       if (target) {
         const t = getAbsPosition(target);
         const targetWidth = target.width ?? 0;
-        return { ...node, position: { x: t.x + targetWidth + NODE_GAP, y: t.y } };
+        const targetHeight = target.height ?? 0;
+        const w = node.width ?? 0;
+        // Prefer the right of the anchor; fall through to other slots when
+        // another node already occupies the spot instead of dropping the
+        // pill on top of it.
+        const candidates = [
+          { x: t.x + targetWidth + NODE_GAP, y: t.y },
+          { x: t.x + targetWidth + NODE_GAP, y: t.y + targetHeight + NODE_GAP },
+          { x: t.x, y: t.y + targetHeight + NODE_GAP },
+          { x: t.x - w - NODE_GAP, y: t.y },
+          { x: t.x, y: t.y - height - TEXT_GAP },
+        ];
+        const chosen = candidates.find(c => !collides(c.x, c.y, w, height)) ?? candidates[0];
+        return { ...node, position: { x: chosen.x, y: chosen.y } };
       }
     }
 

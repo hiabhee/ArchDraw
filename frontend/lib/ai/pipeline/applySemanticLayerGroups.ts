@@ -67,8 +67,8 @@ export function applySemanticLayerGroups(
 ): LayoutedNode[] {
   const minNodesPerGroup = options.minNodesPerGroup ?? 2;
   // Side/bottom padding. Top gets extra to clear the label tag (~28px) + breathing room.
-  const PAD_SIDE = options.padding    ?? 60;
-  const PAD_TOP  = options.paddingTop ?? 72;
+  const PAD_SIDE = options.padding    ?? 14;
+  const PAD_TOP  = options.paddingTop ?? 24;
   const PAD_BOT  = PAD_SIDE;
 
   const existingGroups = nodes.filter((n) => n.isGroup);

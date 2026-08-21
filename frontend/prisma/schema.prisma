@@ -87,7 +87,7 @@ model ComponentCategory {
 
 model ComponentTemplate {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  categoryId  String?  @map("category_id")
+  categoryId  String?  @map("category_id") @db.Uuid
   name        String
   description String?
   color       String?  @default("#94a3b8")

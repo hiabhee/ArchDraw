@@ -188,22 +188,47 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
   for (const edge of edges) {
     const src = sanitizeId(edge.source);
     const tgt = sanitizeId(edge.target);
-    const edgeVariant = edge.data?.edgeVariant as string | undefined;
-    const connectionType = edge.data?.connectionType as string | undefined;
-    const elabel = edge.label ? escapeLabel(String(edge.label)) : '';
+    const data = (edge.data ?? {}) as Record<string, unknown>;
+    const edgeVariant = data.edgeVariant as string | undefined;
+    const connectionType = data.connectionType as string | undefined;
+    const edgeType = data.edgeType as string | undefined;
+    // The renderer treats data.label as canonical when top-level label is
+    // absent — read both so labeled edges survive the round-trip.
+    const rawLabel = edge.label ?? (data.label as string | undefined);
+    const elabel = rawLabel ? escapeLabel(String(rawLabel)) : '';
+
+    // Resolve the effective edge kind the way the renderer does:
+    // edgeVariant || connectionType || edgeType (data/edgeTypes.ts).
+    const resolvedVariant = edgeVariant || connectionType || edgeType;
+    const isAsyncFamily =
+      connectionType === 'async' ||
+      edgeType === 'async' ||
+      edgeType === 'stream' ||
+      edgeType === 'event' ||
+      edgeType === 'dep' ||
+      data.syncAsync === 'async';
 
     let arrow: string;
-    if (edgeVariant === 'thick') {
+    if (resolvedVariant === 'invisible' || edge.hidden) {
+      // Layout-only edges (Mermaid `~~~`) must stay invisible, not degrade
+      // into visible dotted arrows.
+      arrow = '~~~';
+    } else if (resolvedVariant === 'thick') {
       arrow = '==>';
-    } else if (edgeVariant === 'dashed' || connectionType === 'async') {
-      arrow = elabel ? `-.${elabel}.->` : '-.->';
-    } else if (edge.data?.markerStart && edge.data?.markerEnd) {
+    } else if (
+      resolvedVariant === 'bidirectional' ||
+      // Markers live at the top level of React Flow edges, not in data.
+      (edge.markerStart && edge.markerEnd)
+    ) {
       arrow = '<-->';
+    } else if (resolvedVariant === 'dashed' || resolvedVariant === 'dotted' || isAsyncFamily) {
+      arrow = elabel ? `-.${elabel}.->` : '-.->';
     } else {
       arrow = '-->';
     }
 
-    if (elabel && !arrow.includes(elabel)) {
+    // `~~~` carries no label syntax — drop the pill for invisible edges.
+    if (elabel && !arrow.includes(elabel) && arrow !== '~~~') {
       lines.push(`  ${src} ${arrow}|"${elabel}"| ${tgt}`);
     } else {
       lines.push(`  ${src} ${arrow} ${tgt}`);

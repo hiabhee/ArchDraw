@@ -26,14 +26,15 @@ function DemoPlaceholder() {
 
 export function InteractiveDemo() {
   const sectionRef = useRef<HTMLElement>(null);
-  const [inView, setInView] = useState(false);
+  // If IntersectionObserver is unavailable (very old browsers / non-DOM env),
+  // render the demo eagerly. Both branches render <DemoPlaceholder/> on the
+  // server (InteractiveLandingDemo is ssr:false), so this initializer is
+  // hydration-safe and avoids a setState inside the effect.
+  const [inView, setInView] = useState(() => typeof IntersectionObserver === 'undefined');
 
   useEffect(() => {
     const el = sectionRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') {
-      setInView(true);
-      return;
-    }
+    if (!el || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {

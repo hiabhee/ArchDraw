@@ -1,5 +1,5 @@
 import { MarkerType } from 'reactflow';
-import { EDGE_CONFIG, NODE_CONFIG, ELK_CONFIG } from '@/lib/config';
+import { EDGE_CONFIG, NODE_CONFIG } from '@/lib/config';
 
 export const DIAGRAM_CONSTANTS = {
   node: {
@@ -18,11 +18,6 @@ export const DIAGRAM_CONSTANTS = {
     labelFontSize: EDGE_CONFIG.label.fontSize,
     labelBgPadding: [4, 6] as [number, number],
     labelBgBorderRadius: 4,
-  },
-  elk: {
-    nodeSpacing: parseInt(ELK_CONFIG['elk.spacing.nodeNode']),
-    layerSpacing: parseInt(ELK_CONFIG['elk.layered.spacing.nodeNodeBetweenLayers']),
-    edgeNodeSpacing: parseInt(ELK_CONFIG['elk.spacing.edgeNode']),
   },
 };
 

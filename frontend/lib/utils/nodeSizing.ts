@@ -174,9 +174,10 @@ const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
   documents: 120,
 };
 
-/** Min + max height per shape (from the visual-vocabulary sizing table). 
+/** Min + max height per shape (from the visual-vocabulary sizing table).
  * max: preferred maximum for typical content
  * absoluteMax: hard limit for excessive content
+ * Bands mirror AGENTS.md §"Node sizing" / nodeSizing.test.ts.
  */
 const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteMax: number }> = {
   rectangle: { min: MIN_HEIGHT, max: Infinity, absoluteMax: Infinity },
@@ -186,17 +187,17 @@ const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteM
   circle: { min: 80, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
   cylinder: { min: 100, max: Infinity, absoluteMax: Infinity },
   hexagon: { min: 88, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
-  cloud: { min: 96, max: 140, absoluteMax: 200 },
-  actor: { min: 88, max: 120, absoluteMax: 150 },
-  monitor: { min: 100, max: 150, absoluteMax: 220 },
-  mobile: { min: 100, max: 160, absoluteMax: 220 },
-  'dashed-rectangle': { min: 88, max: 140, absoluteMax: Infinity },
+  cloud: { min: 96, max: 112, absoluteMax: 160 },
+  actor: { min: 88, max: 100, absoluteMax: 130 },
+  monitor: { min: 100, max: 120, absoluteMax: 180 },
+  mobile: { min: 100, max: 130, absoluteMax: 180 },
+  'dashed-rectangle': { min: 88, max: 112, absoluteMax: 168 },
   // New architecture-native shapes
   queue: { min: 56, max: 72, absoluteMax: 120 },
-  cache: { min: 88, max: 130, absoluteMax: 200 },
-  'function': { min: 88, max: 130, absoluteMax: 200 },
-  container: { min: 96, max: 150, absoluteMax: 240 },
-  bucket: { min: 96, max: 140, absoluteMax: 200 },
+  cache: { min: 88, max: 104, absoluteMax: 156 },
+  'function': { min: 88, max: 104, absoluteMax: 156 },
+  container: { min: 96, max: 120, absoluteMax: 180 },
+  bucket: { min: 96, max: 112, absoluteMax: 168 },
   document: { min: 156, max: 195, absoluteMax: 390 },  // Match documents
   documents: { min: 156, max: 195, absoluteMax: 390 },
 };
@@ -214,6 +215,8 @@ export interface DimensionOptions {
   minWidth?: number;
   minHeight?: number;
   maxWidth?: number;
+  /** When false, omit the icon-stack height reservation so the node shrinks. */
+  showIcon?: boolean;
 }
 
 /** Snap to the optical grid; optionally step in 40px increments when max > L. */
@@ -263,11 +266,22 @@ export function countPipeLabelLines(label?: string, subtitle?: string): number {
   return Math.max(1, lines.length);
 }
 
-/** Horizontal pipe bbox height — grows with stacked label lines. */
-export function getHorizontalPipeHeight(lineCount: number): number {
-  if (lineCount <= 1) return 40;
-  if (lineCount === 2) return 52;
-  return 58;
+/** Horizontal pipe bbox height — grows with stacked label lines and icon. */
+export function getHorizontalPipeHeight(lineCount: number, showIcon: boolean = false): number {
+  const iconPadding = showIcon ? 36 : 0;  // Extra height for icon (ICON_SIZE.box + padding)
+  if (lineCount <= 1) return 40 + iconPadding;
+  if (lineCount === 2) return 52 + iconPadding;
+  return 58 + iconPadding;
+}
+
+/**
+ * Queue (horizontal pipe) bbox height — its own band (56–72) so the shape
+ * never dips below its spec minimum the way the legacy 40px pipe did.
+ */
+export function getQueuePipeHeight(lineCount: number): number {
+  if (lineCount <= 1) return 56;
+  if (lineCount === 2) return 64;
+  return 72;
 }
 
 /**
@@ -299,6 +313,7 @@ export function calculateNodeDimensions(
   const preferredMaxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);
   const absoluteMaxWidth = SHAPE_ABSOLUTE_MAX_WIDTH[shape];
   const iconStack = shape === 'diamond' ? DIAMOND_ICON_STACK : ((isHorizontalPipe || isQueue) ? 0 : ICON_STACK);
+  const effectiveIconStack = options.showIcon === false ? 0 : iconStack;
 
   const lines = [
     ...String(label || 'Service').split(/\n/),
@@ -338,48 +353,75 @@ export function calculateNodeDimensions(
   }
 
   let height =
-    Math.max(minHeight, wrappedLines * LINE_HEIGHT + PADDING_Y + iconStack) * heightFactor;
+    Math.max(minHeight, wrappedLines * LINE_HEIGHT + PADDING_Y + effectiveIconStack) * heightFactor;
 
   // Keep diamonds / circles roughly balanced so labels stay in the mid-band.
   if (shape === 'diamond' || shape === 'circle') {
     height = Math.max(height, Math.round(width * 0.52));
   }
 
-  // Use preferred max first, but allow growth to absoluteMax if content needs it
+  // Use preferred max first, but allow growth to absoluteMax if content needs it.
+  // Diamond/circle switch to the absolute max earlier: their 96px lane cap
+  // (kept so they stay level with rectangles) clips multi-line labels.
+  const isMidBandShape = shape === 'diamond' || shape === 'circle';
   let effectiveMaxHeight = heightRange.max;
-  if (wrappedLines > 6) {
+  if (wrappedLines > 6 || (isMidBandShape && wrappedLines > 3)) {
     effectiveMaxHeight = heightRange.absoluteMax;
   }
   
   // Enforce per-shape height ranges with dynamic maximum
   height = Math.min(Math.max(height, heightRange.min), effectiveMaxHeight);
 
-  // Queue shape (horizontal pipe) has special sizing
+  // Queue shape (horizontal pipe) has special sizing.
+  // Pipe-text layout never renders icons (ShapeNode forces showIcon=false for
+  // pipes), so only an explicit `showIcon: true` reserves icon padding —
+  // defaulting to true made layout reserve 36px the render never uses.
   if (isQueue) {
     const capPad = 48;
     const textWidth = longestLineLength * AVG_CHAR_WIDTH + capPad;
     width = Math.max(SIZE_L, Math.min(SIZE_XL, Math.ceil(textWidth / 40) * 40));
-    height = getHorizontalPipeHeight(countPipeLabelLines(label, subtitle));
-  }
-  
-  // Legacy: horizontal pipe cylinder
-  if (isHorizontalPipe) {
+    height = getQueuePipeHeight(countPipeLabelLines(label, subtitle));
+  } else if (isHorizontalPipe) {
+    // Legacy: horizontal pipe cylinder
     const capPad = 48;
     const textWidth = longestLineLength * AVG_CHAR_WIDTH + capPad;
     width = Math.max(SIZE_L, Math.min(SIZE_XL, Math.ceil(textWidth / 40) * 40));
-    height = getHorizontalPipeHeight(countPipeLabelLines(label, subtitle));
+    height = getHorizontalPipeHeight(countPipeLabelLines(label, subtitle), options.showIcon === true);
   }
 
   // Cylinder (vertical drum) needs minimum dimensions
   if (shape === 'cylinder' && !isHorizontalPipe) {
-    width = Math.max(width, SIZE_M);
-    height = Math.max(height, 120);  // Increased from 100 for better default size
+    width = Math.max(width, options.minWidth ?? SIZE_M);
+    height = Math.max(height, options.minHeight ?? 120);  // Increased from 100 for better default size
   }
 
   return {
     width: Math.round(width),
     height: Math.round(height),
   };
+}
+
+/**
+ * Compact sizing for quick-add draft nodes (N/D/C/Y keys, canvas double-click).
+ * Small sticky-note scale that still grows naturally as the label fills in.
+ */
+export function compactDraftDimensionOptions(shape?: string): DimensionOptions {
+  if (shape === 'circle') return { shape, minWidth: 96, minHeight: 80, maxWidth: 120, showIcon: false };
+  if (shape === 'diamond') return { shape, minWidth: 112, minHeight: 72, maxWidth: 140, showIcon: false };
+  return { shape, minWidth: 160, minHeight: 64, maxWidth: 200, showIcon: false };
+}
+
+export function calculateCompactDraftDimensions(
+  label: string,
+  subtitle?: string,
+  shape?: string,
+  cylinderAxis?: 'vertical' | 'horizontal',
+): NodeDimensions {
+  return calculateNodeDimensions(label, subtitle, {
+    ...compactDraftDimensionOptions(shape),
+    shape,
+    cylinderAxis,
+  });
 }
 
 export { SIZE_S, SIZE_M, SIZE_L, clampToSizeGrid };

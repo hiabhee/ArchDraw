@@ -55,7 +55,7 @@ class ApiKeyManager {
   private openrouterKeys: ApiKeyState[] = [];
   private currentGroqIndex = 0;
   private currentOpenrouterIndex = 0;
-  private readonly maxConcurrentPerKey = 2;
+  private readonly maxConcurrentPerKey = 1;
   private readonly baseDelay = 1000;
   private readonly maxConsecutiveErrors = 3;
   private isInitialized = false;
@@ -419,23 +419,19 @@ class ApiKeyManager {
             break;
           }
           
-          // 413 = TPM (tokens per minute) exhausted. Groq enforces this per
-          // org, so every key on the same account hits it together — rotating
-          // is pointless and only adds latency. Abort and let the caller fall
-          // back. Rotate only when keys are on separate orgs (round-robin on).
+          // 413 = TPM (tokens per minute) exhausted. Always rotate to the next
+          // key — even when all keys share the same org, trying the next key
+          // may succeed if the TPM window has rolled or the key is on a
+          // different tier.
           const isTpmExceeded =
             err.status === 413 ||
             (err.message || '').toLowerCase().includes('tokens per minute');
-          if (isTpmExceeded && ROUND_ROBIN_GROQ_KEYS) {
+          if (isTpmExceeded) {
             keyState.consecutiveErrors++;
             keyState.isRateLimited = true;
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} TPM limit hit, rotating to next key...`);
             await this.delay(2000);
             break; // try next key
-          }
-          if (isTpmExceeded) {
-            logger.log(`[ApiKeyManager] Groq key ${keyNumber} TPM limit hit — aborting key rotation`);
-            throw lastError;
           }
           
           // Rate limit — back off then try next key

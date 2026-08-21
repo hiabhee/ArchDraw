@@ -49,7 +49,7 @@ export const EDGE_TYPE_CONFIGS: Record<EdgeType, EdgeTypeConfig> = {
   event: {
     id: 'event',
     label: 'Event',
-    color: '#8B5CF6',
+    color: '#1E90FF',
     dash: '4 4',
     animated: true,
     markerStart: false,

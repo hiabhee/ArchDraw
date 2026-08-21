@@ -1,1 +1,8 @@
-{}
+{
+  "name": "archdraw",
+  "private": true,
+  "description": "ArchDraw — AI-assisted system architecture diagramming. Monorepo root; the applications live in frontend/ and mcp-server/.",
+  "engines": {
+    "node": ">=20"
+  }
+}

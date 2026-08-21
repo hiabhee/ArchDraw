@@ -47,7 +47,7 @@ import type { Node } from 'reactflow';
 import { resolveNodeCollisions } from '@/src/utils/resolveNodeCollisions';
 import { useEdgeColors } from '@/lib/edgeColors';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
-import { createNode, createEdge } from '@/lib/factory';
+import { createNode, createEdge, createBlankShapeNode } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
@@ -67,7 +67,7 @@ function CanvasInner() {
     onNodesChange, onEdgesChange, onConnect, onReconnect,
     setSelectedNodeId, setSelectedNodeIds, setSelectedEdgeId,
     setPendingLabelEdgeId, setCanvasMode,
-    setNodes, addNodeOnEdgeDrop,
+    setNodes, addNodeOnEdgeDrop, addNode,
   } = useDiagramStore(useShallow((s) => ({
     onNodesChange: s.onNodesChange,
     onEdgesChange: s.onEdgesChange,
@@ -80,6 +80,7 @@ function CanvasInner() {
     setCanvasMode: s.setCanvasMode,
     setNodes: s.setNodes,
     addNodeOnEdgeDrop: s.addNodeOnEdgeDrop,
+    addNode: s.addNode,
   })));
   const { isDark } = useCanvasTheme();
 
@@ -128,10 +129,15 @@ function CanvasInner() {
 
   const renameCanvas = useDiagramStore((s) => s.renameCanvas);
 
-  // Handle template from URL
+  // Handle template from URL.
+  // Run-once guard: without it, StrictMode double-invoke / re-renders with the
+  // same searchParams create duplicate canvases and run the pipeline twice.
+  const loadedTemplateRef = useRef<string | null>(null);
   useEffect(() => {
     const templateId = searchParams.get('template');
     if (!templateId) return;
+    if (loadedTemplateRef.current === templateId) return;
+    loadedTemplateRef.current = templateId;
 
     const template = TEMPLATES.find((t) => t.id === templateId);
     if (template) {
@@ -143,16 +149,17 @@ function CanvasInner() {
         });
         const nodes = layouted.success ? layouted.nodes : template.nodes;
         const edges = layouted.success ? layouted.edges : template.edges;
+        if (!layouted.success && layouted.warnings.length > 0) {
+          toast.warning('Template loaded without auto-layout', {
+            description: layouted.warnings[0],
+          });
+        }
         importDiagram(nodes, edges);
         useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
         renameCanvas(newCanvasId, template.name);
         router.replace(`/editor?canvas=${newCanvasId}`);
         toast.success(`Loaded template: ${template.name}`);
-        setTimeout(() => {
-          if (reactFlowRef.instance) {
-            reactFlowRef.instance.fitView({ padding: 0.1, duration: 400 });
-          }
-        }, 100);
+        // No manual fitView here — importDiagram already animates one.
       })();
     } else {
       toast.error('Template not found');
@@ -175,7 +182,12 @@ function CanvasInner() {
         let nodeHeight = n.data?.nodeHeight;
         
         if (!nodeWidth || !nodeHeight) {
-          const dims = calculateNodeDimensions(n.data?.label || '', n.data?.subtitle || '');
+          // Shape-aware fallback — a blind fit gives cylinders/diamonds/etc.
+          // rectangle proportions and the layout then under-reserves space.
+          const dims = calculateNodeDimensions(n.data?.label || '', n.data?.subtitle || '', {
+            shape: n.data?.shape as string | undefined,
+            cylinderAxis: n.data?.cylinderAxis as 'vertical' | 'horizontal' | undefined,
+          });
           nodeWidth = nodeWidth || dims.width;
           nodeHeight = nodeHeight || dims.height;
         }
@@ -444,6 +456,27 @@ function CanvasInner() {
     []
   );
 
+  // Double-click empty canvas — drop a blank rectangle draft under the cursor (inline rename starts).
+  const onPaneDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.classList.contains('react-flow__pane')) return;
+      const flowPos = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      const node = createBlankShapeNode('rectangle', flowPos);
+      node.position = {
+        x: flowPos.x - (node.width ?? 160) / 2,
+        y: flowPos.y - (node.height ?? 88) / 2,
+      };
+      addNode(node);
+      setSelectedNodeId(node.id);
+      setSelectedNodeIds([node.id]);
+    },
+    [reactFlowInstance, addNode, setSelectedNodeId, setSelectedNodeIds]
+  );
+
   // Label editing via `edit-edge-label` custom event (inline on the edge).
   useEffect(() => {
     const handleEditEvent = (e: Event) => {
@@ -480,7 +513,9 @@ function CanvasInner() {
       )}
       data-render-style={diagramRenderStyle}
       data-color-theme={diagramStyleTheme}
-      onDragOver={(e) => e.preventDefault()}
+      data-pipeline={pipelineStatus}
+        onDragOver={(e) => e.preventDefault()}
+        onDoubleClick={onPaneDoubleClick}
       style={{ overscrollBehavior: 'contain', ...themeVars }}
     >
       <ReactFlow
@@ -511,6 +546,7 @@ function CanvasInner() {
         // Avoid hijacking two-finger scroll for zoom; zoom still works via controls/pinch.
         zoomOnScroll={false}
         zoomOnPinch={true}
+        zoomOnDoubleClick={false}
         connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
         connectionRadius={CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.SmoothStep}

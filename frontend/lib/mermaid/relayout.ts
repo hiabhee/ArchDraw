@@ -48,8 +48,11 @@ function dimensionsForNode(node: Node): { width?: number; height?: number } {
     shape: data.shape as string | undefined,
     serviceType: data.serviceType as string | undefined,
     cylinderAxis: data.cylinderAxis as 'vertical' | 'horizontal' | undefined,
-    nodeWidth: data.nodeWidth as number | undefined,
-    nodeHeight: data.nodeHeight as number | undefined,
+    // Deliberately no nodeWidth/nodeHeight here: resolveShapeNodeDimensions
+    // max()es stored vs fitted, so passing stored dims ratchets boxes upward
+    // and they never shrink when a label shortens. Layout must use the fresh
+    // fitted size — the same size dagre reserved space for.
+    showIcon: data.showIcon as boolean | undefined,
   });
   return dims;
 }
@@ -100,13 +103,29 @@ export async function layoutDiagramViaMermaid(
         shape: newNode.data?.shape || originalNode.data?.shape,
       };
 
-      const shapeDims = dimensionsForNode({
-        ...originalNode,
-        data: mergedData,
-      } as Node);
-      const width = shapeDims.width ?? newNode.width ?? originalNode.width;
-      const height = shapeDims.height ?? newNode.height ?? originalNode.height;
       const group = isGroupNode(originalNode) || isGroupNode(newNode as Node);
+
+      // Group nodes: prefer pipeline-computed dimensions which are derived
+      // from the actual child bounding box. Using the original node's stale
+      // dimensions causes children to overflow the group.
+      let width: number | undefined;
+      let height: number | undefined;
+      if (group) {
+        width = newNode.width ?? originalNode.width ?? undefined;
+        height = newNode.height ?? originalNode.height ?? undefined;
+      } else {
+        // Non-group nodes: trust the pipeline-fresh dimensions first (dagre
+        // spaced ranks using exactly these), then a fresh fit that ignores
+        // stale stored nodeWidth/nodeHeight. Falling back to the stored size
+        // here is what caused laid-out width ≠ assigned width and the
+        // grow-only ratchet.
+        const shapeDims = dimensionsForNode({
+          ...originalNode,
+          data: mergedData,
+        } as Node);
+        width = newNode.width ?? shapeDims.width ?? originalNode.width ?? undefined;
+        height = newNode.height ?? shapeDims.height ?? originalNode.height ?? undefined;
+      }
 
       return {
         ...newNode,
@@ -118,6 +137,11 @@ export async function layoutDiagramViaMermaid(
         extent: newNode.extent || originalNode.extent,
         width,
         height,
+        // Groups need the pipeline's -1 layering; non-group nodes keep their
+        // original z-order instead of losing it to the rebuilt default.
+        zIndex: group
+          ? (newNode.zIndex ?? originalNode.zIndex)
+          : (originalNode.zIndex ?? newNode.zIndex),
         style: group
           ? {
               ...(originalNode.style as Record<string, unknown> | undefined),
@@ -137,9 +161,43 @@ export async function layoutDiagramViaMermaid(
     const laidOutIds = new Set(preservedNodes.map((n) => n.id));
     const orphans = nodesWithHeading.filter((n) => !laidOutIds.has(n.id));
 
+    // Preserve original edge identity and user data through the round-trip.
+    // The parser regenerates ids and rebuilds data from scratch, which would
+    // otherwise discard custom waypoints, style, type, handles, animated, and
+    // break undo/selection keyed on stable edge ids.
+    const originalEdgeBuckets = new Map<string, Edge[]>();
+    const edgeKey = (source: string, target: string, label: unknown) =>
+      `${source}|${target}|${typeof label === 'string' ? label.trim() : ''}`;
+    for (const edge of edges) {
+      const key = edgeKey(edge.source, edge.target, edge.label);
+      const bucket = originalEdgeBuckets.get(key);
+      if (bucket) bucket.push(edge);
+      else originalEdgeBuckets.set(key, [edge]);
+    }
+
+    const preservedEdges = (result.data.edges as Edge[]).map((newEdge) => {
+      const bucket = originalEdgeBuckets.get(edgeKey(newEdge.source, newEdge.target, newEdge.label))
+        ?? originalEdgeBuckets.get(`${newEdge.source}|${newEdge.target}|`);
+      const original = bucket?.shift();
+      if (!original) return newEdge;
+      return {
+        ...newEdge,
+        id: original.id,
+        sourceHandle: original.sourceHandle ?? newEdge.sourceHandle,
+        targetHandle: original.targetHandle ?? newEdge.targetHandle,
+        type: original.type ?? newEdge.type,
+        style: original.style ?? newEdge.style,
+        animated: original.animated ?? newEdge.animated,
+        hidden: original.hidden ?? newEdge.hidden,
+        markerStart: original.markerStart ?? newEdge.markerStart,
+        markerEnd: original.markerEnd ?? newEdge.markerEnd,
+        data: { ...newEdge.data, ...original.data },
+      } as Edge;
+    });
+
     return {
       nodes: orphans.length > 0 ? [...preservedNodes, ...orphans] : preservedNodes,
-      edges: result.data.edges as Edge[],
+      edges: preservedEdges,
       success: true,
       warnings: result.data.warnings ?? [],
     };

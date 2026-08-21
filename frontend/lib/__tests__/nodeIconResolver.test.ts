@@ -79,14 +79,17 @@ describe('resolveNodeIcon', () => {
     });
   });
 
-  it('uses brand blue for generic manual icons without a technology', () => {
+  it('keeps the compute-category color for a generic manual service icon', () => {
+    // arch-service is bucketed as `compute` (cyan), a deliberate accent kept
+    // distinct from the blue orchestration/networking/ai categories. A legacy
+    // purple input color normalizes to that category color, not brand blue.
     expect(resolveNodeIcon({
       label: 'General Service',
       icon: 'arch-service',
       color: '#6366f1',
     })).toMatchObject({
       icon: 'arch-service',
-      color: '#1E90FF',
+      color: '#0891B2',
       technology: undefined,
       source: 'manual',
     });

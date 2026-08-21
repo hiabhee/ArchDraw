@@ -126,7 +126,6 @@ export interface RFObjects {
 
 export const NODE_WIDTH = 180
 export const NODE_HEIGHT = 60
-export const SUBGRAPH_PADDING = 40
 
 export const SHAPE_TO_NODE_TYPE: Record<Shape, string> = {
   rectangle: 'shapeNode',

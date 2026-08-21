@@ -179,6 +179,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const fitted = calculateNodeDimensions(data.label || '', nodeData.subtitle, {
     shape: 'rounded-rectangle',
     minWidth: SIZE_M,
+    showIcon,
   });
   const cardWidth = Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
   const cardHeight = Math.max(nodeData.nodeHeight || NODE_HEIGHT, fitted.height);
@@ -341,7 +342,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             <input
               {...labelEdit.inputProps}
               style={{
-                fontSize: sketch ? 15 : 13.5,
+                fontSize: sketch ? 18 : 16.2,
                 fontWeight: sketch ? 400 : 600,
                 fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
                 color: 'var(--node-title-color)',

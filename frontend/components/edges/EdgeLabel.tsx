@@ -8,6 +8,8 @@ import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import {
   SKETCH_INK_LIGHT_TITLE,
   SKETCH_INK_DARK_TITLE,
+  SKETCH_PAPER_TINT,
+  SKETCH_PAPER_DARK,
 } from '@/lib/theme/renderStyles';
 
 interface EdgeLabelProps {
@@ -134,13 +136,14 @@ export function EdgeLabel({
 
   const pillStyle: React.CSSProperties = sketch
     ? {
-        background: isDark ? '#24262b' : '#f7f2e8',  // Sketch paper colors
+        background: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,  // Match sketch node paper
         color: textColor,
+        fontSize: 10,
         borderRadius: 8,
         border: isDark
           ? '1.5px solid rgba(245, 242, 235, 0.25)'
           : '1.5px solid rgba(92, 74, 48, 0.22)',
-        padding: '3px 8px',
+        padding: '2px 7px',
         lineHeight: 1.2,
         textAlign: 'center',
         outline: 'none',
@@ -163,10 +166,10 @@ export function EdgeLabel({
         border: isDark
           ? '1px solid rgba(148, 163, 184, 0.28)'
           : '1px solid rgba(15, 23, 42, 0.12)',
-        fontSize: 9,
+        fontSize: 7.5,
         fontFamily: 'Inter, "IBM Plex Sans", system-ui, sans-serif',
         fontWeight: 500,
-        padding: '2px 6px',
+        padding: '2px 5px',
         lineHeight: 1.2,
         textAlign: 'center',
         outline: 'none',

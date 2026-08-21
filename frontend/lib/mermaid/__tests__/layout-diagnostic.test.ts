@@ -5,7 +5,7 @@ import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
 import { buildReactFlowObjects } from '../buildReactFlow';
 import { parseMermaid } from '../parse';
 import { validateAST } from '../validate';
-import { sizeSubgraphs } from '../subgraphSizing';
+import { applySubgraphBoundsToRf } from '../recomputeSubgraphBounds';
 
 // A diagram with nested subgraphs
 const nestedCode = `graph TD
@@ -79,7 +79,7 @@ describe('Layout diagnostic', () => {
     });
   });
 
-  it('parse -> build -> applyLayout -> sizeSubgraphs produces correct parent-relative positions', () => {
+  it('parse -> build -> applyLayout -> applySubgraphBoundsToRf produces correct parent-relative positions', () => {
     const parseResult = parseMermaid(nestedCode);
     expect(parseResult.ok).toBe(true);
     if (!parseResult.ok) return;
@@ -109,7 +109,7 @@ describe('Layout diagnostic', () => {
     const postLayoutChildren = layouted.nodes.filter(n => n.parentNode);
     expect(postLayoutChildren.length).toBe(preLayoutChildren.length);
     
-    const sized = sizeSubgraphs(layouted.nodes);
+    const sized = applySubgraphBoundsToRf(layouted.nodes);
     
     // After sizing: children positions should be relative to parent
     for (const s of sized) {

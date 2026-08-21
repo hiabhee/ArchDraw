@@ -27,17 +27,23 @@ describe('plannerPrompts', () => {
     const prompt = buildPlannerSystemPrompt();
     expect(prompt).toContain('Classify intent');
     expect(prompt).toContain('Anti-patterns');
-    expect(prompt).toContain('Do NOT add Browser');
-    expect(prompt).toContain('agent loop');
-    expect(prompt).toContain('Kafka broker');
+    expect(prompt).toContain('Browser');
+    expect(prompt).toContain('EXPLAIN_CONCEPT');
+    expect(prompt).toContain('APPLICATION');
   });
 
-  it('includes four detailed few-shot examples', () => {
+  it('includes three few-shot examples covering concept, app, and async', () => {
     const prompt = buildPlannerSystemPrompt();
     expect(prompt).toContain('Example 1');
     expect(prompt).toContain('Example 2');
     expect(prompt).toContain('Example 3');
-    expect(prompt).toContain('Example 4');
+  });
+
+  it('teaches async vs sync rules for queues', () => {
+    const prompt = buildPlannerSystemPrompt();
+    expect(prompt).toContain('Async vs Sync');
+    expect(prompt).toContain('publishes event');
+    expect(prompt).toContain('consumes message');
   });
 
   it('teaches the title/note directive format', () => {
@@ -45,25 +51,22 @@ describe('plannerPrompts', () => {
     expect(prompt).toContain('archdraw-text');
     expect(prompt).toContain('archdraw-note');
     expect(prompt).toContain('anchor":"top"');
-    expect(prompt).toContain('do NOT count toward the node limit');
-    // Few-shot examples imitate the directive line
-    expect(prompt).toContain('archdraw-text: {\\"id\\":\\"title\\"');
   });
 
-  it('user prompt reinforces intent-first design', () => {
+  it('user prompt includes quality requirements', () => {
     const user = buildPlannerUserPrompt('agent loop with tools', {
       diagramSize: 'medium',
       maxNodes: 12,
       detailGuidance: getDetailGuidance(2),
     });
-    expect(user).toContain('classify the intent');
-    expect(user).toContain('do not default to Browser');
+    expect(user).toContain('Classify intent');
     expect(user).toContain('Title');
+    expect(user).toContain('max 12 nodes');
   });
 
   it('maps diagram sizes to node caps', () => {
-    expect(getMaxNodesForSize('small')).toBe(7);
-    expect(getMaxNodesForSize('medium')).toBe(12);
-    expect(getMaxNodesForSize('large')).toBe(20);
+    expect(getMaxNodesForSize('small')).toBe(8);
+    expect(getMaxNodesForSize('medium')).toBe(15);
+    expect(getMaxNodesForSize('large')).toBe(25);
   });
 });

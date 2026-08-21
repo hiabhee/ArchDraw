@@ -75,6 +75,8 @@ export class IntegratedLayoutEngine {
         id: edge.id,
         source: edge.source,
         target: edge.target,
+        label: (edge.label as string | undefined)
+          ?? (edge.data?.label as string | undefined),
       })),
       direction,
       options: { ...defaults, ...options.options },

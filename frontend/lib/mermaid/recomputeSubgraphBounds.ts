@@ -1,4 +1,10 @@
 import type { CSSProperties } from 'react'
+import { isTextNode } from './textNodes'
+import {
+  SUBGRAPH_PADDING_X,
+  SUBGRAPH_PADDING_TOP,
+  SUBGRAPH_PADDING_BOTTOM,
+} from '@/lib/pipeline-shared/layout/layoutConstants'
 
 export interface SubgraphBoundsNode {
   id: string
@@ -11,10 +17,12 @@ export interface SubgraphBoundsNode {
   isGroup: boolean
   data?: Record<string, unknown>
   style?: CSSProperties
+  /**
+   * Free-text / annotation nodes are placed after layout and must not inflate
+   * a group's bounding box (they are still repositioned relative to it).
+   */
+  excludeFromBounds?: boolean
 }
-
-const SUBGRAPH_PADDING = 40
-const LABEL_PAD = 64
 
 function hexToRgba(hex: string, alpha: number): string {
   const cleanHex = hex.startsWith('#') ? hex : '#2563EB'
@@ -82,6 +90,7 @@ export function recomputeSubgraphBounds(nodes: SubgraphBoundsNode[]): SubgraphBo
     for (const childId of childIds) {
       const child = leaves.get(childId) || groups.get(childId)
       if (!child) continue
+      if (child.excludeFromBounds) continue
       const cw = child.width ?? 0
       const ch = child.height ?? 0
       if (child.absX < minX) minX = child.absX
@@ -89,12 +98,23 @@ export function recomputeSubgraphBounds(nodes: SubgraphBoundsNode[]): SubgraphBo
       if (child.absX + cw > maxX) maxX = child.absX + cw
       if (child.absY + ch > maxY) maxY = child.absY + ch
     }
-    if (minX === Infinity) continue
+    if (minX === Infinity) {
+      // Bounds-only children (e.g. a group containing just free text): keep
+      // the group as-is but still sync abs coords and reposition children.
+      group.absX = group.position.x
+      group.absY = group.position.y
+      for (const childId of childIds) {
+        const child = leaves.get(childId) || groups.get(childId)
+        if (!child) continue
+        child.position = { x: child.absX - group.absX, y: child.absY - group.absY }
+      }
+      continue
+    }
 
-    const newWidth = maxX - minX + SUBGRAPH_PADDING * 2
-    const newHeight = maxY - minY + SUBGRAPH_PADDING + LABEL_PAD
-    const newX = minX - SUBGRAPH_PADDING
-    const newY = minY - LABEL_PAD
+    const newWidth = maxX - minX + SUBGRAPH_PADDING_X * 2
+    const newHeight = maxY - minY + SUBGRAPH_PADDING_BOTTOM + SUBGRAPH_PADDING_TOP
+    const newX = minX - SUBGRAPH_PADDING_X
+    const newY = minY - SUBGRAPH_PADDING_TOP
 
     group.position = { x: newX, y: newY }
     group.absX = newX
@@ -120,4 +140,67 @@ export function recomputeSubgraphBounds(nodes: SubgraphBoundsNode[]): SubgraphBo
   }
 
   return nodes
+}
+
+interface RfLikeNode {
+  id: string
+  type?: string
+  position: { x: number; y: number }
+  width?: number | null
+  height?: number | null
+  parentNode?: string
+  parentId?: string
+  data?: Record<string, unknown>
+  // Loosely typed: React Flow node `style` is CSSProperties, pipeline nodes
+  // use plain records — the adapter only reads/copies it.
+  style?: unknown
+}
+
+/**
+ * RF-shaped entry point to `recomputeSubgraphBounds` — THE canonical subgraph
+ * sizing pass. Use this after any layout that emits children at absolute
+ * positions (dagre compound output): it resizes every group to its children's
+ * bounding box and converts child positions to parent-relative coordinates.
+ *
+ * Replaces the old nesting-unaware `sizeSubgraphs`, which mishandled nested
+ * groups (inner groups hit the "make relative" branch before their own bounds
+ * were recomputed, leaving stale sizes / overflowing children).
+ */
+export function applySubgraphBoundsToRf<T extends RfLikeNode>(nodes: T[]): T[] {
+  const isGroup = (n: RfLikeNode) => n.type === 'groupNode' || n.data?.isGroup === true
+
+  const inputs: SubgraphBoundsNode[] = nodes.map((n) => ({
+    id: n.id,
+    parentNode: n.parentNode ?? n.parentId,
+    position: { x: n.position.x, y: n.position.y },
+    width: n.width ?? 0,
+    height: n.height ?? 0,    absX: n.position.x,
+    absY: n.position.y,
+    isGroup: isGroup(n),
+    data: n.data,
+    style: n.style as CSSProperties | undefined,
+    excludeFromBounds: isTextNode(n),
+  }))
+  recomputeSubgraphBounds(inputs)
+  const byId = new Map(inputs.map((n) => [n.id, n]))
+
+  return nodes.map((n) => {
+    const sized = byId.get(n.id)
+    if (!sized) return n
+    if (isGroup(n)) {
+      return {
+        ...n,
+        position: { ...sized.position },
+        width: sized.width,
+        height: sized.height,
+        style: {
+          ...(n.style as Record<string, unknown> | undefined),
+          width: sized.width,
+          height: sized.height,
+        },
+      }
+    }
+    // Children come back parent-relative.
+    return { ...n, position: { ...sized.position } }
+  })
 }

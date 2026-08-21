@@ -14,7 +14,7 @@ ArchDraw is an **AI-assisted system architecture diagramming** product:
 
 Primary app lives in `frontend/` (Next.js App Router). Companion package: `mcp-server/`.
 
-**Stack (verify in `frontend/package.json`):** Next.js · React · TypeScript · React Flow v11 · Zustand · Dagre (+ ELK for some canvas presets) · Groq · Prisma + Neon · better-auth · Tailwind · Mermaid · Vitest.
+**Stack (verify in `frontend/package.json`):** Next.js · React · TypeScript · React Flow v11 · Zustand · Dagre · Groq · Prisma + Supabase · better-auth · Tailwind · Mermaid · Vitest.
 
 ---
 
@@ -76,7 +76,7 @@ Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc
 
 Path: React Flow → Mermaid → Parse → Validate → Build → **Dagre** (`pipeline-shared/layout`) → Size → map positions back.
 
-Do **not** assume the toolbar uses ELK. ELK lives in `frontend/lib/canvas/applyLayout.ts` / `layoutPresets.ts` for alternate presets (e.g. force). See `docs/layout-toggler.md`.
+Do **not** assume the toolbar uses ELK. There is no frontend ELK path — layout is Dagre-only via `pipeline-shared/layout` (ELK lives only in `mcp-server`). See `docs/layout-toggler.md`.
 
 ### Node sizing rule
 
@@ -258,13 +258,13 @@ Files:
 
 **Default Dagre compound spacing (current):**
 
-- TB: `nodeSep` 140, `rankSep` 200  
-- LR: `nodeSep` 180, `rankSep` 200  
-- Subgraph padding ~48–72  
+- TB: `nodeSep` 140, `rankSep` 220  
+- LR: `nodeSep` 160, `rankSep` 220  
+- Subgraph padding: 28 sides / 48 top (label) / 28 bottom — shared via `lib/pipeline-shared/layout/layoutConstants.ts`; the engine and the subgraph sizer (`recomputeSubgraphBounds.ts`) must never diverge.
 
 ### Alternate path
 
-- ELK presets: `lib/canvas/layoutPresets.ts`, `lib/canvas/applyLayout.ts` — used for some store presets / freeform / force, **not** the Mermaid toggler.
+- There is no frontend ELK path — the ELK stack was removed; layout is Dagre-only via `pipeline-shared/layout` (ELK lives only in `mcp-server`). Store presets all route through `layoutDiagramViaMermaid`.
 
 ### Landing demo
 
@@ -424,7 +424,7 @@ Copy `frontend/.env.example` → `frontend/.env.local`.
 |----------|-----------|------|
 | `GROQ_API_KEY` (or `GROQ_API_KEY_FOR_DESC_*`) | **Yes for AI** | LLM generations; multi-key load balancing supported |
 | `OPENROUTER_API_KEY*` | Optional | Fallback LLM provider |
-| `DATABASE_URL` / `DIRECT_URL` | Needed for auth, save, quotas | Prisma → Neon/Postgres |
+| `DATABASE_URL` | Needed for auth, save, quotas | Prisma → Supabase Postgres |
 | `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` | Needed for auth | Session crypto + canonical URL |
 | `NEXT_PUBLIC_APP_URL` | Recommended | Public origin / trusted origins |
 | `UPSTASH_REDIS_REST_*` | Optional | Rate limits + some caches; guests fall back to DB if Redis down |
@@ -631,7 +631,7 @@ See `docs/pipeline-refactor-plan.md` and `docs/layout-toggler-learnings.md`.
 
 Still be aware of:
 
-- Historical “multiple layout owners” — **canonical** is Mermaid→Dagre via `relayout.ts` + `pipeline-shared/layout`; ELK remains for some presets.
+- Historical “multiple layout owners” — **canonical** is Mermaid→Dagre via `relayout.ts` + `pipeline-shared/layout`; there is no frontend ELK path.
 - AI pipeline stage classes vs thin adapters in `pipeline-v2.ts` — prefer typed stages + `pipeline-core`.
 - Some docs/README stage counts lag code — trust `pipeline-v2.ts` and `lib/mermaid/pipeline.ts`.
 - Lint is non-blocking in CI today.

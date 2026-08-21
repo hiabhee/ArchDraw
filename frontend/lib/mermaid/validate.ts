@@ -2,7 +2,11 @@ import type { MermaidAST, ValidationWarning } from './types'
 
 export function validateAST(ast: MermaidAST): { ok: true; ast: MermaidAST } | { ok: false; errors: ValidationWarning[] } {
   const errors: ValidationWarning[] = []
-  const labelArtifacts = ['-->', '---', ' -- ', '|', '["']
+  // Pipes / arrows are legitimate inside quoted labels ("Kafka | Redpanda",
+  // "retry --> fallback") — our own serializer always quotes labels, and the
+  // parser's arrow scan is quote-aware, so artifacts found in a parsed label
+  // cannot be edge syntax.
+  const labelArtifacts = [' -- ', '["']
   const nodeMap = new Map(ast.nodes.map(n => [n.id, n]))
   const subgraphMap = new Map(ast.subgraphs.map(s => [s.id, s]))
 

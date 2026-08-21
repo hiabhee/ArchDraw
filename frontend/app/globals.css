@@ -485,7 +485,9 @@ body {
   pointer-events: none !important;
 }
 
-.diagram-chrome-edit .react-flow__node.selected .react-flow__handle {
+/* Edit mode: handles stay visible whenever the pipeline isn't generating,
+   so connections can be dragged without selecting the node first. */
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__handle {
   width: 12px !important;
   height: 12px !important;
   min-width: 12px !important;
@@ -499,7 +501,7 @@ body {
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.diagram-chrome-edit .react-flow__node.selected .react-flow__handle:hover {
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__handle:hover {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent);
 }
 
@@ -1207,6 +1209,11 @@ body {
 /* ── Touch handling: prevent browser gestures on canvas ── */
 .react-flow__pane {
   touch-action: none;
+}
+
+/* Prevent Chrome back/forward navigation on horizontal trackpad swipe */
+.editor-chrome {
+  overscroll-behavior-x: contain;
 }
 
 .dragging {

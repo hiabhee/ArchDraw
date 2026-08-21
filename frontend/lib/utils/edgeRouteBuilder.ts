@@ -4,6 +4,7 @@ import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
 import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
+import logger from '@/lib/logger'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
   selectBestHandlerPair,
@@ -495,7 +496,7 @@ export function computeEdgeRoute(
   }
 
   if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
-    console.log('[EdgeDebug:3-RouteBuilder] edge=%s  manual=(%s,%s)  lane=(%s,%s)  scoring=%s',
+    logger.debug('[EdgeDebug:3-RouteBuilder] edge=%s  manual=(%s,%s)  lane=(%s,%s)  scoring=%s',
       edge.id,
       edgeData?.sourceSide ?? '-', edgeData?.targetSide ?? '-',
       edgeData?.laneSourceSide ?? '-', edgeData?.laneTargetSide ?? '-',
@@ -518,7 +519,7 @@ export function computeEdgeRoute(
   let targetPosition = handlerPair.targetSide
 
   if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
-    console.log('[EdgeDebug:4-Final] edge=%s  src=%s→%s  tgt=%s→%s',
+    logger.debug('[EdgeDebug:4-Final] edge=%s  src=%s→%s  tgt=%s→%s',
       edge.id, edge.source, sourcePosition, edge.target, targetPosition);
   }
 
@@ -546,7 +547,7 @@ export function computeEdgeRoute(
     })
     if (fallback) {
       if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
-        console.log('[EdgeDebug:Guard] edge=%s  PENETRATION DETECTED (%s→%s), falling back to %s→%s',
+        logger.debug('[EdgeDebug:Guard] edge=%s  PENETRATION DETECTED (%s→%s), falling back to %s→%s',
           edge.id, sourcePosition, targetPosition,
           fallback.pair.sourceSide, fallback.pair.targetSide)
       }

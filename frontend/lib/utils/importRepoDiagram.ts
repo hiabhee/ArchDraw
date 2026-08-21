@@ -6,6 +6,7 @@
 
 import { parseRepoNdjsonToReactFlow } from '@/lib/utils/parseRepoNdjson';
 import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
+import { applySubgraphBoundsToRf } from '@/lib/mermaid/recomputeSubgraphBounds';
 import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor } from '@/lib/mermaid/planTranslator';
 import { classifyEdge } from '@/lib/mermaid/edgeClassifier';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
@@ -138,7 +139,12 @@ export function parseAndValidateRepoDiagram(
     direction === 'LR' ? 'LR' : 'TD',
     { rankSep: 260, nodeSep: 150 },
   );
-  const layoutedNodes = layouted.nodes as typeof enrichedNodes;
+  // Dagre compound output places children at ABSOLUTE positions and relies on
+  // a follow-up sizing pass. Without it React Flow reads child positions as
+  // parent-relative (grouped nodes render offset outside their box) and
+  // groups are never sized to their contents.
+  const sizedNodes = applySubgraphBoundsToRf(layouted.nodes as typeof enrichedNodes);
+  const layoutedNodes = sizedNodes;
   const layoutedEdges = layouted.edges as typeof enrichedEdges;
 
   return {

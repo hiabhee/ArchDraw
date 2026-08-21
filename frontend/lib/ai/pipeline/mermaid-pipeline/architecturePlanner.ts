@@ -42,26 +42,23 @@ function describeExistingContext(ctx: { nodes?: unknown[]; edges?: unknown[] }):
   const lines: string[] = [];
   const nodes = (ctx.nodes ?? []) as Array<Record<string, unknown>>;
   const edges = (ctx.edges ?? []) as Array<Record<string, unknown>>;
-  const MAX_LISTED = 15;
+  const MAX_NODES = 10;
+  const MAX_EDGES = 8;
   if (nodes.length > 0) {
-    lines.push('Components:');
-    for (const n of nodes.slice(0, MAX_LISTED)) {
+    lines.push('Nodes:');
+    for (const n of nodes.slice(0, MAX_NODES)) {
       const data = n.data as Record<string, unknown> | undefined;
-      const type = String(n.type ?? '');
-      const isText = type === 'textLabelNode' || type === 'annotationNode';
       const label = data?.label ?? data?.text ?? data?.title ?? n.label ?? n.id;
-      lines.push(`  - ${isText ? `[${type}] ` : ''}${String(label ?? n.id ?? 'unknown')}`);
+      lines.push(`  - ${String(label ?? n.id ?? 'unknown')}`);
     }
-    if (nodes.length > MAX_LISTED) lines.push(`  ... and ${nodes.length - MAX_LISTED} more`);
+    if (nodes.length > MAX_NODES) lines.push(`  +${nodes.length - MAX_NODES} more`);
   }
   if (edges.length > 0) {
-    lines.push('Connections:');
-    for (const e of edges.slice(0, MAX_LISTED)) {
-      const label = e.label ?? (e.data as Record<string, unknown> | undefined)?.label;
-      const suffix = label ? ` (${String(label)})` : '';
-      lines.push(`  - ${String(e.source ?? '?')} -> ${String(e.target ?? '?')}${suffix}`);
+    lines.push('Edges:');
+    for (const e of edges.slice(0, MAX_EDGES)) {
+      lines.push(`  - ${String(e.source ?? '?')}->${String(e.target ?? '?')}`);
     }
-    if (edges.length > MAX_LISTED) lines.push(`  ... and ${edges.length - MAX_LISTED} more`);
+    if (edges.length > MAX_EDGES) lines.push(`  +${edges.length - MAX_EDGES} more`);
   }
   return lines.join('\n');
 }
@@ -70,8 +67,68 @@ function stripJsonFences(raw: string): string {
   return raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
 }
 
+/**
+ * Escape literal newlines, tabs, and carriage returns inside JSON string values.
+ * LLMs frequently emit `mermaidCode: "graph LR\n  A --> B"` with real newlines
+ * instead of the escaped `\n` that valid JSON requires.
+ */
+function escapeNewlinesInJsonStrings(json: string): string {
+  let inString = false;
+  let escaped = false;
+  const result: string[] = [];
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+    if (escaped) {
+      result.push(ch);
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      result.push(ch);
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      result.push(ch);
+      continue;
+    }
+    if (inString) {
+      if (ch === '\n') { result.push('\\n'); continue; }
+      if (ch === '\r') { result.push('\\r'); continue; }
+      if (ch === '\t') { result.push('\\t'); continue; }
+    }
+    result.push(ch);
+  }
+  return result.join('');
+}
+
+/**
+ * Extract the first `{ ... }` JSON object from LLM output that may contain
+ * surrounding prose, markdown fences, or trailing text.
+ */
+function extractJsonObject(raw: string): string {
+  const start = raw.indexOf('{');
+  if (start === -1) return raw;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (esc) { esc = false; continue; }
+    if (ch === '\\' && inStr) { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') { depth--; if (depth === 0) return raw.slice(start, i + 1); }
+  }
+  return raw.slice(start);
+}
+
 function repairTruncatedJson(raw: string): string {
   let fixed = raw.replace(/,\s*([}\]])/g, '$1');
+  // Escape literal newlines/tabs inside JSON strings
+  fixed = escapeNewlinesInJsonStrings(fixed);
   const openObjects = (fixed.match(/\{/g) || []).length;
   const closeObjects = (fixed.match(/\}/g) || []).length;
   const openArrays = (fixed.match(/\[/g) || []).length;
@@ -79,6 +136,40 @@ function repairTruncatedJson(raw: string): string {
   for (let i = 0; i < openObjects - closeObjects; i++) fixed += '}';
   for (let i = 0; i < openArrays - closeArrays; i++) fixed += ']';
   return fixed;
+}
+
+/**
+ * Multi-stage JSON extraction and repair. Tries progressively more aggressive
+ * fixes so the pipeline doesn't fail on common LLM output quirks.
+ */
+function extractPlannerJson(raw: string): PlannerOutput {
+  const stripped = stripJsonFences(raw);
+
+  // Stage 1: direct parse with newline escaping
+  try {
+    return JSON.parse(escapeNewlinesInJsonStrings(stripped)) as PlannerOutput;
+  } catch { /* continue */ }
+
+  // Stage 2: extract the first {…} block (LLM may have prepended prose)
+  const extracted = extractJsonObject(stripped);
+  try {
+    return JSON.parse(escapeNewlinesInJsonStrings(extracted)) as PlannerOutput;
+  } catch { /* continue */ }
+
+  // Stage 3: repair truncated / trailing-comma JSON
+  try {
+    return JSON.parse(repairTruncatedJson(extracted)) as PlannerOutput;
+  } catch { /* continue */ }
+
+  // Stage 4: last-ditch — try extracting from the raw (pre-strip) text
+  const rawExtracted = extractJsonObject(raw);
+  try {
+    return JSON.parse(repairTruncatedJson(rawExtracted)) as PlannerOutput;
+  } catch (finalErr) {
+    throw new Error(
+      `Failed to parse architecture planner output: ${finalErr instanceof Error ? finalErr.message : String(finalErr)}`
+    );
+  }
 }
 
 export async function runArchitecturePlanner(
@@ -109,7 +200,10 @@ export async function runArchitecturePlanner(
   let resultStr = '';
   let lastError: Error | null = null;
   let succeeded = false;
-  const maxAttempts = 2;
+  // Each executeWithRetry call rotates through ALL Groq keys before throwing,
+  // so a single attempt exercises the full key pool. We retry a few times in
+  // case TPM windows roll between attempts.
+  const maxAttempts = 3;
 
   for (const currentModel of modelsToTry) {
     if (succeeded) break;
@@ -143,7 +237,7 @@ export async function runArchitecturePlanner(
         if (msg.includes('413') || msg.includes('tokens per minute')) {
           if (currentModel !== FALLBACK_GENERATION_MODEL) {
             logger.warn(
-              `[ArchitecturePlanner] TPM limit hit on ${currentModel}, falling back to ${FALLBACK_GENERATION_MODEL}`
+              `[ArchitecturePlanner] TPM limit hit on ${currentModel} (attempt ${attempt}/${maxAttempts}), falling back to ${FALLBACK_GENERATION_MODEL}`
             );
             break;
           }
@@ -161,18 +255,24 @@ export async function runArchitecturePlanner(
 
   let cleaned: PlannerOutput;
   try {
-    cleaned = JSON.parse(stripJsonFences(resultStr)) as PlannerOutput;
+    cleaned = extractPlannerJson(resultStr);
   } catch (parseErr) {
-    try {
-      cleaned = JSON.parse(repairTruncatedJson(resultStr)) as PlannerOutput;
-    } catch {
-      logger.error('[ArchitecturePlanner] JSON parse failed after repair attempt', {
-        raw: resultStr.substring(0, 500),
-      });
-      throw new Error(
-        `Failed to parse architecture planner output: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
-      );
-    }
+    logger.error('[ArchitecturePlanner] JSON parse failed after all repair attempts', {
+      raw: resultStr.substring(0, 500),
+    });
+    throw parseErr;
+  }
+
+  // Post-process: replace "/" with " or " in node labels to avoid visual artifacts
+  if (cleaned.mermaidCode) {
+    // Handle both raw and escaped quotes in mermaid code
+    cleaned.mermaidCode = cleaned.mermaidCode
+      // node["label"] or node[("label")]
+      .replace(/\[("|\))(["'])([^"']*\/[^"']*)\2\1?\]/g,
+        (_m, _parens, _q, inner: string) => `[${_parens === '(' ? '(' : ''}"${inner.replace(/\s*\/\s*/g, ' or ')}"${_parens === ')' ? ')' : ''}]`)
+      // Also handle escaped quotes in JSON strings: [\\"label\\"] 
+      .replace(/\[(?:\()?\\"([^"\\]*(?:\\.[^"\\]*)*\/[^"\\]*(?:\\.[^"\\]*)*)\\"(?:\))?\]/g,
+        (_m, inner: string) => `[${_m.startsWith('[(') ? '(' : ''}\\"${inner.replace(/\s*\/\s*/g, ' or ')}\\"${_m.endsWith(')]') ? ')' : ''}]`);
   }
 
   const theme = THEMES.includes(cleaned.theme as (typeof THEMES)[number]) ? cleaned.theme : 'slate';

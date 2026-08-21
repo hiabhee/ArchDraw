@@ -1,7 +1,8 @@
 import type { RFNode, RFEdge, ValidationReport, ValidationWarning, Direction } from './types'
 import { isTextNode } from './textNodes'
 
-const labelArtifacts = ['-->', '---', ' -- ', '|', '["']
+// Pipes are legitimate inside quoted labels ("Kafka | Redpanda").
+const labelArtifacts = ['-->', '---', ' -- ', '["']
 
 export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], direction?: Direction): ValidationReport {
   const warnings: ValidationWarning[] = []

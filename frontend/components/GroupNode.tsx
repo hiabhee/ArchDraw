@@ -206,7 +206,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
         className={sketch ? 'group-label' : undefined}
         style={{
           position: 'absolute',
-          top: 8,
+          top: 16,
           left: 12,
           display: 'inline-flex',
           alignItems: 'center',

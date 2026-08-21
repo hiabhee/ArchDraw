@@ -1,5 +1,6 @@
 import type { Edge, Node } from 'reactflow'
 import { computeEdgeRoute, isGroupNode, type EdgeRouteDirection } from './edgeRouteBuilder'
+import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '@/lib/pipeline-shared/layout/layoutConstants'
 
 export interface EdgeLabelAnchor {
   x: number
@@ -15,10 +16,10 @@ export interface EdgeLabelAnchor {
 // the pill: the rendered world size is at most 2x CSS (worst case zoom 0.5),
 // so two world rects that do not intersect can never intersect on screen.
 
-const LABEL_WIDTH_PER_CHAR = 6
-const LABEL_HORIZONTAL_PADDING = 12
-const LABEL_HEIGHT_CSS = 14
-const LABEL_MIN_WIDTH_CSS = 30
+const LABEL_WIDTH_PER_CHAR = 4.8  // Reduced by 20% from 6
+const LABEL_HORIZONTAL_PADDING = 10  // Reduced by ~17% from 12
+const LABEL_HEIGHT_CSS = 11  // Reduced by ~21% from 14 (7.5px font + padding)
+const LABEL_MIN_WIDTH_CSS = 24  // Reduced by 20% from 30
 /** Max counter-scale factor (labelScale cap). Doubles the reserved rect. */
 const LABEL_SAFE_SCALE = 2
 const BORDER_RADIUS = 24
@@ -26,7 +27,7 @@ const BORDER_RADIUS = 24
  * Perpendicular spacing between labels of parallel edges (same source/target
  * pair). Parallel edges often render as identical lines, so fanning the label
  * t-position alone cannot separate their pills; they are stacked at right
- * angles to the path instead. Must be >= reserved label height (2 * 14 = 28)
+ * angles to the path instead. Must be >= reserved label height (2 * 11 = 22)
  * to guarantee non-overlap. User-dragged labels (labelT) are not stacked.
  */
 const PARALLEL_LABEL_STACK_GAP = 32
@@ -219,8 +220,8 @@ export function pointAtFraction(segs: PathSegment[], f: number): { x: number; y:
 function getDisplayLabel(edge: Edge): string {
   const data = edge.data as Record<string, unknown> | undefined
   const responseLabel = data?.responseLabel
-  const rawLabel = responseLabel
-    ? `${edge.label || data?.label || ''} / ${responseLabel}`
+  const rawLabel = responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
+    ? `${edge.label || data?.label || ''} / ${responseLabel.trim()}`
     : typeof data?.label === 'string'
       ? data.label.trim()
       : typeof edge.label === 'string'
@@ -229,7 +230,9 @@ function getDisplayLabel(edge: Edge): string {
 
   const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : []
   if (words.length === 0) return ''
-  return words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ')
+  const fullLabel = words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ')
+  // Remove trailing slash (handles both "A/" and "A / " cases)
+  return fullLabel.replace(/\s*\/\s*$/, '').trim()
 }
 
 function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number): number {
@@ -590,8 +593,8 @@ function computeLayout(
   const nodeObstacles: PlacedRect[] = nodes
     .filter((n) => !isGroupNode(n))
     .map((n) => {
-      const w = n.width ?? 160
-      const h = n.height ?? 80
+      const w = n.width ?? DEFAULT_NODE_WIDTH
+      const h = n.height ?? DEFAULT_NODE_HEIGHT
       const x = (n.positionAbsolute?.x ?? n.position.x) - NODE_LABEL_GAP
       const y = (n.positionAbsolute?.y ?? n.position.y) - NODE_LABEL_GAP
       return { x, y, w: w + 2 * NODE_LABEL_GAP, h: h + 2 * NODE_LABEL_GAP }
@@ -699,7 +702,15 @@ function computeLayout(
 
   const placed: PlacedRect[] = []
   const result = new Map<string, EdgeLabelAnchor>()
-  /** Try path-aligned first, then nudge off the wire to clear tight node gaps. */
+  /**
+   * Try path-aligned first (perp 0), then nudge progressively further off the
+   * wire. The ladder MUST reach far enough to clear a full node height/width in
+   * a tight layout — a standard node is ~88px, so a label centered on a wire
+   * running beside it needs up to ~128px of perpendicular escape. Truncating
+   * this ladder trades tighter labels for labels that overlap nodes, which the
+   * "labels never cover a node" invariant (see tests) forbids. Small offsets are
+   * tried first, so labels still hug the wire whenever the gap allows.
+   */
   const NODE_ESCAPE_PERPS = [0, 22, -22, 36, -36, 52, -52, 70, -70, 96, -96, 128, -128]
 
   for (const item of workItems) {

@@ -32,6 +32,7 @@ const SHORTCUTS = [
     { key: 'Scroll',         action: 'Zoom in / out' },
     { key: '⌘ + / -',       action: 'Zoom in / out' },
     { key: '⌘ 0',           action: 'Reset zoom' },
+    { key: 'f / ? (⇧/)',    action: 'Fit to screen' },
     { key: 'Middle click',   action: 'Pan canvas' },
   ]},
   { category: 'Edit', items: [
@@ -45,6 +46,11 @@ const SHORTCUTS = [
     { key: 'Drag port',     action: 'Create connection' },
     { key: 'Right-click',   action: 'Context menu' },
     { key: 'T',             action: 'Add text label' },
+    { key: 'N',             action: 'Add rectangle (draft)' },
+    { key: 'D',             action: 'Add diamond' },
+    { key: 'C',             action: 'Add circle' },
+    { key: 'Y',             action: 'Add cylinder' },
+    { key: 'Double-click canvas', action: 'Add rectangle draft' },
   ]},
   { category: 'Groups', items: [
     { key: '⇧ + Drag',     action: 'Create group rectangle' },

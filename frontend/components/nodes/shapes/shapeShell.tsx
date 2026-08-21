@@ -95,6 +95,7 @@ export function Label({
     nodeId,
     currentLabel: data.label || '',
     containerRef,
+    autoStart: Boolean(data.autoStartLabelEdit),
   });
   const resolvedIcon = resolveNodeIcon({
     label: data.label,
@@ -222,7 +223,7 @@ export function Label({
         <input
           {...labelEdit.inputProps}
           style={{
-            fontSize: sketch ? 15 : 13.5,
+            fontSize: sketch ? 18 : 16.2,
             fontWeight: sketch ? 400 : 600,
             fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
             color: 'var(--node-title-color, hsl(var(--foreground)))',
@@ -253,7 +254,7 @@ export function Label({
             maxWidth: '100%',
             textAlign: 'center',
             flex: 'none',
-            fontSize: sketch ? 15 : (isIconBrand ? 11 : isPipeText ? 11 : undefined),
+            fontSize: sketch ? 18 : (isIconBrand ? 13.2 : isPipeText ? 13.2 : undefined),
             fontWeight: sketch ? 400 : (isIconBrand ? 500 : undefined),
             fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
             letterSpacing: sketch ? '0.02em' : undefined,

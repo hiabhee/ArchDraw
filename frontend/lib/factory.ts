@@ -2,9 +2,9 @@ import logger from '@/lib/logger';
 import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry, type ComponentDefinition } from '@/lib/componentRegistry';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
-import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { calculateNodeDimensions, calculateCompactDraftDimensions } from '@/lib/utils/nodeSizing';
 import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT, type TextSize } from '@/lib/utils/textSizing';
-import { shapeForServiceType } from '@/lib/shapeRegistry';
+import { shapeForServiceType, type ShapeType } from '@/lib/shapeRegistry';
 
 /** Palette id for a blank node that opens inline rename on place. */
 export const BLANK_INIT_COMPONENT_ID = 'research';
@@ -53,6 +53,29 @@ export function createPaletteNode(
       nodeWidth: width,
       nodeHeight: height,
       ...(blank ? { label: '', autoStartLabelEdit: true } : {}),
+    },
+  });
+}
+
+/** Blank draft shape node (N/D/C/Y keys, canvas double-click) — opens inline rename on place. */
+export function createBlankShapeNode(
+  shape: ShapeType = 'rectangle',
+  position: { x: number; y: number },
+): Node {
+  const { width, height } = calculateCompactDraftDimensions('', undefined, shape);
+
+  return createNode('shapeNode', '', position, {
+    type: 'shapeNode',
+    width,
+    height,
+    data: {
+      label: '',
+      category: 'Compute',
+      shape,
+      nodeWidth: width,
+      nodeHeight: height,
+      compactSize: true,
+      autoStartLabelEdit: true,
     },
   });
 }

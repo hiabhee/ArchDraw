@@ -160,7 +160,7 @@ export function renderSystemNode(
           x="30" y="15"
           fill="${titleColor}"
           font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
-          font-size="13.5"
+          font-size="16.2"
           font-weight="600"
           letter-spacing="-0.015em"
         >${escapeXml(data.label || 'Service')}</text>
@@ -471,7 +471,7 @@ export function renderShapeNode(
   const subtitleY = H / 2 + 12;
   const fontFamily = getRenderStyle(renderStyleId).fonts.title;
   // Sketch subtitles read as penciled secondary text — lighter, smaller, muted.
-  const titleFontSize = sketch ? 15 : 13.5;  // Increased from 14 for better prominence
+  const titleFontSize = sketch ? 18 : 16.2;  // Increased from 14 for better prominence
   const subtitleFontSize = sketch ? 11 : 10.5;  // Reduced from 11.5 for better hierarchy
   const subtitleFillOpacity = sketch ? 0.7 : 1;  // Reduced from 0.75 for more subtlety
 

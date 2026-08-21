@@ -8,7 +8,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // Fetch diagram from Neon via Prisma
+  // Fetch diagram from DB via Prisma
   const diagram = await prisma.sharedCanvas.findUnique({
     where: { id },
     select: { canvasName: true, nodes: true, expiresAt: true },

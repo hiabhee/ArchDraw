@@ -81,9 +81,9 @@ export const SKETCH_EDGE_PRIMARY_DARK = '#ffffff';
 export const SKETCH_EDGE_ASYNC_LIGHT = '#b45309';
 export const SKETCH_EDGE_ASYNC_DARK = '#d97706';
 
-/** Stream/event inks — same as precision. */
+/** Stream/event inks — matching precision blue for events. */
 export const SKETCH_STREAM_INK = '#10b981';
-export const SKETCH_EVENT_INK = '#8b5cf6';
+export const SKETCH_EVENT_INK = '#1E90FF';
 
 /** Cross-hatch ink — transparent since fillStyle is now solid. */
 export const SKETCH_HATCH_INK_LIGHT = 'rgba(15, 23, 42, 0.095)';

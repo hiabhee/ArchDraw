@@ -22,8 +22,8 @@ async function testOpenRouterFull() {
   }
 
   // Test with the actual model that would be used in production
-  const defaultModel = 'llama-3.3-70b-versatile'; // Groq model name
-  const openRouterModel = 'meta-llama/llama-3.3-70b-instruct'; // Mapped to OpenRouter
+  const defaultModel = 'openai/gpt-oss-120b'; // Groq model name
+  const openRouterModel = 'openai/gpt-oss-120b'; // Mapped to OpenRouter
 
   console.log(`📋 Testing with production model: ${openRouterModel}`);
   console.log(`   (Groq equivalent: ${defaultModel})`);

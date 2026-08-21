@@ -20,10 +20,16 @@ function nodeInternals(nodes: Node[]): ReadonlyMap<string, Node> {
   return new Map(nodes.map((n) => [n.id, n]))
 }
 
-/** Mirrors the reserved label rect used by the engine. */
+/**
+ * Mirrors the reserved label rect used by the engine (estimateLabelSize in
+ * edgeLabelLayout.ts). Keep these constants in lockstep with the source: the
+ * label pill renders at a 7.5px font, so per-char width 4.8, min width 24, and
+ * CSS height 11 — each doubled (LABEL_SAFE_SCALE) so a world rect that clears a
+ * node never overlaps it on screen down to zoom 0.5.
+ */
 function reservedSize(text: string): { w: number; h: number } {
-  const cssW = Math.max(30, text.length * 6 + 12)
-  return { w: cssW * 2, h: 14 * 2 }
+  const cssW = Math.max(24, text.length * 4.8 + 10)
+  return { w: cssW * 2, h: 11 * 2 }
 }
 
 function rectOf(anchor: EdgeLabelAnchor, text: string) {

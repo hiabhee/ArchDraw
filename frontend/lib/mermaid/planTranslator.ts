@@ -95,9 +95,10 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
     lower.includes('stripe') || lower.includes('sendgrid')
   ) return { shape: 'cloud', serviceType: 'external-service' }
 
+  // Actor (person) — only actual human end-users, not system operators/developers
   if (
     lower === 'user' || lower === 'actor' || lower === 'customer' ||
-    lower.includes('person') || lower === 'admin' || lower === 'operator'
+    lower.includes('person')
   ) return { shape: 'actor', serviceType: 'actor' }
 
   if (

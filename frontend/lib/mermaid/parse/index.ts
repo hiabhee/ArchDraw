@@ -15,6 +15,7 @@ import { type ShapeType } from '@/lib/shapeRegistry'
 import { ARROW_REGEX, RESERVED_KEYWORDS } from './tokens'
 import {
   mergeMultilineLabels,
+  maskQuotedSpans,
   normalizeEdgeLabels,
   stripMarkdownLabel,
   unescapeLabel,
@@ -264,8 +265,12 @@ export function parseMermaid(mermaidText: string): ParseResult {
       continue
     }
 
+    // Scan for arrows on a quote-masked copy of the line so labels like
+    // `A["x --> y"]` or `-->|"Kafka | Redpanda"|` cannot split into phantom
+    // nodes/edges. Indices are identical, so segments are sliced from the
+    // original line.
     ARROW_REGEX.lastIndex = 0
-    const matches = [...line.matchAll(ARROW_REGEX)]
+    const matches = [...maskQuotedSpans(line).matchAll(ARROW_REGEX)]
     if (matches.length > 0) {
       const segmentNodes: string[][] = []
       const edgeSpecs: Array<{
@@ -293,10 +298,13 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
         let pipeLabelMatch: RegExpMatchArray | null = null
         if (!edgeLabel) {
-          pipeLabelMatch = targetPart.match(/^\s*\|"?([^|"]+)"?\|\s*(.*)$/)
+          // Quoted label first so pipes inside `|"Kafka | Redpanda"|` survive;
+          // then a bare label up to the next pipe.
+          pipeLabelMatch = targetPart.match(/^\s*\|(?:"((?:[^"\\]|\\.)*)"|([^|]*))\|\s*(.*)$/)
           if (pipeLabelMatch) {
-            edgeLabel = stripMarkdownLabel(pipeLabelMatch[1].trim())
-            targetPart = pipeLabelMatch[2].trim()
+            const rawPipeLabel = pipeLabelMatch[1] ?? pipeLabelMatch[2] ?? ''
+            edgeLabel = stripMarkdownLabel(unescapeLabel(rawPipeLabel.trim()))
+            targetPart = pipeLabelMatch[3].trim()
           }
         }
 
@@ -317,7 +325,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
         })
 
         if (pipeLabelMatch) {
-          const labelOffset = line.slice(arrowIdx + match[0].length).indexOf(pipeLabelMatch[2])
+          const labelOffset = line.slice(arrowIdx + match[0].length).indexOf(pipeLabelMatch[3])
           lastIndex = arrowIdx + match[0].length + Math.max(0, labelOffset)
         } else {
           lastIndex = arrowIdx + match[0].length

@@ -13,7 +13,8 @@ import { FloatingAIBar } from '@/components/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/GenerationProgress';
 import { useDiagramStore } from '@/store/diagramStore';
-import { createTextLabelNode } from '@/lib/factory';
+import { createTextLabelNode, createBlankShapeNode } from '@/lib/factory';
+import type { ShapeType } from '@/lib/shapeRegistry';
 import { getViewportCenter } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/lib/ai/utils/modelStore';
@@ -49,6 +50,14 @@ const Canvas = dynamic(() => import('@/components/Canvas').then(m => ({ default:
   ssr: false,
   loading: () => <CanvasSkeleton />,
 });
+
+// Quick-add shape shortcuts (plain key, no modifiers) — blank node + inline rename.
+const QUICK_SHAPE_KEYS: Record<string, ShapeType> = {
+  n: 'rectangle',
+  d: 'diamond',
+  c: 'circle',
+  y: 'cylinder',
+};
 
 function generateCanvasName(prompt: string): string {
   const words = prompt.trim().split(/\s+/);
@@ -130,10 +139,29 @@ export default function EditorPage() {
         return;
       }
 
+      // Cmd/Ctrl + D — duplicate selected nodes. Always swallow the browser's
+      // bookmark shortcut, even while typing; duplication itself only runs on canvas.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (!isEditingText) {
+          const { selectedNodeIds, selectedNodeId, duplicateNode } = useDiagramStore.getState();
+          const ids = selectedNodeIds.length > 0
+            ? selectedNodeIds
+            : selectedNodeId
+              ? [selectedNodeId]
+              : [];
+          ids.forEach((id, i) => duplicateNode(id, {
+            offset: { x: 30 * (i + 1), y: 30 * (i + 1) },
+          }));
+        }
+        return;
+      }
+
       if (isEditingText) return;
 
-      // f key — fit view
-      if (e.key === 'f') {
+      // f key or ? (Shift+/) — fit view
+      if (e.key === 'f' || e.key === '?') {
+        (e as unknown as Record<string, unknown>).__archdrawFitView = true;
         e.preventDefault();
         if (reactFlowRef.instance?.fitView) {
           reactFlowRef.instance.fitView({ padding: 0.0, duration: 200 });
@@ -148,6 +176,17 @@ export default function EditorPage() {
         const pos = getViewportCenter();
         pushHistory();
         appendNode(createTextLabelNode(pos, { autoStartEdit: true }));
+        return;
+      }
+
+      // n / d / c / y — quick-add a blank shape at viewport center (inline rename starts)
+      const quickShape = QUICK_SHAPE_KEYS[e.key.toLowerCase()];
+      if (quickShape && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const { pushHistory, appendNode } = useDiagramStore.getState();
+        const pos = getViewportCenter();
+        pushHistory();
+        appendNode(createBlankShapeNode(quickShape, pos));
         return;
       }
 
@@ -272,38 +311,57 @@ export default function EditorPage() {
       const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
         title: canvasName,
       });
+      // `store` was a snapshot taken before the await — the user may have
+      // edited (or another generation may have landed) meanwhile. Re-read the
+      // live state so merges and renames never clobber concurrent changes.
+      const liveStore = useDiagramStore.getState();
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
+
+      // A failed auto-layout silently degrading to the raw pipeline layout
+      // looks like a "messy diagram" with no explanation — surface it.
+      if (!relayouted.success && relayouted.warnings.length > 0) {
+        toast.warning('Diagram placed without auto-layout', {
+          description: relayouted.warnings[0],
+        });
+      }
 
       // Regenerate replaces the canvas with the fresh diagram; a new prompt on
       // a non-empty canvas is appended beside the existing diagram so both stay
       // visible (see mergeGeneratedNodes).
+      let usedImportDiagram = false;
       if (replace) {
         importDiagram(finalNodes, finalEdges);
+        usedImportDiagram = true;
       } else {
         const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
-          store.nodes,
-          store.edges,
+          liveStore.nodes,
+          liveStore.edges,
           finalNodes,
           finalEdges,
         );
 
-        if (store.nodes.length > 0) {
-          store.pushHistory();
-          store.setNodes(mergedNodes);
-          store.setEdges(mergedEdges);
+        if (liveStore.nodes.length > 0) {
+          liveStore.pushHistory();
+          liveStore.setNodes(mergedNodes);
+          liveStore.setEdges(mergedEdges);
         } else {
           importDiagram(finalNodes, finalEdges);
+          usedImportDiagram = true;
         }
       }
 
       if (direction) {
-        store.setActiveLayoutPresetId(direction);
+        useDiagramStore.getState().setActiveLayoutPresetId(direction);
       }
 
-      renameCanvas(store.activeCanvasId, canvasName);
-      
-      setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
+      renameCanvas(useDiagramStore.getState().activeCanvasId, canvasName);
+
+      // importDiagram already triggers a fit-view animation; firing another
+      // here double-animates. Only merge paths (setNodes) need their own.
+      if (!usedImportDiagram) {
+        setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
+      }
       
       if (cached) {
         toast.success(`Loaded cached diagram: ${result.nodes.length} nodes`);
@@ -438,7 +496,7 @@ export default function EditorPage() {
 
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation' }}>
+      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation', overscrollBehaviorX: 'contain' }}>
 
         {sequenceDiagrams[activeCanvasId] ? (
           <SequenceDiagramViewer />

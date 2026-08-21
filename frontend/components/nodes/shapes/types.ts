@@ -22,4 +22,8 @@ export interface ShapeNodeData {
   iconOnly?: boolean;
   /** Vertical drum (database) vs horizontal pipe (queue / pub-sub). */
   cylinderAxis?: 'vertical' | 'horizontal';
+  /** One-shot signal: enter inline label edit when the node mounts (blank draft nodes). */
+  autoStartLabelEdit?: boolean;
+  /** Quick-add draft nodes render at sticky-note scale instead of the standard grid. */
+  compactSize?: boolean;
 }

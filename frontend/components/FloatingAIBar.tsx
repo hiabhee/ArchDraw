@@ -66,7 +66,7 @@ export function FloatingAIBar({
           active.tagName === 'TEXTAREA' || 
           active.getAttribute('contenteditable') === 'true'
         );
-        if (!isInput) {
+        if (!isInput && !(e as unknown as Record<string, unknown>).__archdrawFitView) {
           e.preventDefault();
           textareaRef.current?.focus();
         }

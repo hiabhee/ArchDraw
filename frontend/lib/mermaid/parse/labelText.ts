@@ -71,6 +71,47 @@ export function unescapeLabel(label: string): string {
     .replace(/\\\\/g, '\\')
 }
 
+/** Placeholder written over quoted characters — cannot appear in arrows, ids, or pipes. */
+const QUOTE_MASK_CHAR = '\u0001'
+
+/**
+ * Blank out the contents of quoted strings (same length, quotes preserved) so
+ * arrow/pipe scanning never matches inside a label like `A["x --> y"]` or
+ * `A -->|"Kafka | Redpanda"| B`. Indices in the masked string map 1:1 onto the
+ * original line, so match indices can slice the original safely.
+ */
+export function maskQuotedSpans(line: string): string {
+  let out = ''
+  let inQuote: '"' | "'" | '' = ''
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuote) {
+      if (ch === '\\') {
+        out += QUOTE_MASK_CHAR
+        if (i + 1 < line.length) {
+          out += QUOTE_MASK_CHAR
+          i++
+        }
+        continue
+      }
+      if (ch === inQuote) {
+        inQuote = ''
+        out += ch
+        continue
+      }
+      out += QUOTE_MASK_CHAR
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch
+      out += ch
+      continue
+    }
+    out += ch
+  }
+  return out
+}
+
 /**
  * Strip Mermaid markdown-string wrappers, light emphasis markers, and inline
  * HTML formatting tags, then decode HTML entities. Mermaid renders `<b>`,

@@ -7,6 +7,7 @@ import { getNodeShape } from '@/lib/nodeShapes';
 import { getStrictPortConfig } from '@/lib/componentPorts';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import { createNode, createEdge } from '@/lib/factory';
+import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { isTextNode } from '@/lib/mermaid/textNodes';
 import { ensureDiagramHeading } from '@/lib/mermaid/diagramHeading';
 import { placeTextNodes } from '@/lib/mermaid/textPlacement';
@@ -270,7 +271,7 @@ export const createGraphSlice: StateCreator<
     if (!node) return undefined;
 
     const offset = options?.offset ?? { x: 30, y: 30 };
-    const labelSuffix = options?.labelSuffix ?? ' (copy)';
+    const labelSuffix = options?.labelSuffix ?? '';
 
     get().pushHistory();
 
@@ -292,7 +293,7 @@ export const createGraphSlice: StateCreator<
     const newNode: Node = {
       ...(clone as Node),
       id: newId,
-      selected: false,
+      selected: true,
       position: {
         x: node.position.x + offset.x,
         y: node.position.y + offset.y,
@@ -317,7 +318,6 @@ export const createGraphSlice: StateCreator<
     if (data.shape) {
       const node = get().nodes.find((n) => n.id === id);
       if (node) {
-        const { calculateNodeDimensions } = require('@/lib/utils/nodeSizing');
         const label = node.data?.label || '';
         const subtitle = node.data?.subtitle || '';
         const newDimensions = calculateNodeDimensions(label, subtitle, { shape: data.shape });

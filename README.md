@@ -12,14 +12,14 @@ AI-assisted system architecture diagramming tool. Describe a system in plain Eng
 - **Templates** — Pre-built architectures (Netflix, Uber, Instagram, etc.)
 - **Tutorials** — 22+ guided tutorials teaching system architecture
 - **Auth** — better-auth (credentials / Google / GitHub OAuth)
-- **Persistence** — Prisma + Neon (PostgreSQL) with better-auth
+- **Persistence** — Prisma + Supabase (PostgreSQL) with better-auth
 - **Share & Embed** — Public share links and embeddable viewers
 - **MCP Server** — Protocol server for AI coding assistants to manipulate diagrams
 - **Export** — JSON, Mermaid, PNG, SVG
 
 ## Tech Stack
 
-Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagre · Groq API · Prisma + Neon (PostgreSQL) · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
+Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagre · Groq API · Prisma + Supabase (PostgreSQL) · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
 
 ## Getting Started
 
@@ -27,7 +27,7 @@ Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagr
 
 - Node.js 18+, npm 10+
 - Groq API key (for AI generation)
-- PostgreSQL database (optional — auth & persistence, e.g. Neon)
+- PostgreSQL database (optional — auth & persistence, e.g. Supabase)
 - Upstash Redis (optional — caching)
 
 ### Installation

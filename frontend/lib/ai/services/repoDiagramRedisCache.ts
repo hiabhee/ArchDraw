@@ -1,9 +1,9 @@
 import { redis } from '@/lib/redis';
 import logger from '@/lib/logger';
 import type { PipelineResult } from '@/lib/types/repo-diagram';
+import { PIPELINE_VERSION } from './pipelineVersion';
 
 const TTL_SECONDS = 30 * 60; // 30 minutes — matches existing in-memory TTL
-const PIPELINE_VERSION = 'v7'; // Keep in sync with diagramCache.ts
 
 function key(repoUrl: string, headSha: string): string {
   return `repo-diagram:${PIPELINE_VERSION}:${repoUrl}:${headSha}`;

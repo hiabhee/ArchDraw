@@ -7,7 +7,10 @@ import type {
   PositionedEdge,
   LayoutDirection,
 } from './LayoutEngine';
-import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
+import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, estimateEdgeLabelSize } from './LayoutEngine';
+import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
+import { layoutCompoundTwoPhase } from './CompoundLayout';
+import logger from '@/lib/logger';
 
 function toDagreRankDir(direction: LayoutDirection): string {
   const map: Record<LayoutDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
@@ -37,6 +40,18 @@ export class DagreLayoutEngine implements LayoutEngine {
   /** Sync entry point — dagre is synchronous; prefer this from sync call sites. */
   layoutSync(params: LayoutParams): LayoutResult {
     const warnings: string[] = [];
+
+    // Preferred path for graphs with populated groups (audit A4): each cluster
+    // is laid out independently and embedded as one box, so a group's width is
+    // driven by its own children instead of the whole graph's edge ranks.
+    // Returns null for flat graphs / on any anomaly → flat compound dagre.
+    const compound = layoutCompoundTwoPhase(params);
+    if (compound) {
+      logger.debug('[dagre] layout path: two-phase compound', { nodes: params.nodes.length });
+      return compound;
+    }
+    logger.debug('[dagre] layout path: flat compound', { nodes: params.nodes.length });
+
     const defaults = defaultCompoundLayoutOptions(params.direction);
     const opts = { ...defaults, ...params.options };
 
@@ -82,8 +97,8 @@ export class DagreLayoutEngine implements LayoutEngine {
           });
         } else {
           g.setNode(node.id, {
-            width: width + (opts.paddingLeft ?? 40) * 2,
-            height: height + (opts.paddingTop ?? 64) + (opts.paddingBottom ?? 40),
+            width: width + SUBGRAPH_PADDING_X * 2,
+            height: height + SUBGRAPH_PADDING_TOP + SUBGRAPH_PADDING_BOTTOM,
           });
         }
       } else {
@@ -138,7 +153,15 @@ export class DagreLayoutEngine implements LayoutEngine {
 
     for (const edge of layoutEdges) {
       if (!edge) continue;
-      g.setEdge(edge.source, edge.target);
+      // Reserve space for the label pill between ranks (labelpos 'c' centers
+      // it on the edge); without dims dagre packs ranks as if labels did not
+      // exist and labels end up dropped on top of nodes at render time.
+      const labelSize = estimateEdgeLabelSize(edge.label);
+      g.setEdge(edge.source, edge.target, {
+        width: labelSize.width,
+        height: labelSize.height,
+        labelpos: 'c',
+      });
     }
 
     dagre.layout(g);
@@ -164,35 +187,12 @@ export class DagreLayoutEngine implements LayoutEngine {
       };
     });
 
-    const minSpacing = 30;
-    const connectedNodeSpacing = 50;
-    const connectedPairs = new Set<string>();
-    params.edges.forEach(edge => {
-      connectedPairs.add([edge.source, edge.target].sort().join('-'));
-    });
-
-    for (let i = 0; i < positionedNodes.length; i++) {
-      for (let j = i + 1; j < positionedNodes.length; j++) {
-        const nodeA = positionedNodes[i];
-        const nodeB = positionedNodes[j];
-        if (nodeA.parentId !== nodeB.parentId) continue;
-
-        const dx = nodeB.x - nodeA.x;
-        const dy = nodeB.y - nodeA.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const pairKey = [nodeA.id, nodeB.id].sort().join('-');
-        const spacing = connectedPairs.has(pairKey) ? connectedNodeSpacing : minSpacing;
-        const minDistance = (nodeA.width + nodeB.width) / 2 + spacing;
-
-        if (distance < minDistance && distance > 0) {
-          const overlap = minDistance - distance;
-          const pushX = (dx / distance) * overlap * 0.5;
-          const pushY = (dy / distance) * overlap * 0.5;
-          positionedNodes[j] = { ...nodeB, x: nodeB.x + pushX, y: nodeB.y + pushY };
-          positionedNodes[i] = { ...nodeA, x: nodeA.x - pushX, y: nodeA.y - pushY };
-        }
-      }
-    }
+    // Overlap-nudge pass removed: it pushed overlapping nodes on both axes at
+    // once (shoving perfectly rank-aligned pairs sideways), was single-pass,
+    // and could move a group frame without its children. Real overlaps came
+    // from under-reserved node dimensions, which the shared layoutConstants
+    // now prevent. Dagre's own spacing is trusted here; group bounds are
+    // recomputed afterwards by the SizeStage / recomputeSubgraphBounds pass.
 
     const positionedEdges: PositionedEdge[] = params.edges.map((edge, index) => {
       const layoutEdge = layoutEdges[index];

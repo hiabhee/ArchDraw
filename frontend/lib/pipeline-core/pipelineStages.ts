@@ -10,9 +10,9 @@ import type { Stage } from './Stage';
  * class generics (Pipeline<TInput, TOutput>).
  */
 export function pipelineStages<TInput = unknown, TOutput = unknown>(
-  // Heterogeneous stage IO cannot be expressed as one Stage<TIn,TOut> union without erasure.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ...stages: Array<Stage<any, any>>
+  // Heterogeneous stage IO is erased here; Stage methods are bivariant so
+  // concrete Stage<A,B> instances are assignable to Stage<unknown, unknown>.
+  ...stages: Array<Stage<unknown, unknown>>
 ): Stage<TInput, TOutput>[] {
   return stages as Stage<TInput, TOutput>[];
 }

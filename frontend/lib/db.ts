@@ -1,5 +1,4 @@
 import prisma from '@/lib/prisma';
-import { withRetry } from '@/lib/db-retry';
 import { type Prisma } from '@/src/generated/prisma/client';
 
 type InputJson = Prisma.InputJsonValue;
@@ -12,11 +11,11 @@ export async function getProfile(userId: string) {
 }
 
 export async function upsertProfile(userId: string, data: { email?: string; fullName?: string; avatarUrl?: string; provider?: string }) {
-  return withRetry(() => prisma.profile.upsert({
+  return prisma.profile.upsert({
     where: { id: userId },
     create: { id: userId, ...data },
     update: data,
-  }));
+  });
 }
 
 // ── User Canvases ────────────────────────────────────────────────────────────
@@ -55,18 +54,18 @@ export async function upsertUserCanvas(userId: string, data: {
     throw new CanvasOwnershipError(data.id);
   }
 
-  return withRetry(() => prisma.userCanvas.upsert({
+  return prisma.userCanvas.upsert({
     where: { id: data.id },
     create: { ...data, userId },
     update: { name: data.name, nodes: data.nodes, edges: data.edges },
-  }));
+  });
 }
 
 export async function deleteUserCanvas(userId: string, canvasId: string) {
   // Enforce ownership (RLS equivalent)
-  return withRetry(() => prisma.userCanvas.deleteMany({
+  return prisma.userCanvas.deleteMany({
     where: { id: canvasId, userId },
-  }));
+  });
 }
 
 // ── Tutorial Progress ────────────────────────────────────────────────────────
@@ -88,7 +87,7 @@ export async function upsertTutorialProgress(userId: string, data: {
   canvasEdges: InputJson;
   explainCount: number;
 }) {
-  return withRetry(() => prisma.tutorialProgress.upsert({
+  return prisma.tutorialProgress.upsert({
     where: { userId_tutorialId: { userId, tutorialId: data.tutorialId } },
     create: { userId, ...data },
     update: {
@@ -100,13 +99,13 @@ export async function upsertTutorialProgress(userId: string, data: {
       canvasEdges: data.canvasEdges,
       explainCount: data.explainCount,
     },
-  }));
+  });
 }
 
 export async function deleteTutorialProgress(userId: string, tutorialId: string) {
-  return withRetry(() => prisma.tutorialProgress.deleteMany({
+  return prisma.tutorialProgress.deleteMany({
     where: { userId, tutorialId },
-  }));
+  });
 }
 
 export async function getTutorialCachedResponse(questionHash: string) {
@@ -116,13 +115,11 @@ export async function getTutorialCachedResponse(questionHash: string) {
 }
 
 export async function upsertTutorialCachedResponse(questionHash: string, response: string) {
-  return withRetry(() =>
-    prisma.tutorialResponseCache.upsert({
-      where: { questionHash },
-      create: { questionHash, response },
-      update: { response },
-    })
-  );
+  return prisma.tutorialResponseCache.upsert({
+    where: { questionHash },
+    create: { questionHash, response },
+    update: { response },
+  });
 }
 
 // ── Shared Canvases ──────────────────────────────────────────────────────────
@@ -137,7 +134,7 @@ export async function createSharedCanvas(data: {
   nodes: InputJson;
   edges: InputJson;
 }) {
-  return withRetry(() => prisma.sharedCanvas.create({ data }));
+  return prisma.sharedCanvas.create({ data });
 }
 
 // ── Component Templates + Categories ─────────────────────────────────────────
@@ -175,7 +172,7 @@ export async function upsertVisitor(data: {
   firstReferrer?: string;
   firstUtm?: InputJson;
 }) {
-  return withRetry(() => prisma.visitor.upsert({
+  return prisma.visitor.upsert({
     where: { anonId: data.anonId },
     create: {
       anonId: data.anonId,
@@ -192,21 +189,21 @@ export async function upsertVisitor(data: {
       isInternal: data.isInternal,
       country: data.country,
     },
-  }));
+  });
 }
 
 export async function updateVisitorIdentity(anonId: string, data: {
   userId: string;
   isInternal?: boolean;
 }) {
-  return withRetry(() => prisma.visitor.update({
+  return prisma.visitor.update({
     where: { anonId },
     data: {
       userId: data.userId,
       lastSeenAt: new Date(),
       ...(data.isInternal ? { isInternal: true } : {}),
     },
-  }));
+  });
 }
 
 // ── Sessions (Analytics) ─────────────────────────────────────────────────────
@@ -224,7 +221,7 @@ export async function createAnalyticsSession(data: {
   entryPage?: string;
   deviceType?: string;
 }) {
-  return withRetry(() => prisma.visitorSession.create({
+  return prisma.visitorSession.create({
     data: {
       id: data.id,
       visitorId: data.visitorId,
@@ -232,7 +229,7 @@ export async function createAnalyticsSession(data: {
       deviceType: data.deviceType,
       startedAt: new Date(),
     },
-  }));
+  });
 }
 
 export async function updateAnalyticsSession(id: string, data: {
@@ -240,10 +237,10 @@ export async function updateAnalyticsSession(id: string, data: {
   durationSeconds: number;
   exitPage?: string;
 }) {
-  return withRetry(() => prisma.visitorSession.update({
+  return prisma.visitorSession.update({
     where: { id },
     data,
-  }));
+  });
 }
 
 // ── Events (Analytics) ───────────────────────────────────────────────────────
@@ -256,5 +253,5 @@ export async function insertEvents(rows: {
   pagePath?: string;
   payload?: InputJson;
 }[]) {
-  return withRetry(() => prisma.event.createMany({ data: rows }));
+  return prisma.event.createMany({ data: rows });
 }

@@ -58,7 +58,7 @@ describe('generatePureSVG render styles', () => {
     expect(svg).not.toContain('marker-end="url(#arrow-e1)"');
     expect(svg).not.toMatch(/<polygon points="100,4 196,100 100,196 4,100" fill=/);
     expect(svg).not.toMatch(/<rect x="1" y="1" width="198" height="98" rx="10" ry="10" fill=/);
-    expect(svg).toContain('font-family="\'Inter\', \'IBM Plex Sans\', system-ui, sans-serif"');
+    expect(svg).toContain('font-family="Inter, system-ui, -apple-system, sans-serif"');
   });
 
   it('sketch export keeps dashes on dashed edges (async / dotted stay semantic)', () => {

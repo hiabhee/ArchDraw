@@ -27,7 +27,7 @@ It is positioned as "**ChatGPT for architecture diagrams**" — an AI-native too
 - **Rich visual vocabulary**: silhouette shapes (rectangle, diamond, cylinder, circle, hexagon, cloud, shield, actor, monitor, mobile, etc.), system cards, groups/subgraphs, annotations, and text labels.
 - **Semantic styling**: five visual concerns (client, compute, data, async, external) with a consistent, muted design system.
 - **Dynamic handles**: per-side in/out handle slots (±16px) so edges stay clean on every shape type.
-- **Auto-layout**: canonical Mermaid → Dagre layout with LR/TB toggling; alternate ELK/force presets.
+- **Auto-layout**: canonical Mermaid → Dagre layout with LR/TB toggling.
 - **Smart node sizing**: optical grid (160/200/240) with per-shape bands and label wrapping.
 
 ### Product features
@@ -44,9 +44,9 @@ It is positioned as "**ChatGPT for architecture diagrams**" — an AI-native too
 
 ### Platform
 - **Auth**: better-auth with Google/GitHub OAuth.
-- **Persistence**: Prisma + Neon (PostgreSQL); guests work via localStorage.
+- **Persistence**: Prisma + Supabase (PostgreSQL); guests work via localStorage.
 - **Quotas/tiers**: guest vs. authenticated limits (AI generations, canvases, node counts, export formats) with upsell modal.
-- **Stack**: Next.js · React · TypeScript · React Flow v11 · Zustand · Dagre/ELK · Groq · Mermaid.js · Tailwind.
+- **Stack**: Next.js · React · TypeScript · React Flow v11 · Zustand · Dagre · Groq · Mermaid.js · Tailwind.
 
 ---
 

@@ -8,7 +8,7 @@ const urlShortenerTutorial = defineTutorial({
   estimatedMinutes: 15,
   tags: ['caching', 'analytics', 'api'],
   icon: 'Link',
-  color: '#8B3DFF',
+  color: '#1E90FF',
   recommendedOrder: 1,
 
   levels: [

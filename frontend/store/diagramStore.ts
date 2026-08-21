@@ -43,7 +43,6 @@ const useDiagramStoreRaw = create<DiagramState>()(
   )
 );
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zustand store wrapper needs flexible selector/equalityFn types for generic subscriber compatibility
 export const useDiagramStore = Object.assign(
   (selector?: (state: DiagramState) => unknown, equalityFn?: (a: unknown, b: unknown) => boolean) => {
     if (selector) {

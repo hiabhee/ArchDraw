@@ -25,6 +25,12 @@ frontend/.next
 .vscode/
 .idea/
 
+# AI assistant / tool scratch dirs
+.conductor/
+.devin/
+.qoder/
+.kiro/
+
 # Logs
 logs/
 *.log
@@ -32,8 +38,6 @@ logs/
 # Test results
 test-results/
 frontend/test-results/
-.qoder/
-.kiro/
 
 # Eval harness output
 frontend/eval-results/

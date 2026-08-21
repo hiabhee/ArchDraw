@@ -27,10 +27,10 @@ export interface SemanticColorPalette {
  * - async: orange (messaging, events, queues)
  * - external: muted brown/gray (third-party, APIs)
  * - security: red/rose (auth, firewall, secrets)
- * - orchestration: indigo (coordination, control)
- * - networking: purple (routing, CDN, DNS)
+ * - orchestration: blue (coordination, control)
+ * - networking: blue (routing, CDN, DNS)
  * - observability: pink/magenta (metrics, logs, traces)
- * - ai: violet (ML, embeddings, agents)
+ * - ai: blue (ML, embeddings, agents)
  * - integration: amber (webhooks, payments, email)
  */
 export const SEMANTIC_COLOR_PALETTES: Record<SemanticCategory, SemanticColorPalette> = {
@@ -55,20 +55,20 @@ export const SEMANTIC_COLOR_PALETTES: Record<SemanticCategory, SemanticColorPale
     dark: '#EF4444',  // red-500
   },
   orchestration: {
-    light: '#4F46E5', // indigo-600
-    dark: '#6366F1',  // indigo-500
+    light: '#1E90FF', // blue (brand color)
+    dark: '#4DA7FF',  // lighter blue
   },
   networking: {
-    light: '#9333EA', // purple-600
-    dark: '#A855F7',  // purple-500
+    light: '#1E90FF', // blue (brand color)
+    dark: '#4DA7FF',  // lighter blue
   },
   observability: {
     light: '#DB2777', // pink-600
     dark: '#EC4899',  // pink-500
   },
   ai: {
-    light: '#7C3AED', // violet-600
-    dark: '#8B5CF6',  // violet-500
+    light: '#1E90FF', // blue (brand color)
+    dark: '#4DA7FF',  // lighter blue
   },
   integration: {
     light: '#D97706', // amber-600
@@ -77,9 +77,9 @@ export const SEMANTIC_COLOR_PALETTES: Record<SemanticCategory, SemanticColorPale
 };
 
 /**
- * Default fallback color (cyan) for truly generic/unclassified nodes.
+ * Default fallback color (brand blue) for truly generic/unclassified nodes.
  */
-export const DEFAULT_SEMANTIC_COLOR = '#0891B2';
+export const DEFAULT_SEMANTIC_COLOR = '#1E90FF';
 
 /**
  * Legacy purple colors to detect and replace.
@@ -198,7 +198,7 @@ export const ICON_TO_CATEGORY: Record<string, SemanticCategory> = {
  */
 export function resolveSemanticColorForIcon(iconName: string, isDark: boolean = false): string {
   const category = ICON_TO_CATEGORY[iconName];
-  if (!category) return isDark ? '#06B6D4' : DEFAULT_SEMANTIC_COLOR;
+  if (!category) return isDark ? '#4DA7FF' : DEFAULT_SEMANTIC_COLOR;
   return getSemanticColor(category, isDark);
 }
 
@@ -215,7 +215,7 @@ export function normalizeColor(
     if (iconName) {
       return resolveSemanticColorForIcon(iconName, isDark);
     }
-    return isDark ? '#06B6D4' : DEFAULT_SEMANTIC_COLOR;
+    return isDark ? '#4DA7FF' : DEFAULT_SEMANTIC_COLOR;
   }
   
   return color;

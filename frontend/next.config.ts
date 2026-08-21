@@ -6,28 +6,42 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-XSS-Protection', value: '1; mode=block' },
+  // The legacy XSS auditor is deprecated and can itself introduce
+  // vulnerabilities; OWASP recommends disabling it (0) and relying on CSP.
+  { key: 'X-XSS-Protection', value: '0' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
   { 
     key: 'Content-Security-Policy', 
     // Add 'unsafe-eval' only in development for React debugging features
-    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self';` 
+    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none';`
   },
 ];
 
-// Configure allowed embed domains via environment variable
-// Comma-separated list of domains allowed to embed the diagram viewer
-const allowedEmbedDomains = process.env.ALLOWED_EMBED_DOMAINS 
-  ? process.env.ALLOWED_EMBED_DOMAINS.split(',').map(d => d.trim()) 
-  : ['*']; // Default to allow all if not configured
+// Configure allowed embed domains via environment variable.
+// Comma-separated list of domains allowed to embed the diagram viewer.
+// SECURE DEFAULT: when unset, only same-origin embedding is allowed.
+// Set ALLOWED_EMBED_DOMAINS="*" to explicitly opt into embedding from anywhere.
+const allowedEmbedDomains = process.env.ALLOWED_EMBED_DOMAINS
+  ? process.env.ALLOWED_EMBED_DOMAINS.split(',').map((d) => d.trim()).filter(Boolean)
+  : []; // Default: same-origin only (no third-party embedding)
 
-const embedCSP = allowedEmbedDomains.includes('*') 
-  ? "frame-ancestors *"
-  : `frame-ancestors 'self' ${allowedEmbedDomains.map(d => `https://${d}`).join(' ')}`;
+const allowAllEmbeds = allowedEmbedDomains.includes('*');
+
+const embedCSP = allowAllEmbeds
+  ? 'frame-ancestors *'
+  : `frame-ancestors 'self'${
+      allowedEmbedDomains.length ? ' ' + allowedEmbedDomains.map((d) => `https://${d}`).join(' ') : ''
+    }`;
 
 const embedHeaders = [
-  { key: 'X-Frame-Options', value: allowedEmbedDomains.includes('*') ? 'ALLOWALL' : 'SAMEORIGIN' },
+  // X-Frame-Options cannot express an allowlist, so only emit it for the
+  // same-origin default (SAMEORIGIN). When specific domains or '*' are
+  // configured, rely on the CSP frame-ancestors directive above and omit the
+  // legacy header rather than send an invalid value like "ALLOWALL".
+  ...(allowAllEmbeds || allowedEmbedDomains.length
+    ? []
+    : [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }]),
   { key: 'Content-Security-Policy', value: embedCSP },
 ];
 

@@ -49,15 +49,15 @@ export const NODE_SHAPE_CONFIG: Record<string, NodeShapeConfig> = {
   elasticache: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // Queue types (new QUEUE silhouette — message-lane horizontal shape)
-  queue: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  kafka: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  rabbitmq: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  sqs: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  sns: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  pubsub: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  eventbus: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  nats: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
-  kinesis: { width: 240, height: 64, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  queue: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  kafka: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  rabbitmq: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  sqs: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  sns: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  pubsub: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  eventbus: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  nats: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
+  kinesis: { width: 240, height: 80, variant: 'QUEUE', fillOpacity: 0.1, strokeOpacity: 0.4 },
 
   // CDN / edge cache (new CACHE silhouette)
   cdn: { width: 180, height: 96, variant: 'CACHE', fillOpacity: 0.1, strokeOpacity: 0.4 },

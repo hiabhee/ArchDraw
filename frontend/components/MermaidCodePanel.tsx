@@ -104,30 +104,44 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const currentDirection = currentPresetId === 'layered-lr' ? 'LR' : 'TD';
         const directionChanged = newDirection && newDirection !== currentDirection;
 
-        // Helper to resolve absolute position of an existing node in the store
+        // Helper to resolve absolute position of an existing node in the store.
+        // Walks the FULL parent chain — summing only the direct parent misses
+        // grandparent offsets on 2+-level nested groups.
         const getExistingAbsPos = (nodeId: string) => {
           const node = existingNodes.find(n => n.id === nodeId);
           if (!node) return null;
-          if (node.parentNode) {
-            const parent = existingNodes.find(p => p.id === node.parentNode);
-            if (parent) {
-              return { x: node.position.x + parent.position.x, y: node.position.y + parent.position.y };
-            }
+          let x = node.position.x;
+          let y = node.position.y;
+          let currentParent = node.parentNode;
+          const seen = new Set<string>([node.id]);
+          while (currentParent && !seen.has(currentParent)) {
+            seen.add(currentParent);
+            const parent = existingNodes.find(p => p.id === currentParent);
+            if (!parent) break;
+            x += parent.position.x;
+            y += parent.position.y;
+            currentParent = parent.parentNode;
           }
-          return { x: node.position.x, y: node.position.y };
+          return { x, y };
         };
 
         // Helper to resolve absolute position of a parsed node in the pipeline's layout
         const getParsedAbsPos = (nodeId: string) => {
           const node = result.data.nodes.find(n => n.id === nodeId);
           if (!node) return null;
-          if (node.parentNode) {
-            const parent = result.data.nodes.find(p => p.id === node.parentNode);
-            if (parent) {
-              return { x: node.position.x + parent.position.x, y: node.position.y + parent.position.y };
-            }
+          let x = node.position.x;
+          let y = node.position.y;
+          let currentParent = node.parentNode;
+          const seen = new Set<string>([nodeId]);
+          while (currentParent && !seen.has(currentParent)) {
+            seen.add(currentParent);
+            const parent = result.data.nodes.find(p => p.id === currentParent);
+            if (!parent) break;
+            x += parent.position.x;
+            y += parent.position.y;
+            currentParent = parent.parentNode;
           }
-          return { x: node.position.x, y: node.position.y };
+          return { x, y };
         };
 
         // Calculate layout delta shift (average distance offset of matching existing leaf nodes)

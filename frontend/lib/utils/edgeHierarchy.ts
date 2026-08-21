@@ -91,7 +91,7 @@ export function resolveEdgeVisual(
     return { stroke: c, markerColor: c, strokeWidth: 1.35, opacity: 0.9, isPrimary: false };
   }
   if (connectionType === 'event') {
-    const c = palette ? palette.event : '#8B5CF6';
+    const c = palette ? palette.event : '#1E90FF';
     return { stroke: c, markerColor: c, strokeWidth: 1.35, opacity: 0.9, isPrimary: false };
   }
   if (connectionType === 'dep') {

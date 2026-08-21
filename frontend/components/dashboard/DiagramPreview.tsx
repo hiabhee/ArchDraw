@@ -47,7 +47,7 @@ function getTierColor(layer?: string): string {
     queue: '#d97706',
     data: '#3b82f6',
     database: '#3b82f6',
-    observe: '#8b5cf6',
+    observe: '#1E90FF',
     external: '#ec4899',
     devops: '#f97316',
   };

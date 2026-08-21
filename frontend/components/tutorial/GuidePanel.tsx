@@ -290,6 +290,7 @@ export function GuidePanel() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [explainLoading, setExplainLoading] = useState(false);
   const prevStepIdRef = useRef<string | null>(null);
+  const tutorialLayoutRequestRef = useRef(0);
 
   // Extract requirements for the current step
   const requirements = useMemo(() => {
@@ -465,11 +466,13 @@ export function GuidePanel() {
       }
       // Auto-layout once the step is satisfied, then advance. Fire-and-forget:
       // manual drags are preserved until this point, and the Mermaid round-trip
-      // keeps the growing diagram readable across steps.
+      // keeps the growing diagram readable across steps. A latest-request guard
+      // stops a slow stale relayout from clobbering newer canvas edits.
       if (tutorialLayoutEnabled && nodes.length > 1) {
+        const requestId = ++tutorialLayoutRequestRef.current;
         layoutDiagramViaMermaid(nodes, edges, 'LR')
           .then((res) => {
-            if (res.success) {
+            if (res.success && requestId === tutorialLayoutRequestRef.current) {
               setNodes(res.nodes);
               setEdges(res.edges);
               window.setTimeout(() => {

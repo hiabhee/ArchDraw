@@ -179,14 +179,11 @@ const SERVICE_TYPE_TO_SHAPE: Record<string, ShapeType> = {
   mobile: 'mobile',
   ios: 'mobile',
   android: 'mobile',
-  // Users / actors
+  // Users / actors (only actual human end-users, not developers/operators)
   user: 'actor',
   actor: 'actor',
   person: 'actor',
   customer: 'actor',
-  admin: 'actor',
-  operator: 'actor',
-  developer: 'actor',
 };
 
 /** Map a `serviceType` to a canvas silhouette (matches editor + Mermaid build). */

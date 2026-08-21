@@ -70,7 +70,7 @@
     border-radius: 8px;
   }
   .node-title {
-    font-size: 14px;
+    font-size: 16.8px;
   }
   .node-subtitle {
     font-size: 12px;
@@ -333,7 +333,7 @@
 }
 
 .node-title {
-  font-size: 13.5px;
+  font-size: 16.2px;
   font-weight: 600;
   color: var(--node-title-color);
   margin: 0;
@@ -485,7 +485,7 @@
 }
 
 /* ── ShapeNode Handles ─────────────────────────────────────────── */
-.diagram-chrome-edit .react-flow__node.selected .shape-node .react-flow__handle {
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle {
   opacity: 1 !important;
   pointer-events: all !important;
 }
@@ -519,7 +519,7 @@
 }
 
 /* SystemNode floating handles — visible when node is selected */
-.diagram-chrome-edit .react-flow__node.selected .node-card .rh {
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh {
   opacity: 1 !important;
   width: 12px !important;
   height: 12px !important;
@@ -533,7 +533,7 @@
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
-.diagram-chrome-edit .react-flow__node.selected .node-card .rh:hover {
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh:hover {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent);
 }
 
@@ -1129,7 +1129,7 @@
 [data-render-style='sketch'] .node-title,
 [data-render-style='sketch'] .shape-node .node-title {
   font-family: Inter, "IBM Plex Sans", system-ui, -apple-system, sans-serif !important;
-  font-size: 13.5px !important;
+  font-size: 16.2px !important;
   letter-spacing: -0.015em !important;
   font-weight: 600 !important;
 }

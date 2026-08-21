@@ -6,15 +6,16 @@
 
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
+import type { ModelDefinition } from '../lib/ai/models';
 
 // Load environment variables
 dotenv.config({ path: resolve(process.cwd(), '.env.local') });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 
-// Import after env is loaded
-const { getCheaperModel, getRecommendedMaxTokens, MODELS } = require('../lib/ai/models.ts');
-
 async function testSmartFallback() {
+  // Import after env is loaded (the dotenv.config calls above run at module load).
+  const { getCheaperModel, getRecommendedMaxTokens, MODELS } = await import('../lib/ai/models');
+
   console.log('🧪 Testing Smart Fallback Mechanism\n');
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -26,10 +27,10 @@ async function testSmartFallback() {
   // Test 1: Check model cost tiers
   console.log('📊 Model Cost Tiers:');
   console.log('─'.repeat(70));
-  const openRouterModels = MODELS.filter((m: any) => m.provider === 'openrouter');
+  const openRouterModels = MODELS.filter((m: ModelDefinition) => m.provider === 'openrouter');
   openRouterModels
-    .sort((a: any, b: any) => (b.costTier || 0) - (a.costTier || 0))
-    .forEach((model: any) => {
+    .sort((a: ModelDefinition, b: ModelDefinition) => (b.costTier || 0) - (a.costTier || 0))
+    .forEach((model: ModelDefinition) => {
       const tier = '💰'.repeat(model.costTier || 1);
       console.log(`${tier.padEnd(10)} ${model.label.padEnd(40)} (${model.id})`);
       console.log(`           Max tokens: ${model.recommendedMaxTokens || 'N/A'}`);
@@ -52,7 +53,7 @@ async function testSmartFallback() {
       console.log(`└─ No cheaper model available`);
       break;
     }
-    const model = MODELS.find((m: any) => m.id === cheaper);
+    const model = MODELS.find((m: ModelDefinition) => m.id === cheaper);
     console.log(`├─ Fallback to: ${model?.label || cheaper} (tier ${model?.costTier || '?'})`);
     current = cheaper;
     depth++;

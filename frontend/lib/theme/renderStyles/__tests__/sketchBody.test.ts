@@ -4,7 +4,7 @@ import { SKETCH_HATCH_INK_DARK, SKETCH_HATCH_INK_LIGHT, SKETCH_PAPER_TINT } from
 import { renderSketchBodyMarkup } from '../sketchBody';
 
 describe('renderSketchBodyMarkup', () => {
-  it('renders subtle cross-hatch ink on node bodies by default', () => {
+  it('renders a solid paper body with no cross-hatch ink', () => {
     const markup = renderSketchBodyMarkup(
       getShapePrimitives('rounded-rectangle', 200, 96),
       {
@@ -17,9 +17,11 @@ describe('renderSketchBodyMarkup', () => {
       'rounded-rectangle',
     );
 
+    // sketchFillForShape is solid everywhere now, so the body is just the
+    // paper underlay + wobbly outline — the hatch overlay is never emitted.
     expect(markup).toContain(`fill="${SKETCH_PAPER_TINT}"`);
-    expect(markup).toContain(SKETCH_HATCH_INK_LIGHT);
-    expect((markup.match(/<path/g) ?? []).length).toBeGreaterThan(2);
+    expect(markup).not.toContain(SKETCH_HATCH_INK_LIGHT);
+    expect(markup).toContain('<path');
   });
 
   it('renders solid fill for groups (no hatch) per design improvements', () => {

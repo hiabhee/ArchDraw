@@ -1,3 +1,5 @@
+import logger from '@/lib/logger';
+
 const isBrowser = typeof window !== 'undefined';
 
 let writeChain: Promise<void> = Promise.resolve();
@@ -62,6 +64,6 @@ export function migrateLegacyStorage(): void {
       localStorage.setItem('archdraw-storage', JSON.stringify({ ...parsed, state }));
     }
   } catch (e) {
-    console.error('[Migration] Failed to migrate duplicate nodes/edges:', e);
+    logger.error('[Migration] Failed to migrate duplicate nodes/edges:', e);
   }
 }

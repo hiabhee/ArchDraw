@@ -133,7 +133,7 @@ export function renderEdge(
           x="0" y="3"
           fill="${fg}"
           font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
-          font-size="${isSketch ? 9 : 9}"
+          font-size="9"
           font-weight="500"
           text-anchor="middle"
           letter-spacing="${isSketch ? '0' : '0.01em'}"

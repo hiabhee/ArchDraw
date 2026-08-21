@@ -40,7 +40,7 @@ describe('duplicateNode', () => {
     const copy = nodes.find((n) => n.id === newId);
     expect(copy?.position.x).toBe(original.position.x + 30);
     expect(copy?.position.y).toBe(original.position.y + 30);
-    expect(copy?.data.label).toBe('Order Service (copy)');
+    expect(copy?.data.label).toBe('Order Service');
 
     const source = nodes.find((n) => n.id === original.id);
     expect(source?.data.label).toBe('Order Service');
@@ -78,7 +78,8 @@ describe('duplicateNode', () => {
     expect(copy?.data.accentColor).toBe('#0f766e');
     expect(copy?.data.nodeWidth).toBe(200);
     expect(copy?.width).toBe(200);
-    expect(copy?.selected).toBe(false);
+    // The copy is selected so it can be dragged/edited immediately.
+    expect(copy?.selected).toBe(true);
     expect((copy as unknown as { measured?: unknown }).measured).toBeUndefined();
     expect((copy as unknown as { dragging?: unknown }).dragging).toBeUndefined();
   });

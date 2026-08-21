@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     const completion = await apiKeyManager.executeWithGroq((groq) =>
       groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
+        model: 'openai/gpt-oss-20b',
         messages: [
           { role: 'system', content: systemPrompt(data.phase) },
           { role: 'user', content: userPrompt(data) },

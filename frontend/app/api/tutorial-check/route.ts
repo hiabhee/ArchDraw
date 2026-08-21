@@ -4,6 +4,8 @@ import logger from '@/lib/logger';
 import { getClientIP } from '@/lib/server/ip';
 import { apiKeyManager } from '@/lib/ai/utils/apiKeyManager';
 
+export const runtime = 'nodejs';
+
 const checkRateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const CHECK_RATE_WINDOW_MS = 60 * 1000;
 const MAX_CHECK_REQUESTS = 10;
@@ -135,7 +137,7 @@ Review the student's work for this step. Is it correct? What's good? What's miss
         try {
           const completion = await apiKeyManager.executeWithGroq((groq) =>
             groq.chat.completions.create({
-              model: 'llama-3.1-8b-instant',
+              model: 'openai/gpt-oss-20b',
               messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: userPrompt },

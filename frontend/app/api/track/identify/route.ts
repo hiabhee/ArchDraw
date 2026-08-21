@@ -3,8 +3,8 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { withRetry } from '@/lib/db-retry';
 import { headers } from 'next/headers';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +17,7 @@ const identifySchema = z.object({
 
 export async function POST(req: NextRequest) {
   if (!process.env.DATABASE_URL) {
-    console.warn('[Analytics] identify: DATABASE_URL is not set');
+    logger.warn('[Analytics] identify: DATABASE_URL is not set');
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
 
@@ -43,16 +43,16 @@ export async function POST(req: NextRequest) {
 
   after(async () => {
     try {
-      await withRetry(() => prisma.visitor.update({
+      await prisma.visitor.update({
         where: { anonId: anon_id },
         data: {
           userId: user_id,
           lastSeenAt: new Date(),
           ...(isInternal ? { isInternal: true } : {}),
         },
-      }));
+      });
     } catch (err) {
-      console.error('[Analytics] Failed to identify visitor (background):', err);
+      logger.error('[Analytics] Failed to identify visitor (background):', err);
     }
   });
 

@@ -18,6 +18,8 @@ export interface ResolveNodeIconInput {
   category?: string;
   icon?: string;
   color?: string;
+  /** Dark-mode flag for brand-color normalization; defaults to light. */
+  isDark?: boolean;
 }
 
 export interface ResolvedNodeIcon {
@@ -26,8 +28,6 @@ export interface ResolvedNodeIcon {
   technology?: string;
   source: NodeIconSource;
 }
-
-const GENERIC_ICON_COLOR = '#0891B2'; // Cyan-600 - changed from blue
 
 const COMPONENT_ICON_MAP: Record<string, Pick<ResolvedNodeIcon, 'icon' | 'technology'>> = {
   client_web: { icon: 'arch-web' },
@@ -262,11 +262,19 @@ function getTechnologyEntry(technology?: string) {
 }
 
 export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
-  const isDark = false; // TODO: pass from theme context when available
+  const isDark = input.isDark ?? false;
   
-  // PRIORITY 1: Manual icon override (explicitly set from properties panel)
-  // Explicit custom/AWS/Azure icons are always manual when no technology can be resolved
+  // PRIORITY 1: Explicit arch-/aws-/azure- icon from the properties panel.
+  // A recognized technology — named explicitly, or inferred from the icon itself
+  // via ICON_TO_TECHNOLOGY (e.g. arch-kubernetes → kubernetes) — brands the node
+  // with its official color and wins over a raw manual color. Only genuinely
+  // generic icons (no resolvable technology) stay a plain manual override.
   if (input.icon?.startsWith('arch-') || input.icon?.startsWith('aws-') || input.icon?.startsWith('azure-')) {
+    const manualTechnology = input.technology ?? technologyFromIcon(input.icon);
+    const manualTechEntry = getTechnologyEntry(manualTechnology);
+    if (manualTechEntry) {
+      return { icon: input.icon, color: manualTechEntry.color, technology: manualTechnology, source: 'technology' };
+    }
     const color = normalizeColor(input.color, input.icon, isDark);
     return { icon: input.icon, color, technology: input.technology, source: 'manual' };
   }

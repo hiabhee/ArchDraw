@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
-import { withRetry } from '@/lib/db-retry';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -36,13 +36,13 @@ const RATE_LIMIT = 100;
 
 export async function POST(req: NextRequest) {
   if (!process.env.DATABASE_URL) {
-    console.warn('[Analytics] DATABASE_URL is not set — events are being dropped');
+    logger.warn('[Analytics] DATABASE_URL is not set — events are being dropped');
     return NextResponse.json({ ok: true, skipped: true, reason: 'no_database_url' }, { status: 200 });
   }
 
   const anonId = req.cookies.get('ad_anon')?.value;
   if (!anonId) {
-    console.warn('[Analytics] Missing ad_anon cookie');
+    logger.warn('[Analytics] Missing ad_anon cookie');
     return NextResponse.json({ error: 'Missing anon_id cookie' }, { status: 400 });
   }
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = trackSchema.safeParse(body);
   if (!parsed.success) {
-    console.warn('[Analytics] Invalid payload:', parsed.error.flatten());
+    logger.warn('[Analytics] Invalid payload:', parsed.error.flatten());
     return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 });
   }
 
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   const entryPage = events.length > 0 ? events[0].page_path : null;
   const exitPage = events.length > 0 ? events[events.length - 1].page_path : null;
 
-  // Defer DB writes so the calling client never waits on a cold Neon compute.
+  // Defer DB writes so the calling client never waits on a DB round-trip.
   // The response returns immediately; `after()` runs the writes after the
   // response is flushed (billed to the function's execution time, not the
   // user's request latency).
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const [visitor, existingSession] = await Promise.all([
-        withRetry(() => prisma.visitor.upsert({
+        prisma.visitor.upsert({
           where: { anonId },
           create: {
             anonId,
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
           } as never,
           update: visitorUpdate,
           select: { id: true },
-        })),
+        }),
         prisma.visitorSession.findUnique({
           where: { id: session_id },
           select: { startedAt: true },
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       ]);
 
       const sessionWrite = existingSession
-        ? withRetry(() => prisma.visitorSession.update({
+        ? prisma.visitorSession.update({
             where: { id: session_id },
             data: {
               endedAt: new Date(),
@@ -131,10 +131,10 @@ export async function POST(req: NextRequest) {
               ),
               exitPage,
             },
-          })).catch((err) => {
-            console.error('[Analytics] Failed to update session:', err);
+          }).catch((err) => {
+            logger.error('[Analytics] Failed to update session:', err);
           })
-        : withRetry(() => prisma.visitorSession.create({
+        : prisma.visitorSession.create({
             data: {
               id: session_id,
               visitorId: visitor.id,
@@ -142,8 +142,8 @@ export async function POST(req: NextRequest) {
               deviceType,
               startedAt: new Date(),
             },
-          })).catch((err) => {
-            console.error('[Analytics] Failed to create session:', err);
+          }).catch((err) => {
+            logger.error('[Analytics] Failed to create session:', err);
           });
 
       const rows = events.map((e) => ({
@@ -154,11 +154,11 @@ export async function POST(req: NextRequest) {
         pagePath: e.page_path,
         payload: (e.payload || {}) as object,
       }));
-      const eventsWrite = withRetry(() => prisma.event.createMany({ data: rows }));
+      const eventsWrite = prisma.event.createMany({ data: rows });
 
       await Promise.all([sessionWrite, eventsWrite]);
     } catch (err) {
-      console.error('[Analytics] Background track write failed:', err);
+      logger.error('[Analytics] Background track write failed:', err);
     }
   });
 
