@@ -1,4 +1,5 @@
 import type { TutorialDefinition, ValidationRule } from './schema';
+import logger from '@/lib/logger';
 
 export function warnMissingNodeTypes(tutorials: TutorialDefinition[]): void {
   if (process.env.NODE_ENV !== 'development') return;
@@ -14,7 +15,7 @@ export function warnMissingNodeTypes(tutorials: TutorialDefinition[]): void {
 function checkRules(rules: ValidationRule[], tid: string, sid: string, ids: Set<string>): void {
   for (const r of rules) {
     if (r.type === 'node_exists' && !ids.has(r.nodeType))
-      console.warn(`[Tutorial] "${tid}/${sid}": nodeType "${r.nodeType}" not in registry — always fails.`);
+      logger.warn(`[Tutorial] "${tid}/${sid}": nodeType "${r.nodeType}" not in registry — always fails.`);
     if (r.type === 'all_of' || r.type === 'any_of')
       checkRules(r.rules, tid, sid, ids);
   }

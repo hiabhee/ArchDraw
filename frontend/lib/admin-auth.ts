@@ -3,6 +3,7 @@ import { validateAdminConfig } from '@/lib/env-validation';
 import { auth } from '@/lib/auth';
 import { getClientIP } from '@/lib/server/ip';
 import { adminSessionTracking, cleanupExpiredSessions } from '@/lib/admin-session-tracking';
+import logger from '@/lib/logger';
 
 let ALLOWED_ADMIN_EMAIL: string | undefined;
 try {
@@ -58,7 +59,7 @@ export async function verifyAdminSession(req: NextRequest): Promise<boolean> {
         // Allow some tolerance for IP changes (mobile networks, etc.)
         // but require user agent to match exactly
         if (sessionData.ua !== currentUA) {
-          console.warn('[AdminAuth] User agent mismatch for admin session');
+          logger.warn('[AdminAuth] User agent mismatch for admin session');
           return false;
         }
         

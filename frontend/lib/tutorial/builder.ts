@@ -7,6 +7,7 @@ import type {
   PhaseName,
 } from './schema';
 import { resolveComponentTooltip } from './componentTooltipResolver';
+import logger from '@/lib/logger';
 
 // ── Validation Rule Shortcuts ──────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ export function step(config: StepConfig): TutorialStep {
   // ── Teaching ───────────────────────────────────────────────────────────
   const teaching = enrichTeaching(component, config.phases?.teaching ?? (() => {
     if (process.env.NODE_ENV === 'development') {
-      console.warn(
+      logger.warn(
         `[Tutorial builder] step "${component}" has no teaching content. ` +
         `Add phases.teaching with body, whyItMatters, and tradeoff. ` +
         `Empty teaching defeats the purpose of the tutorial.`

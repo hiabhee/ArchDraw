@@ -16,6 +16,7 @@
 
 import { Position } from '@/lib/utils/edgePositions';
 import { segmentIntersectsRect } from './collisionFreeEdgePath';
+import logger from '@/lib/logger';
 
 export interface HandlerRect {
   x: number;
@@ -393,7 +394,7 @@ export function selectBestHandlerPair(
 ): HandlerPair {
   if (manualSourceSide !== undefined && manualTargetSide !== undefined) {
     if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
-      console.log('[EdgeDebug:3-Override] FULL BYPASS — both manual: src=%s tgt=%s',
+      logger.debug('[EdgeDebug:3-Override] FULL BYPASS — both manual: src=%s tgt=%s',
         manualSourceSide, manualTargetSide);
     }
     return { sourceSide: manualSourceSide, targetSide: manualTargetSide };
@@ -409,7 +410,7 @@ export function selectBestHandlerPair(
     });
     if (filtered.length > 0) {
       if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
-        console.log('[EdgeDebug:3-Override] PARTIAL BYPASS — src=%s tgt=%s  winner=%s→%s score=%.2f',
+        logger.debug('[EdgeDebug:3-Override] PARTIAL BYPASS — src=%s tgt=%s  winner=%s→%s score=%.2f',
           manualSourceSide ?? '*',
           manualTargetSide ?? '*',
           filtered[0].pair.sourceSide, filtered[0].pair.targetSide,
@@ -440,7 +441,7 @@ export function selectBestHandlerPair(
 
   if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
     const top5 = scores.slice(0, 5);
-    console.table(top5.map(s => ({
+    logger.table(top5.map(s => ({
       pair: `${s.pair.sourceSide}→${s.pair.targetSide}`,
       total: +s.total.toFixed(2),
       distance: s.distance,
@@ -452,18 +453,18 @@ export function selectBestHandlerPair(
     const collisions = scores.filter(s => s.collides);
     const terminals = scores.filter(s => s.terminal);
     if (collisions.length > 0) {
-      console.log('[EdgeDebug:2-Scorer] %d pairs disqualified by collision', collisions.length);
+      logger.debug('[EdgeDebug:2-Scorer] %d pairs disqualified by collision', collisions.length);
     }
     if (terminals.length > 0) {
-      console.log('[EdgeDebug:2-Scorer] %d pairs hit terminal penalty', terminals.length);
+      logger.debug('[EdgeDebug:2-Scorer] %d pairs hit terminal penalty', terminals.length);
     }
     if (hasLanePrefs) {
-      console.log('[EdgeDebug:2-Scorer] lane prefs applied: src=%s tgt=%s (bias=%d)',
+      logger.debug('[EdgeDebug:2-Scorer] lane prefs applied: src=%s tgt=%s (bias=%d)',
         laneSourcePreference ?? '*',
         laneTargetPreference ?? '*',
         LANE_BIAS);
     }
-    console.log('[EdgeDebug:2-Scorer] WINNER: %s→%s  score=%.2f',
+    logger.debug('[EdgeDebug:2-Scorer] WINNER: %s→%s  score=%.2f',
       scores[0].pair.sourceSide, scores[0].pair.targetSide, scores[0].total);
   }
 

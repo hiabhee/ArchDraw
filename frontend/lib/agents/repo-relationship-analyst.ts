@@ -260,7 +260,7 @@ RULES:
     logger.warn('[RelationshipAnalyst] Using heuristic relationship fallback');
     return inferRelationshipsHeuristic(nodes);
   } catch (err) {
-    console.error('[RelationshipAnalyst] LLM call failed:', err);
+    logger.error('[RelationshipAnalyst] LLM call failed:', err);
     if (nodes.length >= 2) {
       return inferRelationshipsHeuristic(nodes);
     }

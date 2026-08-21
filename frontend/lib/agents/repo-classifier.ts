@@ -120,7 +120,7 @@ Reply with a single JSON object only. No markdown fences. Keep it concise.`,
       return buildFallbackRepoProfile(snapshot);
     }
   } catch (err) {
-    console.error('[Classifier] LLM call failed:', err);
+    logger.error('[Classifier] LLM call failed:', err);
     return buildFallbackRepoProfile(snapshot);
   }
 }

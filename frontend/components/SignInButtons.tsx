@@ -1,6 +1,7 @@
 'use client';
 
 import { signIn } from '@/lib/auth-client';
+import logger from '@/lib/logger';
 
 interface SignInButtonsProps {
   compact?: boolean;
@@ -10,19 +11,19 @@ interface SignInButtonsProps {
 export function SignInButtons({ compact = false, className = '' }: SignInButtonsProps) {
   const handleGoogle = async () => {
     try {
-      console.log('🔵 Attempting Google sign-in...');
+      logger.debug('Attempting Google sign-in');
       await signIn.social({ provider: 'google', callbackURL: '/' });
     } catch (error) {
-      console.error('❌ Google sign-in error:', error);
+      logger.error('Google sign-in error:', error);
     }
   };
   
   const handleGitHub = async () => {
     try {
-      console.log('🟣 Attempting GitHub sign-in...');
+      logger.debug('Attempting GitHub sign-in');
       await signIn.social({ provider: 'github', callbackURL: '/' });
     } catch (error) {
-      console.error('❌ GitHub sign-in error:', error);
+      logger.error('GitHub sign-in error:', error);
     }
   };
 
