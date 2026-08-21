@@ -150,26 +150,30 @@ const SHAPE_ABSOLUTE_MAX_WIDTH: Record<ShapeFit, number> = {
   documents: 260, // +30% (was 200)
 };
 
-/** Min width per shape — actors/phones stay compact, clouds/monitors wider. */
+/**
+ * Min width per shape — one unified scale so every creation path (palette, AI,
+ * Mermaid, quick-add drafts) produces identically sized nodes.
+ * Silhouette families share floors: rect-like 160, mid-band 120–140, compact 120.
+ */
 const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
-  rectangle: SIZE_M,
-  'rounded-rectangle': SIZE_M,
-  diamond: SIZE_S,
-  parallelogram: SIZE_M,
-  circle: SIZE_S,
-  cylinder: SIZE_M,
-  hexagon: SIZE_S,
-  cloud: SIZE_M,
+  rectangle: 160,
+  'rounded-rectangle': 160,
+  diamond: 140,
+  parallelogram: 160,
+  circle: 120,
+  cylinder: 160,
+  hexagon: 140,
+  cloud: 160,
   actor: SIZE_XS,
-  monitor: SIZE_M,
+  monitor: 160,
   mobile: SIZE_XS,
-  'dashed-rectangle': SIZE_S,
+  'dashed-rectangle': 160,
   // New architecture-native shapes
   queue: SIZE_M,
-  cache: SIZE_S,
-  'function': SIZE_S,
-  container: SIZE_M,
-  bucket: SIZE_S,
+  cache: 140,
+  'function': 140,
+  container: 160,
+  bucket: 140,
   document: 120,  // Increased min width
   documents: 120,
 };
@@ -391,37 +395,14 @@ export function calculateNodeDimensions(
 
   // Cylinder (vertical drum) needs minimum dimensions
   if (shape === 'cylinder' && !isHorizontalPipe) {
-    width = Math.max(width, options.minWidth ?? SIZE_M);
-    height = Math.max(height, options.minHeight ?? 120);  // Increased from 100 for better default size
+    width = Math.max(width, options.minWidth ?? 160);
+    height = Math.max(height, options.minHeight ?? 100);
   }
 
   return {
     width: Math.round(width),
     height: Math.round(height),
   };
-}
-
-/**
- * Compact sizing for quick-add draft nodes (N/D/C/Y keys, canvas double-click).
- * Small sticky-note scale that still grows naturally as the label fills in.
- */
-export function compactDraftDimensionOptions(shape?: string): DimensionOptions {
-  if (shape === 'circle') return { shape, minWidth: 96, minHeight: 80, maxWidth: 120, showIcon: false };
-  if (shape === 'diamond') return { shape, minWidth: 112, minHeight: 72, maxWidth: 140, showIcon: false };
-  return { shape, minWidth: 160, minHeight: 64, maxWidth: 200, showIcon: false };
-}
-
-export function calculateCompactDraftDimensions(
-  label: string,
-  subtitle?: string,
-  shape?: string,
-  cylinderAxis?: 'vertical' | 'horizontal',
-): NodeDimensions {
-  return calculateNodeDimensions(label, subtitle, {
-    ...compactDraftDimensionOptions(shape),
-    shape,
-    cylinderAxis,
-  });
 }
 
 export { SIZE_S, SIZE_M, SIZE_L, clampToSizeGrid };

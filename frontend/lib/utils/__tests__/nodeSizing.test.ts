@@ -10,9 +10,9 @@ import {
 import { SHAPE_LANE_HEIGHT_CAP } from '@/lib/theme/stylingConstants';
 
 describe('calculateNodeDimensions', () => {
-  it('uses default medium width for short labels', () => {
+  it('uses the unified default width for short labels', () => {
     const dims = calculateNodeDimensions('API', undefined, { shape: 'rounded-rectangle' });
-    expect(dims.width).toBe(SIZE_M);
+    expect(dims.width).toBe(160);
     expect(dims.height).toBeGreaterThanOrEqual(80);
   });
 

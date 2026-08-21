@@ -2,7 +2,7 @@ import logger from '@/lib/logger';
 import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry, type ComponentDefinition } from '@/lib/componentRegistry';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
-import { calculateNodeDimensions, calculateCompactDraftDimensions } from '@/lib/utils/nodeSizing';
+import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT, type TextSize } from '@/lib/utils/textSizing';
 import { shapeForServiceType, type ShapeType } from '@/lib/shapeRegistry';
 
@@ -57,12 +57,13 @@ export function createPaletteNode(
   });
 }
 
-/** Blank draft shape node (N/D/C/Y keys, canvas double-click) — opens inline rename on place. */
+/** Blank draft shape node (N/D/C/Y keys, canvas double-click) — opens inline rename on place.
+ *  Uses the same unified sizing as palette/AI/Mermaid nodes so the canvas stays consistent. */
 export function createBlankShapeNode(
   shape: ShapeType = 'rectangle',
   position: { x: number; y: number },
 ): Node {
-  const { width, height } = calculateCompactDraftDimensions('', undefined, shape);
+  const { width, height } = calculateNodeDimensions('', undefined, { shape });
 
   return createNode('shapeNode', '', position, {
     type: 'shapeNode',
@@ -74,7 +75,6 @@ export function createBlankShapeNode(
       shape,
       nodeWidth: width,
       nodeHeight: height,
-      compactSize: true,
       autoStartLabelEdit: true,
     },
   });

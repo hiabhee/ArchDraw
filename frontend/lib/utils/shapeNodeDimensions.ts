@@ -1,9 +1,5 @@
 import type { Node } from 'reactflow';
-import {
-  calculateNodeDimensions,
-  calculateCompactDraftDimensions,
-  type DimensionOptions,
-} from '@/lib/utils/nodeSizing';
+import { calculateNodeDimensions, type DimensionOptions } from '@/lib/utils/nodeSizing';
 import { resolveCylinderAxis, type CylinderAxisInput } from '@/lib/utils/cylinderAxis';
 
 export interface ShapeNodeDimensionInput extends CylinderAxisInput {
@@ -14,8 +10,6 @@ export interface ShapeNodeDimensionInput extends CylinderAxisInput {
   nodeWidth?: number;
   nodeHeight?: number;
   showIcon?: boolean;
-  /** Quick-add draft nodes render at sticky-note scale instead of the standard grid. */
-  compactSize?: boolean;
 }
 
 /**
@@ -31,9 +25,7 @@ export function resolveShapeNodeDimensions(data: ShapeNodeDimensionInput): {
   const cylinderAxis = shape === 'cylinder' ? resolveCylinderAxis(data) : undefined;
   const options: DimensionOptions = { shape, cylinderAxis, showIcon: data.showIcon };
   const subtitle = (data.sublabel ?? data.subtitle ?? '').trim() || undefined;
-  const fitted = data.compactSize
-    ? calculateCompactDraftDimensions(data.label || '', subtitle, shape, cylinderAxis)
-    : calculateNodeDimensions(data.label || '', subtitle, options);
+  const fitted = calculateNodeDimensions(data.label || '', subtitle, options);
 
   // Some shapes have axis-specific sizing — ignore stale stored dimensions.
   const ignoreStored = shape === 'document' || shape === 'documents' || shape === 'cylinder' || shape === 'queue';
@@ -60,7 +52,6 @@ export function getEffectiveNodeDimensions(node: Node): { width: number; height:
       nodeWidth: data.nodeWidth as number | undefined,
       nodeHeight: data.nodeHeight as number | undefined,
       showIcon: data.showIcon as boolean | undefined,
-      compactSize: data.compactSize as boolean | undefined,
     });
   }
 
