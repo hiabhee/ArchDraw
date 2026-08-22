@@ -11,8 +11,15 @@ const securityHeaders = [
   { key: 'X-XSS-Protection', value: '0' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  // NOTE: the page Content-Security-Policy is nonce-based and set per-request
-  // in middleware.ts. This global list intentionally carries no CSP.
+  {
+    key: 'Content-Security-Policy',
+    // Add 'unsafe-eval' only in development for React debugging features.
+    // NOTE: a nonce-based script CSP (middleware.ts) was reverted — Next.js
+    // only stamps its bootstrap scripts with the nonce when the root layout
+    // reads it via headers(), which forces every route dynamic and kills
+    // static rendering of landing/blogs/docs. Revisit before re-enabling.
+    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none';`
+  },
 ];
 
 // Configure allowed embed domains via environment variable.
