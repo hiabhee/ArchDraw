@@ -1,7 +1,7 @@
 import type { Edge, Node } from 'reactflow'
 import { Position } from '@/lib/utils/edgePositions'
 import { type ObstacleRect } from './obstacleRect'
-import { getBoundaryAnchor, getEdgeShiftOffset, sideFromHandleId, resolveSideFromEdgeHandles } from './simpleFloatingEdge'
+import { getBoundaryAnchor, getEdgeShiftOffset } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
 import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import logger from '@/lib/logger'
@@ -317,8 +317,9 @@ function resolveEdgeSideOnNode(
   direction: 'LR' | 'TD',
   allObstacles: Map<string, HandlerRect>,
 ): Position {
-  const fromHandle = resolveSideFromEdgeHandles(e, nodeId)
-  if (fromHandle !== undefined) return fromHandle
+  // Floating-side behavior: handle ids no longer pin a side. Only explicit
+  // user/lane overrides are respected; everything else re-scores from live
+  // geometry every frame so edges hop to the natural side as nodes move.
 
   const data = e.data as Record<string, unknown> | undefined
   if (e.source === nodeId) {
@@ -429,10 +430,8 @@ export function computeEdgeRoute(
   }
 
   const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, srcHandlerRect, tgtHandlerRect)
-  let manualSourceSide =
-    sideToPosition(edgeData?.sourceSide as string) ?? sideFromHandleId(edge.sourceHandle)
-  let manualTargetSide =
-    sideToPosition(edgeData?.targetSide as string) ?? sideFromHandleId(edge.targetHandle)
+  let manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
+  let manualTargetSide = sideToPosition(edgeData?.targetSide as string)
   if (bidirectionalSides) {
     manualSourceSide = bidirectionalSides.sourceSide
     manualTargetSide = bidirectionalSides.targetSide

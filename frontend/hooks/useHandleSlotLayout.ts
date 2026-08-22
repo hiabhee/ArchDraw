@@ -6,7 +6,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import {
   getCenteredSides,
-  resolveSideFromEdgeHandles,
+  resolveEdgeTerminalSide,
   type EdgeSideResolver,
 } from '@/lib/utils/simpleFloatingEdge';
 import {
@@ -51,10 +51,13 @@ export function useHandleSlotLayout(nodeId?: string) {
 
   const centeredSides = useMemo(() => {
     if (!nodeId) return new Set<Position>();
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    // Mirror the router: explicit data sides first, then live geometry.
     const resolveSide: EdgeSideResolver = (edge, nid) =>
-      resolveSideFromEdgeHandles(edge, nid) ?? Position.Right;
+      resolveEdgeTerminalSide(edge, nid, edge.target === nid ? 'target' : 'source', nodeById) ??
+      Position.Right;
     return getCenteredSides(nodeId, edges, resolveSide);
-  }, [nodeId, edges]);
+  }, [nodeId, edges, nodes]);
 
   const dynamicOffsets = useMemo(() => {
     if (!nodeId) return new Map<Position, DynamicSlotOffsets>();

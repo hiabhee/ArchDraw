@@ -91,10 +91,10 @@ export function sideFromDataString(value: unknown): Position | undefined {
 
 /**
  * Resolve which side of `nodeId` an edge actually renders on. Mirrors the
- * route builder (`edgeRouteBuilder`): stored side override, then stored
- * handle id, then a geometric center-to-center inference as a last resort.
- * The geometric heuristic alone is not reliable — obstacle detours, lane
- * preferences and semantic ports can move an edge onto a different side.
+ * route builder (`edgeRouteBuilder`): stored side override first, then live
+ * geometry. Handle ids do NOT pin sides — plain edges re-float to the
+ * natural side as nodes move (only explicit `data.sourceSide/targetSide`
+ * overrides are sticky).
  */
 export function resolveEdgeTerminalSide(
   edge: Edge,
@@ -108,9 +108,6 @@ export function resolveEdgeTerminalSide(
       ? sideFromDataString(data?.targetSide)
       : sideFromDataString(data?.sourceSide);
   if (manual !== undefined) return manual;
-
-  const fromHandle = resolveSideFromEdgeHandles(edge, nodeId);
-  if (fromHandle !== undefined) return fromHandle;
 
   if (!nodeById) return undefined;
   const src = nodeById.get(edge.source);
@@ -237,7 +234,7 @@ export function getEdgeShiftOffset(
   if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
 
   const { incomingOffset, outgoingOffset } = computeDynamicSlotOffsets(
-    nodeId, side, edges, nodePositions,
+    nodeId, side, edges, nodePositions, resolveSide,
   );
 
   const isIncoming = self.target === nodeId;

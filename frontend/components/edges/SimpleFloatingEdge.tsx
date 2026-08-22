@@ -20,7 +20,7 @@ import {
 } from '@/lib/utils/edgeLabelDrag';
 import { buildSmoothStepSvg, trimWaypointsEnd } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
-import { sideFromHandleId, sideFromDataString, getSharedTerminalEdges } from '@/lib/utils/simpleFloatingEdge';
+import { sideFromDataString, getSharedTerminalEdges } from '@/lib/utils/simpleFloatingEdge';
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { useCanvasTheme } from '@/lib/theme';
@@ -307,15 +307,13 @@ export default function SimpleFloatingEdge({
   // as a single connection (multiple paths, one tip).
   const showMergedTargetMarker = useMemo(() => {
     const currentTargetSide =
-      sideFromDataString(data?.targetSide) ??
-      sideFromHandleId(targetHandleId) ??
-      targetPos;
+      sideFromDataString(data?.targetSide) ?? targetPos;
     const siblings = getSharedTerminalEdges(
       id, target, currentTargetSide, edges, nodeInternals, 'target',
     );
     if (siblings.length <= 1) return true;
     return siblings[0]?.id === id;
-  }, [edges, target, targetPos, targetHandleId, nodeInternals, id, data?.targetSide]);
+  }, [edges, target, targetPos, nodeInternals, id, data?.targetSide]);
 
   const sketchDrawPath = useMemo(() => {
     if (!stableEdgePath) return '';

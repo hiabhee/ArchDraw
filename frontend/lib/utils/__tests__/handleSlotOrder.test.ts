@@ -282,9 +282,15 @@ describe('computeDynamicSlotOffsets', () => {
         ['above', pos('above', 50, 50)],
         ['below', pos('below', 50, 400)],
       ]);
+      // e1 resolves to center's LEFT geometrically; e2 is pinned RIGHT via an
+      // explicit data override (sticky user/lane side), so each queried side
+      // sees exactly one edge direction.
       const edges: Edge[] = [
         makeEdge('e1', 'above', 'center', 'source-left', 'target-left'),
-        makeEdge('e2', 'center', 'below', 'source-right', 'target-right'),
+        {
+          ...makeEdge('e2', 'center', 'below', 'source-right', 'target-right'),
+          data: { sourceSide: 'right', targetSide: 'right' },
+        } as Edge,
       ];
 
       const left = computeDynamicSlotOffsets('center', Position.Left, edges, nodePositions);

@@ -40,6 +40,26 @@ export function positionToSide(pos: Position): string {
   return 'bottom';
 }
 
+/**
+ * Whether a node actually renders a Handle with `${type}-${side}`.
+ * Queue/pipe shapes only mount left/right handles; text labels and
+ * annotations mount none. Assigning ids for unsupported sides makes
+ * React Flow log error #008 ("couldn't create edge").
+ */
+function nodeSupportsHandle(
+  node: Node | undefined,
+  type: 'source' | 'target',
+  side: string,
+): boolean {
+  if (!node) return false;
+  if (node.type === 'textLabelNode' || node.type === 'annotationNode') return false;
+  const shape = (node.data as { shape?: string } | undefined)?.shape;
+  if ((node.type === 'shapeNode' || !node.type) && shape === 'queue') {
+    return side === 'left' || side === 'right';
+  }
+  return true;
+}
+
 export function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
   let x = node.position?.x ?? 0;
   let y = node.position?.y ?? 0;
@@ -123,10 +143,17 @@ export function applyBidirectionalEdgeFixes(edges: Edge[], nodes: Node[]): Edge[
     const prior = (edge.data as Record<string, unknown> | undefined) ?? {};
     const { customWaypoints: _removed, ...rest } = prior;
 
+    const sourceSide = positionToSide(facing.sourceSide);
+    const targetSide = positionToSide(facing.targetSide);
+
     return {
       ...edge,
-      sourceHandle: `source-${positionToSide(facing.sourceSide)}`,
-      targetHandle: `target-${positionToSide(facing.targetSide)}`,
+      sourceHandle: nodeSupportsHandle(sourceNode, 'source', sourceSide)
+        ? `source-${sourceSide}`
+        : null,
+      targetHandle: nodeSupportsHandle(targetNode, 'target', targetSide)
+        ? `target-${targetSide}`
+        : null,
       data: Object.keys(rest).length > 0 ? rest : undefined,
       type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
     };
@@ -151,8 +178,8 @@ export function distributeTargetHandles(
     if (edge.source === edge.target) {
       return {
         ...edge,
-        sourceHandle: 'source-top',
-        targetHandle: 'target-right',
+        sourceHandle: nodeSupportsHandle(sourceNode, 'source', 'top') ? 'source-top' : null,
+        targetHandle: nodeSupportsHandle(sourceNode, 'target', 'right') ? 'target-right' : null,
         type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
       };
     }
@@ -211,10 +238,17 @@ export function distributeTargetHandles(
       direction
     );
 
+    const sourceSide = positionToSide(handles.sourcePosition);
+    const targetSide = positionToSide(handles.targetPosition);
+
     return {
       ...edge,
-      sourceHandle: `source-${positionToSide(handles.sourcePosition)}`,
-      targetHandle: `target-${positionToSide(handles.targetPosition)}`,
+      sourceHandle: nodeSupportsHandle(sourceNode, 'source', sourceSide)
+        ? `source-${sourceSide}`
+        : null,
+      targetHandle: nodeSupportsHandle(targetNode, 'target', targetSide)
+        ? `target-${targetSide}`
+        : null,
       type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
     };
   }),

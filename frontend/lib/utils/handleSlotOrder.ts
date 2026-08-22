@@ -1,7 +1,6 @@
 import type { Edge } from 'reactflow';
 import { Position } from '@/lib/utils/edgePositions';
 import { facingSideToward, type HandlerRect } from './handlerPairScorer';
-import { resolveSideFromEdgeHandles } from './simpleFloatingEdge';
 
 export interface DynamicSlotOffsets {
   incomingOffset: number;
@@ -15,6 +14,47 @@ const DEFAULT_INCOMING = INCOMING_OUTGOING_GAP;
 const HYSTERESIS_PX = 4;
 
 export { INCOMING_OUTGOING_GAP };
+
+type SlotNodePos = { x: number; y: number; width: number; height: number };
+
+function sideFromDataString(value: unknown): Position | undefined {
+  if (value === 'left' || value === Position.Left) return Position.Left;
+  if (value === 'right' || value === Position.Right) return Position.Right;
+  if (value === 'top' || value === Position.Top) return Position.Top;
+  if (value === 'bottom' || value === Position.Bottom) return Position.Bottom;
+  return undefined;
+}
+
+/**
+ * Which side of `nodeId` an edge renders on, mirroring the floating-side
+ * router: explicit data override first, then center-to-center geometry.
+ * Handle ids no longer pin sides.
+ */
+function inferEdgeSide(
+  edge: Edge,
+  nodeId: string,
+  nodePositions?: Map<string, SlotNodePos>,
+): Position | undefined {
+  const data = edge.data as Record<string, unknown> | undefined;
+  const manual = sideFromDataString(
+    edge.source === nodeId ? data?.sourceSide : data?.targetSide,
+  );
+  if (manual !== undefined) return manual;
+
+  if (!nodePositions) return undefined;
+  const self = nodePositions.get(nodeId);
+  const other = nodePositions.get(edge.source === nodeId ? edge.target : edge.source);
+  if (!self || !other) return undefined;
+
+  const dx = other.x + other.width / 2 - (self.x + self.width / 2);
+  const dy = other.y + other.height / 2 - (self.y + self.height / 2);
+  // The terminal side at `nodeId` always faces the other node along the
+  // dominant axis — same rule for source and target ends.
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx > 0 ? Position.Right : Position.Left;
+  }
+  return dy > 0 ? Position.Bottom : Position.Top;
+}
 
 export function hasReverseEdge(edge: Edge, edges: Edge[]): boolean {
   return edges.some(
@@ -58,7 +98,8 @@ function shouldSwapBidirectionalSideSlots(
   nodeId: string,
   side: Position,
   edges: Edge[],
-  nodePositions: Map<string, { x: number; y: number; width: number; height: number }>,
+  nodePositions: Map<string, SlotNodePos>,
+  resolveSide?: (edge: Edge, nodeId: string) => Position | undefined,
 ): boolean {
   let neighborId: string | undefined;
   let hasIncoming = false;
@@ -66,7 +107,9 @@ function shouldSwapBidirectionalSideSlots(
 
   for (const edge of edges) {
     if (edge.source !== nodeId && edge.target !== nodeId) continue;
-    const edgeSide = resolveSideFromEdgeHandles(edge, nodeId);
+    const edgeSide = resolveSide
+      ? resolveSide(edge, nodeId)
+      : inferEdgeSide(edge, nodeId, nodePositions);
     if (edgeSide !== side) continue;
 
     const other = edge.source === nodeId ? edge.target : edge.source;
@@ -135,7 +178,8 @@ export function computeDynamicSlotOffsets(
   nodeId: string,
   side: Position,
   edges: Edge[],
-  nodePositions: Map<string, { x: number; y: number; width: number; height: number }>,
+  nodePositions: Map<string, SlotNodePos>,
+  resolveSide?: (edge: Edge, nodeId: string) => Position | undefined,
 ): DynamicSlotOffsets {
   if (!edges) return { incomingOffset: 0, outgoingOffset: 0, centered: true };
   let incomingSum = 0;
@@ -146,7 +190,9 @@ export function computeDynamicSlotOffsets(
 
   for (const edge of edges) {
     if (edge.source !== nodeId && edge.target !== nodeId) continue;
-    const edgeSide = resolveSideFromEdgeHandles(edge, nodeId);
+    const edgeSide = resolveSide
+      ? resolveSide(edge, nodeId)
+      : inferEdgeSide(edge, nodeId, nodePositions);
     if (edgeSide === undefined) continue;
     if (edgeSide !== side) continue;
     anySideResolved = true;
@@ -180,7 +226,7 @@ export function computeDynamicSlotOffsets(
     return { incomingOffset: 0, outgoingOffset: 0, centered: true };
   }
 
-  if (shouldSwapBidirectionalSideSlots(nodeId, side, edges, nodePositions)) {
+  if (shouldSwapBidirectionalSideSlots(nodeId, side, edges, nodePositions, resolveSide)) {
     return {
       incomingOffset: DEFAULT_OUTGOING,
       outgoingOffset: DEFAULT_INCOMING,
