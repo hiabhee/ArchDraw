@@ -489,6 +489,15 @@ function CanvasInner() {
     };
   }, [setPendingLabelEdgeId]);
 
+  // Shortcuts modal toggled by `?` key (Editor global shortcut handler).
+  useEffect(() => {
+    const handleToggleShortcuts = () => setShowShortcuts((open) => !open);
+    document.addEventListener('toggle-shortcuts-modal', handleToggleShortcuts);
+    return () => {
+      document.removeEventListener('toggle-shortcuts-modal', handleToggleShortcuts);
+    };
+  }, []);
+
   const coloredEdges = useEdgeColors(edges);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const themeVars = useMemo(

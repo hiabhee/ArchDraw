@@ -32,7 +32,7 @@ const SHORTCUTS = [
     { key: 'Scroll',         action: 'Zoom in / out' },
     { key: '⌘ + / -',       action: 'Zoom in / out' },
     { key: '⌘ 0',           action: 'Reset zoom' },
-    { key: 'f / ? (⇧/)',    action: 'Fit to screen' },
+    { key: 'f',              action: 'Fit to screen' },
     { key: 'Middle click',   action: 'Pan canvas' },
   ]},
   { category: 'Edit', items: [
@@ -40,6 +40,7 @@ const SHORTCUTS = [
     { key: '⌘ Z',           action: 'Undo' },
     { key: '⌘ ⇧ Z',        action: 'Redo' },
     { key: '⌘ K',           action: 'Command palette' },
+    { key: '?',             action: 'Show shortcuts' },
   ]},
   { category: 'Nodes', items: [
     { key: 'Drag node',      action: 'Move node' },

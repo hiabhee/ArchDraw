@@ -159,13 +159,22 @@ export default function EditorPage() {
 
       if (isEditingText) return;
 
-      // f key or ? (Shift+/) — fit view
-      if (e.key === 'f' || e.key === '?') {
+      // f key — fit view
+      if (e.key === 'f') {
         (e as unknown as Record<string, unknown>).__archdrawFitView = true;
         e.preventDefault();
         if (reactFlowRef.instance?.fitView) {
           reactFlowRef.instance.fitView({ padding: 0.0, duration: 200 });
         }
+        return;
+      }
+
+      // ? (Shift+/) — toggle keyboard shortcuts modal
+      // Canvas owns the modal state; reach it via the same custom-event
+      // pattern used for edit-edge-label.
+      if (e.key === '?') {
+        e.preventDefault();
+        document.dispatchEvent(new CustomEvent('toggle-shortcuts-modal'));
         return;
       }
 
