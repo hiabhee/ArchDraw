@@ -18,8 +18,24 @@ frontend/.next
 
 # Environment
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+
+# Test coverage
+coverage/
+frontend/coverage/
+
+# Dependency lockfiles for scratch/tooling dirs
+.pnp/
+.pnp.js
+
+# OS extras
+Thumbs.db
+*.swp
+
+# Playwright / browser artifacts
+playwright-report/
+blob-report/
 
 # IDE
 .vscode/
