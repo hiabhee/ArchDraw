@@ -52,7 +52,18 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     tier?: string;
     groupLabel?: string;
     label?: string;
+    autoStartLabelEdit?: boolean;
   };
+
+  // Freshly created groups (createGroup) ask to jump straight into title
+  // editing. Clear the one-shot flag so reloading a saved canvas doesn't
+  // re-enter edit mode.
+  useEffect(() => {
+    if (!dataRec.autoStartLabelEdit) return;
+    setIsEditing(true);
+    useDiagramStore.getState().updateNodeData(id, { autoStartLabelEdit: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount, on creation only
+  }, [id]);
 
   const concernHint = dataRec.layer || dataRec.tier || dataRec.label || dataRec.groupLabel;
   const color =

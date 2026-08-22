@@ -524,8 +524,10 @@ export const createGraphSlice: StateCreator<
     const selected = nodes.filter((n) => idsToGroup.includes(n.id));
     const isNested = !!parentId;
 
+    // Top pad clears the group's caption label (top:16 + ~14px text) plus
+    // breathing room, so the title never hides behind child nodes.
     const PAD_SIDE = isNested ? 10 : 14;
-    const PAD_TOP = isNested ? 18 : 24;
+    const PAD_TOP = isNested ? 36 : 44;
     const PAD_BOT = isNested ? 8 : 10;
 
     const rawMinX = Math.min(...selected.map((n) => n.position.x));
@@ -561,7 +563,7 @@ export const createGraphSlice: StateCreator<
       style: { width: maxX - minX, height: maxY - minY },
       width: maxX - minX,
       height: maxY - minY,
-      data: { label: 'Group', groupLabel: 'Group', groupColor },
+      data: { label: 'Group', groupLabel: 'Group', groupColor, autoStartLabelEdit: true },
       zIndex: -1,
       draggable: true,
       selectable: true,

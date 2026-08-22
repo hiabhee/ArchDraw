@@ -161,7 +161,7 @@ describe('applyRfLayout (canonical entry)', () => {
     expect(lr.rankSep).toBe(220);
     // Group padding must match the subgraph sizer exactly (layoutConstants).
     expect(tb.paddingLeft).toBe(28);
-    expect(tb.paddingTop).toBe(48);
+    expect(tb.paddingTop).toBe(44);
     expect(tb.paddingBottom).toBe(28);
   });
 
