@@ -688,3 +688,29 @@ export class OpenRouterClient {
 }
 
 export const apiKeyManager = new ApiKeyManager();
+
+/**
+ * Friendly copy shown when the AI provider is out of token budget
+ * (per-minute/day token limits or exhausted credits). Users see this
+ * instead of raw provider error strings.
+ */
+export const SERVER_BUSY_USER_MESSAGE =
+  'Server is busy because a lot of people are trying to generate diagrams at the same time. Please try again in a few minutes.';
+
+/** Detect upstream token/rate exhaustion from an error message or status. */
+export function isTokenExhaustedError(
+  error: { status?: number; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false;
+  if (error.status === 402 || error.status === 429) return true;
+  const message = (error.message || '').toLowerCase();
+  return (
+    message.includes('rate limit') ||
+    message.includes('too many requests') ||
+    message.includes('token') ||
+    message.includes('tpm') ||
+    message.includes('tpd') ||
+    message.includes('quota') ||
+    message.includes('payment')
+  );
+}

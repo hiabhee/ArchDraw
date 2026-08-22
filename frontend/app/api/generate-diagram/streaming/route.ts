@@ -3,6 +3,7 @@ import { generateDiagram } from '@/lib/ai/services/orchestrator';
 import { inferSystemType, inferComplexity } from '@/lib/ai/utils/promptInference';
 import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
 import logger from '@/lib/logger';
+import { isTokenExhaustedError, SERVER_BUSY_USER_MESSAGE } from '@/lib/ai/utils/apiKeyManager';
 import { z } from 'zod';
 import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
 
@@ -111,12 +112,15 @@ export async function POST(req: NextRequest) {
 
         } catch (error) {
           logger.error('[StreamingAPI] Error:', error);
+          const message = error instanceof Error ? error.message : 'Generation failed';
           if (!controllerClosed) {
             sendEvent({
               type: 'error',
               success: false,
               error: 'generation_failed',
-              details: error instanceof Error ? error.message : 'Generation failed',
+              details: isTokenExhaustedError({ message })
+                ? SERVER_BUSY_USER_MESSAGE
+                : message,
             });
             controller.close();
           }

@@ -5,6 +5,7 @@ import { inferSystemType, inferComplexity } from '@/lib/ai/utils/promptInference
 import type { UserIntent, GenerationProgress } from '@/lib/ai/types';
 import { get as getCachedDiagram, set as setCachedDiagram } from '@/lib/ai/services/diagramCache';
 import logger from '@/lib/logger';
+import { isTokenExhaustedError, SERVER_BUSY_USER_MESSAGE } from '@/lib/ai/utils/apiKeyManager';
 import { z } from 'zod';
 import { getClientIP } from '@/lib/server/ip';
 import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
@@ -131,30 +132,17 @@ export async function POST(req: NextRequest) {
 
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     const err = error as Error & { status?: number };
-    
-    // Check for payment/credit issues
-    if (err.status === 402 || message.includes('402') || message.includes('Payment')) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'payment_required',
-          details: 'AI service quota exceeded. Please try again later or contact support.',
-          userMessage: 'The AI service is temporarily unavailable due to quota limits. Please try again in a few minutes.',
-        },
-        { status: 503 } // Service Unavailable is more appropriate than 502
-      );
-    }
 
-    // Check for rate limiting
-    if (err.status === 429 || message.includes('rate limit') || message.includes('Too many requests')) {
+    // Out of token budget / rate-limited / credits exhausted → friendly busy message
+    if (isTokenExhaustedError({ status: err.status, message })) {
       return NextResponse.json(
         {
           success: false,
-          error: 'rate_limited',
+          error: err.status === 402 ? 'payment_required' : 'rate_limited',
           details: message,
-          userMessage: 'Too many requests. Please wait a moment and try again.',
+          userMessage: SERVER_BUSY_USER_MESSAGE,
         },
-        { status: 429 }
+        { status: err.status === 402 ? 503 : 429 }
       );
     }
 
