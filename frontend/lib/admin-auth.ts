@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
 import { auth } from '@/lib/auth';
 import { getClientIP } from '@/lib/server/ip';
-import { adminSessionTracking, cleanupExpiredSessions } from '@/lib/admin-session-tracking';
+import { adminSessionTracking, cleanupExpiredSessions, getTrackedAdminSession } from '@/lib/admin-session-tracking';
 import logger from '@/lib/logger';
 
 let ALLOWED_ADMIN_EMAIL: string | undefined;
@@ -51,7 +51,9 @@ export async function verifyAdminSession(req: NextRequest): Promise<boolean> {
     // Additional security: verify IP and user agent match (in production)
     if (process.env.NODE_ENV === 'production') {
       cleanupExpiredSessions();
-      const sessionData = adminSessionTracking.get(sessionCookie);
+      // Memory first, Redis fallback so binding survives restarts / replicas.
+      const sessionData =
+        adminSessionTracking.get(sessionCookie) ?? (await getTrackedAdminSession(sessionCookie));
       if (sessionData) {
         const currentIP = getClientIP(req);
         const currentUA = req.headers.get('user-agent') || 'unknown';

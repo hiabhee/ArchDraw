@@ -154,7 +154,6 @@ export async function GET(
         'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'X-Frame-Options': 'ALLOWALL',
       },
     });
   } catch (error) {

@@ -5,6 +5,7 @@ import { clear } from '@/lib/ai/services/diagramCache';
 import { clearBlobCaches } from '@/lib/cache/blobCache';
 import logger from '@/lib/logger';
 import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // Allows pipeline up to 5 minutes to complete
@@ -128,7 +129,11 @@ export async function POST(req: NextRequest) {
   });
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  // Cache flushing is an administrative action; never allow anonymous callers.
+  const adminError = await requireAdmin(req);
+  if (adminError) return adminError;
+
   try {
     clear();
     clearBlobCaches();
