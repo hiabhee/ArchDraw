@@ -24,8 +24,8 @@ function NavItem({ label, icon: Icon, active, onClick }: {
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
         active
-          ? 'bg-brand-text text-white'
-          : 'text-text-muted hover:text-text-primary hover:bg-surface-card'
+          ? 'bg-brand-bg text-brand-text shadow-sm'
+          : 'text-text-muted hover:text-text-primary hover:bg-surface-panel'
       }`}
     >
       <Icon className="w-4 h-4" />
@@ -77,14 +77,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!mounted) {
     return (
-      <div className="dark min-h-screen flex items-center justify-center bg-canvas">
+      <div className="min-h-screen flex items-center justify-center bg-surface-page">
         <div className="w-6 h-6 border-2 border-brand-text border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="dark min-h-screen flex bg-canvas text-text-primary">
+    <div className="min-h-screen flex bg-surface-page text-text-primary">
       {/* Sidebar */}
       <aside className="w-[220px] shrink-0 border-r border-border-default p-4 flex flex-col sticky top-0 h-screen">
         <div className="flex items-center gap-2.5 px-2 mb-6">

@@ -67,7 +67,7 @@ export default function PromptsPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border-default bg-surface-page overflow-hidden">
+      <div className="rounded-xl border border-border-default bg-surface-panel overflow-hidden">
         {/* Header */}
         <div className="grid grid-cols-[140px_1fr_80px_100px_80px] gap-2 py-2 px-3 border-b border-border-default text-[10px] text-text-muted uppercase tracking-wider">
           <span>Time</span>

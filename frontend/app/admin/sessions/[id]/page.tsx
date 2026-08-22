@@ -75,7 +75,7 @@ function EventTimelineRow({ event }: { event: SessionEvent }) {
         </div>
 
         {expanded && Object.keys(event.payload || {}).length > 0 && (
-          <pre className="mt-2 p-2 rounded bg-canvas text-[10px] text-text-secondary overflow-x-auto border border-border-default">
+          <pre className="mt-2 p-2 rounded bg-surface-page text-[10px] text-text-secondary overflow-x-auto border border-border-default">
             {JSON.stringify(event.payload, null, 2)}
           </pre>
         )}
@@ -140,7 +140,7 @@ export default function SessionDetailPage() {
       </button>
 
       {/* Session header */}
-      <div className="rounded-xl border border-border-default bg-surface-page p-4">
+      <div className="rounded-xl border border-border-default bg-surface-panel p-4">
         <div className="flex items-center gap-3 mb-3">
           <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
             isInternal ? 'bg-warning/10 text-warning' : isAuth ? 'bg-success/10 text-success' : 'bg-text-muted/10 text-text-muted'
@@ -170,7 +170,7 @@ export default function SessionDetailPage() {
       </div>
 
       {/* Event timeline */}
-      <div className="rounded-xl border border-border-default bg-surface-page p-4">
+      <div className="rounded-xl border border-border-default bg-surface-panel p-4">
         <h3 className="text-xs text-text-muted uppercase tracking-wider mb-4">Event Timeline</h3>
         <div className="space-y-0">
           {events.map((e) => (

@@ -28,7 +28,7 @@ type FunnelRow = { stage: string; sort_order: number; unique_visitors: number };
 
 function StatCard({ label, value, icon: Icon, sub }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; sub?: string }) {
   return (
-    <div className="rounded-xl border border-border-default bg-surface-page p-4">
+    <div className="rounded-xl border border-border-default bg-surface-panel p-4">
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-4 h-4 text-brand-text" />
         <span className="text-xs text-text-muted uppercase tracking-wider">{label}</span>
@@ -201,13 +201,13 @@ export default function AdminOverview() {
       {/* Charts row */}
       <div className="grid md:grid-cols-2 gap-4">
         {/* Daily visitors */}
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Daily Visitors</h3>
           <MiniLineChart data={data?.daily || []} />
         </div>
 
         {/* Funnel */}
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">
             Funnel <span className="text-brand-text">({funnelConversion}% conversion)</span>
           </h3>
@@ -237,15 +237,15 @@ export default function AdminOverview() {
 
       {/* Bottom row */}
       <div className="grid md:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Top Pages</h3>
           <BarChart data={data?.topPages || []} labelKey="page_path" valueKey="views" />
         </div>
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Top Clicks</h3>
           <BarChart data={data?.topClicks || []} labelKey="event_name" valueKey="clicks" />
         </div>
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Export Formats</h3>
           <BarChart data={data?.exportBreakdown || []} labelKey="format" valueKey="count" />
         </div>
@@ -253,19 +253,19 @@ export default function AdminOverview() {
 
       {/* Feature usage breakdown */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Tutorial Engagement</h3>
           <BarChart data={data?.tutorialBreakdown || []} labelKey="event_name" valueKey="count" />
         </div>
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">AI Generation Events</h3>
           <BarChart data={data?.aiBreakdown || []} labelKey="event_name" valueKey="count" />
         </div>
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Sharing Activity</h3>
           <BarChart data={data?.sharingBreakdown || []} labelKey="event_name" valueKey="count" />
         </div>
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">Settings Changes</h3>
           <BarChart data={data?.settingsBreakdown || []} labelKey="event_name" valueKey="count" />
         </div>

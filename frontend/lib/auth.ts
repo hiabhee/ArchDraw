@@ -76,6 +76,14 @@ export const auth = betterAuth({
   },
   trustedOrigins: Array.from(trustedOrigins),
   baseURL,
+  // better-auth enables its default limiter in production (100 req/min, memory
+  // storage). Pin it explicitly so sign-in retries from one IP don't trip a
+  // surprise 429, while still blocking brute-force abuse.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 20,
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;

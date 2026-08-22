@@ -53,7 +53,7 @@ export default function FunnelPage() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-border-default bg-surface-page p-6">
+      <div className="rounded-xl border border-border-default bg-surface-panel p-6">
         <div className="text-xs text-text-muted mb-6">Last 30 days</div>
 
         {funnel.length === 0 && !loading ? (
@@ -110,7 +110,7 @@ export default function FunnelPage() {
 
       {/* Summary */}
       {funnel.length >= 2 && (
-        <div className="rounded-xl border border-border-default bg-surface-page p-4">
+        <div className="rounded-xl border border-border-default bg-surface-panel p-4">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-2xl font-bold text-text-primary">
