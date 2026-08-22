@@ -26,19 +26,22 @@ function DemoPlaceholder() {
 
 export function InteractiveDemo() {
   const sectionRef = useRef<HTMLElement>(null);
-  // If IntersectionObserver is unavailable (very old browsers / non-DOM env),
-  // render the demo eagerly. Both branches render <DemoPlaceholder/> on the
-  // server (InteractiveLandingDemo is ssr:false), so this initializer is
-  // hydration-safe and avoids a setState inside the effect.
-  const [inView, setInView] = useState(() => typeof IntersectionObserver === 'undefined');
+  // Hydration safety: the server always renders <DemoPlaceholder/>. We only
+  // swap in the (ssr:false) dynamic demo after mount AND once the section
+  // approaches the viewport, so the first client render matches the
+  // server HTML byte-for-byte and all divergence happens post-hydration.
+  const [loadDemo, setLoadDemo] = useState(false);
 
   useEffect(() => {
     const el = sectionRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setLoadDemo(true);
+      return;
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          setInView(true);
+          setLoadDemo(true);
           observer.disconnect();
         }
       },
@@ -87,7 +90,7 @@ export function InteractiveDemo() {
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          {inView ? <InteractiveLandingDemo /> : <DemoPlaceholder />}
+          {loadDemo ? <InteractiveLandingDemo /> : <DemoPlaceholder />}
         </motion.div>
       </div>
     </section>
