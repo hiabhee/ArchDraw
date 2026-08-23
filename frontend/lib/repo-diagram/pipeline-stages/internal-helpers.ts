@@ -1,5 +1,6 @@
 import type { ExtractedNode, RichEdge, StaticSignal, Subsystem, DependencyIntelligence, RepoSnapshot, RepoProfile, FileEntry } from '@/lib/types/repo-diagram';
 import { summarizeSubsystem } from '@/lib/repo-diagram/subsystem-detector';
+import { fetchFileContentsByPaths } from '@/lib/github-ingestion';
 import logger from '@/lib/logger';
 
 export function normalizeId(id: string): string {
@@ -142,7 +143,7 @@ export function buildSummariesForLLM(subsystems: Subsystem[], signals: StaticSig
   });
 }
 
-export function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProfile, cap: number): FileEntry[] {
+export async function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProfile, cap: number): Promise<FileEntry[]> {
   const selected = new Set(snapshot.selectedFiles.map(f => f.path));
   const candidates: string[] = [];
   const allPaths = [
@@ -161,15 +162,20 @@ export function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProfile, c
   }
 
   const map = snapshot.archiveMap;
-  if (!map) {
-    if (candidates.length > 0) {
-      logger.warn(`[gatherPass2Files] archiveMap unavailable (Contents-API fallback) — Pass 2 no-op; ${candidates.length} candidate file(s) would have been fetched`);
-    }
-    return [];
+  if (map) {
+    return candidates.flatMap(path => {
+      const content = map.get(path);
+      return content == null ? [] : [{ path, content }];
+    });
   }
 
-  return candidates.flatMap(path => {
-    const content = map.get(path);
-    return content == null ? [] : [{ path, content }];
-  });
+  // Contents-API fallback: classification-guided pass-2 used to no-op here,
+  // silently degrading every non-tarball run. Fetch the candidates directly
+  // (bounded by `cap`). Uses env GITHUB_TOKEN — private repos authorized only
+  // by a per-request user token degrade to today's behavior for these files.
+  const fetched = await fetchFileContentsByPaths(snapshot.owner, snapshot.repo, candidates);
+  if (fetched.length < candidates.length) {
+    logger.warn(`[gatherPass2Files] Contents-API fallback fetched ${fetched.length}/${candidates.length} pass-2 file(s)`);
+  }
+  return fetched;
 }

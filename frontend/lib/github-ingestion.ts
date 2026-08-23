@@ -262,6 +262,35 @@ async function fetchFileContent(
   return entry;
 }
 
+/**
+ * Fetch a bounded list of files by path via the Contents API (concurrency 5).
+ * Used by pass-2 deep read when tarball ingestion is unavailable. Uses the
+ * env GITHUB_TOKEN (or an explicit user token) for higher rate limits.
+ */
+export async function fetchFileContentsByPaths(
+  owner: string,
+  repo: string,
+  paths: string[],
+  opts?: { userGithubToken?: string; signal?: AbortSignal }
+): Promise<FileEntry[]> {
+  if (paths.length === 0) return [];
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'ArchDraw-App',
+  };
+  const token = opts?.userGithubToken ?? process.env.GITHUB_TOKEN;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const fetched = await promisePool(paths, 5, async (path) => {
+    try {
+      return await fetchFileContent(owner, repo, path, headers, opts?.signal);
+    } catch {
+      return null;
+    }
+  });
+  return fetched.filter((e): e is FileEntry => e !== null);
+}
+
 function determineSurfaceClassification(
   treeItems: GitTreeItem[],
   treeMap: Map<string, GitTreeItem>,

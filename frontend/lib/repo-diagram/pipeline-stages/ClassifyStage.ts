@@ -74,7 +74,7 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
     // Immutable snapshot update for pass-2 files (no in-place mutation)
     let nextSnapshot = snapshot;
     if (repoProfile) {
-      const pass2 = gatherPass2Files(snapshot, repoProfile, detailLevel === 3 ? 40 : 25);
+      const pass2 = await gatherPass2Files(snapshot, repoProfile, detailLevel === 3 ? 40 : 25);
       if (pass2.length > 0) {
         logger.info(`[Pipeline] Pass 2: +${pass2.length} files`);
         nextSnapshot = {
