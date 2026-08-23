@@ -14,6 +14,7 @@ export type VerifierStats = {
   droppedNodes: number;
   edgesCorroborated: number;
   edgesCappedToLow: number;
+  edgesDropped: number;
 };
 
 export type VerifierResult = {
@@ -33,8 +34,12 @@ export type VerifierResult = {
  * Edge checks per edge:
  *  - import-graph or compose_dependency evidence → confidence 'high', keep.
  *  - signal co-occurrence (e.g. route file imports an sdk) → keep as-is.
- *  - no evidence → cap confidence at 'low' (never delete — import graph has blind
- *    spots like dynamic imports / HTTP calls between services / Rails conventions).
+ *  - no evidence, medium+ confidence → cap at 'low' (import graph has blind
+ *    spots like dynamic imports / HTTP calls between services / Rails conventions,
+ *    so medium guesses may still be real).
+ *  - no evidence AND already 'low' → pure speculation with zero support; delete.
+ *    Exception: edges explicitly labelled "(assumed)" are the baseline's
+ *    deliberate single-pair guess and survive demotion.
  *
  * Returns stats for logging + eval diagnostics.
  */
@@ -83,6 +88,7 @@ export function verifyGraph(input: VerifierInput): VerifierResult {
   const verifiedEdges: RichEdge[] = [];
   let edgesCorroborated = 0;
   let edgesCappedToLow = 0;
+  let edgesDropped = 0;
 
   for (const edge of edges) {
     // Filter edges whose endpoints were dropped by the node cleanup.
@@ -107,19 +113,23 @@ export function verifyGraph(input: VerifierInput): VerifierResult {
     // Signal co-occurrence: endpoints both reference files that appear in importGraph at file-level.
     // (Already covered by buildEvidenceEdgeSet when node-sourcefile aggregation is meaningful.)
 
-    // No evidence — never delete outright, but demote to 'low'.
+    // No evidence — medium+ guesses may still be real (import graph blind spots),
+    // so demote to 'low'. Already-low edges are pure speculation: delete them,
+    // except the baseline's deliberate "(assumed)" single-pair guess.
     if (rank[edge.confidence] > rank.low) {
       edgesCappedToLow++;
       verifiedEdges.push({ ...edge, confidence: 'low' });
-    } else {
+    } else if (/\(assumed\)/i.test(edge.label || '')) {
       verifiedEdges.push(edge);
+    } else {
+      edgesDropped++;
     }
   }
 
   return {
     nodes: verifiedNodes,
     edges: verifiedEdges,
-    stats: { droppedSourceFiles, droppedNodes, edgesCorroborated, edgesCappedToLow },
+    stats: { droppedSourceFiles, droppedNodes, edgesCorroborated, edgesCappedToLow, edgesDropped },
   };
 }
 

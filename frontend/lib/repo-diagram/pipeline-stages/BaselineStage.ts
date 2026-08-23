@@ -9,13 +9,28 @@ import { buildEvidenceEdgeSet } from '@/lib/agents/repo-verifier';
 
 function demoteGuessedEdges(edges: RichEdge[], nodes: ExtractedNode[], importGraph?: ImportGraph): RichEdge[] {
   const evidenceEdgeSet = buildEvidenceEdgeSet(nodes, importGraph);
-  return edges.map(e => {
-    if (e.type === 'http_call' && e.label === 'calls') {
-      if (evidenceEdgeSet.has(`${e.from}->${e.to}`)) return e;
-      return { ...e, confidence: 'low' as const, label: 'calls (assumed)' };
+
+  // Index unevidenced "calls" edges per source node. A source guessing at a
+  // single backend is usually right (keep, demoted); a source fanning out to
+  // multiple unevidenced backends is the old all-to-all assumption — drop it.
+  const unevidencedPerSource = new Map<string, number>();
+  for (const e of edges) {
+    if (e.type === 'http_call' && e.label === 'calls' && !evidenceEdgeSet.has(`${e.from}->${e.to}`)) {
+      unevidencedPerSource.set(e.from, (unevidencedPerSource.get(e.from) || 0) + 1);
     }
-    return e;
-  });
+  }
+
+  const result: RichEdge[] = [];
+  for (const e of edges) {
+    if (e.type === 'http_call' && e.label === 'calls' && !evidenceEdgeSet.has(`${e.from}->${e.to}`)) {
+      if ((unevidencedPerSource.get(e.from) || 0) <= 1) {
+        result.push({ ...e, confidence: 'low' as const, label: 'calls (assumed)' });
+      }
+      continue;
+    }
+    result.push(e);
+  }
+  return result;
 }
 
 function unionEdges(edges: RichEdge[]): RichEdge[] {

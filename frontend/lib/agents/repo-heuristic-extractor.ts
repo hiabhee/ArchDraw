@@ -19,7 +19,23 @@ function humanLabel(path: string): string {
     .join(' ');
 }
 
-function detectDbFromFiles(files: FileEntry[]): { id: string; label: string; path: string } | null {
+/**
+ * Prose/documentation files are NOT evidence for DB / external-service
+ * detection — a README mentioning "Stripe" must not fabricate a Stripe node
+ * (golden evals use forbidden-node traps for exactly this). Keyword scans run
+ * on source code and manifests only.
+ */
+function isEvidenceFile(file: FileEntry): boolean {
+  const p = file.path.toLowerCase();
+  if (/\.(md|mdx|txt|rst|adoc)$/.test(p)) return false;
+  if (/(^|\/)(license|licence|changelog|contributing|code_of_conduct|security)(\.|$)/.test(p)) return false;
+  if (/(^|\/)docs?\//.test(p)) return false;
+  if (/(^|\/)(examples?|samples?)\//.test(p)) return false;
+  return true;
+}
+
+function detectDbFromFiles(allFiles: FileEntry[]): { id: string; label: string; path: string } | null {
+  const files = allFiles.filter(isEvidenceFile);
   for (const file of files) {
     const c = file.content.toLowerCase();
     if (c.includes('prisma')) return { id: 'database', label: 'Database (Prisma)', path: file.path };
@@ -42,7 +58,8 @@ function detectDbFromFiles(files: FileEntry[]): { id: string; label: string; pat
   return null;
 }
 
-function detectExternalServices(files: FileEntry[]): { id: string; label: string; type: NodeType; sourceFiles: string[]; capability: string }[] {
+function detectExternalServices(allFiles: FileEntry[]): { id: string; label: string; type: NodeType; sourceFiles: string[]; capability: string }[] {
+  const files = allFiles.filter(isEvidenceFile);
   const services: { name: string; id: string; label: string; file: string; capability: string }[] = [];
   for (const file of files) {
     const c = file.content.toLowerCase();

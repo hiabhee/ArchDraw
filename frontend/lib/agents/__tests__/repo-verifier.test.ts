@@ -73,6 +73,28 @@ describe('verifyGraph (Phase 6.4)', () => {
     expect(out.stats.edgesCappedToLow).toBe(1);
   });
 
+  it('deletes unevidenced already-low edges (pure speculation)', () => {
+    const out = verifyGraph({
+      nodes: [node('a', 'A', 'SERVICE', ['a.ts'], 'high'), node('b', 'B', 'DATABASE', ['b.ts'], 'high')],
+      edges: [{ ...edge('a', 'b', 'http_call', 'low'), label: 'streams events' }],
+      signals: [],
+      fileTree: ['a.ts', 'b.ts'],
+    });
+    expect(out.edges).toHaveLength(0);
+    expect(out.stats.edgesDropped).toBe(1);
+  });
+
+  it('keeps unevidenced "(assumed)" baseline guesses even at low confidence', () => {
+    const out = verifyGraph({
+      nodes: [node('a', 'A', 'SERVICE', ['a.ts'], 'high'), node('b', 'B', 'DATABASE', ['b.ts'], 'high')],
+      edges: [{ ...edge('a', 'b', 'http_call', 'low'), label: 'calls (assumed)' }],
+      signals: [],
+      fileTree: ['a.ts', 'b.ts'],
+    });
+    expect(out.edges).toHaveLength(1);
+    expect(out.stats.edgesDropped).toBe(0);
+  });
+
   it('drops edges whose endpoints were removed by node cleanup', () => {
     const out = verifyGraph({
       nodes: [node('a', 'A', 'SERVICE', ['nonexistent.ts'], 'low')],

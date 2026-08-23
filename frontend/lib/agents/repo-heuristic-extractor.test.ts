@@ -108,6 +108,21 @@ describe('repo-heuristic-extractor', () => {
     expect(hasStripe).toBe(true);
   });
 
+  it('does NOT fabricate external services from prose-only mentions', () => {
+    const snapshot = makeSnapshot({
+      fileTree: ['README.md', 'server.ts'],
+      selectedFiles: [
+        { path: 'README.md', content: '# My Project\n\nPayments powered by Stripe. Auth by Clerk. Email by Resend.' },
+        { path: 'server.ts', content: 'export function handler() { return "ok"; }' },
+      ],
+    });
+
+    const nodes = extractComponentsHeuristic(snapshot);
+    expect(nodes.some((n) => n.id.includes('stripe'))).toBe(false);
+    expect(nodes.some((n) => n.id.includes('clerk'))).toBe(false);
+    expect(nodes.some((n) => n.id.includes('resend'))).toBe(false);
+  });
+
   it('returns empty edges for single node', () => {
     const { edges, workflows } = inferRelationshipsHeuristic([
       { id: 'single', label: 'Only Node', type: 'SERVICE', description: '', sourceFiles: [], confidence: 'medium' },
