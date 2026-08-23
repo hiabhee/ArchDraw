@@ -32,21 +32,22 @@ NEXT_PUBLIC_ADMIN_EMAIL=admin@yourdomain.com
 
 ### Content Security Policy
 
-The application uses a strict Content Security Policy (CSP) to prevent XSS attacks:
+The application uses a strict Content Security Policy (CSP) in `frontend/next.config.ts`:
 
-- `unsafe-eval` has been removed from script sources
-- `unsafe-inline` is retained only where necessary for inline scripts
-- Frame sources are restricted to trusted domains
+- `script-src 'self' 'unsafe-inline' blob:` + `https://*.vercel-scripts.com` — `unsafe-eval` only in `development` for React devtools; never in production
+- A nonce-based `'strict-dynamic'` policy was reverted (see `docs/csp-nonce-client-js-outage.md`) because Next.js only stamps nonces when the root layout opts into dynamic rendering via `headers()`, which broke static pages
+- `/embed/:path*` carries its own `frame-ancestors` policy derived from `ALLOWED_EMBED_DOMAINS`
 
 ### Embed Security
 
-To restrict which domains can embed your diagrams:
+To restrict which domains can embed your diagrams (`/embed/:path*`):
 
 ```env
 ALLOWED_EMBED_DOMAINS=trusted-domain.com,another-trusted-domain.com
+# ALLOWED_EMBED_DOMAINS=*  → explicitly allow embedding from anywhere
 ```
 
-If not set, defaults to allowing all domains (`*`). For production, specify exact domains.
+If not set, defaults to **same-origin only** (`frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN`). For production, set an explicit allowlist or `*` if you need public embeds. Values are validated in `next.config.ts` to prevent CSP injection.
 
 ### API Key Security
 
@@ -99,12 +100,12 @@ Before deploying to production:
 - API keys are never exposed to client-side code
 - Sensitive environment variables are server-side only
 
-### Headers
+### Headers (`next.config.ts:6`)
 - X-Content-Type-Options: nosniff
-- X-XSS-Protection: 1; mode=block
+- X-XSS-Protection: 0 (legacy auditor disabled per OWASP — rely on CSP)
 - Referrer-Policy: strict-origin-when-cross-origin
-- Permissions-Policy: restricts camera, microphone, geolocation
-- Content-Security-Policy: strict CSP policy
+- Permissions-Policy: camera=(), microphone=(), geolocation=()
+- Content-Security-Policy: strict static policy (see above); `frame-ancestors` enforced for embeds
 
 ## Monitoring and Logging
 

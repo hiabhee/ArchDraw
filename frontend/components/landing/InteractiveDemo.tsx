@@ -35,7 +35,8 @@ export function InteractiveDemo() {
   useEffect(() => {
     const el = sectionRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') {
-      setLoadDemo(true);
+      // Defer to avoid synchronous setState-in-effect (hydration guard is intentional).
+      queueMicrotask(() => setLoadDemo(true));
       return;
     }
     const observer = new IntersectionObserver(

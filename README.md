@@ -4,22 +4,23 @@ AI-assisted system architecture diagramming tool. Describe a system in plain Eng
 
 ## Features
 
-- **AI Generation** — Natural language → multi-stage pipeline → styled diagram
-- **Interactive Canvas** — Drag, pan, zoom, group, connect with collision resolution
-- **Multi-Canvas Tabs** — Zustand-backed tab management with undo/redo
-- **Mermaid** — Input/export raw Mermaid syntax with auto-validation
-- **Auto-Layout** — ELK + Dagre for hierarchical layouts
+- **AI Generation** — Natural language → 6-stage pipeline → styled diagram (concept detection, LLM planning, Mermaid materialize, layout, score, validate)
+- **Repo → Diagram** — GitHub URL / tarball → 10-stage pipeline → architecture from code (ingest, analyze, classify, extract, relationships, verify)
+- **Interactive Canvas** — Drag, pan, zoom, group, connect with floating-edge + collision-aware routing
+- **Multi-Canvas Tabs** — Zustand-backed tab management with undo/redo + debounced persistence
+- **Mermaid** — Input / export raw Mermaid with auto-validation and round-trip via `layoutDiagramViaMermaid`
+- **Auto-Layout** — Dagre-only via Mermaid pipeline (`pipeline-shared/layout`); LR / TB toggle in toolbar
 - **Templates** — Pre-built architectures (Netflix, Uber, Instagram, etc.)
 - **Tutorials** — 22+ guided tutorials teaching system architecture
-- **Auth** — better-auth (credentials / Google / GitHub OAuth)
-- **Persistence** — Prisma + Supabase (PostgreSQL) with better-auth
-- **Share & Embed** — Public share links and embeddable viewers
-- **MCP Server** — Protocol server for AI coding assistants to manipulate diagrams
-- **Export** — JSON, Mermaid, PNG, SVG
+- **Auth** — better-auth (Google / GitHub OAuth — email+password disabled) with 7-day sessions
+- **Persistence** — Prisma + Supabase / Neon (PostgreSQL) + guest localStorage fallback
+- **Share & Embed** — Public share links and embeddable viewers (domain allowlist via `ALLOWED_EMBED_DOMAINS`)
+- **MCP Server** — Standalone protocol server for AI assistants (generate, update, validate, layout, template, export)
+- **Export** — JSON, Mermaid, PNG, SVG (SVG/PDF gated for authenticated users)
 
 ## Tech Stack
 
-Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · ELK + Dagre · Groq API · Prisma + Supabase (PostgreSQL) · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
+Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · Dagre (frontend) / ELK (mcp-server only) · Groq · Prisma + Supabase · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
 
 ## Getting Started
 
@@ -102,25 +103,28 @@ frontend/
 ├── app/                  # Next.js App Router pages & API routes
 ├── components/           # React components (Canvas, nodes, edges, panels)
 ├── store/                # Zustand stores (diagram, auth, tutorial, etc.)
-├── lib/                  # Core logic: AI pipeline, Mermaid, canvas
-│   ├── ai/pipeline/      # 8-stage diagram generation pipeline
-│   ├── ai/agents/        # LLM agents
-│   ├── ai/services/      # ELK layout, caching, edge routing
-│   ├── mermaid/          # Mermaid parsing/validation
-│   └── types/            # TypeScript definitions
-├── data/                 # Templates (15+), tutorials (22+), component library
-└── src/                  # Generated Prisma types & utilities
+├── lib/
+│   ├── ai/pipeline/mermaid-pipeline/  # 6-stage AI → Mermaid pipeline
+│   ├── repo-diagram/      # 10-stage Repo → Diagram pipeline
+│   ├── mermaid/           # Mermaid parse / validate / relayout (canonical)
+│   ├── pipeline-shared/layout/  # Dagre layout engine (single owner)
+│   ├── pipeline-core/     # Typed Pipeline / Stage primitives
+│   └── types/             # TypeScript definitions
+├── data/                 # Templates, tutorials, component registry
+└── prisma/               # Schema & migrations (client → src/generated/prisma)
 
-mcp-server/               # Standalone MCP server (10+ tools)
+mcp-server/               # Standalone MCP server (10 tools, ELK layout only here)
 ```
 
 ## AI Pipeline
 
-8-stage pipeline in `lib/ai/pipeline/`: Intent Detection → Reasoning → Diagram Generation → Parse → Validate & Repair (up to 16 retries) → Layout (ELK/Dagre) → Convert (React Flow nodes/edges) → Score.
+6-stage pipeline in `lib/ai/pipeline/mermaid-pipeline/createAiMermaidStages.ts`: Concept Detection → Architecture Planning (LLM or canned `conceptTemplates.ts` for ≤12-word prompts) → Layout Override → Mermaid Materialize (parse → build → Dagre layout → size) → Score → Validate. Canonical relayout is `layoutDiagramViaMermaid` in `lib/mermaid/relayout.ts` (React Flow → Mermaid → Dagre → React Flow).
+
+Repo pipeline in `lib/repo-diagram/pipeline-v2.ts`: Ingest → Cache Check → Analysis → Baseline → Classify → Extract → Relationships → Verify → Finalization → Cache Write.
 
 ## MCP Server
 
-Standalone server at `mcp-server/` exposing tools for AI coding assistants: `generate_diagram`, `fix_layout`, `apply_template`, `get_diagram_state`, `update_diagram`, `validate_diagram`, `export_diagram`, and more.
+Standalone server at `mcp-server/` (self-contained `node_modules`, SDK 1.29). Dev: `npm run dev:mcp` from `frontend/`. Tools: `generate_diagram` (Mermaid-first), `update_diagram`, `validate_diagram`, `fix_layout`, `apply_template`, `export_diagram`, `list_nodes`, `save_checkpoint`, `load_checkpoint`, `read_me`. ELK lives only here — frontend layout is Dagre-only.
 
 ## License
 
