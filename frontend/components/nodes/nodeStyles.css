@@ -149,7 +149,7 @@
 .node-card.selected {
   box-shadow: var(--node-shadow-selected);
   border-color: var(--node-accent);
-  border-width: 2px;
+  /* keep 1.25px so the 10px handles (centered on the border) don’t shift 0.4px when selected */
 }
 
 /* ── Shine Overlay (edit chrome only; hidden in present/export) ── */
@@ -504,7 +504,16 @@
   border-color: var(--node-accent, #0d9488) !important;
   background: #ffffff !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 30%, transparent) !important;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle[data-handlepos="left"]:hover,
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle[data-handlepos="top"]:hover {
   transform: translate(-50%, -50%) scale(1.15) !important;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle[data-handlepos="right"]:hover {
+  transform: translate(50%, -50%) scale(1.15) !important;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle[data-handlepos="bottom"]:hover {
+  transform: translate(-50%, 50%) scale(1.15) !important;
 }
 .dark .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle {
   border-color: #475569 !important;
