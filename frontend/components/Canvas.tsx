@@ -12,7 +12,6 @@ import ReactFlow, {
   type NodeChange,
   type ReactFlowInstance,
   type OnConnectStart,
-  type OnConnectEnd,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useDiagramStore, registerFitViewCallback } from '@/store/diagramStore';
@@ -327,20 +326,20 @@ function CanvasInner() {
     [onConnect]
   );
 
-  const onConnectEnd: OnConnectEnd = useCallback(
-    (event) => {
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
       const start = connectStartRef.current;
       connectStartRef.current = null;
       if (!start) return;
 
       const { clientX, clientY } = 'changedTouches' in event
-        ? event.changedTouches[0]
-        : event;
+        ? (event as TouchEvent).changedTouches[0]
+        : (event as MouseEvent);
 
-      // Minimum drag distance of 5px to avoid accidental triggers from clicks
+      // Minimum drag distance — ignore accidental clicks
       const dx = clientX - start.startX;
       const dy = clientY - start.startY;
-      if (Math.sqrt(dx * dx + dy * dy) < 5) return;
+      if (Math.sqrt(dx * dx + dy * dy) < 8) return;
 
       // React Flow already formed a handle-to-handle connection — do not spawn a node.
       if (connectSucceededRef.current) {
@@ -348,7 +347,7 @@ function CanvasInner() {
         return;
       }
 
-      // Use the pointer position — event.target is often the pane after a valid connect.
+      // DOM fallback for older RF / empty-pane detection
       const dropTarget = document.elementFromPoint(clientX, clientY);
 
       const dropNodeEl = dropTarget?.closest('.react-flow__node') as Element | null;
@@ -378,17 +377,19 @@ function CanvasInner() {
         return;
       }
 
-      const flowPos = reactFlowInstance.screenToFlowPosition({
+      const rawFlowPos = reactFlowInstance.screenToFlowPosition({
         x: clientX,
         y: clientY,
       });
+      // Center the new node under the cursor (addNodeOnEdgeDrop uses top-left).
+      const flowPos = { x: rawFlowPos.x - 100, y: rawFlowPos.y - 44 };
 
-      // Only spawn on empty canvas space — skip if another node is near the drop point.
-      const nearbyPadding = 48;
+      // Only spawn on empty canvas space — small guard to avoid stacking exactly on a node.
+      const nearbyPadding = 20;
       const nearbyNodes = reactFlowInstance.getIntersectingNodes(
         {
-          x: flowPos.x - nearbyPadding,
-          y: flowPos.y - nearbyPadding,
+          x: rawFlowPos.x - nearbyPadding,
+          y: rawFlowPos.y - nearbyPadding,
           width: nearbyPadding * 2,
           height: nearbyPadding * 2,
         },
@@ -558,7 +559,8 @@ function CanvasInner() {
         zoomOnDoubleClick={false}
         connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
         connectionRadius={CANVAS_CONFIG.connectionRadius}
-        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineType={ConnectionLineType.Bezier}
+        connectionLineStyle={{ stroke: isDark ? '#475569' : '#94a3b8', strokeWidth: 1.5, strokeDasharray: '6 4' }}
         snapToGrid={CANVAS_CONFIG.snapToGrid}
         snapGrid={CANVAS_CONFIG.snapGrid}
         defaultMarkerColor={isDark ? '#1E2130' : EDGE_CONFIG.strokeColor}

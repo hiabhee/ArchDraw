@@ -8,8 +8,10 @@ export const CANVAS_CONFIG = {
   minZoom:           0.1,
   maxZoom:           3,
   connectionMode:    'loose' as ConnectionMode,
-  /** Snap to nearest handle when dropping within this radius (px). */
-  connectionRadius:  120,
+  /** Snap to nearest handle when dropping within this radius (px). 32 keeps
+   * empty-pane drops easy (edge-drop new node) while still snapping when
+   * you intentionally hover a handle. */
+  connectionRadius:  32,
   background: {
     variant:         'dots' as BackgroundVariant,
     gap:             20,

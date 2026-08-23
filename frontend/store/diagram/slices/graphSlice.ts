@@ -136,6 +136,8 @@ export const createGraphSlice: StateCreator<
           shape: getNodeShape('Compute'),
           label: '',
           autoStartLabelEdit: true,
+          addedVia: 'edge-drop',
+          addedViaAt: Date.now(),
         },
       }),
       selected: true,

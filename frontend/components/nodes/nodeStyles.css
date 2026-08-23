@@ -484,10 +484,36 @@
   z-index: 0;
 }
 
-/* ── ShapeNode Handles ─────────────────────────────────────────── */
+/* ── ShapeNode Handles (simple floating style) ───────────────────
+   Matches SystemNode floating handles: tiny hollow circles on dark canvas,
+   like the “simple floating edge” example. Always visible in edit mode. */
 .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle {
-  opacity: 1 !important;
+  opacity: 0.9 !important;
   pointer-events: all !important;
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+  border: 1.5px solid #475569 !important;
+  background: #0f172a !important;
+  border-radius: 50% !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle:hover {
+  border-color: var(--node-accent, #0d9488) !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 30%, transparent) !important;
+  transform: translate(-50%, -50%) scale(1.15) !important;
+}
+.dark .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle {
+  border-color: #475569 !important;
+  background: #0f172a !important;
+}
+:root:not(.dark) .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle {
+  border-color: #94a3b8 !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.08) !important;
 }
 
 /* ── Floating Handles (SystemNode) ──────────────────────────────── */
@@ -518,23 +544,41 @@
   transform: translateX(-50%) !important;
 }
 
-/* SystemNode floating handles — visible when node is selected */
+/* SystemNode floating handles — simple floating edge style (image ref)
+   Tiny hollow circles, always visible in edit, subtle gray until hover.
+   Like the “...or me” card in the screenshot: 4 sides, 10px, dark fill. */
 .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh {
-  opacity: 1 !important;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  border: 2px solid var(--node-accent, #0d9488) !important;
-  background: var(--node-card-bg, #ffffff) !important;
+  opacity: 0.9 !important;
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+  border: 1.5px solid #475569 !important;
+  background: #0f172a !important;
   border-radius: 50% !important;
   pointer-events: all !important;
   z-index: 20 !important;
-  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
-
+.dark .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh {
+  border-color: #475569 !important;
+  background: #0f172a !important;
+}
+:root:not(.dark) .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh {
+  border-color: #94a3b8 !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.08) !important;
+}
 .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh:hover {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent);
+  border-color: var(--node-accent, #0d9488) !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 30%, transparent) !important;
+  transform: translateY(-50%) scale(1.15) !important;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh.rh--top:hover,
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh.rh--bottom:hover {
+  transform: translateX(-50%) scale(1.15) !important;
 }
 
 /* ── Kind Decorations ─────────────────────────────────────────────
@@ -1057,39 +1101,42 @@
 .node-svc-dot:first-child { opacity: 0.35; }
 .node-svc-dot:last-child { opacity: 0.15; }
 
-/* ── Active Connection Drag Styling ─────────────────────────────── */
-
-/* Show handles on all nodes while drawing a connection */
+/* ── Active Connection Drag Styling ───────────────────────────────
+   During drag, handles stay subtle like idle, but valid/hover gets accent.
+   Simple floating edge ref: thin gray rings, only the hovered target pops. */
 .react-flow--connection-drawing .react-flow__handle {
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  background: var(--node-card-bg, #ffffff) !important;
-  border: 2px solid var(--node-accent, #0d9488) !important;
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+  background: #0f172a !important;
+  border: 1.5px solid #475569 !important;
   border-radius: 50% !important;
-  opacity: 1 !important;
+  opacity: 0.9 !important;
   pointer-events: all !important;
   z-index: 20 !important;
-  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .react-flow--connection-drawing .node-card .rh {
-  opacity: 1 !important;
-  width: 12px !important;
-  height: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  border: 2px solid var(--node-accent, #0d9488) !important;
-  background: var(--node-card-bg, #ffffff) !important;
+  opacity: 0.9 !important;
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+  border: 1.5px solid #475569 !important;
+  background: #0f172a !important;
   border-radius: 50% !important;
   pointer-events: all !important;
   z-index: 20 !important;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .react-flow--connection-drawing .react-flow__handle:hover,
 .react-flow--connection-drawing .node-card .rh:hover {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent);
+  border-color: var(--node-accent, #0d9488) !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent, #0d9488) 35%, transparent) !important;
 }
 
 /* Source handles yield pointer-events so drops target handles beneath. */

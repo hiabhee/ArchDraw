@@ -37,13 +37,13 @@ import {
 import type { ShapeNodeData } from './types';
 import { resolveShapeLabelLayout } from './labelLayout';
 
-export const HANDLE_STYLE = (color: string) => ({
-  width: 12,
-  height: 12,
-  background: 'var(--node-card-bg, #ffffff)',
-  border: `2px solid ${color}`,
+export const HANDLE_STYLE = (_color: string) => ({
+  width: 10,
+  height: 10,
+  background: '#0f172a',
+  border: `1.5px solid #475569`,
   borderRadius: '50%',
-  transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
+  transition: 'box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease',
 });
 
 /** Renders exactly 2 handles per side (one source, one target). */

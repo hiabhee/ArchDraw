@@ -176,6 +176,9 @@ export function CommandPalette() {
     const serviceType = SERVICE_TYPE_MAP[comp.id] || (comp.category?.toLowerCase().includes('messaging') || comp.category?.toLowerCase().includes('queue') ? 'queue' : comp.category?.toLowerCase().includes('ai') || comp.category?.toLowerCase().includes('ml') ? 'ai' : undefined);
     const blank = isBlankInitComponent(comp.id);
     const node = createPaletteNode(comp, getViewportCenter(), { serviceType, blankInit: blank });
+    // Tag source so handles/render can show a subtle “added via palette” hint (simple floating style)
+    (node.data as Record<string, unknown>).addedVia = 'palette';
+    (node.data as Record<string, unknown>).addedViaAt = Date.now();
     addNode(node);
     if (blank) {
       useDiagramStore.getState().setSelectedNodeId(node.id);
