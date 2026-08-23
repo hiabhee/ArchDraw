@@ -8,6 +8,7 @@ import { rideshareNodes, rideshareEdges } from './rideshare';
 import { fintechPaymentsNodes, fintechPaymentsEdges } from './fintech-payments';
 import { collaborativeDocsNodes, collaborativeDocsEdges } from './collaborative-docs';
 import { foodDeliveryNodes, foodDeliveryEdges } from './food-delivery';
+import { repoToDiagramNodes, repoToDiagramEdges } from './repo-to-diagram';
 
 export interface Template {
   id: string;
@@ -182,5 +183,15 @@ export const TEMPLATES: Template[] = [
     icon: '🍱',
     nodes: foodDeliveryNodes,
     edges: foodDeliveryEdges,
+  }),
+  template({
+    id: 'repo_to_diagram',
+    name: 'How Repo → Diagram Works',
+    description:
+      'The repo-import pipeline itself: GitHub ingestion (tarball + Contents-API fallback), static analysis, deterministic baseline, three LLM agents (classify / extract / relationships), evidence verification, and finalization into a React Flow canvas.',
+    tags: ['Repo Import', 'Pipeline', 'LLM Agents', 'Dagre'],
+    icon: '🔎',
+    nodes: repoToDiagramNodes,
+    edges: repoToDiagramEdges,
   }),
 ];
