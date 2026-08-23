@@ -1,9 +1,7 @@
 import type {
   FileEntry,
 } from '@/lib/types/repo-diagram';
-
-// ~60k characters ≈ ~15k tokens — expanded for comprehensive repo coverage
-const PROMPT_CHAR_BUDGET = 60_000;
+import { SOURCE_FILES_PROMPT_CHARS } from '@/lib/ai/utils/repoModels';
 
 // Per-file hard cap so one giant file can't consume the entire budget
 const PER_FILE_MAX_CHARS = 10_000;
@@ -43,7 +41,7 @@ export function formatSourceFilesForPrompt(files: FileEntry[]): string {
     (a, b) => fileImportancePriority(a.path) - fileImportancePriority(b.path)
   );
 
-  let remainingBudget = PROMPT_CHAR_BUDGET;
+  let remainingBudget = SOURCE_FILES_PROMPT_CHARS;
   const chunks: string[] = [];
 
   for (const file of prioritized) {

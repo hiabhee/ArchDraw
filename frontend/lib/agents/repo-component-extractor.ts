@@ -3,13 +3,13 @@ import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { extractComponentsHeuristic } from './repo-heuristic-extractor';
 import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
-import { REPO_LLM_MODEL, EXTRACTOR_MAX_TOKENS } from '@/lib/ai/utils/repoModels';
+import { REPO_LLM_MODEL, EXTRACTOR_MAX_TOKENS, EXTRACTOR_PROMPT_CHARS } from '@/lib/ai/utils/repoModels';
 import type { RepoSnapshot, RepoProfile, ExtractedNode } from '@/lib/types/repo-diagram';
 import logger from '@/lib/logger';
 
 export type { ExtractedNode };
 
-const KEY_FILE_BUDGET = 20000;
+const KEY_FILE_BUDGET = 60_000;
 
 const ARCHITECTURAL_FILE_PATTERNS = [
   /route\.(ts|js|tsx)$/,
@@ -70,7 +70,7 @@ function pickKeyFiles(snapshot: RepoSnapshot): { path: string; content: string }
   for (const file of scored) {
     if (budget <= 0) break;
     const isReadme = /(^|\/)readme(\.[^/]+)?$/i.test(file.path);
-    const maxChars = isReadme ? 12_000 : 5_000;
+    const maxChars = isReadme ? 16_000 : 10_000;
     const content =
       file.content.length > maxChars
         ? file.content.slice(0, maxChars) + '\n... [truncated]'
@@ -122,10 +122,10 @@ export async function extractComponents(
   staticDetectionReport: string,
   summaries?: string[]
 ): Promise<ExtractedNode[]> {
-  // Prompt capped at ~28k chars (~7.3k tokens) so prompt + max output tokens
-  // stays under the 12K TPM ceiling of llama-3.3-70b-versatile (Groq free tier).
-  const PROMPT_CHAR_CAP = 28_000;
-  const fileTreeText = snapshot.fileTree.slice(0, 250).join('\n');
+  // Budget sized for gpt-oss-120b's context window (the old 28k cap was sized
+  // for the retired llama-3.3-70b 12K TPM ceiling and starved the extractor).
+  const PROMPT_CHAR_CAP = EXTRACTOR_PROMPT_CHARS;
+  const fileTreeText = snapshot.fileTree.slice(0, 1000).join('\n');
   let keyFiles = pickKeyFiles(snapshot);
 
   const summariesBlock = summaries?.length
@@ -261,7 +261,7 @@ Rules:
               },
             ],
             temperature: 0.1,
-            max_tokens: EXTRACTOR_MAX_TOKENS,
+            max_tokens: Math.round(EXTRACTOR_MAX_TOKENS * 1.5),
           })
         );
         const retryParsed = parseLlmJson<Record<string, unknown>>(retryResult, 'ComponentExtractor');

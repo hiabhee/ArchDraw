@@ -35,10 +35,10 @@ function trimDetectionReport(report: string, maxLines = 25): string {
 /**
  * Phase 6.2 — Build a compact evidence pack for the relationship analyst.
  *
- * - Top 30 import-graph adjacencies between node file-sets.
- * - Detected route signals (path → source file), capped at 30.
+ * - Top 120 import-graph adjacencies between node file-sets.
+ * - Detected route signals (path → source file), capped at 100.
  * - docker-compose depends_on edges, queue topics, prisma models.
- * - Keeps the prompt ≤ ~6k tokens; truncated deterministically (by weight).
+ * - Hard-capped at ~50k chars; truncated deterministically (by weight).
  */
 function buildEvidencePack(
   nodes: ExtractedNode[],
@@ -49,7 +49,7 @@ function buildEvidencePack(
 
   // Top import-graph adjacencies.
   if (importGraph) {
-    const adj = topAdjacencies(nodes, importGraph, 50);
+    const adj = topAdjacencies(nodes, importGraph, 120);
     if (adj.length > 0) {
       lines.push('IMPORT GRAPH EVIDENCE (highest-weight file-level links):');
       for (const a of adj) {
@@ -59,7 +59,7 @@ function buildEvidencePack(
   }
 
   // Route signals.
-  const routeSigs = signals.filter((s) => s.type === 'route').slice(0, 50);
+  const routeSigs = signals.filter((s) => s.type === 'route').slice(0, 100);
   if (routeSigs.length > 0) {
     lines.push('\nDETECTED ROUTES:');
     for (const r of routeSigs) lines.push(`  ${r.label}  ←  ${r.source}`);
@@ -88,10 +88,10 @@ function buildEvidencePack(
   }
 
   const out = lines.join('\n');
-  // Hard cap ~5k tokens (~20k chars) so prompt + max output tokens stays under
-  // the 12K TPM ceiling of llama-3.3-70b-versatile. Deterministic — we already
-  // rank by weight upstream.
-  return out.length > 20_000 ? out.slice(0, 20_000) + '\n…[truncated]' : out;
+  // Hard cap ~12k tokens (~50k chars) — sized for gpt-oss-120b's context window
+  // (the old 20k-char cap was sized for the retired llama-3.3-70b 12K TPM
+  // ceiling). Deterministic — we already rank by weight upstream.
+  return out.length > 50_000 ? out.slice(0, 50_000) + '\n…[truncated]' : out;
 }
 
 export async function analyzeRelationships(

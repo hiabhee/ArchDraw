@@ -3,7 +3,7 @@ import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { JSON_OUTPUT_REMINDER, formatSourceFilesForPrompt } from './repo-prompt-utils';
 import { buildFallbackRepoProfile } from './repo-deep-classifier';
-import { REPO_LLM_MODEL, CLASSIFIER_MAX_TOKENS } from '@/lib/ai/utils/repoModels';
+import { REPO_LLM_MODEL, CLASSIFIER_MAX_TOKENS, CLASSIFIER_PROMPT_CHARS } from '@/lib/ai/utils/repoModels';
 import logger from '@/lib/logger';
 import type { RepoSnapshot, RepoProfile, RepoType, ArchitecturePattern } from '@/lib/types/repo-diagram';
 
@@ -38,11 +38,9 @@ export async function classifyRepository(
   staticDetectionReport: string,
   summaries?: string[]
 ): Promise<RepoProfile> {
-  // Phase 4.3: feed the classifier real source-file evidence (file tree up to 500
-  // paths + key source files via formatSourceFilesForPrompt). cheap after Phase 2.
-  // Prompt capped at ~36k chars (~9.5k tokens) so prompt + max_tokens stays under
-  // the 12K TPM ceiling of llama-3.3-70b-versatile on the Groq free tier.
-  const PROMPT_CHAR_CAP = 36_000;
+  // Feed the classifier real source-file evidence (file tree + key source files
+  // via formatSourceFilesForPrompt). Budget sized for gpt-oss-120b's context window.
+  const PROMPT_CHAR_CAP = CLASSIFIER_PROMPT_CHARS;
 
   let sourceFilesBlock = formatSourceFilesForPrompt([
     ...snapshot.phase1Files,
@@ -52,10 +50,10 @@ export async function classifyRepository(
     ? `\nSUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}\n`
     : '';
 
-  let fileTreeOverview = snapshot.fileTree.slice(0, 500).join('\n');
+  let fileTreeOverview = snapshot.fileTree.slice(0, 1500).join('\n');
 
   // Shrink source files (the bulkiest section) if the full prompt would exceed budget.
-  const templatePrefix = `Classify this repository architecture.\n\nSTATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 500 paths):\n`;
+  const templatePrefix = `Classify this repository architecture.\n\nSTATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 1500 paths):\n`;
   const templateSuffix = `\n\nSOURCE FILES (architectural evidence):\n\n${JSON_OUTPUT_REMINDER}\nRequired shape: ...}`;
   const fixedOverhead = templatePrefix.length + templateSuffix.length + summariesBlock.length;
   while (sourceFilesBlock.length + fileTreeOverview.length + fixedOverhead > PROMPT_CHAR_CAP) {
@@ -72,7 +70,7 @@ export async function classifyRepository(
 STATIC DETECTION:
 ${staticDetectionReport}
 
-FILE TREE OVERVIEW (first 800 paths):
+FILE TREE OVERVIEW (first 1500 paths):
 ${fileTreeOverview}${summariesBlock}
 
 SOURCE FILES (architectural evidence):
