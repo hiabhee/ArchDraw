@@ -44,24 +44,41 @@ function edgeTypeForLabel(label?: string): CanvasEdgeType {
 }
 
 import { createNode, createEdge } from '@/lib/factory';
+import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 
 function withCanvasStyle(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
   return {
     nodes: nodes.map((node) => {
-      const { id, type, position, data, ...rest } = node;
-      const t = type || 'systemNode';
+      const { id, position, data } = node;
+      const label = (data?.label as string) || 'Unnamed';
+      // Universal style: simple rectangle like the “frontend” card in the screenshot —
+      // white fill, thin gray border, centered text, 10px hollow handles on the border.
+      // This matches `N` / `Cmd+K` shapeNodes, not the older systemNode card.
+      const { width, height } = calculateNodeDimensions(label, undefined, { shape: 'rectangle' });
       return createNode(
-        (data?.typeId as string) || t,
-        (data?.label as string) || 'Unnamed',
+        (data?.typeId as string) || 'shapeNode',
+        label,
         position || { x: 0, y: 0 },
-        { 
-          id, 
-          type: t, 
+        {
+          id,
+          type: 'shapeNode',
+          width,
+          height,
           data: {
             ...data,
+            label,
+            shape: 'rectangle' as const,
+            nodeWidth: width,
+            nodeHeight: height,
+            showIcon: false,
+            // Universal “frontend” style: plain white rectangle, thin light-gray
+            // border, centered text — no per-category accent/icon.
+            color: '#e2e8f0',
+            accentColor: '#e2e8f0',
+            icon: undefined,
+            category: 'Compute',
             layer: data?.layer || layerForCategory(data?.category as string),
           },
-          ...rest
         }
       );
     }),
