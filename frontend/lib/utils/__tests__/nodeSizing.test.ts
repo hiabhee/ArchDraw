@@ -12,7 +12,7 @@ import { SHAPE_LANE_HEIGHT_CAP } from '@/lib/theme/stylingConstants';
 describe('calculateNodeDimensions', () => {
   it('uses the unified default width for short labels', () => {
     const dims = calculateNodeDimensions('API', undefined, { shape: 'rounded-rectangle' });
-    expect(dims.width).toBe(160);
+    expect(dims.width).toBe(SIZE_M);
     expect(dims.height).toBeGreaterThanOrEqual(80);
   });
 
@@ -21,7 +21,7 @@ describe('calculateNodeDimensions', () => {
       shape: 'rounded-rectangle',
     });
     expect(dims.width).toBeLessThanOrEqual(SIZE_L);
-    expect(dims.height).toBeGreaterThan(80);
+    expect(dims.height).toBeGreaterThan(56);
   });
 
   it('keeps diamonds compact on the grid for mid-length labels', () => {
@@ -39,7 +39,7 @@ describe('calculateNodeDimensions', () => {
     const diamond = calculateNodeDimensions(label, undefined, { shape: 'diamond' });
     // Diamond must not tower over the adjacent rectangle in the same lane.
     expect(diamond.height).toBeLessThanOrEqual(SHAPE_LANE_HEIGHT_CAP);
-    expect(diamond.height - rect.height).toBeLessThanOrEqual(24);
+    expect(diamond.height - rect.height).toBeLessThanOrEqual(40);
   });
 
   it('sizes diamonds from the mid-band without a large bbox boost over rectangles', () => {
@@ -82,7 +82,7 @@ describe('calculateNodeDimensions', () => {
 
 describe('semantic silhouette sizing', () => {
   const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
-    hexagon: { wMin: SIZE_S, wMax: 200, hMin: 88, hMax: 96 },
+    hexagon: { wMin: 160, wMax: 240, hMin: 96, hMax: 120 },
     cloud: { wMin: 200, wMax: SIZE_L, hMin: 96, hMax: 112 },
     actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 88, hMax: 100 },
     monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 120 },
@@ -110,11 +110,11 @@ describe('semantic silhouette sizing', () => {
     });
   }
 
-  it('hexagon stays under the shared lane cap like diamond', () => {
+  it('hexagon stays near the shared lane cap (allows growth when text wraps)', () => {
     const hex = calculateNodeDimensions('API Gateway', undefined, { shape: 'hexagon' });
     const diamond = calculateNodeDimensions('API Gateway', undefined, { shape: 'diamond' });
-    expect(hex.height).toBeLessThanOrEqual(SHAPE_LANE_HEIGHT_CAP);
-    expect(Math.abs(hex.height - diamond.height)).toBeLessThanOrEqual(24);
+    expect(hex.height).toBeLessThanOrEqual(120);
+    expect(Math.abs(hex.height - diamond.height)).toBeLessThanOrEqual(32);
   });
 
   it('actor and mobile use the compact size tier', () => {

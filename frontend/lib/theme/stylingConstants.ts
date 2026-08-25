@@ -13,7 +13,7 @@ export const SIZE_M = 200;
 export const SIZE_L = 240;
 
 export const NODE_WIDTH = SIZE_M;
-export const NODE_HEIGHT = 88;
+export const NODE_HEIGHT = 89;
 /** Max layout height for diamond/circle so ELK lanes stay aligned with rects. */
 export const SHAPE_LANE_HEIGHT_CAP = 96;
 export const BORDER_RADIUS = 10;

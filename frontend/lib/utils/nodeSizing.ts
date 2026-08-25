@@ -15,7 +15,7 @@ export const SIZE_XS = 120;
 
 const AVG_CHAR_WIDTH = 7.2; // ~13–14px semibold
 const LINE_HEIGHT = 18;
-const PADDING_Y = 36;
+const PADDING_Y = 32;
 const MIN_HEIGHT = 80;
 /** Vertical room for icon above label — keep aligned with ICON_SIZE.box. */
 const ICON_STACK = ICON_SIZE.box + 12;
@@ -53,7 +53,7 @@ const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
   parallelogram: 0.72,
   circle: 0.42,
   cylinder: 0.85,
-  hexagon: 0.52,
+  hexagon: 0.58,
   cloud: 0.8,
   actor: 0.56,
   monitor: 0.72,
@@ -71,8 +71,8 @@ const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
 
 /** Mild height padding for non-rect silhouettes (not a large multiplier). */
 const SHAPE_HEIGHT_FACTOR: Record<ShapeFit, number> = {
-  rectangle: 1,
-  'rounded-rectangle': 1,
+  rectangle: 0.92,
+  'rounded-rectangle': 0.92,
   diamond: 1.12,
   parallelogram: 1.05,
   circle: 1.1,
@@ -107,7 +107,7 @@ const SHAPE_PREFERRED_MAX_WIDTH: Record<ShapeFit, number> = {
   parallelogram: SIZE_L,
   circle: SIZE_L,
   cylinder: SIZE_L,
-  hexagon: SIZE_M,
+  hexagon: SIZE_L,
   cloud: SIZE_L,
   actor: SIZE_S,
   monitor: SIZE_L,
@@ -153,16 +153,16 @@ const SHAPE_ABSOLUTE_MAX_WIDTH: Record<ShapeFit, number> = {
 /**
  * Min width per shape — one unified scale so every creation path (palette, AI,
  * Mermaid, quick-add drafts) produces identically sized nodes.
- * Silhouette families share floors: rect-like 160, mid-band 120–140, compact 120.
+ * Rect / rounded-rect are intentionally wider to read as horizontal bars, not squares.
  */
 const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
-  rectangle: 160,
-  'rounded-rectangle': 160,
+  rectangle: SIZE_M,
+  'rounded-rectangle': SIZE_M,
   diamond: 140,
   parallelogram: 160,
   circle: 120,
   cylinder: 160,
-  hexagon: 140,
+  hexagon: 160,
   cloud: 160,
   actor: SIZE_XS,
   monitor: 160,
@@ -184,13 +184,13 @@ const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
  * Bands mirror AGENTS.md §"Node sizing" / nodeSizing.test.ts.
  */
 const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteMax: number }> = {
-  rectangle: { min: MIN_HEIGHT, max: Infinity, absoluteMax: Infinity },
-  'rounded-rectangle': { min: MIN_HEIGHT, max: Infinity, absoluteMax: Infinity },
+  rectangle: { min: 97, max: Infinity, absoluteMax: Infinity },
+  'rounded-rectangle': { min: 97, max: Infinity, absoluteMax: Infinity },
   diamond: { min: 80, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
   parallelogram: { min: MIN_HEIGHT, max: Infinity, absoluteMax: Infinity },
   circle: { min: 80, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
   cylinder: { min: 100, max: Infinity, absoluteMax: Infinity },
-  hexagon: { min: 88, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
+  hexagon: { min: 96, max: 120, absoluteMax: 180 },
   cloud: { min: 96, max: 112, absoluteMax: 160 },
   actor: { min: 88, max: 100, absoluteMax: 130 },
   monitor: { min: 100, max: 120, absoluteMax: 180 },
@@ -241,6 +241,9 @@ function normalizeShape(shape?: string): ShapeFit {
     case 'circle':
     case 'parallelogram':
     case 'rounded-rectangle':
+      return shape;
+    case 'rectangle':
+      return 'rounded-rectangle';
     case 'hexagon':
     case 'cloud':
     case 'actor':
@@ -257,7 +260,7 @@ function normalizeShape(shape?: string): ShapeFit {
     case 'documents':
       return shape;
     default:
-      return 'rectangle';
+      return 'rounded-rectangle';
   }
 }
 
@@ -365,11 +368,11 @@ export function calculateNodeDimensions(
   }
 
   // Use preferred max first, but allow growth to absoluteMax if content needs it.
-  // Diamond/circle switch to the absolute max earlier: their 96px lane cap
-  // (kept so they stay level with rectangles) clips multi-line labels.
-  const isMidBandShape = shape === 'diamond' || shape === 'circle';
+  // Diamond/circle/hexagon switch to the absolute max earlier: their lane cap
+  // clips multi-line labels — allow growth when text wraps.
+  const isMidBandShape = shape === 'diamond' || shape === 'circle' || shape === 'hexagon';
   let effectiveMaxHeight = heightRange.max;
-  if (wrappedLines > 6 || (isMidBandShape && wrappedLines > 3)) {
+  if (wrappedLines > 6 || (isMidBandShape && wrappedLines > 2)) {
     effectiveMaxHeight = heightRange.absoluteMax;
   }
   

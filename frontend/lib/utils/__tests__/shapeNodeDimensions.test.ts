@@ -45,17 +45,17 @@ describe('resolveShapeNodeDimensions', () => {
       id: 'n1',
       type: 'shapeNode',
       position: { x: 0, y: 0 },
-      data: { label: 'API', shape: 'rounded-rectangle', nodeWidth: 160, nodeHeight: 80 },
+      data: { label: 'API', shape: 'rounded-rectangle', nodeWidth: 160, nodeHeight: 48 },
     };
     const wrapped: Node = {
       id: 'n2',
       type: 'shapeNode',
       position: { x: 0, y: 0 },
       data: {
-        label: 'Brokerage API Connector Service',
+        label: 'Brokerage API Connector Service With Extra Long Title That Wraps',
         shape: 'rounded-rectangle',
         nodeWidth: 160,
-        nodeHeight: 80,
+        nodeHeight: 48,
       },
     };
 
@@ -63,6 +63,6 @@ describe('resolveShapeNodeDimensions', () => {
     const wrappedDims = getEffectiveNodeDimensions(wrapped);
 
     expect(wrappedDims.height).toBeGreaterThan(shortDims.height);
-    expect(wrappedDims.height).toBeGreaterThan(80);
+    expect(wrappedDims.height).toBeGreaterThan(48);
   });
 });

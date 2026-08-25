@@ -136,9 +136,11 @@ describe('computeEdgeRoute group-node avoidance', () => {
   });
 
   it('keeps normal node avoidance unchanged when no groups are present', () => {
-    const s = makeNode('s', 0, 100);
-    const t = makeNode('t', 500, 100);
-    const blocker = makeNode('blocker', 260, 70, 120, 140);
+    // Use plain nodes (not shapeNode) so explicit w/h are respected and not
+    // recomputed via shape sizing (which now defaults rect to 200×~98).
+    const s: Node = { id: 's', type: 'default', position: { x: 0, y: 100 }, width: 120, height: 70, data: {} } as unknown as Node;
+    const t: Node = { id: 't', type: 'default', position: { x: 500, y: 100 }, width: 120, height: 70, data: {} } as unknown as Node;
+    const blocker: Node = { id: 'blocker', type: 'default', position: { x: 260, y: 70 }, width: 120, height: 140, data: {} } as unknown as Node;
 
     const edge = makeEdge('e1', 's', 't');
     const route = computeEdgeRoute(edge, [s, blocker, t], [edge], 'LR');
