@@ -109,7 +109,8 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
 
     const { shape: classifiedShape, serviceType } = classifyNode(label, parentGroupName)
     const finalShape = pNode.shapeOverride ?? (pNode.shape !== 'rectangle' ? pNode.shape : classifiedShape)
-    const rfShape = finalShape === 'rounded' ? 'rounded-rectangle' : finalShape
+    const rfShapeRaw = finalShape === 'rounded' ? 'rounded-rectangle' : finalShape
+    const rfShape = rfShapeRaw === 'rectangle' ? 'rounded-rectangle' : rfShapeRaw
     const cylinderAxis = rfShape === 'cylinder' ? resolveCylinderAxis({ serviceType, label }) : undefined
     const { width, height } = calculateNodeDimensions(label, subtitle, {
       shape: rfShape,

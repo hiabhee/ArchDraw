@@ -51,10 +51,10 @@ function withCanvasStyle(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: 
     nodes: nodes.map((node) => {
       const { id, position, data } = node;
       const label = (data?.label as string) || 'Unnamed';
-      // Universal style: simple rectangle like the “frontend” card in the screenshot —
-      // white fill, thin gray border, centered text, 10px hollow handles on the border.
+      // Universal style: rounded rectangle like the “frontend” card in the screenshot —
+      // white fill, thin gray border, centered text, 10px hollow handles outside the border.
       // This matches `N` / `Cmd+K` shapeNodes, not the older systemNode card.
-      const { width, height } = calculateNodeDimensions(label, undefined, { shape: 'rectangle' });
+      const { width, height } = calculateNodeDimensions(label, undefined, { shape: 'rounded-rectangle' });
       return createNode(
         (data?.typeId as string) || 'shapeNode',
         label,
@@ -67,7 +67,7 @@ function withCanvasStyle(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: 
           data: {
             ...data,
             label,
-            shape: 'rectangle' as const,
+            shape: 'rounded-rectangle' as const,
             nodeWidth: width,
             nodeHeight: height,
             showIcon: false,

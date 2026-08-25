@@ -49,7 +49,7 @@ function enrichRepoNodes(nodes: Node[]): Node[] {
     const { shape, serviceType } = classifyNode(label, parentGroupName);
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service'];
     const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1';
-    const finalShape = shape === 'rounded' ? 'rounded-rectangle' : shape;
+    const finalShape = shape === 'rounded' ? 'rounded-rectangle' : shape === 'rectangle' ? 'rounded-rectangle' : shape;
 
     const { width, height } = calculateNodeDimensions(label, subtitle);
 

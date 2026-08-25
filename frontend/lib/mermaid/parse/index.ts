@@ -219,7 +219,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
         nodes.push({
           id,
           label: atShape.label ?? id,
-          shape: atShape.shape ?? 'rectangle',
+          shape: atShape.shape ?? 'rounded',
           subgraphId: currentSubgraphId,
         })
         if (currentSubgraphId) {
@@ -406,7 +406,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       const node: ParsedNode = {
         id,
         label: label || id,
-        shape: detectedShape || 'rectangle',
+        shape: detectedShape || 'rounded',
         subgraphId: currentSubgraphId,
       }
       nodes.push(node)

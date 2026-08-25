@@ -53,7 +53,7 @@ const Canvas = dynamic(() => import('@/components/Canvas').then(m => ({ default:
 
 // Quick-add shape shortcuts (plain key, no modifiers) — blank node + inline rename.
 const QUICK_SHAPE_KEYS: Record<string, ShapeType> = {
-  n: 'rectangle',
+  n: 'rounded-rectangle',
   d: 'diamond',
   c: 'circle',
   y: 'cylinder',

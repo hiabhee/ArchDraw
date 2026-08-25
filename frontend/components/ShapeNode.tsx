@@ -95,8 +95,9 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
       case 'dashed-rectangle': return <DashedRectangle {...shellProps} />;
       case 'document':         return <Document {...shellProps} />;
       case 'documents':        return <Documents {...shellProps} />;
-      case 'rounded-rectangle': return <Rectangle {...shellProps} rounded />;
-      default:                 return <Rectangle {...shellProps} rounded={false} />;
+      case 'rounded-rectangle':
+      case 'rectangle':         return <Rectangle {...shellProps} rounded />;
+      default:                 return <Rectangle {...shellProps} rounded />;
     }
   };
 

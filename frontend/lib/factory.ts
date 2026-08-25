@@ -60,10 +60,11 @@ export function createPaletteNode(
 /** Blank draft shape node (N/D/C/Y keys, canvas double-click) — opens inline rename on place.
  *  Uses the same unified sizing as palette/AI/Mermaid nodes so the canvas stays consistent. */
 export function createBlankShapeNode(
-  shape: ShapeType = 'rectangle',
+  shape: ShapeType = 'rounded-rectangle',
   position: { x: number; y: number },
 ): Node {
-  const { width, height } = calculateNodeDimensions('', undefined, { shape });
+  const normalizedShape = shape === 'rectangle' ? 'rounded-rectangle' : shape;
+  const { width, height } = calculateNodeDimensions('', undefined, { shape: normalizedShape });
 
   return createNode('shapeNode', '', position, {
     type: 'shapeNode',
@@ -72,7 +73,7 @@ export function createBlankShapeNode(
     data: {
       label: '',
       category: 'Compute',
-      shape,
+      shape: normalizedShape,
       nodeWidth: width,
       nodeHeight: height,
       autoStartLabelEdit: true,

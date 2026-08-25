@@ -18,7 +18,6 @@ const SHAPE_GROUPS: { label: string; options: { value: ShapeType; label: string;
   {
     label: 'Basic',
     options: [
-      { value: 'rectangle', label: 'Rectangle', icon: Square },
       { value: 'rounded-rectangle', label: 'Rounded', icon: Square },
       { value: 'diamond', label: 'Diamond', icon: Diamond },
       { value: 'cylinder', label: 'Cylinder', icon: CylinderIcon },
