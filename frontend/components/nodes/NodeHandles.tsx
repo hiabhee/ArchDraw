@@ -30,23 +30,23 @@ function SingleHandle({ side, type, slotOffset, handleTransition, style }: NodeH
   const axisOffset = slotOffset;
   const crossOffset = slotOffset;
 
-  // Pin to side midpoint — center handle exactly on the border.
-  // left/top need -50% (move inward), right/bottom need +50% (move outward) so the
-  // 10px circle’s center sits on the node edge, not 5px inside.
+  // Stick out from the node — handle center sits 12px outside the border
+  // (edge tip also 12px, so arrow feels connected to handle).
+  const OUTSIDE = 12;
   const base: React.CSSProperties = {
     position: 'absolute',
     zIndex: 10,
     transition: handleTransition,
     ...(isHorizontal
       ? {
-          left: side === 'left' ? 0 : 'auto',
-          right: side === 'right' ? 0 : 'auto',
+          left: side === 'left' ? -OUTSIDE : 'auto',
+          right: side === 'right' ? -OUTSIDE : 'auto',
           top: `calc(50% + ${axisOffset}px)`,
           transform: side === 'left' ? 'translate(-50%, -50%)' : 'translate(50%, -50%)',
         }
       : {
-          top: side === 'top' ? 0 : 'auto',
-          bottom: side === 'bottom' ? 0 : 'auto',
+          top: side === 'top' ? -OUTSIDE : 'auto',
+          bottom: side === 'bottom' ? -OUTSIDE : 'auto',
           left: `calc(50% + ${crossOffset}px)`,
           transform: side === 'top' ? 'translate(-50%, -50%)' : 'translate(-50%, 50%)',
         }),
@@ -63,27 +63,33 @@ interface NodeHandlesProps {
 }
 
 /**
- * Two handles per side (source / target). Slots center dynamically per side:
- * when only incoming or only outgoing edges use a side, the active handle
- * moves to the midpoint for a straight attachment.
+ * Strict per-side handle visibility:
+ * - side with only outgoing → only source handle (centered)
+ * - side with only incoming → only target handle (centered)
+ * - side with both → two handles offset ±16
+ * - empty side → both handles overlapping at 0 (preserve creation affordance)
+ * Slots center dynamically per side when only one direction exists.
  */
 export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesProps) {
-  const { getSlotOffset, handleTransition } = useHandleSlotLayout(nodeId);
+  const { getSlotOffset, shouldRenderHandle, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
       {sides.map((side) => {
         const pos = sideToPosition(side);
-        return TYPES.map((type) => (
-          <SingleHandle
-            key={`${type}-${side}`}
-            side={side}
-            type={type}
-            slotOffset={getSlotOffset(pos, type)}
-            handleTransition={handleTransition}
-            style={handleStyle}
-          />
-        ));
+        return TYPES.map((type) => {
+          if (!shouldRenderHandle(pos, type)) return null;
+          return (
+            <SingleHandle
+              key={`${type}-${side}`}
+              side={side}
+              type={type}
+              slotOffset={getSlotOffset(pos, type)}
+              handleTransition={handleTransition}
+              style={handleStyle}
+            />
+          );
+        });
       })}
     </>
   );

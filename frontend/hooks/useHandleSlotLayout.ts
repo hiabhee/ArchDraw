@@ -1,78 +1,237 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Position, type Node } from 'reactflow';
+import { Position, type Node, type Edge } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
-import {
-  getCenteredSides,
-  resolveEdgeTerminalSide,
-  type EdgeSideResolver,
-} from '@/lib/utils/simpleFloatingEdge';
 import {
   computeDynamicSlotOffsets,
   type DynamicSlotOffsets,
 } from '@/lib/utils/handleSlotOrder';
+import {
+  selectBestHandlerPair,
+  type HandlerRect,
+} from '@/lib/utils/handlerPairScorer';
 
 const HANDLE_TRANSITION =
   'top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease';
+
+const SIDES: Position[] = [Position.Left, Position.Right, Position.Top, Position.Bottom];
+
+/* ── helpers matching edgeRouteBuilder geometry ── */
+
+function sideFromDataString(value: unknown): Position | undefined {
+  if (value === 'left' || value === Position.Left) return Position.Left;
+  if (value === 'right' || value === Position.Right) return Position.Right;
+  if (value === 'top' || value === Position.Top) return Position.Top;
+  if (value === 'bottom' || value === Position.Bottom) return Position.Bottom;
+  return undefined;
+}
+
+function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
+  let x = node.position?.x ?? 0;
+  let y = node.position?.y ?? 0;
+  let current: Node | undefined = node;
+  const visited = new Set<string>([node.id]);
+  while (current && (current.parentId || (current as unknown as { parentNode?: string }).parentNode)) {
+    const pId: string | undefined = current.parentId || (current as unknown as { parentNode?: string }).parentNode;
+    if (!pId || visited.has(pId)) break;
+    visited.add(pId);
+    const parent: Node | undefined = nodes.find((n) => n.id === pId);
+    if (!parent || !parent.position) break;
+    x += parent.position.x;
+    y += parent.position.y;
+    current = parent;
+  }
+  return { x, y };
+}
+
+function getNodeRect(node: Node, nodes: Node[]): HandlerRect {
+  const pos = getAbsolutePosition(node, nodes);
+  const { width: w, height: h } = getEffectiveNodeDimensions(node);
+  return { x: pos.x, y: pos.y, width: w, height: h };
+}
+
+function isGroupNode(node: Node): boolean {
+  return (
+    node.type === 'groupNode' ||
+    node.type === 'frameNode' ||
+    node.type === 'group' ||
+    node.type === 'demoGroup' ||
+    (node.data as { isGroup?: boolean } | undefined)?.isGroup === true
+  );
+}
+
+function getAncestorGroupIds(nodeId: string, nodes: Node[]): Set<string> {
+  const result = new Set<string>();
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  let current: Node | undefined = nodeById.get(nodeId);
+  const visited = new Set<string>();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    const parentId = current.parentId || (current as unknown as { parentNode?: string }).parentNode;
+    if (!parentId) break;
+    const parent = nodeById.get(parentId);
+    if (!parent) break;
+    if (isGroupNode(parent)) result.add(parentId);
+    current = parent;
+  }
+  return result;
+}
+
+function buildScorerObstacles(
+  nodes: Node[],
+  excludedIds: Set<string>,
+  passableGroupIds: Set<string>,
+): Map<string, HandlerRect> {
+  const map = new Map<string, HandlerRect>();
+  for (const node of nodes) {
+    if (excludedIds.has(node.id)) continue;
+    if (isGroupNode(node) && passableGroupIds.has(node.id)) continue;
+    const rect = getNodeRect(node, nodes);
+    map.set(node.id, rect);
+  }
+  return map;
+}
+
+function resolveScorerSide(
+  edge: Edge,
+  nodeId: string,
+  nodes: Node[],
+  direction: 'LR' | 'TD',
+): Position | undefined {
+  const data = edge.data as Record<string, unknown> | undefined;
+  // Manual / lane overrides pin the side exactly like edgeRouteBuilder.
+  if (edge.source === nodeId) {
+    const manual = sideFromDataString(data?.sourceSide);
+    if (manual !== undefined) return manual;
+    const lane = sideFromDataString(data?.laneSourceSide);
+    if (lane !== undefined) return lane;
+  } else if (edge.target === nodeId) {
+    const manual = sideFromDataString(data?.targetSide);
+    if (manual !== undefined) return manual;
+    const lane = sideFromDataString(data?.laneTargetSide);
+    if (lane !== undefined) return lane;
+  } else {
+    return undefined;
+  }
+
+  const sourceNode = nodes.find((n) => n.id === edge.source);
+  const targetNode = nodes.find((n) => n.id === edge.target);
+  if (!sourceNode || !targetNode) return undefined;
+
+  const sourceRect = getNodeRect(sourceNode, nodes);
+  const targetRect = getNodeRect(targetNode, nodes);
+  const excluded = new Set([edge.source, edge.target]);
+  const passableGroupIds = new Set<string>([
+    ...getAncestorGroupIds(edge.source, nodes),
+    ...getAncestorGroupIds(edge.target, nodes),
+  ]);
+  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds);
+
+  const manualSource = sideFromDataString(data?.sourceSide);
+  const manualTarget = sideFromDataString(data?.targetSide);
+  const laneSource = sideFromDataString(data?.laneSourceSide);
+  const laneTarget = sideFromDataString(data?.laneTargetSide);
+
+  const pair = selectBestHandlerPair(
+    sourceRect,
+    targetRect,
+    direction,
+    obstacles.size > 0 ? obstacles : undefined,
+    excluded,
+    manualSource,
+    manualTarget,
+    laneSource,
+    laneTarget,
+  );
+  return edge.source === nodeId ? pair.sourceSide : pair.targetSide;
+}
 
 function buildNodePositions(
   nodes: Node[],
 ): Map<string, { x: number; y: number; width: number; height: number }> {
   const map = new Map<string, { x: number; y: number; width: number; height: number }>();
   for (const n of nodes) {
-    const x = n.positionAbsolute?.x ?? n.position.x;
-    const y = n.positionAbsolute?.y ?? n.position.y;
+    const pos = getAbsolutePosition(n, nodes);
     const { width, height } = getEffectiveNodeDimensions(n);
-    map.set(n.id, {
-      x,
-      y,
-      width,
-      height,
-    });
+    map.set(n.id, { x: pos.x, y: pos.y, width, height });
   }
   return map;
 }
 
 /**
  * Per-side handle slot layout for a node.
- * When only incoming OR only outgoing edges use a side, that handle is centered
- * (offset 0) so edges attach flush without crossing the paired slot.
+ * Uses the same scorer as edgeRouteBuilder so the counted side for each edge
+ * matches the rendered side, keeping handle dots and edge anchors aligned.
  *
- * When both directions exist on a side, the slot ordering is derived
- * dynamically from the relative positions of connected nodes.
+ * When only incoming OR only outgoing edges use a side, that handle is
+ * centered (offset 0). When both directions exist on a side, ordering is
+ * derived from relative positions of connected nodes.
+ *
+ * Strict visibility: empty sides show one handle per side (centered, both
+ * types overlapping visually as one); only outgoing shows only source;
+ * only incoming shows only target; both shows two offset ±16.
  */
 export function useHandleSlotLayout(nodeId?: string) {
   const edges = useDiagramStore((s) => s.edges);
   const nodes = useDiagramStore((s) => s.nodes);
+  const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
+  const direction: 'LR' | 'TD' = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
   const nodePositions = useMemo(() => buildNodePositions(nodes), [nodes]);
 
+  // Scorer side for each incident edge, memoized per node.
+  const incidentEdges = useMemo(
+    () => (nodeId ? edges.filter((e) => e.source === nodeId || e.target === nodeId) : []),
+    [edges, nodeId],
+  );
+
+  const edgeSideCache = useMemo(() => {
+    if (!nodeId) return new Map<string, Position>();
+    const cache = new Map<string, Position>();
+    for (const edge of incidentEdges) {
+      const side = resolveScorerSide(edge, nodeId, nodes, direction);
+      if (side) cache.set(edge.id, side);
+    }
+    return cache;
+  }, [incidentEdges, nodeId, nodes, direction]);
+
+  const sidePresence = useMemo(() => {
+    const map = new Map<Position, { hasIncoming: boolean; hasOutgoing: boolean }>();
+    for (const side of SIDES) map.set(side, { hasIncoming: false, hasOutgoing: false });
+    for (const edge of incidentEdges) {
+      const side = edgeSideCache.get(edge.id);
+      if (!side) continue;
+      const entry = map.get(side)!;
+      if (edge.target === nodeId) entry.hasIncoming = true;
+      else entry.hasOutgoing = true;
+    }
+    return map;
+  }, [incidentEdges, edgeSideCache, nodeId]);
+
   const centeredSides = useMemo(() => {
-    if (!nodeId) return new Set<Position>();
-    const nodeById = new Map(nodes.map((n) => [n.id, n]));
-    // Mirror the router: explicit data sides first, then live geometry.
-    const resolveSide: EdgeSideResolver = (edge, nid) =>
-      resolveEdgeTerminalSide(edge, nid, edge.target === nid ? 'target' : 'source', nodeById) ??
-      Position.Right;
-    return getCenteredSides(nodeId, edges, resolveSide);
-  }, [nodeId, edges, nodes]);
+    const set = new Set<Position>();
+    for (const [side, { hasIncoming, hasOutgoing }] of sidePresence.entries()) {
+      if (!(hasIncoming && hasOutgoing)) set.add(side);
+    }
+    return set;
+  }, [sidePresence]);
 
   const dynamicOffsets = useMemo(() => {
     if (!nodeId) return new Map<Position, DynamicSlotOffsets>();
     const map = new Map<Position, DynamicSlotOffsets>();
-    const sides: Position[] = [
-      Position.Left,
-      Position.Right,
-      Position.Top,
-      Position.Bottom,
-    ];
-    for (const side of sides) {
-      map.set(side, computeDynamicSlotOffsets(nodeId, side, edges, nodePositions));
+    // Resolver that returns scorer side for incident edges, undefined otherwise
+    const resolver = (edge: Edge, nid: string): Position | undefined => {
+      if (nid !== nodeId) return undefined;
+      if (edge.source !== nodeId && edge.target !== nodeId) return undefined;
+      return edgeSideCache.get(edge.id);
+    };
+    for (const side of SIDES) {
+      map.set(side, computeDynamicSlotOffsets(nodeId, side, edges, nodePositions, resolver as unknown as (edge: Edge, nodeId: string) => Position | undefined));
     }
     return map;
-  }, [nodeId, edges, nodePositions]);
+  }, [nodeId, edges, nodePositions, edgeSideCache]);
 
   const getSlotOffset = (side: Position, type: 'source' | 'target') => {
     if (centeredSides.has(side)) return 0;
@@ -81,5 +240,15 @@ export function useHandleSlotLayout(nodeId?: string) {
     return type === 'source' ? offsets.outgoingOffset : offsets.incomingOffset;
   };
 
-  return { centeredSides, getSlotOffset, handleTransition: HANDLE_TRANSITION };
+  const shouldRenderHandle = (side: Position, type: 'source' | 'target'): boolean => {
+    const presence = sidePresence.get(side);
+    if (!presence) return false;
+    const { hasIncoming, hasOutgoing } = presence;
+    // Default: each side has a handle. Empty side keeps both types overlapping at 0
+    // (visually one dot, but allows either direction). Single-direction sides show only that type.
+    if (!hasIncoming && !hasOutgoing) return true;
+    return type === 'source' ? hasOutgoing : hasIncoming;
+  };
+
+  return { centeredSides, sidePresence, getSlotOffset, shouldRenderHandle, handleTransition: HANDLE_TRANSITION };
 }

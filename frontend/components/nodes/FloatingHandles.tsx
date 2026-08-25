@@ -44,25 +44,31 @@ interface FloatingHandlesProps {
 }
 
 /**
- * Floating handles for SystemNode. Slot offsets follow per-side
- * edge direction so incoming-from-above uses a centered top target handle.
+ * Floating handles for SystemNode. Strict per-side visibility:
+ * - only outgoing on side → only source handle centered
+ * - only incoming on side → only target handle centered
+ * - both → two handles offset ±16 (aligned with edge anchors)
+ * - empty side → both overlapping at 0 (preserve creation affordance)
  */
 export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
-  const { getSlotOffset, handleTransition } = useHandleSlotLayout(nodeId);
+  const { getSlotOffset, shouldRenderHandle, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
       {SIDES.map((side) => {
         const pos = sideToPosition(side);
-        return TYPES.map((type) => (
-          <SingleFloatingHandle
-            key={`${type}-${side}`}
-            side={side}
-            type={type}
-            slotOffset={getSlotOffset(pos, type)}
-            handleTransition={handleTransition}
-          />
-        ));
+        return TYPES.map((type) => {
+          if (!shouldRenderHandle(pos, type)) return null;
+          return (
+            <SingleFloatingHandle
+              key={`${type}-${side}`}
+              side={side}
+              type={type}
+              slotOffset={getSlotOffset(pos, type)}
+              handleTransition={handleTransition}
+            />
+          );
+        });
       })}
     </>
   );

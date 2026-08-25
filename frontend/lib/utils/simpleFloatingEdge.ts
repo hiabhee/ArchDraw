@@ -262,8 +262,9 @@ export function getCenteredSides(
 
 
 /**
- * Computes an anchor point 24px outside the node boundary for a given side.
- * The edge terminates with a gap between the node and the endpoint.
+ * Computes an anchor point 12px outside the node boundary for a given side.
+ * The edge terminates at the handle center (handle sticks out 12px) so the
+ * arrow tip feels connected to the handle donut.
  * The shiftOffset distributes parallel edges along the side.
  */
 export function getBoundaryAnchor(

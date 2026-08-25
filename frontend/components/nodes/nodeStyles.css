@@ -35,7 +35,7 @@
   min-height: 72px;
   border-radius: var(--arch-radius, 10px);
   background: var(--node-card-bg);
-  padding: 12px 14px 12px 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -47,19 +47,7 @@
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-/* Concern accent rail — meaning without paint-filling the card */
-.node-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--node-accent, #0f766e);
-  opacity: 0.9;
-  pointer-events: none;
-}
+
 
 @media (max-width: 640px) {
   .node-card {
@@ -174,6 +162,7 @@
 .node-header {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   flex: 1;
   min-width: 0;
@@ -341,6 +330,7 @@
   flex: 1;
   min-width: 0;
   word-break: break-word;
+  text-align: center;
   letter-spacing: -0.015em;
   font-family: Inter, "IBM Plex Sans", system-ui, -apple-system, sans-serif;
 }
@@ -527,28 +517,28 @@
 
 /* ── Floating Handles (SystemNode) ──────────────────────────────── */
 /* Override React Flow's default handle positioning to push handles
-   24px outside the node boundary. Uses CSS specificity (!important)
-   because React Flow applies inline styles.
-   --rh-slot shifts source/target along the side (dedicated in/out). */
+    12px outside the node boundary (edge tip also 12px, so arrow connects to handle).
+    Uses CSS specificity (!important) because React Flow applies inline styles.
+    --rh-slot shifts source/target along the side (dedicated in/out). */
 .node-card .rh.rh--left {
-  left: -24px !important;
+  left: -12px !important;
   top: calc(50% + var(--rh-slot, 0px)) !important;
   transform: translateY(-50%) !important;
 }
 .node-card .rh.rh--right {
   left: auto !important;
-  right: -24px !important;
+  right: -12px !important;
   top: calc(50% + var(--rh-slot, 0px)) !important;
   transform: translateY(-50%) !important;
 }
 .node-card .rh.rh--top {
-  top: -24px !important;
+  top: -12px !important;
   left: calc(50% + var(--rh-slot, 0px)) !important;
   transform: translateX(-50%) !important;
 }
 .node-card .rh.rh--bottom {
   top: auto !important;
-  bottom: -24px !important;
+  bottom: -12px !important;
   left: calc(50% + var(--rh-slot, 0px)) !important;
   transform: translateX(-50%) !important;
 }
