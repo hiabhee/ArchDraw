@@ -25,6 +25,7 @@ import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NodeIconModeToggle } from '@/components/NodeIconModeToggle';
+import { CanvasBackgroundControls } from '@/components/toolbar/CanvasBackgroundControls';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -377,6 +378,7 @@ export function Toolbar() {
           </span>
 
           <ThemeToggle />
+          <CanvasBackgroundControls />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
             <Button

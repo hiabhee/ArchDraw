@@ -457,7 +457,7 @@ function CanvasInner() {
     []
   );
 
-  // Double-click empty canvas — drop a blank rectangle draft under the cursor (inline rename starts).
+  // Double-click empty canvas — drop a blank rounded draft under the cursor (inline rename starts).
   const onPaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -466,7 +466,7 @@ function CanvasInner() {
         x: event.clientX,
         y: event.clientY,
       });
-      const node = createBlankShapeNode('rectangle', flowPos);
+      const node = createBlankShapeNode('rounded-rectangle', flowPos);
       node.position = {
         x: flowPos.x - (node.width ?? 160) / 2,
         y: flowPos.y - (node.height ?? 88) / 2,
@@ -501,6 +501,7 @@ function CanvasInner() {
 
   const coloredEdges = useEdgeColors(edges);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
+  const canvasBackground = useDiagramStore((s) => s.canvasBackground);
   const themeVars = useMemo(
     () => resolveCanvasTokens({ renderStyleId: diagramRenderStyle, colorThemeId: diagramStyleTheme, isDark }).cssVars,
     [diagramStyleTheme, diagramRenderStyle, isDark],
@@ -517,7 +518,8 @@ function CanvasInner() {
   return (
     <div 
       className={cn(
-        'w-full h-full relative transition-colors duration-200 bg-[hsl(var(--canvas-bg))] overscroll-contain',
+        'w-full h-full relative transition-colors duration-200 overscroll-contain',
+        !canvasBackground.bgColor && 'bg-[hsl(var(--canvas-bg))]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
         isSketch && sketchHandwritingFont.className,
       )}
@@ -526,7 +528,11 @@ function CanvasInner() {
       data-pipeline={pipelineStatus}
         onDragOver={(e) => e.preventDefault()}
         onDoubleClick={onPaneDoubleClick}
-      style={{ overscrollBehavior: 'contain', ...themeVars }}
+      style={{ 
+        overscrollBehavior: 'contain', 
+        ...(canvasBackground.bgColor ? { backgroundColor: canvasBackground.bgColor } : {}),
+        ...themeVars 
+      }}
     >
       <ReactFlow
         nodes={nodes}
@@ -569,13 +575,15 @@ function CanvasInner() {
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         proOptions={{ hideAttribution: true }}
       >
-        <Background 
-          variant={CANVAS_CONFIG.background.variant as BackgroundVariant} 
-          gap={CANVAS_CONFIG.background.gap} 
-          size={CANVAS_CONFIG.background.size}
-          color={isDark ? '#475569' : CANVAS_CONFIG.background.color}
-          style={{ opacity: isDark ? 0.6 : 0.4 }}
-        />
+        {canvasBackground.variant !== 'plain' && showGrid && (
+          <Background 
+            variant={canvasBackground.variant as BackgroundVariant} 
+            gap={canvasBackground.gap} 
+            size={canvasBackground.size}
+            color={canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)}
+            style={{ opacity: isDark ? 0.6 : 0.4 }}
+          />
+        )}
         <SVGEdgeMarkerDefs />
         <GuideLines />
       </ReactFlow>

@@ -18,6 +18,7 @@ export type UiSlice = Pick<
   | 'activeLayoutPresetId'
   | 'detailLevel'
   | 'isPenModeActive'
+  | 'canvasBackground'
   | 'setGuideLines'
   | 'toggleEdgeAnimations'
   | 'toggleGrid'
@@ -32,6 +33,7 @@ export type UiSlice = Pick<
   | 'setActiveLayoutPresetId'
   | 'setDetailLevel'
   | 'setPenModeActive'
+  | 'setCanvasBackground'
 >;
 
 const isBrowser = typeof window !== 'undefined';
@@ -55,6 +57,13 @@ export const createUiSlice: StateCreator<
   activeLayoutPresetId: 'layered-lr',
   detailLevel: 3,
   isPenModeActive: false,
+  canvasBackground: {
+    variant: 'dots',
+    bgColor: null,
+    patternColor: null,
+    gap: 20,
+    size: 1,
+  },
   setGuideLines: (lines) => set({ guideLines: lines }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setCanvasMode: (mode) => set({ canvasMode: mode }),
@@ -62,6 +71,7 @@ export const createUiSlice: StateCreator<
   setDetailLevel: (level) => set({ detailLevel: level }),
   setPenModeActive: (active) => set({ isPenModeActive: active }),
   toggleGrid: () => set({ showGrid: !get().showGrid }),
+  setCanvasBackground: (patch) => set({ canvasBackground: { ...get().canvasBackground, ...patch } }),
   setIconMode: (mode) => set({ iconMode: mode }),
   setCloudProvider: (toggle) => {
     const { activeCanvasId, canvases } = get();

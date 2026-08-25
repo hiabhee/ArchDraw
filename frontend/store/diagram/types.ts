@@ -151,6 +151,8 @@ export interface DiagramState {
   isPenModeActive: boolean;
   setPenModeActive: (active: boolean) => void;
   clarityReport?: import('@/lib/features/clarityCompiler').ClarityReport;
+  canvasBackground: CanvasBackgroundConfig;
+  setCanvasBackground: (patch: Partial<CanvasBackgroundConfig>) => void;
 
   // ── History ───────────────────────────────────────────────────────────────
   past: HistoryEntry[];
@@ -225,4 +227,13 @@ export interface DiagramState {
   markPipelineDone: () => void;
   markPipelineError: (message: string) => void;
   clearPipelineStatus: () => void;
+}
+
+export type CanvasBackgroundVariant = 'dots' | 'lines' | 'cross' | 'plain';
+export interface CanvasBackgroundConfig {
+  variant: CanvasBackgroundVariant;
+  bgColor: string | null;
+  patternColor: string | null;
+  gap: number;
+  size: number;
 }

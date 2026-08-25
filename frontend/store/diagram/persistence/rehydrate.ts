@@ -169,6 +169,10 @@ export function rehydrateDiagramState(state: DiagramState): void {
     }
     state.canvases = normalizeAllCanvases(state.canvases);
   }
+
+  if (!state.canvasBackground) {
+    state.canvasBackground = { variant: 'dots', bgColor: null, patternColor: null, gap: 20, size: 1 };
+  }
 }
 
 /** Zustand persist `onRehydrateStorage` inner callback factory. */
