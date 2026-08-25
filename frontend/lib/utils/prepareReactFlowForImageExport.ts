@@ -60,16 +60,29 @@ export function restoreReactFlowAfterImageExport(snapshots: PathSnapshot[]): voi
   restorePathSnapshots(snapshots);
 }
 
-/** Skip minimap, controls, and dot background — same crop as PNG export. */
+/** Skip minimap, controls, dot background and handles — handles must never leak into exported PNG. */
 export function reactFlowExportFilter(node: HTMLElement): boolean {
   const cls = node.classList;
   if (!cls) return true;
-  return (
-    !cls.contains('react-flow__minimap') &&
-    !cls.contains('react-flow__controls') &&
-    !cls.contains('react-flow__panel') &&
-    !cls.contains('react-flow__background')
-  );
+  if (
+    cls.contains('react-flow__minimap') ||
+    cls.contains('react-flow__controls') ||
+    cls.contains('react-flow__panel') ||
+    cls.contains('react-flow__background')
+  ) {
+    return false;
+  }
+  // Hide all connection handles (both ReactFlow and custom floating handles) and
+  // node chrome that should not appear in a downloaded diagram.
+  if (
+    cls.contains('react-flow__handle') ||
+    cls.contains('rh') ||
+    cls.contains('node-toolbar') ||
+    cls.contains('group-resize-handle')
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function decodeSvgDataUrl(dataUrl: string): string {

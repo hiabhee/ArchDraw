@@ -302,13 +302,15 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
       const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
       const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
-      const cropRect =
-        isTransparent && reactFlowRef.instance
-          ? computeDiagramCropRect(exportNodes, reactFlowRef.instance.getViewport(), 0.1)
+      const shouldCrop = !!reactFlowRef.instance && exportNodes.length > 0;
+      const cropRect = shouldCrop
+          ? computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12)
           : null;
 
       const { toPng } = await import('html-to-image');
-      const pixelRatio = isTransparent ? 2 : 5;
+      const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      // High-DPI export that beats native screenshot (retina 2x → 4-5x, capped to avoid OOM)
+      const pixelRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2.5)));
 
       let dataUrl = await toPng(element, {
         backgroundColor: bgColor,
