@@ -67,6 +67,6 @@ export function getEffectiveNodeDimensions(node: Node): { width: number; height:
       node.height ??
       measured.measured?.height ??
       (data.nodeHeight as number | undefined) ??
-      80,
+      100,
   };
 }

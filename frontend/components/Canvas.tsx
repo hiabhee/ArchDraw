@@ -469,7 +469,7 @@ function CanvasInner() {
       const node = createBlankShapeNode('rounded-rectangle', flowPos);
       node.position = {
         x: flowPos.x - (node.width ?? 160) / 2,
-        y: flowPos.y - (node.height ?? 88) / 2,
+        y: flowPos.y - (node.height ?? 100) / 2,
       };
       addNode(node);
       setSelectedNodeId(node.id);

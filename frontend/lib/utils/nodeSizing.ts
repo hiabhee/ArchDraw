@@ -16,7 +16,7 @@ export const SIZE_XS = 120;
 const AVG_CHAR_WIDTH = 7.2; // ~13–14px semibold
 const LINE_HEIGHT = 18;
 const PADDING_Y = 32;
-const MIN_HEIGHT = 80;
+const MIN_HEIGHT = 100;
 /** Vertical room for icon above label — keep aligned with ICON_SIZE.box. */
 const ICON_STACK = ICON_SIZE.box + 12;
 
@@ -76,7 +76,7 @@ const SHAPE_HEIGHT_FACTOR: Record<ShapeFit, number> = {
   diamond: 1.12,
   parallelogram: 1.05,
   circle: 1.1,
-  cylinder: 1.08,
+  cylinder: 0.93,
   hexagon: 1.12,
   cloud: 1.12,
   actor: 1.1,
@@ -184,24 +184,24 @@ const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
  * Bands mirror AGENTS.md §"Node sizing" / nodeSizing.test.ts.
  */
 const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteMax: number }> = {
-  rectangle: { min: 97, max: Infinity, absoluteMax: Infinity },
-  'rounded-rectangle': { min: 97, max: Infinity, absoluteMax: Infinity },
-  diamond: { min: 80, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
-  parallelogram: { min: MIN_HEIGHT, max: Infinity, absoluteMax: Infinity },
-  circle: { min: 80, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
+  rectangle: { min: 100, max: Infinity, absoluteMax: Infinity },
+  'rounded-rectangle': { min: 100, max: Infinity, absoluteMax: Infinity },
+  diamond: { min: 100, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
+  parallelogram: { min: 100, max: Infinity, absoluteMax: Infinity },
+  circle: { min: 100, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
   cylinder: { min: 100, max: Infinity, absoluteMax: Infinity },
-  hexagon: { min: 96, max: 120, absoluteMax: 180 },
-  cloud: { min: 96, max: 112, absoluteMax: 160 },
-  actor: { min: 88, max: 100, absoluteMax: 130 },
+  hexagon: { min: 100, max: 120, absoluteMax: 180 },
+  cloud: { min: 100, max: 112, absoluteMax: 160 },
+  actor: { min: 100, max: 112, absoluteMax: 130 },
   monitor: { min: 100, max: 120, absoluteMax: 180 },
   mobile: { min: 100, max: 130, absoluteMax: 180 },
-  'dashed-rectangle': { min: 88, max: 112, absoluteMax: 168 },
+  'dashed-rectangle': { min: 100, max: 112, absoluteMax: 168 },
   // New architecture-native shapes
-  queue: { min: 56, max: 72, absoluteMax: 120 },
-  cache: { min: 88, max: 104, absoluteMax: 156 },
-  'function': { min: 88, max: 104, absoluteMax: 156 },
-  container: { min: 96, max: 120, absoluteMax: 180 },
-  bucket: { min: 96, max: 112, absoluteMax: 168 },
+  queue: { min: 100, max: 100, absoluteMax: 120 },
+  cache: { min: 100, max: 104, absoluteMax: 156 },
+  'function': { min: 100, max: 104, absoluteMax: 156 },
+  container: { min: 100, max: 120, absoluteMax: 180 },
+  bucket: { min: 100, max: 112, absoluteMax: 168 },
   document: { min: 156, max: 195, absoluteMax: 390 },  // Match documents
   documents: { min: 156, max: 195, absoluteMax: 390 },
 };
@@ -273,22 +273,21 @@ export function countPipeLabelLines(label?: string, subtitle?: string): number {
   return Math.max(1, lines.length);
 }
 
-/** Horizontal pipe bbox height — grows with stacked label lines and icon. */
+/** Horizontal pipe bbox height — grows with stacked label lines and icon. Minimum 100px per audit. */
 export function getHorizontalPipeHeight(lineCount: number, showIcon: boolean = false): number {
   const iconPadding = showIcon ? 36 : 0;  // Extra height for icon (ICON_SIZE.box + padding)
-  if (lineCount <= 1) return 40 + iconPadding;
-  if (lineCount === 2) return 52 + iconPadding;
-  return 58 + iconPadding;
+  if (lineCount <= 1) return 100 + iconPadding;
+  if (lineCount === 2) return 110 + iconPadding;
+  return 120 + iconPadding;
 }
 
 /**
- * Queue (horizontal pipe) bbox height — its own band (56–72) so the shape
- * never dips below its spec minimum the way the legacy 40px pipe did.
+ * Queue (horizontal pipe) bbox height — minimum 100px per audit.
  */
 export function getQueuePipeHeight(lineCount: number): number {
-  if (lineCount <= 1) return 56;
-  if (lineCount === 2) return 64;
-  return 72;
+  if (lineCount <= 1) return 100;
+  if (lineCount === 2) return 110;
+  return 120;
 }
 
 /**
@@ -316,7 +315,7 @@ export function calculateNodeDimensions(
   const minWidth = options.minWidth ?? (
     (isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_MIN_WIDTH[shape]
   );
-  const minHeight = options.minHeight ?? ((isHorizontalPipe || isQueue) ? 40 : heightRange.min);
+  const minHeight = options.minHeight ?? ((isHorizontalPipe || isQueue) ? 100 : heightRange.min);
   const preferredMaxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);
   const absoluteMaxWidth = SHAPE_ABSOLUTE_MAX_WIDTH[shape];
   const iconStack = shape === 'diamond' ? DIAMOND_ICON_STACK : ((isHorizontalPipe || isQueue) ? 0 : ICON_STACK);
@@ -400,6 +399,13 @@ export function calculateNodeDimensions(
   if (shape === 'cylinder' && !isHorizontalPipe) {
     width = Math.max(width, options.minWidth ?? 160);
     height = Math.max(height, options.minHeight ?? 100);
+  }
+
+  // Strict audit: default height for every node type is exactly 100px
+  // Single-line labels (including fallback 'Service') must render at 100,
+  // not 107/112/120/195. Multi-line labels may grow beyond 100.
+  if (wrappedLines === 1) {
+    height = 100;
   }
 
   return {

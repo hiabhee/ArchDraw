@@ -116,7 +116,7 @@ export function sanitizeEdges(edges: Edge[]): Edge[] {
 function nodeRectForEdge(node: Node, nodes: Node[]) {
   const pos = getAbsolutePosition(node, nodes);
   const w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-  const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+  const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 100;
   return { x: pos.x, y: pos.y, width: w, height: h };
 }
 
@@ -198,9 +198,9 @@ export function distributeTargetHandles(
     const tPos = getAbsolutePosition(targetNode, nodes);
 
     const sWidth = sourceNode.width ?? (sourceNode.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-    const sHeight = sourceNode.height ?? (sourceNode.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+    const sHeight = sourceNode.height ?? (sourceNode.data as { nodeHeight?: number })?.nodeHeight ?? 100;
     const tWidth = targetNode.width ?? (targetNode.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-    const tHeight = targetNode.height ?? (targetNode.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+    const tHeight = targetNode.height ?? (targetNode.data as { nodeHeight?: number })?.nodeHeight ?? 100;
 
     const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
     const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
@@ -220,7 +220,7 @@ export function distributeTargetHandles(
 
       const pos = getAbsolutePosition(node, nodes);
       const w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-      const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+      const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 100;
       intermediateNodeRects.set(node.id, { id: node.id, x: pos.x, y: pos.y, w, h });
     }
 

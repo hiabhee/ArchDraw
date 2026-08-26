@@ -62,7 +62,7 @@ export const DEFAULT_EDGE_OPTIONS = {
 
 export const NODE_CONFIG = {
   defaultWidth:      200,
-  defaultHeight:     88,
+  defaultHeight:     100,
   duplicateOffset:   40,
   defaultType:       'custom',
   fallback: {
@@ -102,7 +102,7 @@ export const STORAGE_KEY = STORAGE_KEYS.state; // Backwards compatibility for ex
 // ─── THEME ───────────────────────────────────────────────────
 
 export const THEME = {
-  accent:          '#6366f1',
+  accent:          '#3b82f6',
   mutedText:       '#94a3b8',
   border:          'rgba(255,255,255,0.08)',
   cardBg:          '#1e293b',

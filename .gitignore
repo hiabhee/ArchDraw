@@ -57,3 +57,6 @@ frontend/test-results/
 
 # Eval harness output
 frontend/eval-results/
+
+# Handbook — in-depth codebase guides (generated, not tracked)
+docs/handbook/

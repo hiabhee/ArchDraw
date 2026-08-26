@@ -3,6 +3,14 @@ import { componentRegistry } from '@/lib/componentRegistry';
 import logger from '@/lib/logger';
 import { KNOWN_NODE_TYPES, RESERVED_LAYER_LABELS } from '../constants';
 
+const LEGACY_PURPLE = new Set(['#6366f1', '#6366F1', '#8b5cf6', '#a855f7', '#7c3aed']);
+const BLUE_REPLACEMENT = '#3b82f6';
+
+function normalizeLegacyColor(color?: string): string | undefined {
+  if (!color) return color;
+  return LEGACY_PURPLE.has(color) ? BLUE_REPLACEMENT : color;
+}
+
 export function stripReservedLayerNodes(nodes: Node[]): Node[] {
   const result: Node[] = [];
 
@@ -64,6 +72,7 @@ export function sanitizeNodes(nodes: Node[]): Node[] {
       node.data?.isGroup === true;
 
     if (isGroup) {
+      const normalizedGroupColor = normalizeLegacyColor(node.data?.groupColor as string | undefined) ?? normalizeLegacyColor(node.data?.color as string | undefined);
       return {
         ...node,
         type: node.type || 'groupNode',
@@ -71,6 +80,8 @@ export function sanitizeNodes(nodes: Node[]): Node[] {
           label: node.data?.label || node.data?.groupLabel || 'Group',
           groupLabel: node.data?.groupLabel || node.data?.label || 'Group',
           ...node.data,
+          groupColor: normalizedGroupColor ?? (node.data?.groupColor as string | undefined),
+          color: normalizeLegacyColor(node.data?.color as string | undefined) ?? (node.data?.color as string | undefined),
           isGroup: true,
         },
       };
@@ -91,12 +102,26 @@ export function sanitizeNodes(nodes: Node[]): Node[] {
         ...node,
         type: node.type || 'systemNode',
         data: {
+          ...data,
           typeId,
           label: data.label ?? def?.label ?? 'Unnamed',
-          color: data.color ?? def?.color ?? '#6366f1',
+          color: normalizeLegacyColor(data.color as string | undefined) ?? normalizeLegacyColor(def?.color) ?? '#3b82f6',
           category: data.category ?? def?.category ?? 'default',
           icon: data.icon ?? def?.icon ?? 'Box',
-          ...data,
+          accentColor: normalizeLegacyColor((data as { accentColor?: string }).accentColor) ?? (data as { accentColor?: string }).accentColor,
+        },
+      };
+    }
+    // Normalize legacy purple on fully-formed nodes (migrate old diagrams)
+    const d = node.data as Record<string, unknown> | undefined;
+    if (d && (LEGACY_PURPLE.has(d.color as string) || LEGACY_PURPLE.has(d.accentColor as string) || LEGACY_PURPLE.has(d.groupColor as string))) {
+      return {
+        ...node,
+        data: {
+          ...d,
+          color: normalizeLegacyColor(d.color as string) ?? (d.color as string),
+          accentColor: normalizeLegacyColor(d.accentColor as string) ?? (d.accentColor as string),
+          groupColor: normalizeLegacyColor(d.groupColor as string) ?? (d.groupColor as string),
         },
       };
     }

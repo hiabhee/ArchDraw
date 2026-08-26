@@ -1,5 +1,5 @@
 export function getDeterministicColor(str: string): string {
-  const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+  const colors = ['#2563eb', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -174,7 +174,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'external':       '#64748b',
   'client':         '#2563EB',
   'observability':  '#475569',
-  'compute':        '#4F46E5',
-  'serverless':     '#7c3aed',
+  'compute':        '#2563eb',
+  'serverless':     '#2563eb',
   'storage':        '#0369a1',
 }

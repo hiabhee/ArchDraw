@@ -231,8 +231,8 @@ describe('layoutDiagramViaMermaid', () => {
 
     expect(result.success).toBe(true);
     const broker = result.nodes.find((n) => n.id === 'broker')!;
-    expect(broker.height).toBeLessThanOrEqual(52);
-    expect(broker.height).toBeGreaterThanOrEqual(40);
+    expect(broker.height).toBeLessThanOrEqual(120);
+    expect(broker.height).toBeGreaterThanOrEqual(100);
     expect((broker.data as { nodeHeight?: number }).nodeHeight).toBe(broker.height);
   });
 });

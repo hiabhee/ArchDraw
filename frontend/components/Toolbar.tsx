@@ -15,7 +15,6 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import { ShareModal } from '@/components/ShareModal';
-import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
@@ -29,15 +28,7 @@ import { CanvasBackgroundControls } from '@/components/toolbar/CanvasBackgroundC
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+
 import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
 import { RenderStyleToggle } from '@/components/toolbar/ThemeToggles';
@@ -55,7 +46,6 @@ export function Toolbar() {
     isPenModeActive, setPenModeActive,
   } = useDiagramStore();
 
-  const selectedModel = useModelStore((s) => s.selectedModel);
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
@@ -338,41 +328,6 @@ export function Toolbar() {
             >
               <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
             </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="max-w-[130px] truncate px-1.5 py-1 text-[11px] rounded-md bg-transparent text-muted-foreground hover:text-foreground hover:bg-brand/40 transition-all border-0 cursor-pointer focus:outline-none"
-                  title="Select AI model"
-                >
-                  {AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.name || 'Select model'}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {(['groq', 'openrouter'] as const).map((provider, idx) => {
-                  const models = AVAILABLE_MODELS.filter((m) => m.provider === provider);
-                  if (models.length === 0) return null;
-                  return (
-                    <div key={provider}>
-                      {idx > 0 && <DropdownMenuSeparator />}
-                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">
-                        {provider === 'groq' ? 'Groq (Fast)' : 'OpenRouter'}
-                      </DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={selectedModel}
-                        onValueChange={(value) => useModelStore.getState().setSelectedModel(value)}
-                      >
-                        {models.map((m) => (
-                          <DropdownMenuRadioItem key={m.id} value={m.id} className="text-xs">
-                            {m.name}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </div>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
           </span>

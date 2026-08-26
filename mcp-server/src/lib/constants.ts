@@ -56,7 +56,7 @@ export const COMM_COLORS: Record<CommunicationType, CommStyle> = {
 };
 
 export const DEFAULT_NODE_WIDTH = 200;
-export const DEFAULT_NODE_HEIGHT = 70;
+export const DEFAULT_NODE_HEIGHT = 100;
 export const DEFAULT_GROUP_WIDTH = 500;
 export const DEFAULT_GROUP_HEIGHT = 280;
 

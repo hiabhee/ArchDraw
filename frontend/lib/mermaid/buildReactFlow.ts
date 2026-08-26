@@ -118,7 +118,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     })
 
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service']
-    const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1'
+    const categoryColor = CATEGORY_COLORS[meta.category] || '#3b82f6'
     const resolvedIcon = resolveNodeIcon({
       label,
       typeId: meta.typeId,

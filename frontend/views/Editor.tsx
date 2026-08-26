@@ -114,6 +114,13 @@ export default function EditorPage() {
   const canvasSidebarOpenRef = useRef(canvasSidebarOpen);
   sidebarOpenRef.current = sidebarOpen;
   canvasSidebarOpenRef.current = canvasSidebarOpen;
+  // HMR-safe store binding: Fast Refresh may re-evaluate `diagramStore.ts`
+  // and create a new store instance without re-creating this effect closure.
+  // A render-time ref always points at the current module binding so the
+  // global keydown handler never writes to an orphaned store (symptom:
+  // node persisted to localStorage but Canvas never re-renders until refresh).
+  const storeRef = useRef(useDiagramStore);
+  storeRef.current = useDiagramStore;
 
   // Initialize onboarding (auto-open + drag detection)
   useOnboarding();
@@ -123,6 +130,9 @@ export default function EditorPage() {
 
   // Keyboard shortcuts
   useEffect(() => {
+    // Access the store through the render-time ref so HMR never leaves this
+    // captured handler talking to an orphaned instance (see `storeRef` above).
+    const getStore = () => storeRef.current.getState();
     const handler = (e: KeyboardEvent) => {
       // Prevent all global shortcuts if user is typing in an input or contentEditable
       const active = document.activeElement as HTMLElement;
@@ -134,7 +144,7 @@ export default function EditorPage() {
         // Let inputs/editors keep their native select-all; everywhere else select the canvas elements.
         if (!isEditingText) {
           e.preventDefault();
-          useDiagramStore.getState().selectAll();
+          getStore().selectAll();
         }
         return;
       }
@@ -144,7 +154,7 @@ export default function EditorPage() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (!isEditingText) {
-          const { selectedNodeIds, selectedNodeId, duplicateNode } = useDiagramStore.getState();
+          const { selectedNodeIds, selectedNodeId, duplicateNode } = getStore();
           const ids = selectedNodeIds.length > 0
             ? selectedNodeIds
             : selectedNodeId
@@ -181,7 +191,7 @@ export default function EditorPage() {
       // t key — add text label at viewport center
       if (e.key === 't') {
         e.preventDefault();
-        const { pushHistory, appendNode } = useDiagramStore.getState();
+        const { pushHistory, appendNode } = getStore();
         const pos = getViewportCenter();
         pushHistory();
         appendNode(createTextLabelNode(pos, { autoStartEdit: true }));
@@ -192,14 +202,14 @@ export default function EditorPage() {
       const quickShape = QUICK_SHAPE_KEYS[e.key.toLowerCase()];
       if (quickShape && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
-        const { pushHistory, appendNode } = useDiagramStore.getState();
+        const { pushHistory, appendNode } = getStore();
         const pos = getViewportCenter();
         pushHistory();
         appendNode(createBlankShapeNode(quickShape, pos));
         return;
       }
 
-      const { undo, redo, deleteSelected } = useDiagramStore.getState();
+      const { undo, redo, deleteSelected } = getStore();
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
       if (e.key === 'Delete' || e.key === 'Backspace') {

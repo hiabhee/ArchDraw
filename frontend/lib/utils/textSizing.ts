@@ -59,7 +59,7 @@ const TEXT_LINE_HEIGHT = 1.3
 const TEXT_PADDING_X = 16
 const TEXT_PADDING_Y = 12
 const TEXT_MIN_WIDTH = 60
-const TEXT_MIN_HEIGHT = 30
+const TEXT_MIN_HEIGHT = 100
 /** Generous cap — headings may render wider than the 160/200/240 node grid. */
 const TEXT_MAX_WIDTH = 560
 
@@ -67,7 +67,7 @@ const ANNOTATION_LINE_HEIGHT = 1.4
 const ANNOTATION_PADDING_X = 24
 const ANNOTATION_PADDING_Y = 20
 const ANNOTATION_MIN_WIDTH = 180
-const ANNOTATION_MIN_HEIGHT = 80
+const ANNOTATION_MIN_HEIGHT = 100
 const ANNOTATION_MAX_WIDTH = 360
 
 function linesOf(text: string | undefined): string[] {

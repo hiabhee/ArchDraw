@@ -29,7 +29,7 @@ export function convertNodes(
   const {
     defaultNodeType = 'shapeNode',
     defaultWidth = 180,
-    defaultHeight = 60,
+    defaultHeight = 100,
     isGroup,
     transformData,
     transformStyle,

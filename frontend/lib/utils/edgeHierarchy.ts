@@ -17,12 +17,12 @@ export interface EdgeVisual {
 }
 
 const MUTED = {
-  light: '#64748b',
-  dark: '#94a3b8',
-  supportingLight: '#94a3b8',
-  supportingDark: '#64748b',
-  asyncLight: EDGE_STYLES.async.color,
-  asyncDark: '#d97706',
+  light: '#000000',
+  dark: '#ffffff',
+  supportingLight: '#000000',
+  supportingDark: '#ffffff',
+  asyncLight: '#000000',
+  asyncDark: '#ffffff',
 } as const;
 
 /** Request-path / spine edges that should read as the primary flow. */
@@ -87,12 +87,12 @@ export function resolveEdgeVisual(
   }
 
   if (connectionType === 'stream') {
-    const c = palette ? palette.stream : '#10B981';
-    return { stroke: c, markerColor: c, strokeWidth: 1.35, opacity: 0.9, isPrimary: false };
+    const c = isDark ? '#ffffff' : '#000000';
+    return { stroke: c, markerColor: c, strokeWidth: 1.5, opacity: 1, isPrimary: false };
   }
   if (connectionType === 'event') {
-    const c = palette ? palette.event : '#1E90FF';
-    return { stroke: c, markerColor: c, strokeWidth: 1.35, opacity: 0.9, isPrimary: false };
+    const c = isDark ? '#ffffff' : '#000000';
+    return { stroke: c, markerColor: c, strokeWidth: 1.5, opacity: 1, isPrimary: false };
   }
   if (connectionType === 'dep') {
     const c = palette ? palette.dep : isDark ? MUTED.dark : MUTED.light;
@@ -111,29 +111,23 @@ export function resolveEdgeVisual(
   }
 
   if (primary) {
-    // High-contrast request path — warm hand-ink in sketch, brand/neutral in precision.
-    const useBrand = data?.edgeVariant === 'thick' && !sketch;
-    const c = useBrand
-      ? FLOW_ACCENT
-      : palette
-        ? palette.primary
-        : isDark ? '#ffffff' : '#0f172a';
+    const c = palette ? palette.primary : isDark ? '#ffffff' : '#000000';
     return {
       stroke: c,
       markerColor: c,
-      strokeWidth: useBrand ? 2 : sketch ? 1.5 : EDGE_STYLES.primary.width,
+      strokeWidth: sketch ? 1.5 : 1.5,
       opacity: 1,
       isPrimary: true,
     };
   }
 
-  // Secondary sync — slightly quieter than spine, still clearly visible.
-  const c = palette ? palette.default : isDark ? MUTED.dark : MUTED.light;
+  // Secondary sync — merged to same black as primary per product requirement.
+  const c = palette ? palette.default : isDark ? '#ffffff' : '#000000';
   return {
     stroke: c,
     markerColor: c,
-    strokeWidth: sketch ? 1.4 : 1.4,
-    opacity: 0.9,
+    strokeWidth: sketch ? 1.5 : 1.5,
+    opacity: 1,
     isPrimary: false,
   };
 }

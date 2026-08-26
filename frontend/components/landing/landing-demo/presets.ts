@@ -6,9 +6,9 @@ export const PRESETS: Record<'loadBalancer', PresetData> = {
     title: 'Describe simple load balancer...',
     nodes: [
       // Containers — generous vertical gaps so groups / edges do not feel packed
-      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 460, y: 40 }, style: { width: 360, height: 160 }, data: { label: 'CLIENT CONTAINER', color: '#6366f1' }, draggable: true },
+      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 460, y: 40 }, style: { width: 360, height: 160 }, data: { label: 'CLIENT CONTAINER', color: '#3b82f6' }, draggable: true },
       { id: 'LB_GROUP', type: 'demoGroup', position: { x: 460, y: 280 }, style: { width: 360, height: 160 }, data: { label: 'LOAD BALANCER', color: '#22c55e' }, draggable: true },
-      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 40, y: 520 }, style: { width: 1200, height: 160 }, data: { label: 'SERVER POOL', color: '#a855f7' }, draggable: true },
+      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 40, y: 520 }, style: { width: 1200, height: 160 }, data: { label: 'SERVER POOL', color: '#2563eb' }, draggable: true },
       // Nodes
       { id: 'client-node', type: 'demoNode', parentId: 'CLIENT_GROUP', position: { x: 80, y: 44 }, data: { label: 'Client', subtitle: 'Web Browser / iOS', layer: 'client', icon: '🌐' }, draggable: true },
       { id: 'lb-node', type: 'demoNode', parentId: 'LB_GROUP', position: { x: 80, y: 44 }, data: { label: 'Load Balancer', subtitle: 'Nginx Proxy', layer: 'edge', icon: '⚡' }, draggable: true },

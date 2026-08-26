@@ -302,18 +302,11 @@ export default function SimpleFloatingEdge({
   const resolvedStroke = typeof strokeStyle.stroke === 'string' ? strokeStyle.stroke : undefined;
   const arrowheadColor = resolvedStroke ?? '#94a3b8';
 
-  // Same-side terminal merge: edges that share this terminal side land on one
-  // handler. Only the first edge by id draws the arrowhead so the join reads
-  // as a single connection (multiple paths, one tip).
-  const showMergedTargetMarker = useMemo(() => {
-    const currentTargetSide =
-      sideFromDataString(data?.targetSide) ?? targetPos;
-    const siblings = getSharedTerminalEdges(
-      id, target, currentTargetSide, edges, nodeInternals, 'target',
-    );
-    if (siblings.length <= 1) return true;
-    return siblings[0]?.id === id;
-  }, [edges, target, targetPos, nodeInternals, id, data?.targetSide]);
+  // Always show arrowhead — every edge keeps its marker even when
+  // multiple edges share a terminal side. Previously only the first
+  // edge in a merged group drew the tip, which looked like markers
+  // disappearing during rearrange.
+  const showMergedTargetMarker = true;
 
   const sketchDrawPath = useMemo(() => {
     if (!stableEdgePath) return '';
@@ -566,7 +559,7 @@ export default function SimpleFloatingEdge({
               cursor: labelEditing ? 'text' : dragging ? 'grabbing' : 'grab',
               zIndex: 1000,
               userSelect: 'none',
-              marginTop: '-2px',
+              marginTop: '0px',
             }}
             title={labelEditing ? undefined : 'Double-click to edit'}
           >

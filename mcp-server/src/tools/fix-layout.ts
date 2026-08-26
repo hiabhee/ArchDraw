@@ -5,7 +5,7 @@ import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
 import { TIER_COLORS, COMM_COLORS, type CommStyle } from '../lib/constants.js';
 
 const DEFAULT_NODE_WIDTH = 220;
-const DEFAULT_NODE_HEIGHT = 80;
+const DEFAULT_NODE_HEIGHT = 100;
 
 interface InputNode {
   id: string;
@@ -64,7 +64,7 @@ export async function fixLayout(input: FixLayoutInput): Promise<{
         tier: normalizedLayer,
         tierColor,
         width: Math.max(node.width || DEFAULT_NODE_WIDTH, 200),
-        height: Math.max(node.height || DEFAULT_NODE_HEIGHT, 70),
+        height: Math.max(node.height || DEFAULT_NODE_HEIGHT, 100),
         icon: 'box',
         metadata: {},
       };

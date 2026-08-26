@@ -140,7 +140,7 @@ export function createNode(
       typeId,
       componentType: typeId,
       label:    label ?? def?.label ?? 'Unnamed',
-      color:    def?.color    ?? '#6366f1',
+      color:    def?.color    ?? '#3b82f6',
       category: def?.category ?? 'default',
       ...rawData,
       icon:     resolvedIcon.icon,

@@ -131,7 +131,7 @@ export const createGraphSlice: StateCreator<
         type: 'systemNode',
         data: {
           category: 'Compute',
-          color: '#6366f1',
+          color: '#3b82f6',
           icon: 'Box',
           shape: getNodeShape('Compute'),
           label: '',
@@ -551,7 +551,7 @@ export const createGraphSlice: StateCreator<
     const maxY = rawMaxY + PAD_BOT;
 
     const existingGroupCount = nodes.filter((n) => n.type === 'groupNode' || n.data?.isGroup).length;
-    const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+    const colors = ['#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#2563eb', '#06b6d4'];
     const groupColor = colors[existingGroupCount % colors.length];
 
     const groupId = `group-${Date.now()}`;

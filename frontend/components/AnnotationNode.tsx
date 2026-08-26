@@ -239,7 +239,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
     <>
       <NodeResizer
         minWidth={160}
-        minHeight={80}
+        minHeight={100}
         isVisible={!!selected}
         lineStyle={{ borderColor: 'hsl(var(--border))', borderWidth: 1 }}
         handleStyle={{ width: 8, height: 8, background: 'hsl(var(--muted-foreground))', borderRadius: 2 }}

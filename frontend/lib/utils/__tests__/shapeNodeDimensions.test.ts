@@ -3,7 +3,7 @@ import { resolveShapeNodeDimensions, getEffectiveNodeDimensions } from '@/lib/ut
 import type { Node } from 'reactflow';
 
 describe('resolveShapeNodeDimensions', () => {
-  it('uses 52px height for horizontal pipe with title and subtitle', () => {
+  it('uses 110px height for horizontal pipe with title and subtitle', () => {
     const dims = resolveShapeNodeDimensions({
       label: 'Brokerage API',
       sublabel: 'Connector',
@@ -11,7 +11,7 @@ describe('resolveShapeNodeDimensions', () => {
       serviceType: 'queue',
     });
 
-    expect(dims.height).toBe(52);
+    expect(dims.height).toBe(110);
   });
 
   it('ignores stale vertical nodeHeight on horizontal pipe cylinders', () => {
@@ -24,8 +24,8 @@ describe('resolveShapeNodeDimensions', () => {
       nodeHeight: 112,
     });
 
-    expect(dims.height).toBeLessThanOrEqual(52);
-    expect(dims.height).toBeGreaterThanOrEqual(40);
+    expect(dims.height).toBeLessThanOrEqual(110);
+    expect(dims.height).toBeGreaterThanOrEqual(100);
     expect(dims.width).toBeGreaterThanOrEqual(240);
   });
 

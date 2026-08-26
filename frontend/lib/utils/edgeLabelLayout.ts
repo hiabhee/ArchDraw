@@ -25,12 +25,11 @@ const LABEL_SAFE_SCALE = 2
 const BORDER_RADIUS = 24
 /**
  * Perpendicular spacing between labels of parallel edges (same source/target
- * pair). Parallel edges often render as identical lines, so fanning the label
- * t-position alone cannot separate their pills; they are stacked at right
- * angles to the path instead. Must be >= reserved label height (2 * 11 = 22)
- * to guarantee non-overlap. User-dragged labels (labelT) are not stacked.
+ * pair). Set to 0 so labels sit directly on the edge path per product
+ * requirement — edge labels must be on the edge, not offset away by pixels.
+ * User-dragged labels (labelT) are also on the path.
  */
-const PARALLEL_LABEL_STACK_GAP = 32
+const PARALLEL_LABEL_STACK_GAP = 0
 
 function estimateLabelSize(text: string): { w: number; h: number } {
   const cssWidth = Math.max(LABEL_MIN_WIDTH_CSS, text.length * LABEL_WIDTH_PER_CHAR + LABEL_HORIZONTAL_PADDING)
@@ -703,15 +702,11 @@ function computeLayout(
   const placed: PlacedRect[] = []
   const result = new Map<string, EdgeLabelAnchor>()
   /**
-   * Try path-aligned first (perp 0), then nudge progressively further off the
-   * wire. The ladder MUST reach far enough to clear a full node height/width in
-   * a tight layout — a standard node is ~88px, so a label centered on a wire
-   * running beside it needs up to ~128px of perpendicular escape. Truncating
-   * this ladder trades tighter labels for labels that overlap nodes, which the
-   * "labels never cover a node" invariant (see tests) forbids. Small offsets are
-   * tried first, so labels still hug the wire whenever the gap allows.
+   * Labels must sit directly on the edge path — no perpendicular escape.
+   * Previous ladder [0,22,-22,...,128,-128] offset labels away from the wire
+   * to avoid node overlaps, but product requirement is edge labels on the edge.
    */
-  const NODE_ESCAPE_PERPS = [0, 22, -22, 36, -36, 52, -52, 70, -70, 96, -96, 128, -128]
+  const NODE_ESCAPE_PERPS = [0]
 
   for (const item of workItems) {
     const pointFor = (t: number, perp: number): LabelCandidate => {

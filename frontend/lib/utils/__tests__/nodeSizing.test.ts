@@ -13,7 +13,7 @@ describe('calculateNodeDimensions', () => {
   it('uses the unified default width for short labels', () => {
     const dims = calculateNodeDimensions('API', undefined, { shape: 'rounded-rectangle' });
     expect(dims.width).toBe(SIZE_M);
-    expect(dims.height).toBeGreaterThanOrEqual(80);
+    expect(dims.height).toBeGreaterThanOrEqual(100);
   });
 
   it('stays on the optical grid for long rectangle labels (wraps instead of growing past L)', () => {
@@ -21,7 +21,7 @@ describe('calculateNodeDimensions', () => {
       shape: 'rounded-rectangle',
     });
     expect(dims.width).toBeLessThanOrEqual(SIZE_L);
-    expect(dims.height).toBeGreaterThan(56);
+    expect(dims.height).toBeGreaterThanOrEqual(100);
   });
 
   it('keeps diamonds compact on the grid for mid-length labels', () => {
@@ -30,7 +30,7 @@ describe('calculateNodeDimensions', () => {
     expect(diamond.width).toBeLessThanOrEqual(SIZE_L);
     expect(diamond.width).toBeGreaterThanOrEqual(SIZE_S);
     expect(diamond.height).toBeLessThanOrEqual(SHAPE_LANE_HEIGHT_CAP);
-    expect(diamond.height).toBeGreaterThanOrEqual(80);
+    expect(diamond.height).toBeGreaterThanOrEqual(100);
   });
 
   it('caps diamonds at the lane height so they stay level with rectangles', () => {
@@ -72,9 +72,9 @@ describe('calculateNodeDimensions', () => {
       cylinderAxis: 'horizontal',
     });
 
-    expect(single.height).toBe(40);
-    expect(twoLines.height).toBe(52);
-    expect(threeLines.height).toBe(58);
+    expect(single.height).toBe(100);
+    expect(twoLines.height).toBe(110);
+    expect(threeLines.height).toBe(120);
     expect(twoLines.height).toBeGreaterThan(single.height);
     expect(threeLines.height).toBeGreaterThan(twoLines.height);
   });
@@ -82,18 +82,18 @@ describe('calculateNodeDimensions', () => {
 
 describe('semantic silhouette sizing', () => {
   const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
-    hexagon: { wMin: 160, wMax: 240, hMin: 96, hMax: 120 },
-    cloud: { wMin: 200, wMax: SIZE_L, hMin: 96, hMax: 112 },
-    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 88, hMax: 100 },
+    hexagon: { wMin: 160, wMax: 240, hMin: 100, hMax: 120 },
+    cloud: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 112 },
+    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 112 },
     monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 120 },
     mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 130 },
-    'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 88, hMax: 112 },
+    'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 112 },
     // New architecture-native shapes
-    queue: { wMin: SIZE_M, wMax: SIZE_L, hMin: 56, hMax: 72 },
-    cache: { wMin: SIZE_S, wMax: SIZE_M, hMin: 88, hMax: 104 },
-    function: { wMin: SIZE_S, wMax: SIZE_M, hMin: 88, hMax: 104 },
-    container: { wMin: SIZE_M, wMax: SIZE_L, hMin: 96, hMax: 120 },
-    bucket: { wMin: SIZE_S, wMax: SIZE_M, hMin: 96, hMax: 112 },
+    queue: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    cache: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 104 },
+    function: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 104 },
+    container: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 120 },
+    bucket: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 112 },
   };
 
   for (const [shape, band] of Object.entries(bands)) {

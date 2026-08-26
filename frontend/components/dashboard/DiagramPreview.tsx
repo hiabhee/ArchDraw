@@ -39,8 +39,8 @@ function getTierColor(layer?: string): string {
   const tier = (layer || 'compute').toLowerCase();
   const colorMap: Record<string, string> = {
     client: '#64748b',
-    edge: '#6366f1',
-    gateway: '#6366f1',
+    edge: '#3b82f6',
+    gateway: '#3b82f6',
     compute: '#0d9488',
     service: '#0d9488',
     async: '#d97706',
@@ -55,7 +55,7 @@ function getTierColor(layer?: string): string {
 }
 
 function getDeterministicColor(str: string): string {
-  const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+  const colors = ['#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#2563eb', '#06b6d4'];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);

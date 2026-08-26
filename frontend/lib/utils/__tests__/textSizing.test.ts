@@ -23,8 +23,9 @@ describe('estimateTextNodeSize', () => {
 
   it('counts explicit line breaks', () => {
     const one = estimateTextNodeSize('One line');
-    const two = estimateTextNodeSize('Line one\nLine two');
-    expect(two.height).toBeGreaterThan(one.height);
+    const four = estimateTextNodeSize('Line one\nLine two\nLine three\nLine four\nLine five');
+    expect(four.height).toBeGreaterThan(one.height);
+    expect(four.height).toBeGreaterThan(100);
   });
 
   it('has a floor for empty text', () => {
@@ -45,7 +46,7 @@ describe('estimateAnnotationNodeSize', () => {
   it('respects the annotation min box', () => {
     const { width, height } = estimateAnnotationNodeSize('Note');
     expect(width).toBeGreaterThanOrEqual(180);
-    expect(height).toBeGreaterThanOrEqual(80);
+    expect(height).toBeGreaterThanOrEqual(100);
   });
 
   it('keeps the shared font maps in sync with the components', () => {
