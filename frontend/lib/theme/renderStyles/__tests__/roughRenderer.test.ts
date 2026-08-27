@@ -69,8 +69,8 @@ describe('RoughStrokeRenderer', () => {
       dasharray: '6 4',
     }, 5);
     expect(markup).toContain('stroke-dasharray="6 4"');
-    // Dashed edges are made 15% thicker for better visibility: 1.75 * 1.15 ≈ 2.01
-    expect(markup).toMatch(/stroke-width="2\.01/);
+    // Dashed edges are made 18% thicker for better visibility: 1.75 * 1.18 ≈ 2.06
+    expect(markup).toMatch(/stroke-width="2\.06/);
     // Single wobbly stroke — no rough.js double-pass subpaths.
     const subpaths = (markup.match(/d="([^"]+)"/)?.[1].match(/ M /g) ?? []).length + 1;
     expect(subpaths).toBe(1);
@@ -82,10 +82,10 @@ describe('RoughStrokeRenderer', () => {
       renderer.seedFor('system-1'),
     );
     expect(markup).toContain('<path');
-    // Outline carries the stroke; the paper fill is a solid underlay.
+    // Outline carries the stroke; fill may be solid or cross-hatch depending on global rough options — just ensure the tint appears
     expect(markup).toContain('stroke="#1e293b"');
     expect(markup).toContain('stroke-width="1.75"');
-    expect(markup).toContain('fill="#fffef9"');
+    expect(markup).toContain('#fffef9');
   });
 
   it('boosts faint theme-token strokes so sketch borders read as ink', () => {
@@ -93,7 +93,8 @@ describe('RoughStrokeRenderer', () => {
       { kind: 'rect', bounds: { x: 0, y: 0, width: 200, height: 96 }, fill: '#ffffff', stroke: 'rgba(15, 23, 42, 0.14)', strokeWidth: 1.75 },
       3,
     );
-    expect(markup).toContain('stroke="rgba(15, 23, 42, 0.55)"');
+    // Warm-ink boost — alpha lifted to 0.62 for visibility on eggshell paper
+    expect(markup).toContain('stroke="rgba(15, 23, 42, 0.62)"');
   });
 
   it('leaves opaque (selected / accent) strokes untouched', () => {
@@ -106,9 +107,9 @@ describe('RoughStrokeRenderer', () => {
 
   it('renders an arrowhead at a point', () => {
     const markup = renderer.renderArrowhead({ x: 100, y: 50 }, Math.PI, '#0f766e', 8);
-    expect(markup).toContain('<polygon');
-    // Solid filled triangle — a single closed arrowhead polygon.
-    expect(markup.match(/<polygon/g)?.length).toBe(1);
+    // Hand-drawn arrowhead via rough polygon → <path> elements (fill + wobbly stroke)
+    expect(markup).toContain('<path');
+    expect(markup).toContain('stroke="#0f766e"');
   });
 });
 

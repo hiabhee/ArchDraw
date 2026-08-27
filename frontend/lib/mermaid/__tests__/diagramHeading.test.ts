@@ -32,17 +32,12 @@ describe('diagramHeading', () => {
     expect(title.height).toBeGreaterThan(0);
   });
 
-  it('adds a heading when the graph has layoutable nodes but no title', () => {
+  it('does not add a heading when the graph has no title (opt-in only)', () => {
     const nodes = [shapeNode('api', 'API'), shapeNode('db', 'DB')];
     const result = ensureDiagramHeading(nodes, 'Payments Flow');
 
-    expect(result).toHaveLength(3);
-    const title = findDiagramTitleNode(result)!;
-    expect(title.data).toMatchObject({
-      text: 'Payments Flow',
-      fontSize: 'heading',
-      anchor: 'top',
-    });
+    expect(result).toHaveLength(2);
+    expect(findDiagramTitleNode(result)).toBeUndefined();
   });
 
   it('preserves an existing top heading and enforces anchor top', () => {

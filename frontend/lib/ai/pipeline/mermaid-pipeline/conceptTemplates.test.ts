@@ -202,16 +202,14 @@ describe('implicit concept diagram generation', () => {
     expect(trimmed).not.toContain('c1 --> o1');
   });
 
-  it('adds a canned title directive from the concept subject', () => {
+  it('does not add a title directive by default (opt-in only)', () => {
     const plan = getConceptTemplatePlan({ subject: 'Docker', domain: 'container-runtime', template: 'docker' }, 3);
-    expect(plan.mermaidCode).toContain('%% archdraw-text: {"id":"title","text":"Docker","size":"heading","anchor":"top"}');
-    expect(plan.mermaidCode.indexOf('%% archdraw-text')).toBeLessThan(plan.mermaidCode.indexOf('subgraph'));
-
+    expect(plan.mermaidCode).not.toContain('%% archdraw-text');
     const redisPlan = getConceptTemplatePlan({ subject: 'Redis', domain: 'cache' }, 3);
-    expect(redisPlan.mermaidCode).toContain('"text":"Redis"');
+    expect(redisPlan.mermaidCode).not.toContain('%% archdraw-text');
   });
 
-  it('keeps the title directive when trimming OPS bands', () => {
+  it('preserves an explicit title directive when trimming OPS bands', () => {
     const mermaid = `graph LR
   %% archdraw-text: {"id":"title","text":"Kafka","size":"heading","anchor":"top"}
   subgraph A["A"]

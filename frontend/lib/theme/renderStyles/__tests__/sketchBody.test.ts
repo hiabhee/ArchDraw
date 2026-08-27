@@ -4,42 +4,55 @@ import { SKETCH_HATCH_INK_DARK, SKETCH_HATCH_INK_LIGHT, SKETCH_PAPER_TINT } from
 import { renderSketchBodyMarkup } from '../sketchBody';
 
 describe('renderSketchBodyMarkup', () => {
-  it('renders a solid paper body with no cross-hatch ink', () => {
+  it('renders solid paper with wobbly outline on board-like shapes (no hatch)', () => {
     const markup = renderSketchBodyMarkup(
       getShapePrimitives('rounded-rectangle', 200, 96),
       {
         fill: SKETCH_PAPER_TINT,
-        stroke: 'rgba(15, 23, 42, 0.55)',
-        strokeWidth: 1.75,
+        stroke: 'rgba(28, 25, 23, 0.62)',
+        strokeWidth: 1.95,
       },
       42,
       false,
       'rounded-rectangle',
     );
 
-    // sketchFillForShape is solid everywhere now, so the body is just the
-    // paper underlay + wobbly outline — the hatch overlay is never emitted.
+    // Board-like shapes are now solid paper + wobbly outline — clean, not textured
     expect(markup).toContain(`fill="${SKETCH_PAPER_TINT}"`);
     expect(markup).not.toContain(SKETCH_HATCH_INK_LIGHT);
     expect(markup).toContain('<path');
   });
 
-  it('renders solid fill for groups (no hatch) per design improvements', () => {
-    const markup = renderSketchBodyMarkup(
-      getShapePrimitives('diamond', 160, 88),
+  it('renders hachure for groups and solid for small glyphs', () => {
+    const groupMarkup = renderSketchBodyMarkup(
+      getShapePrimitives('rounded-rectangle', 160, 88),
       {
         fill: '#3a332c',
         stroke: 'rgba(250, 248, 245, 0.55)',
         strokeWidth: 1.75,
+        fillStyle: 'hachure',
       },
       11,
       true,
       'group',
     );
+    // Groups use hachure swimlane — hatch ink present
+    expect(groupMarkup).toContain('fill="#3a332c"');
+    expect(groupMarkup).toContain(SKETCH_HATCH_INK_DARK);
 
-    // Groups should have solid fill (no hatch texture) to stay quiet
-    expect(markup).toContain('fill="#3a332c"');
-    // Should NOT contain hatch ink since groups use solid fill
-    expect(markup).not.toContain(SKETCH_HATCH_INK_DARK);
+    const diamondMarkup = renderSketchBodyMarkup(
+      getShapePrimitives('diamond', 160, 88),
+      {
+        fill: SKETCH_PAPER_TINT,
+        stroke: 'rgba(28, 25, 23, 0.62)',
+        strokeWidth: 1.95,
+      },
+      42,
+      false,
+      'diamond',
+    );
+    // Small glyphs stay solid — no hatch overlay
+    expect(diamondMarkup).toContain(`fill="${SKETCH_PAPER_TINT}"`);
+    expect(diamondMarkup).not.toContain(SKETCH_HATCH_INK_LIGHT);
   });
 });

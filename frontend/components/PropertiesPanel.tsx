@@ -21,8 +21,11 @@ const SHAPES: { value: ShapeType; label: string; icon: string }[] = [
   { value: 'cylinder', label: 'Cylinder', icon: '⬢' },
   { value: 'hexagon', label: 'Hex', icon: '⬣' },
   { value: 'cloud', label: 'Cloud', icon: '☁' },
-  { value: 'actor', label: 'Actor', icon: '◯' },
   { value: 'monitor', label: 'Monitor', icon: '▣' },
+  { value: 'queue', label: 'Queue', icon: '≡' },
+  { value: 'parallelogram', label: 'Para', icon: '▱' },
+  { value: 'mobile', label: 'Phone', icon: '▯' },
+  { value: 'document', label: 'Doc', icon: '⧉' },
 ];
 
 function EdgePropertiesPanel() {

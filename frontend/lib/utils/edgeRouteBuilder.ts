@@ -309,13 +309,15 @@ function applyLaneBias(
 /**
  * Resolve which side an edge uses on a given node — prefers stored overrides,
  * otherwise runs the same scorer used for rendering.
+ * Per-edge obstacle sets (excluded = that edge's endpoints) match
+ * useHandleSlotLayout.resolveScorerSide so handle dots and edge anchors stay aligned.
  */
 function resolveEdgeSideOnNode(
   e: Edge,
   nodeId: string,
   nodes: Node[],
   direction: 'LR' | 'TD',
-  allObstacles: Map<string, HandlerRect>,
+  _allObstacles?: Map<string, HandlerRect>,
 ): Position {
   // Floating-side behavior: handle ids no longer pin a side. Only explicit
   // user/lane overrides are respected; everything else re-scores from live
@@ -327,11 +329,13 @@ function resolveEdgeSideOnNode(
     if (manual !== undefined) return manual
     const lane = sideToPosition(data?.laneSourceSide as string)
     if (lane !== undefined) return lane
-  } else {
+  } else if (e.target === nodeId) {
     const manual = sideToPosition(data?.targetSide as string)
     if (manual !== undefined) return manual
     const lane = sideToPosition(data?.laneTargetSide as string)
     if (lane !== undefined) return lane
+  } else {
+    return Position.Right
   }
 
   const sourceNode = nodes.find(n => n.id === e.source)
@@ -343,11 +347,17 @@ function resolveEdgeSideOnNode(
   const sourceRect = getNodeRect(sourceNode, nodes)
   const targetRect = getNodeRect(targetNode, nodes)
   const excluded = new Set([e.source, e.target])
+  // Match useHandleSlotLayout: per-edge obstacles, not the main edge's.
+  const passableGroupIds = new Set<string>([
+    ...getAncestorGroupIds(e.source, nodes),
+    ...getAncestorGroupIds(e.target, nodes),
+  ])
+  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds)
   const pair = selectBestHandlerPair(
     { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h },
     { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h },
     direction,
-    allObstacles,
+    obstacles.size > 0 ? obstacles : undefined,
     excluded,
     sideToPosition(data?.sourceSide as string),
     sideToPosition(data?.targetSide as string),

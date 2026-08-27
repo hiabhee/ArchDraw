@@ -312,7 +312,10 @@ export function horizontalPipeSketchPrimitives(W: number, H: number): ShapePrimi
     'Z',
   ].join(' ');
 
-  const primitives: ShapePrimitive[] = [];
+  const primitives: ShapePrimitive[] = [
+    // Fill the capsule body — ensures opaque paper in sketch (was missing, caused transparent right side)
+    { kind: 'path', bounds: { x: 0, y: 0, width: W, height: H }, d: silhouette, fillable: true },
+  ];
   if (bodyW > 0) {
     primitives.push({
       kind: 'rect',
@@ -357,7 +360,7 @@ export function horizontalPipeSketchPrimitives(W: number, H: number): ShapePrimi
     },
     {
       kind: 'ellipse',
-      bounds: { x: leftCx - R, y: midY - R, width: R * 2, height: R * 2 },
+      bounds: { x: leftCx - R, y: midY - R, width: R * 2, height: R *2 },
       fillable: true,
     },
     {
@@ -469,35 +472,45 @@ export function cloudPrimitives(W: number, H: number): ShapePrimitive[] {
 }
 
 // ── actor (end user / person) ────────────────────────────────────────────────
+// Two-part person glyph: oval head + rounded-shoulder body, touching at seam.
+// Both parts share the same surface fill/stroke so the combined glyph reads
+// as one filled person silhouette behind the centered label.
 
 export function actorPrimitives(W: number, H: number): ShapePrimitive[] {
-  const headCY = Math.round(H * 0.3);
-  const headR = Math.max(8, Math.round(H * 0.17));
-  const shoulderY = Math.round(H * 0.95);
-  const shoulderSweepX = Math.round(W * 0.28);
-  const shoulders = [
-    `M ${W / 2 - shoulderSweepX} ${shoulderY}`,
-    `A ${shoulderSweepX} ${Math.round(H * 0.22)} 0 0 1 ${W / 2 + shoulderSweepX} ${shoulderY}`,
+  const headW = Math.max(26, Math.round(W * 0.30));
+  const headX = Math.round((W - headW) / 2);
+  const headY = Math.max(2, Math.round(H * 0.06));
+
+  const bodyW = Math.max(52, Math.round(W * 0.76));
+  const bodyH = Math.max(22, Math.round(H * 0.30));
+  const bodyX = Math.round((W - bodyW) / 2);
+  const bodyY = H - bodyH - 2;
+  // Head height fills from headY to bodyY so head and body touch (no gap, minimal overlap)
+  const headH = Math.max(26, bodyY - headY);
+  const r = Math.min(16, Math.round(bodyH * 0.50), Math.round(bodyW * 0.16));
+
+  const bodyPath = [
+    `M ${bodyX} ${bodyY + bodyH}`,
+    `L ${bodyX} ${bodyY + r}`,
+    `Q ${bodyX} ${bodyY} ${bodyX + r} ${bodyY}`,
+    `L ${bodyX + bodyW - r} ${bodyY}`,
+    `Q ${bodyX + bodyW} ${bodyY} ${bodyX + bodyW} ${bodyY + r}`,
+    `L ${bodyX + bodyW} ${bodyY + bodyH}`,
     'Z',
   ].join(' ');
+
   return [
     {
       kind: 'ellipse',
-      bounds: { x: 2, y: 2, width: W - 4, height: H - 4 },
+      bounds: { x: headX, y: headY, width: headW, height: headH },
       fillable: true,
     },
     {
       kind: 'path',
       bounds: { x: 0, y: 0, width: W, height: H },
-      d: `M ${W / 2 - headR} ${headCY} A ${headR} ${headR} 0 1 0 ${W / 2 + headR} ${headCY} A ${headR} ${headR} 0 1 0 ${W / 2 - headR} ${headCY}`,
-      strokeOnly: true,
-    },
-    {
-      kind: 'path',
-      bounds: { x: 0, y: 0, width: W, height: H },
-      d: shoulders,
-      strokeLinecap: 'round',
-      strokeOnly: true,
+      d: bodyPath,
+      strokeLinejoin: 'round',
+      fillable: true,
     },
   ];
 }

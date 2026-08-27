@@ -10,6 +10,8 @@ import {
   SKETCH_INK_DARK_TITLE,
   SKETCH_PAPER_TINT,
   SKETCH_PAPER_DARK,
+  SKETCH_PAPER_DARK_BORDER,
+  SKETCH_INK_LIGHT_BORDER,
 } from '@/lib/theme/renderStyles';
 
 interface EdgeLabelProps {
@@ -136,24 +138,22 @@ export function EdgeLabel({
 
   const pillStyle: React.CSSProperties = sketch
     ? {
-        background: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,  // Match sketch node paper
+        background: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,
         color: textColor,
-        fontSize: 10,
-        borderRadius: 8,
+        fontSize: 10.5,
+        borderRadius: 5,
         border: isDark
-          ? '1.5px solid rgba(245, 242, 235, 0.25)'
-          : '1.5px solid rgba(92, 74, 48, 0.22)',
+          ? `1px solid ${SKETCH_PAPER_DARK_BORDER}`
+          : `1px solid ${SKETCH_INK_LIGHT_BORDER}`,
         padding: '2px 7px',
         lineHeight: 1.2,
         textAlign: 'center',
         outline: 'none',
-        boxShadow: isDark
-          ? '0 1px 3px rgba(0, 0, 0, 0.3)'
-          : '0 1px 2px rgba(15, 23, 42, 0.08)',
+        boxShadow: 'none',
         position: 'relative',
         zIndex: 1000,
         textTransform: 'none',
-        letterSpacing: '0.02em',
+        letterSpacing: '0.01em',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',

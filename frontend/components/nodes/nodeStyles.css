@@ -1158,8 +1158,12 @@
 }
 
 /* ── Render style scoping ────────────────────────────────────────────────
-   Sketch uses precision colors + typography but rough.js for wobbly strokes.
-   The card is transparent so the rough SVG body shows through. */
+   Sketch: clean paper + hand-drawn ink. The crisp CSS card is transparent so
+   the rough SVG body shows through; titles use handwritten fonts selectively. */
+
+[data-render-style='sketch'] {
+  background-color: hsl(var(--canvas-bg, 38 32% 97%)) !important;
+}
 
 [data-render-style='sketch'] .node-card {
   box-shadow: none;
@@ -1167,32 +1171,36 @@
   background: transparent;
 }
 
-/* Crisp 3px accent rail breaks the sketch illusion — the rough body replaces it. */
+/* Crisp accent rail breaks the sketch illusion — the rough body replaces it. */
 [data-render-style='sketch'] .node-card::before {
   display: none;
 }
 
 [data-render-style='sketch'] .node-title,
 [data-render-style='sketch'] .shape-node .node-title {
-  font-family: Inter, "IBM Plex Sans", system-ui, -apple-system, sans-serif !important;
-  font-size: 16.2px !important;
-  letter-spacing: -0.015em !important;
-  font-weight: 600 !important;
+  font-family: var(--font-patrick-hand, "Patrick Hand"), var(--font-nanum-pen-script, "Nanum Pen Script"), cursive !important;
+  font-size: 17px !important;
+  letter-spacing: 0.01em !important;
+  font-weight: 400 !important;
+  line-height: 1.25 !important;
+  transform: none;
 }
 
 [data-render-style='sketch'] .node-subtitle,
 [data-render-style='sketch'] .shape-node .node-subtitle {
-  font-family: Inter, "IBM Plex Sans", system-ui, -apple-system, sans-serif !important;
-  font-size: 10.5px !important;
-  font-weight: 400 !important;
+  font-family: var(--font-caveat, "Caveat"), var(--font-patrick-hand, "Patrick Hand"), cursive !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
   letter-spacing: 0.01em !important;
-  opacity: 1;
+  opacity: 0.88;
+  transform: none;
 }
 
 [data-render-style='sketch'] .react-flow__edge-text {
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  font-size: 11px;
-  font-weight: 500;
+  font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
+  font-size: 11.5px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.01em !important;
 }
 
 /* Sketch edges render via a rough.js overlay — keep the RF path invisible
@@ -1207,38 +1215,72 @@
   animation: none;
 }
 
-/* Sketch edge labels: pill style matching precision. */
+/* Sketch edge labels: quiet paper pill, not sticky-note. */
 [data-render-style='sketch'] .edge-label-pill {
-  border-radius: 9999px !important;
-  font-family: Inter, system-ui, -apple-system, sans-serif !important;
-  font-size: 11px !important;
-  font-weight: 500 !important;
-  padding: 1px 8px !important;
-  transform: none;
-  line-height: 1.4 !important;
-  letter-spacing: 0 !important;
+  border-radius: 4px !important;
+  font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
+  font-size: 11.5px !important;
+  font-weight: 400 !important;
+  padding: 2px 7px !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0.01em !important;
+  background: var(--arch-node-fill, #fefcf3) !important;
+  border: 1px solid var(--arch-node-stroke, rgba(30,28,26,0.18)) !important;
   box-shadow: none !important;
+  transform: none;
 }
 
 [data-render-style='sketch'] .annotation-node,
 [data-render-style='sketch'] .annotation-node input,
 [data-render-style='sketch'] .annotation-node textarea {
-  font-family: Inter, system-ui, -apple-system, sans-serif !important;
-  font-weight: 400 !important;
-  letter-spacing: 0 !important;
+  font-family: var(--font-caveat, "Caveat"), cursive !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.01em !important;
+  transform: rotate(-0.15deg);
 }
 
 [data-render-style='sketch'] .text-label-node,
 [data-render-style='sketch'] .text-label-node input,
 [data-render-style='sketch'] .text-label-node textarea {
-  font-family: Inter, system-ui, -apple-system, sans-serif !important;
-  font-weight: 400 !important;
-  letter-spacing: 0 !important;
+  font-family: var(--font-caveat, "Caveat"), cursive !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.01em !important;
+  transform: rotate(-0.12deg);
 }
 
 [data-render-style='sketch'] .group-label {
-  font-family: Inter, "IBM Plex Sans", system-ui, -apple-system, sans-serif !important;
-  font-size: 13.5px !important;
-  font-weight: 600 !important;
-  letter-spacing: -0.015em !important;
+  font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  opacity: 0.82;
+  transform: none;
+}
+
+/* Sketch handles — slightly larger, chalkier, to match hand-ink. */
+[data-render-style='sketch'] .react-flow__handle,
+[data-render-style='sketch'] .node-card .rh {
+  width: 11px !important;
+  height: 11px !important;
+  min-width: 11px !important;
+  min-height: 11px !important;
+  border-width: 1.6px !important;
+}
+
+/* Sketch icon boxes — paper lift, no crisp chip; slightly muted for hand feel. */
+[data-render-style='sketch'] .node-icon-box {
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 0.92;
+}
+
+.dark [data-render-style='sketch'] .node-icon-box {
+  opacity: 0.86;
+}
+
+[data-render-style='sketch'] .node-icon {
+  opacity: 0.96;
 }

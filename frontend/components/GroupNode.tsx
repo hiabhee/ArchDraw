@@ -93,9 +93,9 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   const borderWidth = selected ? 1.5 : 1;
   const borderStyle: 'dashed' | 'solid' = sketch ? 'dashed' : 'solid';
 
-  // Sketch body: rough rounded-rect (wobbly dashed border + tinted solid
-  // fill) replacing the crisp CSS border. Same geometry → renderer path as
-  // SystemNode / ShapeNode. Recomputed on resize via `box`.
+  // Sketch body: rough rounded-rect with light hachure swimlane (penciled zone)
+  // Recomputed on resize via `box`. Pass explicit hachure so the warm paper
+  // tint gets graphite hatch, matching AGENTS.md board vs zone vocabulary.
   const sketchBody = useMemo(() => {
     if (!sketch || box.width <= 0) return '';
     const w = box.width + 4;
@@ -107,13 +107,14 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
       fill: bg,
       stroke: borderColor,
       strokeWidth: borderWidth,
+      fillStyle: 'hachure',
     };
     return renderSketchSurface({
       primitives: prims,
       surface,
       seedId: id,
       isDark,
-      shape: 'rounded-rectangle',
+      shape: 'group',
     });
   }, [sketch, box.width, box.height, bg, borderColor, borderWidth, aesthetics.borderRadius, id, isDark]);
 

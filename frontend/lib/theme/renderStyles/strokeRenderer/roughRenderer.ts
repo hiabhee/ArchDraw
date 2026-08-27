@@ -18,16 +18,17 @@ interface RoughPathInfo {
  */
 function darkenSketchStroke(stroke?: string): string | undefined {
   if (!stroke) return stroke;
+  // Warm ink — keep hue, boost alpha so wobble reads on eggshell / dark warm paper.
   const m = stroke.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/i);
   if (!m) return stroke;
   const [, rs, gs, bs, as] = m;
   const alpha = as === undefined ? 1 : Math.min(1, parseFloat(as));
-  if (alpha >= 0.85) return stroke;
+  if (alpha >= 0.88) return stroke;
   const r = Number(rs);
   const g = Number(gs);
   const b = Number(bs);
-  const lightInk = r + g + b > 380; // light-colored stroke → dark canvas
-  return `rgba(${r}, ${g}, ${b}, ${lightInk ? 0.62 : 0.55})`;
+  const lightInk = r + g + b > 420; // warm cream ink → dark canvas
+  return `rgba(${r}, ${g}, ${b}, ${lightInk ? 0.68 : 0.62})`;
 }
 
 /**
@@ -149,21 +150,23 @@ export class RoughStrokeRenderer implements StrokeRenderer {
   renderEdgePath(d: string, opts: EdgeStrokeOpts, seed: number): string {
     const gen = rough.generator();
     const dasharray = opts.dasharray;
+    // Sketch edges: stronger wobble than before (1.8 roughness), slight bowing
+    // so straight orthogonal runs feel hand-drawn. Keep single-stroke on edges
+    // to avoid double lines at arrow tips, but let bowing show.
     const roughOpts: Record<string, unknown> = {
       seed,
       roughness: dasharray
-        ? Math.min(this.options.roughness, 0.7)
-        : Math.min(this.options.roughness, 1.1),
-      bowing: Math.min(this.options.bowing, 0.6),
+        ? Math.min(this.options.roughness, 1.2)
+        : Math.min(this.options.roughness, 1.85),
+      bowing: Math.min(this.options.bowing, 0.95),
       stroke: opts.stroke,
-      strokeWidth: dasharray ? opts.strokeWidth * 1.15 : opts.strokeWidth,  // Make dashed edges 15% thicker
-      // Always single-stroke on edges. rough.js' default double pass reads as
-      // two parallel lines at arrow tips (especially with a filled arrowhead).
+      strokeWidth: dasharray ? opts.strokeWidth * 1.18 : opts.strokeWidth * 1.05,
       disableMultiStroke: true,
+      // Slight hand pressure variation — preserve vertices so orthogonal bends
+      // stay sharp while the straight runs wobble.
+      preserveVertices: true,
     };
     if (dasharray) {
-      // Semantic dashes only — do NOT let rough.js re-segment the wobble
-      // (dashOffset/dashGap) or async edges get double-distressed.
       roughOpts.dashGap = 0;
     }
     const drawable = gen.toPaths(gen.path(d, roughOpts));
@@ -172,22 +175,47 @@ export class RoughStrokeRenderer implements StrokeRenderer {
 
   renderArrowhead(tip: Point, angle: number, color: string, seed: number): string {
     const gen = rough.generator();
-    const size = 11;
-    const spread = 6;
+    // Hand-drawn arrowhead — slightly larger & wobbly via rough polygon
+    const size = 12;
+    const spread = 6.5;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     const backX = tip.x - size * cos;
     const backY = tip.y - size * sin;
     const normalX = -sin;
     const normalY = cos;
-    
+
     const leftX = backX + normalX * spread;
     const leftY = backY + normalY * spread;
     const rightX = backX - normalX * spread;
     const rightY = backY - normalY * spread;
-    
-    // Render a clean solid-filled SVG polygon instead of rough.js fill
-    // (rough.js fillStyle:'solid' still generates stippled hachure lines)
+
+    // Hand-drawn triangle via rough polygon — single wobble, solid fill.
+    // Using rough polygon gives the sketchy offset border instead of perfect geometry.
+    try {
+      const pts: [number, number][] = [
+        [tip.x, tip.y],
+        [leftX, leftY],
+        [rightX, rightY],
+      ];
+      const opts: Record<string, unknown> = {
+        seed,
+        roughness: 1.75,
+        bowing: 1.2,
+        stroke: color,
+        strokeWidth: 1.35,
+        fill: color,
+        fillStyle: 'solid',
+        fillWeight: 1,
+        disableMultiStroke: true,
+      };
+      const drawable = gen.toPaths(gen.polygon(pts, opts));
+      if (drawable.length > 0) {
+        return this.toMarkup(drawable);
+      }
+    } catch {
+      // fall through to crisp fallback
+    }
     const points = `${tip.x},${tip.y} ${leftX},${leftY} ${rightX},${rightY}`;
     return `<polygon points="${points}" fill="${color}" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" />`;
   }

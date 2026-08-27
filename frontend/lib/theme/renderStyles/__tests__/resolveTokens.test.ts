@@ -21,9 +21,9 @@ describe('resolveCanvasTokens', () => {
     const tokens = resolveCanvasTokens({ renderStyleId: 'sketch', isDark: false });
     expect(tokens.render.strokeEngine).toBe('rough');
     expect(tokens.strokeRenderer.engine).toBe('rough');
-    // Sketch geometry scales are now 1 (parity with precision) — no boost.
-    expect(tokens.strokeWidth).toBeCloseTo(1.25);
-    expect(tokens.borderRadius).toBeCloseTo(10);
+    // Sketch geometry now boosts stroke/radius for hand-drawn ink.
+    expect(tokens.strokeWidth).toBeCloseTo(1.25 * 1.18, 2);
+    expect(tokens.borderRadius).toBeCloseTo(10 * 1.14, 1);
   });
 
   it('emits render-style + font css vars', () => {

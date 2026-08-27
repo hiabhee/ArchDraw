@@ -24,7 +24,6 @@ export function getShapeLabelMaxWidth(
     parallelogram: { title: 0.68, subtitle: 0.6 },
     hexagon: { title: 0.52, subtitle: 0.42 },
     shield: { title: 0.6, subtitle: 0.5 },
-    actor: { title: 0.56, subtitle: 0.48 },
     monitor: { title: 0.72, subtitle: 0.62 },
     mobile: { title: 0.56, subtitle: 0.48 },
     cloud: { title: 0.8, subtitle: 0.68 },

@@ -155,10 +155,10 @@ describe('applyRfLayout (canonical entry)', () => {
   it('uses roomy compound defaults for optical-grid nodes', () => {
     const tb = defaultCompoundLayoutOptions('TB');
     const lr = defaultCompoundLayoutOptions('LR');
-    expect(tb.nodeSep).toBe(140);
-    expect(tb.rankSep).toBe(220);
-    expect(lr.nodeSep).toBe(160);
-    expect(lr.rankSep).toBe(220);
+    expect(tb.nodeSep).toBe(150);
+    expect(tb.rankSep).toBe(240);
+    expect(lr.nodeSep).toBe(180);
+    expect(lr.rankSep).toBe(240);
     // Group padding must match the subgraph sizer exactly (layoutConstants).
     expect(tb.paddingLeft).toBe(28);
     expect(tb.paddingTop).toBe(44);

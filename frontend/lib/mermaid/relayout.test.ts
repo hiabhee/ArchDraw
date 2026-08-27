@@ -88,8 +88,8 @@ describe('layoutDiagramViaMermaid', () => {
   it('layouts the ArchDraw template (same path as template load + toggler)', async () => {
     const result = await layoutDiagramViaMermaid(archdrawNodes, archdrawEdges, 'LR');
     expect(result.success).toBe(true);
-    expect(result.nodes).toHaveLength(archdrawNodes.length + 1);
-    expect(result.nodes.some((n) => n.id === 'title' && n.type === 'textLabelNode')).toBe(true);
+    expect(result.nodes).toHaveLength(archdrawNodes.length);
+    expect(result.nodes.some((n) => n.id === 'title' && n.type === 'textLabelNode')).toBe(false);
 
     let moved = 0;
     for (const n of result.nodes) {
@@ -106,7 +106,7 @@ describe('layoutDiagramViaMermaid', () => {
     }
   });
 
-  it('adds a template heading and keeps it above the graph when toggling LR/TD', async () => {
+  it('does not auto-add a heading when toggling LR/TD (opt-in only)', async () => {
     const nodes: Node[] = [
       node('checkout', 'Checkout API'),
       node('pay', 'Payment Service'),
@@ -119,12 +119,25 @@ describe('layoutDiagramViaMermaid', () => {
 
     const lr = await layoutDiagramViaMermaid(nodes, edges, 'LR', { title: 'Order Checkout' });
     expect(lr.success).toBe(true);
-    const titleLR = lr.nodes.find((n) => n.id === 'title')!;
+    expect(lr.nodes.find((n) => n.id === 'title')).toBeUndefined();
+
+    // When a heading is explicitly provided, it is preserved and kept above the graph
+    const withTitle: Node[] = [
+      {
+        id: 'title',
+        type: 'textLabelNode',
+        position: { x: 0, y: 0 },
+        data: { text: 'Order Checkout', fontSize: 'heading', anchor: 'top' },
+      } as Node,
+      ...nodes,
+    ];
+    const lrWithTitle = await layoutDiagramViaMermaid(withTitle, edges, 'LR');
+    expect(lrWithTitle.success).toBe(true);
+    const titleLR = lrWithTitle.nodes.find((n) => n.id === 'title')!;
     expect(titleLR.type).toBe('textLabelNode');
     expect((titleLR.data as { text?: string }).text).toBe('Order Checkout');
-    expect((titleLR.data as { anchor?: string }).anchor).toBe('top');
 
-    const td = await layoutDiagramViaMermaid(lr.nodes, lr.edges, 'TD');
+    const td = await layoutDiagramViaMermaid(lrWithTitle.nodes, lrWithTitle.edges, 'TD');
     expect(td.success).toBe(true);
     const titleTD = td.nodes.find((n) => n.id === 'title')!;
     const checkoutTD = td.nodes.find((n) => n.id === 'checkout')!;

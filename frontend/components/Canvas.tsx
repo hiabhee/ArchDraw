@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, DragEvent, useState, useMemo } from 're
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
 import { resolveCanvasTokens, ensureSketchFontLoaded } from '@/lib/theme/renderStyles';
-import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
+import { sketchHandwritingFont, sketchPatrickHandFont, sketchCaveatFont } from '@/lib/theme/renderStyles/sketchFont';
 import '@/components/nodes/nodeStyles.css';
 import { cn } from '@/lib/utils';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
@@ -515,13 +515,17 @@ function CanvasInner() {
 
   const isSketch = diagramRenderStyle === 'sketch';
 
+  const sketchFontClass = isSketch
+    ? `${sketchHandwritingFont.variable} ${sketchPatrickHandFont.variable} ${sketchCaveatFont.variable} ${sketchPatrickHandFont.className}`
+    : '';
+
   return (
     <div 
       className={cn(
         'w-full h-full relative transition-colors duration-200 overscroll-contain',
         !canvasBackground.bgColor && 'bg-[hsl(var(--canvas-bg))]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
-        isSketch && sketchHandwritingFont.className,
+        isSketch && sketchFontClass,
       )}
       data-render-style={diagramRenderStyle}
       data-color-theme={diagramStyleTheme}

@@ -8,7 +8,7 @@ import {
   domainMermaid,
   sanitizeLabel,
 } from './templateMermaid';
-import { withTitleDirective, trimMermaidByDetailLevel } from './trimming';
+import { trimMermaidByDetailLevel } from './trimming';
 
 export function getConceptTemplatePlan(
   concept: ImplicitConcept,
@@ -39,10 +39,6 @@ export function getConceptTemplatePlan(
       reasoning: `${plan.reasoning} Detail level L${detailLevel}: trimmed secondary / ops bands to match the requested scope.`,
     };
   }
-  plan = {
-    ...plan,
-    mermaidCode: withTitleDirective(plan.mermaidCode, concept.subject),
-  };
   return plan;
 }
 

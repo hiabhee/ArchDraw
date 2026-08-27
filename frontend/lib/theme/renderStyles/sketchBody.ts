@@ -17,15 +17,28 @@ export function renderSketchBodyMarkup(
 ): string {
   const renderer = getStrokeRenderer('rough');
 
+  // Respect an explicit fillStyle from the caller (e.g. GroupNode hachure)
+  const explicit = (surface as { fillStyle?: string }).fillStyle as
+    | 'solid'
+    | 'hachure'
+    | 'cross-hatch'
+    | 'zigzag'
+    | undefined;
+  const fillStyle = explicit ?? sketchFillForShape(shape);
+
+  // Solid shapes: single paper base with wobbly outline
+  if (fillStyle === 'solid') {
+    const paperMarkup = applyShapeSurface(primitives, { ...surface, fillStyle: 'solid' })
+      .map((p) => renderer.renderPrimitive(p, seed))
+      .join('\n');
+    return paperMarkup;
+  }
+
+  // Cross-hatch / hachure: paper base + contrasting hatch overlay.
+  // The paper base shows the warm tint; the hatch uses graphite/chalk ink.
   const paperMarkup = applyShapeSurface(primitives, { ...surface, fillStyle: 'solid' })
     .map((p) => renderer.renderPrimitive(p, seed))
     .join('\n');
-
-  const fillStyle = sketchFillForShape(shape);
-
-  if (fillStyle === 'solid') {
-    return paperMarkup;
-  }
 
   const hatchSeed = (seed * 31 + 7) >>> 0 || 1;
   const hatchMarkup = applyShapeSurface(primitives, {

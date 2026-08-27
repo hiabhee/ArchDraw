@@ -3,8 +3,10 @@ import { getRenderStyle } from './registry';
 const LEGACY_LINK_ID = 'arch-sketch-font';
 
 /**
- * Inject the sketch Google Font stylesheet. Removes the legacy single-id link
- * so font family changes apply without a hard refresh.
+ * Inject the sketch Google Font stylesheet. Supports multi-family slugs
+ * (e.g. `Patrick+Hand&family=Caveat:wght@500;700`) and sanitizes each
+ * family for the link id. Keeps next/font self-hosted as primary — this
+ * link is a CDN fallback for fast sketch toggle without bundle reload.
  */
 export function ensureSketchFontLoaded(): void {
   if (typeof document === 'undefined') return;
@@ -13,7 +15,8 @@ export function ensureSketchFontLoaded(): void {
   if (!googleFamily) return;
 
   const href = `https://fonts.googleapis.com/css2?family=${googleFamily}&display=swap`;
-  const linkId = `arch-sketch-font-${googleFamily.replace(/\+/g, '-').toLowerCase()}`;
+  const safe = googleFamily.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+  const linkId = `arch-sketch-font-${safe}`;
 
   document.getElementById(LEGACY_LINK_ID)?.remove();
 

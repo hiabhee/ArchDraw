@@ -145,6 +145,20 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
 export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+
+  // Sketch: hand-drawn capsule via rough.js — ensures queue nodes match other shapes in sketch theme
+  if (sketch) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <SketchBody shape="cylinder" width={W} height={H} surface={surface} seed={sketchSeed(id)} axis="horizontal" isDark={isDark} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: Math.max(8, Math.round(W * 0.14)), paddingRight: Math.round(W * 0.10) }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="queue" sketch />
+        </div>
+      </div>
+    );
+  }
+
   const { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge } = cylinderShades(isDark, styles);
   const inset = 2;
   const R = Math.max(8, Math.round((H - inset * 2) / 2));
@@ -182,6 +196,9 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
             <stop offset="100%" stopColor={bodyShade} />
           </radialGradient>
         </defs>
+
+        {/* Fill entire capsule so right semicircular cap is not transparent — mirrors vertical drum */}
+        <path d={silhouette} fill={surface.fill} stroke="none" />
 
         {/* Tube body — rectangle only, no solid disc on the far end */}
         {bodyW > 0 && (

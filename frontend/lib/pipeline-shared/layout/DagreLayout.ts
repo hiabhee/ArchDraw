@@ -64,6 +64,8 @@ export class DagreLayoutEngine implements LayoutEngine {
       ranksep: opts.rankSep,
       marginx: opts.marginX,
       marginy: opts.marginY,
+      // Symmetry-first: network-simplex gives minimal edge length + balanced ranks
+      ranker: 'network-simplex',
     });
 
     const subgraphIds = new Set(params.nodes.filter(n => n.isGroup).map(n => n.id));

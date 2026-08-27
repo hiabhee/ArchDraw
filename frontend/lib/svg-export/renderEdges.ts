@@ -11,6 +11,8 @@ import {
   sketchEdgeInk,
   SKETCH_PAPER_TINT,
   SKETCH_PAPER_DARK,
+  SKETCH_PAPER_DARK_BORDER,
+  SKETCH_INK_LIGHT_BORDER,
   SKETCH_INK_DARK_TITLE,
   SKETCH_INK_LIGHT_TITLE,
   type DiagramRenderStyleId,
@@ -90,22 +92,22 @@ export function renderEdge(
         : (strokeColor || (isDark ? '#CBD5E1' : '#64748b'));
     const knockout = isDark ? '#0f1117' : '#f8fafc';
     const border = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)';
-    const sketchBorder = isDark ? 'rgba(245, 242, 235, 0.20)' : 'rgba(92, 74, 48, 0.15)';  // Lighter borders for sketch
-    const paddingX = isSketch ? 4 : 6;  // Reduced padding for sketch
-    const paddingY = isSketch ? 1.5 : 2;  // Reduced padding for sketch
-    const charWidth = isSketch ? 4.8 : 5.4;  // Smaller char width for reduced font
+    const sketchBorder = isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER;
+    const paddingX = isSketch ? 4 : 6;
+    const paddingY = isSketch ? 1.5 : 2;
+    const charWidth = isSketch ? 4.8 : 5.4;
     const labelWidth = Math.max(36, labelText.length * charWidth + paddingX * 2);
-    const labelHeight = (isSketch ? 12 : 14) + paddingY * 2;  // Smaller height for sketch
+    const labelHeight = (isSketch ? 12 : 14) + paddingY * 2;
 
     let labelBox = '';
     if (isSketch) {
-      // Penciled label box: rough paper rectangle with quiet ink border.
+      // Quiet paper pill — solid fill + wobbly outline, no hatch.
       const boxBody = renderSketchBodyMarkup(
         getShapePrimitives('rounded-rectangle', labelWidth, labelHeight),
         {
           fill: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,
-          stroke: sketchBorder,  // Use lighter sketch border
-          strokeWidth: 0.9,  // Reduced from 1.25 for lighter border
+          stroke: sketchBorder,
+          strokeWidth: 0.95,
         },
         seed,
         isDark,

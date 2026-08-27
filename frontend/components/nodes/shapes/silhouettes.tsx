@@ -103,7 +103,7 @@ export function Cloud({ id, data, selected, isDark, styles, width: W, height: H,
   );
 }
 
-/** Person glyph — end users / actors. Icon-friendly, label below head. */
+/** Person glyph — end users / actors. Two-part head + body, no outer container. */
 export function Actor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#475569';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
@@ -118,25 +118,35 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
       </div>
     );
   }
-  const headCY = Math.round(H * 0.3);
-  const headR = Math.max(8, Math.round(H * 0.17));
-  const shoulderY = Math.round(H * 0.95);
-  const shoulderSweepX = Math.round(W * 0.28);
-  const d = [
-    `M ${W / 2 - shoulderSweepX} ${shoulderY}`,
-    `A ${shoulderSweepX} ${Math.round(H * 0.22)} 0 0 1 ${W / 2 + shoulderSweepX} ${shoulderY}`,
+  // Mirror actorPrimitives — head touches body at seam, no gap
+  const headW = Math.max(26, Math.round(W * 0.30));
+  const headX = Math.round((W - headW) / 2);
+  const headY = Math.max(2, Math.round(H * 0.06));
+  const bodyW = Math.max(52, Math.round(W * 0.76));
+  const bodyH = Math.max(22, Math.round(H * 0.30));
+  const bodyX = Math.round((W - bodyW) / 2);
+  const bodyY = H - bodyH - 2;
+  const headH = Math.max(26, bodyY - headY);
+  const r = Math.min(16, Math.round(bodyH * 0.50), Math.round(bodyW * 0.16));
+
+  const bodyPath = [
+    `M ${bodyX} ${bodyY + bodyH}`,
+    `L ${bodyX} ${bodyY + r}`,
+    `Q ${bodyX} ${bodyY} ${bodyX + r} ${bodyY}`,
+    `L ${bodyX + bodyW - r} ${bodyY}`,
+    `Q ${bodyX + bodyW} ${bodyY} ${bodyX + bodyW} ${bodyY + r}`,
+    `L ${bodyX + bodyW} ${bodyY + bodyH}`,
     'Z',
   ].join(' ');
-  const clip = `ellipse(${W / 2 - 2}px ${H / 2 - 2}px at ${W / 2}px ${H / 2}px)`;
+
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }}>
-        <ellipse cx={W / 2} cy={H / 2} rx={W / 2 - 2} ry={H / 2 - 2} fill={surface.fill} stroke={surface.stroke} strokeWidth={surface.strokeWidth} />
-        <circle cx={W / 2} cy={headCY} r={headR} fill="none" stroke={surface.stroke} strokeWidth={surface.strokeWidth} />
-        <path d={d} fill="none" stroke={surface.stroke} strokeWidth={surface.strokeWidth} strokeLinecap="round" />
+        <ellipse cx={headX + headW / 2} cy={headY + headH / 2} rx={headW / 2} ry={headH / 2} fill={surface.fill} stroke={surface.stroke} strokeWidth={surface.strokeWidth} />
+        <path d={bodyPath} fill={surface.fill} stroke={surface.stroke} strokeWidth={surface.strokeWidth} strokeLinejoin="round" />
       </svg>
       <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', clipPath: clip }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="actor" />
       </div>
     </div>

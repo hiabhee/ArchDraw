@@ -63,10 +63,7 @@ export function Handles({
     updateNodeInternals(nodeId);
   }, [nodeId, updateNodeInternals]);
 
-  // For queue/pipe shapes, pass custom sides to align handles with circular ends
-  const customSides: ('left' | 'right')[] | undefined = shape === 'queue' ? ['left', 'right'] : undefined;
-
-  return <NodeHandles handleStyle={s} nodeId={nodeId} sides={customSides} />;
+  return <NodeHandles handleStyle={s} nodeId={nodeId} />;
 }
 
 export function Label({
@@ -225,7 +222,9 @@ export function Label({
           style={{
             fontSize: sketch ? 18 : 16.2,
             fontWeight: sketch ? 400 : 600,
-            fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
+            fontFamily: sketch
+              ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
+              : undefined,
             color: 'var(--node-title-color, hsl(var(--foreground)))',
             background: 'transparent',
             border: 'none',
@@ -256,8 +255,10 @@ export function Label({
             flex: 'none',
             fontSize: sketch ? 18 : (isIconBrand ? 13.2 : isPipeText ? 13.2 : undefined),
             fontWeight: sketch ? 400 : (isIconBrand ? 500 : undefined),
-            fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
-            letterSpacing: sketch ? '0.02em' : undefined,
+            fontFamily: sketch
+              ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
+              : undefined,
+            letterSpacing: sketch ? '0.015em' : undefined,
             lineHeight: isPipeMultiline ? 1.15 : undefined,
             textOverflow: isPipeText && !isPipeMultiline ? 'ellipsis' : undefined,
             overflow: isPipeText && !isPipeMultiline ? 'hidden' : undefined,
@@ -274,10 +275,12 @@ export function Label({
             overflowWrap: 'anywhere',
             marginTop: 2,
             textAlign: 'center',
-            fontSize: shape === 'diamond' || shape === 'circle' ? 10 : isPipeText ? 10 : undefined,
+            fontSize: sketch ? 12.5 : shape === 'diamond' || shape === 'circle' ? 10 : isPipeText ? 10 : undefined,
             lineHeight: 1.2,
-            fontFamily: sketch ? 'var(--arch-font-subtitle, "Nanum Pen Script", cursive)' : undefined,
-            fontWeight: sketch ? 400 : undefined,
+            fontFamily: sketch
+              ? 'var(--font-caveat, "Caveat"), var(--arch-font-subtitle, cursive)'
+              : undefined,
+            fontWeight: sketch ? 600 : undefined,
             letterSpacing: sketch ? '0.02em' : undefined,
           }}
         >

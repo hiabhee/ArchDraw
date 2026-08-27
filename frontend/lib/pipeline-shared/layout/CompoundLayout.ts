@@ -89,6 +89,7 @@ function layoutLevel(members: string[], ctx: CompoundContext): LevelLayout {
     ranksep: ctx.rankSep,
     marginx: 0,
     marginy: 0,
+    ranker: 'network-simplex',
   });
 
   // A settled group box reserves its tight child extent PLUS the frame padding

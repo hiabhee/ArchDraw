@@ -11,7 +11,6 @@ describe('getShapePrimitives', () => {
     'parallelogram',
     'hexagon',
     'cloud',
-    'actor',
     'monitor',
     'mobile',
     // New architecture-native shapes

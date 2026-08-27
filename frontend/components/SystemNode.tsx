@@ -221,14 +221,13 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     });
   }, [sketch, cardWidth, cardHeight, aesthetics, id, isDark]);
 
-  // M4 — accent wash: a rough scribble of the concern color behind the icon
-  // box in sketch, replacing the crisp `--node-accent-bg` block.
+  // Accent wash: subtle rough circle behind icon in sketch — very quiet.
   const sketchAccentWash = useMemo(() => {
     if (!sketch) return '';
     const renderer = getStrokeRenderer('rough');
-    const s = iconBoxSize + 6;
+    const s = iconBoxSize + 4;
     const surface: RenderSurface = {
-      fill: hexToRgba(accentColor, isDark ? 0.18 : 0.1),
+      fill: hexToRgba(accentColor, isDark ? 0.12 : 0.07),
       stroke: 'none',
       strokeWidth: 0,
     };
@@ -344,7 +343,9 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               style={{
                 fontSize: sketch ? 18 : 16.2,
                 fontWeight: sketch ? 400 : 600,
-                fontFamily: sketch ? 'var(--arch-font-title, "Nanum Pen Script", cursive)' : undefined,
+                fontFamily: sketch
+                  ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
+                  : undefined,
                 color: 'var(--node-title-color)',
                 background: 'transparent',
                 border: 'none',

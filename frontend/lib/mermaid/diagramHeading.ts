@@ -56,38 +56,34 @@ function syncTitleDimensions(node: Node, text: string): Node {
 }
 
 /**
- * Ensure the graph has exactly one top-anchored heading.
+ * Preserve an existing top-anchored heading if present; never auto-create one.
+ * Headings are now opt-in — AI/templates only emit a title when explicitly requested.
  * The heading is excluded from Dagre and repositioned above the graph after layout.
  */
-export function ensureDiagramHeading(nodes: Node[], title?: string): Node[] {
+export function ensureDiagramHeading(nodes: Node[], _title?: string): Node[] {
   if (!hasLayoutableNodes(nodes)) return nodes;
 
   const existing = findDiagramTitleNode(nodes);
-  const titleText = title?.trim();
+  if (!existing) return nodes;
 
-  if (existing) {
-    const data = existing.data as Record<string, unknown>;
-    const currentText = String(data.text ?? data.label ?? '').trim();
-    const nextText = currentText || titleText || 'Diagram';
+  const data = existing.data as Record<string, unknown>;
+  const currentText = String(data.text ?? data.label ?? '').trim();
+  const nextText = currentText || 'Diagram';
 
-    return nodes.map((node) => {
-      if (node.id !== existing.id) return node;
-      return syncTitleDimensions(
-        {
-          ...node,
-          data: {
-            ...node.data,
-            text: nextText,
-            label: nextText,
-            anchor: 'top',
-            fontSize: 'heading',
-          },
+  return nodes.map((node) => {
+    if (node.id !== existing.id) return node;
+    return syncTitleDimensions(
+      {
+        ...node,
+        data: {
+          ...node.data,
+          text: nextText,
+          label: nextText,
+          anchor: 'top',
+          fontSize: 'heading',
         },
-        nextText,
-      );
-    });
-  }
-
-  const fallbackTitle = titleText || 'Diagram';
-  return [...nodes, createDiagramTitleNode(fallbackTitle)];
+      },
+      nextText,
+    );
+  });
 }

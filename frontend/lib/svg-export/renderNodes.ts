@@ -338,11 +338,12 @@ export function renderGroupNode(
       {
         fill: bgRgba,
         stroke: borderColor,
-        strokeWidth: Math.max(1.5, borderWidth),
+        strokeWidth: Math.max(1.6, borderWidth * 1.15),
+        fillStyle: 'hachure',
       },
       seed,
       isDark,
-      'group',  // Pass 'group' shape type for solid fill (no hatch)
+      'group',
     );
   } else {
     zone = `

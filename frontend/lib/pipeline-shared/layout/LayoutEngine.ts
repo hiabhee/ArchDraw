@@ -67,17 +67,18 @@ export interface LayoutEngine {
 }
 
 /**
- * Canonical compound-graph spacing.
- * Tuned for optical-grid nodes (160–240px): keep clear air between ranks so
- * dense diagrams (e.g. load-balancer / api-edge) do not read as packed.
+ * Canonical compound-graph spacing — symmetry-first.
+ * Tuned for optical-grid nodes (160–240px) with generous air so ranks read
+ * as balanced columns/rows, not packed clusters. Larger rankSep/nodeSep give
+ * mirrored sub-trees (e.g. Leader → 2 Followers) room to center.
  */
 export function defaultCompoundLayoutOptions(direction: LayoutDirection): LayoutOptions {
   const isVertical = direction === 'TB' || direction === 'BT';
   return {
-    nodeSep: isVertical ? 140 : 160,
-    rankSep: 220,
-    marginX: 60,
-    marginY: 60,
+    nodeSep: isVertical ? 150 : 180,
+    rankSep: 240,
+    marginX: 80,
+    marginY: 80,
     // Group padding must match the subgraph sizer exactly (layoutConstants) so
     // the container dagre reserves is the container that gets drawn.
     paddingLeft: SUBGRAPH_PADDING_X,
