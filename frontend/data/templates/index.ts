@@ -9,6 +9,20 @@ import { fintechPaymentsNodes, fintechPaymentsEdges } from './fintech-payments';
 import { collaborativeDocsNodes, collaborativeDocsEdges } from './collaborative-docs';
 import { foodDeliveryNodes, foodDeliveryEdges } from './food-delivery';
 import { repoToDiagramNodes, repoToDiagramEdges } from './repo-to-diagram';
+import { mvcNodes, mvcEdges } from './mvc';
+import { cleanArchitectureNodes, cleanArchitectureEdges } from './clean-architecture';
+import { hexagonalNodes, hexagonalEdges } from './hexagonal';
+import { layeredNodes, layeredEdges } from './layered';
+import { microservicesNodes, microservicesEdges } from './microservices';
+import { eventDrivenNodes, eventDrivenEdges } from './event-driven';
+import { cqrsNodes, cqrsEdges } from './cqrs';
+import { eventSourcingNodes, eventSourcingEdges } from './event-sourcing';
+import { serverlessNodes, serverlessEdges } from './serverless';
+import { ecommerceNodes, ecommerceEdges } from './ecommerce';
+import { urlShortenerNodes, urlShortenerEdges } from './url-shortener';
+import { chatSystemNodes, chatSystemEdges } from './chat-system';
+import { notificationNodes, notificationEdges } from './notification';
+import { searchNodes, searchEdges } from './search';
 
 export interface Template {
   id: string;
@@ -51,9 +65,11 @@ function withCanvasStyle(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: 
     nodes: nodes.map((node) => {
       const { id, position, data } = node;
       const label = (data?.label as string) || 'Unnamed';
-      // Universal style: rounded rectangle like the “frontend” card in the screenshot —
-      // white fill, thin gray border, centered text, 10px hollow handles outside the border.
-      // This matches `N` / `Cmd+K` shapeNodes, not the older systemNode card.
+      // Keep shape sizing uniform (rounded-rectangle) but preserve per-node
+      // icon / color / category so the global icon toggle (iconMode)
+      // controls visibility. Previously this forced `showIcon: false` and
+      // `icon: undefined` which made `ON` hide all template icons
+      // (see `resolveNodeIconVisibility` – per-node false overrides global).
       const { width, height } = calculateNodeDimensions(label, undefined, { shape: 'rounded-rectangle' });
       return createNode(
         (data?.typeId as string) || 'shapeNode',
@@ -70,13 +86,9 @@ function withCanvasStyle(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: 
             shape: 'rounded-rectangle' as const,
             nodeWidth: width,
             nodeHeight: height,
-            showIcon: false,
-            // Universal “frontend” style: plain white rectangle, thin light-gray
-            // border, centered text — no per-category accent/icon.
-            color: '#e2e8f0',
-            accentColor: '#e2e8f0',
-            icon: undefined,
-            category: 'Compute',
+            // Do not force icon visibility – let global `iconMode` decide.
+            // Preserve original icon / color / category so `NodeIcon` can
+            // resolve a glyph when icons are ON.
             layer: data?.layer || layerForCategory(data?.category as string),
           },
         }
@@ -210,5 +222,131 @@ export const TEMPLATES: Template[] = [
     icon: '🔎',
     nodes: repoToDiagramNodes,
     edges: repoToDiagramEdges,
+  }),
+  template({
+    id: 'mvc',
+    name: 'MVC Architecture',
+    description: 'Model-View-Controller: Browser → Router → Controller → Service → Model → DB, View renders HTML.',
+    tags: ['MVC', 'Model', 'View', 'Controller', 'MVP', 'MVVM', 'Pattern'],
+    icon: '🎭',
+    nodes: mvcNodes,
+    edges: mvcEdges,
+  }),
+  template({
+    id: 'clean_architecture',
+    name: 'Clean Architecture',
+    description: 'Onion/Clean: Entities → Use Cases → Interface Adapters (Controllers/Presenters/Gateways) → Frameworks & External.',
+    tags: ['Clean', 'Onion', 'Hexagonal', 'Ports', 'Adapters', 'SOLID'],
+    icon: '🧅',
+    nodes: cleanArchitectureNodes,
+    edges: cleanArchitectureEdges,
+  }),
+  template({
+    id: 'hexagonal',
+    name: 'Hexagonal Architecture',
+    description: 'Ports & Adapters: Domain Core with Input/Output Ports and adapters for REST, DB, Queue, Cache.',
+    tags: ['Hexagonal', 'Ports', 'Adapters', 'DDD'],
+    icon: '⬡',
+    nodes: hexagonalNodes,
+    edges: hexagonalEdges,
+  }),
+  template({
+    id: 'layered',
+    name: 'Layered Architecture',
+    description: 'N-Tier / 3-Tier: Client → Presentation → Business → Persistence → Database, plus external.',
+    tags: ['Layered', 'N-Tier', '3-Tier', 'Tier', 'Architecture'],
+    icon: '🥞',
+    nodes: layeredNodes,
+    edges: layeredEdges,
+  }),
+  template({
+    id: 'microservices',
+    name: 'Microservices',
+    description: 'Client → API Gateway → Auth/User/Order services, each with DB, plus Event Bus.',
+    tags: ['Microservices', 'Monolith', 'API Gateway', 'Service', 'Distributed'],
+    icon: '🧩',
+    nodes: microservicesNodes,
+    edges: microservicesEdges,
+  }),
+  template({
+    id: 'event_driven',
+    name: 'Event-Driven Architecture',
+    description: 'Client → API → Event Store → Event Bus → Inventory/Email/Analytics consumers.',
+    tags: ['Event-Driven', 'EDA', 'Event', 'Kafka', 'Queue', 'Outbox'],
+    icon: '📨',
+    nodes: eventDrivenNodes,
+    edges: eventDrivenEdges,
+  }),
+  template({
+    id: 'cqrs',
+    name: 'CQRS',
+    description: 'Command Query Responsibility Segregation: Write DB + Read DB via Event Bus, separate Command/Query APIs.',
+    tags: ['CQRS', 'Command', 'Query', 'Read', 'Write', 'Event'],
+    icon: '⚖️',
+    nodes: cqrsNodes,
+    edges: cqrsEdges,
+  }),
+  template({
+    id: 'event_sourcing',
+    name: 'Event Sourcing',
+    description: 'Client → Command Handler → Event Store → Event Bus → Projection → Read Model.',
+    tags: ['Event Sourcing', 'Event Store', 'Append', 'Projection'],
+    icon: '📜',
+    nodes: eventSourcingNodes,
+    edges: eventSourcingEdges,
+  }),
+  template({
+    id: 'serverless',
+    name: 'Serverless Architecture',
+    description: 'Client → CDN + API Gateway → Lambda → DynamoDB/S3, EventBridge cron.',
+    tags: ['Serverless', 'Lambda', 'API Gateway', 'DynamoDB', 'S3', 'JAMstack'],
+    icon: '⚡',
+    nodes: serverlessNodes,
+    edges: serverlessEdges,
+  }),
+  template({
+    id: 'ecommerce',
+    name: 'E-commerce Platform',
+    description: 'Shop like Amazon: CDN, Gateway, Auth, Catalog, Cart, Order, Payment, Search, Inventory.',
+    tags: ['E-commerce', 'Amazon', 'Shop', 'Cart', 'Payment', 'Catalog'],
+    icon: '🛒',
+    nodes: ecommerceNodes,
+    edges: ecommerceEdges,
+  }),
+  template({
+    id: 'url_shortener',
+    name: 'URL Shortener',
+    description: 'Bitly clone: Client → LB → API → Cache (Redis) → DB (Cassandra) + Worker.',
+    tags: ['URL Shortener', 'Bitly', 'Shortener', 'Cache', 'Cassandra'],
+    icon: '🔗',
+    nodes: urlShortenerNodes,
+    edges: urlShortenerEdges,
+  }),
+  template({
+    id: 'chat_system',
+    name: 'Chat System',
+    description: 'Slack-like: Client → WebSocket GW → Presence, Message → History, Push, Search via Kafka.',
+    tags: ['Chat', 'Slack', 'WebSocket', 'Real-Time', 'Messaging'],
+    icon: '💬',
+    nodes: chatSystemNodes,
+    edges: chatSystemEdges,
+  }),
+  template({
+    id: 'notification',
+    name: 'Notification System',
+    description: 'Service → Queue → Dispatcher → Push/Email/SMS + Preference DB.',
+    tags: ['Notification', 'Push', 'Email', 'SMS', 'Queue'],
+    icon: '🔔',
+    nodes: notificationNodes,
+    edges: notificationEdges,
+  }),
+  template({
+    id: 'search',
+    name: 'Search Autocomplete',
+    description: 'Typeahead: Client → Search API → Trie Cache + Elasticsearch, DB CDC via Kafka.',
+    tags: ['Search', 'Autocomplete', 'Trie', 'Elasticsearch', 'Typeahead'],
+    icon: '🔍',
+    nodes: searchNodes,
+    edges: searchEdges,
   }),
 ];
