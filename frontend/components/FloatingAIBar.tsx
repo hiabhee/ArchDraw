@@ -196,13 +196,30 @@ export function FloatingAIBar({
     }
   };
 
+  // Mobile keyboard handling: adjust bottom when visual viewport shrinks (iOS keyboard)
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const onResize = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardOffset(offset);
+    };
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="fixed left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-3 sm:px-6 flex items-center gap-2"
-      style={{ bottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+      style={{ bottom: `max(12px, env(safe-area-inset-bottom, 12px))`, marginBottom: keyboardOffset ? `${keyboardOffset}px` : undefined, transition: 'margin-bottom 0.2s ease' }}
     >
       <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
         {/* Detail Level Toggle + Code — above the input, horizontally scrollable on mobile */}
@@ -302,17 +319,21 @@ export function FloatingAIBar({
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Describe your architecture, or paste a GitHub repo link…"
-              className="w-full bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-transparent resize-none text-xs text-foreground placeholder:text-muted-foreground/60 py-0.5 px-1 max-h-24 shadow-none focus:shadow-none focus-visible:!outline-none focus:!outline-none"
+              className="w-full bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-transparent resize-none text-[16px] sm:text-xs text-foreground placeholder:text-muted-foreground/60 py-1 sm:py-0.5 px-1 max-h-24 shadow-none focus:shadow-none focus-visible:!outline-none focus:!outline-none"
               disabled={isGenerating}
-              style={{ height: 'auto', minHeight: '20px' }}
+              style={{ height: 'auto', minHeight: '24px' }}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="send"
             />
           </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* Mic Button */}
+            {/* Mic Button - larger touch target on mobile */}
             <button
-              className="w-9 h-9 sm:w-6 sm:h-6 rounded-full flex items-center justify-center bg-transparent text-muted-foreground/35 cursor-not-allowed"
+              className="w-10 h-10 sm:w-6 sm:h-6 rounded-full flex items-center justify-center bg-transparent text-muted-foreground/35 cursor-not-allowed shrink-0"
               disabled
               title="Voice coming soon"
               aria-label="Voice input (coming soon)"

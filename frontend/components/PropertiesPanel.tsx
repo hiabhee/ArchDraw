@@ -53,11 +53,15 @@ function EdgePropertiesPanel() {
   };
 
   return (
-    <div className="floating-panel z-50 overflow-y-auto p-5 fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-[72px] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-auto sm:w-[320px] sm:max-h-[calc(100dvh-200px)] rounded-2xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-xl">
+    <div className="floating-panel z-50 overflow-y-auto p-5 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-auto sm:w-[320px] sm:max-h-[calc(100dvh-200px)] max-h-[45dvh] sm:max-h-[calc(100dvh-200px)] rounded-2xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-xl">
+      {/* Mobile drag handle */}
+      <div className="sm:hidden flex justify-center pb-3 -mt-1">
+        <div className="w-10 h-1 rounded-full bg-border" />
+      </div>
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-[13px] font-semibold tracking-tight">Edge</h3>
-        <button onClick={() => setSelectedEdgeId(null)} className="w-7 h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
-          <X className="w-3.5 h-3.5" />
+        <button onClick={() => setSelectedEdgeId(null)} className="min-w-[44px] min-h-[44px] sm:w-7 sm:h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
+          <X className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
         </button>
       </div>
 
@@ -199,7 +203,11 @@ export function PropertiesPanel() {
   if (!node && !isMulti) return null;
 
   return (
-    <div className="floating-panel z-50 overflow-y-auto p-0 fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-[72px] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-auto sm:w-[340px] sm:max-h-[calc(100dvh-160px)] rounded-2xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl flex flex-col">
+    <div className="floating-panel z-50 overflow-y-auto p-0 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-auto sm:w-[340px] sm:max-h-[calc(100dvh-160px)] max-h-[50dvh] sm:max-h-[calc(100dvh-160px)] rounded-2xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl flex flex-col">
+      {/* Mobile drag handle */}
+      <div className="sm:hidden flex justify-center py-2 shrink-0">
+        <div className="w-10 h-1 rounded-full bg-border" />
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border/40 shrink-0">
         <div>
@@ -212,12 +220,12 @@ export function PropertiesPanel() {
         </div>
         <div className="flex items-center gap-1">
           {!isMulti && node && (
-            <button onClick={() => useDiagramStore.getState().duplicateNode(node.id)} title="Duplicate" className="w-7 h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
-              <Copy className="w-3.5 h-3.5" />
+            <button onClick={() => useDiagramStore.getState().duplicateNode(node.id)} title="Duplicate" className="min-w-[44px] min-h-[44px] sm:w-7 sm:h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
+              <Copy className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
           )}
-          <button onClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); }} className="w-7 h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
-            <X className="w-3.5 h-3.5" />
+          <button onClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); }} className="min-w-[44px] min-h-[44px] sm:w-7 sm:h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           </button>
         </div>
       </div>

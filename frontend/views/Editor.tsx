@@ -97,6 +97,15 @@ export default function EditorPage() {
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
   const isMobile = useIsMobile();
 
+  // Mobile: close sidebars by default and auto-close on canvas interaction
+  useEffect(() => {
+    if (isMobile && sidebarOpen) {
+      // On mobile, start with sidebar closed for more canvas space
+      setSidebarOpen(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
+
   // Sync lastPrompt when switching canvases
   useEffect(() => {
     setLastPrompt(localStorage.getItem(`archdraw-last-prompt:${activeCanvasId}`));
@@ -515,9 +524,22 @@ export default function EditorPage() {
     }
   };
 
+  // Mobile: close properties when tapping canvas on mobile
+  useEffect(() => {
+    if (!isMobile) return;
+    const handlePaneClick = () => {
+      // On mobile, tapping canvas closes sidebars to give more space
+      if (sidebarOpen) setSidebarOpen(false);
+      if (canvasSidebarOpen) setCanvasSidebarOpen(false);
+    };
+    // Listen for custom pane click from Canvas
+    window.addEventListener('pane-click-mobile-close', handlePaneClick);
+    return () => window.removeEventListener('pane-click-mobile-close', handlePaneClick);
+  }, [isMobile, sidebarOpen, canvasSidebarOpen, setSidebarOpen]);
+
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation', overscrollBehaviorX: 'contain' }}>
+      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))] supports-[height:100dvh]:h-[100dvh] h-[100vh]" style={{ touchAction: 'manipulation', overscrollBehaviorX: 'contain' }} data-mobile={isMobile ? 'true' : 'false'}>
 
         {sequenceDiagrams[activeCanvasId] ? (
           <SequenceDiagramViewer />

@@ -224,13 +224,17 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
       {/* Expanded Panel */}
       {isExpanded && (
         <div
-          className="fixed z-40 flex flex-col overflow-hidden bg-card inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-auto sm:left-4 sm:right-auto sm:top-1/2 sm:-translate-y-1/2 sm:bottom-auto sm:w-[280px] sm:max-h-[calc(100vh-180px)]"
+          className="fixed z-40 flex flex-col overflow-hidden bg-card inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] top-auto sm:left-4 sm:right-auto sm:top-1/2 sm:-translate-y-1/2 sm:bottom-auto sm:w-[280px] sm:max-h-[calc(100vh-180px)] max-h-[55dvh] sm:max-h-[calc(100vh-180px)]"
           style={{
-            maxHeight: 'calc(100dvh - 120px)',
+            maxHeight: 'min(55dvh, calc(100dvh - 120px))',
             borderRadius: 20,
             boxShadow: '0 10px 40px hsl(var(--foreground) / 0.06)',
           }}
         >
+          {/* Mobile drag handle */}
+          <div className="sm:hidden flex justify-center py-2">
+            <div className="w-10 h-1 rounded-full bg-border" />
+          </div>
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
@@ -240,7 +244,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
             <button
               onClick={() => setIsExpanded(false)}
               aria-label="Collapse components panel"
-              className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-[10px] transition-colors hover:bg-brand-bg text-muted-foreground"
+              className="min-w-[44px] min-h-[44px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center rounded-[10px] transition-colors hover:bg-brand-bg text-muted-foreground"
             >
               <PanelLeft className="w-4 h-4" />
             </button>
@@ -252,7 +256,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
             <Input
               type="text"
               placeholder="Search..."
-              className="pl-9 h-9 rounded-xl text-sm w-full bg-background"
+              className="pl-9 h-9 rounded-xl text-[16px] sm:text-sm w-full bg-background"
               style={{ border: 'none' }}
               value={search}
               onChange={(e) => setSearch(e.target.value)}

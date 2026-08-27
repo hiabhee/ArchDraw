@@ -30,6 +30,7 @@ import { sketchHandwritingFont, sketchPatrickHandFont, sketchCaveatFont } from '
 import '@/components/nodes/nodeStyles.css';
 import { cn } from '@/lib/utils';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import { TemplateModal } from '@/components/TemplateModal';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
@@ -61,6 +62,7 @@ function CanvasInner() {
   const diagramStyleTheme = useDiagramStore((s) => s.diagramStyleTheme);
   const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
   const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+  const isMobile = useIsMobile();
 
   const {
     onNodesChange, onEdgesChange, onConnect, onReconnect,
@@ -422,7 +424,10 @@ function CanvasInner() {
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
     setContextMenu(null);
-  }, [setSelectedNodeIds, setSelectedEdgeId]);
+    if (isMobile) {
+      window.dispatchEvent(new CustomEvent('pane-click-mobile-close'));
+    }
+  }, [setSelectedNodeIds, setSelectedEdgeId, isMobile]);
 
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams) => {
@@ -556,19 +561,21 @@ function CanvasInner() {
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         fitView
-        fitViewOptions={{ padding: 0.0 }}
-        selectionMode={SelectionMode.Full}
+        fitViewOptions={{ padding: isMobile ? 0.15 : 0.0 }}
+        selectionMode={isMobile ? SelectionMode.Partial : SelectionMode.Full}
         // Keep canvas panning on middle/right mouse so left-drag can draw selection box.
-        panOnDrag={isPenModeActive ? false : [1, 2]}
+        // On mobile, allow single-finger pan for better touch handling.
+        panOnDrag={isPenModeActive ? false : isMobile ? [0, 1, 2] : [1, 2]}
         // Trackpad/touchpad two-finger gesture should move (pan) the canvas.
         panOnScroll={isPenModeActive ? false : true}
-        selectionOnDrag={isPenModeActive ? false : true}
+        selectionOnDrag={isPenModeActive ? false : !isMobile}
         // Avoid hijacking two-finger scroll for zoom; zoom still works via controls/pinch.
+        // On mobile, allow pinch and double-tap zoom for better UX.
         zoomOnScroll={false}
         zoomOnPinch={true}
-        zoomOnDoubleClick={false}
+        zoomOnDoubleClick={isMobile ? true : false}
         connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
-        connectionRadius={CANVAS_CONFIG.connectionRadius}
+        connectionRadius={isMobile ? 28 : CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={{ stroke: isDark ? '#475569' : '#94a3b8', strokeWidth: 1.5, strokeDasharray: '6 4' }}
         snapToGrid={CANVAS_CONFIG.snapToGrid}

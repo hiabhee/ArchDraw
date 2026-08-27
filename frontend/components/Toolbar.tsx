@@ -248,30 +248,30 @@ export function Toolbar() {
                 window.dispatchEvent(new CustomEvent('close-canvas-sidebar'));
               }
             }}
-            className="!hidden sm:!flex !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex !w-9 !h-9"
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
-            <PanelLeftClose className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            <PanelLeftClose className="w-4 h-4" />
           </Button>
 
           <Button
             variant="ghost"
             size="icon"
             onClick={() => window.dispatchEvent(new CustomEvent('toggle-canvas-sidebar'))}
-            className="!hidden sm:!flex !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex !w-9 !h-9"
             title="Toggle canvases"
           >
-            <FolderOpen className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            <FolderOpen className="w-4 h-4" />
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push('/dashboard')}
-            className="gap-1.5"
+            className="gap-1.5 min-h-[44px] sm:min-h-0 px-3 sm:px-3"
             title="Go to Dashboard"
           >
-            <LayoutDashboard className="w-3.5 h-3.5" />
+            <LayoutDashboard className="w-4 h-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </Button>
 
