@@ -175,10 +175,22 @@ export async function layoutDiagramViaMermaid(
       else originalEdgeBuckets.set(key, [edge]);
     }
 
+    // Preserve original edge identity, but ensure no edges are silently dropped.
+    // If the pipeline produces fewer edges than input (e.g. due to duplicate labels or parse loss),
+    // keep the original edges count and warn — dropping edges on layout toggle is a critical bug.
+    const expectedEdgeCount = edges.length;
+    const pipelineEdgeCount = (result.data.edges as Edge[]).length;
+    if (pipelineEdgeCount < expectedEdgeCount) {
+      console.warn(`[Relayout] Edge loss detected: pipeline produced ${pipelineEdgeCount} edges but input had ${expectedEdgeCount}. Keeping original edges for missing ones.`);
+    }
+
     const preservedEdges = (result.data.edges as Edge[]).map((newEdge) => {
       const bucket = originalEdgeBuckets.get(edgeKey(newEdge.source, newEdge.target, newEdge.label))
         ?? originalEdgeBuckets.get(`${newEdge.source}|${newEdge.target}|`);
-      const original = bucket?.shift();
+      // Also try matching via data.label if label is empty
+      const fallbackBucket = !bucket ? originalEdgeBuckets.get(edgeKey(newEdge.source, newEdge.target, (newEdge.data as Record<string, unknown> | undefined)?.['label'])) : undefined;
+      const targetBucket = bucket ?? fallbackBucket;
+      const original = targetBucket?.shift();
       if (!original) return newEdge;
       return {
         ...newEdge,
@@ -194,6 +206,18 @@ export async function layoutDiagramViaMermaid(
         data: { ...newEdge.data, ...original.data },
       } as Edge;
     });
+
+    // If pipeline dropped edges, append the unmatched originals so nothing disappears on toggle.
+    if (preservedEdges.length < expectedEdgeCount) {
+      const remaining: Edge[] = [];
+      for (const bucket of originalEdgeBuckets.values()) {
+        remaining.push(...bucket);
+      }
+      if (remaining.length > 0) {
+        console.warn(`[Relayout] Restoring ${remaining.length} dropped edges`);
+        preservedEdges.push(...remaining);
+      }
+    }
 
     return {
       nodes: orphans.length > 0 ? [...preservedNodes, ...orphans] : preservedNodes,

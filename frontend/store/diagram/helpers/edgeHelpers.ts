@@ -53,10 +53,9 @@ function nodeSupportsHandle(
 ): boolean {
   if (!node) return false;
   if (node.type === 'textLabelNode' || node.type === 'annotationNode') return false;
-  const shape = (node.data as { shape?: string } | undefined)?.shape;
-  if ((node.type === 'shapeNode' || !node.type) && shape === 'queue') {
-    return side === 'left' || side === 'right';
-  }
+  // Queue (horizontal pipe) now supports all 4 sides for layout toggler (LR/TD).
+  // Previously it was left/right only to avoid React Flow #008, but that caused
+  // edges to disappear when toggled to TD (top/bottom handles were null).
   return true;
 }
 
