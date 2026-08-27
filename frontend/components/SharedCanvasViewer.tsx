@@ -15,7 +15,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Download, Sun, Moon } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -144,7 +143,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
         return;
       }
 
-      const dataUrl = await toPng(el, {
+      const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
+      const dataUrl = await safeToPng(el, {
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         pixelRatio: 3,
         cacheBust: true,

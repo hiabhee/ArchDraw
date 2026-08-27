@@ -112,12 +112,12 @@ async function captureRasterDataUrl(
   };
 
   if (attempt.format === 'jpeg') {
-    const { toJpeg } = await import('html-to-image');
-    return toJpeg(element, { ...captureOptions, quality: attempt.quality ?? 0.85 });
+    const { safeToJpeg } = await import('@/lib/utils/safeHtmlToImage');
+    return safeToJpeg(element, { ...captureOptions, quality: attempt.quality ?? 0.85 });
   }
 
-  const { toPng } = await import('html-to-image');
-  return toPng(element, captureOptions);
+  const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
+  return safeToPng(element, captureOptions);
 }
 
 export interface CaptureSvgOptions {

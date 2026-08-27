@@ -307,12 +307,12 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           ? computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12)
           : null;
 
-      const { toPng } = await import('html-to-image');
+      const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
       const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
       // High-DPI export that beats native screenshot (retina 2x → 4-5x, capped to avoid OOM)
       const pixelRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2.5)));
 
-      let dataUrl = await toPng(element, {
+      let dataUrl = await safeToPng(element, {
         backgroundColor: bgColor,
         pixelRatio,
         cacheBust: true,

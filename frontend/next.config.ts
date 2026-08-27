@@ -17,7 +17,7 @@ const securityHeaders = [
     // only stamps its bootstrap scripts with the nonce when the root layout
     // reads it via headers(), which forces every route dynamic and kills
     // static rendering of landing/blogs/docs. Revisit before re-enabling.
-    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none';`
+    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none';`
   },
 ];
 
@@ -41,10 +41,10 @@ const embedCSP = [
   `script-src 'self' blob: 'unsafe-inline'${
     isDevelopment ? " 'unsafe-eval'" : ''
   } https://*.vercel-scripts.com https://vercel.live`,
-  `style-src 'self' 'unsafe-inline'`,
+  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `img-src 'self' data: blob: https:`,
-  `font-src 'self' data:`,
-  `connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online`,
+  `font-src 'self' data: https://fonts.gstatic.com`,
+  `connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online https://fonts.googleapis.com https://fonts.gstatic.com`,
   `frame-src 'self' https://vercel.live https://accounts.google.com`,
   allowAllEmbeds ? `frame-ancestors *` : `frame-ancestors 'self'${
     allowedEmbedDomains.length ? ' ' + allowedEmbedDomains.map((d) => `https://${d}`).join(' ') : ''
