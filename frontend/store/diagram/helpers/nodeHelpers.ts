@@ -42,10 +42,21 @@ export function normalizeNodeType(type?: string): string {
   return type;
 }
 
+function sortParentsFirst(nodes: Node[]): Node[] {
+  // Defensive: parent/group nodes must appear before children to avoid
+  // React Flow "Parent node not found" warning and (0,0) flash.
+  const ids = new Set(nodes.map((n) => n.id));
+  return [...nodes].sort((a, b) => {
+    const aHasParent = !!(a.parentId || (a as unknown as { parentNode?: string }).parentNode) && ids.has((a.parentId || (a as unknown as { parentNode?: string }).parentNode)!);
+    const bHasParent = !!(b.parentId || (b as unknown as { parentNode?: string }).parentNode) && ids.has((b.parentId || (b as unknown as { parentNode?: string }).parentNode)!);
+    return Number(aHasParent) - Number(bHasParent);
+  });
+}
+
 export function normalizeNodes(nodes: Node[]): Node[] {
   const validNodeIds = new Set(nodes.map((n) => n.id));
 
-  return nodes.map((node) => {
+  const normalized = nodes.map((node) => {
     const parentId = node.parentId || (node as { parentNode?: string }).parentNode;
     const isValidParent = parentId && validNodeIds.has(parentId);
     // Group zones always render below edges (same rule as createGroup /
@@ -71,6 +82,7 @@ export function normalizeNodes(nodes: Node[]): Node[] {
           }),
     };
   });
+  return sortParentsFirst(normalized);
 }
 
 export function sanitizeNodes(nodes: Node[]): Node[] {

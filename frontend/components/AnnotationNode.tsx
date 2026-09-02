@@ -37,7 +37,7 @@ function SizeButton({ size, currentSize, onClick }: SizeButtonProps) {
     <button
       onClick={onClick}
       onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      className={`w-8 h-8 shrink-0 flex items-center justify-center rounded text-xs font-bold select-none ${
+      className={`nodrag nopan w-8 h-8 shrink-0 flex items-center justify-center rounded text-xs font-bold select-none ${
         isActive 
           ? 'bg-primary text-primary-foreground shadow-sm' 
           : 'bg-transparent text-muted-foreground hover:bg-muted'
@@ -213,7 +213,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
       <button
         onClick={() => setCurrentBold(!currentBold)}
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        className={`w-8 h-8 shrink-0 flex items-center justify-center rounded text-xs font-bold select-none ${
+        className={`nodrag nopan w-8 h-8 shrink-0 flex items-center justify-center rounded text-xs font-bold select-none ${
           currentBold 
             ? 'bg-primary text-primary-foreground shadow-sm' 
             : 'bg-transparent text-muted-foreground hover:bg-muted'

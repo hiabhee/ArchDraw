@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { memo, useState, useRef, useEffect, useMemo } from 'react';
 import { NodeProps, NodeResizer, useUpdateNodeInternals } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
@@ -12,7 +12,7 @@ import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodes/nodeStyles.css';
 
-export default function GroupNode({ id, data, selected }: NodeProps) {
+function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -79,11 +79,13 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   // edge SVG (inside .react-flow__viewport before .react-flow__edges) so
   // the opaque #dbeafe fill never covers edge paths. Keep the node itself
   // transparent and let the layer provide the visual plate.
+  // Precision (normal theme) was almost invisible at 0.05/0.09 — bump to
+  // 0.08/0.14 so the zone reads as a tinted container on #f8fafc / #0f172a.
   const bg = brutal
     ? 'transparent'
     : sketch
       ? isDark ? hexToRgba(color, 0.06) : hexToRgba(color, 0.04)
-      : isDark ? hexToRgba(color, 0.09) : hexToRgba(color, 0.05);
+      : isDark ? hexToRgba(color, 0.14) : hexToRgba(color, 0.08);
   const borderColor = brutal
     ? (isDark ? '#e4e4e7' : '#1a1a1a')
     : selected
@@ -95,10 +97,10 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
           ? hexToRgba(color, 0.30)
           : hexToRgba(color, 0.25)
         : isDark
-          ? hexToRgba(color, 0.38)
-          : hexToRgba(color, 0.32);
+          ? hexToRgba(color, 0.42)
+          : hexToRgba(color, 0.35);
 
-  const borderWidth = brutal ? 3 : selected ? 1.5 : 1;
+  const borderWidth = brutal ? 3 : selected ? 1.5 : 1.25;
   const borderStyle: 'dashed' | 'solid' = sketch ? 'dashed' : 'solid';
 
   // Sketch body: rough rounded-rect with light hachure swimlane (penciled zone)
@@ -267,6 +269,8 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={handleSave}
             onKeyDown={handleKeyDown}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="nodrag nopan"
             style={{
               background: 'transparent',
               border: 'none',
@@ -291,4 +295,6 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   );
 }
 
+const GroupNode = memo(GroupNodeComponent);
 export { GroupNode };
+export default GroupNode;

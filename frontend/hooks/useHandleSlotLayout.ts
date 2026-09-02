@@ -251,5 +251,5 @@ export function useHandleSlotLayout(nodeId?: string) {
     return type === 'source' ? hasOutgoing : hasIncoming;
   };
 
-  return { centeredSides, sidePresence, getSlotOffset, shouldRenderHandle, handleTransition: HANDLE_TRANSITION };
+  return { centeredSides, sidePresence, dynamicOffsets, getSlotOffset, shouldRenderHandle, handleTransition: HANDLE_TRANSITION };
 }

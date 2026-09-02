@@ -56,8 +56,9 @@ function ToolbarButton({
   return (
     <button
       onClick={onClick}
+      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
       title={title}
-      className={`node-toolbar-btn${danger ? ' node-toolbar-btn--danger' : ''}`}
+      className={`node-toolbar-btn nodrag nopan${danger ? ' node-toolbar-btn--danger' : ''}`}
     >
       {children}
     </button>

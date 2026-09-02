@@ -365,11 +365,12 @@ export function renderGroupNode(
   // Sketch groups are warm neutral zones (tokenized fill/stroke) so the dashed
   // box reads as a penciled boundary, not a colored swimlane; the concern tint
   // stays on the caption label and the selected state.
+  // Precision was almost invisible at 0.05/0.09 — match GroupNode 0.08/0.14.
   const bgRgba = brutal
     ? (isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT)
     : sketch
       ? isDark ? SKETCH_GROUP_FILL_DARK : SKETCH_GROUP_FILL_LIGHT
-      : hexToRgba(groupColor, isDark ? 0.09 : 0.05);
+      : hexToRgba(groupColor, isDark ? 0.14 : 0.08);
   const borderColor = brutal
     ? brutalBorder
     : selected
@@ -379,10 +380,10 @@ export function renderGroupNode(
       : sketch
         ? isDark ? SKETCH_GROUP_STROKE_DARK : SKETCH_GROUP_STROKE_LIGHT
         : isDark
-          ? hexToRgba(groupColor, 0.38)
-          : hexToRgba(groupColor, 0.32);
+          ? hexToRgba(groupColor, 0.42)
+          : hexToRgba(groupColor, 0.35);
 
-  const borderWidth = selected ? 1.5 : 1;
+  const borderWidth = selected ? 1.5 : 1.25;
 
   const label = (data as { groupLabel?: string; label?: string })?.groupLabel ||
                (data as { label?: string })?.label || '';

@@ -556,6 +556,8 @@ function CanvasInner() {
     ? `${sketchHandwritingFont.variable} ${sketchPatrickHandFont.variable} ${sketchCaveatFont.variable} ${sketchPatrickHandFont.className}`
     : '';
 
+  // React Flow parent MUST have explicit width/height — #1 blank canvas cause (skill Rule 3).
+  // Editor.tsx provides fixed inset-0 (100dvh); this div resolves h-full → explicit via style fallback.
   return (
     <div 
       className={cn(
@@ -570,6 +572,8 @@ function CanvasInner() {
         onDragOver={(e) => e.preventDefault()}
         onDoubleClick={onPaneDoubleClick}
       style={{ 
+        width: '100%',
+        height: '100%',
         overscrollBehavior: 'contain', 
         ...(canvasBackground.bgColor ? { backgroundColor: canvasBackground.bgColor } : {}),
         ...themeVars 
