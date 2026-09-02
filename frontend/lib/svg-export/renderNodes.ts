@@ -17,6 +17,17 @@ import {
   renderSketchBodyMarkup,
   renderSketchSurface,
   resolveRenderSurface,
+  BRUTAL_SHADOW_FILTER_ID,
+  BRUTAL_BORDER,
+  BRUTAL_BORDER_DARK,
+  BRUTAL_FILL_LIGHT,
+  BRUTAL_FILL_DARK,
+  BRUTAL_TITLE_LIGHT,
+  BRUTAL_TITLE_DARK,
+  BRUTAL_SUBTITLE_LIGHT,
+  BRUTAL_SUBTITLE_DARK,
+  BRUTAL_GROUP_FILL_LIGHT,
+  BRUTAL_GROUP_FILL_DARK,
   SKETCH_INK_LIGHT_TITLE,
   SKETCH_INK_LIGHT_SUBTITLE,
   SKETCH_INK_DARK_TITLE,
@@ -135,6 +146,49 @@ export function renderSystemNode(
         ${showStatus ? `
         <circle cx="${width - 14}" cy="${height - 14}" r="3" fill="${statusColor}" />` : ''}
       </g>
+    `.trim();
+  }
+
+  if (renderStyleId === 'neubrutalism') {
+    const border = isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER;
+    const surfFill = isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT;
+    const nodeTitle = isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT;
+    const nodeSubtitle = isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT;
+    const font = 'Space Grotesk, Inter, system-ui, sans-serif';
+    return `
+    <g transform="translate(${x}, ${y})" filter="url(#${BRUTAL_SHADOW_FILTER_ID})">
+      <rect
+        x="0" y="0"
+        width="${width}" height="${height}"
+        fill="${surfFill}"
+        stroke="${border}"
+        stroke-width="3"
+        rx="6" ry="6"
+      />
+      <rect x="0" y="10" width="4" height="${Math.max(12, height - 20)}" fill="${accentColor}" />
+      <g transform="translate(16, 12)">
+        <rect x="0" y="0" width="22" height="22" fill="${accentColor}" fill-opacity="0.18" />
+        <circle cx="11" cy="11" r="5" fill="${accentColor}" fill-opacity="0.95" />
+        <text
+          x="30" y="15"
+          fill="${nodeTitle}"
+          font-family="${font}"
+          font-size="16.2"
+          font-weight="700"
+          letter-spacing="-0.02em"
+        >${escapeXml(data.label || 'Service')}</text>
+      </g>
+      ${data.subtitle ? `
+      <text
+        x="16" y="${height - 13}"
+        fill="${nodeSubtitle}"
+        font-family="${font}"
+        font-size="11"
+        font-weight="500"
+      >${escapeXml(String(data.subtitle))}</text>` : ''}
+      ${showStatus ? `
+      <circle cx="${width - 16}" cy="${height - 14}" r="3.5" fill="${statusColor}" />` : ''}
+    </g>
     `.trim();
   }
 
@@ -306,21 +360,27 @@ export function renderGroupNode(
                     '#0f766e';
 
   const sketch = renderStyleId === 'sketch';
+  const brutal = renderStyleId === 'neubrutalism';
+  const brutalBorder = isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER;
   // Sketch groups are warm neutral zones (tokenized fill/stroke) so the dashed
   // box reads as a penciled boundary, not a colored swimlane; the concern tint
   // stays on the caption label and the selected state.
-  const bgRgba = sketch
-    ? isDark ? SKETCH_GROUP_FILL_DARK : SKETCH_GROUP_FILL_LIGHT
-    : hexToRgba(groupColor, isDark ? 0.09 : 0.05);
-  const borderColor = selected
-    ? isDark
-      ? hexToRgba(groupColor, 0.65)
-      : hexToRgba(groupColor, 0.6)
+  const bgRgba = brutal
+    ? (isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT)
     : sketch
-      ? isDark ? SKETCH_GROUP_STROKE_DARK : SKETCH_GROUP_STROKE_LIGHT
-      : isDark
-        ? hexToRgba(groupColor, 0.38)
-        : hexToRgba(groupColor, 0.32);
+      ? isDark ? SKETCH_GROUP_FILL_DARK : SKETCH_GROUP_FILL_LIGHT
+      : hexToRgba(groupColor, isDark ? 0.09 : 0.05);
+  const borderColor = brutal
+    ? brutalBorder
+    : selected
+      ? isDark
+        ? hexToRgba(groupColor, 0.65)
+        : hexToRgba(groupColor, 0.6)
+      : sketch
+        ? isDark ? SKETCH_GROUP_STROKE_DARK : SKETCH_GROUP_STROKE_LIGHT
+        : isDark
+          ? hexToRgba(groupColor, 0.38)
+          : hexToRgba(groupColor, 0.32);
 
   const borderWidth = selected ? 1.5 : 1;
 
@@ -345,6 +405,17 @@ export function renderGroupNode(
       isDark,
       'group',
     );
+  } else if (brutal) {
+    zone = `
+      <rect
+        x="0" y="0"
+        width="${width}" height="${height}"
+        fill="${bgRgba}"
+        stroke="${borderColor}"
+        stroke-width="3"
+        rx="8" ry="8"
+        filter="url(#${BRUTAL_SHADOW_FILTER_ID})"
+      />`;
   } else {
     zone = `
       <rect
@@ -363,11 +434,11 @@ export function renderGroupNode(
       ${label ? `
       <text
         x="12" y="20"
-        fill="${tagText}"
-        font-family="${sketch ? getRenderStyle('sketch').fonts.title : 'Inter, Roboto, system-ui, -apple-system, sans-serif'}"
-        font-size="${sketch ? 15 : 11}"
-        font-weight="${sketch ? 500 : 500}"
-        letter-spacing="${sketch ? '0.02em' : '0.04em'}"
+        fill="${brutal ? brutalBorder : tagText}"
+        font-family="${sketch ? getRenderStyle('sketch').fonts.title : brutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, Roboto, system-ui, -apple-system, sans-serif'}"
+        font-size="${sketch ? 15 : brutal ? 12 : 11}"
+        font-weight="${brutal ? 700 : 500}"
+        letter-spacing="${brutal ? '0.02em' : sketch ? '0.02em' : '0.04em'}"
       >${escapeXml(label)}</text>` : ''}
     </g>
   `.trim();
@@ -401,7 +472,7 @@ export function renderShapeNode(
   const title = shapeData.label || '';
   const subtitle = shapeData.sublabel;
 
-  const renderer = getStrokeRenderer(sketch ? 'rough' : 'crisp');
+  const renderer = getStrokeRenderer(sketch ? 'rough' : renderStyleId === 'neubrutalism' ? 'brutalist' : 'crisp');
   const seed = renderer.seedFor(node.id);
   const renderBody = (primitives: ShapePrimitive[]): string => {
     if (sketch) {
@@ -471,6 +542,7 @@ export function renderShapeNode(
   const titleY = subtitle ? H / 2 - 4 : H / 2 + 4;
   const subtitleY = H / 2 + 12;
   const fontFamily = getRenderStyle(renderStyleId).fonts.title;
+  const brutal = renderStyleId === 'neubrutalism';
   // Sketch subtitles read as penciled secondary text — lighter, smaller, muted.
   const titleFontSize = sketch ? 18 : 16.2;  // Increased from 14 for better prominence
   const subtitleFontSize = sketch ? 11 : 10.5;  // Reduced from 11.5 for better hierarchy
@@ -485,9 +557,9 @@ export function renderShapeNode(
         fill="${titleColor}"
         font-family="${fontFamily}"
         font-size="${titleFontSize}"
-        font-weight="${sketch ? 500 : 600}"
+        font-weight="${sketch ? 500 : brutal ? 700 : 600}"
         text-anchor="middle"
-        letter-spacing="${sketch ? '0.015em' : '-0.015em'}"
+        letter-spacing="${sketch ? '0.015em' : brutal ? '-0.02em' : '-0.015em'}"
       >${escapeXml(title)}</text>` : ''}
       ${subtitle ? `
       <text

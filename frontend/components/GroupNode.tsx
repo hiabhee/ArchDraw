@@ -7,7 +7,7 @@ import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { getConcernColor, CONCERN_COLORS } from '@/lib/theme/stylingConstants';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
-import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
+import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, BRUTAL_SHADOW_FILTER, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodes/nodeStyles.css';
@@ -23,6 +23,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
   const { isDark } = useCanvasTheme();
   const aesthetics = useDiagramAesthetics();
   const sketch = aesthetics.renderStyleId === 'sketch';
+  const brutal = aesthetics.renderStyleId === 'neubrutalism';
 
   useEffect(() => {
     updateNodeInternals(id);
@@ -74,23 +75,30 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     CONCERN_COLORS.compute.color;
 
   // Sketch groups keep the concern tint at a softer opacity so the dashed
-  // boundary reads as a penciled swimlane but still carries the color cue.
-  const bg = sketch
-    ? isDark ? hexToRgba(color, 0.06) : hexToRgba(color, 0.04)
-    : isDark ? hexToRgba(color, 0.09) : hexToRgba(color, 0.05);
-  const borderColor = selected
-    ? isDark
-      ? hexToRgba(color, 0.65)
-      : hexToRgba(color, 0.6)
+  // Brutal plates are now rendered by GroupBackgroundLayer *behind* the
+  // edge SVG (inside .react-flow__viewport before .react-flow__edges) so
+  // the opaque #dbeafe fill never covers edge paths. Keep the node itself
+  // transparent and let the layer provide the visual plate.
+  const bg = brutal
+    ? 'transparent'
     : sketch
+      ? isDark ? hexToRgba(color, 0.06) : hexToRgba(color, 0.04)
+      : isDark ? hexToRgba(color, 0.09) : hexToRgba(color, 0.05);
+  const borderColor = brutal
+    ? (isDark ? '#e4e4e7' : '#1a1a1a')
+    : selected
       ? isDark
-        ? hexToRgba(color, 0.30)
-        : hexToRgba(color, 0.25)
-      : isDark
-        ? hexToRgba(color, 0.38)
-        : hexToRgba(color, 0.32);
+        ? hexToRgba(color, 0.65)
+        : hexToRgba(color, 0.6)
+      : sketch
+        ? isDark
+          ? hexToRgba(color, 0.30)
+          : hexToRgba(color, 0.25)
+        : isDark
+          ? hexToRgba(color, 0.38)
+          : hexToRgba(color, 0.32);
 
-  const borderWidth = selected ? 1.5 : 1;
+  const borderWidth = brutal ? 3 : selected ? 1.5 : 1;
   const borderStyle: 'dashed' | 'solid' = sketch ? 'dashed' : 'solid';
 
   // Sketch body: rough rounded-rect with light hachure swimlane (penciled zone)
@@ -118,7 +126,15 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
     });
   }, [sketch, box.width, box.height, bg, borderColor, borderWidth, aesthetics.borderRadius, id, isDark]);
 
-  const tagText = isDark ? hexToRgba(color, 0.9) : color;
+  // Brutal groups use a flat pastel fill + heavy border — the caption must
+  // ink like the rest of brutal titles (BRUTAL_TITLE_*), not echo the raw
+  // concern color which clashes with the fixed brutal surface (green on
+  // light-blue, etc.). Sketch/precision keep the concern tint.
+  const tagText = brutal
+    ? aesthetics.colors.title
+    : isDark
+      ? hexToRgba(color, 0.9)
+      : color;
   const tagBg = isDark ? 'transparent' : 'transparent';
 
   const label = dataRec.groupLabel || dataRec.label || '';
@@ -166,14 +182,16 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
       style={{
         width: '100%',
         height: '100%',
-        // In sketch the rough SVG rect is the surface — drop the CSS bg/border.
-        backgroundColor: sketch ? 'transparent' : bg,
-        border: sketch ? 'none' : `${borderWidth}px ${borderStyle} ${borderColor}`,
-        borderRadius: sketch ? 0 : 12,
+        // Sketch: rough SVG is the surface. Brutal: GroupBackgroundLayer
+        // behind .react-flow__edges provides the opaque plate so edges stay
+        // above it. Keep the node itself transparent in brutal.
+        backgroundColor: brutal ? 'transparent' : sketch ? 'transparent' : bg,
+        border: brutal ? 'none' : sketch ? 'none' : `${borderWidth}px ${borderStyle} ${borderColor}`,
+        borderRadius: sketch ? 0 : brutal ? 8 : 12,
+        boxShadow: 'none',
         position: 'relative',
         boxSizing: 'border-box',
         cursor: 'pointer',
-        boxShadow: 'none',
         ['--node-accent' as string]: color,
         ['--node-card-bg' as string]: sketch
           ? aesthetics.colors.nodeFill
@@ -215,7 +233,7 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
       />
       {/* Quiet caption label */}
       <div
-        className={sketch ? 'group-label' : undefined}
+        className={sketch || brutal ? 'group-label' : undefined}
         style={{
           position: 'absolute',
           top: 16,
@@ -223,15 +241,15 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 4,
-          padding: 0,
-          fontSize: 11,
-          fontWeight: 500,
+          padding: brutal ? '4px 10px' : 0,
+          fontSize: brutal ? 12 : 11,
+          fontWeight: brutal ? 700 : 500,
           letterSpacing: '0.04em',
-          textTransform: 'none',
+          textTransform: brutal ? 'uppercase' : 'none',
           color: tagText,
           background: tagBg,
-          border: 'none',
-          borderRadius: 0,
+          border: brutal ? `2px solid ${borderColor}` : 'none',
+          borderRadius: brutal ? 4 : 0,
           lineHeight: 1.3,
           whiteSpace: 'nowrap',
           cursor: 'pointer',
@@ -253,13 +271,14 @@ export default function GroupNode({ id, data, selected }: NodeProps) {
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              fontSize: 11,
-              fontWeight: 500,
+              fontSize: brutal ? 12 : 11,
+              fontWeight: brutal ? 700 : 500,
               letterSpacing: '0.04em',
               color: tagText,
               width: '100%',
               cursor: 'text',
               padding: 0,
+              textTransform: brutal ? 'uppercase' : 'none',
             }}
           />
         ) : (

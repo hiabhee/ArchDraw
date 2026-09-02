@@ -1,5 +1,6 @@
 export function getDeterministicColor(str: string): string {
-  const colors = ['#2563eb', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+  // Very light pastel palette per user request — no dark/high-contrast fills
+  const colors = ['#eff6ff', '#f0fdf4', '#fefce8', '#fdf2f8', '#eef2ff', '#fff7ed', '#f0fdfa'];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);

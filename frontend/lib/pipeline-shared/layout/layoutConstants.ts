@@ -17,7 +17,7 @@ export const DEFAULT_NODE_HEIGHT = 88;
 
 /** Horizontal air inside a group container (left and right). */
 export const SUBGRAPH_PADDING_X = 28;
-/** Air above a group's children — reserved for the group header/label. */
-export const SUBGRAPH_PADDING_TOP = 44;
+/** Air above a group's children — reserved for the group header/label. Breathing room so title never crowds node. */
+export const SUBGRAPH_PADDING_TOP = 56;
 /** Air below a group's children. */
 export const SUBGRAPH_PADDING_BOTTOM = 28;

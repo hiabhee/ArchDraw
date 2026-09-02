@@ -394,11 +394,14 @@ export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[]
     'Z',
   ].join(' ');
 
-  const primitives: ShapePrimitive[] = [];
+  const primitives: ShapePrimitive[] = [
+    { kind: 'path', bounds: { x: 0, y: 0, width: W, height: H }, d: silhouette, fillable: true },
+  ];
   if (bodyW > 0) {
     primitives.push({
       kind: 'rect',
       bounds: { x: leftCx, y: bodyTop, width: bodyW, height: R * 2 },
+      strokeOnly: true,
     });
   }
   primitives.push(
@@ -472,22 +475,34 @@ export function cloudPrimitives(W: number, H: number): ShapePrimitive[] {
 }
 
 // ── actor (end user / person) ────────────────────────────────────────────────
-// Two-part person glyph: oval head + rounded-shoulder body, touching at seam.
+// Two-part person glyph: round head + rounded-shoulder body, touching at seam.
 // Both parts share the same surface fill/stroke so the combined glyph reads
 // as one filled person silhouette behind the centered label.
+//
+// The glyph is drawn inside a "person box" with a FIXED natural aspect ratio
+// (body width vs. height) that is centered within the W×H node. Head size is
+// derived from the person's height only, so the head stays round and the person
+// never gets stretched regardless of the node's box proportions.
 
 export function actorPrimitives(W: number, H: number): ShapePrimitive[] {
-  const headW = Math.max(26, Math.round(W * 0.30));
-  const headX = Math.round((W - headW) / 2);
-  const headY = Math.max(2, Math.round(H * 0.06));
+  const RATIO = 0.62; // person width vs height — natural human silhouette
+  const ph = Math.min(H, W / RATIO);
+  const pw = ph * RATIO;
+  const px0 = Math.round((W - pw) / 2);
+  const py0 = Math.round((H - ph) / 2);
 
-  const bodyW = Math.max(52, Math.round(W * 0.76));
-  const bodyH = Math.max(22, Math.round(H * 0.30));
-  const bodyX = Math.round((W - bodyW) / 2);
-  const bodyY = H - bodyH - 2;
-  // Head height fills from headY to bodyY so head and body touch (no gap, minimal overlap)
-  const headH = Math.max(26, bodyY - headY);
-  const r = Math.min(16, Math.round(bodyH * 0.50), Math.round(bodyW * 0.16));
+  const topPad = Math.max(4, Math.round(ph * 0.05));
+  const d = Math.max(18, Math.round(ph * 0.30)); // round head diameter
+  const gap = Math.max(1, Math.round(ph * 0.02));
+  const bodyH = Math.max(18, Math.round(ph * 0.34));
+
+  const headX = Math.round(px0 + (pw - d) / 2);
+  const headY = py0 + topPad;
+
+  const bodyW = Math.max(30, Math.round(pw * 0.60));
+  const bodyX = Math.round(px0 + (pw - bodyW) / 2);
+  const bodyY = Math.round(headY + d + gap);
+  const r = Math.min(14, Math.round(bodyH * 0.5), Math.round(bodyW * 0.16));
 
   const bodyPath = [
     `M ${bodyX} ${bodyY + bodyH}`,
@@ -502,7 +517,7 @@ export function actorPrimitives(W: number, H: number): ShapePrimitive[] {
   return [
     {
       kind: 'ellipse',
-      bounds: { x: headX, y: headY, width: headW, height: headH },
+      bounds: { x: headX, y: headY, width: d, height: d },
       fillable: true,
     },
     {
@@ -626,44 +641,69 @@ export function queuePrimitives(W: number, H: number): ShapePrimitive[] {
 // ── cache (stacked memory / fast-store silhouette) ────────────────────────────
 
 /**
- * Compact stacked-layers shape for Redis, Memcached, CDN caches.
- * Two offset shadow layers behind the main rounded-rect body.
+ * Refined stacked-layers for Redis/Memcached/CDN.
+ * Subtle offset (3px) + two faint back plates + two inner lines hinting
+ * cached entries. Much lighter than prior 5px/10px shift - no heavy bottom
+ * bar in neubrutalism, still reads as “layered fast store”.
  */
 export function cachePrimitives(W: number, H: number): ShapePrimitive[] {
   const inset = 2;
-  const r = Math.max(6, Math.round(W * 0.08));
-  const shadowOffset = 5;
-  // Back layers (stroke-only, offset up-right)
+  const r = Math.max(8, Math.round(W * 0.075));
+  const off = 3;
+  // Back plates — only top edge peeks, stroke-only, low opacity via renderer
   const layer2: ShapePrimitive = {
     kind: 'rounded-rect',
     bounds: {
-      x: inset + shadowOffset * 2,
-      y: inset - shadowOffset * 2,
-      width: W - inset * 2 - shadowOffset * 2,
-      height: H - inset * 2,
+      x: inset + off * 2,
+      y: inset,
+      width: W - inset * 2 - off * 2,
+      height: H - inset * 2 - off,
     },
     rx: r,
     strokeOnly: true,
+    opacity: 0.45,
   };
   const layer1: ShapePrimitive = {
     kind: 'rounded-rect',
     bounds: {
-      x: inset + shadowOffset,
-      y: inset - shadowOffset,
-      width: W - inset * 2 - shadowOffset,
-      height: H - inset * 2,
+      x: inset + off,
+      y: inset + off * 0.5,
+      width: W - inset * 2 - off,
+      height: H - inset * 2 - off,
     },
     rx: r,
     strokeOnly: true,
+    opacity: 0.6,
   };
-  // Main front body (fillable)
+  // Main front body
   const body: ShapePrimitive = {
     kind: 'rounded-rect',
-    bounds: { x: inset, y: inset + shadowOffset * 2, width: W - inset * 2, height: H - inset * 2 - shadowOffset * 2 },
+    bounds: { x: inset, y: inset + off, width: W - inset * 2, height: H - inset * 2 - off },
     rx: r,
     fillable: true,
   };
-  return [layer2, layer1, body];
+  // Two subtle inner lines — hint “cached rows” without clutter
+  const innerY1 = Math.round(H * 0.38);
+  const innerY2 = Math.round(H * 0.58);
+  const lx = Math.round(W * 0.18);
+  const rx2 = Math.round(W * 0.82);
+  const line1: ShapePrimitive = {
+    kind: 'line',
+    bounds: { x: 0, y: 0, width: W, height: H },
+    x1: lx, y1: innerY1, x2: rx2, y2: innerY1,
+    strokeOnly: true,
+    opacity: 0.18,
+    strokeLinecap: 'round',
+  };
+  const line2: ShapePrimitive = {
+    kind: 'line',
+    bounds: { x: 0, y: 0, width: W, height: H },
+    x1: lx, y1: innerY2, x2: rx2, y2: innerY2,
+    strokeOnly: true,
+    opacity: 0.18,
+    strokeLinecap: 'round',
+  };
+  return [layer2, layer1, body, line1, line2];
 }
 
 // ── function (serverless / edge function silhouette) ──────────────────────────

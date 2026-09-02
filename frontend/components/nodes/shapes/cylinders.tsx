@@ -2,6 +2,7 @@
 
 import type { NodeStyleConfig } from '@/lib/theme/stylingConstants';
 import {
+  BrutalBody,
   Handles,
   Label,
   SVG_SURFACE_STYLE,
@@ -11,11 +12,14 @@ import {
   type ShapeShellProps,
 } from './shapeShell';
 
-export function Cylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+export function Cylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   // Cylinder is ONLY for vertical drums (databases)
   // For horizontal pipes/queues, use shape='queue' instead
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const pillStyle: React.CSSProperties = isDark
+    ? { background: 'rgba(30, 41, 59, 0.72)', backdropFilter: 'blur(2px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '3px 8px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }
+    : { background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(2px)', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 6, padding: '3px 8px', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' };
 
   if (sketch) {
     return (
@@ -24,6 +28,20 @@ export function Cylinder({ id, data, selected, backplates, isDark, styles, width
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" sketch />
+        </div>
+      </div>
+    );
+  }
+
+  if (brutal) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <BrutalBody shape="cylinder" width={W} height={H} surface={surface} axis="vertical" />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ ...pillStyle, maxWidth: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" brutal />
+          </div>
         </div>
       </div>
     );
@@ -142,18 +160,49 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
 
 // Legacy: HorizontalPipeCylinder kept for backward compatibility with old diagrams
 // New diagrams should use shape='queue' instead of shape='cylinder' with cylinderAxis='horizontal'
-export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false }: ShapeShellProps) {
+export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false, brutal = false }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
 
   // Sketch: hand-drawn capsule via rough.js — ensures queue nodes match other shapes in sketch theme
   if (sketch) {
+    const insetSketch = 2;
+    const RSketch = Math.max(8, Math.round((H - insetSketch * 2) / 2));
+    const bodyWSketch = Math.max(0, W - insetSketch * 2 - 2 * RSketch);
+    const sketchCentralMax = Math.max(72, Math.min(labelMaxWidth, bodyWSketch > 0 ? bodyWSketch - 12 : labelMaxWidth));
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
         <SketchBody shape="cylinder" width={W} height={H} surface={surface} seed={sketchSeed(id)} axis="horizontal" isDark={isDark} />
         <Handles color={color} nodeId={id} />
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: Math.max(8, Math.round(W * 0.14)), paddingRight: Math.round(W * 0.10) }}>
-          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="queue" sketch />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: RSketch + 10, paddingRight: RSketch + 14 }}>
+          <div
+            style={{
+              background: isDark ? 'rgba(26, 29, 39, 0.5)' : 'rgba(254, 252, 243, 0.5)',
+              border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.07)'}`,
+              borderRadius: 6,
+              padding: '3px 8px',
+              maxWidth: 'calc(100% - 8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: isDark ? '0 1px 2px rgba(0,0,0,0.2)' : '0 1px 1px rgba(15,23,42,0.04)',
+            }}
+          >
+            <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={sketchCentralMax} shape="queue" sketch />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (brutal) {
+    const RBrutal = Math.max(8, Math.round((H - 4) / 2));
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <BrutalBody shape="cylinder" width={W} height={H} surface={surface} axis="horizontal" />
+        <Handles color={color} nodeId={id} shape="queue" />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: RBrutal + 8, paddingRight: RBrutal + 14 }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="queue" brutal />
         </div>
       </div>
     );
@@ -179,6 +228,7 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
     'Z',
   ].join(' ');
 
+  const centralSafeMax = Math.max(72, Math.min(labelMaxWidth, bodyW > 0 ? bodyW - 12 : labelMaxWidth));
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       {backplates.map((layer, i) => (
@@ -254,8 +304,23 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
         />
       </svg>
       <Handles color={color} nodeId={id} shape="queue" />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: R + 6, paddingRight: R + 10 }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" />
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: R + 10, paddingRight: R + 14 }}>
+          <div
+          style={{
+            background: isDark ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+            backdropFilter: 'blur(2px)',
+            borderRadius: 6,
+            padding: '3px 8px',
+            maxWidth: 'calc(100% - 8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.25)' : '0 1px 2px rgba(15, 23, 42, 0.08)',
+            border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.05)'}`,
+          }}
+        >
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={centralSafeMax} shape="queue" />
+        </div>
       </div>
     </div>
   );

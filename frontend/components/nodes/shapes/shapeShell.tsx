@@ -31,6 +31,7 @@ import {
   getStrokeRenderer,
   resolveRenderSurface,
   renderSketchSurface,
+  BRUTAL_SHADOW_FILTER,
   type RenderSurface,
   type ShapePrimitive,
 } from '@/lib/theme/renderStyles';
@@ -75,6 +76,7 @@ export function Label({
   maxWidth,
   shape,
   sketch = false,
+  brutal = false,
 }: {
   data: ShapeNodeData;
   color: string;
@@ -84,6 +86,7 @@ export function Label({
   maxWidth?: number;
   shape?: ShapeType;
   sketch?: boolean;
+  brutal?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iconMode = useDiagramStore((s) => s.iconMode);
@@ -220,11 +223,13 @@ export function Label({
         <input
           {...labelEdit.inputProps}
           style={{
-            fontSize: sketch ? 18 : 16.2,
-            fontWeight: sketch ? 400 : 600,
+            fontSize: sketch ? 18 : brutal ? 16.2 : 16.2,
+            fontWeight: sketch ? 400 : brutal ? 700 : 600,
             fontFamily: sketch
               ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
-              : undefined,
+              : brutal
+                ? 'var(--arch-font-title, sans-serif)'
+                : undefined,
             color: 'var(--node-title-color, hsl(var(--foreground)))',
             background: 'transparent',
             border: 'none',
@@ -232,7 +237,7 @@ export function Label({
             padding: 0,
             margin: 0,
             lineHeight: 1.25,
-            letterSpacing: sketch ? '0.02em' : '-0.015em',
+            letterSpacing: sketch ? '0.02em' : brutal ? '-0.02em' : '-0.015em',
             width: '100%',
             textAlign: 'center',
             boxSizing: 'border-box',
@@ -249,19 +254,21 @@ export function Label({
             cursor: 'text',
             overflowWrap: 'anywhere',
             wordBreak: 'break-word',
-            whiteSpace: isPipeMultiline ? 'pre-line' : isPipeText ? 'nowrap' : 'normal',
+            whiteSpace: isPipeMultiline ? 'pre-line' : isPipeText ? 'normal' : 'normal',
             maxWidth: '100%',
             textAlign: 'center',
             flex: 'none',
-            fontSize: sketch ? 18 : (isIconBrand ? 13.2 : isPipeText ? 13.2 : undefined),
-            fontWeight: sketch ? 400 : (isIconBrand ? 500 : undefined),
+            fontSize: sketch ? 18 : (isIconBrand ? 13.2 : isPipeText ? 13.2 : brutal ? 16.2 : undefined),
+            fontWeight: sketch ? 400 : (isIconBrand ? 500 : brutal ? 700 : undefined),
             fontFamily: sketch
               ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
-              : undefined,
+              : brutal
+                ? 'var(--arch-font-title, sans-serif)'
+                : undefined,
             letterSpacing: sketch ? '0.015em' : undefined,
-            lineHeight: isPipeMultiline ? 1.15 : undefined,
-            textOverflow: isPipeText && !isPipeMultiline ? 'ellipsis' : undefined,
-            overflow: isPipeText && !isPipeMultiline ? 'hidden' : undefined,
+            lineHeight: isPipeMultiline || isPipeText ? 1.15 : undefined,
+            textOverflow: undefined,
+            overflow: undefined,
           }}
         >
           {data.label}
@@ -282,6 +289,7 @@ export function Label({
               : undefined,
             fontWeight: sketch ? 600 : undefined,
             letterSpacing: sketch ? '0.02em' : undefined,
+            color: brutal ? 'var(--arch-subtitle, #52525b)' : undefined,
           }}
         >
           {sublabel}
@@ -319,9 +327,10 @@ export function resolveShapeSurface(
   selected: boolean,
   accentColor: string,
   sketch = false,
+  brutal = false,
 ) {
   return resolveRenderSurface({
-    renderStyleId: sketch ? 'sketch' : 'precision',
+    renderStyleId: brutal ? 'neubrutalism' : sketch ? 'sketch' : 'precision',
     isDark,
     selected,
     accentColor,
@@ -386,6 +395,35 @@ export function SketchBody({
   );
 }
 
+/** Neubrutalism body — crisp primitives with heavy stroke + hard shadow filter. */
+export function BrutalBody({
+  shape,
+  width,
+  height,
+  surface,
+  axis,
+}: {
+  shape: ShapeType;
+  width: number;
+  height: number;
+  surface: RenderSurface;
+  axis?: ShapeGeometryAxis;
+}) {
+  const primitives = getShapePrimitives(shape, width, height, axis);
+  const renderer = getStrokeRenderer('brutalist');
+  const body = applyShapeSurface(primitives, surface)
+    .map((p) => renderer.renderPrimitive(p, 0))
+    .join('\n');
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={SVG_SURFACE_STYLE(width, height)}
+      dangerouslySetInnerHTML={{ __html: `${BRUTAL_SHADOW_FILTER}${body}` }}
+    />
+  );
+}
+
 export type ShapeShellProps = {
   id: string;
   data: ShapeNodeData;
@@ -397,4 +435,5 @@ export type ShapeShellProps = {
   height: number;
   labelMaxWidth: number;
   sketch?: boolean;
+  brutal?: boolean;
 };

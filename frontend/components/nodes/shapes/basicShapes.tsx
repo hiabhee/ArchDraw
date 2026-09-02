@@ -4,6 +4,7 @@ import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
 import { diamondClipPath } from '@/lib/utils/shapeTextLayout';
 import {
   Backplates,
+  BrutalBody,
   Handles,
   Label,
   SVG_SURFACE_STYLE,
@@ -14,9 +15,9 @@ import {
   type ShapeShellProps,
 } from './shapeShell';
 
-export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch }: ShapeShellProps & { rounded: boolean }) {
+export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal }: ShapeShellProps & { rounded: boolean }) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
   const r = getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', width, height)[0].rx ?? 6;
   if (sketch) {
     return (
@@ -25,6 +26,18 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
         <SketchBody shape={rounded ? 'rounded-rectangle' : 'rectangle'} width={width} height={height} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} sketch />
+        </div>
+        <Handles color={color} nodeId={id} />
+      </div>
+    );
+  }
+  if (brutal) {
+    return (
+      <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
+        {backplates.length > 0 && <Backplates layers={backplates} borderRadius={r} />}
+        <BrutalBody shape={rounded ? 'rounded-rectangle' : 'rectangle'} width={width} height={height} surface={surface} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} brutal />
         </div>
         <Handles color={color} nodeId={id} />
       </div>
@@ -56,9 +69,9 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
   );
 }
 
-export function Diamond({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+export function Diamond({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -66,6 +79,17 @@ export function Diamond({ id, data, selected, backplates, isDark, styles, width:
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', clipPath: diamondClipPath(W, H) }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="diamond" sketch />
+        </div>
+      </div>
+    );
+  }
+  if (brutal) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <BrutalBody shape="diamond" width={W} height={H} surface={surface} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', clipPath: diamondClipPath(W, H) }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="diamond" brutal />
         </div>
       </div>
     );
@@ -98,9 +122,9 @@ export function Diamond({ id, data, selected, backplates, isDark, styles, width:
   );
 }
 
-export function Circle({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+export function Circle({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
   if (sketch) {
     // Scale up the rough.js body so the circle looks bigger in sketch mode.
     const sketchScale = 1.3;
@@ -130,6 +154,27 @@ export function Circle({ id, data, selected, backplates, isDark, styles, width: 
       </div>
     );
   }
+  if (brutal) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        {backplates.length > 0 && <Backplates layers={backplates} borderRadius="50%" />}
+        <BrutalBody shape="circle" width={W} height={H} surface={surface} />
+        <Handles color={color} nodeId={id} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            clipPath: `ellipse(${(W / 2) - 4}px ${(H / 2) - 4}px at ${W / 2}px ${H / 2}px)`,
+          }}
+        >
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="circle" brutal />
+        </div>
+      </div>
+    );
+  }
   const body = renderPrimitivesSvg(getShapePrimitives('circle', W, H), surface);
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -152,9 +197,9 @@ export function Circle({ id, data, selected, backplates, isDark, styles, width: 
   );
 }
 
-export function Parallelogram({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch }: ShapeShellProps) {
+export function Parallelogram({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -162,6 +207,17 @@ export function Parallelogram({ id, data, selected, backplates, isDark, styles, 
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="parallelogram" sketch />
+        </div>
+      </div>
+    );
+  }
+  if (brutal) {
+    return (
+      <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
+        <BrutalBody shape="parallelogram" width={W} height={H} surface={surface} />
+        <Handles color={color} nodeId={id} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="parallelogram" brutal />
         </div>
       </div>
     );

@@ -78,7 +78,10 @@ export const createGraphSlice: StateCreator<
 
     if (isStructural) get().pushHistory();
 
-    const edges = applyEdgeChanges(changes, get().edges);
+    const rawEdges = applyEdgeChanges(changes, get().edges);
+    const edges = isStructural
+      ? distributeTargetHandles(get().nodes, rawEdges, get().activeLayoutPresetId)
+      : rawEdges;
     const activeId = get().activeCanvasId;
     const canvases = get().canvases.map((c) =>
       c.id === activeId ? { ...c, edges, ...(isStructural ? { updatedAt: Date.now() } : {}) } : c
@@ -253,7 +256,8 @@ export const createGraphSlice: StateCreator<
 
     const validatedNodes = validateAndFixNodes(updatedNodes);
 
-    const edges = get().edges.filter((e) => e.source !== id && e.target !== id);
+    const rawEdges = get().edges.filter((e) => e.source !== id && e.target !== id);
+    const edges = distributeTargetHandles(validatedNodes, rawEdges, get().activeLayoutPresetId);
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, nodes: validatedNodes, edges, updatedAt: Date.now() } : c
     );
@@ -483,10 +487,11 @@ export const createGraphSlice: StateCreator<
     let finalNodes = currentNodes.filter((n) => !allIdsToDelete.has(n.id));
     finalNodes = validateAndFixNodes(finalNodes);
 
-    const newEdges = currentEdges.filter((e) => {
+    const rawEdges = currentEdges.filter((e) => {
       if (allIdsToDelete.has(e.source) || allIdsToDelete.has(e.target)) return false;
       return true;
     });
+    const newEdges = distributeTargetHandles(finalNodes, rawEdges, get().activeLayoutPresetId);
 
     const syncedCanvases = currentCanvases.map((c) =>
       c.id === activeCanvasId ? { ...c, nodes: finalNodes, edges: newEdges, updatedAt: Date.now() } : c
@@ -527,9 +532,9 @@ export const createGraphSlice: StateCreator<
     const isNested = !!parentId;
 
     // Top pad clears the group's caption label (top:16 + ~14px text) plus
-    // breathing room, so the title never hides behind child nodes.
+    // breathing room so title never crowds node — increased for air.
     const PAD_SIDE = isNested ? 10 : 14;
-    const PAD_TOP = isNested ? 36 : 44;
+    const PAD_TOP = isNested ? 48 : 56;
     const PAD_BOT = isNested ? 8 : 10;
 
     const rawMinX = Math.min(...selected.map((n) => n.position.x));
@@ -551,7 +556,7 @@ export const createGraphSlice: StateCreator<
     const maxY = rawMaxY + PAD_BOT;
 
     const existingGroupCount = nodes.filter((n) => n.type === 'groupNode' || n.data?.isGroup).length;
-    const colors = ['#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#2563eb', '#06b6d4'];
+    const colors = ['#eff6ff', '#f0fdf4', '#fefce8', '#fdf2f8', '#eef2ff', '#fff7ed', '#f0fdfa'];
     const groupColor = colors[existingGroupCount % colors.length];
 
     const groupId = `group-${Date.now()}`;
@@ -778,7 +783,25 @@ export const createGraphSlice: StateCreator<
   recalculateHandles: (nodesOverride?: Node[]) => {
     const { edges, activeCanvasId, canvases, activeLayoutPresetId } = get();
     const nodes = nodesOverride ?? get().nodes;
-    const edgesWithHandles = distributeTargetHandles(nodes, edges, activeLayoutPresetId);
+    // Skip bundling during handle recalculation: bundling replaces N edges
+    // with 1 bundle edge (new ID), which causes React Flow to unmount old
+    // edge components and lose track of them (edges "disappear" during drag).
+    // Lane-side assignments are still recalculated so handles stay aligned.
+    const edgesWithHandles = distributeTargetHandles(nodes, edges, activeLayoutPresetId, { skipBundling: true });
+
+    // Avoid unnecessary store updates when edge data is structurally identical.
+    // distributeTargetHandles always creates new objects (spread operators),
+    // but the actual handle values may be the same — skip the set() if so.
+    const edgesChanged = edgesWithHandles.length !== edges.length ||
+      edgesWithHandles.some((e, i) => {
+        const old = edges[i];
+        return e.id !== old.id ||
+          e.sourceHandle !== old.sourceHandle ||
+          e.targetHandle !== old.targetHandle;
+      });
+
+    if (!edgesChanged) return;
+
     const nextCanvases = canvases.map((c) =>
       c.id === activeCanvasId ? { ...c, edges: edgesWithHandles, updatedAt: Date.now() } : c
     );

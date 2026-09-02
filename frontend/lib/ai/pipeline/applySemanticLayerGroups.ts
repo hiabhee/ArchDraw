@@ -6,17 +6,17 @@ export interface SemanticGroupMeta {
   layer: PipelineLayer;
 }
 
-/** Canonical layer buckets used for auto-grouping in both pipelines. */
+/** Canonical layer buckets — very light pastels per user request (no dark/high-contrast). */
 export const SEMANTIC_GROUP_META: Record<string, SemanticGroupMeta> = {
-  client: { label: 'Presentation', color: '#3b82f6', layer: 'client' },
-  presentation: { label: 'Presentation', color: '#3b82f6', layer: 'presentation' },
-  edge: { label: 'Edge / CDN', color: '#f59e0b', layer: 'edge' },
-  gateway: { label: 'Authentication / Security', color: '#d97706', layer: 'gateway' },
-  application: { label: 'Business Services', color: '#2563eb', layer: 'application' },
-  queue: { label: 'Async / Messaging', color: '#3b82f6', layer: 'queue' },
-  data: { label: 'Data Stores', color: '#10b981', layer: 'data' },
-  observability: { label: 'Observability', color: '#64748b', layer: 'observability' },
-  external: { label: 'External Services', color: '#f97316', layer: 'external' },
+  client: { label: 'Presentation', color: '#eff6ff', layer: 'client' },
+  presentation: { label: 'Presentation', color: '#eff6ff', layer: 'presentation' },
+  edge: { label: 'Edge / CDN', color: '#fff7ed', layer: 'edge' },
+  gateway: { label: 'Authentication / Security', color: '#fff7ed', layer: 'gateway' },
+  application: { label: 'Business Services', color: '#eff6ff', layer: 'application' },
+  queue: { label: 'Async / Messaging', color: '#eef2ff', layer: 'queue' },
+  data: { label: 'Data Stores', color: '#f0fdf4', layer: 'data' },
+  observability: { label: 'Observability', color: '#f0fdfa', layer: 'observability' },
+  external: { label: 'External Services', color: '#fefce8', layer: 'external' },
 };
 
 export interface ApplySemanticLayerGroupsOptions {
@@ -66,9 +66,9 @@ export function applySemanticLayerGroups(
   options: ApplySemanticLayerGroupsOptions = {}
 ): LayoutedNode[] {
   const minNodesPerGroup = options.minNodesPerGroup ?? 2;
-  // Side/bottom padding. Top gets extra to clear the label tag (~28px) + breathing room.
+  // Side/bottom padding. Top gets extra to clear the label tag (~28px) + breathing room so node never kisses title.
   const PAD_SIDE = options.padding    ?? 14;
-  const PAD_TOP  = options.paddingTop ?? 24;
+  const PAD_TOP  = options.paddingTop ?? 36;
   const PAD_BOT  = PAD_SIDE;
 
   const existingGroups = nodes.filter((n) => n.isGroup);

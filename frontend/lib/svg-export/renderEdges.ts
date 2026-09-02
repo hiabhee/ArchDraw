@@ -15,6 +15,11 @@ import {
   SKETCH_INK_LIGHT_BORDER,
   SKETCH_INK_DARK_TITLE,
   SKETCH_INK_LIGHT_TITLE,
+  BRUTAL_BORDER,
+  BRUTAL_BORDER_DARK,
+  BRUTAL_FILL_LIGHT,
+  BRUTAL_FILL_DARK,
+  BRUTAL_SHADOW_FILTER_ID,
   type DiagramRenderStyleId,
 } from '@/lib/theme/renderStyles';
 import { buildSolidArrowheadPath, escapeXml } from './svgPrimitives';
@@ -29,6 +34,7 @@ export function renderEdge(
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected, isFloating } = edge;
 
   const isSketch = renderStyleId === 'sketch';
+  const isBrutal = renderStyleId === 'neubrutalism';
   const edgeType: EdgeType | undefined = data?.edgeType;
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
@@ -44,7 +50,9 @@ export function renderEdge(
     strokeColor = isDark ? '#e2e8f0' : '#1e293b';
   }
 
-  let strokeWidth = selected ? visual.strokeWidth + 0.75 : visual.strokeWidth;
+  let strokeWidth = isBrutal
+    ? (visual.isPrimary ? 3 : 2.75)
+    : (selected ? visual.strokeWidth + 0.75 : visual.strokeWidth);
   const edgeVariant = data?.edgeVariant;
 
   if (edgeVariant === 'feedback') {
@@ -114,6 +122,21 @@ export function renderEdge(
         'rounded-rectangle',
       );
       labelBox = `<g transform="translate(${-labelWidth / 2}, ${-labelHeight / 2})">${boxBody}</g>`;
+    } else if (isBrutal) {
+      // Hard-shadow pill — solid fill + heavy border.
+      labelBox = `
+        <g transform="translate(${-labelWidth / 2}, ${-labelHeight / 2})" filter="url(#${BRUTAL_SHADOW_FILTER_ID})">
+        <rect
+          x="0"
+          y="0"
+          width="${labelWidth}"
+          height="${labelHeight}"
+          fill="${isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT}"
+          stroke="${isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER}"
+          stroke-width="2.5"
+          rx="4"
+        />
+        </g>`;
     } else {
       labelBox = `
         <rect
@@ -134,9 +157,9 @@ export function renderEdge(
         <text
           x="0" y="3"
           fill="${fg}"
-          font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
-          font-size="9"
-          font-weight="500"
+          font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
+          font-size="${isBrutal ? 10 : 9}"
+          font-weight="${isBrutal ? 600 : 500}"
           text-anchor="middle"
           letter-spacing="${isSketch ? '0' : '0.01em'}"
         >${escapeXml(labelText)}</text>
@@ -160,7 +183,7 @@ export function renderEdge(
       stroke-width="${strokeWidth}"
       stroke-opacity="${opacity}"
       ${strokeDashAttr}
-      style="opacity: ${opacity}; ${isDark ? `filter: drop-shadow(0 0 3px ${strokeColor});` : ''}"
+      style="opacity: ${opacity}; ${isDark && !isBrutal ? `filter: drop-shadow(0 0 3px ${strokeColor});` : ''}"
     />`.trim();
 
   let arrowheadSVG = '';
