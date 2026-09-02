@@ -6,6 +6,9 @@ import type { RepoProfile } from '@/lib/types/repo-diagram';
 // Caches per-file results keyed by content hash (Git blob SHA).
 // On a re-diagram after a small commit, only changed files need
 // re-parsing; unchanged files are pulled from cache.
+// GH2R-019: currently reserved / not wired into repo pipeline (no producer).
+// `DELETE /api/repo-diagram` still clears it, but ingestion stages do not populate it.
+// Keep for future composite-SHA optimization; do not rely on it for correctness.
 
 const CACHE_TTL_MS = process.env.NODE_ENV === 'development'
   ? 5 * 60 * 1000

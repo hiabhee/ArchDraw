@@ -73,15 +73,38 @@ describe('verifyGraph (Phase 6.4)', () => {
     expect(out.stats.edgesCappedToLow).toBe(1);
   });
 
-  it('deletes unevidenced already-low edges (pure speculation)', () => {
+  it('deletes unevidenced already-low edges (pure speculation) — dense graph', () => {
+    // Dense evidence (3 nodes, 1 evidence edge) keeps the graph non-sparse, so pure low speculation is dropped.
+    const graph: ImportGraph = {
+      edges: new Map([['a.ts', new Set(['c.ts'])]]),
+      external: new Map(),
+      unresolved: new Map(),
+    };
+    const out = verifyGraph({
+      nodes: [
+        node('a', 'A', 'SERVICE', ['a.ts'], 'high'),
+        node('b', 'B', 'DATABASE', ['b.ts'], 'high'),
+        node('c', 'C', 'CACHE', ['c.ts'], 'high'),
+      ],
+      edges: [{ ...edge('a', 'b', 'http_call', 'low'), label: 'streams events' }],
+      signals: [],
+      fileTree: ['a.ts', 'b.ts', 'c.ts'],
+      importGraph: graph,
+    });
+    expect(out.edges).toHaveLength(0);
+    expect(out.stats.edgesDropped).toBe(1);
+  });
+
+  it('keeps unevidenced low edges in sparse graphs (Python/Rails fallback)', () => {
+    // GH2R-004: sparse import graph (0 evidence) → keep low-confidence meaningful edges rather than gutting diagram
     const out = verifyGraph({
       nodes: [node('a', 'A', 'SERVICE', ['a.ts'], 'high'), node('b', 'B', 'DATABASE', ['b.ts'], 'high')],
       edges: [{ ...edge('a', 'b', 'http_call', 'low'), label: 'streams events' }],
       signals: [],
       fileTree: ['a.ts', 'b.ts'],
     });
-    expect(out.edges).toHaveLength(0);
-    expect(out.stats.edgesDropped).toBe(1);
+    expect(out.edges).toHaveLength(1);
+    expect(out.stats.edgesDropped).toBe(0);
   });
 
   it('keeps unevidenced "(assumed)" baseline guesses even at low confidence', () => {

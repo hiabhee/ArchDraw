@@ -85,6 +85,10 @@ export function verifyGraph(input: VerifierInput): VerifierResult {
 
   // ── Edge cleanup ──
   const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  // GH2R-004: sparse import graphs (Python/Ruby/Java/Rails) → keep low-confidence edges rather than zeroing diagram
+  const evidenceCoverage = evidenceEdgeSet.size / Math.max(1, nodes.length);
+  const isSparseEvidence = evidenceCoverage < 0.3 || (importGraph?.edges.size ?? 0) === 0;
+  const meaningfulTypes = new Set(['http_call', 'db_query', 'external_call', 'auth_check', 'guards', 'publishes']);
   const verifiedEdges: RichEdge[] = [];
   let edgesCorroborated = 0;
   let edgesCappedToLow = 0;
@@ -115,11 +119,14 @@ export function verifyGraph(input: VerifierInput): VerifierResult {
 
     // No evidence — medium+ guesses may still be real (import graph blind spots),
     // so demote to 'low'. Already-low edges are pure speculation: delete them,
-    // except the baseline's deliberate "(assumed)" single-pair guess.
+    // except the baseline's deliberate "(assumed)" single-pair guess or sparse-graph meaningful edges (GH2R-004).
     if (rank[edge.confidence] > rank.low) {
       edgesCappedToLow++;
       verifiedEdges.push({ ...edge, confidence: 'low' });
     } else if (/\(assumed\)/i.test(edge.label || '')) {
+      verifiedEdges.push(edge);
+    } else if (isSparseEvidence && edge.confidence === 'low' && meaningfulTypes.has(edge.type)) {
+      // Sparse mode: keep low-confidence meaningful edge rather than gutting diagram (e.g., Python dynamic imports, Rails)
       verifiedEdges.push(edge);
     } else {
       edgesDropped++;

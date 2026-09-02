@@ -98,9 +98,15 @@ function detectPackageDeps(file: FileEntry, _lower: string): StaticSignal[] {
   }
 
   if (file.path.endsWith('pyproject.toml')) {
-    const toml = file.content;
-    // PEP 621: dependencies = ["numpy", ...] inside [project]
-    for (const match of toml.matchAll(/"([a-zA-Z][a-zA-Z0-9_.-]*)"/g)) {
+    // GH2R-015: scope to [project].dependencies and [tool.poetry.dependencies] only — avoid false positives from description/authors etc.
+    const extractSections = (toml: string): string => {
+      const projectSec = toml.match(/\[project\][\s\S]*?(?=\n\[|$)/)?.[0] ?? '';
+      const poetrySec = toml.match(/\[tool\.poetry\.dependencies\][\s\S]*?(?=\n\[|$)/)?.[0] ?? '';
+      return projectSec + '\n' + poetrySec;
+    };
+    const depSection = extractSections(file.content);
+    const source = depSection || ''; // if neither section found, parse nothing (avoid naive whole-file scan)
+    for (const match of source.matchAll(/"([a-zA-Z][a-zA-Z0-9_.-]*)"/g)) {
       const name = match[1].toLowerCase();
       if (name.startsWith('python') || name.startsWith('_')) continue;
       const cat = categorizePackage(name);
@@ -108,6 +114,8 @@ function detectPackageDeps(file: FileEntry, _lower: string): StaticSignal[] {
         signals.push({ type: 'dependency', label: name, source: file.path, details: { category: cat }, confidence: 'high' });
       }
     }
+    // Also handle TOML bare-dep form: dependencies = ["requests>=2.0", ...] already covered; PEP bug: handle names without quotes via fallback?
+    // Keep quoted-only for precision; unquoted dependencies are rare and will be caught via requirements.txt heuristic if present.
   }
   return signals;
 }
@@ -150,6 +158,11 @@ const PACKAGE_CATEGORIES: [RegExp, string][] = [
   [/^(gunicorn|uvicorn|waitress|hypercorn)/, 'http_server'],
   [/^(boto3|moto|google-cloud|azure-)/, 'external_api'],
   [/^(pydantic-settings|python-dotenv|python-decouple)/, 'config'],
+  // GH2R-013: previously missing drivers / modern stacks
+  [/^(mysql2|oracledb|pgvector|@planetscale\/.*|better-sqlite3)$/, 'database'],
+  [/^(@auth\/core|@auth\/.*)/, 'auth'],
+  [/^(drizzle-orm|kysely|mikro-orm)$/, 'database'],
+  [/^(opentelemetry|@opentelemetry\/.*)/, 'monitoring'],
 ];
 
 function categorizePackage(name: string): string | null {
@@ -208,8 +221,8 @@ function detectRoutes(file: FileEntry, path: string, _lower: string): StaticSign
     /\bresources\s+:(\w+)/g,
     /\b(?:get|post|put|delete|patch)\s+['"`]([^'"`]+)['"`]\s+(?:to:|=>)/g,
     /\b(?:get|post|put|delete|patch)\s+['"`]([^'"`]+)/g,
-    // Phase 5 — Spring @*Mapping
-    /@(?:Get|Post|Put|Delete|Patch|Request)Mapping\(['"`]([^'"`]+)['"`]\s*[,\)]/g,
+    // Phase 5 — Spring @*Mapping (GH2R-011: handle value=/path, path=/path, {"/a","/b"})
+    /@(?:Get|Post|Put|Delete|Patch|Request)Mapping\s*\(\s*(?:value\s*=\s*|path\s*=\s*)?(?:\{\s*)?['"`]([^'"`]+)['"`]/g,
   ];
 
   for (const pattern of routePatterns) {
@@ -383,8 +396,9 @@ function detectDockerServices(file: FileEntry, path: string, _lower: string): St
 // ── SDK Usage Detection ─────────────────────────────────────────
 
 function detectSdkUsage(file: FileEntry, path: string, _lower: string): StaticSignal[] {
-  // Skip config/manifest files — only scan source code for import/usage evidence
-  const configFiles = /(package\.json|^requirements\.txt|pnpm-workspace\.yaml|composer\.json|\.env|docker-compose|yarn\.lock|pnpm-lock)/;
+  // Skip config/manifest files — only scan source code for import/usage evidence (GH2R-015 extended)
+  const configFiles =
+    /(package\.json|pyproject\.toml|requirements\.txt|go\.mod|Cargo\.toml|pnpm-workspace\.yaml|composer\.json|\.env|docker-compose|yarn\.lock|pnpm-lock)/;
   if (configFiles.test(path)) return [];
 
   const signals: StaticSignal[] = [];

@@ -106,15 +106,18 @@ function matchesAlias(spec: string, pattern: string): boolean {
 
 /** "@/*" → "./src/*"; spec "@/components/Button" → "./src/components/Button". */
 function applyAlias(spec: string, pattern: string, target: string, baseUrl: string): string {
+  // GH2R-010: handle spec === base (no suffix) and baseUrl="."
   const base = pattern.replace(/\/\*$/, '');
-  const suffix = spec.startsWith(base + '/') ? spec.slice(base.length + 1) : '';
+  const suffix =
+    spec === base ? '' : spec.startsWith(base + '/') ? spec.slice(base.length + 1) : null;
+  if (suffix === null) return '';
   // Normalize targetBase — strip "/*" suffix, leading "./", collapse "." → "".
   let targetBase = target.replace(/\/\*$/, '').replace(/^\.\//, '');
   if (targetBase === '.' || targetBase === '') targetBase = '';
   const rel = suffix ? (targetBase ? `${targetBase}/${suffix}` : suffix) : targetBase;
   // Normalize baseUrl — strip leading "./", trailing "/" — "." treated as root "".
   let normBase = baseUrl.replace(/^\.\//, '').replace(/^\/+|\/+$/g, '');
-  if (normBase === '.') normBase = '';
+  if (normBase === '.' || normBase === '') normBase = '';
   const joined = normBase ? `${normBase}/${rel.replace(/^\/+/, '')}` : rel;
   return joined.replace(/^\/+/, '').replace(/^\.\//, '');
 }
@@ -216,16 +219,23 @@ function resolvePyModule(modulePath: string, fileSet: Set<string>): string | nul
 }
 
 function collectPythonRoots(files: FileEntry[]): string[] {
-  // Common roots (most likely first): '', 'src', 'app', 'app/...top-level...
-  const roots = new Set<string>(['', 'src']);
+  // GH2R-009: expand roots to cover common Python layouts (app/backend/server/api/services)
+  const roots = new Set<string>(['', 'src', 'app', 'backend', 'server', 'api', 'services']);
+  const candidates = new Set<string>();
   for (const f of files) {
     if (!f.path.endsWith('.py')) continue;
     if (f.path.endsWith('/__init__.py')) {
-      const pkgDir = f.path.slice(0, -'/__init__.py'.length);
-      if (pkgDir && !pkgDir.includes('/')) roots.add(pkgDir);
+      const pkgDir = f.path.slice(0, -'/__init__.py'.length).split('/')[0];
+      if (pkgDir) candidates.add(pkgDir);
+    }
+    const top = f.path.split('/')[0];
+    if (['app', 'backend', 'server', 'api', 'src', 'services'].includes(top)) {
+      roots.add(top);
     }
   }
-  return Array.from(roots);
+  for (const c of candidates) roots.add(c);
+  // Shortest first for loop order in resolvePython; caller deduplicates via Set
+  return Array.from(roots).sort((a, b) => a.length - b.length);
 }
 
 // ─── Go resolution ──────────────────────────────────────────
@@ -247,6 +257,11 @@ function resolveGo(spec: string, _importer: string, fileSet: Set<string>, files:
       }
     }
     return { kind: 'unresolved', path: spec };
+  }
+  // GH2R-012: fallback for go.mod-absent or vendor-local packages — treat fileTree hits as internal
+  if (fileSet.has(`${spec}.go`)) return { kind: 'internal', path: `${spec}.go` };
+  for (const p of fileSet) {
+    if (p.startsWith(spec + '/') && p.endsWith('.go')) return { kind: 'internal', path: p };
   }
   // External — top two segments of the import path (e.g. "github.com/foo").
   const parts = spec.split('/');

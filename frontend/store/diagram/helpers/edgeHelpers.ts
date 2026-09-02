@@ -162,9 +162,10 @@ export function applyBidirectionalEdgeFixes(edges: Edge[], nodes: Node[]): Edge[
 export function distributeTargetHandles(
   nodes: Node[],
   edges: Edge[],
-  activeLayoutPresetId: string = 'layered-lr'
+  activeLayoutPresetId: string = 'layered-lr',
+  options?: { skipBundling?: boolean },
 ): Edge[] {
-  const { edges: managedEdges } = processEdgeManagement(nodes, edges);
+  const { edges: managedEdges } = processEdgeManagement(nodes, edges, options);
   const normalized = normalizeEdges(managedEdges);
   const direction = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 

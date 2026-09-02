@@ -19,12 +19,12 @@ function confidenceRankForMerge(c: string | undefined): number {
 }
 
 function normalizeLabelKey(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/\s*\([^)]*\)/g, '')
-    .replace(/\b(api|service|database|db|cache|worker|module)\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+  // GH2R-016: avoid collapsing generic names like "API"/"Service" to "" which causes collisions
+  const stripped = label.toLowerCase().replace(/\s*\([^)]*\)/g, '');
+  const withoutGeneric = stripped.replace(/\b(api|service|database|db|cache|worker|module)\b/g, '').trim();
+  const alnum = withoutGeneric.replace(/[^a-z0-9]/g, '').trim();
+  if (!alnum) return label.toLowerCase().replace(/[^a-z0-9]/g, '').trim() || normalizeId(label);
+  return alnum;
 }
 
 export function mergeLlmIntoBaseline(

@@ -9,6 +9,7 @@ import { ClassifyStage } from './pipeline-stages/ClassifyStage';
 import { ExtractStage } from './pipeline-stages/ExtractStage';
 import { RelationshipsStage } from './pipeline-stages/RelationshipsStage';
 import { VerifyStage } from './pipeline-stages/VerifyStage';
+import { DocsReviewStage } from './pipeline-stages/DocsReviewStage';
 import { FinalizationStage } from './pipeline-stages/FinalizationStage';
 import { CacheWriteStage } from './pipeline-stages/CacheWriteStage';
 import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
@@ -23,7 +24,8 @@ const PROGRESS_STAGE_MAP: Record<string, PipelineProgressEvent['stage']> = {
   classifying: 'classifying',
   extracting_components: 'extracting_components',
   analyzing_relationships: 'analyzing_relationships',
-  verifying: 'analyzing_relationships',
+  verifying: 'verifying',
+  docs_review: 'verifying',
   finalization: 'compiling',
   'cache-write': 'done',
 };
@@ -39,6 +41,7 @@ export function createRepoDiagramStages(): Stage<IngestionInput, RepoPipelineRes
     new ExtractStage(),
     new RelationshipsStage(),
     new VerifyStage(),
+    new DocsReviewStage(),
     new FinalizationStage(),
     new CacheWriteStage()
   );
@@ -70,7 +73,12 @@ export async function generateRepoArchitectureDiagramV2(
   const result = await pipeline.execute(ingestInput, {
     signal,
     context: {
-      metadata: { repoUrl, detailLevel: resolvedDetailLevel },
+      metadata: {
+        repoUrl,
+        detailLevel: resolvedDetailLevel,
+        // GH2R-018: thread per-request token presence so Finalization can tailor reviewNotes (avoid "Set GITHUB_TOKEN" when user supplied github_pat_)
+        userGithubTokenPresent: Boolean(userGithubToken),
+      },
     },
     onProgress: (stage: string, progress: number, message: string) => {
       onProgress?.({

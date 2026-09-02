@@ -25,7 +25,16 @@ interface CachedRepoDiagram {
 const repoCache = new Map<string, CachedRepoDiagram>();
 const repoInsertionOrder: string[] = [];
 
-function getRepoCacheKey(repoUrl: string, headSha: string): string {
+function getRepoCacheKey(
+  repoUrl: string,
+  headSha: string,
+  detailLevel?: 1 | 2 | 3
+): string {
+  // GH2R-003: include detailLevel so L1 static-only doesn't poison L2/L3
+  return `${PIPELINE_VERSION}::${repoUrl}::${headSha}::L${detailLevel ?? 2}`;
+}
+
+function getRepoCacheKeyLegacy(repoUrl: string, headSha: string): string {
   return `${PIPELINE_VERSION}::${repoUrl}::${headSha}`;
 }
 
@@ -40,27 +49,54 @@ function evictOldestRepoEntry(): void {
   }
 }
 
-export function getRepoDiagram(repoUrl: string, headSha: string): PipelineResult | null {
-  const key = getRepoCacheKey(repoUrl, headSha);
-  const entry = repoCache.get(key);
-  if (!entry) return null;
+export function getRepoDiagram(
+  repoUrl: string,
+  headSha: string,
+  detailLevel?: 1 | 2 | 3
+): PipelineResult | null {
+  const key = getRepoCacheKey(repoUrl, headSha, detailLevel);
+  let entry = repoCache.get(key);
+  let foundKey: string | null = entry ? key : null;
+  if (!entry && (detailLevel === undefined || detailLevel === 2)) {
+    // Compat: check legacy key without level (written by v7 or during rolling deploy)
+    const legacyKey = getRepoCacheKeyLegacy(repoUrl, headSha);
+    const legacyEntry = repoCache.get(legacyKey);
+    if (legacyEntry) {
+      entry = legacyEntry;
+      foundKey = legacyKey;
+    }
+  }
+  if (!entry || !foundKey) return null;
   if (isExpired(entry.cachedAt)) {
-    repoCache.delete(key);
-    const idx = repoInsertionOrder.indexOf(key);
+    repoCache.delete(foundKey);
+    const idx = repoInsertionOrder.indexOf(foundKey);
     if (idx !== -1) repoInsertionOrder.splice(idx, 1);
     return null;
   }
   return entry.result;
 }
 
-export function setRepoDiagram(repoUrl: string, headSha: string, result: PipelineResult): void {
-  const key = getRepoCacheKey(repoUrl, headSha);
+export function setRepoDiagram(
+  repoUrl: string,
+  headSha: string,
+  result: PipelineResult,
+  detailLevel?: 1 | 2 | 3
+): void {
+  const key = getRepoCacheKey(repoUrl, headSha, detailLevel);
   if (repoCache.size >= MAX_CACHE_ENTRIES && !repoCache.has(key)) {
     evictOldestRepoEntry();
   }
   repoCache.set(key, { result, repoUrl, headSha, cachedAt: Date.now() });
   if (!repoInsertionOrder.includes(key)) {
     repoInsertionOrder.push(key);
+  }
+  // Also write legacy key during migration window for old readers (only for default level 2)
+  if (detailLevel === undefined || detailLevel === 2) {
+    const legacyKey = getRepoCacheKeyLegacy(repoUrl, headSha);
+    if (!repoCache.has(legacyKey) && repoCache.size < MAX_CACHE_ENTRIES) {
+      repoCache.set(legacyKey, { result, repoUrl, headSha, cachedAt: Date.now() });
+      if (!repoInsertionOrder.includes(legacyKey)) repoInsertionOrder.push(legacyKey);
+    }
   }
 }
 

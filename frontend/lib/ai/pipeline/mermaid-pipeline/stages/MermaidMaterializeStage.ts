@@ -45,6 +45,16 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
     let usedFallback = false;
     let droppedExistingContext = false;
 
+    // LayoutOverrideStage already normalised the direction for this plan
+    // (TD when the user asked for vertical, LR otherwise). Retry/fallback must
+    // keep that decision instead of forcing horizontal — otherwise a user who
+    // requested a layered vertical diagram gets flipped to LR on regeneration.
+    const intendedDirection =
+      currentPlan.formatConfig.diagramType === 'graph TD' ? 'graph TD' : 'graph LR';
+    // Rewrite the Mermaid header to the intended direction without touching the body.
+    const withDirection = (code: string, dir: 'graph TD' | 'graph LR'): string =>
+      code.replace(/^graph (?:TD|LR)/m, dir);
+
     let parseResult = await runMermaidPipeline(currentPlan.mermaidCode);
 
     if (!isDomainSuccess(parseResult) || parseResult.data.nodes.length === 0) {
@@ -52,12 +62,12 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
       const retryPrompt = `${prompt}\n\nIMPORTANT: Classify the user's intent first. Generate valid Mermaid with 3-6 components that match the topic — do NOT default to Browser, Load Balancer, and Database unless the prompt requires a web stack.`;
       try {
         const retryPlan = await runArchitecturePlanner(retryPrompt, diagramSize, detailLevel, model);
-        const retryCode = retryPlan.mermaidCode.replace(/^graph TD/m, 'graph LR');
+        const retryCode = withDirection(retryPlan.mermaidCode, intendedDirection);
         parseResult = await runMermaidPipeline(retryCode);
         currentPlan = {
           ...currentPlan,
           mermaidCode: retryCode,
-          formatConfig: { ...currentPlan.formatConfig, diagramType: 'graph LR' },
+          formatConfig: { ...currentPlan.formatConfig, diagramType: intendedDirection },
           reasoning: retryPlan.reasoning,
         };
       } catch {
@@ -69,10 +79,17 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
       logger.warn('[Pipeline] Parser still returned 0 nodes. Using fallback plan.');
       usedFallback = true;
       const fallback = generateFallbackPlan(prompt);
-      currentPlan = { ...currentPlan, ...fallback };
-      const fallbackCode = fallback.mermaidCode.replace(/^graph TD/m, 'graph LR');
+      const fallbackCode = withDirection(fallback.mermaidCode, intendedDirection);
+      currentPlan = {
+        ...currentPlan,
+        ...fallback,
+        mermaidCode: fallbackCode,
+        formatConfig: {
+          ...(fallback.formatConfig ?? currentPlan.formatConfig),
+          diagramType: intendedDirection,
+        },
+      };
       parseResult = await runMermaidPipeline(fallbackCode);
-      currentPlan.mermaidCode = fallbackCode;
 
       if (plan.inEditMode) {
         droppedExistingContext = true;

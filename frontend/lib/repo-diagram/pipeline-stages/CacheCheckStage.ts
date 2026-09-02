@@ -4,6 +4,7 @@ import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diag
 import type { IngestionOutput } from './IngestionStage';
 import { getRepoDiagram, setRepoDiagram } from '@/lib/ai/services/diagramCache';
 import { getRepoDiagramFromRedis } from '@/lib/ai/services/repoDiagramRedisCache';
+import { detailLevelFromContext } from './context-utils';
 import logger from '@/lib/logger';
 
 export class CacheCheckStage extends BaseStage<IngestionOutput, IngestionOutput | RepoPipelineResult> {
@@ -11,7 +12,7 @@ export class CacheCheckStage extends BaseStage<IngestionOutput, IngestionOutput 
     super('cache-check', { description: 'Check for cached diagram result', weight: 1, optional: true });
   }
 
-  async execute(input: IngestionOutput, _context: PipelineContext): Promise<StageResult<IngestionOutput | RepoPipelineResult>> {
+  async execute(input: IngestionOutput, context: PipelineContext): Promise<StageResult<IngestionOutput | RepoPipelineResult>> {
     const { snapshot } = input;
     const repoUrl = snapshot.repoUrl;
 
@@ -19,21 +20,22 @@ export class CacheCheckStage extends BaseStage<IngestionOutput, IngestionOutput 
       return successResult(input);
     }
 
-    let cached = getRepoDiagram(repoUrl, snapshot.headSha);
+    const detailLevel = detailLevelFromContext(context);
+    let cached = getRepoDiagram(repoUrl, snapshot.headSha, detailLevel);
     if (!cached) {
-      cached = await getRepoDiagramFromRedis(repoUrl, snapshot.headSha);
+      cached = await getRepoDiagramFromRedis(repoUrl, snapshot.headSha, detailLevel);
       if (cached) {
-        setRepoDiagram(repoUrl, snapshot.headSha, cached);
-        logger.info(`[Pipeline] Redis cache hit for ${repoUrl}`);
+        setRepoDiagram(repoUrl, snapshot.headSha, cached, detailLevel);
+        logger.info(`[Pipeline] Redis cache hit for ${repoUrl} (L${detailLevel})`);
       }
     }
 
     if (cached) {
-      logger.info(`[Pipeline] Cache hit for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
+      logger.info(`[Pipeline] Cache hit for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)} L${detailLevel}`);
       return successResult(cached, [`Cache hit for ${repoUrl}`], { terminal: true });
     }
 
-    logger.info(`[Pipeline] Cache miss for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)}`);
+    logger.info(`[Pipeline] Cache miss for ${repoUrl} @ ${snapshot.headSha.slice(0, 7)} L${detailLevel}`);
     return successResult(input);
   }
 }

@@ -42,6 +42,12 @@ export async function classifyRepository(
   // via formatSourceFilesForPrompt). Budget sized for gpt-oss-120b's context window.
   const PROMPT_CHAR_CAP = CLASSIFIER_PROMPT_CHARS;
 
+  // README as primary domain context — always first, never truncated away
+  const readmeFiles = [...snapshot.phase1Files, ...snapshot.phase2Files].filter((f) => /README\.md$/i.test(f.path));
+  const readmeBlock = readmeFiles.length
+    ? `README CONTEXT (primary — use to infer purpose, features, and domain workflows):\n${readmeFiles.map((f) => `### ${f.path}\n${f.content.slice(0, 15000)}`).join('\n\n')}\n`
+    : '';
+
   let sourceFilesBlock = formatSourceFilesForPrompt([
     ...snapshot.phase1Files,
     ...snapshot.phase2Files,
@@ -53,7 +59,7 @@ export async function classifyRepository(
   let fileTreeOverview = snapshot.fileTree.slice(0, 1500).join('\n');
 
   // Shrink source files (the bulkiest section) if the full prompt would exceed budget.
-  const templatePrefix = `Classify this repository architecture.\n\nSTATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 1500 paths):\n`;
+  const templatePrefix = `Classify this repository architecture.\n\n${readmeBlock}STATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 1500 paths):\n`;
   const templateSuffix = `\n\nSOURCE FILES (architectural evidence):\n\n${JSON_OUTPUT_REMINDER}\nRequired shape: ...}`;
   const fixedOverhead = templatePrefix.length + templateSuffix.length + summariesBlock.length;
   while (sourceFilesBlock.length + fileTreeOverview.length + fixedOverhead > PROMPT_CHAR_CAP) {
@@ -67,7 +73,7 @@ export async function classifyRepository(
 
   const prompt = `Classify this repository architecture.
 
-STATIC DETECTION:
+${readmeBlock}STATIC DETECTION:
 ${staticDetectionReport}
 
 FILE TREE OVERVIEW (first 1500 paths):

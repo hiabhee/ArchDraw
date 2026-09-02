@@ -48,10 +48,20 @@ export function normalizeNodes(nodes: Node[]): Node[] {
   return nodes.map((node) => {
     const parentId = node.parentId || (node as { parentNode?: string }).parentNode;
     const isValidParent = parentId && validNodeIds.has(parentId);
+    // Group zones always render below edges (same rule as createGroup /
+    // NodeConverter) so edges crossing into a group stay visible above its
+    // translucent surface. Enforce on every load/import so older persisted
+    // groups without a zIndex don't cover the edges.
+    const isGroup =
+      node.type === 'groupNode' ||
+      node.type === 'frameNode' ||
+      node.type === 'group' ||
+      (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
 
     return {
       ...node,
       type: normalizeNodeType(node.type as string | undefined),
+      ...(isGroup ? { zIndex: -1 } : {}),
       ...(isValidParent
         ? { parentId, parentNode: parentId, extent: node.extent || ('parent' as const) }
         : {
@@ -76,6 +86,7 @@ export function sanitizeNodes(nodes: Node[]): Node[] {
       return {
         ...node,
         type: node.type || 'groupNode',
+        zIndex: -1,
         data: {
           label: node.data?.label || node.data?.groupLabel || 'Group',
           groupLabel: node.data?.groupLabel || node.data?.label || 'Group',

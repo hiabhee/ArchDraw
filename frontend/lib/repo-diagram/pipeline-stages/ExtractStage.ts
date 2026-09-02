@@ -3,6 +3,7 @@ import type { PipelineContext } from '@/lib/pipeline-core';
 import { extractComponents } from '@/lib/agents/repo-component-extractor';
 import { extractComponentsHeuristic } from '@/lib/agents/repo-heuristic-extractor';
 import { mergeLlmIntoBaseline } from './internal-helpers';
+import { detailLevelFromContext } from './context-utils';
 import type { RepoEnrichmentState } from './enrichment-types';
 import { recomputeDegradedAnything } from './enrichment-types';
 import logger from '@/lib/logger';
@@ -44,7 +45,8 @@ export class ExtractStage extends BaseStage<RepoEnrichmentState, RepoEnrichmentS
       runHeuristic();
     } else {
       try {
-        const llmNodes = await extractComponents(snapshot, repoProfile, detectionReportText, summaries);
+        const detail = detailLevelFromContext(context);
+        const llmNodes = await extractComponents(snapshot, repoProfile, detectionReportText, summaries, { detailLevel: detail });
         if (llmNodes.length > 0) {
           workingNodes = mergeLlmIntoBaseline(baselineNodes, llmNodes);
           logger.log(`  Baseline: ${baselineNodes.length}, LLM: ${llmNodes.length}, Merged: ${workingNodes.length}`);

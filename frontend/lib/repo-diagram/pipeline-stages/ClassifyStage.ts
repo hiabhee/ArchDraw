@@ -21,8 +21,9 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
     const { snapshot, subsystems, signals, importGraph, baselineNodes, baselineEdges, workflows } = input;
     const detailLevel = detailLevelFromContext(context, input.detailLevel);
 
-    const hasAnySourceFiles = snapshot.phase2Files.length >= 1 || snapshot.selectedFiles.length >= 4;
-    const hasAnySignals = signals.length >= 3;
+    // GH2R-014: lower thresholds so 3-file repos still attempt LLM (was 4 files / 3 signals)
+    const hasAnySourceFiles = snapshot.phase2Files.length >= 1 || snapshot.selectedFiles.length >= 3;
+    const hasAnySignals = signals.length >= 2;
     const useLlm = detailLevel !== 1 && (hasAnySourceFiles || hasAnySignals);
 
     const baseState: RepoEnrichmentState = {
@@ -50,6 +51,11 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
             : `repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`
         }`
       );
+      if (snapshot.selectedFiles.length < 2 && signals.length < 2) {
+        logger.warn(
+          `[Pipeline] Repo too small for meaningful diagram (files=${snapshot.selectedFiles.length}, signals=${signals.length}) — try detailLevel=3 or check .gitignore / ingest budgets`
+        );
+      }
       return successResult(baseState);
     }
 

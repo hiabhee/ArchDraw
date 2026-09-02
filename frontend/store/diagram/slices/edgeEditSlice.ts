@@ -54,7 +54,8 @@ export const createEdgeEditSlice: StateCreator<
 
   deleteEdge: (edgeId) => {
     get().pushHistory();
-    const edges = get().edges.filter((e) => e.id !== edgeId);
+    const rawEdges = get().edges.filter((e) => e.id !== edgeId);
+    const edges = distributeTargetHandles(get().nodes, rawEdges, get().activeLayoutPresetId);
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );

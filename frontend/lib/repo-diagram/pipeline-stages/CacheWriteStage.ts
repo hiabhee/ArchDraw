@@ -5,6 +5,7 @@ import { setRepoDiagramInRedis } from '@/lib/ai/services/repoDiagramRedisCache';
 import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
 import { REPO_SHARED } from './shared-keys';
 import type { CacheWriteShared } from './shared-keys';
+import { detailLevelFromContext } from './context-utils';
 import logger from '@/lib/logger';
 
 export type { CacheWriteShared } from './shared-keys';
@@ -33,9 +34,11 @@ export class CacheWriteStage extends BaseStage<RepoPipelineResult, RepoPipelineR
       return successResult(result);
     }
 
+    const detailLevel = detailLevelFromContext(context);
     try {
-      setRepoDiagram(repoUrl, write.headSha, result);
-      await setRepoDiagramInRedis(repoUrl, write.headSha, result);
+      setRepoDiagram(repoUrl, write.headSha, result, detailLevel);
+      await setRepoDiagramInRedis(repoUrl, write.headSha, result, detailLevel);
+      logger.info(`[Pipeline] Cache write for ${repoUrl} @ ${write.headSha.slice(0, 7)} L${detailLevel}`);
       return successResult(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Cache write failed';

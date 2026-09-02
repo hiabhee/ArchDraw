@@ -25,12 +25,12 @@ function titleCase(input: string): string {
 }
 
 function normalizeLabelKey(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/\s*\([^)]*\)/g, '')
-    .replace(/\b(api|service|database|db|cache|worker|module)\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+  // GH2R-016: avoid collapsing generic names like "API"/"Service" to "" which causes collisions
+  const stripped = label.toLowerCase().replace(/\s*\([^)]*\)/g, '');
+  const withoutGeneric = stripped.replace(/\b(api|service|database|db|cache|worker|module)\b/g, '').trim();
+  const alnum = withoutGeneric.replace(/[^a-z0-9]/g, '').trim();
+  if (!alnum) return label.toLowerCase().replace(/[^a-z0-9]/g, '').trim() || slugId(label);
+  return alnum;
 }
 
 function confidenceRank(c: string | undefined): number {
@@ -221,6 +221,12 @@ export function deduplicateNodes(
   for (const node of nodes) {
     const normKey = normalizeLabelKey(node.label);
     let match = normKey ? labelMap.get(normKey) : undefined;
+    // GH2R semantic dedup: direct key hit must also pass type-compatibility (e.g. "Order API" vs "Order Service" same stem but different layer → keep both)
+    if (match && !shouldMergeNodes(match, node)) {
+      // For exact key collisions we allow merge only if labels are truly identical (case-insensitive) to catch LLM duplicate emit ("User Service" twice)
+      const sameLabel = match.label.trim().toLowerCase() === node.label.trim().toLowerCase();
+      if (!sameLabel) match = undefined;
+    }
 
     if (!match) {
       for (const [, k] of labelMap) {

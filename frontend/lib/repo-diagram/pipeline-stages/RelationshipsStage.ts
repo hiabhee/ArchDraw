@@ -1,6 +1,7 @@
 import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
 import { analyzeRelationships } from '@/lib/agents/repo-relationship-analyst';
+import { detailLevelFromContext } from './context-utils';
 import type { RepoEnrichmentState } from './enrichment-types';
 import { recomputeDegradedAnything } from './enrichment-types';
 import logger from '@/lib/logger';
@@ -32,6 +33,7 @@ export class RelationshipsStage extends BaseStage<RepoEnrichmentState, RepoEnric
         input.summaries ?? [],
         input.detectionReportText ?? '',
         { importGraph: input.importGraph, signals: input.signals },
+        { detailLevel: detailLevelFromContext(context) },
       );
       if (relOutput.edges.length > 0) currentEdges = relOutput.edges;
       if (relOutput.workflows.length > 0) currentWorkflows = relOutput.workflows;

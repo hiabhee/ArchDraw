@@ -167,9 +167,9 @@ export function getDetailGuidance(detailLevel: 1 | 2 | 3): string {
     return 'SCOPE: ESSENTIAL ONLY. Core components and primary flow. Skip peripherals. Must show complete request/response cycle. Reasoning: 2-3 sentences.';
   }
   if (detailLevel === 2) {
-    return 'SCOPE: STANDARD. Core components, main interactions, key supporting services. Complete flows with bidirectional edges. Include 1-2 architectural notes. Reasoning: 3-5 sentences covering all steps.';
+    return 'SCOPE: STANDARD. Core components, main interactions, key supporting services. Complete flows with bidirectional edges. Reasoning: 3-5 sentences covering all steps.';
   }
-  return 'SCOPE: COMPREHENSIVE. Full detail including secondary flows, error paths, async processing, monitoring. All connections bidirectional. Include 2-3 architectural notes explaining complex decisions. Reasoning: 5-8 sentences with detail on each validation step.';
+  return 'SCOPE: COMPREHENSIVE. Full detail including secondary flows, error paths, async processing, monitoring. All connections bidirectional. Reasoning: 5-8 sentences with detail on each validation step.';
 }
 
 export function getMaxNodesForSize(size: 'small' | 'medium' | 'large'): number {

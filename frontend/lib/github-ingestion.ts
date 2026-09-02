@@ -3,6 +3,24 @@ import { parseGitHubUrl as sharedParseGitHubUrl } from '@/lib/utils/githubUrl';
 import logger from '@/lib/logger';
 import { fetchRepoArchive } from './repo-diagram/tarball-ingestion';
 import { parse as parseYaml } from 'yaml';
+import {
+  isSkipped,
+  MAX_FILE_SIZE_BYTES,
+  BINARY_RE,
+  SKIPPED_DIRECTORIES,
+  ConfigSkipReason,
+  MAX_ARCHIVE_CONTENT_LENGTH_BYTES,
+  MAX_TOTAL_EXTRACTED_BYTES,
+  MAX_PER_FILE_BYTES,
+  DEFAULT_FILE_BUDGET,
+  DEFAULT_CONTENT_BUDGET_KB,
+  MAX_README_FILES,
+  MAX_META_FILES,
+  MAX_META_CONTENT_BYTES,
+  isArchitectureMetaFile,
+} from './repo-diagram/skip-rules';
+// Re-export for backwards compatibility (tests importing from github-ingestion)
+export { isSkipped } from './repo-diagram/skip-rules';
 
 function parseGithubUrl(url: string): { owner: string; repo: string } {
   const parsed = sharedParseGitHubUrl(url);
@@ -51,6 +69,14 @@ async function fetchJson(url: string, headers: Record<string, string>, signal?: 
 
 async function getDefaultBranch(owner: string, repo: string, headers: Record<string, string>, signal?: AbortSignal): Promise<{ branch: string; isPrivate: boolean }> {
   const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}`, headers, signal);
+  if (res.status === 401) {
+    const hasAuth = Boolean(headers['Authorization']);
+    throw new Error(
+      hasAuth
+        ? 'GitHub API authentication failed (401) — token invalid or expired. Check GITHUB_TOKEN in frontend/.env.local (must be ghp_* or github_pat_* with repo read access) and any PAT pasted in the UI. For private repos ensure the token has access; for public repos try clearing the stored token and retrying without it.'
+        : 'GitHub API authentication failed (401) — unexpected without token. Check GitHub status or try again.'
+    );
+  }
   if (res.status === 404) throw new Error('Repository not found or is private');
   if (res.status === 403) {
     const rl = readRateLimitInfo(res);
@@ -67,6 +93,14 @@ async function getDefaultBranch(owner: string, repo: string, headers: Record<str
 
 async function getBranchHeadSha(owner: string, repo: string, branch: string, headers: Record<string, string>, signal?: AbortSignal): Promise<string> {
   const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, headers, signal);
+  if (res.status === 401) {
+    const hasAuth = Boolean(headers['Authorization']);
+    throw new Error(
+      hasAuth
+        ? 'GitHub API authentication failed (401) — token invalid or expired. Check GITHUB_TOKEN / PAT has repo read access.'
+        : 'GitHub API authentication failed (401) — unexpected without token.'
+    );
+  }
   if (res.status === 404) throw new Error('Default branch ref not found');
   if (res.status === 403) {
     const rl = readRateLimitInfo(res);
@@ -86,6 +120,14 @@ async function getRecursiveTree(owner: string, repo: string, sha: string, header
   if (cached && Date.now() - cached.ts < CONTENT_CACHE_TTL_MS) return cached;
 
   const res = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`, headers, signal);
+  if (res.status === 401) {
+    const hasAuth = Boolean(headers['Authorization']);
+    throw new Error(
+      hasAuth
+        ? 'GitHub API authentication failed (401) — token invalid or expired. Check GITHUB_TOKEN / PAT.'
+        : 'GitHub API authentication failed (401) — unexpected without token.'
+    );
+  }
   if (res.status === 404) throw new Error('Repository not found or is private');
   if (res.status === 403) {
     const rl = readRateLimitInfo(res);
@@ -129,51 +171,10 @@ interface GitTreeItem {
   url: string;
 }
 
-const MAX_FILE_SIZE_BYTES = 500 * 1024;
-
-const SKIPPED_DIRECTORIES = new Set([
-  'node_modules', '.next', 'dist', 'build', 'out', 'public',
-  '__pycache__', '.git', '.cache', '.turbo', '.nyc_output',
-  'coverage', '.vercel', '.serverless', '.webpack',
-  '.svelte-kit', '.nuxt', '.output',
-]);
-
-const ConfigSkipReason = {
-  LARGE_FILE: 'large_file',
-  SKIPPED_DIR: 'skipped_directory',
-  LOCKFILE: 'lockfile',
-  TEST_FILE: 'test_file',
-  BINARY: 'binary',
-} as const;
-
-export const isSkipped = (path: string, size?: number): string | null => {
-  if (size && size > MAX_FILE_SIZE_BYTES) return ConfigSkipReason.LARGE_FILE;
-  const parts = path.split('/');
-  if (parts.some((p) => SKIPPED_DIRECTORIES.has(p))) {
-    return ConfigSkipReason.SKIPPED_DIR;
-  }
-  const filename = parts[parts.length - 1];
-  if (
-    filename.endsWith('.lock') ||
-    filename === 'package-lock.json' ||
-    filename === 'yarn.lock' ||
-    filename === 'pnpm-lock.yaml'
-  ) {
-    return ConfigSkipReason.LOCKFILE;
-  }
-  if (
-    filename.includes('.test.') ||
-    filename.includes('.spec.') ||
-    parts.includes('__tests__')
-  ) {
-    return ConfigSkipReason.TEST_FILE;
-  }
-  // Skip binary-looking file extensions
-  if (/\.(png|jpg|jpeg|gif|ico|svg|woff2?|eot|ttf|otf|pdf|zip|tar|gz|br)$/i.test(filename)) {
-    return ConfigSkipReason.BINARY;
-  }
-  return null;
-};
+// Skip rules (isSkipped, MAX_FILE_SIZE_BYTES, BINARY_RE, etc.) are single-sourced in
+// frontend/lib/repo-diagram/skip-rules.ts to keep tarball and Contents-API filtering identical.
+// See Phase 1.1 (GH2R-007). The re-export above keeps `import { isSkipped } from '@/lib/github-ingestion'` working for tests.
+// The actual implementations are imported, not redefined here.
 
 // In-memory caches to avoid re-fetching the same data on re-runs.
 // Content cache keyed by path; tree cache keyed by headSha.
@@ -370,6 +371,76 @@ function determineSurfaceClassification(
   };
 }
 
+/**
+ * GH2R-024 — Meta-first read: collect architecture-signaling files tree-wide
+ * (nested + non-root READMEs, package.json, docker-compose, terraform, CI
+ * workflows, manifests, docs) that phase-1 root triage misses. These files
+ * IMPLY the architecture, so they are read before source sampling and are the
+ * primary component-extraction evidence. Dedupes against phase-1 candidates
+ * and returns paths ordered by priority, capped at MAX_META_FILES.
+ */
+function collectMetaCandidates(
+  treeItems: GitTreeItem[],
+  phase1Paths: Set<string>
+): { paths: string[]; bytes: number } {
+  const readmes: { path: string; size: number; depth: number }[] = [];
+  const scored: { path: string; size: number; priority: number; depth: number }[] = [];
+
+  for (const item of treeItems) {
+    if (item.type !== 'blob') continue;
+    const { path } = item;
+    if (phase1Paths.has(path)) continue;
+    if (isSkipped(path, item.size)) continue;
+
+    const metaKind = isArchitectureMetaFile(path);
+    if (!metaKind) continue;
+
+    const depth = path.split('/').length;
+    const size = item.size ?? 0;
+    if (metaKind === 'well_known' && /(^|\/)README(\.[a-zA-Z0-9]+)?$/i.test(path)) {
+      readmes.push({ path, size, depth });
+      continue;
+    }
+    scored.push({ path, size, depth, priority: metaPriority(metaKind, path) });
+  }
+
+  // READMEs first (project overview tells us what exists), shallowest/smallest first.
+  readmes.sort((a, b) => a.depth - b.depth || a.size - b.size);
+  const readmePick = readmes.slice(0, MAX_README_FILES);
+
+  // Manifests/infra/CI next by priority; docs last.
+  scored.sort((a, b) => b.priority - a.priority || a.depth - b.depth || a.size - b.size);
+  const paths = [
+    ...readmePick.map((r) => r.path),
+    ...scored.slice(0, Math.max(0, MAX_META_FILES - readmePick.length)).map((s) => s.path),
+  ];
+
+  const byPath = new Map<string, number>();
+  for (const item of treeItems) byPath.set(item.path, item.size ?? 0);
+  const bytes = paths.reduce((acc, p) => acc + (byPath.get(p) ?? 0), 0);
+  return { paths, bytes };
+}
+
+function metaPriority(kind: string, path: string): number {
+  const lower = path.toLowerCase();
+  if (kind === 'ci_workflow') return 85;
+  if (kind === 'terraform') return 80;
+  if (kind === 'docs') return 30;
+  if (/(^|\/)(docker-compose|compose)\.(ya?ml)$/.test(lower)) return 90;
+  if (/(^|\/)package\.json$/.test(lower)) return 90;
+  if (/pnpm-workspace\.ya?ml|turbo\.json|nx\.json|lerna\.json/.test(lower)) return 85;
+  if (/serverless\.ya?ml|vercel\.json|netlify\.toml|now\.json|amplify\.ya?ml/.test(lower)) return 84;
+  if (/(^|\/)schema\.prisma$/.test(lower)) return 82;
+  if (/openapi|swagger/.test(lower)) return 78;
+  if (/(^|\/)Dockerfile[^/]*$/.test(lower)) return 75;
+  if (/next\.config\.|nuxt\.config\.|vite\.config\.|webpack\.config\.|rollup\.config\.|svelte\.config\.|tailwind\.config\./.test(lower)) return 70;
+  if (/(^|\/)(Makefile|Procfile|Justfile)$/.test(lower)) return 60;
+  if (/(^|\/)go\.mod$|(^|\/)Cargo\.toml$|(^|\/)Gemfile$|(^|\/)pyproject\.toml$|requirements.*\.txt|Pipfile$/.test(lower)) return 60;
+  if (/\.(csproj|sln)$|pom\.xml|build\.gradle/.test(lower)) return 60;
+  if (/\.env\.(example|sample)/.test(lower)) return 50;
+  return 40;
+}
+
 export async function ingestRepo(
   repoUrl: string,
   opts?: { fileBudget?: number; contentBudgetKB?: number },
@@ -405,8 +476,11 @@ export async function ingestRepo(
   }
 
   const treeItems: GitTreeItem[] = treeData.tree;
-  if (treeItems.length > 50000) {
-    logger.warn(`[Ingest] File tree exceeds 50k entries (${treeItems.length}) — sampling top entries. Quality may be reduced for this large repo.`);
+  // GH2R-005: surface truncation explicitly — GitHub truncates at 100k entries with truncated:true
+  if (treeData.truncated) {
+    logger.warn(`[Ingest] GitHub tree truncated @${headSha.slice(0, 7)} (${treeItems.length} entries, truncated=true). Some subsystems will be missing; diagram may be incomplete.`);
+  } else if (treeItems.length > 50000) {
+    logger.warn(`[Ingest] File tree exceeds 50k entries (${treeItems.length}) — quality may be reduced for this large repo.`);
   }
   const fileTree = treeItems.filter(item => item.type === 'blob').map(item => item.path);
   const treeMap = new Map<string, GitTreeItem>();
@@ -446,6 +520,14 @@ export async function ingestRepo(
     if (treeMap.has(p) && !phase1Candidates.includes(p)) {
       phase1Candidates.push(p);
     }
+  }
+  // README as primary domain context — capture nested READMEs up to 5 (apps/web/README.md etc.) that phase1Always misses (root only)
+  const readmeCandidates = treeItems
+    .filter((item) => item.type === 'blob' && /README\.md$/i.test(item.path) && !isSkipped(item.path, item.size))
+    .slice(0, 5)
+    .map((item) => item.path);
+  for (const p of readmeCandidates) {
+    if (!phase1Candidates.includes(p)) phase1Candidates.push(p);
   }
 
   // Root yaml/yml files and Dockerfiles
@@ -536,11 +618,53 @@ export async function ingestRepo(
     }
   }
 
+  // ── Phase 1.5: Architecture-Meta Read ─────────────────────
+  // GH2R-024 — Read ALL architecture-signaling files across the tree (nested
+  // READMEs, per-package package.json, docker-compose, terraform, CI workflows,
+  // manifests, docs) regardless of the source file/content budget. These files
+  // IMPLY the architecture directly and are tiny vs source code, so they are
+  // the primary evidence for component extraction (code sampling is Phase 2).
+  logger.log(`[Ingest] Phase 1.5: Architecture-meta read...`);
+
+  const phase1PathSet = new Set(phase1Candidates);
+  const metaCandidate = collectMetaCandidates(treeItems, phase1PathSet);
+  const metaPaths: string[] = [];
+  {
+    let metaBudget = MAX_META_CONTENT_BYTES;
+    for (const p of metaCandidate.paths) {
+      if (metaPaths.length >= MAX_META_FILES) break;
+      const item = treeMap.get(p);
+      if (!item || !item.size) continue;
+      if (item.size > MAX_PER_FILE_BYTES) continue;
+      metaBudget -= item.size;
+      metaPaths.push(p);
+      if (metaBudget <= 0) break;
+    }
+  }
+
+  let metaFetched: (FileEntry | null)[];
+  if (usingArchive) {
+    metaFetched = metaPaths.map((path) =>
+      archiveMap!.has(path) ? { path, content: archiveMap!.get(path)! } : null
+    );
+  } else {
+    metaFetched = await promisePool(metaPaths, 5, async (path) => {
+      const item = treeMap.get(path);
+      if (!item || isSkipped(path, item.size)) return null;
+      const entry = await fetchFileContent(owner, repo, path, headers, signal);
+      if (!entry) failedPaths.push(path);
+      return entry;
+    });
+  }
+  const metaFiles: FileEntry[] = metaFetched.filter((e): e is FileEntry => e !== null);
+  logger.log(`[Ingest] Phase 1.5: read ${metaFiles.length} architecture-meta files`);
+
   // ── Phase 2: Stack-Guided Deep Read ───────────────────────
   logger.log(`[Ingest] Phase 2: Stack-guided deep file selection...`);
 
-  const totalLimit = (opts?.fileBudget ?? 75) - phase1Files.length;
-  let contentBudget = (opts?.contentBudgetKB ?? 280) * 1024; // 280KB default
+  // GH2R-006: budgets are level-aware via skip-rules (was 75 / 280 unrelated to stage budgets)
+  const totalLimit = (opts?.fileBudget ?? DEFAULT_FILE_BUDGET[2]) - phase1Files.length;
+  let contentBudget = (opts?.contentBudgetKB ?? DEFAULT_CONTENT_BUDGET_KB[2]) * 1024;
   // Deduct phase1 consumed bytes from the budget
   for (const entry of phase1Files) {
     contentBudget -= entry.content.length;
@@ -922,6 +1046,7 @@ function scoreCandidate(path: string, treeMap: Map<string, GitTreeItem>): number
     surfaceClassification,
     phase1Files,
     phase2Files,
+    metaFiles,
     archiveMap: usingArchive ? archiveMap : null,
   };
 }
