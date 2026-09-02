@@ -8,7 +8,7 @@ export const metadata = {
     'An MCP server for diagramming is a local bridge that lets AI assistants like Claude and Cursor read, edit, and lay out architecture diagrams programmatically. Here is how ArchDraw\u2019s MCP server works and how to connect it.',
   openGraph: {
     type: 'article',
-    url: 'https://archdraw.app/mcp',
+    url: 'https://archdraw.hiabhee.online/mcp',
     title: 'What is an MCP server for diagramming?',
     description:
       'An MCP server for diagramming lets AI assistants like Claude and Cursor read, edit, and lay out architecture diagrams programmatically.',
@@ -56,15 +56,15 @@ const FAQ_JSON_LD = {
   '@graph': [
     {
       '@type': 'Article',
-      '@id': 'https://archdraw.app/mcp#article',
+      '@id': 'https://archdraw.hiabhee.online/mcp#article',
       headline: 'What is an MCP server for diagramming?',
       description: metadata.description,
-      url: 'https://archdraw.app/mcp',
-      publisher: { '@id': 'https://archdraw.app/#organization' },
+      url: 'https://archdraw.hiabhee.online/mcp',
+      publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
     },
     {
       '@type': 'FAQPage',
-      '@id': 'https://archdraw.app/mcp#faq',
+      '@id': 'https://archdraw.hiabhee.online/mcp#faq',
       mainEntity: FAQS.map((faq) => ({
         '@type': 'Question',
         name: faq.q,

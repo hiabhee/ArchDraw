@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: BlogDetailProps) {
     description: post.summary,
     openGraph: {
       type: 'article',
-      url: `https://archdraw.app/blogs/${post.slug}`,
+      url: `https://archdraw.hiabhee.online/blogs/${post.slug}`,
       title: `${post.title} — ArchDraw`,
       description: post.summary,
       images: [{ url: '/api/og/home', width: 1200, height: 630, alt: post.title }],
@@ -109,8 +109,36 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
     notFound();
   }
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'TechArticle',
+        '@id': `https://archdraw.hiabhee.online/blogs/${post.slug}#article`,
+        headline: post.title,
+        description: post.summary,
+        url: `https://archdraw.hiabhee.online/blogs/${post.slug}`,
+        datePublished: post.date,
+        author: { '@id': 'https://archdraw.hiabhee.online/#organization' },
+        publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
+        articleSection: post.category,
+        keywords: [post.kicker, post.category, ...post.sections.map((s) => s.heading)].join(', '),
+        inLanguage: 'en-US',
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://archdraw.hiabhee.online/' },
+          { '@type': 'ListItem', position: 2, name: 'Engineering Blog', item: 'https://archdraw.hiabhee.online/blogs' },
+          { '@type': 'ListItem', position: 3, name: post.title, item: `https://archdraw.hiabhee.online/blogs/${post.slug}` },
+        ],
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <BlogDocsHeader activeTab="blogs" />
 
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-6 py-12 space-y-6">

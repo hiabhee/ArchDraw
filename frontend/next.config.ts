@@ -65,7 +65,11 @@ const embedHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  compress: true,
   transpilePackages: [],
+  // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
+  // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion
   experimental: {
     optimizePackageImports: [
       'lucide-react',
@@ -74,6 +78,21 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-slot',
+      'framer-motion',
+      'reactflow',
+      'mermaid',
+      'html-to-image',
+      'jspdf',
+      'dagre',
+      'next-themes',
+      'sonner',
+    ],
+  },
+  images: {
+    remotePatterns: [
+      { hostname: 'cdn.simpleicons.org' },
+      { hostname: 'lh3.googleusercontent.com' },
+      { hostname: 'avatars.githubusercontent.com' },
     ],
   },
 

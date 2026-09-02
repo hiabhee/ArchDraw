@@ -624,7 +624,7 @@ body {
   justify-content: center;
   color: hsl(var(--muted-foreground));
   background: transparent;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .floating-icon-btn:hover {
@@ -680,7 +680,7 @@ body {
   color: hsl(var(--foreground));
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .dark .floating-pill-btn {
@@ -738,7 +738,7 @@ body {
   border-radius: 8px;
   background: transparent;
   color: hsl(var(--muted-foreground));
-  transition: all 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 
 .solid-icon-btn:hover {
@@ -760,7 +760,7 @@ body {
   color: hsl(var(--foreground));
   font-size: 12px;
   font-weight: 500;
-  transition: all 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease;
   cursor: pointer;
 }
 
@@ -777,7 +777,7 @@ body {
   border-radius: 8px;
   background: hsl(var(--foreground) / 0.12);
   color: hsl(var(--foreground));
-  transition: all 0.12s ease;
+  transition: background 0.12s ease, transform 0.12s ease;
   cursor: pointer;
 }
 
@@ -1453,6 +1453,19 @@ body {
   50% {
     box-shadow: 0 0 22px rgba(30, 144, 255, 0.7), 0 0 6px rgba(77, 171, 247, 0.45);
     border-color: rgba(77, 171, 247, 0.85);
+  }
+}
+
+/* Respect reduced-motion: disable decorative infinite animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .flow-sync, .flow-async, .flow-stream, .flow-event, .flow-dep,
+  .hero-node-pulse, .animate-shimmer, .skeleton-shimmer, .shiny-input-glow {
+    animation: none !important;
   }
 }
 

@@ -207,15 +207,21 @@ export function ShareModal({
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" aria-hidden="true" />
+                <label htmlFor="share-invite-email" className="sr-only">Invite by email</label>
                 <input
+                  id="share-invite-email"
                   ref={inputRef}
                   type="email"
+                  name="email"
+                  autoComplete="email"
+                  spellCheck={false}
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
                   placeholder="Email, name..."
-                  className="w-full min-h-[44px] pl-11 pr-4 py-[10px] text-[16px] sm:text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] outline-none text-[#111118] placeholder:text-[#9CA3AF] focus:border-[#111118] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)] transition-all duration-150"
+                  aria-label="Invite by email"
+                  className="w-full min-h-[44px] pl-11 pr-4 py-[10px] text-[16px] sm:text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] outline-none text-[#111118] placeholder:text-[#9CA3AF] focus:border-[#111118] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)] transition-[border-color,box-shadow] duration-150"
                 />
               </div>
 

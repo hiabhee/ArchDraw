@@ -22,11 +22,13 @@ export const viewport: Viewport = {
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
+  display: 'swap',
 });
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+  display: 'swap',
 });
 
 const instrumentSerif = Instrument_Serif({
@@ -34,10 +36,11 @@ const instrumentSerif = Instrument_Serif({
   weight: '400',
   style: ['normal', 'italic'],
   subsets: ['latin'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://archdraw.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://archdraw.hiabhee.online'),
   title: {
     default: 'ArchDraw — System Architecture Diagram & Design Tool',
     template: '%s | ArchDraw',
@@ -48,10 +51,10 @@ export const metadata: Metadata = {
   },
   description: 'Design and map production system architecture with drag-and-drop diagrams. Share, export, and embed instantly.',
   alternates: {
-    canonical: 'https://archdraw.app',
+    canonical: 'https://archdraw.hiabhee.online',
     languages: {
-      en: 'https://archdraw.app',
-      'x-default': 'https://archdraw.app',
+      en: 'https://archdraw.hiabhee.online',
+      'x-default': 'https://archdraw.hiabhee.online',
     },
   },
   keywords: [
@@ -65,7 +68,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://archdraw.app',
+    url: 'https://archdraw.hiabhee.online',
     title: 'ArchDraw — System Architecture Diagram & Design Tool',
     description: 'Design production-ready system architecture diagrams visually.',
     siteName: 'ArchDraw',
@@ -98,6 +101,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -106,27 +110,27 @@ export default function RootLayout({
               '@graph': [
                 {
                   '@type': 'Organization',
-                  '@id': 'https://archdraw.app/#organization',
+                  '@id': 'https://archdraw.hiabhee.online/#organization',
                   name: 'ArchDraw',
-                  url: 'https://archdraw.app',
-                  logo: 'https://archdraw.app/api/og/home',
+                  url: 'https://archdraw.hiabhee.online',
+                  logo: 'https://archdraw.hiabhee.online/api/og/home',
                   description:
                     'AI-assisted system architecture diagramming tool that turns plain English, Mermaid, or a GitHub repo URL into styled, auto-laid-out architecture diagrams.',
                   sameAs: ['https://github.com/hiabhee/ArchDraw'],
                 },
                 {
                   '@type': 'WebSite',
-                  '@id': 'https://archdraw.app/#website',
-                  url: 'https://archdraw.app',
+                  '@id': 'https://archdraw.hiabhee.online/#website',
+                  url: 'https://archdraw.hiabhee.online',
                   name: 'ArchDraw',
-                  publisher: { '@id': 'https://archdraw.app/#organization' },
+                  publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
                   inLanguage: 'en-US',
                 },
                 {
                   '@type': 'SoftwareApplication',
-                  '@id': 'https://archdraw.app/#software',
+                  '@id': 'https://archdraw.hiabhee.online/#software',
                   name: 'ArchDraw',
-                  url: 'https://archdraw.app',
+                  url: 'https://archdraw.hiabhee.online',
                   description: 'AI-assisted system architecture diagramming tool that turns plain English, Mermaid, or a GitHub repo URL into styled, auto-laid-out architecture diagrams.',
                   applicationCategory: 'DeveloperApplication',
                   operatingSystem: 'Web',
@@ -137,7 +141,7 @@ export default function RootLayout({
                     priceCurrency: 'USD',
                     description: 'Free during beta',
                   },
-                  publisher: { '@id': 'https://archdraw.app/#organization' },
+                  publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
                 },
               ],
             }),

@@ -101,7 +101,7 @@ function SubmenuItem({ label, active, onClick }: { label: string; active?: boole
 
 interface DashboardShellProps {
   children: React.ReactNode;
-  activePage: string;
+  activePage?: string;
 }
 
 function DashboardSearch() {
@@ -141,10 +141,22 @@ function DashboardSearch() {
   );
 }
 
-export function DashboardShell({ children, activePage }: DashboardShellProps) {
+export function DashboardShell({ children, activePage: activePageProp }: DashboardShellProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
   const { addCanvas, canvases } = useDiagramStore();
+
+  // RSC boundary fix: compute activePage inside client island instead of parent layout (was 'use client' layout forcing all children client)
+  const activePage = activePageProp ?? (() => {
+    if (pathname.includes('/templates')) return 'Templates';
+    if (pathname.includes('/learn')) return 'Learn';
+    if (pathname.includes('/editor')) return 'Canvases-All';
+    if (pathname.includes('/docs')) return 'Docs';
+    if (pathname.includes('/blogs')) return 'Blog';
+    if (pathname.includes('/admin')) return 'Admin';
+    return 'Dashboard';
+  })();
 
   // Use state with initial value from a ref or just skip setMounted if not needed
   const [mounted, setMounted] = useState(false);

@@ -7,7 +7,7 @@ export const metadata = {
   description: 'Deep explanations of how we built our interactive diagramming canvas, AI layout compilation, and database synchronization.',
   openGraph: {
     type: 'website',
-    url: 'https://archdraw.app/blogs',
+    url: 'https://archdraw.hiabhee.online/blogs',
     title: 'Engineering Blog — ArchDraw',
     description: 'Deep explanations of how we built our interactive diagramming canvas, AI layout compilation, and database synchronization.',
     images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw Engineering Blog' }],

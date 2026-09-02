@@ -3,7 +3,8 @@
 import { useReactFlow } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 
-const GUIDE_COLOR = '#4A90E2';
+const GUIDE_COLOR = '#3b82f6';
+const GUIDE_COLOR_SOFT = 'rgba(59,130,246,0.12)';
 const ARROW_SIZE = 6;
 
 /** Converts a flow-coordinate position to a screen pixel offset within the canvas container */
@@ -19,8 +20,7 @@ export function GuideLines() {
   const guideLines = useDiagramStore((s) => s.guideLines);
   const { getViewport } = useReactFlow();
 
-  // Guide lines are intentionally hidden — snapping logic still runs
-  if (guideLines.length === 0 || true) return null;
+  if (guideLines.length === 0) return null;
 
   const vp = getViewport();
   const w = window.innerWidth;

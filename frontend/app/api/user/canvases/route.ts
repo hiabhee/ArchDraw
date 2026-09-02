@@ -58,14 +58,10 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const existingCanvases = await prisma.userCanvas.count({
-      where: { userId },
-    });
-
-    const existingCanvas = await prisma.userCanvas.findUnique({
-      where: { id: body.id },
-      select: { id: true, userId: true },
-    });
+    const [existingCanvases, existingCanvas] = await Promise.all([
+      prisma.userCanvas.count({ where: { userId } }),
+      prisma.userCanvas.findUnique({ where: { id: body.id }, select: { id: true, userId: true } }),
+    ]);
 
     // IDOR guard: an existing canvas must belong to the signed-in user before
     // it can be overwritten. Without this, PUT with a victim's canvas id would

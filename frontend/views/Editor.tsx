@@ -587,8 +587,7 @@ export default function EditorPage() {
           <FloatingAIBar 
           onGenerate={handleGenerate} 
           onToggleCode={() => setShowCodePanel(prev => !prev)}
-          showCode={showCodePanel}
-          hideCodeButton={isSequenceDiagram}
+          codeAction={isSequenceDiagram ? 'hidden' : showCodePanel ? 'hide' : 'show'}
           isCanvasEmpty={nodes.length === 0}
           onRegenerate={lastPrompt ? (level) => handleGenerate(lastPrompt, level, { replace: true }) : undefined}
           hasLastPrompt={!!lastPrompt}

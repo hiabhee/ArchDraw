@@ -164,7 +164,7 @@ function HeroSection() {
           <a
             href="/dashboard"
             data-track="hero_generate_diagram"
-            className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3 rounded-lg transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_20px_rgba(30,144,255,0.3)] hover:shadow-[0_4px_28px_rgba(30,144,255,0.45)]"
+            className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3 rounded-lg transition-[background,transform,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_20px_rgba(30,144,255,0.3)] hover:shadow-[0_4px_28px_rgba(30,144,255,0.45)]"
           >
             Generate my diagram free
             <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -172,7 +172,7 @@ function HeroSection() {
           <a
             href="/dashboard/templates"
             data-track="hero_see_examples"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-text-primary bg-surface-panel border border-border hover:bg-surface-page px-6 py-3 rounded-lg transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-sm font-semibold text-text-primary bg-surface-panel border border-border hover:bg-surface-page px-6 py-3 rounded-lg transition-[background,transform,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0"
           >
             See example diagrams
           </a>

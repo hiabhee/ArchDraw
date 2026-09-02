@@ -6,7 +6,7 @@ export const metadata = {
     'Paste a GitHub repo URL and ArchDraw analyzes the codebase to produce an architecture diagram — components, relationships, workflows, and dependency intelligence — in minutes.',
   openGraph: {
     type: 'article',
-    url: 'https://archdraw.app/repo-diagram',
+    url: 'https://archdraw.hiabhee.online/repo-diagram',
     title: 'How to generate an architecture diagram from a GitHub repo with AI',
     description:
       'Paste a GitHub repo URL and ArchDraw analyzes the codebase to produce an architecture diagram — components, relationships, workflows, and dependency intelligence.',
@@ -71,15 +71,15 @@ const FAQ_JSON_LD = {
   '@graph': [
     {
       '@type': 'Article',
-      '@id': 'https://archdraw.app/repo-diagram#article',
+      '@id': 'https://archdraw.hiabhee.online/repo-diagram#article',
       headline: 'How to generate an architecture diagram from a GitHub repo with AI',
       description: metadata.description,
-      url: 'https://archdraw.app/repo-diagram',
-      publisher: { '@id': 'https://archdraw.app/#organization' },
+      url: 'https://archdraw.hiabhee.online/repo-diagram',
+      publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
     },
     {
       '@type': 'FAQPage',
-      '@id': 'https://archdraw.app/repo-diagram#faq',
+      '@id': 'https://archdraw.hiabhee.online/repo-diagram#faq',
       mainEntity: FAQS.map((faq) => ({
         '@type': 'Question',
         name: faq.q,

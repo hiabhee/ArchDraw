@@ -250,8 +250,9 @@ export function Toolbar() {
             }}
             className="!hidden sm:!flex !w-9 !h-9"
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
-            <PanelLeftClose className="w-4 h-4" />
+            <PanelLeftClose className="w-4 h-4" aria-hidden="true" />
           </Button>
 
           <Button
@@ -260,8 +261,9 @@ export function Toolbar() {
             onClick={() => window.dispatchEvent(new CustomEvent('toggle-canvas-sidebar'))}
             className="!hidden sm:!flex !w-9 !h-9"
             title="Toggle canvases"
+            aria-label="Toggle canvases"
           >
-            <FolderOpen className="w-4 h-4" />
+            <FolderOpen className="w-4 h-4" aria-hidden="true" />
           </Button>
 
           <Button
@@ -315,8 +317,9 @@ export function Toolbar() {
               disabled={!past.length}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Undo (Cmd+Z)"
+              aria-label="Undo"
             >
-              <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
             <Button
               variant="ghost"
@@ -325,8 +328,9 @@ export function Toolbar() {
               disabled={!future.length}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Redo (Cmd+Shift+Z)"
+              aria-label="Redo"
             >
-              <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
@@ -346,8 +350,9 @@ export function Toolbar() {
                   : ''
               }`}
               title={isPenModeActive ? "Deactivate Comet Trail Pen" : "Activate Comet Trail Pen"}
+              aria-label={isPenModeActive ? "Deactivate pen" : "Activate pen"}
             >
-              <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
 
             <LayoutToggleButton />
@@ -364,8 +369,9 @@ export function Toolbar() {
               onClick={handleDeleteCanvas}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 hover:!text-destructive hover:!bg-destructive/10"
               title="Delete canvas"
+              aria-label="Delete canvas"
             >
-              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
 
             <Button
@@ -374,8 +380,10 @@ export function Toolbar() {
               onClick={handleShare}
               disabled={isSharing || nodes.length === 0}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
+              aria-label="Share diagram"
+              title="Share diagram"
             >
-              {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+              {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" aria-hidden="true" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />}
             </Button>
           </span>
 
@@ -387,8 +395,10 @@ export function Toolbar() {
               size="icon"
               onClick={() => setMoreOpen(!moreOpen)}
               className="!w-9 !h-9"
+              aria-label="More options"
+              title="More options"
             >
-              <MoreHorizontal className="w-4 h-4" />
+              <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
             </Button>
 
             {moreOpen && (

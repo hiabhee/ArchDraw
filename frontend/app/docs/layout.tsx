@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: 'website',
-    url: 'https://archdraw.app/docs',
+    url: 'https://archdraw.hiabhee.online/docs',
     title: 'ArchDraw Documentation',
     description:
       'Getting started, node types, MCP server setup, prompt guide, API reference, and more.',

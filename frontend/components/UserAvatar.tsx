@@ -685,7 +685,7 @@ export function UserAvatar() {
         className="flex items-center gap-2 p-1.5 rounded-[12px] transition-colors hover:bg-gray-100"
       >
         {profile && 'avatar_url' in profile && profile.avatar_url ? (
-          <img src={profile.avatar_url} alt={initials} className="w-7 h-7 rounded-full object-cover shrink-0" />
+          <img src={profile.avatar_url} alt={initials} width={28} height={28} loading="lazy" decoding="async" className="w-7 h-7 rounded-full object-cover shrink-0" />
         ) : (
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold" style={{ background: '#1A1A1A' }}>
             {initials}

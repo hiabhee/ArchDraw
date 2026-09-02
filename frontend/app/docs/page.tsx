@@ -76,6 +76,29 @@ function BlogDocsHeader({ activeTab }: { activeTab: 'docs' | 'blogs' }) {
   );
 }
 
+const DOC_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'TechArticle',
+      '@id': 'https://archdraw.hiabhee.online/docs#article',
+      headline: 'ArchDraw Documentation',
+      description: 'Getting started, node types, diagram types, MCP server setup, prompt guide, API reference, keyboard shortcuts, FAQ.',
+      url: 'https://archdraw.hiabhee.online/docs',
+      publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
+      inLanguage: 'en-US',
+      articleSection: 'Documentation',
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://archdraw.hiabhee.online/' },
+        { '@type': 'ListItem', position: 2, name: 'Documentation', item: 'https://archdraw.hiabhee.online/docs' },
+      ],
+    },
+  ],
+};
+
 export default function DocsPage() {
   const [activeSection, setActiveSection] = useState<SectionID>('getting-started');
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,6 +120,7 @@ export default function DocsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(DOC_JSON_LD) }} />
       <BlogDocsHeader activeTab="docs" />
       
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-6 py-12">

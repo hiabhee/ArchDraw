@@ -160,20 +160,25 @@ export async function GET(req: NextRequest) {
       exportBreakdown = [...counts.entries()].map(([format, { count, success }]) => ({ format, count, success_count: success }));
     }
 
-    // Get funnel
+    // Get funnel — parallelized (was 5 sequential counts → 5×45 ms)
     const stages = ['page_view', 'prompt_submitted', 'diagram_generated', 'ai_generation_success', 'export'];
-    const funnel = [];
-    for (let i = 0; i < stages.length; i++) {
-      const where: Record<string, unknown> = { visitor: internalFilter };
-      if (stages[i] === 'ai_generation_success') {
-        where.eventType = 'ai_generation';
-        where.eventName = { not: { contains: 'error' } };
-      } else {
-        where.eventType = stages[i];
-      }
-      const count = await prisma.event.count({ where });
-      funnel.push({ stage: stages[i], sort_order: i + 1, unique_visitors: count });
-    }
+    const funnelCounts = await Promise.all(
+      stages.map(async (stage) => {
+        const where: Record<string, unknown> = { visitor: internalFilter };
+        if (stage === 'ai_generation_success') {
+          where.eventType = 'ai_generation';
+          where.eventName = { not: { contains: 'error' } };
+        } else {
+          where.eventType = stage;
+        }
+        return prisma.event.count({ where });
+      })
+    );
+    const funnel = funnelCounts.map((count, i) => ({
+      stage: stages[i],
+      sort_order: i + 1,
+      unique_visitors: count,
+    }));
 
     // Feature usage breakdown - group by event_name for new event types
     const [tutorialBreakdownRaw, aiBreakdownRaw, sharingBreakdownRaw, settingsBreakdownRaw] = await Promise.all([

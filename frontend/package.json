@@ -21,7 +21,13 @@
     "eval:golden": "tsx scripts/eval/gen-golden.ts",
     "eval:test": "vitest --run scripts/eval/__tests__/score.test.ts",
     "lint:tutorials": "tsx scripts/lint-tutorials.ts",
-    "lint:tutorials:strict": "tsx scripts/lint-tutorials.ts --strict"
+    "lint:tutorials:strict": "tsx scripts/lint-tutorials.ts --strict",
+    "perf:quick": "tsx scripts/perf/benchmark.ts --skip-build --runs 15",
+    "perf:benchmark": "tsx scripts/perf/benchmark.ts --runs 20",
+    "perf:benchmark:spawn": "tsx scripts/perf/benchmark.ts --runs 20 --spawn --port 4317",
+    "perf:baseline": "tsx scripts/perf/benchmark.ts --skip-build --runs 20 --baseline",
+    "perf:compare": "tsx scripts/perf/compare.ts perf-results/baseline.json perf-results/latest.json",
+    "perf:lighthouse": "tsx scripts/perf/benchmark.ts --skip-build --runs 10"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

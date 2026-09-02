@@ -17,10 +17,15 @@ const STARTER_PROMPTS = [
   'Ride-sharing app',
 ] as const;
 
+type CodeAction = 'show' | 'hide' | 'hidden';
 interface FloatingAIBarProps {
   onGenerate: (description: string, detailLevel: 1 | 2 | 3) => Promise<void>;
   onToggleCode: () => void;
-  showCode: boolean;
+  /** Preferred: enum controls code button (avoids 2 bools with 4 states). */
+  codeAction?: CodeAction;
+  /** @deprecated use codeAction */
+  showCode?: boolean;
+  /** @deprecated use codeAction='hidden' */
   hideCodeButton?: boolean;
   isCanvasEmpty?: boolean;
   onRegenerate?: (detailLevel: 1 | 2 | 3) => Promise<void>;
@@ -30,12 +35,17 @@ interface FloatingAIBarProps {
 export function FloatingAIBar({ 
   onGenerate, 
   onToggleCode, 
+  codeAction,
   showCode, 
   hideCodeButton, 
   isCanvasEmpty = false,
   onRegenerate,
   hasLastPrompt = false
 }: FloatingAIBarProps) {
+  // Derive enum from deprecated bools when codeAction not provided — incremental migration.
+  const derivedCodeAction: CodeAction = codeAction ?? (hideCodeButton ? 'hidden' : showCode ? 'hide' : 'show');
+  const showCodeDerived = derivedCodeAction === 'hide';
+  const hideCodeButtonDerived = derivedCodeAction === 'hidden';
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [, setError] = useState<string | null>(null);
@@ -298,7 +308,7 @@ export function FloatingAIBar({
             ))}
           </div>
 
-          {!hideCodeButton && (
+          {!hideCodeButtonDerived && (
             <button
               type="button"
               onClick={() => {
@@ -307,13 +317,13 @@ export function FloatingAIBar({
                     event_type: 'ui_interaction',
                     event_name: 'code_view_toggled',
                     page_path: window.location.pathname,
-                    payload: { show_code: !showCode }
+                    payload: { show_code: !showCodeDerived }
                   });
                 }
                 onToggleCode();
               }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition-all text-[10px] font-semibold cursor-pointer active:scale-95 ${
-                showCode 
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition-[background,border-color,color] text-[10px] font-semibold cursor-pointer active:scale-95 ${
+                showCodeDerived 
                   ? 'bg-[#1E90FF]/15 text-[#1E90FF] border-[#1E90FF]/30' 
                   : 'bg-muted/20 border-border/10 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
               }`}

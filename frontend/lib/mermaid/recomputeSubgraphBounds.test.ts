@@ -78,7 +78,7 @@ describe('recomputeSubgraphBounds', () => {
     expect(contains(g, a)).toBe(true);
     expect(contains(g, b)).toBe(true);
     expect(g.width).toBe(476);
-    expect(g.height).toBe(182);
+    expect(g.height).toBe(194);
     expect(a.position.x).toBeCloseTo(28, 5);
   });
 

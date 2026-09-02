@@ -23,7 +23,7 @@ import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/CometTrailCanvas';
 import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
-import { useCallback, useEffect, useRef, DragEvent, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, DragEvent, useState, useMemo, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded } from '@/lib/theme/renderStyles';
@@ -52,6 +52,107 @@ import { createNode, createEdge, createBlankShapeNode } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+
+// Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
+function CanvasUrlSync() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const importDiagram = useDiagramStore((s) => s.importDiagram);
+  const addCanvas = useDiagramStore((s) => s.addCanvas);
+  const switchCanvas = useDiagramStore((s) => s.switchCanvas);
+  const renameCanvas = useDiagramStore((s) => s.renameCanvas);
+
+  const loadedTemplateRef = useRef<string | null>(null);
+  useEffect(() => {
+    const templateId = searchParams.get('template');
+    if (!templateId) return;
+    if (loadedTemplateRef.current === templateId) return;
+    loadedTemplateRef.current = templateId;
+    const template = TEMPLATES.find((t) => t.id === templateId);
+    if (template) {
+      const newCanvasId = addCanvas(template.name);
+      void (async () => {
+        const layouted = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', { title: template.name });
+        const nodes = layouted.success ? layouted.nodes : template.nodes;
+        const edges = layouted.success ? layouted.edges : template.edges;
+        if (!layouted.success && layouted.warnings.length > 0) {
+          toast.warning('Template loaded without auto-layout', { description: layouted.warnings[0] });
+        }
+        importDiagram(nodes, edges);
+        useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
+        renameCanvas(newCanvasId, template.name);
+        router.replace(`/editor?canvas=${newCanvasId}`);
+        toast.success(`Loaded template: ${template.name}`);
+      })();
+    } else {
+      toast.error('Template not found');
+      router.replace('/editor');
+    }
+  }, [searchParams, addCanvas, importDiagram, renameCanvas, router]);
+
+  const loadSession = useCallback(async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/diagram/session/${sessionId}`);
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to load diagram');
+        return;
+      }
+      const data = await response.json();
+      const isMCP = data.source === 'mcp';
+      const nodesWithType = (data.nodes as Node[]).map((n) => {
+        let nodeWidth = n.data?.nodeWidth;
+        let nodeHeight = n.data?.nodeHeight;
+        if (!nodeWidth || !nodeHeight) {
+          const dims = calculateNodeDimensions(n.data?.label || '', n.data?.subtitle || '', {
+            shape: n.data?.shape as string | undefined,
+            cylinderAxis: n.data?.cylinderAxis as 'vertical' | 'horizontal' | undefined,
+          });
+          nodeWidth = nodeWidth || dims.width;
+          nodeHeight = nodeHeight || dims.height;
+        }
+        const { id, type, position, data: extraData, ...rest } = n;
+        const mappedType = type === 'architectureNode' ? 'systemNode' : (type || 'systemNode');
+        return createNode((extraData?.typeId as string) || mappedType, extraData?.label || '', position || { x: 0, y: 0 }, {
+          id, type: mappedType, data: { ...extraData, nodeWidth, nodeHeight }, ...rest
+        });
+      });
+      const edgesWithType = (data.edges as Edge[]).map((e) => {
+        const { id, source, target, label, type, sourceHandle, targetHandle, data: extraData, ...rest } = e;
+        return createEdge(source, target, String(extraData?.label || label || ''), {
+          id, type: 'simpleFloating', sourceHandle: undefined, targetHandle: undefined,
+          data: { ...extraData, pathType: 'Smoothstep' }, ...rest
+        });
+      });
+      const canvasName = isMCP ? `MCP: ${data.label || 'Diagram'}` : (data.label || 'Session Diagram');
+      const canvasId = addCanvas(canvasName, sessionId);
+      importDiagram(nodesWithType, edgesWithType);
+      router.replace(`/editor?canvas=${canvasId}`);
+      toast.success(`Diagram loaded: ${data.label || 'Untitled'}`);
+    } catch {
+      toast.error('Failed to load diagram');
+    }
+  }, [importDiagram, addCanvas, router]);
+
+  useEffect(() => {
+    const sessionId = searchParams.get('session');
+    if (!sessionId) return;
+    loadSession(sessionId);
+  }, [searchParams, loadSession]);
+
+  const urlCanvasHandledRef = useRef(false);
+  useEffect(() => {
+    if (urlCanvasHandledRef.current) return;
+    const canvasId = searchParams.get('canvas');
+    if (!canvasId) { urlCanvasHandledRef.current = true; return; }
+    const canvases = useDiagramStore.getState().canvases;
+    const exists = canvases.find(c => c.id === canvasId);
+    if (exists) { switchCanvas(canvasId); urlCanvasHandledRef.current = true; }
+  }, [searchParams, switchCanvas]);
+
+  return null;
+}
+
 function CanvasInner() {
 
   const nodes = useDiagramStore((s) => s.nodes);
@@ -163,162 +264,66 @@ function CanvasInner() {
     };
   }, [reactFlowInstance]);
 
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  const importDiagram = useDiagramStore((s) => s.importDiagram);
-  const addCanvas = useDiagramStore((s) => s.addCanvas);
-  const switchCanvas = useDiagramStore((s) => s.switchCanvas);
   const activeCanvasId = useDiagramStore((s) => s.activeCanvasId);
   const saveCanvasToDB = useDiagramStore((s) => s.saveCanvasToDB);
-
-  const renameCanvas = useDiagramStore((s) => s.renameCanvas);
-
-  // Handle template from URL.
-  // Run-once guard: without it, StrictMode double-invoke / re-renders with the
-  // same searchParams create duplicate canvases and run the pipeline twice.
-  const loadedTemplateRef = useRef<string | null>(null);
-  useEffect(() => {
-    const templateId = searchParams.get('template');
-    if (!templateId) return;
-    if (loadedTemplateRef.current === templateId) return;
-    loadedTemplateRef.current = templateId;
-
-    const template = TEMPLATES.find((t) => t.id === templateId);
-    if (template) {
-      const newCanvasId = addCanvas(template.name);
-
-      void (async () => {
-        const layouted = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', {
-          title: template.name,
-        });
-        const nodes = layouted.success ? layouted.nodes : template.nodes;
-        const edges = layouted.success ? layouted.edges : template.edges;
-        if (!layouted.success && layouted.warnings.length > 0) {
-          toast.warning('Template loaded without auto-layout', {
-            description: layouted.warnings[0],
-          });
-        }
-        importDiagram(nodes, edges);
-        useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
-        renameCanvas(newCanvasId, template.name);
-        router.replace(`/editor?canvas=${newCanvasId}`);
-        toast.success(`Loaded template: ${template.name}`);
-        // No manual fitView here — importDiagram already animates one.
-      })();
-    } else {
-      toast.error('Template not found');
-      router.replace('/editor');
-    }
-  }, [searchParams, addCanvas, importDiagram, renameCanvas, router]);
-  const loadSession = useCallback(async (sessionId: string) => {
-    try {
-      const response = await fetch(`/api/diagram/session/${sessionId}`);
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to load diagram');
-        return;
-      }
-
-      const data = await response.json();
-      const isMCP = data.source === 'mcp';
-      const nodesWithType = (data.nodes as Node[]).map((n) => {
-        let nodeWidth = n.data?.nodeWidth;
-        let nodeHeight = n.data?.nodeHeight;
-        
-        if (!nodeWidth || !nodeHeight) {
-          // Shape-aware fallback — a blind fit gives cylinders/diamonds/etc.
-          // rectangle proportions and the layout then under-reserves space.
-          const dims = calculateNodeDimensions(n.data?.label || '', n.data?.subtitle || '', {
-            shape: n.data?.shape as string | undefined,
-            cylinderAxis: n.data?.cylinderAxis as 'vertical' | 'horizontal' | undefined,
-          });
-          nodeWidth = nodeWidth || dims.width;
-          nodeHeight = nodeHeight || dims.height;
-        }
-
-        const { id, type, position, data: extraData, ...rest } = n;
-        const mappedType = type === 'architectureNode' ? 'systemNode' : (type || 'systemNode');
-
-        return createNode(
-          (extraData?.typeId as string) || mappedType,
-          extraData?.label || '',
-          position || { x: 0, y: 0 },
-          {
-            id,
-            type: mappedType,
-            data: {
-              ...extraData,
-              nodeWidth,
-              nodeHeight,
-            },
-            ...rest
-          }
-        );
-      });
-      const edgesWithType = (data.edges as Edge[]).map((e) => {
-        const { id, source, target, label, type, sourceHandle, targetHandle, data: extraData, ...rest } = e;
-        return createEdge(
-          source,
-          target,
-          String(extraData?.label || label || ''),
-          {
-            id,
-            type: 'simpleFloating',
-            sourceHandle: undefined,
-            targetHandle: undefined,
-            data: {
-              ...extraData,
-              pathType: 'Smoothstep',
-            },
-            ...rest
-          }
-        );
-      });
-      
-      const canvasName = isMCP ? `MCP: ${data.label || 'Diagram'}` : (data.label || 'Session Diagram');
-      const canvasId = addCanvas(canvasName, sessionId);
-      importDiagram(nodesWithType, edgesWithType);
-      router.replace(`/editor?canvas=${canvasId}`);
-      toast.success(`Diagram loaded: ${data.label || 'Untitled'}`);
-    } catch {
-      toast.error('Failed to load diagram');
-    }
-  }, [importDiagram, addCanvas, router]);
-
-  useEffect(() => {
-    const sessionId = searchParams.get('session');
-    if (!sessionId) return;
-    loadSession(sessionId);
-  }, [searchParams, loadSession]);
-
-  // Handle canvas ID from URL - only on initial load or external navigation
-  const urlCanvasHandledRef = useRef(false);
-  useEffect(() => {
-    if (urlCanvasHandledRef.current) return;
-    
-    const canvasId = searchParams.get('canvas');
-    if (!canvasId) {
-      urlCanvasHandledRef.current = true;
-      return;
-    }
-    
-    // Check if canvas exists in store
-    const canvases = useDiagramStore.getState().canvases;
-    const exists = canvases.find(c => c.id === canvasId);
-    
-    if (exists) {
-      switchCanvas(canvasId);
-      urlCanvasHandledRef.current = true;
-    }
-  }, [searchParams, switchCanvas]);
 
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: Node, draggedNodes: Node[]) => {
       onNodeDragStopSnap(event, node, draggedNodes);
 
-      // Collision resolution
-      const currentNodes = useDiagramStore.getState().nodes;
+      // Auto-straighten: if dragged node has incident edges that are almost horizontal/vertical,
+      // nudge it so the edge becomes perfectly straight — so user doesn't have to hunt pixel-perfect.
+      const store = useDiagramStore.getState();
+      const isLR = store.activeLayoutPresetId !== 'layered-tb';
+      const edges = store.edges;
+      const STRAIGHT_THRESHOLD = 12;
+      let autoStraightened = false;
+      const straightenMap = new Map<string, { x: number; y: number }>();
+      for (const dragged of draggedNodes) {
+        const incident = edges.filter((e) => e.source === dragged.id || e.target === dragged.id);
+        for (const edge of incident) {
+          const otherId = edge.source === dragged.id ? edge.target : edge.source;
+          const other = store.nodes.find((n) => n.id === otherId);
+          if (!other) continue;
+          const dw = dragged.width ?? (dragged.data as { nodeWidth?: number })?.nodeWidth ?? 200;
+          const dh = dragged.height ?? (dragged.data as { nodeHeight?: number })?.nodeHeight ?? 88;
+          const ow = other.width ?? (other.data as { nodeWidth?: number })?.nodeWidth ?? 200;
+          const oh = other.height ?? (other.data as { nodeHeight?: number })?.nodeHeight ?? 88;
+          const dAbsX = (dragged as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? dragged.position.x;
+          const dAbsY = (dragged as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? dragged.position.y;
+          const dCX = dAbsX + dw / 2;
+          const dCY = dAbsY + dh / 2;
+          const oAbsX = (other as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? other.position.x;
+          const oAbsY = (other as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? other.position.y;
+          const oAbsCX = oAbsX + ow / 2;
+          const oAbsCY = oAbsY + oh / 2;
+          // Determine if edge is primarily horizontal or vertical
+          const dx = oAbsCX - dCX;
+          const dy = oAbsCY - dCY;
+          if (isLR && Math.abs(dx) > Math.abs(dy) && Math.abs(dy) > 0 && Math.abs(dy) < STRAIGHT_THRESHOLD) {
+            const cur = straightenMap.get(dragged.id) ?? { x: 0, y: 0 };
+            if (cur.y === 0 || Math.abs(dy) < Math.abs(cur.y)) cur.y = dy;
+            straightenMap.set(dragged.id, cur);
+            autoStraightened = true;
+          } else if (!isLR && Math.abs(dy) > Math.abs(dx) && Math.abs(dx) > 0 && Math.abs(dx) < STRAIGHT_THRESHOLD) {
+            const cur = straightenMap.get(dragged.id) ?? { x: 0, y: 0 };
+            if (cur.x === 0 || Math.abs(dx) < Math.abs(cur.x)) cur.x = dx;
+            straightenMap.set(dragged.id, cur);
+            autoStraightened = true;
+          }
+        }
+      }
+      let currentNodes = store.nodes;
+      if (autoStraightened) {
+        currentNodes = currentNodes.map((n) => {
+          const delta = straightenMap.get(n.id);
+          if (!delta) return n;
+          return { ...n, position: { x: n.position.x + delta.x, y: n.position.y + delta.y } };
+        });
+        setNodes(currentNodes);
+      }
+
+      // Collision resolution (after straightening)
       const resolvedNodes = resolveNodeCollisions(currentNodes);
 
       const hasChanges = currentNodes.some((n, i) =>
@@ -328,9 +333,10 @@ function CanvasInner() {
 
       const latestNodes = hasChanges ? resolvedNodes : useDiagramStore.getState().nodes;
 
-      if (hasChanges) {
+      if (hasChanges || autoStraightened) {
         // setNodes already calls saveCanvasToDB
-        setNodes(resolvedNodes);
+        if (hasChanges) setNodes(resolvedNodes);
+        else if (autoStraightened) saveCanvasToDB(activeCanvasId);
       } else {
         // Drag finished with no collision fix — persist the final positions.
         // onNodesChange intentionally skips saveCanvasToDB on position changes
@@ -714,6 +720,9 @@ function CanvasInner() {
 export function Canvas() {
   return (
     <ReactFlowProvider>
+      <Suspense fallback={null}>
+        <CanvasUrlSync />
+      </Suspense>
       <CanvasInner />
     </ReactFlowProvider>
   );

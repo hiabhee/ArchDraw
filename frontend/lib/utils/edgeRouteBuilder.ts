@@ -488,14 +488,29 @@ export function computeEdgeRoute(
       undefined, undefined,
       (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, direction, scorerObstacles),
     )
-    const sh = getBoundaryAnchor(
+    let sh = getBoundaryAnchor(
       sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
       sourcePosition, sourceShift,
     )
-    const th = getBoundaryAnchor(
+    let th = getBoundaryAnchor(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
       targetPosition, targetShift,
     )
+    // Same straight-snap as main path — keeps custom edges from wavering when anchors are ~aligned
+    {
+      const STRAIGHT_SNAP = 8;
+      const isH = (sourcePosition === Position.Right && targetPosition === Position.Left) || (sourcePosition === Position.Left && targetPosition === Position.Right);
+      const isV = (sourcePosition === Position.Top && targetPosition === Position.Bottom) || (sourcePosition === Position.Bottom && targetPosition === Position.Top);
+      if (isH && Math.abs(sh.y - th.y) < STRAIGHT_SNAP) {
+        const avgY = Math.round((sh.y + th.y) / 2);
+        sh = { ...sh, y: avgY };
+        th = { ...th, y: avgY };
+      } else if (isV && Math.abs(sh.x - th.x) < STRAIGHT_SNAP) {
+        const avgX = Math.round((sh.x + th.x) / 2);
+        sh = { ...sh, x: avgX };
+        th = { ...th, x: avgX };
+      }
+    }
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
 
@@ -582,14 +597,34 @@ export function computeEdgeRoute(
     edge.target, edge.id, targetPosition, edges, nodeMap, 24,
     undefined, undefined, resolveSide,
   )
-  const sh = getBoundaryAnchor(
+  let sh = getBoundaryAnchor(
     sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
     sourcePosition, sourceShift,
   )
-  const th = getBoundaryAnchor(
+  let th = getBoundaryAnchor(
     targetRect.x, targetRect.y, targetRect.w, targetRect.h,
     targetPosition, targetShift,
   )
+
+  // Auto-straighten: if edge is nearly horizontal/vertical, snap to make it perfectly straight
+  // so small 2-8px misalignments don't create the wavy S-jog seen in screenshots.
+  // Keeps full freedom — only snaps when already close, and respects custom waypoints.
+  const STRAIGHT_SNAP = 8;
+  const isHorizontalPair =
+    (sourcePosition === Position.Right && targetPosition === Position.Left) ||
+    (sourcePosition === Position.Left && targetPosition === Position.Right);
+  const isVerticalPair =
+    (sourcePosition === Position.Top && targetPosition === Position.Bottom) ||
+    (sourcePosition === Position.Bottom && targetPosition === Position.Top);
+  if (isHorizontalPair && Math.abs(sh.y - th.y) < STRAIGHT_SNAP) {
+    const avgY = Math.round((sh.y + th.y) / 2);
+    sh = { ...sh, y: avgY };
+    th = { ...th, y: avgY };
+  } else if (isVerticalPair && Math.abs(sh.x - th.x) < STRAIGHT_SNAP) {
+    const avgX = Math.round((sh.x + th.x) / 2);
+    sh = { ...sh, x: avgX };
+    th = { ...th, x: avgX };
+  }
 
   // Intermediate nodes only for the obstacle map — source/target are added
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
