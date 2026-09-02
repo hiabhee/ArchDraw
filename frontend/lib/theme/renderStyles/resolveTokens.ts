@@ -32,6 +32,28 @@ import {
   SKETCH_EDGE_ASYNC_LIGHT,
   SKETCH_EDGE_ASYNC_DARK,
 } from './sketch';
+import {
+  BRUTAL_FILL_LIGHT,
+  BRUTAL_FILL_DARK,
+  BRUTAL_BORDER,
+  BRUTAL_BORDER_DARK,
+  BRUTAL_TITLE_LIGHT,
+  BRUTAL_TITLE_DARK,
+  BRUTAL_SUBTITLE_LIGHT,
+  BRUTAL_SUBTITLE_DARK,
+  BRUTAL_GROUP_FILL_LIGHT,
+  BRUTAL_GROUP_FILL_DARK,
+  BRUTAL_EDGE_DEFAULT_LIGHT,
+  BRUTAL_EDGE_DEFAULT_DARK,
+  BRUTAL_EDGE_PRIMARY_LIGHT,
+  BRUTAL_EDGE_PRIMARY_DARK,
+  BRUTAL_EDGE_ASYNC_LIGHT,
+  BRUTAL_EDGE_ASYNC_DARK,
+  BRUTAL_CANVAS_BG_LIGHT,
+  BRUTAL_CANVAS_BG_DARK,
+  BRUTAL_GRID_LIGHT,
+  BRUTAL_GRID_DARK,
+} from './neubrutalism';
 
 export interface ResolveCanvasTokensOpts {
   renderStyleId: DiagramRenderStyleId | string | null;
@@ -52,6 +74,7 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
   const borderRadius = BORDER_RADIUS * render.geometry.borderRadiusScale;
 
   const isSketch = render.strokeEngine === 'rough';
+  const isBrutal = render.strokeEngine === 'brutalist';
 
   const baseVars = diagramThemeCssVars(opts.colorThemeId ?? 'default', opts.isDark);
   const cssVars: Record<string, string> = {
@@ -65,11 +88,15 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
     '--arch-radius': `${borderRadius}px`,
     '--arch-canvas-bg': isSketch
       ? (opts.isDark ? `hsl(${SKETCH_CANVAS_BG_DARK})` : `hsl(${SKETCH_CANVAS_BG_LIGHT})`)
-      : 'hsl(var(--canvas-bg))',
+      : isBrutal
+        ? (opts.isDark ? `hsl(${BRUTAL_CANVAS_BG_DARK})` : `hsl(${BRUTAL_CANVAS_BG_LIGHT})`)
+        : 'hsl(var(--canvas-bg))',
     '--arch-canvas-grid': isSketch
       ? (opts.isDark ? `hsl(${SKETCH_GRID_COLOR_DARK})` : `hsl(${SKETCH_GRID_COLOR_LIGHT})`)
-      : 'hsl(var(--grid-color))',
-    // Clean paper overrides for sketch so CSS vars and resolved colors stay in sync
+      : isBrutal
+        ? (opts.isDark ? `hsl(${BRUTAL_GRID_DARK})` : `hsl(${BRUTAL_GRID_LIGHT})`)
+        : 'hsl(var(--grid-color))',
+    // Style-specific CSS overrides so resolved colors stay in sync
     ...(isSketch
       ? {
           '--arch-node-fill': opts.isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,
@@ -84,37 +111,69 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
           '--canvas-bg': opts.isDark ? SKETCH_CANVAS_BG_DARK : SKETCH_CANVAS_BG_LIGHT,
           '--grid-color': opts.isDark ? SKETCH_GRID_COLOR_DARK : SKETCH_GRID_COLOR_LIGHT,
         }
-      : {}),
+      : isBrutal
+        ? {
+            '--arch-node-fill': opts.isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT,
+            '--arch-node-stroke': opts.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER,
+            '--arch-title': opts.isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT,
+            '--arch-subtitle': opts.isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT,
+            '--arch-group-fill': opts.isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT,
+            '--arch-group-stroke': opts.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER,
+            '--arch-edge-default': opts.isDark ? BRUTAL_EDGE_DEFAULT_DARK : BRUTAL_EDGE_DEFAULT_LIGHT,
+            '--arch-edge-primary': opts.isDark ? BRUTAL_EDGE_PRIMARY_DARK : BRUTAL_EDGE_PRIMARY_LIGHT,
+            '--arch-edge-async': opts.isDark ? BRUTAL_EDGE_ASYNC_DARK : BRUTAL_EDGE_ASYNC_LIGHT,
+            '--canvas-bg': opts.isDark ? BRUTAL_CANVAS_BG_DARK : BRUTAL_CANVAS_BG_LIGHT,
+            '--grid-color': opts.isDark ? BRUTAL_GRID_DARK : BRUTAL_GRID_LIGHT,
+          }
+        : {}),
   };
 
-  // Sketch uses clean paper + hand-ink palette; keep concern colors intact (orthogonal)
+  // Style-specific resolved color palette; keep concern colors intact (orthogonal)
   const nodeFill = isSketch
     ? opts.isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT
-    : mode.nodeFill;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT
+      : mode.nodeFill;
   const nodeStroke = isSketch
     ? opts.isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER
-    : mode.nodeStroke;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER
+      : mode.nodeStroke;
   const title = isSketch
     ? opts.isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
-    : mode.title;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT
+      : mode.title;
   const subtitle = isSketch
     ? opts.isDark ? SKETCH_INK_DARK_SUBTITLE : SKETCH_INK_LIGHT_SUBTITLE
-    : mode.subtitle;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT
+      : mode.subtitle;
   const groupFill = isSketch
     ? opts.isDark ? SKETCH_GROUP_FILL_DARK : SKETCH_GROUP_FILL_LIGHT
-    : mode.groupFill;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT
+      : mode.groupFill;
   const groupStroke = isSketch
     ? opts.isDark ? SKETCH_GROUP_STROKE_DARK : SKETCH_GROUP_STROKE_LIGHT
-    : mode.groupStroke;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER
+      : mode.groupStroke;
   const edgeDefault = isSketch
     ? opts.isDark ? SKETCH_INK_DARK_EDGE : SKETCH_INK_LIGHT_EDGE
-    : mode.edgeDefault;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_EDGE_DEFAULT_DARK : BRUTAL_EDGE_DEFAULT_LIGHT
+      : mode.edgeDefault;
   const edgeAsync = isSketch
     ? opts.isDark ? SKETCH_EDGE_ASYNC_DARK : SKETCH_EDGE_ASYNC_LIGHT
-    : mode.edgeAsync;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_EDGE_ASYNC_DARK : BRUTAL_EDGE_ASYNC_LIGHT
+      : mode.edgeAsync;
   const edgePrimary = isSketch
     ? opts.isDark ? SKETCH_EDGE_PRIMARY_DARK : SKETCH_EDGE_PRIMARY_LIGHT
-    : mode.edgePrimary;
+    : isBrutal
+      ? opts.isDark ? BRUTAL_EDGE_PRIMARY_DARK : BRUTAL_EDGE_PRIMARY_LIGHT
+      : mode.edgePrimary;
 
   return {
     render,

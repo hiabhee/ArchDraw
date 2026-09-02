@@ -4,10 +4,10 @@
  */
 
 /** Render / aesthetic style id — how shapes are drawn (not color, not chrome). */
-export type DiagramRenderStyleId = 'precision' | 'sketch';
+export type DiagramRenderStyleId = 'precision' | 'sketch' | 'neubrutalism';
 
 /** Which stroke engine draws primitives. */
-export type StrokeEngineId = 'crisp' | 'rough';
+export type StrokeEngineId = 'crisp' | 'rough' | 'brutalist';
 
 /**
  * Normalized shape geometry in local node coordinates (0,0) → (width, height).
@@ -114,24 +114,24 @@ export interface RenderStylePack {
     labelPaddingY: number;
     /** sketch: +0 or +8px width snap bias. */
     sizeGridNudge: number;
-    /** sketch: none or very subtle. */
-    dropShadow: 'none' | 'soft' | 'sketch';
+    /** sketch: none or very subtle; neubrutalism: hard offset solid. */
+    dropShadow: 'none' | 'soft' | 'sketch' | 'hard';
   };
 
   /** Edge-specific. */
   edges: {
     /** Same routing, different stroke. */
-    pathStyle: 'orthogonal' | 'orthogonal-sketch';
-    arrowheadStyle: 'triangle' | 'hand-drawn';
-    labelBackground: 'pill' | 'none' | 'sketch-box';
+    pathStyle: 'orthogonal' | 'orthogonal-sketch' | 'orthogonal-brutal';
+    arrowheadStyle: 'triangle' | 'hand-drawn' | 'filled-brutal';
+    labelBackground: 'pill' | 'none' | 'sketch-box' | 'brutal-pill';
     /** sketch: false (dashed wobble + animation looks noisy). */
     animatedAsync: boolean;
   };
 
   /** Group / subgraph chrome. */
   groups: {
-    borderStyle: 'solid' | 'rough-solid' | 'rough-dashed';
-    labelStyle: 'tag' | 'handwritten';
+    borderStyle: 'solid' | 'rough-solid' | 'rough-dashed' | 'brutal-solid';
+    labelStyle: 'tag' | 'handwritten' | 'brutalist';
     fillOpacity: number;
   };
 

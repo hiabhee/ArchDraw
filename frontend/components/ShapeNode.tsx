@@ -27,6 +27,11 @@ import {
   DashedRectangle,
   Document,
   Documents,
+  Queue,
+  Cache,
+  FunctionShape,
+  Container,
+  Bucket,
 } from './nodes/shapes/silhouettes';
 
 export type { ShapeType };
@@ -57,13 +62,27 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const sized = { width, height, labelMaxWidth };
   const updateNodeInternals = useUpdateNodeInternals();
   const updateNodeSize = useDiagramStore((s) => s.updateNodeSize);
-  const storedWidth = useDiagramStore((s) => s.nodes.find((n) => n.id === id)?.width);
-  const storedHeight = useDiagramStore((s) => s.nodes.find((n) => n.id === id)?.height);
+  // Guard against React Flow's measured node.width/node.height (floats from
+  // getBoundingClientRect / subpixel + border box-sizing) never exactly
+  // equaling our integer-computed width/height. Comparing stored node.width
+  // vs the computed width ping-pongs forever (RF re-measures, reports a float
+  // dimension change, applyNodeChanges overwrites node.width, effect refires →
+  // "Maximum update depth exceeded"). Compare against our OWN persisted
+  // data.nodeWidth/nodeHeight integers instead, which settle exactly once we
+  // write them.
+  const storedNodeWidth = useDiagramStore((s) => {
+    const n = s.nodes.find((nd) => nd.id === id);
+    return (n?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
+  });
+  const storedNodeHeight = useDiagramStore((s) => {
+    const n = s.nodes.find((nd) => nd.id === id);
+    return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
+  });
 
   useLayoutEffect(() => {
-    if (storedWidth === width && storedHeight === height) return;
+    if (storedNodeWidth === width && storedNodeHeight === height) return;
     updateNodeSize(id, { width, height });
-  }, [id, width, height, storedWidth, storedHeight, updateNodeSize]);
+  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize]);
 
   useLayoutEffect(() => {
     updateNodeInternals(id);
@@ -77,14 +96,24 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     isDark,
     styles,
     sketch: renderStyleId === 'sketch',
+    brutal: renderStyleId === 'neubrutalism',
     ...sized,
   };
 
   const renderShape = () => {
     switch (data.shape) {
       case 'diamond':          return <Diamond {...shellProps} />;
-      case 'cylinder':         return <Cylinder {...shellProps} />;
-      case 'queue':            return <HorizontalPipeCylinder {...shellProps} />;
+      case 'cylinder': {
+        // Legacy horizontal cylinder (pipe) vs vertical drum — check axis
+        const axis = (data as { cylinderAxis?: string }).cylinderAxis;
+        if (axis === 'horizontal') return <HorizontalPipeCylinder {...shellProps} />;
+        return <Cylinder {...shellProps} />;
+      }
+      case 'queue':            return <Queue {...shellProps} />;
+      case 'cache':            return <Cache {...shellProps} />;
+      case 'function':         return <FunctionShape {...shellProps} />;
+      case 'container':        return <Container {...shellProps} />;
+      case 'bucket':           return <Bucket {...shellProps} />;
       case 'circle':           return <Circle {...shellProps} />;
       case 'parallelogram':    return <Parallelogram {...shellProps} />;
       case 'hexagon':          return <Hexagon {...shellProps} />;

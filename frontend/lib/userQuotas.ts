@@ -46,7 +46,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     tier: 'guest',
     aiGenerationsPerHour: 3,
     maxCanvases: 1,
-    maxNodesPerCanvas: 25,
+    maxNodesPerCanvas: 50,
     allowedExportFormats: ['json', 'png'],
     svgExport: false,
     allowSharing: false,
@@ -55,7 +55,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     allowTutorialProgress: false,
     autoSave: false,
     canDuplicateCanvas: false,
-    watermarkExports: true,
+    watermarkExports: false,
     maxVersions: 0,
     allowEditShare: false,
     allowDashboard: false,
@@ -65,7 +65,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     tier: 'authenticated',
     aiGenerationsPerDay: 10,
     maxCanvases: 5,
-    maxNodesPerCanvas: 50,
+    maxNodesPerCanvas: 150,
     allowedExportFormats: ['json', 'png', 'svg', 'pdf', 'html-embed'],
     svgExport: true,
     allowSharing: true,
@@ -142,5 +142,5 @@ export function isExportFormatAllowed(userTier: UserTier, format: string): boole
 }
 
 export function shouldWatermark(userTier: UserTier, format: string): boolean {
-  return userTier === 'guest' && format.startsWith('png');
+  return false;
 }

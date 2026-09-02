@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { useDiagramStore } from '@/store/diagramStore';
 import { assignEdgeColors } from '@/lib/edgeColors';
-import { resolveCanvasTokens, ensureSketchFontLoaded } from '@/lib/theme/renderStyles';
+import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
@@ -36,10 +36,16 @@ interface SharedCanvas {
 function normalizeNodes(raw: unknown[]): Node[] {
   return (raw || []).map((n) => {
     const node = n as Node;
+    const isGroup =
+      node.type === 'groupNode' ||
+      node.type === 'frameNode' ||
+      node.type === 'group' ||
+      (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
     return {
       ...node,
       selected: false,
       dragging: false,
+      ...(isGroup ? { zIndex: -1 } : {}),
     };
   });
 }
@@ -57,6 +63,29 @@ function normalizeEdges(raw: unknown[]): Edge[] {
 
 const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
   return new Promise((resolve, reject) => {
+    if (typeof fetch !== 'undefined') {
+      fetch(dataUrl)
+        .then((r) => r.blob())
+        .then(resolve)
+        .catch(() => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob((blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Failed to convert to blob'));
+            }, 'image/png');
+          };
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = dataUrl;
+        });
+      return;
+    }
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -90,16 +119,21 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   // Preserve the creator's render style (if any) from the share URL.
   // Read in an effect (not a state initializer) so SSR/hydration always
   // agree on the first render.
-  const [renderStyle, setRenderStyle] = useState<'precision' | 'sketch'>('precision');
+  const [renderStyle, setRenderStyle] = useState<DiagramRenderStyleId>('precision');
 
   useEffect(() => {
     const style = new URLSearchParams(window.location.search).get('style');
     if (style === 'sketch') setRenderStyle('sketch');
+    else if (style === 'neubrutalism') setRenderStyle('neubrutalism');
   }, []);
 
   useEffect(() => {
     useDiagramStore.setState({ diagramRenderStyle: renderStyle });
-    if (renderStyle === 'sketch') ensureSketchFontLoaded();
+    if (renderStyle === 'sketch') {
+      ensureSketchFontLoaded();
+    } else {
+      ensureRenderStyleFontLoaded(renderStyle);
+    }
   }, [renderStyle]);
 
   const themeVars = useMemo(
@@ -144,28 +178,68 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       }
 
       const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
-      const dataUrl = await safeToPng(el, {
-        backgroundColor: isDark ? '#0f172a' : '#ffffff',
-        pixelRatio: 3,
-        cacheBust: true,
-        filter: (node) => {
-          const cls = (node as HTMLElement).classList;
-          if (!cls) return true;
-          return (
-            !cls.contains('react-flow__minimap') &&
-            !cls.contains('react-flow__controls') &&
-            !cls.contains('react-flow__panel') &&
-            !cls.contains('react-flow__background')
-          );
-        },
-      });
-      const blob = await dataUrlToBlob(dataUrl);
+      // Adaptive ratio to avoid OOM on large shared canvases
+      const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      let pixelRatio = Math.min(3, Math.max(2, Math.ceil(baseRatio * 1.5)));
+      const elW = el.clientWidth || el.offsetWidth || 1200;
+      const elH = el.clientHeight || el.offsetHeight || 800;
+      const maxPixels = 16_000_000;
+      while (pixelRatio > 1 && elW * pixelRatio * elH * pixelRatio > maxPixels) pixelRatio -= 0.5;
+      pixelRatio = Math.max(1, pixelRatio);
+
+      let dataUrl: string | null = null;
+      for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 1) {
+        try {
+          dataUrl = await safeToPng(el, {
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            pixelRatio: attemptRatio,
+            cacheBust: true,
+            filter: (node) => {
+              const cls = (node as HTMLElement).classList;
+              if (!cls) return true;
+              return (
+                !cls.contains('react-flow__minimap') &&
+                !cls.contains('react-flow__controls') &&
+                !cls.contains('react-flow__panel') &&
+                !cls.contains('react-flow__background')
+              );
+            },
+          });
+          pixelRatio = attemptRatio;
+          break;
+        } catch (e) {
+          if (attemptRatio <= 1) throw e;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      if (!dataUrl) throw new Error('Failed to generate PNG');
+      let blob: Blob | null = null;
+      try {
+        blob = await dataUrlToBlob(dataUrl);
+      } catch {
+        // Fallback to direct data URL download
+        const a2 = document.createElement('a');
+        a2.href = dataUrl;
+        a2.download = `${canvas.canvas_name || 'diagram'}-${Date.now()}.png`;
+        a2.style.display = 'none';
+        document.body.appendChild(a2);
+        a2.click();
+        setTimeout(() => a2.remove(), 1000);
+        toast.success('Downloaded!');
+        setDownloaded(true);
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${canvas.canvas_name || 'diagram'}-${Date.now()}.png`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 1000);
       toast.success('Downloaded!');
       setDownloaded(true);
     } catch {
@@ -248,6 +322,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={true}
+          elevateNodesOnSelect={false}
+          elevateEdgesOnSelect={false}
           panOnDrag
           panOnScroll
           zoomOnScroll={false}

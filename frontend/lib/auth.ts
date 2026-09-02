@@ -45,9 +45,7 @@ const baseURL = process.env.BETTER_AUTH_URL
 // Build trusted origins list - include both production and development
 const trustedOrigins = new Set<string>([
   'http://localhost:3000',
-  'http://localhost:3001',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
 ]);
 if (process.env.NEXT_PUBLIC_APP_URL) {
   trustedOrigins.add(process.env.NEXT_PUBLIC_APP_URL);

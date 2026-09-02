@@ -23,6 +23,7 @@ import { urlShortenerNodes, urlShortenerEdges } from './url-shortener';
 import { chatSystemNodes, chatSystemEdges } from './chat-system';
 import { notificationNodes, notificationEdges } from './notification';
 import { searchNodes, searchEdges } from './search';
+import { requestResponseNodes, requestResponseEdges } from './request-response';
 
 export interface Template {
   id: string;
@@ -348,5 +349,14 @@ export const TEMPLATES: Template[] = [
     icon: '🔍',
     nodes: searchNodes,
     edges: searchEdges,
+  }),
+  template({
+    id: 'request_response',
+    name: 'Request-Response Cycle',
+    description: 'End-to-end HTTP lifecycle: Client → DNS → CDN → LB → Gateway (Auth) → Service → Cache/DB → Service → Gateway → Client. Numbered 1–13 for request, validation, cache/DB lookup, JSON serialization, and 200 OK response; includes edge-cache and async metrics.',
+    tags: ['HTTP', 'Request-Response', 'REST', 'API Gateway', 'Cache', 'DNS'],
+    icon: '🔄',
+    nodes: requestResponseNodes,
+    edges: requestResponseEdges,
   }),
 ];

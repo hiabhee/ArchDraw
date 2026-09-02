@@ -198,12 +198,46 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    // Firefox/Safari require the anchor to be in the DOM and revoke must be delayed
+    // until after the browser has started the download.
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    // Use timeout so Safari doesn't abort the download when revoking immediately.
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1000);
   };
 
   const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
     return new Promise((resolve, reject) => {
+      // Fast path: decode dataURL directly without re-rendering via canvas when possible.
+      // Fallback to canvas path only if fetch is unavailable.
+      if (typeof fetch !== 'undefined') {
+        fetch(dataUrl)
+          .then((r) => r.blob())
+          .then(resolve)
+          .catch(() => {
+            // Fallback to canvas decode
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Failed to convert to blob'));
+              }, 'image/png');
+            };
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = dataUrl;
+          });
+        return;
+      }
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -309,15 +343,41 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
       const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
       const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-      // High-DPI export that beats native screenshot (retina 2x → 4-5x, capped to avoid OOM)
-      const pixelRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2.5)));
+      // Adaptive high-DPI: aim for 2x on standard displays, 3x on retina, but cap
+      // total pixel count to avoid OOM on large diagrams (e.g., 2000x1500 @4x = 32Mpx).
+      const desiredRatio = Math.min(3, Math.max(2, Math.ceil(baseRatio * 1.5)));
+      // Estimate pixel count from the element size; reduce ratio if it would exceed ~16Mpx.
+      const elW = element.clientWidth || element.offsetWidth || 1200;
+      const elH = element.clientHeight || element.offsetHeight || 800;
+      let pixelRatio = desiredRatio;
+      const maxPixels = 16_000_000;
+      while (pixelRatio > 1 && elW * pixelRatio * elH * pixelRatio > maxPixels) {
+        pixelRatio -= 0.5;
+      }
+      pixelRatio = Math.max(1, pixelRatio);
 
-      let dataUrl = await safeToPng(element, {
-        backgroundColor: bgColor,
-        pixelRatio,
-        cacheBust: true,
-        filter: exportFilter,
-      });
+      let dataUrl: string | null = null;
+      let lastErr: unknown = null;
+      // Retry with decreasing pixelRatio if html-to-image OOMs or throws.
+      for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 1) {
+        try {
+          dataUrl = await safeToPng(element, {
+            backgroundColor: bgColor,
+            pixelRatio: attemptRatio,
+            cacheBust: true,
+            filter: exportFilter,
+          });
+          pixelRatio = attemptRatio;
+          break;
+        } catch (e) {
+          lastErr = e;
+          logger.error(`PNG export failed at pixelRatio ${attemptRatio}`, e);
+          if (attemptRatio <= 1) throw e;
+          // Wait a tick before retrying at lower quality to let GC reclaim.
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      if (!dataUrl) throw lastErr ?? new Error('Failed to generate PNG');
 
       if (cropRect) {
         const cropped = await cropRasterDataUrl(dataUrl, cropRect, pixelRatio, 'image/png');
@@ -349,7 +409,20 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           payload: { format: 'pdf', success: true },
         });
       } else {
-        downloadFile(await dataUrlToBlob(finalDataUrl), getExportFilename('png'));
+        try {
+          const blob = await dataUrlToBlob(finalDataUrl);
+          downloadFile(blob, getExportFilename('png'));
+        } catch (blobErr) {
+          // Fallback: download the data URL directly (avoids canvas re-render).
+          logger.error('dataUrlToBlob failed, falling back to direct download', blobErr);
+          const a = document.createElement('a');
+          a.href = finalDataUrl;
+          a.download = getExportFilename('png');
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 1000);
+        }
         toast.success(isTransparent ? 'Exported as PNG (no background)' : 'Exported as PNG');
         analytics.track({
           event_type: 'export',

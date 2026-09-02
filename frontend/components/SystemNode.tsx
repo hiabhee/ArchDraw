@@ -197,6 +197,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     : ICON_SIZE.node;
 
   const sketch = aesthetics.renderStyleId === 'sketch';
+  const brutal = aesthetics.renderStyleId === 'neubrutalism';
   // Sketch body: a rough SVG rounded-rect that bleeds ~2px past the card so
   // its wobbly border is fully visible once the crisp CSS border is removed.
   // Uses the same shapeGeometry → strokeRenderer path as ShapeNode.
@@ -342,10 +343,12 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               {...labelEdit.inputProps}
               style={{
                 fontSize: sketch ? 18 : 16.2,
-                fontWeight: sketch ? 400 : 600,
+                fontWeight: sketch ? 400 : brutal ? 700 : 600,
                 fontFamily: sketch
                   ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
-                  : undefined,
+                  : brutal
+                    ? 'var(--arch-font-title, sans-serif)'
+                    : undefined,
                 color: 'var(--node-title-color)',
                 background: 'transparent',
                 border: 'none',
@@ -353,7 +356,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 padding: 0,
                 margin: 0,
                 lineHeight: 1.25,
-                letterSpacing: sketch ? '0.02em' : '-0.015em',
+                letterSpacing: sketch ? '0.02em' : brutal ? '-0.02em' : '-0.015em',
                 width: '100%',
                 minWidth: 0,
                 flex: 1,

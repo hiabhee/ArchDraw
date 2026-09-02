@@ -63,7 +63,7 @@ interface DiagramResponse {
 const ALLOWED_ORIGINS = [
   'https://archdraw.hiabhee.online',
   ...(process.env.NODE_ENV !== 'production'
-    ? ['http://localhost:3000', 'http://localhost:3001']
+    ? ['http://localhost:3000']
     : []),
 ];
 

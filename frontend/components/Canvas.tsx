@@ -18,6 +18,7 @@ import { useDiagramStore, registerFitViewCallback } from '@/store/diagramStore';
 import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/GuideLines';
+import { GroupBackgroundLayer } from '@/components/GroupBackgroundLayer';
 import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/CometTrailCanvas';
@@ -25,7 +26,7 @@ import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
 import { useCallback, useEffect, useRef, DragEvent, useState, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
-import { resolveCanvasTokens, ensureSketchFontLoaded } from '@/lib/theme/renderStyles';
+import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont, sketchPatrickHandFont, sketchCaveatFont } from '@/lib/theme/renderStyles/sketchFont';
 import '@/components/nodes/nodeStyles.css';
 import { cn } from '@/lib/utils';
@@ -89,6 +90,49 @@ function CanvasInner() {
   const { onNodeDrag, onNodeDragStop: onNodeDragStopSnap } = useSnapping();
   useMiddleMousePan();
   useGrouping();
+
+  // Live migration for persisted groups saved before the zIndex fix.
+  // In neubrutalism the group fill is opaque (#dbeafe), so a group with
+  // zIndex 0/undefined visibly covers edges. New groups via createGroup
+  // already have -1, but old canvases in this session still have stale
+  // values until rehydrate on reload. Fix in-place without waiting for
+  // a page refresh so the bug is gone immediately after HMR / code update.
+  useEffect(() => {
+    const isGroup = (n: Node) =>
+      n.type === 'groupNode' ||
+      n.type === 'group' ||
+      n.type === 'frameNode' ||
+      (n.data as { isGroup?: boolean } | undefined)?.isGroup === true;
+    if (!nodes.some((n) => isGroup(n) && n.zIndex !== -1)) return;
+    const fixed = nodes.map((n) => (isGroup(n) ? { ...n, zIndex: -1 } : n));
+    // setNodes normalizes again (keeps -1) and persists
+    setNodes(fixed);
+  }, [nodes, setNodes]);
+
+  // DOM-level fallback for neubrutalism: React Flow can re-apply an
+  // inline zIndex (e.g. elevate on select) after our store fix. Force the
+  // wrapper to stay at -1 via direct DOM so brutal's opaque plate never
+  // covers edge paths, even if the store value is briefly stale.
+  useEffect(() => {
+    const enforce = () => {
+      document
+        .querySelectorAll<HTMLElement>(
+          '.react-flow__node-groupNode, .react-flow__node-group, .react-flow__node-frameNode'
+        )
+        .forEach((el) => {
+          if (el.style.zIndex !== '-1') el.style.zIndex = '-1';
+        });
+    };
+    enforce();
+    const obs = new MutationObserver(enforce);
+    obs.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    });
+    return () => obs.disconnect();
+  }, []);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -514,8 +558,11 @@ function CanvasInner() {
 
   // Self-host Nanum Pen Script when sketch is active (next/font + CDN fallback).
   useEffect(() => {
-    if (diagramRenderStyle !== 'sketch') return;
-    ensureSketchFontLoaded();
+    if (diagramRenderStyle === 'sketch') {
+      ensureSketchFontLoaded();
+    } else {
+      ensureRenderStyleFontLoaded(diagramRenderStyle);
+    }
   }, [diagramRenderStyle]);
 
   const isSketch = diagramRenderStyle === 'sketch';
@@ -560,6 +607,8 @@ function CanvasInner() {
         onPaneContextMenu={onPaneContextMenu}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
+        elevateNodesOnSelect={false}
+        elevateEdgesOnSelect={false}
         fitView
         fitViewOptions={{ padding: isMobile ? 0.15 : 0.0 }}
         selectionMode={isMobile ? SelectionMode.Partial : SelectionMode.Full}
@@ -586,11 +635,34 @@ function CanvasInner() {
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         proOptions={{ hideAttribution: true }}
       >
-        {canvasBackground.variant !== 'plain' && showGrid && (
+        <GroupBackgroundLayer />
+        {canvasBackground.variant === 'dots' && showGrid && (
           <Background 
-            variant={canvasBackground.variant as BackgroundVariant} 
+            variant={BackgroundVariant.Dots} 
             gap={canvasBackground.gap} 
             size={canvasBackground.size}
+            color={canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)}
+            style={{ opacity: isDark ? 0.6 : 0.4 }}
+          />
+        )}
+        {canvasBackground.variant === 'lines' && showGrid && (
+          <div
+            className="react-flow__background"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'transparent',
+              backgroundImage: `repeating-linear-gradient(0deg, transparent 0 ${canvasBackground.gap - 2}px, ${canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)} ${canvasBackground.gap - 2}px ${canvasBackground.gap}px)`,
+              opacity: isDark ? 0.6 : 0.4,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+        {canvasBackground.variant === 'cross' && showGrid && (
+          <Background 
+            variant={BackgroundVariant.Cross} 
+            gap={canvasBackground.gap} 
+            size={6}
             color={canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)}
             style={{ opacity: isDark ? 0.6 : 0.4 }}
           />

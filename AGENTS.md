@@ -306,13 +306,20 @@ Entry: `lib/repo-diagram/pipeline-v2.ts`, API `app/api/repo-diagram/`.
 
 Stages under `lib/repo-diagram/pipeline-stages/`:
 
-Ingestion → Cache check → Analysis / Baseline → Classify → Extract → Relationships → Verify → Finalization → Cache write.
+Ingestion → Cache check → Analysis / Baseline → Classify → Extract → Relationships → Verify → **DocsReview** → Finalization → Cache write.
+
+- **DocsReviewStage** (GH2R-024) runs after the deterministic VerifyStage and BEFORE Finalization: it re-checks the surviving graph against the repo's own README/docs (phase 1.5 `snapshot.metaFiles`) via one LLM pass (`lib/agents/repo-docs-validator.ts`), applying the dormant `ReviewResult`/`ReviewCorrection` shapes through `applyReviewCorrections` (`graph-quality.ts`). It adds doc-described components/edges, drops doc-empty low-confidence hallucinations, and renames nodes to the docs' canonical naming. Best-effort: on LLM failure it passes the verified graph through and flags `docsReviewFailed` into `reviewNotes`. Budget toggles: `REPO_DOCS_MAX_TOKENS` / `REPO_DOCS_PROMPT_CHARS` in `repoModels.ts`.
+
+Ingestion is **meta-first** (GH2R-024): a phase-1.5 "architecture-meta read" captures ALL architecture-signaling files across the tree — every README, every `package.json`, docker-compose, terraform, CI workflows, prisma schema, docs — REGARDLESS of the source file/content budget, then de-prioritizes raw source-code sampling. Meta files imply the architecture directly; the extractor derives services/infra/workers from them (component cap is level-scaled, not capped at 25). Budgets live in `skip-rules.ts` (`MAX_META_FILES`/`MAX_META_CONTENT_BYTES`/`MAX_README_FILES`).
 
 Supporting:
 
 - `tarball-ingestion.ts` — fetch/unpack GitHub tarball  
-- `import-graph.ts`, `import-resolvers.ts`, `graph-quality.ts`, `evidence-from-graph.ts`  
-- Agents in `lib/agents/`: classifier, component extractor, relationship analyst, schema compiler, verifier, prompt utils  
+- `skip-rules.ts` — **single source** for `MAX_FILE_SIZE/BINARY_RE/SKIPPED_DIRECTORIES` + `DEFAULT_FILE_BUDGET {400,900,1800}` + `DEFAULT_CONTENT_BUDGET_KB {1500,8000,12000}` (GH2R-007,006; do not re-introduce duplicate skip logic in `github-ingestion.ts`/`tarball-ingestion.ts`)
+- `import-graph.ts`, `import-resolvers.ts` (Python roots `app/backend/server/api/services`, TS alias `baseUrl="."`, Go fallback, Spring `value=/path`) , `graph-quality.ts`, `evidence-from-graph.ts`  
+- Agents in `lib/agents/`: classifier, component extractor, relationship analyst, schema compiler, verifier (sparse keep), prompt utils  
+
+Ingestion budgets are **level-aware** (`IngestionStage` maps `detailLevel` → `DEFAULT_*` from `skip-rules.ts`; `github-ingestion.ts` fallback also level-aware). Cache keys are **level-scoped** `PIPELINE_VERSION(v8)::url::sha::L{level}` (see §19). Archive 404/403 logs `x-ratelimit-remaining` (tarball fallback is honest).
 
 UI: `components/RepoDiagramGenerator.tsx`.
 
@@ -474,9 +481,9 @@ Do not hand-edit production DB; use Prisma migrations under `frontend/prisma/mig
 
 | Cache | File | Behavior |
 |-------|------|----------|
-| In-memory diagram / repo | `lib/ai/services/diagramCache.ts` | Prompt/repo+sha keyed; TTL 5m dev / 30m prod; `PIPELINE_VERSION` busts entries |
-| Repo Redis (optional) | `lib/ai/services/repoDiagramRedisCache.ts` | Cross-instance repo results when Upstash configured |
-| Blob SHA cache | `lib/cache/blobCache.ts` | Per-file parse/summary reuse for repo re-diagram |
+| In-memory diagram / repo | `lib/ai/services/diagramCache.ts` | Prompt/repo+sha keyed; TTL 5m dev / 30m prod; `PIPELINE_VERSION(v8)` busts entries; repo keys are `::L{1,2,3}` level-scoped (GH2R-003) with legacy fallback for rolling deploy |
+| Repo Redis (optional) | `lib/ai/services/repoDiagramRedisCache.ts` | Cross-instance repo results when Upstash configured; same level-scoped keys (`repo-diagram:v8:url:sha:Lx`) |
+| Blob SHA cache | `lib/cache/blobCache.ts` | Per-file parse/summary reuse for repo re-diagram — **reserved / not wired** (GH2R-019) |
 | Tutorial responses | DB `TutorialResponseCache` | Hash → answer |
 | Rate limit counters | `lib/redis.ts` + Upstash | Guest hourly AI quota |
 
@@ -506,7 +513,7 @@ Source of truth: `frontend/lib/userQuotas.ts`. Enforcement: `lib/middleware/quot
 |--|-------|-----------------|
 | AI generations | **3 / hour** (IP) | **10 / day** (`User.dailyGenerations`) |
 | Canvases | 1 | 5 |
-| Nodes / canvas | 25 | 50 |
+| Nodes / canvas | 50 | 150 |
 | Export | json, png (watermarked PNG) | json, png, svg, pdf, html-embed |
 | Share / SVG / dashboard / tutorials progress | No | Yes |
 | Templates | Basic allowlist only | All advanced |

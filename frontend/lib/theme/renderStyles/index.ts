@@ -9,6 +9,7 @@ export type {
 } from './types';
 export { RENDER_STYLES, getRenderStyle, isRenderStyleId, DEFAULT_RENDER_STYLE_ID } from './registry';
 export { PRECISION_RENDER_STYLE } from './precision';
+export { NEUBRUTALISM_RENDER_STYLE, BRUTAL_SHADOW_FILTER, BRUTAL_SHADOW_FILTER_ID, BRUTAL_BORDER, BRUTAL_BORDER_DARK, BRUTAL_FILL_LIGHT, BRUTAL_FILL_DARK, BRUTAL_TITLE_LIGHT, BRUTAL_TITLE_DARK, BRUTAL_SUBTITLE_LIGHT, BRUTAL_SUBTITLE_DARK, BRUTAL_EDGE_DEFAULT_LIGHT, BRUTAL_EDGE_PRIMARY_LIGHT, BRUTAL_EDGE_ASYNC_LIGHT, BRUTAL_EDGE_DEFAULT_DARK, BRUTAL_EDGE_PRIMARY_DARK, BRUTAL_EDGE_ASYNC_DARK, BRUTAL_GROUP_FILL_LIGHT, BRUTAL_GROUP_FILL_DARK } from './neubrutalism';
 export {
   SKETCH_RENDER_STYLE,
   SKETCH_ROUGH_OPTIONS,
@@ -47,6 +48,7 @@ export {
 export { renderSketchBodyMarkup } from './sketchBody';
 export { resolveCanvasTokens, type ResolveCanvasTokensOpts } from './resolveTokens';
 export { ensureSketchFontLoaded } from './loadSketchFont';
+export { ensureRenderStyleFontLoaded } from './loadRenderStyleFont';
 export { applyShapeSurface, type RenderSurface } from './applySurface';
 export { resolveRenderSurface, renderSketchSurface, type ResolveRenderSurfaceInput } from './surface';
 export type { StrokeRenderer } from './strokeRenderer/types';

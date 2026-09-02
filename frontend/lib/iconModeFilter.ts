@@ -5,7 +5,7 @@
  * In precision mode: allow brand/provider icons when they add recognition
  */
 
-export type RenderStyleId = 'sketch' | 'precision';
+export type RenderStyleId = 'sketch' | 'precision' | 'neubrutalism';
 
 /**
  * Technology brands that should be replaced with role-appropriate glyphs in sketch mode.
@@ -138,8 +138,8 @@ export function filterIconForMode(
   technology: string | undefined,
   renderStyle: RenderStyleId
 ): string {
-  // Precision mode: allow all icons as-is
-  if (renderStyle === 'precision') {
+  // Precision / neubrutalism mode: allow all icons as-is
+  if (renderStyle === 'precision' || renderStyle === 'neubrutalism') {
     return iconName;
   }
   
@@ -180,7 +180,7 @@ export function shouldUseBrandLogoInMode(
   technology: string,
   renderStyle: RenderStyleId
 ): boolean {
-  if (renderStyle === 'precision') {
+  if (renderStyle === 'precision' || renderStyle === 'neubrutalism') {
     return true;
   }
   

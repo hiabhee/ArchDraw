@@ -445,6 +445,8 @@ function TutorialCanvasInner({
           onPaneClick={() => onNodeSelect?.(null)}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
+          elevateNodesOnSelect={false}
+          elevateEdgesOnSelect={false}
           connectionMode={ConnectionMode.Loose}
           snapToGrid
           snapGrid={[20, 20]}

@@ -22,7 +22,9 @@ export function applyShapeSurface(primitives: ShapePrimitive[], surface: RenderS
       next.fill = surface.stroke;
     } else if (p.fillable) {
       next.fill = surface.fill;
-    } else if (p.fill === undefined && p.kind === 'line') {
+    } else if (next.fill === undefined) {
+      // SVG defaults fill to black if not specified — ensure non-fillable
+      // bodies (e.g. pipe rects, drum side rects) are transparent, not black.
       next.fill = 'none';
     }
     if (surface.fillStyle) next.fillStyle = surface.fillStyle;

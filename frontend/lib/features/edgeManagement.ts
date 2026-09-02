@@ -83,7 +83,7 @@ function assignGeometrySides(
   return result;
 }
 
-export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagementResult {
+export function processEdgeManagement(nodes: Node[], edges: Edge[], options?: { skipBundling?: boolean }): EdgeManagementResult {
   const nodeDegrees = new Map<string, number>();
   for (const edge of edges) {
     nodeDegrees.set(edge.source, (nodeDegrees.get(edge.source) || 0) + 1);
@@ -103,6 +103,12 @@ export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagem
   if (denseNodes.size === 0 && laneNodes.size === 0) {
     return { nodes, edges };
   }
+
+  // When skipBundling is set (e.g. during handle recalculation after node
+  // drag), only recalculate lane-side assignments — do NOT re-bundle edges.
+  // Bundling replaces N edges with 1 bundle edge (new ID), which causes React
+  // Flow to unmount old edge components and lose track of them.
+  const skipBundling = options?.skipBundling === true;
 
   const nodeParents = new Map<string, string>();
   const parentGroups = new Map<string, Node>();
@@ -149,8 +155,11 @@ export function processEdgeManagement(nodes: Node[], edges: Edge[]): EdgeManagem
       continue;
     }
 
-    // Dense nodes (>8 degree): bundle related edges
-    if (connectsDense) {
+    // Dense nodes (>8 degree): bundle related edges.
+    // When skipBundling is set (handle recalculation after drag), treat
+    // dense edges the same as lane edges — assign lane sides but do NOT
+    // bundle them, to preserve original edge IDs for React Flow.
+    if (connectsDense && !skipBundling) {
       const targetParent = nodeParents.get(edge.target) || 'root';
       const sourceParent = nodeParents.get(edge.source) || 'root';
       const portType = edgeData.portType || 'outbound';

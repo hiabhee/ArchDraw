@@ -2,12 +2,20 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Mic, Send, Loader2, Code, RotateCw
+  Mic, Send, Loader2, Code, RotateCw, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import { usePromptHistory } from '@/store/promptHistory';
+
+const STARTER_PROMPTS = [
+  'E-commerce checkout flow',
+  'Real-time chat app',
+  'Video streaming platform',
+  'URL shortener system',
+  'Ride-sharing app',
+] as const;
 
 interface FloatingAIBarProps {
   onGenerate: (description: string, detailLevel: 1 | 2 | 3) => Promise<void>;
@@ -196,6 +204,24 @@ export function FloatingAIBar({
     }
   };
 
+  const handlePromptClick = useCallback((prompt: string) => {
+    // Pill shows short label (e.g. "Real-time chat app") but the actual
+    // prompt sent to AI should be the full architecture request.
+    const fullPrompt = `describe ${prompt} architecture`;
+    setInput(fullPrompt);
+    // Focus the textarea so user can immediately press Enter
+    requestAnimationFrame(() => textareaRef.current?.focus());
+
+    if (typeof window !== 'undefined') {
+      analytics.track({
+        event_type: 'ui_interaction',
+        event_name: 'starter_prompt_clicked',
+        page_path: window.location.pathname,
+        payload: { prompt: fullPrompt, pill_label: prompt },
+      });
+    }
+  }, []);
+
   // Mobile keyboard handling: adjust bottom when visual viewport shrinks (iOS keyboard)
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   useEffect(() => {
@@ -298,17 +324,44 @@ export function FloatingAIBar({
           )}
         </div>
 
+        {/* Starter prompt pills — only on empty canvas with no input, directly above the input */}
+        <AnimatePresence>
+          {isCanvasEmpty && !input.trim() && !isGenerating && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="flex flex-wrap justify-center gap-1.5 max-w-full px-1"
+              aria-label="Starter prompts"
+            >
+              {STARTER_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handlePromptClick(prompt)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-card border border-border/40 shadow-sm text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-accent/50 transition-colors cursor-pointer active:scale-[0.98] whitespace-nowrap"
+                  title={`Use prompt: ${prompt}`}
+                >
+                  <Sparkles className="w-3 h-3 opacity-60" />
+                  {prompt}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence mode="wait">
           <motion.div
             key="input"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-          className={`flex items-center gap-2 w-full rounded-[16px] border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
-            isFirstTime && isCanvasEmpty 
-              ? 'shiny-input-glow border-[#1E90FF]/70 focus-within:border-primary/50' 
-              : 'border-border/40 focus-within:border-primary/50'
-          }`}
+              className={`flex items-center gap-2 w-full rounded-[16px] border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
+                isFirstTime && isCanvasEmpty 
+                  ? 'shiny-input-glow border-[#1E90FF]/70 focus-within:border-primary/50' 
+                  : 'border-border/40 focus-within:border-primary/50'
+              } ${isCanvasEmpty ? 'py-3' : ''}`}
         >
           {/* Input Text Area */}
           <div className="flex-1 min-w-0 flex items-center">
@@ -321,7 +374,7 @@ export function FloatingAIBar({
               placeholder="Describe your architecture, or paste a GitHub repo link…"
               className="w-full bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-transparent resize-none text-[16px] sm:text-xs text-foreground placeholder:text-muted-foreground/60 py-1 sm:py-0.5 px-1 max-h-24 shadow-none focus:shadow-none focus-visible:!outline-none focus:!outline-none"
               disabled={isGenerating}
-              style={{ height: 'auto', minHeight: '24px' }}
+              style={{ height: 'auto', minHeight: isCanvasEmpty ? '48px' : '24px' }}
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}

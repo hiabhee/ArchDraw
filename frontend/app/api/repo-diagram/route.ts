@@ -4,7 +4,7 @@ import { parseGitHubUrl } from '@/lib/utils/githubUrl';
 import { clear } from '@/lib/ai/services/diagramCache';
 import { clearBlobCaches } from '@/lib/cache/blobCache';
 import logger from '@/lib/logger';
-import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
+import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId, getSessionFromRequest } from '@/lib/middleware/quotaCheck';
 import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
@@ -52,19 +52,34 @@ export async function POST(req: NextRequest) {
 
   const resolvedDetail: 1 | 2 | 3 = detailLevel === 1 || detailLevel === 3 ? detailLevel : 2;
 
-  // Validate user-provided GitHub token — only accept ghp_ or gho_ prefix
-  const safeUserToken =
-    typeof userGithubToken === 'string' &&
-    /^gh[pos]_[A-Za-z0-9_]{36,}$/.test(userGithubToken)
-      ? userGithubToken
-      : undefined;
+  // Validate user-provided GitHub token — support legacy (ghp_/gho_/ghs_/ghu_/ghr_) + fine-grained (github_pat_)
+  // GH2R-002: old regex /^gh[pos]_[A-Za-z0-9_]{36,}$/ rejected fine-grained PATs and ghu_/ghr_ silently → unauthenticated 60/hr
+  const GITHUB_TOKEN_RE = /^(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})$/;
+  const rawUserToken = typeof userGithubToken === 'string' ? userGithubToken.trim() : '';
+  const safeUserToken = rawUserToken && GITHUB_TOKEN_RE.test(rawUserToken) ? rawUserToken : undefined;
+  if (typeof userGithubToken === 'string' && userGithubToken.trim() && !safeUserToken) {
+    logger.warn('[API] userGithubToken supplied but did not match PAT format — ignoring; set GITHUB_TOKEN or supply a valid ghp_/github_pat_ token');
+  }
 
   const encoder = new TextEncoder();
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
+  let clientAborted = false;
+  // GH2R-008: track client disconnect — abort between-stages already handled via req.signal,
+  // but detached SSE IIFE kept running + charging quota. Mirror signal to flag.
+  req.signal.addEventListener('abort', () => {
+    clientAborted = true;
+  });
 
-  const send = (data: object) =>
-    writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+  const send = async (data: object) => {
+    if (clientAborted) return;
+    try {
+      await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+    } catch (e) {
+      clientAborted = true;
+      logger.warn('[API] SSE writer closed (client abort)', e instanceof Error ? e.message : String(e));
+    }
+  };
 
   // Run pipeline in background, stream events:
   (async () => {
@@ -74,8 +89,15 @@ export async function POST(req: NextRequest) {
         resolvedDetail,
         req.signal,
         safeUserToken,
-        (event) => send({ type: 'progress', ...event })
+        (event) => {
+          void send({ type: 'progress', ...event });
+        }
       );
+
+      if (clientAborted) {
+        logger.info('[API] Client aborted before result — skipping quota increment');
+        return;
+      }
 
       if (!outcome.success) {
         await send({
@@ -88,35 +110,48 @@ export async function POST(req: NextRequest) {
 
       const result = outcome.data;
 
-      const userId = (await import('@/lib/middleware/quotaCheck')).getSessionFromRequest(req).then(s => s?.user?.id ?? null);
-      const resolvedUserId = await userId;
-      await incrementAIGeneration(resolvedUserId);
-      await logUsage(resolvedUserId, getGuestId(req), 'ai_generation', {
-        description: `repo:${parsed.canonical}`,
-        nodeCount: result.nodeCount || 0,
-      });
+      // GH2R-008: only charge quota if client is still connected and result succeeded
+      if (!clientAborted) {
+        const session = await getSessionFromRequest(req);
+        const resolvedUserId = session?.user?.id ?? null;
+        await incrementAIGeneration(resolvedUserId);
+        await logUsage(resolvedUserId, getGuestId(req), 'ai_generation', {
+          description: `repo:${parsed.canonical}`,
+          nodeCount: result.nodeCount || 0,
+        });
+      }
 
-      await send({
-        type: 'result',
-        payload: {
-          success: true,
-          ndjson: result.ndjson,
-          nodeCount: result.nodeCount,
-          edgeCount: result.edgeCount,
-          workflowCount: result.workflowCount,
-          workflows: result.workflows,
-          repoMeta: result.repoMeta,
-          repoProfile: result.repoProfile,
-          dependencyMap: result.dependencyMap,
-          reviewNotes: result.reviewNotes,
-          confidence: result.confidence,
-        },
-      });
+      if (!clientAborted) {
+        await send({
+          type: 'result',
+          payload: {
+            success: true,
+            ndjson: result.ndjson,
+            nodeCount: result.nodeCount,
+            edgeCount: result.edgeCount,
+            workflowCount: result.workflowCount,
+            workflows: result.workflows,
+            repoMeta: result.repoMeta,
+            repoProfile: result.repoProfile,
+            dependencyMap: result.dependencyMap,
+            reviewNotes: result.reviewNotes,
+            confidence: result.confidence,
+          },
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unexpected error';
-      await send({ type: 'error', message, code: 'unknown' });
+      if (!clientAborted) {
+        await send({ type: 'error', message, code: 'unknown' });
+      } else {
+        logger.warn('[API] Pipeline error after client abort (ignored):', message);
+      }
     } finally {
-      await writer.close();
+      try {
+        await writer.close();
+      } catch {
+        // writer already closed / aborted — ignore
+      }
     }
   })();
 

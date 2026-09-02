@@ -1,6 +1,6 @@
 export const MAX_GUEST_CANVASES = 1;
-export const MAX_GUEST_NODES = 25;
-export const MAX_AUTH_NODES = 50;
+export const MAX_GUEST_NODES = 50;
+export const MAX_AUTH_NODES = 150;
 
 export const RESERVED_LAYER_LABELS = new Set([
   'presentation', 'presentation layer',

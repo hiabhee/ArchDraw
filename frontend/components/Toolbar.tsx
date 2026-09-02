@@ -161,7 +161,7 @@ export function Toolbar() {
         // Prefer the current origin so local/staging links stay on the same host.
         const baseUrl = window.location.origin;
         const currentStyle = useDiagramStore.getState().diagramRenderStyle;
-        const shareUrl = `${baseUrl}/share/${data.sessionId}${currentStyle === 'sketch' ? '?style=sketch' : ''}`;
+        const shareUrl = `${baseUrl}/share/${data.sessionId}${currentStyle && currentStyle !== 'precision' ? `?style=${currentStyle}` : ''}`;
         setShareUrl(shareUrl);
         setShareSessionId(data.sessionId);
         setShareAccessType('anyone');
