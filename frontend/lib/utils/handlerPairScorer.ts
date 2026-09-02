@@ -47,8 +47,8 @@ const ALL_SIDES: Position[] = [
   Position.Left,
 ];
 
-/** Matches getBoundaryAnchor / EDGE_ENDPOINT_GAP in simpleFloatingEdge. */
-export const HANDLER_ENDPOINT_GAP = 24;
+/** Matches getBoundaryAnchor / EDGE_ENDPOINT_GAP (12) in simpleFloatingEdge. */
+export const HANDLER_ENDPOINT_GAP = 12;
 
 function isHorizontal(side: Position): boolean {
   return side === Position.Left || side === Position.Right;
@@ -76,7 +76,7 @@ export function anchorOnBoundary(
 }
 
 /**
- * Anchor 24px outside the node boundary — same geometry used when rendering.
+ * Anchor 12px outside the node boundary — same geometry used when rendering (edge tip 12px).
  */
 export function anchorOutsideBoundary(
   rect: HandlerRect,
@@ -207,7 +207,7 @@ function orthogonalPathHitsObstacles(
 /**
  * True if the default orthogonal path clips the interior of source or target.
  *
- * Endpoints sit 24px outside the node, so a correct Z/L path must never
+ * Endpoints sit 12px outside the node, so a correct Z/L path must never
  * intersect either terminal's interior. Any intersection means the path
  * tunnels through the node to reach a far-side handle — always penalize.
  */

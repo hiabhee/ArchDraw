@@ -188,6 +188,7 @@ function computeDirectWaypoints(
   nodeRects: Map<string, { id: string; x: number; y: number; w: number; h: number }> | undefined,
   sourceRect: ObstacleRect,
   targetRect: ObstacleRect,
+  borderRadius: number = 24,
 ): Array<{ x: number; y: number }> {
   const directWaypoints = buildDefaultOrthogonalWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
@@ -211,7 +212,7 @@ function computeDirectWaypoints(
     targetX: th.x, targetY: th.y,
     sourcePosition,
     targetPosition,
-    borderRadius: 24,
+    borderRadius,
     edgeOffset,
     nodeRects: routingRects,
     excludedNodeIds: new Set(),
@@ -374,6 +375,7 @@ export function computeEdgeRoute(
   nodes: Node[],
   edges: Edge[],
   direction: EdgeRouteDirection = 'LR',
+  renderStyleId?: string,
 ): EdgeRouteResult {
   const sourceNode = nodes.find(n => n.id === edge.source)
   const targetNode = nodes.find(n => n.id === edge.target)
@@ -388,6 +390,9 @@ export function computeEdgeRoute(
   }
 
   if (!sourceNode || !targetNode) return defaultResult
+
+  const brutal = renderStyleId === 'neubrutalism';
+  const curveRadius = brutal ? 10 : 24;
 
   if (edge.source === edge.target) {
     const sRect = getNodeRect(sourceNode, nodes)
@@ -492,7 +497,7 @@ export function computeEdgeRoute(
       targetPosition, targetShift,
     )
 
-    const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints)
+    const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
 
     return {
       sourcePosition,
@@ -600,11 +605,39 @@ export function computeEdgeRoute(
       })()
     : 0
 
-  const waypoints = computeDirectWaypoints(
+  const waypointsRaw = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
     nodeRectParam, sourceRect, targetRect,
+    curveRadius,
   )
-  const svgPath = buildSmoothStepSvg(waypoints, 24)
+  let waypoints = waypointsRaw
+  let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
+
+  // Degenerate case: coincident anchors (overlapping nodes) produce a single
+  // point after deduplication → empty SVG. Always return a visible fallback so
+  // the edge never disappears while dragging.
+  if (!svgPath || waypoints.length < 2) {
+    const dx = th.x - sh.x
+    const dy = th.y - sh.y
+    const dist = Math.hypot(dx, dy)
+    if (dist < 12) {
+      const isH = sourcePosition === Position.Left || sourcePosition === Position.Right
+      const offset = 50
+      const perpX = isH ? 0 : offset
+      const perpY = isH ? offset : 0
+      // Small U-shaped detour perpendicular to the terminal side, offset
+      // consistently so parallel edges remain separated.
+      const mid1 = { x: sh.x + perpX, y: sh.y + perpY }
+      const mid2 = { x: th.x + perpX, y: th.y + perpY }
+      const fallback = [sh, mid1, mid2, th]
+      waypoints = fallback
+      svgPath = buildSmoothStepSvg(fallback, curveRadius) || `M ${sh.x},${sh.y} L ${mid1.x},${mid1.y} L ${mid2.x},${mid2.y} L ${th.x},${th.y}`
+    } else if (!svgPath) {
+      // Non-coincident but still empty (e.g. duplicate points) → straight line fallback
+      waypoints = [sh, th]
+      svgPath = `M ${sh.x},${sh.y} L ${th.x},${th.y}`
+    }
+  }
 
   return {
     sourcePosition,

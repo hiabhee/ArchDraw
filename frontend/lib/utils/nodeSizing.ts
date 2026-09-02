@@ -386,7 +386,15 @@ export function calculateNodeDimensions(
     const capPad = 48;
     const textWidth = longestLineLength * AVG_CHAR_WIDTH + capPad;
     width = Math.max(SIZE_L, Math.min(SIZE_XL, Math.ceil(textWidth / 40) * 40));
-    height = getQueuePipeHeight(countPipeLabelLines(label, subtitle));
+    // For queue, also consider wrapping due to width (not just newline)
+    const queueUsable = Math.max(64, width * SHAPE_TEXT_BAND.queue);
+    let queueWrapped = 0;
+    for (const line of lines) {
+      const lineW = line.length * AVG_CHAR_WIDTH;
+      queueWrapped += Math.max(1, Math.ceil(lineW / queueUsable));
+    }
+    const lineCount = Math.max(countPipeLabelLines(label, subtitle), queueWrapped);
+    height = getQueuePipeHeight(lineCount);
   } else if (isHorizontalPipe) {
     // Legacy: horizontal pipe cylinder
     const capPad = 48;

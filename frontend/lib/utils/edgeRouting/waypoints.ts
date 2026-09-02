@@ -549,14 +549,110 @@ function collapseLocalSPatterns(
   return result;
 }
 
+function collapseTinyJogs(
+  points: Array<{ x: number; y: number }>,
+  nodeRects?: Map<string, NodeRect>,
+  excludedIds: Set<string> = new Set(),
+): Array<{ x: number; y: number }> {
+  if (points.length < 4) return points;
+  const TINY = 20;
+  let result = [...points];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 1; i < result.length - 2; i++) {
+      const a = result[i - 1];
+      const b = result[i];
+      const c = result[i + 1];
+      const d = result[i + 2];
+      const abH = Math.abs(a.y - b.y) < 0.5 && Math.abs(a.x - b.x) > 0.5;
+      const abV = Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) > 0.5;
+      const bcH = Math.abs(b.y - c.y) < 0.5 && Math.abs(b.x - c.x) > 0.5;
+      const bcV = Math.abs(b.x - c.x) < 0.5 && Math.abs(b.y - c.y) > 0.5;
+      const cdH = Math.abs(c.y - d.y) < 0.5 && Math.abs(c.x - d.x) > 0.5;
+      const cdV = Math.abs(c.x - d.x) < 0.5 && Math.abs(c.y - d.y) > 0.5;
+      // Pattern: H - tiny V - H (a small step)
+      if (abH && bcV && cdH) {
+        const tinyLen = Math.abs(c.y - b.y);
+        if (tinyLen > 0 && tinyLen < TINY) {
+          // Don't touch stubs at the very ends (first/last segment is the
+          // terminal stub already). Only collapse middle jogs.
+          if (i === 1 || i + 2 === result.length - 1) continue;
+          const dirAB = Math.sign(b.x - a.x);
+          const dirCD = Math.sign(d.x - c.x);
+          if (dirAB !== 0 && dirCD !== 0 && dirAB === dirCD) {
+            // Try L at target: keep A.y, vertical at D.x
+            const candA = [a, { x: d.x, y: a.y }, d];
+            const candB = [a, { x: a.x, y: d.y }, d];
+            const pathA = [...result.slice(0, i - 1), ...candA, ...result.slice(i + 3)];
+            const pathB = [...result.slice(0, i - 1), ...candB, ...result.slice(i + 3)];
+            const simpleA = simplifyOrthogonalPath(pathA);
+            const simpleB = simplifyOrthogonalPath(pathB);
+            const freeA = !nodeRects || !pathEntersNodeInterior(simpleA, nodeRects, excludedIds);
+            const freeB = !nodeRects || !pathEntersNodeInterior(simpleB, nodeRects, excludedIds);
+            let chosen: Array<{ x: number; y: number }> | null = null;
+            if (freeA && freeB) {
+              // Prefer the side that keeps the longer horizontal
+              const lenA = Math.abs(d.x - a.x);
+              const lenB = Math.abs(d.y - a.y);
+              chosen = lenA >= lenB ? simpleA : simpleB;
+            } else if (freeA) chosen = simpleA;
+            else if (freeB) chosen = simpleB;
+            if (chosen) {
+              result = chosen;
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+      // Pattern: V - tiny H - V
+      if (abV && bcH && cdV) {
+        const tinyLen = Math.abs(c.x - b.x);
+        if (tinyLen > 0 && tinyLen < TINY) {
+          if (i === 1 || i + 2 === result.length - 1) continue;
+          const dirAB = Math.sign(b.y - a.y);
+          const dirCD = Math.sign(d.y - c.y);
+          if (dirAB !== 0 && dirCD !== 0 && dirAB === dirCD) {
+            const candA = [a, { x: a.x, y: d.y }, d];
+            const candB = [a, { x: d.x, y: a.y }, d];
+            const pathA = [...result.slice(0, i - 1), ...candA, ...result.slice(i + 3)];
+            const pathB = [...result.slice(0, i - 1), ...candB, ...result.slice(i + 3)];
+            const simpleA = simplifyOrthogonalPath(pathA);
+            const simpleB = simplifyOrthogonalPath(pathB);
+            const freeA = !nodeRects || !pathEntersNodeInterior(simpleA, nodeRects, excludedIds);
+            const freeB = !nodeRects || !pathEntersNodeInterior(simpleB, nodeRects, excludedIds);
+            let chosen: Array<{ x: number; y: number }> | null = null;
+            if (freeA && freeB) {
+              const lenA = Math.abs(d.y - a.y);
+              const lenB = Math.abs(d.x - a.x);
+              chosen = lenA >= lenB ? simpleA : simpleB;
+            } else if (freeA) chosen = simpleA;
+            else if (freeB) chosen = simpleB;
+            if (chosen) {
+              result = chosen;
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
 function enforceTerminalStubs(
   points: Array<{ x: number; y: number }>,
   sourcePosition: Position,
   targetPosition: Position,
   stubLength: number = terminalStubLength(),
+  nodeRects?: Map<string, NodeRect>,
+  excludedIds?: Set<string>,
 ): Array<{ x: number; y: number }> {
   const cleaned = ensureCleanTerminalStubs(points, sourcePosition, targetPosition, stubLength);
-  return collapseLocalSPatterns(cleaned);
+  const noS = collapseLocalSPatterns(cleaned);
+  return collapseTinyJogs(noS, nodeRects, excludedIds);
 }
 
 export function orthogonalizeDiagonalSegments(
@@ -634,7 +730,7 @@ function preferLowBendReroute(
     ...simple,
     { x: tx, y: ty },
   ]);
-  const withStubs = enforceTerminalStubs(full, sourcePosition, targetPosition, stubLen);
+  const withStubs = enforceTerminalStubs(full, sourcePosition, targetPosition, stubLen, nodeRects, excludedIds);
   const bends = countPathBends(withStubs);
 
   if (bends < currentBends && !pathEntersNodeInterior(withStubs, nodeRects, excludedIds)) {
@@ -653,7 +749,7 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
     excludedNodeIds = new Set(),
   } = params;
 
-  const NODE_PADDING = 20;
+  const NODE_PADDING = 8;
   let paddedRects: Map<string, NodeRect> | undefined;
   if (nodeRects) {
     paddedRects = new Map();
@@ -746,7 +842,7 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   ];
 
   const simplified = simplifyOrthogonalPath(fullWaypoints);
-  const withStubs = enforceTerminalStubs(simplified, sourcePosition, targetPosition, stubLen);
+  const withStubs = enforceTerminalStubs(simplified, sourcePosition, targetPosition, stubLen, paddedRects, excludedNodeIds);
 
   const rebuilt = preferLowBendReroute(
     withStubs,
@@ -777,7 +873,7 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
       }
     });
     const cleaned = simplifyOrthogonalPath(shifted);
-    const fixed = enforceTerminalStubs(cleaned, sourcePosition, targetPosition, stubLen);
+    const fixed = enforceTerminalStubs(cleaned, sourcePosition, targetPosition, stubLen, paddedRects, excludedNodeIds);
     if (!pathSelfIntersects(fixed)) {
       return fixed;
     }

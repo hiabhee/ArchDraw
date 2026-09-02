@@ -27,7 +27,7 @@ function sideFromDataString(value: unknown): Position | undefined {
 
 /**
  * Which side of `nodeId` an edge renders on, mirroring the floating-side
- * router: explicit data override first, then center-to-center geometry.
+ * router: explicit data override first, then lane override, then center-to-center geometry.
  * Handle ids no longer pin sides.
  */
 function inferEdgeSide(
@@ -40,6 +40,10 @@ function inferEdgeSide(
     edge.source === nodeId ? data?.sourceSide : data?.targetSide,
   );
   if (manual !== undefined) return manual;
+  const lane = sideFromDataString(
+    edge.source === nodeId ? data?.laneSourceSide : data?.laneTargetSide,
+  );
+  if (lane !== undefined) return lane;
 
   if (!nodePositions) return undefined;
   const self = nodePositions.get(nodeId);

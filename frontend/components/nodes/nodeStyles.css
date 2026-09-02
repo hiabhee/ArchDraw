@@ -1100,6 +1100,25 @@
 .node-svc-dot:first-child { opacity: 0.35; }
 .node-svc-dot:last-child { opacity: 0.15; }
 
+/* ── Hidden handles (always mounted, CSS-hidden) ────────────────────
+   Handles are kept in the DOM to prevent React Flow from losing edge
+   connections when sides flip during node drag. visibility:hidden keeps
+   them invisible and non-interactive while preserving layout space. */
+.react-flow__handle[style*="visibility: hidden"],
+.rh[style*="visibility: hidden"] {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* During connection drawing, temporarily show all handles so the user
+   can connect to any side — even handles that have no current edges. */
+.react-flow--connection-drawing .react-flow__handle[style*="visibility: hidden"],
+.react-flow--connection-drawing .rh[style*="visibility: hidden"] {
+  visibility: visible !important;
+  pointer-events: all !important;
+  opacity: 0.5 !important;
+}
+
 /* ── Active Connection Drag Styling ───────────────────────────────
    During drag, handles stay subtle like idle, but valid/hover gets accent.
    Simple floating edge ref: thin gray rings, only the hovered target pops. */
@@ -1219,10 +1238,10 @@
 [data-render-style='sketch'] .edge-label-pill {
   border-radius: 4px !important;
   font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 11.5px !important;
+  font-size: 8px !important;
   font-weight: 400 !important;
-  padding: 2px 7px !important;
-  line-height: 1.35 !important;
+  padding: 1.5px 5px !important;
+  line-height: 1.2 !important;
   letter-spacing: 0.01em !important;
   background: var(--arch-node-fill, #fefcf3) !important;
   border: 1px solid var(--arch-node-stroke, rgba(30,28,26,0.18)) !important;
@@ -1284,3 +1303,141 @@
 [data-render-style='sketch'] .node-icon {
   opacity: 0.96;
 }
+
+/* ── Neubrutalism ────────────────────────────────────────────────────────
+   Bold heavy borders, hard offset shadows, flat saturated fills, geometric
+   sans-serif type. The crisp card keeps a strong border + hard shadow; the
+   SVG body variant applies its own hard-shadow filter. */
+
+[data-render-style='neubrutalism'] {
+  background-color: hsl(var(--canvas-bg, 210 20% 98%)) !important;
+}
+
+[data-render-style='neubrutalism'] .node-card {
+  border: 3px solid var(--arch-node-stroke, #1a1a1a) !important;
+  box-shadow: 5px 5px 0px var(--arch-node-stroke, #1a1a1a) !important;
+  background: var(--arch-node-fill, #ffffff) !important;
+  border-radius: 6px !important;
+}
+
+[data-render-style='neubrutalism'] .node-card::before {
+  display: none;
+}
+
+[data-render-style='neubrutalism'] .node-card.selected {
+  border-color: var(--arch-accent, #2563eb) !important;
+  box-shadow: 5px 5px 0px var(--arch-accent, #2563eb) !important;
+}
+
+[data-render-style='neubrutalism'] .node-title,
+[data-render-style='neubrutalism'] .shape-node .node-title {
+  font-family: var(--arch-font-title) !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--arch-title, #1a1a1a) !important;
+  line-height: 1.2 !important;
+  transform: none;
+}
+
+.dark [data-render-style='neubrutalism'] .node-title {
+  color: var(--arch-title, #f4f4f5) !important;
+}
+
+[data-render-style='neubrutalism'] .node-subtitle,
+[data-render-style='neubrutalism'] .shape-node .node-subtitle {
+  font-family: var(--arch-font-subtitle) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--arch-subtitle, #52525b) !important;
+  opacity: 1;
+  transform: none;
+}
+
+[data-render-style='neubrutalism'] .react-flow__edge-text {
+  font-family: var(--arch-font-edge-label) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* Neubrutalism edges are thick solid paths — keep the RF path visible. */
+
+[data-render-style='neubrutalism'] .edge-label-pill {
+  border-radius: 4px !important;
+  font-family: var(--arch-font-edge-label) !important;
+  font-size: 8px !important;
+  font-weight: 600 !important;
+  padding: 2px 6px !important;
+  background: var(--arch-node-fill, #ffffff) !important;
+  border: 1.5px solid var(--arch-node-stroke, #1a1a1a) !important;
+  box-shadow: 2px 2px 0px var(--arch-node-stroke, #1a1a1a) !important;
+  transform: none;
+}
+
+[data-render-style='neubrutalism'] .annotation-node,
+[data-render-style='neubrutalism'] .annotation-node input,
+[data-render-style='neubrutalism'] .annotation-node textarea {
+  font-family: var(--arch-font-annotation) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+[data-render-style='neubrutalism'] .text-label-node,
+[data-render-style='neubrutalism'] .text-label-node input,
+[data-render-style='neubrutalism'] .text-label-node textarea {
+  font-family: var(--arch-font-annotation) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+}
+
+[data-render-style='neubrutalism'] .group-label {
+  font-family: var(--arch-font-title) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  opacity: 1;
+}
+
+/* Neubrutalism handles — square-ish, heavy border. */
+[data-render-style='neubrutalism'] .react-flow__handle,
+[data-render-style='neubrutalism'] .node-card .rh {
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  min-height: 10px !important;
+  border-radius: 2px !important;
+  border-width: 2.5px !important;
+  border-color: var(--arch-node-stroke, #1a1a1a) !important;
+  background: var(--arch-node-fill, #ffffff) !important;
+}
+
+[data-render-style='neubrutalism'] .node-icon-box {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+[data-render-style='neubrutalism'] .node-icon {
+  opacity: 1;
+}
+
+/* ── Group layering — groups always behind edges ────────────────────────
+   Edges live in .react-flow__edges (SVG) before .react-flow__nodes in DOM.
+   A group with zIndex -1 sits behind edges so its opaque brutal fill
+   (#dbeafe) never covers edge paths. Persisted canvases saved before the
+   zIndex fix and React Flow's elevateNodesOnSelect can lift a selected
+   group above edges — force it with !important (overrides inline elevate).
+   Covers all group type ids (groupNode / group / frameNode). */
+.react-flow__node-groupNode,
+.react-flow__node-group,
+.react-flow__node-frameNode {
+  z-index: -1 !important;
+}
+[data-render-style='neubrutalism'] .react-flow__node-groupNode,
+[data-render-style='neubrutalism'] .react-flow__node-group,
+[data-render-style='neubrutalism'] .react-flow__node-frameNode {
+  z-index: -1 !important;
+}
+

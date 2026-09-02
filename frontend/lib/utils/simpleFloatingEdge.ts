@@ -91,9 +91,10 @@ export function sideFromDataString(value: unknown): Position | undefined {
 
 /**
  * Resolve which side of `nodeId` an edge actually renders on. Mirrors the
- * route builder (`edgeRouteBuilder`): stored side override first, then live
- * geometry. Handle ids do NOT pin sides — plain edges re-float to the
- * natural side as nodes move (only explicit `data.sourceSide/targetSide`
+ * route builder (`edgeRouteBuilder`): stored side override first, then lane
+ * override, then live geometry. Handle ids do NOT pin sides — plain edges
+ * re-float to the natural side as nodes move (only explicit
+ * `data.sourceSide/targetSide` or `data.laneSourceSide/laneTargetSide`
  * overrides are sticky).
  */
 export function resolveEdgeTerminalSide(
@@ -108,6 +109,11 @@ export function resolveEdgeTerminalSide(
       ? sideFromDataString(data?.targetSide)
       : sideFromDataString(data?.sourceSide);
   if (manual !== undefined) return manual;
+  const lane =
+    terminal === 'target'
+      ? sideFromDataString((data as Record<string, unknown> | undefined)?.laneTargetSide)
+      : sideFromDataString((data as Record<string, unknown> | undefined)?.laneSourceSide);
+  if (lane !== undefined) return lane;
 
   if (!nodeById) return undefined;
   const src = nodeById.get(edge.source);
@@ -228,8 +234,25 @@ export function getEdgeShiftOffset(
     }
   }
 
+  // Only use per-edge bidirectional lane when the side contains *only* that
+  // pair. If the side also has other edges (e.g. Client right has 2 outgoing
+  // + 1 incoming), the handle can only render one offset per type, so the
+  // edge must use the side's averaged slot to stay aligned with the handle.
   const bidirectionalLane = getBidirectionalLaneOffset(self, nodeId, edges, nodePositions);
-  if (bidirectionalLane !== null) return bidirectionalLane;
+  if (bidirectionalLane !== null) {
+    let countOnSide = 0;
+    let hasOther = false;
+    const otherId = self.source === nodeId ? self.target : self.source;
+    for (const e of edges) {
+      if (e.source !== nodeId && e.target !== nodeId) continue;
+      const s = resolveSide ? resolveSide(e, nodeId) : undefined;
+      if (s !== side) continue;
+      countOnSide++;
+      const o = e.source === nodeId ? e.target : e.source;
+      if (o !== otherId) hasOther = true;
+    }
+    if (countOnSide === 2 && !hasOther) return bidirectionalLane;
+  }
 
   if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
 

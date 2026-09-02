@@ -1,6 +1,7 @@
 import type { Edge, Node } from 'reactflow'
 import { computeEdgeRoute, isGroupNode, type EdgeRouteDirection } from './edgeRouteBuilder'
 import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '@/lib/pipeline-shared/layout/layoutConstants'
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles'
 
 export interface EdgeLabelAnchor {
   x: number
@@ -10,18 +11,26 @@ export interface EdgeLabelAnchor {
 
 // ── Label sizing ────────────────────────────────────────────────────────────
 //
-// Labels are counter-scaled with zoom (labelScale = clamp(1/zoom, 1, 2)) so
-// they stay legible when zoomed out. To guarantee two labels never overlap on
-// screen at ANY zoom level we reserve, in world space, twice the CSS size of
-// the pill: the rendered world size is at most 2x CSS (worst case zoom 0.5),
-// so two world rects that do not intersect can never intersect on screen.
+// Labels are rendered small but readable: precision 6.5px, sketch/brutal 8px.
+// They use a bounded counter-scale (max ~1.4x) so they stay legible when
+// zoomed out without becoming drastically large. To guarantee no overlap we
+// reserve world space for the max scaled size.
 
-const LABEL_WIDTH_PER_CHAR = 4.8  // Reduced by 20% from 6
-const LABEL_HORIZONTAL_PADDING = 10  // Reduced by ~17% from 12
-const LABEL_HEIGHT_CSS = 11  // Reduced by ~21% from 14 (7.5px font + padding)
-const LABEL_MIN_WIDTH_CSS = 24  // Reduced by 20% from 30
-/** Max counter-scale factor (labelScale cap). Doubles the reserved rect. */
-const LABEL_SAFE_SCALE = 2
+const LABEL_WIDTH_PER_CHAR = 4.0
+const LABEL_HORIZONTAL_PADDING = 8
+const LABEL_HEIGHT_CSS = 9
+const LABEL_MIN_WIDTH_CSS = 20
+
+// ── Neubrutalism pill sizing ────────────────────────────────────────────────
+//
+// Brutal now uses 8px (down from 11px), 2px 6px padding, 1.5px border + 2px
+// shadow — compact but still brutal. Sketch uses same 8px metrics.
+const BRUTAL_WIDTH_PER_CHAR = 4.9
+const BRUTAL_HORIZONTAL_PADDING = 12
+const BRUTAL_HEIGHT_CSS = 11
+const BRUTAL_MIN_WIDTH_CSS = 26
+/** Max counter-scale factor. Caps zoom-out growth to keep labels small. */
+const LABEL_SAFE_SCALE = 1.5
 const BORDER_RADIUS = 24
 /**
  * Perpendicular spacing between labels of parallel edges (same source/target
@@ -31,11 +40,15 @@ const BORDER_RADIUS = 24
  */
 const PARALLEL_LABEL_STACK_GAP = 0
 
-function estimateLabelSize(text: string): { w: number; h: number } {
-  const cssWidth = Math.max(LABEL_MIN_WIDTH_CSS, text.length * LABEL_WIDTH_PER_CHAR + LABEL_HORIZONTAL_PADDING)
+function estimateLabelSize(text: string, renderStyle?: DiagramRenderStyleId): { w: number; h: number } {
+  const brutal = renderStyle === 'neubrutalism'
+  const wpc = brutal ? BRUTAL_WIDTH_PER_CHAR : LABEL_WIDTH_PER_CHAR
+  const pad = brutal ? BRUTAL_HORIZONTAL_PADDING : LABEL_HORIZONTAL_PADDING
+  const minW = brutal ? BRUTAL_MIN_WIDTH_CSS : LABEL_MIN_WIDTH_CSS
+  const cssWidth = Math.max(minW, text.length * wpc + pad)
   return {
     w: cssWidth * LABEL_SAFE_SCALE,
-    h: LABEL_HEIGHT_CSS * LABEL_SAFE_SCALE,
+    h: (brutal ? BRUTAL_HEIGHT_CSS : LABEL_HEIGHT_CSS) * LABEL_SAFE_SCALE,
   }
 }
 
@@ -337,15 +350,13 @@ export function findUniqueStemRange(
 }
 
 /** Minimum length (px) for a unique line segment to host a label. */
-const MIN_LABEL_SEGMENT_LEN = 36
+const MIN_LABEL_SEGMENT_LEN = 32
 /**
  * Minimum gap (px) between a label pill and a node bounding box.
- * Node clearance uses the same doubled safe size as label-label clearance:
- * labels render counter-scaled up to LABEL_SAFE_SCALE (2x) at low zoom, so a
- * world-space rect of twice the CSS pill guarantees the pill never overlaps a
- * node on screen at ANY zoom level.
+ * Node clearance uses 1.5x safe scale.
  */
-const NODE_LABEL_GAP = 16
+const NODE_LABEL_GAP = 12
+const BRUTAL_NODE_LABEL_GAP = 14
 
 function totalPathLength(segs: PathSegment[]): number {
   return segs.reduce((sum, seg) => sum + seg.len, 0)
@@ -535,6 +546,7 @@ function buildCandidates(
   perpOffset: number,
   /** When set, prefer / search this range first (unique stem). */
   preferredRange?: { lo: number; hi: number },
+  renderStyle?: DiagramRenderStyleId,
 ): LabelCandidate[] {
   const mk = (t: number): LabelCandidate => {
     const base = pointAtFraction(segs, t)
@@ -543,8 +555,19 @@ function buildCandidates(
   }
   const candidates: LabelCandidate[] = [mk(preferredT)]
   const STEP = 0.01
-  const lo = preferredRange ? Math.max(0.05, preferredRange.lo) : 0.05
-  const hi = preferredRange ? Math.min(0.95, preferredRange.hi) : 0.95
+  // Keep labels away from arrowhead / source tip: at least 15% from ends
+  // prevents "label too close to marker" on short edges or bends near target.
+  // Also enforce 28px world-space gap from target (arrowhead) for short edges
+  // where 15% is still < arrow size.
+  // Neubrutalism's pill + hard shadow + larger arrowhead need more clearance
+  // so the label never sits on the marker.
+  const brutal = renderStyle === 'neubrutalism'
+  const totalLen = segs.reduce((s, seg) => s + seg.len, 0)
+  const minDistFromEnds = brutal ? 44 : 28
+  const tMarginCap = brutal ? 0.22 : 0.18
+  const tMargin = totalLen > 1 ? Math.min(tMarginCap, minDistFromEnds / totalLen) : 0.15
+  const lo = preferredRange ? Math.max(tMargin, preferredRange.lo) : tMargin
+  const hi = preferredRange ? Math.min(1 - tMargin, preferredRange.hi) : 1 - tMargin
 
   // Prefer unique-stem samples first, then fall back to the full path so
   // collision resolution can still escape a crowded stem.
@@ -583,8 +606,11 @@ function computeLayout(
   edges: Edge[],
   nodeInternals: ReadonlyMap<string, Node>,
   direction: EdgeRouteDirection,
+  renderStyle?: DiagramRenderStyleId,
 ): Map<string, EdgeLabelAnchor> {
   const nodes = Array.from(nodeInternals.values())
+  const brutal = renderStyle === 'neubrutalism'
+  const nodeGap = brutal ? BRUTAL_NODE_LABEL_GAP : NODE_LABEL_GAP
 
   // Inflate node boxes so label pills keep a visible gap from node borders.
   // Group containers are not label obstacles: edges and their labels legally
@@ -594,9 +620,9 @@ function computeLayout(
     .map((n) => {
       const w = n.width ?? DEFAULT_NODE_WIDTH
       const h = n.height ?? DEFAULT_NODE_HEIGHT
-      const x = (n.positionAbsolute?.x ?? n.position.x) - NODE_LABEL_GAP
-      const y = (n.positionAbsolute?.y ?? n.position.y) - NODE_LABEL_GAP
-      return { x, y, w: w + 2 * NODE_LABEL_GAP, h: h + 2 * NODE_LABEL_GAP }
+      const x = (n.positionAbsolute?.x ?? n.position.x) - nodeGap
+      const y = (n.positionAbsolute?.y ?? n.position.y) - nodeGap
+      return { x, y, w: w + 2 * nodeGap, h: h + 2 * nodeGap }
     })
 
   // Pass 1: route every edge so fan-in/fan-out sharing can be detected even
@@ -687,10 +713,10 @@ function computeLayout(
     workItems.push({
       edgeId: edge.id,
       preferredT,
-      size: estimateLabelSize(item.label),
+      size: estimateLabelSize(item.label, renderStyle),
       segs,
       basePerp: perpOffset,
-      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange),
+      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle),
       sortX: preferred.x,
       sortY: preferred.y,
     })
@@ -777,6 +803,7 @@ function computeLayout(
 interface CacheEntry {
   nodeInternals: ReadonlyMap<string, Node>
   direction: EdgeRouteDirection
+  renderStyle?: DiagramRenderStyleId
   result: Map<string, EdgeLabelAnchor>
 }
 
@@ -787,14 +814,15 @@ export function computeEdgeLabelLayout(
   edges: Edge[],
   nodeInternals: ReadonlyMap<string, Node>,
   direction: EdgeRouteDirection,
+  renderStyle?: DiagramRenderStyleId,
 ): ReadonlyMap<string, EdgeLabelAnchor> {
   const hit = layoutCache.get(edges)
-  if (hit && hit.nodeInternals === nodeInternals && hit.direction === direction) {
+  if (hit && hit.nodeInternals === nodeInternals && hit.direction === direction && hit.renderStyle === renderStyle) {
     return hit.result
   }
 
-  const result = computeLayout(edges, nodeInternals, direction)
-  layoutCache.set(edges, { nodeInternals, direction, result })
+  const result = computeLayout(edges, nodeInternals, direction, renderStyle)
+  layoutCache.set(edges, { nodeInternals, direction, renderStyle, result })
   if (layoutCache.size > CACHE_MAX) {
     const oldest = layoutCache.keys().next().value
     if (oldest !== undefined) layoutCache.delete(oldest)

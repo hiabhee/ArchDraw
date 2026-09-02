@@ -18,7 +18,8 @@ export function EdgeToolbar({ edgeId, currentLabel, labelX, labelY }: Props) {
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const deleteEdge = useDiagramStore((s) => s.deleteEdge);
   const zoom = useStore((s: ReactFlowState) => s.transform[2]);
-  const labelScale = Math.min(Math.max(1 / zoom, 1), 2);
+  const rawScale = zoom ? 1 / zoom : 1;
+  const labelScale = Math.min(1.4, Math.max(0.85, rawScale));
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(currentLabel || '');

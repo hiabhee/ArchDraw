@@ -78,7 +78,7 @@ export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesP
       {sides.map((side) => {
         const pos = sideToPosition(side);
         return TYPES.map((type) => {
-          if (!shouldRenderHandle(pos, type)) return null;
+          const active = shouldRenderHandle(pos, type);
           return (
             <SingleHandle
               key={`${type}-${side}`}
@@ -86,7 +86,11 @@ export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesP
               type={type}
               slotOffset={getSlotOffset(pos, type)}
               handleTransition={handleTransition}
-              style={handleStyle}
+              style={{
+                ...handleStyle,
+                visibility: active ? 'visible' : 'hidden',
+                pointerEvents: active ? 'all' : 'none',
+              }}
             />
           );
         });

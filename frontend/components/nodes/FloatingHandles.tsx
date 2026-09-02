@@ -19,9 +19,10 @@ interface FloatingHandleProps {
   type: 'source' | 'target';
   slotOffset: number;
   handleTransition: string;
+  hidden?: boolean;
 }
 
-function SingleFloatingHandle({ side, type, slotOffset, handleTransition }: FloatingHandleProps) {
+function SingleFloatingHandle({ side, type, slotOffset, handleTransition, hidden }: FloatingHandleProps) {
   const id = `${type}-${side}`;
   const pos = sideToPosition(side);
 
@@ -34,6 +35,7 @@ function SingleFloatingHandle({ side, type, slotOffset, handleTransition }: Floa
       style={{
         ['--rh-slot' as string]: `${slotOffset}px`,
         transition: handleTransition,
+        ...(hidden ? { visibility: 'hidden', pointerEvents: 'none' as const } : {}),
       }}
     />
   );
@@ -58,7 +60,7 @@ export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
       {SIDES.map((side) => {
         const pos = sideToPosition(side);
         return TYPES.map((type) => {
-          if (!shouldRenderHandle(pos, type)) return null;
+          const active = shouldRenderHandle(pos, type);
           return (
             <SingleFloatingHandle
               key={`${type}-${side}`}
@@ -66,6 +68,7 @@ export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
               type={type}
               slotOffset={getSlotOffset(pos, type)}
               handleTransition={handleTransition}
+              hidden={!active}
             />
           );
         });

@@ -90,6 +90,7 @@ export default function SimpleFloatingEdge({
   const { getViewport } = useReactFlow();
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
+  const { renderStyleId, colors } = useDiagramAesthetics();
   const [labelEditing, setLabelEditing] = useState(false);
 
   // Extract primitive data values for stable memoization
@@ -118,16 +119,9 @@ export default function SimpleFloatingEdge({
       nodes,
       edges,
       activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
+      renderStyleId,
     );
-  }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges, activeLayoutPresetId]);
-
-  // Global label placement: positions for every labeled edge are resolved
-  // together (per diagram state) so labels never overlap. The shared engine is
-  // memoized on the store references, so this is cheap after the first edge.
-  const labelLayouts = useMemo(
-    () => computeEdgeLabelLayout(edges, nodeInternals, activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR'),
-    [edges, nodeInternals, activeLayoutPresetId],
-  );
+  }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges, activeLayoutPresetId, renderStyleId]);
 
   const {
     sourcePosition: sourcePos,
@@ -245,8 +239,14 @@ export default function SimpleFloatingEdge({
   }, [data?.customWaypoints, id, route.waypoints, updateEdgeData]);
 
   const { isDark } = useCanvasTheme();
-  const { renderStyleId, colors } = useDiagramAesthetics();
   const sketch = renderStyleId === 'sketch';
+  const brutal = renderStyleId === 'neubrutalism';
+  // Global label placement: pass render style so the neubrutalism pill (larger
+  // + hard shadow + larger arrowhead) reserves more room from nodes/marker.
+  const labelLayouts = useMemo(
+    () => computeEdgeLabelLayout(edges, nodeInternals, activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR', renderStyleId),
+    [edges, nodeInternals, activeLayoutPresetId, renderStyleId],
+  );
   const sketchInk = useMemo(
     () => sketch
       ? { primary: colors.edgePrimary, default: colors.edgeDefault, async: colors.edgeAsync }
@@ -257,7 +257,9 @@ export default function SimpleFloatingEdge({
   const strokeStyle: React.CSSProperties = useMemo(() => {
     const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark, sketch, sketchInk);
     let stroke = edgeStyle?.stroke || palette.stroke;
-    const baseWidth = palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth;
+    const baseWidth = brutal
+      ? (palette.isPrimary ? 3 : 2.75)
+      : (palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth);
 
     if (isBundle) {
       stroke = isDenseBundle ? '#475569' : '#94a3b8';
@@ -297,7 +299,7 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle, data, sketch, sketchInk]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle, data, sketch, sketchInk, brutal]);
 
   const resolvedStroke = typeof strokeStyle.stroke === 'string' ? strokeStyle.stroke : undefined;
   const arrowheadColor = resolvedStroke ?? '#94a3b8';
@@ -327,11 +329,14 @@ export default function SimpleFloatingEdge({
           ? routeWaypoints[routeWaypoints.length - 2]
           : getPointOnPath(stableEdgePath, 0.98);
       const endAngle = Math.atan2(ty - pathEnd.y, tx - pathEnd.x);
-      return buildSolidArrowheadPath({ x: tx, y: ty }, endAngle);
+      // Neubrutalism keeps the heavy pill + hard shadow large, so a smaller
+      // arrowhead keeps the target marker from being swallowed under the label.
+      const arrowhead = brutal ? buildSolidArrowheadPath({ x: tx, y: ty }, endAngle, 10, 8) : buildSolidArrowheadPath({ x: tx, y: ty }, endAngle);
+      return arrowhead;
     } catch {
       return '';
     }
-  }, [sketch, showMergedTargetMarker, markerEnd, stableEdgePath, routeWaypoints, tx, ty]);
+  }, [sketch, showMergedTargetMarker, markerEnd, stableEdgePath, routeWaypoints, tx, ty, brutal]);
 
   const sketchMarkup = useMemo(() => {
     if (!sketch || !sketchDrawPath) return '';
@@ -397,11 +402,12 @@ export default function SimpleFloatingEdge({
     }
   }, [labelLayouts, id, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty]);
 
-  // The edge-label layer lives inside the zoomed viewport, so labels are
-  // positioned in world coordinates; counter-scale them so they stay legible
-  // when zoomed out (never smaller than base size, capped so they don't
-  // balloon and cover the diagram).
-  const labelScale = Math.min(Math.max(1 / zoom, 1), 2);
+  // Labels stay small but readable: bounded counter-scale keeps them
+  // legible when zoomed out without becoming drastically large. Base pill
+  // is now compact (8px brutal / 6.5px precision) and max scale is capped
+  // at 1.4 so zoomed-out world size never balloons.
+  const rawScale = zoom ? 1 / zoom : 1;
+  const labelScale = Math.min(1.4, Math.max(0.85, rawScale));
   const labelTransform = (x: number, y: number, centering: string) =>
     `translate(${x}px, ${y}px) scale(${labelScale}) ${centering}`;
 

@@ -122,10 +122,11 @@ export function EdgeLabel({
   // Match canvas fill so the label looks transparent but punches a gap in the edge.
   const knockout = 'hsl(var(--canvas-bg))';
   const sketch = renderStyleId === 'sketch';
+  const brutal = renderStyleId === 'neubrutalism';
 
   // Sketch labels sit on a paper/chalk pill — text is warm ink, tinted only
-  // when the user hand-picked an edge color. Precision labels blend with
-  // slate so they stay legible over the canvas knockout.
+  // when the user hand-picked an edge color. Brutal labels use a solid pill
+  // with a heavy border. Precision labels bleed into slate via knockout.
   const textColor = lineColor
     ? sketch
       ? isDark
@@ -140,12 +141,12 @@ export function EdgeLabel({
     ? {
         background: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,
         color: textColor,
-        fontSize: 10.5,
-        borderRadius: 5,
+        fontSize: 8,
+        borderRadius: 4,
         border: isDark
           ? `1px solid ${SKETCH_PAPER_DARK_BORDER}`
           : `1px solid ${SKETCH_INK_LIGHT_BORDER}`,
-        padding: '2px 7px',
+        padding: '1.5px 5px',
         lineHeight: 1.2,
         textAlign: 'center',
         outline: 'none',
@@ -159,6 +160,29 @@ export function EdgeLabel({
         justifyContent: 'center',
         verticalAlign: 'middle',
       }
+    : brutal
+      ? {
+          background: 'var(--arch-node-fill, #ffffff)',
+          color: textColor,
+          fontSize: 8,
+          borderRadius: 4,
+          border: '1.5px solid var(--arch-node-stroke, #1a1a1a)',
+          boxShadow: '2px 2px 0px var(--arch-node-stroke, #1a1a1a)',
+          fontFamily: 'var(--arch-font-edge-label, monospace)',
+          fontWeight: 600,
+          padding: '2px 6px',
+          lineHeight: 1.2,
+          textAlign: 'center',
+          outline: 'none',
+          position: 'relative',
+          zIndex: 1000,
+          textTransform: 'none',
+          letterSpacing: '0.01em',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          verticalAlign: 'middle',
+        }
     : {
         background: knockout,
         color: textColor,
@@ -166,10 +190,10 @@ export function EdgeLabel({
         border: isDark
           ? '1px solid rgba(148, 163, 184, 0.28)'
           : '1px solid rgba(15, 23, 42, 0.12)',
-        fontSize: 7.5,
+        fontSize: 6.5,
         fontFamily: 'Inter, "IBM Plex Sans", system-ui, sans-serif',
         fontWeight: 500,
-        padding: '2px 5px',
+        padding: '1.5px 4px',
         lineHeight: 1.2,
         textAlign: 'center',
         outline: 'none',
@@ -194,7 +218,7 @@ export function EdgeLabel({
         <motion.input
           key="edit"
           ref={inputRef}
-          className={sketch ? 'edge-label-pill' : undefined}
+          className={sketch || brutal ? 'edge-label-pill' : undefined}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -214,7 +238,7 @@ export function EdgeLabel({
       ) : (
         <motion.span
           key="read"
-          className={sketch ? 'edge-label-pill' : undefined}
+          className={sketch || brutal ? 'edge-label-pill' : undefined}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
