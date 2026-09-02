@@ -68,7 +68,7 @@ function FloatingHeroNode({ title, subtitle, layer, accent, isDatabase, classNam
   const catStyle = getDarkCategoryStyle(layer);
 
   return (
-    <div className={`hidden lg:block absolute pointer-events-none select-none z-10 w-[200px] h-[72px] ${className}`}>
+    <div className={`hidden md:block absolute pointer-events-none select-none z-10 w-[200px] h-[72px] ${className}`}>
       <div
         className="w-full h-full relative"
         style={{
@@ -112,7 +112,11 @@ function FloatingHeroNode({ title, subtitle, layer, accent, isDatabase, classNam
 function HeroSection() {
   return (
     <section className="pt-[110px] pb-16 px-6 relative overflow-hidden bg-surface-page">
-      <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-brand/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute top-[8%] left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-brand/8 blur-[90px] rounded-full" />
+        <div className="absolute top-[18%] left-[28%] w-[500px] h-[320px] bg-brand/5 blur-[100px] rounded-full" />
+        <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+      </div>
 
       <FloatingHeroNode
         title="API Gateway"
@@ -146,7 +150,7 @@ function HeroSection() {
       />
 
       <div className="max-w-[1280px] mx-auto flex flex-col items-center text-center relative z-10">
-        <div className="inline-flex items-center gap-2 text-xs font-semibold text-text-primary bg-[#f1f1eb] border border-border rounded-full px-4 py-1.5 mb-8 shadow-inner animate-fade-in">
+        <div className="inline-flex items-center gap-2 text-xs font-semibold text-text-primary bg-surface-panel border border-border-default rounded-full px-4 py-1.5 mb-8 shadow-inner animate-fade-in">
           <span className="w-1.5 h-1.5 rounded-full bg-[#27a644]" />
           ChatGPT for architecture diagrams <span className="text-text-secondary">· Now in beta</span>
         </div>
@@ -189,7 +193,7 @@ function HeroSection() {
 
 export default function LandingPage() {
   return (
-    <div className={`min-h-screen bg-[#f7f7f5] text-[#1c1c1a] antialiased ${plusJakarta.className} ${outfit.variable} ${plusJakarta.variable}`}>
+    <div className={`min-h-screen bg-surface-page text-text-primary antialiased ${plusJakarta.className} ${outfit.variable} ${plusJakarta.variable}`}>
       <LandingNav outfitClassName={outfit.className} />
       <main>
         <HeroSection />

@@ -153,8 +153,8 @@ export const ICON_SIZE = {
 } as const;
 
 export const FONTS = {
-  body: '"Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif',
-  display: '"Inter", "IBM Plex Sans", system-ui, sans-serif',
+  body: 'var(--font-geist-sans), system-ui, -apple-system, sans-serif',
+  display: 'var(--font-instrument-serif), Georgia, serif',
   titleSize: 13.5,
   titleWeight: 600,
   subtitleSize: 10.5,

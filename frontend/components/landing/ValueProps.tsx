@@ -26,7 +26,7 @@ const VALUE_PROPS = [
 
 export function ValueProps() {
   return (
-    <section className="py-24 px-6 bg-[#f7f7f5]">
+    <section className="py-24 px-6 bg-surface-page">
       <div className="max-w-[1280px] mx-auto">
         <motion.div
           className="text-center max-w-2xl mx-auto mb-16"
@@ -35,16 +35,16 @@ export function ValueProps() {
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          <span className="text-[11px] font-bold tracking-[2px] uppercase text-[#8a8f98] block mb-3">
+          <span className="text-[11px] font-bold tracking-[2px] uppercase text-text-muted block mb-3">
             Why ArchDraw
           </span>
           <h2
-            className="text-[#1c1c1a] font-bold leading-[1.1] tracking-tight"
+            className="text-text-primary font-bold leading-[1.1] tracking-tight"
             style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)' }}
           >
             The fastest way from idea to architecture
           </h2>
-          <p className="mt-4 text-sm md:text-base text-[#575752] leading-relaxed">
+          <p className="mt-4 text-sm md:text-base text-text-secondary leading-relaxed">
             Stop fighting your diagramming tool. ArchDraw turns your thinking into a clean, structured diagram — so you can focus on the system, not the layout.
           </p>
         </motion.div>
@@ -53,7 +53,7 @@ export function ValueProps() {
           {VALUE_PROPS.map((prop, i) => (
             <motion.div
               key={prop.title}
-              className="group relative bg-white border border-[#e4e4df] p-7 rounded-2xl overflow-hidden transition-colors duration-300 hover:border-[#cbd5e1]"
+              className={`group relative bg-surface-panel border border-border-default p-7 rounded-2xl overflow-hidden transition-colors duration-300 hover:border-border-strong ${i === 1 ? 'md:translate-y-3' : ''} ${i === 2 ? 'md:-rotate-[0.7deg]' : ''}`}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-60px' }}
@@ -75,14 +75,14 @@ export function ValueProps() {
                 <prop.icon className="w-5 h-5" style={{ color: prop.accent }} />
               </div>
 
-              <h3 className="text-lg font-bold text-[#1c1c1a] mb-2 tracking-tight relative z-10">
+              <h3 className="text-lg font-bold text-text-primary mb-2 tracking-tight relative z-10">
                 {prop.title}
               </h3>
-              <p className="text-sm text-[#575752] leading-relaxed relative z-10">
+              <p className="text-sm text-text-secondary leading-relaxed relative z-10">
                 {prop.desc}
               </p>
 
-              <div className="mt-6 flex items-center gap-1.5 text-xs font-semibold text-[#8a8f98] group-hover:text-[#1c1c1a] transition-colors duration-300 relative z-10">
+              <div className="mt-6 flex items-center gap-1.5 text-xs font-semibold text-text-muted group-hover:text-text-primary transition-colors duration-300 relative z-10">
                 <Sparkles className="w-3 h-3" />
                 <span>AI-native</span>
               </div>
@@ -91,16 +91,16 @@ export function ValueProps() {
         </div>
 
         <motion.div
-          className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[#575752]"
+          className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-text-secondary"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.3 }}
         >
           <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-[#10B981]" /> AI auto-layout — no manual alignment</span>
-          <span className="text-[#e4e4df]">•</span>
-          <span className="flex items-center gap-1.5"><Code2 className="w-3 h-3 text-[#1E90FF]" /> Mermaid-compatible</span>
-          <span className="text-[#e4e4df]">•</span>
+          <span className="text-border-default">•</span>
+          <span className="flex items-center gap-1.5"><Code2 className="w-3 h-3 text-brand" /> Mermaid-compatible</span>
+          <span className="text-border-default">•</span>
           <span className="flex items-center gap-1.5"><Sparkles className="w-3 h-3 text-[#F59E0B]" /> AI that understands your stack</span>
         </motion.div>
       </div>

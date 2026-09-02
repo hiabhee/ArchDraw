@@ -292,112 +292,26 @@ function InteractiveLandingDemoContent() {
   return (
     <div className={`w-full h-[400px] sm:h-[560px] lg:h-[740px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
       isDemoDark 
-        ? 'dark dark-theme-forced bg-[#090b0d] text-[#f7f8f8] border-[#202327]' 
-        : 'light-theme-forced bg-white text-[#0f172a] border-[#cbd5e1]'
+        ? 'dark bg-[#090b0d] text-[#f7f8f8] border-[#202327]' 
+        : 'bg-surface-panel text-text-primary border-border-default'
     }`}>
-      {/* Global CSS Style tag for dotted flowing edges and theme variables isolation */}
       <style jsx global>{`
         @keyframes flowDash {
-          from {
-            stroke-dashoffset: 24;
-          }
-          to {
-            stroke-dashoffset: 0;
-          }
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
         }
-
-        /* ── Theme variables isolation to prevent global parent .dark class leak ── */
-        .demo-theme-container.light-theme-forced {
-          --background: 45 20% 96.5% !important;
-          --foreground: 40 8% 32% !important;
-          --canvas-bg: 45 20% 96.5% !important;
-          --grid-color: 40 8% 82% !important;
-        }
-        .demo-theme-container.light-theme-forced .node-wrapper {
-          --node-card-bg: #ffffff !important;
-          --node-title-color: #1a2744 !important;
-          --node-subtitle-color: #8b95a5 !important;
-          --node-shadow: 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.85) !important;
-          --node-shadow-selected: 0 0 0 2px var(--node-accent), 0 4px 14px rgba(0,0,0,0.1) !important;
-          --node-glow: rgba(0,0,0,0) !important;
-          --node-glow-border: transparent !important;
-        }
-        .demo-theme-container.light-theme-forced .node-card {
-          border-color: rgba(0, 0, 0, 0.06) !important;
-          background: #ffffff !important;
-          box-shadow: var(--node-shadow) !important;
-        }
-        .demo-theme-container.light-theme-forced .react-flow__background {
-          background-color: hsl(45 20% 96.5%) !important;
-        }
-        .demo-theme-container.light-theme-forced .react-flow__background pattern circle {
-          fill: hsl(40 8% 82%) !important;
-        }
-
-        .demo-theme-container.dark-theme-forced {
-          --background: 222 30% 8% !important;
-          --foreground: 0 0% 89% !important;
-          --canvas-bg: 222 30% 8% !important;
-          --grid-color: 217 20% 28% !important;
-        }
-        .demo-theme-container.dark-theme-forced .node-wrapper {
-          --node-card-bg: #1e2235 !important;
-          --node-title-color: #ffffff !important;
-          --node-subtitle-color: #94a3b8 !important;
-          --node-shadow: 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 1px 3px rgba(0,0,0,0.3) !important;
-          --node-shadow-selected: 0 0 0 2px var(--node-glow-border, #34D399), 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 2px 6px rgba(0,0,0,0.4) !important;
-        }
-        .demo-theme-container.dark-theme-forced .node-card {
-          border-color: rgba(255, 255, 255, 0.12) !important;
-          background: #1e2235 !important;
-          box-shadow: var(--node-shadow), inset 0 0 12px var(--node-glow, rgba(52,211,153,0.15)) !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__background {
-          background: radial-gradient(ellipse at center, hsl(217 30% 10% / 1) 0%, hsl(222 30% 8% / 1) 70%, hsl(220 25% 5% / 1) 100%) !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__background pattern circle {
-          fill: hsl(217 20% 28%) !important;
-        }
-
-        /* ── Edges & Texts ── */
         .flow-dotted-edge path.react-flow__edge-path {
-          stroke: #475569 !important;
-          stroke-dasharray: 4 4 !important;
-          animation: flowDash 0.8s linear infinite !important;
-        }
-        .demo-theme-container.dark-theme-forced .flow-dotted-edge path.react-flow__edge-path {
-          stroke: #94a3b8 !important;
+          stroke-dasharray: 4 4;
+          animation: flowDash 0.8s linear infinite;
         }
         .react-flow__edge-text {
-          font-family: monospace !important;
-          font-size: 9px !important;
-          font-weight: 600 !important;
-          fill: #475569 !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__edge-text {
-          fill: #94a3b8 !important;
+          font-family: monospace;
+          font-size: 9px;
+          font-weight: 600;
         }
         .react-flow__edge-textbg {
-          fill: #ffffff !important;
-          stroke: #cbd5e1 !important;
           rx: 6px;
           ry: 6px;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__edge-textbg {
-          fill: #0c0d10 !important;
-          stroke: #202327 !important;
-        }
-
-        /* ── Controls ── */
-        .react-flow__controls-button {
-          background-color: #ffffff !important;
-          border-bottom: 1px solid #cbd5e1 !important;
-          fill: #475569 !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__controls-button {
-          background-color: #0c0d10 !important;
-          border-bottom: 1px solid #202327 !important;
-          fill: #94a3b8 !important;
         }
       `}</style>
 

@@ -210,30 +210,9 @@ function CanvasInner() {
     setNodes(fixed);
   }, [nodes, setNodes]);
 
-  // DOM-level fallback for neubrutalism: React Flow can re-apply an
-  // inline zIndex (e.g. elevate on select) after our store fix. Force the
-  // wrapper to stay at -1 via direct DOM so brutal's opaque plate never
-  // covers edge paths, even if the store value is briefly stale.
-  useEffect(() => {
-    const enforce = () => {
-      document
-        .querySelectorAll<HTMLElement>(
-          '.react-flow__node-groupNode, .react-flow__node-group, .react-flow__node-frameNode'
-        )
-        .forEach((el) => {
-          if (el.style.zIndex !== '-1') el.style.zIndex = '-1';
-        });
-    };
-    enforce();
-    const obs = new MutationObserver(enforce);
-    obs.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    });
-    return () => obs.disconnect();
-  }, []);
+  // Stacking is now handled via CSS isolation + store migration above.
+  // Previously a MutationObserver forced group zIndex to -1 via direct DOM;
+  // removed per frontend-design audit — use token layers and CSS instead.
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);

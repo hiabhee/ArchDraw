@@ -293,7 +293,7 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -352,6 +352,13 @@ body {
 /* Node container — render ABOVE edges (z-index: 2) */
 .react-flow__nodes {
   z-index: 2 !important;
+}
+
+/* Groups must stay below edges — token layer isolation (replaces MutationObserver brute force) */
+.react-flow__node-groupNode,
+.react-flow__node-group,
+.react-flow__node-frameNode {
+  z-index: 0 !important;
 }
 
 .react-flow__edge {
@@ -425,8 +432,8 @@ body {
    ═══════════════════════════════════════════════════════════════ */
 
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -434,12 +441,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.6);
+  border-radius: 6px;
+  min-height: 44px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.25);
+  background: hsl(var(--muted-foreground) / 0.8);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -447,7 +455,7 @@ body {
    ═══════════════════════════════════════════════════════════════ */
 
 *:focus-visible {
-  outline: 1.5px solid hsl(var(--ring) / 0.3);
+  outline: 2px solid hsl(var(--brand));
   outline-offset: 2px;
 }
 
