@@ -67,25 +67,39 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   }, [id]);
 
   const concernHint = dataRec.layer || dataRec.tier || dataRec.label || dataRec.groupLabel;
-  const color =
+  const rawColor =
     dataRec.accentColor ||
     dataRec.groupColor ||
     dataRec.color ||
     getConcernColor(concernHint) ||
     CONCERN_COLORS.compute.color;
+  // Pastel #eff6ff etc with 0.08 alpha is invisible on white in precision.
+  // Groups created after 0d66a6a stored pastel directly; map back to saturated for precision so the tint reads.
+  const PASTEL_TO_SATURATED: Record<string, string> = {
+    '#eff6ff': '#3b82f6',
+    '#f0fdf4': '#22c55e',
+    '#fefce8': '#f59e0b',
+    '#fdf2f8': '#ec4899',
+    '#eef2ff': '#2563eb',
+    '#fff7ed': '#f97316',
+    '#faf5ff': '#a855f7',
+    '#f0fdfa': '#14b8a6',
+  };
+  const pastelMapped = PASTEL_TO_SATURATED[rawColor.toLowerCase()] ?? rawColor;
+  // In precision use saturated for visibility; sketch/brutal keep raw (brutal lightens via GroupBackgroundLayer, sketch uses faint hachure)
+  const color = !brutal && !sketch ? pastelMapped : rawColor;
 
   // Sketch groups keep the concern tint at a softer opacity so the dashed
   // Brutal plates are now rendered by GroupBackgroundLayer *behind* the
   // edge SVG (inside .react-flow__viewport before .react-flow__edges) so
   // the opaque #dbeafe fill never covers edge paths. Keep the node itself
   // transparent and let the layer provide the visual plate.
-  // Precision (normal theme) was almost invisible at 0.05/0.09 — bump to
-  // 0.08/0.14 so the zone reads as a tinted container on #f8fafc / #0f172a.
+  // Precision was invisible with pastel #eff6ff at 0.08 (near-white). Saturated colors at 0.12 read clearly.
   const bg = brutal
     ? 'transparent'
     : sketch
       ? isDark ? hexToRgba(color, 0.06) : hexToRgba(color, 0.04)
-      : isDark ? hexToRgba(color, 0.14) : hexToRgba(color, 0.08);
+      : isDark ? hexToRgba(color, 0.14) : hexToRgba(color, 0.12);
   const borderColor = brutal
     ? (isDark ? '#e4e4e7' : '#1a1a1a')
     : selected

@@ -6,17 +6,17 @@ export interface SemanticGroupMeta {
   layer: PipelineLayer;
 }
 
-/** Canonical layer buckets — very light pastels per user request (no dark/high-contrast). */
+/** Canonical layer buckets — saturated per original design; GroupBackgroundLayer lightens to pastel for neubrutalism via toPastel(). */
 export const SEMANTIC_GROUP_META: Record<string, SemanticGroupMeta> = {
-  client: { label: 'Presentation', color: '#eff6ff', layer: 'client' },
-  presentation: { label: 'Presentation', color: '#eff6ff', layer: 'presentation' },
-  edge: { label: 'Edge / CDN', color: '#fff7ed', layer: 'edge' },
-  gateway: { label: 'Authentication / Security', color: '#fff7ed', layer: 'gateway' },
-  application: { label: 'Business Services', color: '#eff6ff', layer: 'application' },
-  queue: { label: 'Async / Messaging', color: '#eef2ff', layer: 'queue' },
-  data: { label: 'Data Stores', color: '#f0fdf4', layer: 'data' },
-  observability: { label: 'Observability', color: '#f0fdfa', layer: 'observability' },
-  external: { label: 'External Services', color: '#fefce8', layer: 'external' },
+  client: { label: 'Presentation', color: '#3b82f6', layer: 'client' },
+  presentation: { label: 'Presentation', color: '#3b82f6', layer: 'presentation' },
+  edge: { label: 'Edge / CDN', color: '#f59e0b', layer: 'edge' },
+  gateway: { label: 'Authentication / Security', color: '#d97706', layer: 'gateway' },
+  application: { label: 'Business Services', color: '#2563eb', layer: 'application' },
+  queue: { label: 'Async / Messaging', color: '#3b82f6', layer: 'queue' },
+  data: { label: 'Data Stores', color: '#10b981', layer: 'data' },
+  observability: { label: 'Observability', color: '#64748b', layer: 'observability' },
+  external: { label: 'External Services', color: '#f97316', layer: 'external' },
 };
 
 export interface ApplySemanticLayerGroupsOptions {

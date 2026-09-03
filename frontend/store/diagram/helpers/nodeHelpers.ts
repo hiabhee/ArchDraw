@@ -11,6 +11,23 @@ function normalizeLegacyColor(color?: string): string | undefined {
   return LEGACY_PURPLE.has(color) ? BLUE_REPLACEMENT : color;
 }
 
+const PASTEL_TO_SATURATED: Record<string, string> = {
+  '#eff6ff': '#3b82f6',
+  '#f0fdf4': '#22c55e',
+  '#fefce8': '#f59e0b',
+  '#fdf2f8': '#ec4899',
+  '#eef2ff': '#2563eb',
+  '#fff7ed': '#f97316',
+  '#faf5ff': '#a855f7',
+  '#f0fdfa': '#14b8a6',
+};
+
+function normalizePastelColor(color?: string): string | undefined {
+  if (!color) return color;
+  const lower = color.toLowerCase();
+  return PASTEL_TO_SATURATED[lower] ?? color;
+}
+
 export function stripReservedLayerNodes(nodes: Node[]): Node[] {
   const result: Node[] = [];
 
@@ -94,7 +111,12 @@ export function sanitizeNodes(nodes: Node[]): Node[] {
       node.data?.isGroup === true;
 
     if (isGroup) {
-      const normalizedGroupColor = normalizeLegacyColor(node.data?.groupColor as string | undefined) ?? normalizeLegacyColor(node.data?.color as string | undefined);
+      const rawGroupColor = node.data?.groupColor as string | undefined;
+      const rawColor = node.data?.color as string | undefined;
+      const groupColorAfterLegacy = normalizeLegacyColor(rawGroupColor) ?? normalizeLegacyColor(rawColor) ?? rawGroupColor ?? rawColor;
+      const normalizedGroupColor = normalizePastelColor(groupColorAfterLegacy) ?? groupColorAfterLegacy;
+      const colorAfterLegacy = normalizeLegacyColor(rawColor) ?? rawColor;
+      const normalizedColor = normalizePastelColor(colorAfterLegacy) ?? colorAfterLegacy;
       return {
         ...node,
         type: node.type || 'groupNode',
@@ -103,8 +125,8 @@ export function sanitizeNodes(nodes: Node[]): Node[] {
           label: node.data?.label || node.data?.groupLabel || 'Group',
           groupLabel: node.data?.groupLabel || node.data?.label || 'Group',
           ...node.data,
-          groupColor: normalizedGroupColor ?? (node.data?.groupColor as string | undefined),
-          color: normalizeLegacyColor(node.data?.color as string | undefined) ?? (node.data?.color as string | undefined),
+          groupColor: normalizedGroupColor ?? rawGroupColor,
+          color: normalizedColor ?? rawColor,
           isGroup: true,
         },
       };

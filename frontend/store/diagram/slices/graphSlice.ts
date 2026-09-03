@@ -556,7 +556,7 @@ export const createGraphSlice: StateCreator<
     const maxY = rawMaxY + PAD_BOT;
 
     const existingGroupCount = nodes.filter((n) => n.type === 'groupNode' || n.data?.isGroup).length;
-    const colors = ['#eff6ff', '#f0fdf4', '#fefce8', '#fdf2f8', '#eef2ff', '#fff7ed', '#f0fdfa'];
+    const colors = ['#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#2563eb', '#06b6d4'];
     const groupColor = colors[existingGroupCount % colors.length];
 
     const groupId = `group-${Date.now()}`;
