@@ -101,15 +101,23 @@ function InteractiveLandingDemoContent() {
     [nodes, isDemoDark, updateNodeLabel]
   );
 
+  const safeClone = useCallback(<T,>(v: T): T => {
+    try {
+      return structuredClone(v);
+    } catch {
+      return JSON.parse(JSON.stringify(v));
+    }
+  }, []);
+
   // Sync state whenever a chip is clicked
   const handleChipSelect = (chipId: 'loadBalancer') => {
     setActiveChip(chipId);
     const data = PRESETS[chipId];
     setTitle(data.title);
-    setNodes(JSON.parse(JSON.stringify(data.nodes)));
-    setEdges(JSON.parse(JSON.stringify(data.edges)));
+    setNodes(safeClone(data.nodes));
+    setEdges(safeClone(data.edges));
 
-    const nextHistory = [{ nodes: JSON.parse(JSON.stringify(data.nodes)), edges: JSON.parse(JSON.stringify(data.edges)) }];
+    const nextHistory = [{ nodes: safeClone(data.nodes), edges: safeClone(data.edges) }];
     setHistory(nextHistory);
     setHistoryIndex(0);
   };
@@ -118,12 +126,12 @@ function InteractiveLandingDemoContent() {
   const pushState = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     const nextHistory = history.slice(0, historyIndex + 1);
     nextHistory.push({
-      nodes: JSON.parse(JSON.stringify(newNodes)),
-      edges: JSON.parse(JSON.stringify(newEdges)),
+      nodes: safeClone(newNodes),
+      edges: safeClone(newEdges),
     });
     setHistory(nextHistory);
     setHistoryIndex(nextHistory.length - 1);
-  }, [history, historyIndex]);
+  }, [history, historyIndex, safeClone]);
 
   // Node Drag Ending pushes to history
   const onNodeDragStop = useCallback(() => {
@@ -135,8 +143,8 @@ function InteractiveLandingDemoContent() {
     if (historyIndex > 0) {
       const nextIdx = historyIndex - 1;
       setHistoryIndex(nextIdx);
-      setNodes(JSON.parse(JSON.stringify(history[nextIdx].nodes)));
-      setEdges(JSON.parse(JSON.stringify(history[nextIdx].edges)));
+      setNodes(safeClone(history[nextIdx].nodes));
+      setEdges(safeClone(history[nextIdx].edges));
     } else {
       toast.info('Nothing to undo');
     }
@@ -147,8 +155,8 @@ function InteractiveLandingDemoContent() {
     if (historyIndex < history.length - 1) {
       const nextIdx = historyIndex + 1;
       setHistoryIndex(nextIdx);
-      setNodes(JSON.parse(JSON.stringify(history[nextIdx].nodes)));
-      setEdges(JSON.parse(JSON.stringify(history[nextIdx].edges)));
+      setNodes(safeClone(history[nextIdx].nodes));
+      setEdges(safeClone(history[nextIdx].edges));
     } else {
       toast.info('Nothing to redo');
     }

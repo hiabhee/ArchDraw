@@ -147,22 +147,23 @@ export const createCanvasSlice: StateCreator<
       newName = `${baseName} ${counter}`;
     }
 
-    const numbers = canvases
-      .map((c) => {
-        const match = c.id.match(/^canvas-(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      })
-      .filter((n) => n > 0);
-    const max = numbers.length > 0 ? Math.max(...numbers) : 0;
-    const newId = `canvas-${max + 1}`;
+    const safeClone = <T>(v: T): T => {
+      try {
+        return structuredClone(v);
+      } catch {
+        return JSON.parse(JSON.stringify(v));
+      }
+    };
+
+    const newId = crypto.randomUUID ? crypto.randomUUID() : `canvas-${Date.now()}`;
     const duplicated: CanvasTab = {
       ...source,
       id: newId,
       name: newName,
       isOpen: true,
       lastAccessedAt: Date.now(),
-      nodes: JSON.parse(JSON.stringify(source.nodes)),
-      edges: JSON.parse(JSON.stringify(source.edges)),
+      nodes: safeClone(source.nodes),
+      edges: safeClone(source.edges),
     };
 
     const newOpenIds = [...openCanvasIds, newId];

@@ -141,6 +141,11 @@ export function isExportFormatAllowed(userTier: UserTier, format: string): boole
   return quotas.allowedExportFormats.includes(base);
 }
 
-export function shouldWatermark(userTier: UserTier, format: string): boolean {
-  return false;
+/**
+ * Determines whether the export format should include a watermark for the given user tier.
+ * Currently disabled across all tiers via USER_QUOTAS watermarkExports setting.
+ */
+export function shouldWatermark(userTier: UserTier, _format?: string): boolean {
+  const quotas = getUserQuotas(userTier);
+  return Boolean(quotas.watermarkExports);
 }

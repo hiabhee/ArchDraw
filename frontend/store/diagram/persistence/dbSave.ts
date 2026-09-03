@@ -1,6 +1,8 @@
 import { saveUserCanvas as apiSaveUserCanvas, deleteUserCanvasApi as apiDeleteUserCanvas } from '@/lib/api-client';
 import { debounce } from '../helpers/debounce';
 import type { DiagramState } from '../types';
+import logger from '@/lib/logger';
+import { toast } from 'sonner';
 
 /** Debounced persist of a single canvas tab to the API (authenticated users only). */
 async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Promise<void> {
@@ -22,8 +24,10 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Pro
     setTimeout(() => {
       if (get().savingState === 'saved') get().setSavingState('idle');
     }, 2000);
-  } catch {
+  } catch (err) {
+    logger.error('[CanvasPersistence] Failed to save canvas to database:', err);
     state.setSavingState('idle');
+    toast.error('Failed to sync canvas to cloud');
   }
 }
 
@@ -44,7 +48,7 @@ export async function deleteCanvasFromDB(canvasId: string, get: () => DiagramSta
   if (!state.userProfile || state.userProfile.id === 'guest') return;
   try {
     await apiDeleteUserCanvas(canvasId);
-  } catch {
-    // Silently fail — canvas is already removed from local state
+  } catch (err) {
+    logger.error('[CanvasPersistence] Failed to delete canvas from database:', err);
   }
 }

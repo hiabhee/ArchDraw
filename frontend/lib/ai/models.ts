@@ -79,15 +79,8 @@ export function getRecommendedMaxTokens(modelId: string, requestedTokens: number
 }
 
 export function getProviderForModel(modelId: string): AIProvider {
-  // Models served via Groq
-  if (
-    modelId === 'openai/gpt-oss-120b' ||
-    modelId === 'openai/gpt-oss-20b' ||
-    modelId === 'qwen/qwen3.6-27b' ||
-    modelId === 'groq/compound-mini'
-  ) {
-    return 'groq';
-  }
+  const model = MODELS.find((m) => m.id === modelId);
+  if (model) return model.provider;
   return modelId.includes('/') ? 'openrouter' : 'groq';
 }
 

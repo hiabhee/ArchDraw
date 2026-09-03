@@ -20,7 +20,7 @@ model Account {
   scope                 String?
   password              String?
   createdAt             DateTime  @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime  @updatedAt
   User                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, providerId])
@@ -34,7 +34,7 @@ model Session {
   userAgent String?
   userId    String
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -45,7 +45,7 @@ model User {
   emailVerified          Boolean             @default(false)
   image                  String?
   createdAt              DateTime            @default(now())
-  updatedAt              DateTime
+  updatedAt              DateTime            @updatedAt
   visitorId              String?             @db.Uuid
   dailyGenerations       Int                 @default(0) @map("daily_generations")
   dailyGenerationsDate   DateTime            @default(now()) @map("daily_generations_date")
@@ -67,7 +67,7 @@ model Verification {
   value      String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
-  updatedAt  DateTime
+  updatedAt  DateTime @updatedAt
 
   @@unique([identifier, value])
 }
@@ -179,7 +179,7 @@ model TutorialProgress {
   canvasNodes      Json     @default("[]") @map("canvas_nodes")
   canvasEdges      Json     @default("[]") @map("canvas_edges")
   explainCount     Int      @default(0) @map("explain_count")
-  updatedAt        DateTime @default(now()) @map("updated_at")
+  updatedAt        DateTime @updatedAt @default(now()) @map("updated_at")
   User             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tutorialId])
@@ -216,7 +216,7 @@ model UserCanvas {
   nodes     Json     @default("[]")
   edges     Json     @default("[]")
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
