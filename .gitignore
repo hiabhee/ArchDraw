@@ -67,6 +67,8 @@ frontend/agent/
 frontend/data/skills/
 frontend/.claude/
 .claude/
+.agent/
+frontend/.agent/
 frontend/.agents/skills/brandkit/
 frontend/.agents/skills/design-taste-frontend*/
 frontend/.agents/skills/full-output-enforcement/
