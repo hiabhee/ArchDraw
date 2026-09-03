@@ -60,7 +60,11 @@ export class IntegratedLayoutEngine {
 
   private toLayoutParams(objects: RFObjects, options: IntegratedLayoutOptions): LayoutParams {
     const direction = this.mapDirection(options.direction ?? 'LR');
-    const defaults = defaultCompoundLayoutOptions(direction);
+    // Density-aware spacing: pass edgeCount so crowded graphs (e.g. 10+ edges) get extra rank/node air
+    const defaults = defaultCompoundLayoutOptions(direction, {
+      edgeCount: objects.edges.length,
+      nodeCount: objects.nodes.length,
+    });
     return {
       nodes: objects.nodes.map(node => ({
         id: node.id,

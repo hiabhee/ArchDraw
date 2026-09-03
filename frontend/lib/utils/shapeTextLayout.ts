@@ -27,6 +27,7 @@ export function getShapeLabelMaxWidth(
     monitor: { title: 0.72, subtitle: 0.62 },
     mobile: { title: 0.56, subtitle: 0.48 },
     cloud: { title: 0.8, subtitle: 0.68 },
+    actor: { title: 0.68, subtitle: 0.58 },
     // New architecture-native shapes
     queue: { title: 0.78, subtitle: 0.68 },
     cache: { title: 0.7, subtitle: 0.6 },

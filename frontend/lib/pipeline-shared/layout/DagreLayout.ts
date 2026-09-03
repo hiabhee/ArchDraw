@@ -52,8 +52,15 @@ export class DagreLayoutEngine implements LayoutEngine {
     }
     logger.debug('[dagre] layout path: flat compound', { nodes: params.nodes.length });
 
-    const defaults = defaultCompoundLayoutOptions(params.direction);
+    const defaults = defaultCompoundLayoutOptions(params.direction, {
+      edgeCount: params.edges.length,
+      nodeCount: params.nodes.length,
+    });
     const opts = { ...defaults, ...params.options };
+    // Ensure adaptive bump applies even when caller pre-merged defaults (via IntegratedLayout)
+    // – reuse density helper if edgeCount > 6 and caller didn't supply a custom sep explicitly via raw params
+    // The defaults already include the bump, so merging as {defaults,...options} preserves caller overrides.
+    // If the caller passed no custom sep, opts already equals density-aware defaults.
 
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setDefaultEdgeLabel(() => ({}));

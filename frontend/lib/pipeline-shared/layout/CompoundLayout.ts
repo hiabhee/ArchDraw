@@ -64,9 +64,10 @@ interface CompoundContext {
   nodeSep: number;
   rankSep: number;
   warnings: string[];
+  globalEdgeCount?: number;
 }
 
-function layoutLevel(members: string[], ctx: CompoundContext): LevelLayout {
+function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0): LevelLayout {
   const memberSet = new Set(members);
 
   // Phase 1 — settle each child group into a fixed box first.
@@ -75,9 +76,72 @@ function layoutLevel(members: string[], ctx: CompoundContext): LevelLayout {
   for (const id of members) {
     const children = (ctx.childrenByParent.get(id) ?? []).filter(c => ctx.dimsById.has(c));
     if (children.length === 0) continue;
-    const inner = layoutLevel(children, ctx);
+    const inner = layoutLevel(children, ctx, depth + 1);
     macroIds.add(id);
     macroBoxes.set(id, inner);
+  }
+
+  // Per-level density bump: small inner groups (1 edge) stay compact, crowded
+  // top-level (many cross-group edges) gets extra air. Respects explicit overrides.
+  let nodeSep = ctx.nodeSep;
+  let rankSep = ctx.rankSep;
+  const hasExplicit = (ctx as unknown as { _hasExplicitSep?: boolean })._hasExplicitSep;
+  if (!hasExplicit) {
+    const baseNodeSep = (ctx as unknown as { _baseNodeSep?: number })._baseNodeSep ?? ctx.nodeSep;
+    const baseRankSep = (ctx as unknown as { _baseRankSep?: number })._baseRankSep ?? ctx.rankSep;
+    // Count edges that actually affect this level (both endpoints resolve here)
+    let localEdgeCount = 0;
+    const seenPairs = new Set<string>();
+    for (const e of ctx.edges) {
+      let cur: string | undefined | null = e.source;
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        if (memberSet.has(cur)) break;
+        cur = ctx.parentOf.get(cur) ?? null;
+      }
+      const srcMember = cur && memberSet.has(cur) ? cur : null;
+      cur = e.target;
+      seen.clear();
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        if (memberSet.has(cur)) break;
+        cur = ctx.parentOf.get(cur) ?? null;
+      }
+      const tgtMember = cur && memberSet.has(cur) ? cur : null;
+      if (srcMember && tgtMember && srcMember !== tgtMember) {
+        const key = `${srcMember}\u0000${tgtMember}`;
+        if (!seenPairs.has(key)) {
+          seenPairs.add(key);
+          localEdgeCount++;
+        }
+      }
+    }
+    // Top level: use global edge count directly (like flat Dagre) so
+    // cross-group trunks get the same air as flat crowded graphs.
+    // Inner levels use local distinct-pair count to stay compact.
+    let nodeExtra = 0;
+    let rankExtra = 0;
+    if (depth === 0 && ctx.globalEdgeCount !== undefined && ctx.globalEdgeCount > 6) {
+      const extra = ctx.globalEdgeCount - 6;
+      nodeExtra = Math.min(40, extra * 8);
+      rankExtra = Math.min(80, extra * 12);
+      nodeSep = baseNodeSep + nodeExtra;
+      rankSep = baseRankSep + rankExtra;
+    } else {
+      // Inner levels (or top with ≤6 edges): only bump when noticeably crowded (≥4 distinct pairs)
+      if (localEdgeCount > 3) {
+        const extra = localEdgeCount - 3;
+        nodeExtra = Math.min(24, extra * 6);
+        rankExtra = Math.min(48, extra * 10);
+        nodeSep = baseNodeSep + nodeExtra;
+        rankSep = baseRankSep + rankExtra;
+      } else {
+        nodeSep = baseNodeSep;
+        rankSep = baseRankSep;
+      }
+    }
+  
   }
 
   // Phase 2 — dagre over leaves + group-boxes.
@@ -85,8 +149,8 @@ function layoutLevel(members: string[], ctx: CompoundContext): LevelLayout {
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: toDagreRankDir(ctx.direction),
-    nodesep: ctx.nodeSep,
-    ranksep: ctx.rankSep,
+    nodesep: nodeSep,
+    ranksep: rankSep,
     marginx: 0,
     marginy: 0,
     ranker: 'network-simplex',
@@ -254,6 +318,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       }
     }
 
+    // Base spacing (no density bump here) — per-level adaptation happens inside layoutLevel
     const defaults = defaultCompoundLayoutOptions(params.direction);
     const opts = { ...defaults, ...params.options };
     const roots = params.nodes
@@ -261,18 +326,40 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       .map(n => n.id);
     if (roots.length === 0) return null;
 
+    // Honor explicit caller overrides (e.g. toolbar) but otherwise use base;
+    // density bump is applied per-level inside layoutLevel so small inner groups
+    // don't inherit the top-level crowding penalty.
+    const hasExplicitSep = params.options?.nodeSep !== undefined || params.options?.rankSep !== undefined;
+    // If caller already supplied a density-aware sep (via IntegratedLayout), treat as non-explicit
+    // for per-level calc — we recompute locally. Only toolbar explicit `layered-tb` toggles should bypass.
+    // Detect density case by checking if opts came from IntegratedLayout density (globalEdgeCount >6)
+    // Heuristic: if hasExplicit but globalEdgeCount >6 and opts matches density-aware defaults, don't treat as explicit.
+    let effectiveHasExplicit = hasExplicitSep;
+    if (hasExplicitSep && params.edges.length > 6) {
+      const densityDefaults = defaultCompoundLayoutOptions(params.direction, { edgeCount: params.edges.length });
+      if (opts.nodeSep === densityDefaults.nodeSep && opts.rankSep === densityDefaults.rankSep) {
+        effectiveHasExplicit = false;
+      }
+    }
+    const baseNodeSep = effectiveHasExplicit ? (opts.nodeSep ?? defaults.nodeSep ?? 140) : (defaults.nodeSep ?? 140);
+    const baseRankSep = effectiveHasExplicit ? (opts.rankSep ?? defaults.rankSep ?? 220) : (defaults.rankSep ?? 220);
+
     const ctx: CompoundContext = {
       childrenByParent,
       parentOf,
       dimsById,
       edges: params.edges.map(e => ({ source: e.source, target: e.target, label: e.label })),
       direction: params.direction,
-      // opts always carries these (spread from defaults); the fallback chain
-      // only satisfies the optional type — no misleading hard-coded literal.
-      nodeSep: opts.nodeSep ?? defaults.nodeSep ?? 140,
-      rankSep: opts.rankSep ?? defaults.rankSep ?? 220,
+      nodeSep: baseNodeSep,
+      rankSep: baseRankSep,
       warnings,
+      globalEdgeCount: params.edges.length,
     };
+    // Store base + explicit flag for per-level calc (attached to ctx via closure)
+    // layoutLevel will see ctx and recompute locally if not explicitly overridden.
+    (ctx as unknown as { _hasExplicitSep?: boolean; _baseNodeSep?: number; _baseRankSep?: number })._hasExplicitSep = effectiveHasExplicit;
+    (ctx as unknown as { _baseNodeSep?: number })._baseNodeSep = baseNodeSep;
+    (ctx as unknown as { _baseRankSep?: number })._baseRankSep = baseRankSep;
 
     const result = layoutLevel(roots, ctx);
 

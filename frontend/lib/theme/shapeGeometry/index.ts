@@ -485,21 +485,21 @@ export function cloudPrimitives(W: number, H: number): ShapePrimitive[] {
 // never gets stretched regardless of the node's box proportions.
 
 export function actorPrimitives(W: number, H: number): ShapePrimitive[] {
-  const RATIO = 0.62; // person width vs height — natural human silhouette
+  const RATIO = 0.72; // wider person box so body can contain title (expand bottom space)
   const ph = Math.min(H, W / RATIO);
   const pw = ph * RATIO;
   const px0 = Math.round((W - pw) / 2);
   const py0 = Math.round((H - ph) / 2);
 
-  const topPad = Math.max(4, Math.round(ph * 0.05));
-  const d = Math.max(18, Math.round(ph * 0.30)); // round head diameter
+  const topPad = Math.max(3, Math.round(ph * 0.04));
+  const d = Math.max(18, Math.round(ph * 0.28)); // slightly smaller head leaves more body
   const gap = Math.max(1, Math.round(ph * 0.02));
-  const bodyH = Math.max(18, Math.round(ph * 0.34));
+  const bodyH = Math.max(28, Math.round(ph * 0.42)); // expanded bottom
 
   const headX = Math.round(px0 + (pw - d) / 2);
   const headY = py0 + topPad;
 
-  const bodyW = Math.max(30, Math.round(pw * 0.60));
+  const bodyW = Math.max(36, Math.round(pw * 0.78)); // wider torso contains title
   const bodyX = Math.round(px0 + (pw - bodyW) / 2);
   const bodyY = Math.round(headY + d + gap);
   const r = Math.min(14, Math.round(bodyH * 0.5), Math.round(bodyW * 0.16));

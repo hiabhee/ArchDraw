@@ -84,7 +84,7 @@ describe('semantic silhouette sizing', () => {
   const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
     hexagon: { wMin: 160, wMax: 240, hMin: 100, hMax: 120 },
     cloud: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 112 },
-    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 112 },
+    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 124, hMax: 148 },
     monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 120 },
     mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 130 },
     'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 112 },

@@ -126,15 +126,43 @@ function extractJsonObject(raw: string): string {
 }
 
 function repairTruncatedJson(raw: string): string {
-  let fixed = raw.replace(/,\s*([}\]])/g, '$1');
-  // Escape literal newlines/tabs inside JSON strings
-  fixed = escapeNewlinesInJsonStrings(fixed);
-  const openObjects = (fixed.match(/\{/g) || []).length;
-  const closeObjects = (fixed.match(/\}/g) || []).length;
-  const openArrays = (fixed.match(/\[/g) || []).length;
-  const closeArrays = (fixed.match(/\]/g) || []).length;
-  for (let i = 0; i < openObjects - closeObjects; i++) fixed += '}';
-  for (let i = 0; i < openArrays - closeArrays; i++) fixed += ']';
+  // 1. Escape literal newlines/tabs inside JSON strings before any structural fixes
+  let fixed = escapeNewlinesInJsonStrings(raw);
+  // 2. If truncation happened inside a string, close it
+  {
+    let inStr = false;
+    let esc = false;
+    for (let i = 0; i < fixed.length; i++) {
+      const ch = fixed[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\' && inStr) { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+    }
+    if (inStr) fixed += '"';
+  }
+  // Remove trailing comma and stray comma before close
+  fixed = fixed.replace(/,\s*$/, '');
+  fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+  // 3. Balance braces/brackets ignoring content inside strings
+  let depthObj = 0;
+  let depthArr = 0;
+  {
+    let inStr = false;
+    let esc = false;
+    for (let i = 0; i < fixed.length; i++) {
+      const ch = fixed[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\' && inStr) { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') depthObj++;
+      else if (ch === '}') depthObj--;
+      else if (ch === '[') depthArr++;
+      else if (ch === ']') depthArr--;
+    }
+  }
+  for (let i = 0; i < depthObj; i++) fixed += '}';
+  for (let i = 0; i < depthArr; i++) fixed += ']';
   return fixed;
 }
 
@@ -142,34 +170,134 @@ function repairTruncatedJson(raw: string): string {
  * Multi-stage JSON extraction and repair. Tries progressively more aggressive
  * fixes so the pipeline doesn't fail on common LLM output quirks.
  */
+function isValidPlannerOutput(obj: unknown): obj is PlannerOutput {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    typeof (obj as Record<string, unknown>).mermaidCode === 'string' &&
+    String((obj as Record<string, unknown>).mermaidCode).includes('graph')
+  );
+}
+
 function extractPlannerJson(raw: string): PlannerOutput {
   const stripped = stripJsonFences(raw);
 
   // Stage 1: direct parse with newline escaping
   try {
-    return JSON.parse(escapeNewlinesInJsonStrings(stripped)) as PlannerOutput;
+    const parsed = JSON.parse(escapeNewlinesInJsonStrings(stripped)) as PlannerOutput;
+    if (isValidPlannerOutput(parsed)) return parsed;
   } catch { /* continue */ }
 
   // Stage 2: extract the first {…} block (LLM may have prepended prose)
   const extracted = extractJsonObject(stripped);
   try {
-    return JSON.parse(escapeNewlinesInJsonStrings(extracted)) as PlannerOutput;
+    const parsed = JSON.parse(escapeNewlinesInJsonStrings(extracted)) as PlannerOutput;
+    if (isValidPlannerOutput(parsed)) return parsed;
   } catch { /* continue */ }
 
   // Stage 3: repair truncated / trailing-comma JSON
   try {
-    return JSON.parse(repairTruncatedJson(extracted)) as PlannerOutput;
+    const parsed = JSON.parse(repairTruncatedJson(extracted)) as PlannerOutput;
+    if (isValidPlannerOutput(parsed)) return parsed;
   } catch { /* continue */ }
 
   // Stage 4: last-ditch — try extracting from the raw (pre-strip) text
   const rawExtracted = extractJsonObject(raw);
   try {
-    return JSON.parse(repairTruncatedJson(rawExtracted)) as PlannerOutput;
-  } catch (finalErr) {
-    throw new Error(
-      `Failed to parse architecture planner output: ${finalErr instanceof Error ? finalErr.message : String(finalErr)}`
-    );
+    const parsed = JSON.parse(repairTruncatedJson(rawExtracted)) as PlannerOutput;
+    if (isValidPlannerOutput(parsed)) return parsed;
+  } catch { /* continue */ }
+
+  // Stage 5: salvage — extract mermaidCode via tolerant regex even if JSON is irrecoverable
+  const salvaged = salvagePlannerOutput(raw);
+  if (salvaged) return salvaged;
+
+  throw new Error(
+    `Failed to parse architecture planner output: Unterminated string in JSON at position ${raw.length} (salvage also failed)`
+  );
+}
+
+/**
+ * Tolerant salvage when JSON is too broken to repair (e.g. truncated mid-reasoning
+ * before mermaidCode). Extracts whatever fields we can via string scanning.
+ */
+function salvagePlannerOutput(raw: string): PlannerOutput | null {
+  // Find mermaidCode string value tolerant to truncation and escaped newlines
+  const codeIdx = raw.indexOf('"mermaidCode"');
+  if (codeIdx === -1) return null;
+  const colonIdx = raw.indexOf(':', codeIdx);
+  if (colonIdx === -1) return null;
+  const firstQuote = raw.indexOf('"', colonIdx);
+  if (firstQuote === -1) return null;
+
+  let esc = false;
+  let endQuote = -1;
+  for (let i = firstQuote + 1; i < raw.length; i++) {
+    const ch = raw[i];
+    if (esc) { esc = false; continue; }
+    if (ch === '\\') { esc = true; continue; }
+    if (ch === '"') {
+      // Lookahead: closing quote should be followed by , or } (allow whitespace)
+      let j = i + 1;
+      while (j < raw.length && /\s/.test(raw[j])) j++;
+      if (j >= raw.length || raw[j] === ',' || raw[j] === '}' || raw[j] === ']') {
+        endQuote = i;
+        break;
+      }
+      // Otherwise it's an embedded unescaped quote — treat as content
+      continue;
+    }
   }
+  let mermaidCode: string;
+  const wasTruncated = endQuote === -1;
+  if (wasTruncated) {
+    // Truncated inside mermaidCode — take rest as value
+    mermaidCode = raw.slice(firstQuote + 1);
+    // Clean trailing partial escape
+    if (mermaidCode.endsWith('\\')) mermaidCode = mermaidCode.slice(0, -1);
+    // Trim to last complete line to avoid half-written edge
+    const lastNl = mermaidCode.lastIndexOf('\n');
+    if (lastNl > mermaidCode.indexOf('graph')) {
+      mermaidCode = mermaidCode.slice(0, lastNl);
+    }
+  } else {
+    mermaidCode = raw.slice(firstQuote + 1, endQuote);
+  }
+  // Manual JSON unescape (avoid double-parse issues with embedded quotes)
+  mermaidCode = mermaidCode
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+  mermaidCode = mermaidCode.trim();
+  if (!mermaidCode || !mermaidCode.includes('graph')) return null;
+
+  // Try to extract other fields leniently
+  const typeMatch = raw.match(/"diagramType"\s*:\s*"(graph\s+(?:TD|LR))"/);
+  const themeMatch = raw.match(/"theme"\s*:\s*"(forest-green|slate|dark-minimal|luxury|default)"/);
+  const reasoningMatch = raw.match(/"reasoning"\s*:\s*"([\s\S]*?)"\s*,\s*"/);
+  let reasoning: string | undefined;
+  if (reasoningMatch) {
+    try {
+      // reasoning is JSON-escaped, unescape similarly
+      reasoning = reasoningMatch[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+    } catch {
+      reasoning = reasoningMatch[1].slice(0, 500);
+    }
+  }
+
+  return {
+    reasoning: reasoning ?? 'Salvaged from truncated planner output',
+    diagramType: (typeMatch?.[1] as PlannerOutput['diagramType']) ?? 'graph LR',
+    theme: (themeMatch?.[1] as string) ?? 'slate',
+    mermaidCode,
+  };
 }
 
 export async function runArchitecturePlanner(
@@ -199,23 +327,22 @@ export async function runArchitecturePlanner(
 
   let resultStr = '';
   let lastError: Error | null = null;
-  let succeeded = false;
+  let cleaned: PlannerOutput | null = null;
   // Each executeWithRetry call rotates through ALL Groq keys before throwing,
   // so a single attempt exercises the full key pool. We retry a few times in
-  // case TPM windows roll between attempts.
+  // case TPM windows roll between attempts or JSON is truncated.
   const maxAttempts = 3;
 
-  for (const currentModel of modelsToTry) {
-    if (succeeded) break;
-
+  outer: for (const currentModel of modelsToTry) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         await rateLimiter.waitIfNeeded(currentModel);
 
         resultStr = await apiKeyManager.executeWithRetry(async (groq) => {
+          const isParseRetry = lastError?.message?.includes('Failed to parse');
           const attemptPrompt =
-            attempt > 1
-              ? `${userPrompt}\n\nIMPORTANT: Output ONLY a valid JSON object with keys "reasoning", "diagramType", "theme", and "mermaidCode". No markdown fences, no prose.`
+            attempt > 1 || isParseRetry
+              ? `${userPrompt}\n\nIMPORTANT: Output ONLY a valid JSON object with keys "reasoning", "diagramType", "theme", and "mermaidCode". Keep "reasoning" to 2 sentences max (under 300 chars) to avoid truncation. No markdown fences, no prose.`
               : userPrompt;
           return await groqJsonCompletion(groq, {
             model: currentModel,
@@ -228,8 +355,24 @@ export async function runArchitecturePlanner(
             max_tokens: 8192,
           });
         });
-        succeeded = true;
-        break;
+
+        // Try to parse immediately so truncated JSON can trigger a retry
+        try {
+          cleaned = extractPlannerJson(resultStr);
+          lastError = null;
+          break outer;
+        } catch (parseErr) {
+          const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+          lastError = new Error(msg);
+          logger.warn(`[ArchitecturePlanner] JSON parse failed (attempt ${attempt}/${maxAttempts} on ${currentModel}): ${msg}`, {
+            raw: resultStr.substring(0, 800),
+            length: resultStr.length,
+          });
+          // Retry on parse failure (truncation) unless we've exhausted attempts
+          if (attempt < maxAttempts) continue;
+          // Try next model if available
+          break;
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         lastError = new Error(msg);
@@ -249,18 +392,9 @@ export async function runArchitecturePlanner(
     }
   }
 
-  if (!succeeded && lastError) {
-    throw lastError;
-  }
-
-  let cleaned: PlannerOutput;
-  try {
-    cleaned = extractPlannerJson(resultStr);
-  } catch (parseErr) {
-    logger.error('[ArchitecturePlanner] JSON parse failed after all repair attempts', {
-      raw: resultStr.substring(0, 500),
-    });
-    throw parseErr;
+  if (!cleaned) {
+    if (lastError) throw lastError;
+    throw new Error('Architecture planner failed: no result');
   }
 
   // Post-process: replace "/" with " or " in node labels to avoid visual artifacts

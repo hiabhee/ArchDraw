@@ -350,22 +350,22 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
   }
   // Mirror actorPrimitives — round head + rounded-shoulder body touching at
   // seam, drawn inside a fixed-ratio "person box" so the glyph is never
-  // stretched by the node's W:H proportions.
-  const RATIO = 0.62;
+  // stretched by the node's W:H proportions. Expanded bottom keeps title contained.
+  const RATIO = 0.72;
   const ph = Math.min(H, W / RATIO);
   const pw = ph * RATIO;
   const px0 = Math.round((W - pw) / 2);
   const py0 = Math.round((H - ph) / 2);
 
-  const topPad = Math.max(4, Math.round(ph * 0.05));
-  const headW = Math.max(18, Math.round(ph * 0.30));
+  const topPad = Math.max(3, Math.round(ph * 0.04));
+  const headW = Math.max(18, Math.round(ph * 0.28));
   const gap = Math.max(1, Math.round(ph * 0.02));
-  const bodyH = Math.max(18, Math.round(ph * 0.34));
+  const bodyH = Math.max(28, Math.round(ph * 0.42));
 
   const headX = Math.round(px0 + (pw - headW) / 2);
   const headY = py0 + topPad;
 
-  const bodyW = Math.max(30, Math.round(pw * 0.60));
+  const bodyW = Math.max(36, Math.round(pw * 0.78));
   const bodyX = Math.round(px0 + (pw - bodyW) / 2);
   const bodyY = Math.round(headY + headW + gap);
   const r = Math.min(14, Math.round(bodyH * 0.50), Math.round(bodyW * 0.16));

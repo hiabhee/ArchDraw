@@ -55,7 +55,7 @@ const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
   cylinder: 0.85,
   hexagon: 0.58,
   cloud: 0.8,
-  actor: 0.56,
+  actor: 0.68,
   monitor: 0.72,
   mobile: 0.56,
   'dashed-rectangle': 0.88,
@@ -192,7 +192,7 @@ const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteM
   cylinder: { min: 100, max: Infinity, absoluteMax: Infinity },
   hexagon: { min: 100, max: 120, absoluteMax: 180 },
   cloud: { min: 100, max: 112, absoluteMax: 160 },
-  actor: { min: 100, max: 112, absoluteMax: 130 },
+  actor: { min: 124, max: 148, absoluteMax: 176 },
   monitor: { min: 100, max: 120, absoluteMax: 180 },
   mobile: { min: 100, max: 130, absoluteMax: 180 },
   'dashed-rectangle': { min: 100, max: 112, absoluteMax: 168 },
@@ -412,8 +412,10 @@ export function calculateNodeDimensions(
   // Strict audit: default height for every node type is exactly 100px
   // Single-line labels (including fallback 'Service') must render at 100,
   // not 107/112/120/195. Multi-line labels may grow beyond 100.
+  // Actor is taller by design so the body can contain the title with
+  // expanded bottom padding (user request: "expand the bottom space").
   if (wrappedLines === 1) {
-    height = 100;
+    height = shape === 'actor' ? heightRange.min : 100;
   }
 
   return {

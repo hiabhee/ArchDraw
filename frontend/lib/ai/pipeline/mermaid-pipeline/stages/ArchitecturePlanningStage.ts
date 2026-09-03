@@ -1,7 +1,8 @@
-import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
 import { runArchitecturePlanner } from '../architecturePlanner';
 import { getConceptTemplatePlan } from '../conceptTemplates';
+import { generateFallbackPlan } from './FallbackPlan';
 import type { ConceptDetectionOutput } from './ConceptDetectionStage';
 import type { UserIntent } from '../../../types';
 import logger from '@/lib/logger';
@@ -57,6 +58,7 @@ export class ArchitecturePlanningStage extends BaseStage<ArchitecturePlanningInp
       mermaidCode: string;
       reasoning?: string;
     };
+    let usedFallback = false;
 
     if (useConceptTemplate && !inEditMode) {
       const templatePlan = getConceptTemplatePlan(implicitConcept!, detailLevel);
@@ -70,14 +72,21 @@ export class ArchitecturePlanningStage extends BaseStage<ArchitecturePlanningInp
       try {
         plan = await runArchitecturePlanner(prompt, diagramSize, detailLevel, model, existingContext);
       } catch (err) {
-        logger.warn('[PlanningStage] Architecture planner failed:', err);
-        return errorResult(new Error('Architecture planner failed'));
+        logger.warn('[PlanningStage] Architecture planner failed, using fallback plan:', err);
+        const fallback = generateFallbackPlan(prompt);
+        plan = {
+          formatConfig: fallback.formatConfig,
+          styleConfig: fallback.styleConfig,
+          mermaidCode: fallback.mermaidCode,
+          reasoning: 'Fallback due to planner failure',
+        };
+        usedFallback = true;
       }
     }
 
     return successResult({
       ...plan,
-      usedFallback: false,
+      usedFallback,
       droppedExistingContext: false,
       inEditMode,
     });

@@ -630,15 +630,59 @@ export function computeEdgeRoute(
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
   const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
-  const parallelEdges = edges.filter(
-    (e) => e.source === edge.source && e.target === edge.target,
-  )
-  const edgeOffset = parallelEdges.length > 1
-    ? (() => {
-        const index = parallelEdges.findIndex((e) => e.id === edge.id)
-        return index === -1 ? 0 : (index - (parallelEdges.length - 1) / 2) * 20
-      })()
-    : 0
+  // Lane offset: keep parallel same-source/target edges separated, and also
+  // spread fan-out (same source) / fan-in (same target) bundles that otherwise
+  // share a single vertical/horizontal trunk (LB → 2 services, Analytics → Cache/DB).
+  // Simple approach: exact parallel > larger fan group > fan-in tie-break for convergence.
+  const computeFanOffset = (): number => {
+    const parallels = edges.filter((e) => e.source === edge.source && e.target === edge.target)
+    if (parallels.length > 1) {
+      const sorted = [...parallels].sort((a, b) => a.id.localeCompare(b.id))
+      const idx = sorted.findIndex((e) => e.id === edge.id)
+      return idx === -1 ? 0 : (idx - (sorted.length - 1) / 2) * 20
+    }
+    const fanOut = edges.filter((e) => e.source === edge.source)
+    const fanIn = edges.filter((e) => e.target === edge.target)
+    const fanOutSize = fanOut.length
+    const fanInSize = fanIn.length
+    if (fanOutSize <= 1 && fanInSize <= 1) return 0
+
+    // Choose the bundle that gives more separation; tie prefers fan-in so
+    // converging edges (svc1→DB, svc2→DB) separate by source order.
+    let useFanOut = false
+    if (fanOutSize > 1 && fanInSize > 1) {
+      useFanOut = fanOutSize > fanInSize
+    } else {
+      useFanOut = fanOutSize > 1
+    }
+
+    if (useFanOut) {
+      const sorted = [...fanOut].sort((a, b) => {
+        const aNode = nodes.find((n) => n.id === a.target)
+        const bNode = nodes.find((n) => n.id === b.target)
+        const aPos = aNode ? getAbsolutePosition(aNode, nodes) : { y: 0 }
+        const bPos = bNode ? getAbsolutePosition(bNode, nodes) : { y: 0 }
+        if (aPos.y !== bPos.y) return aPos.y - bPos.y
+        if (a.target !== b.target) return a.target.localeCompare(b.target)
+        return a.id.localeCompare(b.id)
+      })
+      const idx = sorted.findIndex((e) => e.id === edge.id)
+      return idx === -1 ? 0 : (idx - (sorted.length - 1) / 2) * 18
+    } else {
+      const sorted = [...fanIn].sort((a, b) => {
+        const aNode = nodes.find((n) => n.id === a.source)
+        const bNode = nodes.find((n) => n.id === b.source)
+        const aPos = aNode ? getAbsolutePosition(aNode, nodes) : { y: 0 }
+        const bPos = bNode ? getAbsolutePosition(bNode, nodes) : { y: 0 }
+        if (aPos.y !== bPos.y) return aPos.y - bPos.y
+        if (a.source !== b.source) return a.source.localeCompare(b.source)
+        return a.id.localeCompare(b.id)
+      })
+      const idx = sorted.findIndex((e) => e.id === edge.id)
+      return idx === -1 ? 0 : (idx - (sorted.length - 1) / 2) * 18
+    }
+  }
+  const edgeOffset = computeFanOffset()
 
   const waypointsRaw = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,

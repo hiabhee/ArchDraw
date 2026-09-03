@@ -72,9 +72,12 @@ export interface LayoutEngine {
  * as balanced columns/rows, not packed clusters. Larger rankSep/nodeSep give
  * mirrored sub-trees (e.g. Leader → 2 Followers) room to center.
  */
-export function defaultCompoundLayoutOptions(direction: LayoutDirection): LayoutOptions {
+export function defaultCompoundLayoutOptions(
+  direction: LayoutDirection,
+  density?: { edgeCount?: number; nodeCount?: number },
+): LayoutOptions {
   const isVertical = direction === 'TB' || direction === 'BT';
-  return {
+  const base: LayoutOptions = {
     nodeSep: isVertical ? 150 : 180,
     rankSep: 240,
     marginX: 80,
@@ -86,6 +89,21 @@ export function defaultCompoundLayoutOptions(direction: LayoutDirection): Layout
     paddingTop: SUBGRAPH_PADDING_TOP,
     paddingBottom: SUBGRAPH_PADDING_BOTTOM,
   };
+
+  // Adaptive density bump — simple approach for crowded graphs (e.g. >6 edges).
+  // Keeps base values stable for sparse diagrams (tests, landing demo) but
+  // adds air when edge count signals a tangled flow (URL-shortener example).
+  const edgeCount = density?.edgeCount ?? 0;
+  if (edgeCount > 6) {
+    const extraEdges = edgeCount - 6;
+    // Cap to avoid sprawling small demo graphs on extreme inputs
+    const nodeExtra = Math.min(40, extraEdges * 8);
+    const rankExtra = Math.min(80, extraEdges * 12);
+    base.nodeSep = (base.nodeSep ?? 0) + nodeExtra;
+    base.rankSep = (base.rankSep ?? 0) + rankExtra;
+  }
+
+  return base;
 }
 
 /**
