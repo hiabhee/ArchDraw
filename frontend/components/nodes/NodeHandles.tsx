@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Handle, Position, useUpdateNodeInternals } from 'reactflow';
+import { Handle, Position } from 'reactflow';
 import { useHandleSlotLayout } from '@/hooks/useHandleSlotLayout';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
@@ -72,11 +71,7 @@ interface NodeHandlesProps {
  * Slots center dynamically per side when only one direction exists.
  */
 export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesProps) {
-  const { getSlotOffset, shouldRenderHandle, handleTransition, centeredSides, dynamicOffsets } = useHandleSlotLayout(nodeId);
-  const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => {
-    if (nodeId) updateNodeInternals(nodeId);
-  }, [nodeId, centeredSides, dynamicOffsets, updateNodeInternals]);
+  const { getSlotOffset, shouldRenderHandle, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>

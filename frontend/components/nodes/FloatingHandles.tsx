@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Handle, Position, useUpdateNodeInternals } from 'reactflow';
+import { Handle, Position } from 'reactflow';
 import { useHandleSlotLayout } from '@/hooks/useHandleSlotLayout';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
@@ -54,11 +53,7 @@ interface FloatingHandlesProps {
  * - empty side → both overlapping at 0 (preserve creation affordance)
  */
 export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
-  const { getSlotOffset, shouldRenderHandle, handleTransition, centeredSides, dynamicOffsets } = useHandleSlotLayout(nodeId);
-  const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => {
-    if (nodeId) updateNodeInternals(nodeId);
-  }, [nodeId, centeredSides, dynamicOffsets, updateNodeInternals]);
+  const { getSlotOffset, shouldRenderHandle, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
