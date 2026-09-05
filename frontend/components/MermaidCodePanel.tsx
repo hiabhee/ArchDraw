@@ -380,7 +380,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
           onFocus={() => { isFocusedRef.current = true; }}
           onBlur={() => { isFocusedRef.current = false; }}
           spellCheck={false}
-          className="flex-1 w-full p-3 sm:p-4 font-mono text-sm sm:text-xs text-foreground bg-muted/20 border border-border/40 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 outline-none rounded-xl resize-none leading-relaxed transition-all"
+          className="flex-1 w-full p-3 sm:p-4 font-mono text-sm sm:text-xs text-foreground bg-muted/20 border border-border/40 focus:border-border focus:ring-0 focus-visible:outline-none focus-visible:ring-0 outline-none rounded-xl resize-none leading-relaxed transition-colors [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full"
           placeholder="graph TD&#10;  subgraph CLIENT[&quot;Client Tier&quot;]&#10;    CV[&quot;Customer View&quot;]&#10;  end"
         />
 

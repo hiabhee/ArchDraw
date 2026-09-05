@@ -22,16 +22,21 @@ export const BRUTAL_EDGE_PRIMARY_LIGHT = '#2563eb';
 export const BRUTAL_EDGE_ASYNC_LIGHT = '#7c3aed';
 
 // ── Dark mode ────────────────────────────────────────────────────────────────
+// Refined 2026-09: previous #1e1e2e fill + 7 % canvas were too muddy and
+// low-contrast; the 5 px offset shadow (black on near-black) vanished, so
+// dark brutal looked flat / “ugly”. Lift canvas to zinc-900, make fills a
+// touch lighter and warmer, and keep the brutal grammar (light border +
+// light offset shadow on dark, per neubrutalism.com dark-section rule).
 
-export const BRUTAL_FILL_DARK = '#1e1e2e';
+export const BRUTAL_FILL_DARK = '#27272f';
 export const BRUTAL_BORDER_DARK = '#e4e4e7';
-export const BRUTAL_SHADOW_DARK = '#000000';
-export const BRUTAL_GROUP_FILL_DARK = '#1e3a5f';
-export const BRUTAL_CANVAS_BG_DARK = '234 20% 7%';
-export const BRUTAL_GRID_DARK = '234 12% 15%';
+export const BRUTAL_SHADOW_DARK = '#e4e4e7';
+export const BRUTAL_GROUP_FILL_DARK = '#dbeafe';
+export const BRUTAL_CANVAS_BG_DARK = '240 5% 12%';
+export const BRUTAL_GRID_DARK = '240 5% 20%';
 
-export const BRUTAL_TITLE_DARK = '#f4f4f5';
-export const BRUTAL_SUBTITLE_DARK = '#a1a1aa';
+export const BRUTAL_TITLE_DARK = '#fafafa';
+export const BRUTAL_SUBTITLE_DARK = '#cbd5e1';
 
 export const BRUTAL_EDGE_DEFAULT_DARK = '#e4e4e7';
 export const BRUTAL_EDGE_PRIMARY_DARK = '#60a5fa';
@@ -46,6 +51,23 @@ export const BRUTAL_SHADOW_FILTER = `
     </filter>
   </defs>
 `.trim();
+
+export const BRUTAL_SHADOW_FILTER_ID_DARK = 'brutal-shadow-dark';
+export const BRUTAL_SHADOW_FILTER_DARK = `
+  <defs>
+    <filter id="${BRUTAL_SHADOW_FILTER_ID_DARK}" x="-10%" y="-10%" width="130%" height="140%">
+      <feDropShadow dx="${BRUTAL_SHADOW_OFFSET}" dy="${BRUTAL_SHADOW_OFFSET}" stdDeviation="0" flood-color="${BRUTAL_SHADOW_DARK}" flood-opacity="1"/>
+    </filter>
+  </defs>
+`.trim();
+
+/** Helper for callers that need the correct filter per theme. */
+export function brutalShadowFilterId(isDark: boolean): string {
+  return isDark ? BRUTAL_SHADOW_FILTER_ID_DARK : BRUTAL_SHADOW_FILTER_ID;
+}
+export function brutalShadowFilter(isDark: boolean): string {
+  return isDark ? BRUTAL_SHADOW_FILTER_DARK : BRUTAL_SHADOW_FILTER;
+}
 
 /**
  * Neubrutalism render style — bold, heavy borders, hard offset shadows,

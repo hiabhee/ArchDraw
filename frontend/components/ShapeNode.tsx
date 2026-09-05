@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useLayoutEffect } from 'react';
+import { memo, useLayoutEffect, useRef } from 'react';
 import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasTheme } from '@/lib/theme';
 import {
@@ -79,13 +79,50 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
   });
 
-  useLayoutEffect(() => {
-    if (storedNodeWidth === width && storedNodeHeight === height) return;
-    updateNodeSize(id, { width, height });
-  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize]);
+  // Guard against synchronous update loops: width/height are derived from data,
+  // and updateNodeSize writes back to data. Without a ref guard, a float vs int
+  // mismatch (React Flow measured vs grid-snapped) or a stale closure can cause
+  // useLayoutEffect to fire every commit and hit "Maximum update depth exceeded".
+  // Track the last size we pushed to the store and only push when it truly changes.
+  const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
 
   useLayoutEffect(() => {
-    updateNodeInternals(id);
+    if (storedNodeWidth === width && storedNodeHeight === height) {
+      lastPushedSizeRef.current = { w: width, h: height };
+      return;
+    }
+    if (
+      lastPushedSizeRef.current &&
+      lastPushedSizeRef.current.w === width &&
+      lastPushedSizeRef.current.h === height
+    ) {
+      return;
+    }
+    lastPushedSizeRef.current = { w: width, h: height };
+    // Defer store write to next microtask so React Flow's internal
+    // commit finishes before we trigger a Zustand set(). This breaks the
+    // synchronous loop: effect -> set -> render -> effect -> set ...
+    queueMicrotask(() => {
+      // Re-check after defer — another effect may have already synced.
+      const cur = useDiagramStore.getState().nodes.find((nd) => nd.id === id);
+      const curW = (cur?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
+      const curH = (cur?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
+      if (curW === width && curH === height) return;
+      updateNodeSize(id, { width, height });
+    });
+  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize]);
+
+  // updateNodeInternals is a React Flow imperative handle; calling it
+  // synchronously on every size change can trigger onNodesChange -> set
+  // -> effect loop. Defer and coalesce.
+  const pendingInternalsRef = useRef(false);
+  useLayoutEffect(() => {
+    if (pendingInternalsRef.current) return;
+    pendingInternalsRef.current = true;
+    queueMicrotask(() => {
+      pendingInternalsRef.current = false;
+      updateNodeInternals(id);
+    });
   }, [id, width, height, updateNodeInternals]);
 
   const shellProps = {

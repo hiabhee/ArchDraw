@@ -203,17 +203,45 @@ export class DagreLayoutEngine implements LayoutEngine {
     // now prevent. Dagre's own spacing is trusted here; group bounds are
     // recomputed afterwards by the SizeStage / recomputeSubgraphBounds pass.
 
-    const positionedEdges: PositionedEdge[] = params.edges.map((edge, index) => {
-      const layoutEdge = layoutEdges[index];
-      if (!layoutEdge) {
-        return { ...edge, points: undefined };
-      }
-      const dagreEdge = g.edge(layoutEdge.source, layoutEdge.target);
-      return {
-        ...edge,
-        points: dagreEdge?.points?.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
-      };
-    });
+    const positionedEdges: PositionedEdge[] = params.edges
+      .map((edge, index) => {
+        // Deduplicate: if a populated group edge duplicates a leaf-hub edge
+        // to the same target (e.g. Gateway Layer → Auth Service alongside
+        // Load Balancer → Auth Service), hide the group line — users only need
+        // the hub node as source. Keep group edges that have no leaf duplicate
+        // (e.g. b → G → c bridging).
+        if (clusterIds.has(edge.source) || clusterIds.has(edge.target)) {
+          const isDuplicate = params.edges.some(other => {
+            if (other.id === edge.id) return false;
+            if (other.target !== edge.target && other.source !== edge.source) return false;
+            // Check if other edge's endpoint is a descendant leaf of this group
+            const checkDescendant = (groupId: string, leafId: string): boolean => {
+              let cur: string | undefined = leafId;
+              const seen = new Set<string>();
+              while (cur && !seen.has(cur)) {
+                seen.add(cur);
+                if (cur === groupId) return true;
+                cur = parentMap.get(cur);
+              }
+              return false;
+            };
+            if (clusterIds.has(edge.source) && checkDescendant(edge.source, other.source) && other.target === edge.target) return true;
+            if (clusterIds.has(edge.target) && checkDescendant(edge.target, other.target) && other.source === edge.source) return true;
+            return false;
+          });
+          if (isDuplicate) return null;
+        }
+        const layoutEdge = layoutEdges[index];
+        if (!layoutEdge) {
+          return { ...edge, points: undefined };
+        }
+        const dagreEdge = g.edge(layoutEdge.source, layoutEdge.target);
+        return {
+          ...edge,
+          points: dagreEdge?.points?.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
+        };
+      })
+      .filter((e): e is PositionedEdge => e !== null);
 
     return { nodes: positionedNodes, edges: positionedEdges, warnings };
   }

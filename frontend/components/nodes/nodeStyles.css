@@ -1236,12 +1236,12 @@
 
 /* Sketch edge labels: quiet paper pill, not sticky-note. */
 [data-render-style='sketch'] .edge-label-pill {
-  border-radius: 4px !important;
+  border-radius: 6px !important;
   font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 8px !important;
+  font-size: 11px !important;
   font-weight: 400 !important;
-  padding: 1.5px 5px !important;
-  line-height: 1.2 !important;
+  padding: 3px 8px !important;
+  line-height: 1.3 !important;
   letter-spacing: 0.01em !important;
   background: var(--arch-node-fill, #fefcf3) !important;
   border: 1px solid var(--arch-node-stroke, rgba(30,28,26,0.18)) !important;
@@ -1315,7 +1315,7 @@
 
 [data-render-style='neubrutalism'] .node-card {
   border: 3px solid var(--arch-node-stroke, #1a1a1a) !important;
-  box-shadow: 5px 5px 0px var(--arch-node-stroke, #1a1a1a) !important;
+  box-shadow: 5px 5px 0px var(--arch-brutal-shadow, var(--arch-node-stroke, #1a1a1a)) !important;
   background: var(--arch-node-fill, #ffffff) !important;
   border-radius: 6px !important;
 }
@@ -1365,14 +1365,14 @@
 /* Neubrutalism edges are thick solid paths — keep the RF path visible. */
 
 [data-render-style='neubrutalism'] .edge-label-pill {
-  border-radius: 4px !important;
+  border-radius: 6px !important;
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 8px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
-  padding: 2px 6px !important;
+  padding: 3px 8px !important;
   background: var(--arch-node-fill, #ffffff) !important;
   border: 1.5px solid var(--arch-node-stroke, #1a1a1a) !important;
-  box-shadow: 2px 2px 0px var(--arch-node-stroke, #1a1a1a) !important;
+  box-shadow: 2px 2px 0px var(--arch-brutal-shadow, var(--arch-node-stroke, #1a1a1a)) !important;
   transform: none;
 }
 

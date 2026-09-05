@@ -303,10 +303,11 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         }
 
         const { generatePureSVG } = await import('@/lib/svgExport');
+        const isDarkForSvg = isTransparent ? !!state.darkMode : svgBg === '#000000';
         const svgContent = generatePureSVG(
           exportNodes,
           state.edges,
-          state.darkMode,
+          isDarkForSvg,
           svgBg,
           layoutDirection,
           state.diagramRenderStyle,
@@ -327,62 +328,173 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         return;
       }
 
-      const bgColor = resolveExportBackgroundColor(bgType, element);
-
-      fitView({ padding: 0.1, duration: 300 });
-      await waitForReactFlowFrame(400);
-
-      edgeSnapshots = prepareReactFlowForImageExport(element);
-
-      const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
-      const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
-      const shouldCrop = !!reactFlowRef.instance && exportNodes.length > 0;
-      const cropRect = shouldCrop
-          ? computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12)
-          : null;
-
-      const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
-      const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-      // Adaptive high-DPI: aim for 2x on standard displays, 3x on retina, but cap
-      // total pixel count to avoid OOM on large diagrams (e.g., 2000x1500 @4x = 32Mpx).
-      const desiredRatio = Math.min(3, Math.max(2, Math.ceil(baseRatio * 1.5)));
-      // Estimate pixel count from the element size; reduce ratio if it would exceed ~16Mpx.
-      const elW = element.clientWidth || element.offsetWidth || 1200;
-      const elH = element.clientHeight || element.offsetHeight || 800;
-      let pixelRatio = desiredRatio;
-      const maxPixels = 16_000_000;
-      while (pixelRatio > 1 && elW * pixelRatio * elH * pixelRatio > maxPixels) {
-        pixelRatio -= 0.5;
-      }
-      pixelRatio = Math.max(1, pixelRatio);
-
+      // For PNG we now rasterize the *vector* SVG (generatePureSVG) rather than
+      // screenshotting the DOM via html-to-image. The DOM path captures the
+      // viewport at its current zoom (often 0.5-0.7 after fitView) and then
+      // upscales – text was rastered at small size then stretched, looking
+      // blurry in Canva/print. Vector -> canvas at 3-4× is sharp at any size.
+      // We keep html-to-image as a fallback if SVG rasterization fails.
       let dataUrl: string | null = null;
+      let pixelRatio = 3.5;
       let lastErr: unknown = null;
-      // Retry with decreasing pixelRatio if html-to-image OOMs or throws.
-      for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 1) {
+
+      try {
+        // Ensure fonts are ready so <text> in SVG uses Inter/Geist not fallback
+        if (typeof document !== 'undefined' && document.fonts?.ready) {
+          try { await document.fonts.ready; } catch {}
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        }
+
+        const state = useDiagramStore.getState();
+        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+        const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
+
+        let svgBg: string = 'none';
+        if (bgType !== 'transparent') {
+          if (bgType === 'dark') svgBg = '#000000';
+          else if (element) svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
+          else svgBg = '#ffffff';
+        }
+
+        const { generatePureSVG } = await import('@/lib/svgExport');
+        const isDarkForSvg = bgType === 'transparent' ? !!state.darkMode : svgBg === '#000000';
+        const svgContent = generatePureSVG(
+          exportNodes,
+          state.edges,
+          isDarkForSvg,
+          svgBg,
+          layoutDirection,
+          state.diagramRenderStyle,
+        );
+
+        // Parse SVG dimensions from the generated markup (width/height in viewBox)
+        const widthMatch = svgContent.match(/width="(\d+(?:\.\d+)?)"/);
+        const heightMatch = svgContent.match(/height="(\d+(?:\.\d+)?)"/);
+        const svgW = widthMatch ? parseFloat(widthMatch[1]) : 1200;
+        const svgH = heightMatch ? parseFloat(heightMatch[1]) : 800;
+
+        const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
+        const maxPixels = 48_000_000; // allow ~6000×8000 @4× for large Canva prints
+        pixelRatio = desiredRatio;
+        while (pixelRatio > 2 && svgW * pixelRatio * svgH * pixelRatio > maxPixels) {
+          pixelRatio -= 0.5;
+        }
+        pixelRatio = Math.max(2.5, pixelRatio);
+
+        // Rasterize SVG -> PNG at high DPI with retry on OOM / taint
+        let svgDataUrl: string | null = null;
+        const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+        const svgUrl = URL.createObjectURL(svgBlob);
         try {
-          dataUrl = await safeToPng(element, {
-            backgroundColor: bgColor,
-            pixelRatio: attemptRatio,
-            cacheBust: true,
-            filter: exportFilter,
-          });
-          pixelRatio = attemptRatio;
-          break;
-        } catch (e) {
-          lastErr = e;
-          logger.error(`PNG export failed at pixelRatio ${attemptRatio}`, e);
-          if (attemptRatio <= 1) throw e;
-          // Wait a tick before retrying at lower quality to let GC reclaim.
-          await new Promise((r) => setTimeout(r, 100));
+          // Try from high to low DPI; large canvases can OOM on low-memory devices
+          let lastRasterErr: unknown = null;
+          for (let attemptRatio = pixelRatio; attemptRatio >= 2; attemptRatio -= 0.5) {
+            try {
+              const attemptW = Math.round(svgW * attemptRatio);
+              const attemptH = Math.round(svgH * attemptRatio);
+              if (attemptW <= 0 || attemptH <= 0) throw new Error(`Invalid SVG size ${svgW}x${svgH}`);
+              if (attemptW * attemptH > 64_000_000) continue; // skip absurd sizes before even trying
+
+              const img = new window.Image();
+              await new Promise<void>((resolve, reject) => {
+                const t = window.setTimeout(() => reject(new Error('SVG image load timeout')), 6000);
+                img.onload = () => { clearTimeout(t); resolve(); };
+                img.onerror = () => { clearTimeout(t); reject(new Error('Failed to load SVG blob as image')); };
+                // For blob: URLs crossOrigin must not be set (would taint); keep same-origin
+                img.src = svgUrl;
+                // If already cached/complete, resolve immediately (some browsers fire sync)
+                if (img.complete && img.naturalWidth !== 0) { clearTimeout(t); resolve(); }
+              });
+
+              const canvas = document.createElement('canvas');
+              canvas.width = attemptW;
+              canvas.height = attemptH;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) throw new Error('Failed to get canvas context');
+              ctx.imageSmoothingEnabled = true;
+              (ctx as unknown as { imageSmoothingQuality?: string }).imageSmoothingQuality = 'high';
+              if (svgBg === 'none') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+              } else if (svgBg && svgBg !== 'none') {
+                // Ensure background even if SVG rect fails to paint at edge
+                ctx.fillStyle = svgBg;
+                ctx.fillRect(0, 0, attemptW, attemptH);
+              }
+              ctx.scale(attemptRatio, attemptRatio);
+              ctx.drawImage(img, 0, 0, svgW, svgH);
+              svgDataUrl = canvas.toDataURL('image/png');
+              pixelRatio = attemptRatio;
+              lastRasterErr = null;
+              break;
+            } catch (e) {
+              lastRasterErr = e;
+              logger.warn(`SVG raster at ${attemptRatio}x failed, retrying lower`, e);
+              await new Promise((r) => setTimeout(r, 100));
+            }
+          }
+          if (!svgDataUrl) throw lastRasterErr ?? new Error('All SVG raster attempts failed');
+          dataUrl = svgDataUrl;
+        } finally {
+          URL.revokeObjectURL(svgUrl);
+        }
+        // Skip DOM-screenshot path entirely on success
+      } catch (svgErr) {
+        lastErr = svgErr;
+        logger.warn('SVG->PNG rasterization failed, falling back to DOM screenshot', String(svgErr));
+        // Fallback: original html-to-image path (viewport screenshot + crop)
+        const bgColor = resolveExportBackgroundColor(bgType, element);
+        fitView({ padding: 0.1, duration: 300 });
+        await waitForReactFlowFrame(400);
+        if (typeof document !== 'undefined' && document.fonts?.ready) {
+          try { await document.fonts.ready; } catch {}
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        }
+        edgeSnapshots = prepareReactFlowForImageExport(element);
+        const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
+        const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
+        const shouldCrop = !!reactFlowRef.instance && exportNodes.length > 0;
+        const cropRect = shouldCrop
+            ? computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12)
+            : null;
+        const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
+        const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const desiredRatio = Math.min(3.5, Math.max(2.5, Math.ceil(baseRatio * 2)));
+        const elW = element.clientWidth || element.offsetWidth || 1200;
+        const elH = element.clientHeight || element.offsetHeight || 800;
+        let fallbackRatio = desiredRatio;
+        const maxPixels = 32_000_000;
+        while (fallbackRatio > 1 && elW * fallbackRatio * elH * fallbackRatio > maxPixels) {
+          fallbackRatio -= 0.5;
+        }
+        fallbackRatio = Math.max(2, fallbackRatio);
+        let fallbackDataUrl: string | null = null;
+        let fallbackErr: unknown = null;
+        for (let attemptRatio = fallbackRatio; attemptRatio >= 1; attemptRatio -= 1) {
+          try {
+            fallbackDataUrl = await safeToPng(element, {
+              backgroundColor: bgColor,
+              pixelRatio: attemptRatio,
+              cacheBust: true,
+              filter: exportFilter,
+            });
+            pixelRatio = attemptRatio;
+            break;
+          } catch (e) {
+            fallbackErr = e;
+            logger.error(`PNG fallback failed at pixelRatio ${attemptRatio}`, e);
+            if (attemptRatio <= 1) throw e;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+        if (!fallbackDataUrl) throw fallbackErr ?? new Error('Failed to generate PNG via fallback');
+        dataUrl = fallbackDataUrl;
+        if (cropRect) {
+          const cropped = await cropRasterDataUrl(fallbackDataUrl, cropRect, pixelRatio, 'image/png');
+          dataUrl = cropped.dataUrl;
         }
       }
       if (!dataUrl) throw lastErr ?? new Error('Failed to generate PNG');
-
-      if (cropRect) {
-        const cropped = await cropRasterDataUrl(dataUrl, cropRect, pixelRatio, 'image/png');
-        dataUrl = cropped.dataUrl;
-      }
 
       let finalDataUrl = dataUrl;
       if (shouldWatermark(tier, 'png')) {

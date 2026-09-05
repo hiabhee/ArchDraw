@@ -58,7 +58,7 @@ function ensureNode(
     const shape = detectShape(raw)
     const existing = nodes.find(n => n.id === id)
     if (existing) {
-      if (label) existing.label = label
+      if (label !== null) existing.label = label
       if (shape && raw.slice(id.length).trim().length > 0) existing.shape = shape
       if (currentSubgraphId && !existing.subgraphId) {
         existing.subgraphId = currentSubgraphId
@@ -69,7 +69,8 @@ function ensureNode(
     return id
   }
   if (subgraphs.some(s => s.id === id)) return id
-  const label = extractNodeLabel(raw) || id
+  const extracted = extractNodeLabel(raw)
+  const label = extracted !== null ? extracted : id
   const shape = detectShape(raw)
   nodeIdSet.add(id)
   nodes.push({ id, label, shape, subgraphId: currentSubgraphId })
@@ -80,9 +81,23 @@ function ensureNode(
   return id
 }
 
+function stripCodeFences(text: string): string {
+  // Remove markdown fences like ```mermaid ... ``` or ``` ... ```
+  const lines = text.split('\n')
+  let start = 0
+  let end = lines.length
+  if (lines[0]?.trim().startsWith('```')) start = 1
+  if (end > start && lines[end - 1]?.trim() === '```') end -= 1
+  // Also handle single-line ``` wrappers
+  const stripped = lines.slice(start, end).join('\n')
+  // Fallback: strip any surrounding triple backticks via regex
+  return stripped.replace(/^```[a-z]*\n/, '').replace(/\n```\s*$/, '')
+}
+
 export function parseMermaid(mermaidText: string): ParseResult {
   const errors: { line: number; reason: string }[] = []
-  const withoutFrontmatter = stripFrontmatter(mermaidText)
+  const withoutFences = stripCodeFences(mermaidText)
+  const withoutFrontmatter = stripFrontmatter(withoutFences)
   const merged = mergeMultilineLabels(withoutFrontmatter)
   const normalized = normalizeEdgeLabels(merged)
   const direction = detectDirection(normalized)
@@ -380,7 +395,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
       if (subgraphs.some(s => s.id === id)) {
         const sub = subgraphs.find(s => s.id === id)
-        if (sub && label) {
+        if (sub && label !== null) {
           sub.label = label
         }
         continue
@@ -389,7 +404,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       if (nodeIdSet.has(id)) {
         const existingNode = nodes.find(n => n.id === id)
         if (existingNode) {
-          if (label) existingNode.label = label
+          if (label !== null) existingNode.label = label
           if (detectedShape && rest) existingNode.shape = detectedShape
           if (currentSubgraphId) {
             existingNode.subgraphId = currentSubgraphId
@@ -405,7 +420,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
       const node: ParsedNode = {
         id,
-        label: label || id,
+        label: label !== null ? label : id,
         shape: detectedShape || 'rounded',
         subgraphId: currentSubgraphId,
       }

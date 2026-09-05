@@ -361,7 +361,25 @@ export const createGraphSlice: StateCreator<
   },
 
   updateNodeSize: (id, size) => {
-    const nodes = get().nodes.map((n) => {
+    const nodes = get().nodes;
+    const target = nodes.find((n) => n.id === id);
+    if (!target) return;
+    const curW = target.width ?? (target.data as { nodeWidth?: number })?.nodeWidth;
+    const curH = target.height ?? (target.data as { nodeHeight?: number })?.nodeHeight;
+    const nextW = size.width ?? curW;
+    const nextH = size.height ?? curH;
+    // Idempotent guard: avoid set() when size hasn't changed (tolerance 0.5)
+    // Prevents useLayoutEffect loop where React Flow measured floats differ
+    // from integer grid sizes and would otherwise ping-pong forever.
+    if (
+      (nextW === undefined || Math.abs((curW ?? 0) - nextW) < 0.5) &&
+      (nextH === undefined || Math.abs((curH ?? 0) - nextH) < 0.5) &&
+      (target.data as { nodeWidth?: number })?.nodeWidth === nextW &&
+      (target.data as { nodeHeight?: number })?.nodeHeight === nextH
+    ) {
+      return;
+    }
+    const nextNodes = nodes.map((n) => {
       if (n.id !== id) return n;
       const style = { ...(n.style || {}) };
       if (size.width !== undefined) style.width = size.width;
@@ -379,7 +397,7 @@ export const createGraphSlice: StateCreator<
       };
     });
     const canvases = get().canvases.map((c) =>
-      c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
+      c.id === get().activeCanvasId ? { ...c, nodes: nextNodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
     get().saveCanvasToDB(get().activeCanvasId);

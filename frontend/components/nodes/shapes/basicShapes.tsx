@@ -35,7 +35,7 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
     return (
       <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
         {backplates.length > 0 && <Backplates layers={backplates} borderRadius={r} />}
-        <BrutalBody shape={rounded ? 'rounded-rectangle' : 'rectangle'} width={width} height={height} surface={surface} />
+        <BrutalBody shape={rounded ? 'rounded-rectangle' : 'rectangle'} width={width} height={height} surface={surface} isDark={isDark} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} brutal />
         </div>
@@ -86,7 +86,7 @@ export function Diamond({ id, data, selected, backplates, isDark, styles, width:
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="diamond" width={W} height={H} surface={surface} />
+        <BrutalBody shape="diamond" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', clipPath: diamondClipPath(W, H) }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="diamond" brutal />
@@ -158,7 +158,7 @@ export function Circle({ id, data, selected, backplates, isDark, styles, width: 
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
         {backplates.length > 0 && <Backplates layers={backplates} borderRadius="50%" />}
-        <BrutalBody shape="circle" width={W} height={H} surface={surface} />
+        <BrutalBody shape="circle" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div
           style={{
@@ -214,7 +214,7 @@ export function Parallelogram({ id, data, selected, backplates, isDark, styles, 
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="parallelogram" width={W} height={H} surface={surface} />
+        <BrutalBody shape="parallelogram" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="parallelogram" brutal />

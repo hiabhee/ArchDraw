@@ -137,7 +137,7 @@ export function parseAndValidateRepoDiagram(
   const layouted = applyRfLayout(
     { nodes: zeroedNodes as Parameters<typeof applyRfLayout>[0]['nodes'], edges: enrichedEdges },
     direction === 'LR' ? 'LR' : 'TD',
-    { rankSep: 260, nodeSep: 150 },
+    { rankSep: 160, nodeSep: 100 },
   );
   // Dagre compound output places children at ABSOLUTE positions and relies on
   // a follow-up sizing pass. Without it React Flow reads child positions as

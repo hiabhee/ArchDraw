@@ -223,15 +223,20 @@ export interface DimensionOptions {
   showIcon?: boolean;
 }
 
-/** Snap to the optical grid; optionally step in 40px increments when max > L. */
+/** Fixed grid: widths snap to 160/200/240 (120/160 for XS). Beyond L only when caller explicitly opts-in via max > L. */
 export function fitWidthToContent(width: number, min = SIZE_S, max = SIZE_L): number {
   const clamped = Math.min(Math.max(width, min), max);
-  // Compact shapes (min below the S grid) snap to 40px steps (120/160/…).
+  // Compact XS tier (actor/mobile): 120 or 160 only; respect caller's max
   if (min < SIZE_S) {
-    return Math.min(max, Math.max(min, Math.round(clamped / 40) * 40));
+    const xsSnap = clamped <= 135 ? SIZE_XS : SIZE_S;
+    return Math.min(max, Math.max(min, xsSnap));
   }
-  if (clamped <= SIZE_L + 20) return Math.min(max, clampToSizeGrid(clamped));
-  return Math.min(max, Math.ceil(clamped / 40) * 40);
+  // When caller allows beyond L (e.g., document 260, custom 320), step in 40px increments
+  if (max > SIZE_L) {
+    return Math.min(max, Math.max(min, Math.ceil(clamped / 40) * 40));
+  }
+  // Standard fixed grid: strict 160/200/240 — edges share same X per rank
+  return clampToSizeGrid(clamped);
 }
 
 function normalizeShape(shape?: string): ShapeFit {
@@ -291,9 +296,11 @@ export function getQueuePipeHeight(lineCount: number): number {
 }
 
 /**
- * Compute node width/height from label length.
- * Nodes can grow beyond preferred max if content requires it, up to absolute max.
- * Dynamic sizing allows all nodes to accommodate more content gracefully.
+ * Fixed-grid node sizing — guarantees edges share the same level per rank.
+ * Widths snap strictly to 160/200/240 (120/160 for XS). Heights are fixed
+ * per shape (100 for most, actor 124, document 156, etc.) and do NOT grow
+ * with wrapped lines — labels wrap inside the fixed box. This keeps Dagre
+ * rank centers aligned so all edges in the same rank sit on one Y.
  */
 export function calculateNodeDimensions(
   label: string,
@@ -301,122 +308,45 @@ export function calculateNodeDimensions(
   options: DimensionOptions = {},
 ): NodeDimensions {
   const shape = normalizeShape(options.shape);
-  
-  // Queue shape uses horizontal pipe layout
   const isQueue = shape === 'queue';
-  
-  // Legacy: cylinder can still be horizontal for old diagrams
   const isHorizontalPipe = (shape === 'cylinder' && options.cylinderAxis === 'horizontal') || shape === 'queue';
-  
   const band = SHAPE_TEXT_BAND[shape];
-  const heightFactor = SHAPE_HEIGHT_FACTOR[shape];
   const heightRange = SHAPE_HEIGHT_RANGE[shape];
-  
-  const minWidth = options.minWidth ?? (
-    (isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_MIN_WIDTH[shape]
-  );
-  const minHeight = options.minHeight ?? ((isHorizontalPipe || isQueue) ? 100 : heightRange.min);
-  const preferredMaxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);
-  const absoluteMaxWidth = SHAPE_ABSOLUTE_MAX_WIDTH[shape];
-  const iconStack = shape === 'diamond' ? DIAMOND_ICON_STACK : ((isHorizontalPipe || isQueue) ? 0 : ICON_STACK);
-  const effectiveIconStack = options.showIcon === false ? 0 : iconStack;
 
+  const minWidth = options.minWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_MIN_WIDTH[shape]);
+  const maxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);
+
+  // Width: longest line -> ideal bbox, then snap to fixed grid (no expansion beyond max)
   const lines = [
     ...String(label || 'Service').split(/\n/),
     ...(subtitle ? String(subtitle).split(/\n/) : []),
   ].filter(Boolean);
-
   const longestLineLength = Math.max(1, ...lines.map((line) => line.length));
-  // Width needed so the longest line fits in the usable text band (single line).
   const idealBandWidth = longestLineLength * AVG_CHAR_WIDTH + 16;
   const idealBBoxWidth = idealBandWidth / band;
+  const width = fitWidthToContent(idealBBoxWidth, minWidth, maxWidth);
 
-  // Try to fit content within preferred max first
-  let width = fitWidthToContent(idealBBoxWidth, minWidth, preferredMaxWidth);
-  let usableWidth = Math.max(64, width * band);
-  
-  // Calculate wrapped lines with current width
-  let wrappedLines = 0;
-  for (const line of lines) {
-    const lineW = line.length * AVG_CHAR_WIDTH;
-    wrappedLines += Math.max(1, Math.ceil(lineW / usableWidth));
-  }
-  
-  // If content wraps too much (more than 8 lines after wrapping), expand width up to absolute max
-  if (wrappedLines > 8 && width < absoluteMaxWidth) {
-    const expandedWidth = Math.min(idealBBoxWidth, absoluteMaxWidth);
-    if (expandedWidth > width) {
-      width = fitWidthToContent(expandedWidth, width, absoluteMaxWidth);
-      usableWidth = Math.max(64, width * band);
-      
-      // Recalculate wrapped lines with expanded width
-      wrappedLines = 0;
-      for (const line of lines) {
-        const lineW = line.length * AVG_CHAR_WIDTH;
-        wrappedLines += Math.max(1, Math.ceil(lineW / usableWidth));
-      }
-    }
-  }
-
-  let height =
-    Math.max(minHeight, wrappedLines * LINE_HEIGHT + PADDING_Y + effectiveIconStack) * heightFactor;
-
-  // Keep diamonds / circles roughly balanced so labels stay in the mid-band.
-  if (shape === 'diamond' || shape === 'circle') {
-    height = Math.max(height, Math.round(width * 0.52));
-  }
-
-  // Use preferred max first, but allow growth to absoluteMax if content needs it.
-  // Diamond/circle/hexagon switch to the absolute max earlier: their lane cap
-  // clips multi-line labels — allow growth when text wraps.
-  const isMidBandShape = shape === 'diamond' || shape === 'circle' || shape === 'hexagon';
-  let effectiveMaxHeight = heightRange.max;
-  if (wrappedLines > 6 || (isMidBandShape && wrappedLines > 2)) {
-    effectiveMaxHeight = heightRange.absoluteMax;
-  }
-  
-  // Enforce per-shape height ranges with dynamic maximum
-  height = Math.min(Math.max(height, heightRange.min), effectiveMaxHeight);
-
-  // Queue shape (horizontal pipe) has special sizing.
-  // Pipe-text layout never renders icons (ShapeNode forces showIcon=false for
-  // pipes), so only an explicit `showIcon: true` reserves icon padding —
-  // defaulting to true made layout reserve 36px the render never uses.
+  // Height: fixed per shape — no growth with wrappedLines. Dagre centers stay aligned.
+  // Queue / horizontal pipes keep their 100/110/120 stepped height for pipe caps,
+  // but width is still grid-locked; vertical cylinders and documents use their
+  // fixed minima so ranks stay level.
+  let height: number;
   if (isQueue) {
-    const capPad = 48;
-    const textWidth = longestLineLength * AVG_CHAR_WIDTH + capPad;
-    width = Math.max(SIZE_L, Math.min(SIZE_XL, Math.ceil(textWidth / 40) * 40));
-    // For queue, also consider wrapping due to width (not just newline)
-    const queueUsable = Math.max(64, width * SHAPE_TEXT_BAND.queue);
-    let queueWrapped = 0;
-    for (const line of lines) {
-      const lineW = line.length * AVG_CHAR_WIDTH;
-      queueWrapped += Math.max(1, Math.ceil(lineW / queueUsable));
-    }
-    const lineCount = Math.max(countPipeLabelLines(label, subtitle), queueWrapped);
+    // Queue: fixed 100 for single line, stepped only for explicit newlines (not wrapping)
+    const lineCount = countPipeLabelLines(label, subtitle);
     height = getQueuePipeHeight(lineCount);
+    // Force width to grid as well (was 240/280 before)
+    // width already snapped above
   } else if (isHorizontalPipe) {
-    // Legacy: horizontal pipe cylinder
-    const capPad = 48;
-    const textWidth = longestLineLength * AVG_CHAR_WIDTH + capPad;
-    width = Math.max(SIZE_L, Math.min(SIZE_XL, Math.ceil(textWidth / 40) * 40));
     height = getHorizontalPipeHeight(countPipeLabelLines(label, subtitle), options.showIcon === true);
+  } else {
+    height = heightRange.min;
+    // Actor is intentionally taller (124) so its body can contain the title
+    // Do not scale actor down to 100 — keep its fixed taller box
   }
 
-  // Cylinder (vertical drum) needs minimum dimensions
-  if (shape === 'cylinder' && !isHorizontalPipe) {
-    width = Math.max(width, options.minWidth ?? 160);
-    height = Math.max(height, options.minHeight ?? 100);
-  }
-
-  // Strict audit: default height for every node type is exactly 100px
-  // Single-line labels (including fallback 'Service') must render at 100,
-  // not 107/112/120/195. Multi-line labels may grow beyond 100.
-  // Actor is taller by design so the body can contain the title with
-  // expanded bottom padding (user request: "expand the bottom space").
-  if (wrappedLines === 1) {
-    height = shape === 'actor' ? heightRange.min : 100;
-  }
+  // Clamp queue width to standard grid (was XL 280) — keep 160/200/240
+  // Already done via fitWidthToContent with SIZE_M/SIZE_L
 
   return {
     width: Math.round(width),

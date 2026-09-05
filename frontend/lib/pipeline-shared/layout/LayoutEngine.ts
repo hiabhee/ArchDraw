@@ -67,10 +67,11 @@ export interface LayoutEngine {
 }
 
 /**
- * Canonical compound-graph spacing — symmetry-first.
- * Tuned for optical-grid nodes (160–240px) with generous air so ranks read
- * as balanced columns/rows, not packed clusters. Larger rankSep/nodeSep give
- * mirrored sub-trees (e.g. Leader → 2 Followers) room to center.
+ * Canonical compound-graph spacing — compact, alignment-first.
+ * Tuned for fixed-grid nodes (160/200/240×100) with tight air so ranks read
+ * as cohesive columns/rows without sprawling. Previous generous (150/180, 240,
+ * 80) left large gaps between 2 nodes — tightened to remove unnecessary space
+ * while still centering mirrored sub-trees (e.g. Leader → 2 Followers).
  */
 export function defaultCompoundLayoutOptions(
   direction: LayoutDirection,
@@ -78,10 +79,10 @@ export function defaultCompoundLayoutOptions(
 ): LayoutOptions {
   const isVertical = direction === 'TB' || direction === 'BT';
   const base: LayoutOptions = {
-    nodeSep: isVertical ? 150 : 180,
-    rankSep: 240,
-    marginX: 80,
-    marginY: 80,
+    nodeSep: isVertical ? 50 : 60,
+    rankSep: 120,
+    marginX: 32,
+    marginY: 32,
     // Group padding must match the subgraph sizer exactly (layoutConstants) so
     // the container dagre reserves is the container that gets drawn.
     paddingLeft: SUBGRAPH_PADDING_X,

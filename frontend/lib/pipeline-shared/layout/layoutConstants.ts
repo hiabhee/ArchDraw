@@ -8,16 +8,15 @@
 
 /**
  * Fallback dimensions for nodes that reach layout without explicit dims
- * (programmatically added / not yet painted). Must be at or above the real
- * render floor: min shape sizes are ≥160×80 and cylinders are 200×120, so
- * reserving less guarantees rank overlaps.
+ * (programmatically added / not yet painted). Fixed grid uses 200×100 for
+ * all nodes so ranks stay level and edges share same Y per rank.
  */
 export const DEFAULT_NODE_WIDTH = 200;
-export const DEFAULT_NODE_HEIGHT = 88;
+export const DEFAULT_NODE_HEIGHT = 100;
 
 /** Horizontal air inside a group container (left and right). */
-export const SUBGRAPH_PADDING_X = 28;
-/** Air above a group's children — reserved for the group header/label. Breathing room so title never crowds node. */
-export const SUBGRAPH_PADDING_TOP = 56;
+export const SUBGRAPH_PADDING_X = 20;
+/** Air above a group's children — reserved for group header/label (tightened from 56). */
+export const SUBGRAPH_PADDING_TOP = 36;
 /** Air below a group's children. */
 export const SUBGRAPH_PADDING_BOTTOM = 28;

@@ -68,6 +68,9 @@ export async function cropRasterDataUrl(
   if (!ctx) {
     return { dataUrl, width: img.width / pixelRatio, height: img.height / pixelRatio };
   }
+  // High-quality downscale for cropped PNG – keeps text sharp after crop
+  ctx.imageSmoothingEnabled = true;
+  (ctx as unknown as { imageSmoothingQuality?: string }).imageSmoothingQuality = 'high';
 
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
   const out =

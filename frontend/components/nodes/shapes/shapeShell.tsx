@@ -32,6 +32,9 @@ import {
   resolveRenderSurface,
   renderSketchSurface,
   BRUTAL_SHADOW_FILTER,
+  BRUTAL_SHADOW_FILTER_DARK,
+  BRUTAL_SHADOW_FILTER_ID,
+  BRUTAL_SHADOW_FILTER_ID_DARK,
   type RenderSurface,
   type ShapePrimitive,
 } from '@/lib/theme/renderStyles';
@@ -402,24 +405,31 @@ export function BrutalBody({
   height,
   surface,
   axis,
+  isDark = false,
 }: {
   shape: ShapeType;
   width: number;
   height: number;
   surface: RenderSurface;
   axis?: ShapeGeometryAxis;
+  isDark?: boolean;
 }) {
   const primitives = getShapePrimitives(shape, width, height, axis);
   const renderer = getStrokeRenderer('brutalist');
-  const body = applyShapeSurface(primitives, surface)
+  let body = applyShapeSurface(primitives, surface)
     .map((p) => renderer.renderPrimitive(p, 0))
     .join('\n');
+  const filter = isDark ? BRUTAL_SHADOW_FILTER_DARK : BRUTAL_SHADOW_FILTER;
+  // Renderer hard-codes the light filter id; swap to dark id when needed
+  if (isDark) {
+    body = body.split(`url(#${BRUTAL_SHADOW_FILTER_ID})`).join(`url(#${BRUTAL_SHADOW_FILTER_ID_DARK})`);
+  }
   return (
     <svg
       width={width}
       height={height}
       style={SVG_SURFACE_STYLE(width, height)}
-      dangerouslySetInnerHTML={{ __html: `${BRUTAL_SHADOW_FILTER}${body}` }}
+      dangerouslySetInnerHTML={{ __html: `${filter}${body}` }}
     />
   );
 }

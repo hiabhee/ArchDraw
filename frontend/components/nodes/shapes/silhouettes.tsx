@@ -31,7 +31,7 @@ export function Hexagon({ id, data, selected, backplates, isDark, styles, width:
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="hexagon" width={W} height={H} surface={surface} />
+        <BrutalBody shape="hexagon" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="hexagon" brutal />
@@ -89,7 +89,7 @@ export function Queue({ id, data, selected, backplates, isDark, styles, width: W
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="queue" width={W} height={H} surface={surface} />
+        <BrutalBody shape="queue" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ ...pillStyle, maxWidth: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -133,7 +133,7 @@ export function Cache({ id, data, selected, backplates, isDark, styles, width: W
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="cache" width={W} height={H} surface={surface} />
+        <BrutalBody shape="cache" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cache" brutal />
@@ -170,7 +170,7 @@ export function FunctionShape({ id, data, selected, backplates, isDark, styles, 
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="function" width={W} height={H} surface={surface} />
+        <BrutalBody shape="function" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="function" brutal />
@@ -207,7 +207,7 @@ export function Container({ id, data, selected, backplates, isDark, styles, widt
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="container" width={W} height={H} surface={surface} />
+        <BrutalBody shape="container" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="container" brutal />
@@ -244,7 +244,7 @@ export function Bucket({ id, data, selected, backplates, isDark, styles, width: 
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="bucket" width={W} height={H} surface={surface} />
+        <BrutalBody shape="bucket" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="bucket" brutal />
@@ -267,10 +267,12 @@ export function Bucket({ id, data, selected, backplates, isDark, styles, width: 
 /**
  * Soft cloud outline — external / SaaS / third-party. Bumps scaled uniformly
  * from a 200×110 reference so arcs stay round across the 200–240 grid.
+ * Vertically centered at H/2 so label at H/2 stays inside (previously overflowed top).
  */
-function cloudSilhouette(W: number): string {
+function cloudSilhouette(W: number, H: number): string {
   const s = W / 200;
-  const pt = (x: number, y: number) => `${(x * s).toFixed(1)} ${(y * s).toFixed(1)}`;
+  const offsetY = H / 2 - 68 * s;
+  const pt = (x: number, y: number) => `${(x * s).toFixed(1)} ${(y * s + offsetY).toFixed(1)}`;
   const R = (r: number) => (r * s).toFixed(1);
   return [
     `M ${pt(44, 102)}`,
@@ -300,7 +302,7 @@ export function Cloud({ id, data, selected, isDark, styles, width: W, height: H,
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="cloud" width={W} height={H} surface={surface} />
+        <BrutalBody shape="cloud" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cloud" brutal />
@@ -308,7 +310,7 @@ export function Cloud({ id, data, selected, isDark, styles, width: W, height: H,
       </div>
     );
   }
-  const d = cloudSilhouette(W);
+  const d = cloudSilhouette(W, H);
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }}>
@@ -340,7 +342,7 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="actor" width={W} height={H} surface={surface} />
+        <BrutalBody shape="actor" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="actor" brutal />
@@ -412,7 +414,7 @@ export function Monitor({ id, data, selected, isDark, styles, width: W, height: 
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="monitor" width={W} height={H} surface={surface} />
+        <BrutalBody shape="monitor" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="monitor" brutal />
@@ -464,7 +466,7 @@ export function Mobile({ id, data, selected, isDark, styles, width: W, height: H
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="mobile" width={W} height={H} surface={surface} />
+        <BrutalBody shape="mobile" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="mobile" brutal />
@@ -507,7 +509,7 @@ export function DashedRectangle({ id, data, selected, isDark, styles, width, hei
   if (brutal) {
     return (
       <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="dashed-rectangle" width={width} height={height} surface={surface} />
+        <BrutalBody shape="dashed-rectangle" width={width} height={height} surface={surface} isDark={isDark} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape="dashed-rectangle" brutal />
         </div>
@@ -561,7 +563,7 @@ export function Document({ id, data, selected, isDark, styles, width: W, height:
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="document" width={W} height={H} surface={surface} />
+        <BrutalBody shape="document" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="document" brutal />
@@ -601,7 +603,7 @@ export function Documents({ id, data, selected, isDark, styles, width: W, height
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="documents" width={W} height={H} surface={surface} />
+        <BrutalBody shape="documents" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="documents" brutal />

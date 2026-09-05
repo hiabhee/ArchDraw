@@ -188,8 +188,30 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     return null;
   };
 
+  const isPopulatedGroup = (id: string) =>
+    ctx.childrenByParent.has(id) && (ctx.childrenByParent.get(id)?.length ?? 0) > 0;
+  const isDescendantOfGroup = (groupId: string, leafId: string): boolean => {
+    let cur: string | undefined = leafId;
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      if (cur === groupId) return true;
+      cur = ctx.parentOf.get(cur);
+    }
+    return false;
+  };
   const pairSize = new Map<string, { source: string; target: string; width: number; height: number }>();
   for (const edge of ctx.edges) {
+    // Deduplicate populated-group edges that duplicate a leaf edge (keep non-duplicate group edges)
+    if (isPopulatedGroup(edge.source) || isPopulatedGroup(edge.target)) {
+      const isDuplicate = ctx.edges.some(other => {
+        if (other === edge) return false;
+        if (isPopulatedGroup(edge.source) && isDescendantOfGroup(edge.source, other.source) && other.target === edge.target) return true;
+        if (isPopulatedGroup(edge.target) && isDescendantOfGroup(edge.target, other.target) && other.source === edge.source) return true;
+        return false;
+      });
+      if (isDuplicate) continue;
+    }
     const source = resolveMember(edge.source);
     const target = resolveMember(edge.target);
     if (!source || !target || source === target) continue;
@@ -388,11 +410,39 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       };
     });
 
+    // Deduplicate populated-group edges that duplicate a leaf-hub edge to same target
+    // (e.g. Gateway Layer → Auth Service alongside Load Balancer → Auth Service).
+    // Keep group edges that have no leaf duplicate (e.g. b → G → c bridging).
+    const populatedGroupIds = new Set(
+      Array.from(childrenByParent.keys()).filter(id => (childrenByParent.get(id)?.length ?? 0) > 0)
+    );
+    const isDescendantOf = (groupId: string, leafId: string): boolean => {
+      let cur: string | undefined = leafId;
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur)) {
+        seen.add(cur);
+        if (cur === groupId) return true;
+        cur = parentOf.get(cur);
+      }
+      return false;
+    };
+    const filteredEdges = params.edges.filter(e => {
+      const isGroupEdge = populatedGroupIds.has(e.source) || populatedGroupIds.has(e.target);
+      if (!isGroupEdge) return true;
+      const isDuplicate = params.edges.some(other => {
+        if (other.id === e.id) return false;
+        if (populatedGroupIds.has(e.source) && isDescendantOf(e.source, other.source) && other.target === e.target) return true;
+        if (populatedGroupIds.has(e.target) && isDescendantOf(e.target, other.target) && other.source === e.source) return true;
+        return false;
+      });
+      return !isDuplicate;
+    });
+
     return {
       nodes: positionedNodes,
       // Edge geometry is recomputed by the floating-edge renderer downstream;
       // the flat engine's points never survive IntegratedLayout anyway.
-      edges: params.edges.map(edge => ({ ...edge, points: undefined })),
+      edges: filteredEdges.map(edge => ({ ...edge, points: undefined })),
       warnings,
     };
   } catch (err) {

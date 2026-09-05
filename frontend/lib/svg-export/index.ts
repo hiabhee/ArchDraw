@@ -6,7 +6,7 @@ import { computeEdgeRoute, type EdgeRouteDirection } from '@/lib/utils/edgeRoute
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
-import { BRUTAL_SHADOW_FILTER } from '@/lib/theme/renderStyles';
+import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import {
   calculateBounds,
   nodeDepth,
@@ -199,9 +199,8 @@ export function generatePureSVG(
     edgeElements.push(renderEdge(edgeData, isDark, renderStyleId));
   }
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${renderStyleId === 'neubrutalism' ? BRUTAL_SHADOW_FILTER : ''}
+  return `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet">
+  ${renderStyleId === 'neubrutalism' ? brutalShadowFilter(isDark) : ''}
   ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
   <g id="edges">
 ${edgeElements.map((e) => '    ' + e.replace(/\n/g, '\n    ')).join('\n')}

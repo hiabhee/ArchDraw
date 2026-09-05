@@ -38,12 +38,26 @@ function renderPrimitives(
   isDark = false,
 ): string {
   const primitives = getShapePrimitives(shape, W, H);
-  const seed = getStrokeRenderer(renderStyleId === 'sketch' ? 'rough' : 'crisp').seedFor(
+  const seed = getStrokeRenderer(renderStyleId === 'sketch' ? 'rough' : renderStyleId === 'neubrutalism' ? 'brutalist' : 'crisp').seedFor(
     `shape-body-${shape}-${W}x${H}`,
   );
 
   if (renderStyleId === 'sketch') {
     return renderSketchBodyMarkup(primitives, surface, seed, isDark, shape);
+  }
+
+  if (renderStyleId === 'neubrutalism') {
+    const renderer = getStrokeRenderer('brutalist');
+    const decorated = applyShapeSurface(primitives, surface);
+    if (shape === 'dashed-rectangle') {
+      decorated[0] = {
+        ...decorated[0],
+        fill: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.02)',
+      };
+    }
+    let out = decorated.map((p) => renderer.renderPrimitive(p, seed)).join('\n');
+    if (isDark) out = out.split('url(#brutal-shadow)').join('url(#brutal-shadow-dark)');
+    return out;
   }
 
   const renderer = getStrokeRenderer('crisp');

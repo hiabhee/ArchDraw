@@ -36,7 +36,7 @@ export function Cylinder({ id, data, selected, backplates, isDark, styles, width
   if (brutal) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="cylinder" width={W} height={H} surface={surface} axis="vertical" />
+        <BrutalBody shape="cylinder" width={W} height={H} surface={surface} isDark={isDark} axis="vertical" />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ ...pillStyle, maxWidth: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -199,7 +199,7 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
     const RBrutal = Math.max(8, Math.round((H - 4) / 2));
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-        <BrutalBody shape="cylinder" width={W} height={H} surface={surface} axis="horizontal" />
+        <BrutalBody shape="cylinder" width={W} height={H} surface={surface} isDark={isDark} axis="horizontal" />
         <Handles color={color} nodeId={id} shape="queue" />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: RBrutal + 8, paddingRight: RBrutal + 14 }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="queue" brutal />

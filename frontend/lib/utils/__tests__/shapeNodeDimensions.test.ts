@@ -40,7 +40,7 @@ describe('resolveShapeNodeDimensions', () => {
     expect(dims.height).toBeGreaterThanOrEqual(100);
   });
 
-  it('getEffectiveNodeDimensions grows height when label wraps to multiple lines', () => {
+  it('getEffectiveNodeDimensions keeps fixed height when label wraps (fixed grid)', () => {
     const short: Node = {
       id: 'n1',
       type: 'shapeNode',
@@ -62,7 +62,8 @@ describe('resolveShapeNodeDimensions', () => {
     const shortDims = getEffectiveNodeDimensions(short);
     const wrappedDims = getEffectiveNodeDimensions(wrapped);
 
-    expect(wrappedDims.height).toBeGreaterThan(shortDims.height);
-    expect(wrappedDims.height).toBeGreaterThan(48);
+    // Fixed grid: heights stay on 100px lane so Dagre rank centers align and edges sit on same Y
+    expect(wrappedDims.height).toBe(shortDims.height);
+    expect(wrappedDims.height).toBe(100);
   });
 });

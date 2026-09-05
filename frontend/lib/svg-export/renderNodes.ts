@@ -17,7 +17,6 @@ import {
   renderSketchBodyMarkup,
   renderSketchSurface,
   resolveRenderSurface,
-  BRUTAL_SHADOW_FILTER_ID,
   BRUTAL_BORDER,
   BRUTAL_BORDER_DARK,
   BRUTAL_FILL_LIGHT,
@@ -155,8 +154,9 @@ export function renderSystemNode(
     const nodeTitle = isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT;
     const nodeSubtitle = isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT;
     const font = 'Space Grotesk, Inter, system-ui, sans-serif';
+    const shadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
     return `
-    <g transform="translate(${x}, ${y})" filter="url(#${BRUTAL_SHADOW_FILTER_ID})">
+    <g transform="translate(${x}, ${y})" filter="url(#${shadowId})">
       <rect
         x="0" y="0"
         width="${width}" height="${height}"
@@ -407,6 +407,7 @@ export function renderGroupNode(
       'group',
     );
   } else if (brutal) {
+    const shadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
     zone = `
       <rect
         x="0" y="0"
@@ -415,7 +416,7 @@ export function renderGroupNode(
         stroke="${borderColor}"
         stroke-width="3"
         rx="8" ry="8"
-        filter="url(#${BRUTAL_SHADOW_FILTER_ID})"
+        filter="url(#${shadowId})"
       />`;
   } else {
     zone = `
@@ -540,10 +541,15 @@ export function renderShapeNode(
     }
   }
 
+  const brutal = renderStyleId === 'neubrutalism';
+  // Brutal shadow id must invert in dark (light shadow on dark canvas)
+  if (brutal && isDark) {
+    body = body.split('url(#brutal-shadow)').join('url(#brutal-shadow-dark)');
+  }
+
   const titleY = subtitle ? H / 2 - 4 : H / 2 + 4;
   const subtitleY = H / 2 + 12;
   const fontFamily = getRenderStyle(renderStyleId).fonts.title;
-  const brutal = renderStyleId === 'neubrutalism';
   // Sketch subtitles read as penciled secondary text — lighter, smaller, muted.
   const titleFontSize = sketch ? 18 : 16.2;  // Increased from 14 for better prominence
   const subtitleFontSize = sketch ? 11 : 10.5;  // Reduced from 11.5 for better hierarchy

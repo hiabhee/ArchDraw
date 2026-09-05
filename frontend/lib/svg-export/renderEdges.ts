@@ -19,7 +19,6 @@ import {
   BRUTAL_BORDER_DARK,
   BRUTAL_FILL_LIGHT,
   BRUTAL_FILL_DARK,
-  BRUTAL_SHADOW_FILTER_ID,
   type DiagramRenderStyleId,
 } from '@/lib/theme/renderStyles';
 import { buildSolidArrowheadPath, escapeXml } from './svgPrimitives';
@@ -124,8 +123,9 @@ export function renderEdge(
       labelBox = `<g transform="translate(${-labelWidth / 2}, ${-labelHeight / 2})">${boxBody}</g>`;
     } else if (isBrutal) {
       // Hard-shadow pill — solid fill + heavy border.
+      const brutalShadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
       labelBox = `
-        <g transform="translate(${-labelWidth / 2}, ${-labelHeight / 2})" filter="url(#${BRUTAL_SHADOW_FILTER_ID})">
+        <g transform="translate(${-labelWidth / 2}, ${-labelHeight / 2})" filter="url(#${brutalShadowId})">
         <rect
           x="0"
           y="0"

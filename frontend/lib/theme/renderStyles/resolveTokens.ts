@@ -37,6 +37,8 @@ import {
   BRUTAL_FILL_DARK,
   BRUTAL_BORDER,
   BRUTAL_BORDER_DARK,
+  BRUTAL_SHADOW,
+  BRUTAL_SHADOW_DARK,
   BRUTAL_TITLE_LIGHT,
   BRUTAL_TITLE_DARK,
   BRUTAL_SUBTITLE_LIGHT,
@@ -115,6 +117,7 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
         ? {
             '--arch-node-fill': opts.isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT,
             '--arch-node-stroke': opts.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER,
+            '--arch-brutal-shadow': opts.isDark ? BRUTAL_SHADOW_DARK : BRUTAL_SHADOW,
             '--arch-title': opts.isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT,
             '--arch-subtitle': opts.isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT,
             '--arch-group-fill': opts.isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT,

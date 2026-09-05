@@ -1,4 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openai/gpt-oss-120b"
+  "model": "openai/gpt-oss-120b",
+  "mcp": {
+    "archdraw": {
+      "type": "local",
+      "command": ["npx", "-y", "archdraw-mcp-server"],
+      "enabled": true,
+      "environment": {
+        "API_BASE_URL": "https://archdraw.hiabhee.online"
+      }
+    }
+  }
 }

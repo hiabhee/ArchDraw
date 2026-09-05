@@ -19,6 +19,7 @@ import {
   BRUTAL_BORDER,
   BRUTAL_BORDER_DARK,
   BRUTAL_SHADOW,
+  BRUTAL_SHADOW_DARK,
   BRUTAL_SHADOW_OFFSET,
 } from './neubrutalism';
 import { renderSketchBodyMarkup } from './sketchBody';
@@ -79,8 +80,11 @@ export function resolveRenderSurface(input: ResolveRenderSurfaceInput): RenderSu
           : 'rgba(15, 23, 42, 0.14)';
   const strokeWidth = selected ? (brutal ? 3.5 : sketch ? 2 : 2) : brutal ? 3.25 : sketch ? 1.35 : 1.25;
   // Brutal has a hard offset shadow; sketch none; precision soft.
+  // Dark brutal inverts to light shadow per neubrutalism dark-section rule
+  // so the offset stays high-contrast on the dark canvas.
+  const brutalShadowColor = input.isDark ? BRUTAL_SHADOW_DARK : BRUTAL_SHADOW;
   const boxShadow = brutal
-    ? `${BRUTAL_SHADOW_OFFSET}px ${BRUTAL_SHADOW_OFFSET}px 0px ${BRUTAL_SHADOW}`
+    ? `${BRUTAL_SHADOW_OFFSET}px ${BRUTAL_SHADOW_OFFSET}px 0px ${brutalShadowColor}`
     : sketch ? 'none' : selected ? styles.shadowSelected : styles.shadow;
   const dropShadow = brutal
     ? 'none'

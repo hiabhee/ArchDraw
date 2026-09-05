@@ -460,7 +460,10 @@ export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[]
 
 export function cloudPrimitives(W: number, H: number): ShapePrimitive[] {
   const s = W / 200;
-  const pt = (x: number, y: number) => `${(x * s).toFixed(1)} ${(y * s).toFixed(1)}`;
+  // Cloud visual center is at y=68*s (mid of 34..102), but label is at H/2.
+  // Center the path vertically so label stays inside the cloud (image showed overflow).
+  const offsetY = H / 2 - 68 * s;
+  const pt = (x: number, y: number) => `${(x * s).toFixed(1)} ${(y * s + offsetY).toFixed(1)}`;
   const R = (r: number) => (r * s).toFixed(1);
   const d = [
     `M ${pt(44, 102)}`,
