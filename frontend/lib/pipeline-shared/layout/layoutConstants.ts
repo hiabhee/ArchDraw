@@ -15,8 +15,8 @@ export const DEFAULT_NODE_WIDTH = 200;
 export const DEFAULT_NODE_HEIGHT = 100;
 
 /** Horizontal air inside a group container (left and right). */
-export const SUBGRAPH_PADDING_X = 20;
+export const SUBGRAPH_PADDING_X = 28;
 /** Air above a group's children — reserved for group header/label (tightened from 56). */
-export const SUBGRAPH_PADDING_TOP = 36;
+export const SUBGRAPH_PADDING_TOP = 48;
 /** Air below a group's children. */
 export const SUBGRAPH_PADDING_BOTTOM = 28;

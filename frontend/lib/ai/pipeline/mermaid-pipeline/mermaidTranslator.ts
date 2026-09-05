@@ -144,6 +144,12 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
     const glabel = escapeLabel(String(group.data?.label ?? group.id));
     const prefix = '  '.repeat(indent);
     lines.push(`${prefix}subgraph ${gid}["${glabel}"]`);
+    const dir = (group.data as Record<string, unknown>)?.direction as string | undefined
+      ?? (group.data as Record<string, unknown>)?.groupDirection as string | undefined;
+    if (dir && (dir === 'TD' || dir === 'LR' || dir === 'BT' || dir === 'RL' || dir === 'TB')) {
+      const normalized = dir === 'TB' ? 'TD' : dir;
+      lines.push(`${prefix}  direction ${normalized}`);
+    }
 
     // Render child groups first (nested)
     const childGroups = nestedGroups.get(group.id) || [];

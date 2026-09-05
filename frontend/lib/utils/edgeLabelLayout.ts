@@ -11,24 +11,23 @@ export interface EdgeLabelAnchor {
 
 // ── Label sizing ────────────────────────────────────────────────────────────
 //
-// Labels are rendered small but readable: precision 6.5px, sketch/brutal 8px.
-// They use a bounded counter-scale (max ~1.4x) so they stay legible when
+// Labels are now larger for readability: precision 10.5px, sketch/brutal 11px.
+// They use a bounded counter-scale (max ~1.5x) so they stay legible when
 // zoomed out without becoming drastically large. To guarantee no overlap we
 // reserve world space for the max scaled size.
 
-const LABEL_WIDTH_PER_CHAR = 4.0
-const LABEL_HORIZONTAL_PADDING = 8
-const LABEL_HEIGHT_CSS = 9
-const LABEL_MIN_WIDTH_CSS = 20
+const LABEL_WIDTH_PER_CHAR = 5.8
+const LABEL_HORIZONTAL_PADDING = 14
+const LABEL_HEIGHT_CSS = 14
+const LABEL_MIN_WIDTH_CSS = 32
 
-// ── Neubrutalism pill sizing ────────────────────────────────────────────────
+// ── Neubrutalism / Sketch pill sizing ───────────────────────────────────────
 //
-// Brutal now uses 8px (down from 11px), 2px 6px padding, 1.5px border + 2px
-// shadow — compact but still brutal. Sketch uses same 8px metrics.
-const BRUTAL_WIDTH_PER_CHAR = 4.9
-const BRUTAL_HORIZONTAL_PADDING = 12
-const BRUTAL_HEIGHT_CSS = 11
-const BRUTAL_MIN_WIDTH_CSS = 26
+// Brutal & Sketch now use 11px, 3px 8px padding, 1.5px border + 2px shadow — larger and more readable.
+const BRUTAL_WIDTH_PER_CHAR = 6.2
+const BRUTAL_HORIZONTAL_PADDING = 16
+const BRUTAL_HEIGHT_CSS = 15
+const BRUTAL_MIN_WIDTH_CSS = 38
 /** Max counter-scale factor. Caps zoom-out growth to keep labels small. */
 const LABEL_SAFE_SCALE = 1.5
 const BORDER_RADIUS = 24

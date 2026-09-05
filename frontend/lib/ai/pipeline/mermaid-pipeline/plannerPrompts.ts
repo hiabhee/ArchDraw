@@ -20,12 +20,15 @@ IMPORTANT: Intent classification examples:
 
 ## Core Rules
 1. **Direction choice**: Use graph LR for workflows, pipelines, event chains, and horizontal processes. Use graph TD for layered architectures (client → server → data), hierarchical systems, and vertical request flows. Default to LR if unclear.
-2. **Bidirectional flows**: If A→B, show B→A response. Exception: fire-and-forget async (producer→queue).
+2. **Flow clarity (avoid web)**: Show a single forward edge per interaction by default. Add a B→A return edge ONLY when the return carries a distinct, meaningful operation (e.g., "returns token", "confirms write", "cache hit" vs "cache miss"). Do NOT mirror every A→B with a generic response — this doubles edge count and creates a tangled web that hides the primary flow. Exception: fire-and-forget async (producer→queue) never has a return.
 3. **Data persistence**: Systems that store data MUST have a database/storage component.
 4. **Edge labels**: 2-4 words describing the operation. Avoid "/" in most labels (use "and"/"or" instead), but allow for standard technical terms like "HTTP/REST", "TCP/UDP", "CRUD ops", or "read/write". Good: "validates JWT", "publishes event", "HTTP/REST call". Bad: "calls", "sends", "request/response".
-5. **Subgraphs**: Group by architectural layer (Client, Gateway, Services, Data, External, Background). Nest subgraphs when needed (e.g., multiple services within Services layer can each have their own subgraph).
+5. **Subgraphs**: Group by architectural layer (Client, Gateway, Services, Data, External, Background). Keep each subgraph to 2-5 nodes; nest only when a layer truly contains distinct sub-services (max 2 levels deep). Do NOT create subgraphs for 1-2 unrelated nodes — fewer, cohesive groups beat many fragmented ones.
 6. **No dead-end nodes** except final storage/logs. Every node must have a purpose.
 7. **Node count**: Stay within the requested max. Fewer, focused nodes > many loose ones.
+8. **Edge density**: Aim for 1.0-1.4 edges per node on average. If you approach 1.8+, the diagram will look like a web — drop low-value return edges and long spanning shortcuts; prefer edges between adjacent layers (Client→Gateway, Gateway→Service) over Client→Data shortcuts.
+9. **Bidirectional pairs**: For immediate 2-way exchanges that are logically one interaction (e.g., 'List ↔ Extract', 'Fetch ↔ Database', 'Create E-Mail ↔ Email Template'), use a single 'A <--> B' edge (arrowheads on both ends) instead of two separate 'A --> B' and 'B --> A' edges. Keep the double-arrow short and vertical so it stays centered.
+10. **Loop / Repeat groups**: When the prompt describes a loop, repeat, or 'for each' (e.g., "Repeat for each customer ID"), create a dashed subgraph with 'direction TB' containing the repeated steps stacked vertically ('Fetch → Create → Box'), and give the subgraph the loop condition as its label. The edge that exits the loop (e.g., 'Box → Control Room') should leave the loop to the next stage outside.
 
 ## Async vs Sync (critical)
 - **Queues/brokers** (Kafka, RabbitMQ, SQS): Producers → queue = async edge. Queue → consumer = async edge.
@@ -98,11 +101,12 @@ Optional title format (only if requested): %% archdraw-text: {"id":"title","text
 - Do NOT add Load Balancer for single-instance or conceptual diagrams
 - Do NOT use actor shape for non-human entities (use rounded-rectangle for services)
 - Do NOT invent components not justified by the prompt
-- Do NOT create one-way flows when response path matters
+- Do NOT create a return edge for every forward edge — only when the return operation is distinct and labeled
 - Do NOT use "/" in labels unless it's standard technical terminology (e.g., "HTTP/REST" is OK, but "request/response" should be "validates and responds")
 - Do NOT nest subgraphs excessively (max 2 levels deep)
 - Do NOT create subgraphs for single nodes (minimum 2 nodes per subgraph)
 - Do NOT create archdraw-note annotations (these create large text boxes that clutter the diagram)
+- Do NOT create long spanning Client→Data shortcuts when a Client→Gateway→Service→Data path already exists — they add crossings that turn the layout into a web
 
 ## Reasoning (scale with complexity)
 - Small diagrams (≤8 nodes): 2-3 sentences covering intent, key components, and flow
@@ -150,13 +154,13 @@ export function buildPlannerUserPrompt(
 QUALITY REQUIREMENTS:
 1. Classify intent first — "describe X" = EXPLAIN_CONCEPT (X internals), "my app uses X" = APPLICATION
 2. Choose direction wisely: graph LR for workflows/pipelines, graph TD for layered architectures
-3. Complete flows: bidirectional edges (request + response) unless fire-and-forget async
-4. Async edges for queues/brokers: "publishes event", "consumes message", "enqueues job"
-5. Sync edges for databases/APIs: "queries", "validates", "returns", "updates"
+3. Flow clarity: single forward edge per interaction; add return edge ONLY when it carries a distinct label (e.g., "returns token", "confirms write"). Do NOT mirror every forward edge — that creates a web.
+4. Async edges for queues/brokers: "publishes event", "consumes message", "enqueues job" (fire-and-forget, no return)
+5. Sync edges for databases/APIs: forward "queries", "validates" — only add explicit "returns" edge if the return step is operationally distinct and labeled; otherwise imply the response on the forward edge.
 6. Correct shapes with directives: cylinder=DB, queue=Kafka/RabbitMQ, cache=Redis, shield=auth, hexagon=LB, actor=human ONLY
-7. Subgraph grouping by layer (nest when multiple related components within a layer)
+7. Subgraph grouping by layer (2-5 nodes per group, max 2 levels deep); keep edges between adjacent layers — avoid long Client→Data shortcuts that cross the diagram.
 8. No dead-end nodes. No invented components.
-9. Stay within max ${options.maxNodes} nodes — prefer focused, complete diagrams over sprawling ones.
+9. Stay within max ${options.maxNodes} nodes and ~1.3 edges per node — fewer, clear edges beat many crossing lines.
 10. Avoid "/" in labels unless standard tech term (OK: "HTTP/REST", "TCP/UDP". Bad: "request/response" → use "validates and responds").
 
 Title: Only add a Title if the user explicitly requested a title/heading. Do NOT add a heading by default.`;
@@ -164,12 +168,12 @@ Title: Only add a Title if the user explicitly requested a title/heading. Do NOT
 
 export function getDetailGuidance(detailLevel: 1 | 2 | 3): string {
   if (detailLevel === 1) {
-    return 'SCOPE: ESSENTIAL ONLY. Core components and primary flow. Skip peripherals. Must show complete request/response cycle. Reasoning: 2-3 sentences.';
+    return 'SCOPE: ESSENTIAL ONLY. Core components and primary forward flow. Skip peripherals and non-essential returns. Reasoning: 2-3 sentences.';
   }
   if (detailLevel === 2) {
-    return 'SCOPE: STANDARD. Core components, main interactions, key supporting services. Complete flows with bidirectional edges. Reasoning: 3-5 sentences covering all steps.';
+    return 'SCOPE: STANDARD. Core components, main forward interactions, key supporting services. Add return edges only when distinct (e.g., "returns token", "cache hit"). Reasoning: 3-5 sentences covering all steps.';
   }
-  return 'SCOPE: COMPREHENSIVE. Full detail including secondary flows, error paths, async processing, monitoring. All connections bidirectional. Reasoning: 5-8 sentences with detail on each validation step.';
+  return 'SCOPE: COMPREHENSIVE. Full detail including secondary flows, error paths, async processing, monitoring. Return edges only for distinct operations, not for every forward edge. Reasoning: 5-8 sentences with detail on each validation step.';
 }
 
 export function getMaxNodesForSize(size: 'small' | 'medium' | 'large'): number {

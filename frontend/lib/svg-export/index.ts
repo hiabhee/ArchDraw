@@ -7,6 +7,7 @@ import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
+import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import {
   calculateBounds,
   nodeDepth,
@@ -33,24 +34,25 @@ export function generatePureSVG(
   const rawNodeMap = new Map(nodes.map((n) => [n.id, n]));
 
   const preparedNodes = nodes.map((node) => {
-    const measuredWidth = (node as Node & { measured?: { width?: number } }).measured?.width;
-    const measuredHeight = (node as Node & { measured?: { height?: number } }).measured?.height;
+    const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
 
-    let w = node.width ?? node.data?.nodeWidth ?? measuredWidth ?? NODE_WIDTH;
-    let h = node.height ?? node.data?.nodeHeight ?? measuredHeight ?? NODE_HEIGHT;
+    let w: number;
+    let h: number;
 
-    if (node.type === 'textLabelNode') {
-      w = w || 120;
-      h = h || 40;
-    } else if (node.type === 'annotationNode') {
-      w = w || 200;
-      h = h || 120;
-    } else if (node.type === 'groupNode' || node.type === 'group') {
-      w = w || 300;
-      h = h || 200;
+    if (isText) {
+      const measuredWidth = (node as Node & { measured?: { width?: number } }).measured?.width;
+      const measuredHeight = (node as Node & { measured?: { height?: number } }).measured?.height;
+      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? measuredWidth ?? (node.type === 'textLabelNode' ? 120 : 200);
+      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? measuredHeight ?? (node.type === 'textLabelNode' ? 40 : 120);
+    } else if (isGroup) {
+      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 300;
+      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 200;
     } else {
-      w = measuredWidth || w || 160;
-      h = measuredHeight || h || 80;
+      // Use the same effective dimensions as canvas (uniform 100px height) so export matches what user sees
+      const eff = getEffectiveNodeDimensions(node);
+      w = eff.width;
+      h = eff.height;
     }
 
     const abs = resolveAbsolutePosition(node, rawNodeMap);
@@ -60,6 +62,9 @@ export function generatePureSVG(
       width: w,
       height: h,
       position: abs,
+      // Clear parent so computeEdgeRoute's getAbsolutePosition doesn't double-add the group's offset (canvas uses relative positions, export now uses absolute)
+      parentNode: undefined,
+      parentId: undefined,
     };
   });
 

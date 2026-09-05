@@ -100,11 +100,11 @@ export function renderEdge(
     const knockout = isDark ? '#0f1117' : '#f8fafc';
     const border = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)';
     const sketchBorder = isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER;
-    const paddingX = isSketch ? 4 : 6;
-    const paddingY = isSketch ? 1.5 : 2;
-    const charWidth = isSketch ? 4.8 : 5.4;
-    const labelWidth = Math.max(36, labelText.length * charWidth + paddingX * 2);
-    const labelHeight = (isSketch ? 12 : 14) + paddingY * 2;
+    const paddingX = isSketch ? 7 : 7;
+    const paddingY = isSketch ? 2 : 3;
+    const charWidth = isSketch ? 6.2 : 6.0;
+    const labelWidth = Math.max(38, labelText.length * charWidth + paddingX * 2);
+    const labelHeight = (isSketch ? 15 : 16) + paddingY * 2;
 
     let labelBox = '';
     if (isSketch) {
@@ -155,14 +155,14 @@ export function renderEdge(
       <g transform="translate(${labelX}, ${labelY})">
         ${labelBox}
         <text
-          x="0" y="3"
-          fill="${fg}"
-          font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
-          font-size="${isBrutal ? 10 : 9}"
-          font-weight="${isBrutal ? 600 : 500}"
-          text-anchor="middle"
-          letter-spacing="${isSketch ? '0' : '0.01em'}"
-        >${escapeXml(labelText)}</text>
+           x="0" y="4"
+           fill="${fg}"
+           font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
+           font-size="${isBrutal ? 11 : isSketch ? 11 : 11}"
+           font-weight="${isBrutal ? 600 : 500}"
+           text-anchor="middle"
+           letter-spacing="${isSketch ? '0' : '0.015em'}"
+         >${escapeXml(labelText)}</text>
       </g>
     `.trim();
   }

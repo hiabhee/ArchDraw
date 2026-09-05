@@ -24,8 +24,8 @@ describe('computeEdgeRoute routing', () => {
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
     expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints[0]).toEqual({ x: 272, y: 140 });
-    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 152 });
+    expect(route.waypoints[0]).toEqual({ x: 272, y: 150 });
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 162 });
   });
 
   it('keeps the routed Z path for a large vertical offset', () => {
@@ -34,8 +34,8 @@ describe('computeEdgeRoute routing', () => {
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
     expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints[0]).toEqual({ x: 272, y: 140 });
-    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 340 });
+    expect(route.waypoints[0]).toEqual({ x: 272, y: 150 });
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 350 });
   });
 
   it('keeps parallel-edge separation (does not snap overlapping straights)', () => {

@@ -183,7 +183,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     showIcon,
   });
   const cardWidth = Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
-  const cardHeight = Math.max(nodeData.nodeHeight || NODE_HEIGHT, fitted.height);
+  const cardHeight = 100;
   const cloudIconSize = Math.max(
     ICON_SIZE.cloudMin,
     Math.round(Math.min(cardWidth * 0.3, cardHeight - 20)),

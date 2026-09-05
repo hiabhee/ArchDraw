@@ -72,28 +72,27 @@ describe('calculateNodeDimensions', () => {
       cylinderAxis: 'horizontal',
     });
 
+    // Uniform 100px for all nodes per user request
     expect(single.height).toBe(100);
-    expect(twoLines.height).toBe(110);
-    expect(threeLines.height).toBe(120);
-    expect(twoLines.height).toBeGreaterThan(single.height);
-    expect(threeLines.height).toBeGreaterThan(twoLines.height);
+    expect(twoLines.height).toBe(100);
+    expect(threeLines.height).toBe(100);
   });
 });
 
 describe('semantic silhouette sizing', () => {
   const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
-    hexagon: { wMin: 160, wMax: 240, hMin: 100, hMax: 120 },
-    cloud: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 112 },
-    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 124, hMax: 148 },
-    monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 120 },
-    mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 130 },
-    'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 112 },
+    hexagon: { wMin: 160, wMax: 240, hMin: 100, hMax: 100 },
+    cloud: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 100 },
+    monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 100 },
+    'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 100 },
     // New architecture-native shapes
     queue: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 100 },
-    cache: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 104 },
-    function: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 104 },
-    container: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 120 },
-    bucket: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 112 },
+    cache: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 100 },
+    function: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 100 },
+    container: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    bucket: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 100 },
   };
 
   for (const [shape, band] of Object.entries(bands)) {

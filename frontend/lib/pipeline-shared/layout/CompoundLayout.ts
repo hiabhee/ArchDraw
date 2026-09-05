@@ -61,6 +61,7 @@ interface CompoundContext {
   dimsById: Map<string, { width: number; height: number }>;
   edges: Array<{ source: string; target: string; label?: string }>;
   direction: LayoutDirection;
+  directionByGroup: Map<string, LayoutDirection>;
   nodeSep: number;
   rankSep: number;
   warnings: string[];
@@ -69,6 +70,15 @@ interface CompoundContext {
 
 function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0): LevelLayout {
   const memberSet = new Set(members);
+
+  // Determine the rank direction for this level: top-level uses global, inner levels use their parent group's direction if set (e.g. LR outer / TB inner for the dashed loop)
+  let levelDirection: LayoutDirection = ctx.direction;
+  if (depth > 0 && members.length > 0) {
+    const parentId = ctx.parentOf.get(members[0]);
+    if (parentId && ctx.directionByGroup.has(parentId)) {
+      levelDirection = ctx.directionByGroup.get(parentId)!;
+    }
+  }
 
   // Phase 1 — settle each child group into a fixed box first.
   const macroIds = new Set<string>();
@@ -87,8 +97,23 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
   let rankSep = ctx.rankSep;
   const hasExplicit = (ctx as unknown as { _hasExplicitSep?: boolean })._hasExplicitSep;
   if (!hasExplicit) {
-    const baseNodeSep = (ctx as unknown as { _baseNodeSep?: number })._baseNodeSep ?? ctx.nodeSep;
-    const baseRankSep = (ctx as unknown as { _baseRankSep?: number })._baseRankSep ?? ctx.rankSep;
+    let baseNodeSep: number;
+    let baseRankSep: number;
+    // For inner groups with their own direction, recompute base spacing for that direction (TB needs 90 vs LR 110)
+    if (depth > 0 && members.length > 0) {
+      const parentId = ctx.parentOf.get(members[0]);
+      if (parentId && ctx.directionByGroup.has(parentId)) {
+        const lvlBase = defaultCompoundLayoutOptions(ctx.directionByGroup.get(parentId)!);
+        baseNodeSep = lvlBase.nodeSep!;
+        baseRankSep = lvlBase.rankSep!;
+      } else {
+        baseNodeSep = (ctx as unknown as { _baseNodeSep?: number })._baseNodeSep ?? ctx.nodeSep;
+        baseRankSep = (ctx as unknown as { _baseRankSep?: number })._baseRankSep ?? ctx.rankSep;
+      }
+    } else {
+      baseNodeSep = (ctx as unknown as { _baseNodeSep?: number })._baseNodeSep ?? ctx.nodeSep;
+      baseRankSep = (ctx as unknown as { _baseRankSep?: number })._baseRankSep ?? ctx.rankSep;
+    }
     // Count edges that actually affect this level (both endpoints resolve here)
     let localEdgeCount = 0;
     const seenPairs = new Set<string>();
@@ -148,7 +173,7 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
-    rankdir: toDagreRankDir(ctx.direction),
+    rankdir: toDagreRankDir(levelDirection),
     nodesep: nodeSep,
     ranksep: rankSep,
     marginx: 0,
@@ -363,8 +388,15 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
         effectiveHasExplicit = false;
       }
     }
-    const baseNodeSep = effectiveHasExplicit ? (opts.nodeSep ?? defaults.nodeSep ?? 140) : (defaults.nodeSep ?? 140);
-    const baseRankSep = effectiveHasExplicit ? (opts.rankSep ?? defaults.rankSep ?? 220) : (defaults.rankSep ?? 220);
+    const baseNodeSep = effectiveHasExplicit ? (opts.nodeSep ?? defaults.nodeSep ?? 110) : (defaults.nodeSep ?? 110);
+    const baseRankSep = effectiveHasExplicit ? (opts.rankSep ?? defaults.rankSep ?? 170) : (defaults.rankSep ?? 170);
+
+    const directionByGroup = new Map<string, LayoutDirection>();
+    for (const node of params.nodes) {
+      if (node.isGroup && node.direction) {
+        directionByGroup.set(node.id, node.direction);
+      }
+    }
 
     const ctx: CompoundContext = {
       childrenByParent,
@@ -372,6 +404,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       dimsById,
       edges: params.edges.map(e => ({ source: e.source, target: e.target, label: e.label })),
       direction: params.direction,
+      directionByGroup,
       nodeSep: baseNodeSep,
       rankSep: baseRankSep,
       warnings,

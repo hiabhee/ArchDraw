@@ -16,6 +16,7 @@ export interface LayoutNode {
   height: number;
   parentId?: string;
   isGroup?: boolean;
+  direction?: LayoutDirection;
 }
 
 export interface LayoutEdge {
@@ -67,11 +68,13 @@ export interface LayoutEngine {
 }
 
 /**
- * Canonical compound-graph spacing — compact, alignment-first.
- * Tuned for fixed-grid nodes (160/200/240×100) with tight air so ranks read
- * as cohesive columns/rows without sprawling. Previous generous (150/180, 240,
- * 80) left large gaps between 2 nodes — tightened to remove unnecessary space
- * while still centering mirrored sub-trees (e.g. Leader → 2 Followers).
+ * Canonical compound-graph spacing — flow-first, generous air.
+ * Tuned for fixed-grid nodes (160/200/240×100) with balanced separation so
+ * ranks read as distinct columns/rows and edges have room to route without
+ * crossing. History: tight (50/60,120,32) packed nodes and hid label space;
+ * generous (150/180,240,80) sprawled small diagrams. This middle ground keeps
+ * 2-node demos compact while giving 10-15 node architectures clear flow,
+ * still centering mirrored sub-trees (e.g. Leader → 2 Followers).
  */
 export function defaultCompoundLayoutOptions(
   direction: LayoutDirection,
@@ -79,10 +82,10 @@ export function defaultCompoundLayoutOptions(
 ): LayoutOptions {
   const isVertical = direction === 'TB' || direction === 'BT';
   const base: LayoutOptions = {
-    nodeSep: isVertical ? 50 : 60,
-    rankSep: 120,
-    marginX: 32,
-    marginY: 32,
+    nodeSep: isVertical ? 90 : 110,
+    rankSep: 170,
+    marginX: 48,
+    marginY: 48,
     // Group padding must match the subgraph sizer exactly (layoutConstants) so
     // the container dagre reserves is the container that gets drawn.
     paddingLeft: SUBGRAPH_PADDING_X,
@@ -91,15 +94,26 @@ export function defaultCompoundLayoutOptions(
     paddingBottom: SUBGRAPH_PADDING_BOTTOM,
   };
 
-  // Adaptive density bump — simple approach for crowded graphs (e.g. >6 edges).
-  // Keeps base values stable for sparse diagrams (tests, landing demo) but
-  // adds air when edge count signals a tangled flow (URL-shortener example).
+  // Adaptive density bump — adds air for crowded graphs (e.g. >10 edges) where
+  // flat 170/110 would still feel tangled. Keeps base values stable for sparse
+  // diagrams (tests, landing demo) but expands for URL-shortener / video-stream
+  // style dense graphs. Capped to avoid sprawling extreme inputs.
   const edgeCount = density?.edgeCount ?? 0;
-  if (edgeCount > 6) {
+  const nodeCount = density?.nodeCount ?? 0;
+  // Density trigger: either many edges or high edge-to-node ratio (>1.6 signals web)
+  const densityScore = Math.max(edgeCount, Math.round((edgeCount / Math.max(1, nodeCount)) * 10));
+  const effectiveCount = edgeCount > 10 || densityScore > 16 ? edgeCount : 0;
+  if (effectiveCount > 10) {
+    const extraEdges = effectiveCount - 10;
+    const nodeExtra = Math.min(30, extraEdges * 6);
+    const rankExtra = Math.min(60, extraEdges * 10);
+    base.nodeSep = (base.nodeSep ?? 0) + nodeExtra;
+    base.rankSep = (base.rankSep ?? 0) + rankExtra;
+  } else if (edgeCount > 6) {
+    // Mild bump for moderate density (7-10 edges) – keeps legacy behavior but softer
     const extraEdges = edgeCount - 6;
-    // Cap to avoid sprawling small demo graphs on extreme inputs
-    const nodeExtra = Math.min(40, extraEdges * 8);
-    const rankExtra = Math.min(80, extraEdges * 12);
+    const nodeExtra = Math.min(20, extraEdges * 5);
+    const rankExtra = Math.min(30, extraEdges * 7);
     base.nodeSep = (base.nodeSep ?? 0) + nodeExtra;
     base.rankSep = (base.rankSep ?? 0) + rankExtra;
   }
@@ -109,8 +123,9 @@ export function defaultCompoundLayoutOptions(
 
 /**
  * Rough edge-label pill size so dagre reserves rank space for it. Mirrors the
- * counter-scaled label sizing in `lib/utils/edgeLabelLayout.ts` (worst-case 2x
+ * counter-scaled label sizing in `lib/utils/edgeLabelLayout.ts` (worst-case 1.5x
  * CSS size) without importing canvas-only modules into the engine.
+ * Updated for larger readable labels (precision 10.5px / brutal 11px).
  *
  * Lives here (not in a single engine) so the flat compound path AND the
  * two-phase compound path reserve label space identically — otherwise grouped
@@ -119,6 +134,7 @@ export function defaultCompoundLayoutOptions(
  */
 export function estimateEdgeLabelSize(label: string | undefined): { width: number; height: number } {
   if (!label) return { width: 0, height: 0 };
-  const cssWidth = Math.max(24, label.length * 4.8 + 10);
-  return { width: cssWidth * 2, height: 11 * 2 };
+  // Reserve for the larger brutal pill (worst case): 6.2px per char + 16 padding, 15px height, 1.5x counter-scale
+  const cssWidth = Math.max(38, label.length * 6.2 + 16);
+  return { width: cssWidth * 1.5, height: 15 * 1.5 };
 }

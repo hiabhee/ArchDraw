@@ -66,15 +66,21 @@ export class IntegratedLayoutEngine {
       nodeCount: objects.nodes.length,
     });
     return {
-      nodes: objects.nodes.map(node => ({
-        id: node.id,
-        width: node.width || DEFAULT_NODE_WIDTH,
-        height: node.height || DEFAULT_NODE_HEIGHT,
-        parentId: node.parentNode
-        || (node as { parentId?: string }).parentId
-        || (node.data as { parentId?: string })?.parentId,
-        isGroup: node.type === 'groupNode' || (node.data as { isGroup?: boolean })?.isGroup === true,
-      })),
+      nodes: objects.nodes.map(node => {
+        const rawDir = (node.data as { direction?: string; groupDirection?: string })?.direction
+          ?? (node.data as { groupDirection?: string })?.groupDirection;
+        const mappedDir = rawDir ? this.mapDirection(rawDir as Direction) : undefined;
+        return {
+          id: node.id,
+          width: node.width || DEFAULT_NODE_WIDTH,
+          height: node.height || DEFAULT_NODE_HEIGHT,
+          parentId: node.parentNode
+          || (node as { parentId?: string }).parentId
+          || (node.data as { parentId?: string })?.parentId,
+          isGroup: node.type === 'groupNode' || (node.data as { isGroup?: boolean })?.isGroup === true,
+          ...(mappedDir ? { direction: mappedDir } : {}),
+        };
+      }),
       edges: objects.edges.map(edge => ({
         id: edge.id,
         source: edge.source,

@@ -15,6 +15,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
 
   // Create subgraph nodes first (parents must exist before children)
   for (const sub of ast.subgraphs) {
+    const isLoop = /repeat|loop|for each|each customer/i.test(sub.label);
     const rfNode: RFNode = {
       id: sub.id,
       type: 'groupNode',
@@ -24,6 +25,8 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         groupLabel: sub.label,
         isGroup: true,
         color: getDeterministicColor(sub.id),
+        ...(sub.direction ? { direction: sub.direction, groupDirection: sub.direction } : {}),
+        ...(isLoop ? { isLoop: true, variant: 'dashed', loopLabel: sub.label } : {}),
       },
       style: {
         width: NODE_WIDTH + 40,

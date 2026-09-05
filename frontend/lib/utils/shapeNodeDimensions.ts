@@ -27,14 +27,9 @@ export function resolveShapeNodeDimensions(data: ShapeNodeDimensionInput): {
   const subtitle = (data.sublabel ?? data.subtitle ?? '').trim() || undefined;
   const fitted = calculateNodeDimensions(data.label || '', subtitle, options);
 
-  // Some shapes have axis-specific sizing — ignore stale stored dimensions.
-  const ignoreStored = shape === 'document' || shape === 'documents' || shape === 'cylinder' || shape === 'queue';
-  const width = ignoreStored ? fitted.width : Math.max(data.nodeWidth ?? 0, fitted.width);
-  // Cylinder/queue height is axis-specific — never inherit a mismatched nodeHeight.
-  const height =
-    ignoreStored
-      ? fitted.height
-      : Math.max(data.nodeHeight ?? 0, fitted.height);
+  // Uniform 100px for all nodes per user request — ignore any larger stored heights.
+  const width = fitted.width;
+  const height = 100;
 
   return { width, height };
 }
@@ -57,16 +52,28 @@ export function getEffectiveNodeDimensions(node: Node): { width: number; height:
 
   const measured = node as Node & { measured?: { width?: number; height?: number } };
   const data = node.data ?? {};
+  const isGroup = node.type === 'groupNode' || (data as { isGroup?: boolean })?.isGroup === true;
+  if (isGroup) {
+    return {
+      width:
+        node.width ??
+        measured.measured?.width ??
+        (data.nodeWidth as number | undefined) ??
+        160,
+      height:
+        node.height ??
+        measured.measured?.height ??
+        (data.nodeHeight as number | undefined) ??
+        100,
+    };
+  }
+  // Uniform 100px for all non-group nodes
   return {
     width:
       node.width ??
       measured.measured?.width ??
       (data.nodeWidth as number | undefined) ??
       160,
-    height:
-      node.height ??
-      measured.measured?.height ??
-      (data.nodeHeight as number | undefined) ??
-      100,
+    height: 100,
   };
 }

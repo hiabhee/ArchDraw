@@ -178,32 +178,27 @@ const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
   documents: 120,
 };
 
-/** Min + max height per shape (from the visual-vocabulary sizing table).
- * max: preferred maximum for typical content
- * absoluteMax: hard limit for excessive content
- * Bands mirror AGENTS.md §"Node sizing" / nodeSizing.test.ts.
- */
+/** Uniform height: all nodes are 100px per user request — no per-shape variation. */
 const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteMax: number }> = {
-  rectangle: { min: 100, max: Infinity, absoluteMax: Infinity },
-  'rounded-rectangle': { min: 100, max: Infinity, absoluteMax: Infinity },
-  diamond: { min: 100, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
-  parallelogram: { min: 100, max: Infinity, absoluteMax: Infinity },
-  circle: { min: 100, max: SHAPE_LANE_HEIGHT_CAP, absoluteMax: SHAPE_LANE_HEIGHT_CAP * 1.5 },
-  cylinder: { min: 100, max: Infinity, absoluteMax: Infinity },
-  hexagon: { min: 100, max: 120, absoluteMax: 180 },
-  cloud: { min: 100, max: 112, absoluteMax: 160 },
-  actor: { min: 124, max: 148, absoluteMax: 176 },
-  monitor: { min: 100, max: 120, absoluteMax: 180 },
-  mobile: { min: 100, max: 130, absoluteMax: 180 },
-  'dashed-rectangle': { min: 100, max: 112, absoluteMax: 168 },
-  // New architecture-native shapes
-  queue: { min: 100, max: 100, absoluteMax: 120 },
-  cache: { min: 100, max: 104, absoluteMax: 156 },
-  'function': { min: 100, max: 104, absoluteMax: 156 },
-  container: { min: 100, max: 120, absoluteMax: 180 },
-  bucket: { min: 100, max: 112, absoluteMax: 168 },
-  document: { min: 156, max: 195, absoluteMax: 390 },  // Match documents
-  documents: { min: 156, max: 195, absoluteMax: 390 },
+  rectangle: { min: 100, max: 100, absoluteMax: 100 },
+  'rounded-rectangle': { min: 100, max: 100, absoluteMax: 100 },
+  diamond: { min: 100, max: 100, absoluteMax: 100 },
+  parallelogram: { min: 100, max: 100, absoluteMax: 100 },
+  circle: { min: 100, max: 100, absoluteMax: 100 },
+  cylinder: { min: 100, max: 100, absoluteMax: 100 },
+  hexagon: { min: 100, max: 100, absoluteMax: 100 },
+  cloud: { min: 100, max: 100, absoluteMax: 100 },
+  actor: { min: 100, max: 100, absoluteMax: 100 },
+  monitor: { min: 100, max: 100, absoluteMax: 100 },
+  mobile: { min: 100, max: 100, absoluteMax: 100 },
+  'dashed-rectangle': { min: 100, max: 100, absoluteMax: 100 },
+  queue: { min: 100, max: 100, absoluteMax: 100 },
+  cache: { min: 100, max: 100, absoluteMax: 100 },
+  'function': { min: 100, max: 100, absoluteMax: 100 },
+  container: { min: 100, max: 100, absoluteMax: 100 },
+  bucket: { min: 100, max: 100, absoluteMax: 100 },
+  document: { min: 100, max: 100, absoluteMax: 100 },
+  documents: { min: 100, max: 100, absoluteMax: 100 },
 };
 
 export interface NodeDimensions {
@@ -278,21 +273,14 @@ export function countPipeLabelLines(label?: string, subtitle?: string): number {
   return Math.max(1, lines.length);
 }
 
-/** Horizontal pipe bbox height — grows with stacked label lines and icon. Minimum 100px per audit. */
-export function getHorizontalPipeHeight(lineCount: number, showIcon: boolean = false): number {
-  const iconPadding = showIcon ? 36 : 0;  // Extra height for icon (ICON_SIZE.box + padding)
-  if (lineCount <= 1) return 100 + iconPadding;
-  if (lineCount === 2) return 110 + iconPadding;
-  return 120 + iconPadding;
+/** Uniform height 100 per user request — pipe variants also fixed. */
+export function getHorizontalPipeHeight(_lineCount?: number, _showIcon?: boolean): number {
+  return 100;
 }
 
-/**
- * Queue (horizontal pipe) bbox height — minimum 100px per audit.
- */
-export function getQueuePipeHeight(lineCount: number): number {
-  if (lineCount <= 1) return 100;
-  if (lineCount === 2) return 110;
-  return 120;
+/** Uniform height 100 per user request. */
+export function getQueuePipeHeight(_lineCount?: number): number {
+  return 100;
 }
 
 /**
@@ -326,24 +314,8 @@ export function calculateNodeDimensions(
   const idealBBoxWidth = idealBandWidth / band;
   const width = fitWidthToContent(idealBBoxWidth, minWidth, maxWidth);
 
-  // Height: fixed per shape — no growth with wrappedLines. Dagre centers stay aligned.
-  // Queue / horizontal pipes keep their 100/110/120 stepped height for pipe caps,
-  // but width is still grid-locked; vertical cylinders and documents use their
-  // fixed minima so ranks stay level.
-  let height: number;
-  if (isQueue) {
-    // Queue: fixed 100 for single line, stepped only for explicit newlines (not wrapping)
-    const lineCount = countPipeLabelLines(label, subtitle);
-    height = getQueuePipeHeight(lineCount);
-    // Force width to grid as well (was 240/280 before)
-    // width already snapped above
-  } else if (isHorizontalPipe) {
-    height = getHorizontalPipeHeight(countPipeLabelLines(label, subtitle), options.showIcon === true);
-  } else {
-    height = heightRange.min;
-    // Actor is intentionally taller (124) so its body can contain the title
-    // Do not scale actor down to 100 — keep its fixed taller box
-  }
+  // Uniform 100px for all nodes per user request — no per-shape variation, no growth with lines.
+  const height = 100;
 
   // Clamp queue width to standard grid (was XL 280) — keep 160/200/240
   // Already done via fitWidthToContent with SIZE_M/SIZE_L

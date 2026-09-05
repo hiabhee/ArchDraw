@@ -114,8 +114,9 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
           ? hexToRgba(color, 0.42)
           : hexToRgba(color, 0.35);
 
+  const isLoop = !!(dataRec as { isLoop?: boolean; variant?: string }).isLoop || (dataRec as { variant?: string }).variant === 'dashed';
   const borderWidth = brutal ? 3 : selected ? 1.5 : 1.25;
-  const borderStyle: 'dashed' | 'solid' = sketch ? 'dashed' : 'solid';
+  const borderStyle: 'dashed' | 'solid' = isLoop ? 'dashed' : sketch ? 'dashed' : 'solid';
 
   // Sketch body: rough rounded-rect with light hachure swimlane (penciled zone)
   // Recomputed on resize via `box`. Pass explicit hachure so the warm paper
@@ -247,62 +248,108 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
         }}
         onResizeEnd={handleResizeEnd}
       />
-      {/* Quiet caption label */}
-      <div
-        className={sketch || brutal ? 'group-label' : undefined}
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 12,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: brutal ? '4px 10px' : 0,
-          fontSize: brutal ? 12 : 11,
-          fontWeight: brutal ? 700 : 500,
-          letterSpacing: '0.04em',
-          textTransform: brutal ? 'uppercase' : 'none',
-          color: tagText,
-          background: tagBg,
-          border: brutal ? `2px solid ${borderColor}` : 'none',
-          borderRadius: brutal ? 4 : 0,
-          lineHeight: 1.3,
-          whiteSpace: 'nowrap',
-          cursor: 'pointer',
-          minWidth: 40,
-          boxShadow: 'none',
-        }}
-        onClick={handleLabelClick}
-        title="Click to edit group name"
-      >
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleSave}
-            onKeyDown={handleKeyDown}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="nodrag nopan"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              fontSize: brutal ? 12 : 11,
-              fontWeight: brutal ? 700 : 500,
-              letterSpacing: '0.04em',
-              color: tagText,
-              width: '100%',
-              cursor: 'text',
-              padding: 0,
-              textTransform: brutal ? 'uppercase' : 'none',
-            }}
-          />
-        ) : (
-          <span>{label || 'Group'}</span>
-        )}
-      </div>
+      {/* Quiet caption label - for loop groups, show at bottom with repeat icon */}
+      {!isLoop && (
+        <div
+          className={sketch || brutal ? 'group-label' : undefined}
+          style={{
+            position: 'absolute',
+            top: 16,
+            left: 12,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: brutal ? '4px 10px' : 0,
+            fontSize: brutal ? 12 : 11,
+            fontWeight: brutal ? 700 : 500,
+            letterSpacing: '0.04em',
+            textTransform: brutal ? 'uppercase' : 'none',
+            color: tagText,
+            background: tagBg,
+            border: brutal ? `2px solid ${borderColor}` : 'none',
+            borderRadius: brutal ? 4 : 0,
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            minWidth: 40,
+            boxShadow: 'none',
+          }}
+          onClick={handleLabelClick}
+          title="Click to edit group name"
+        >
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="nodrag nopan"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontSize: brutal ? 12 : 11,
+                fontWeight: brutal ? 700 : 500,
+                letterSpacing: '0.04em',
+                color: tagText,
+                width: '100%',
+                cursor: 'text',
+                padding: 0,
+                textTransform: brutal ? 'uppercase' : 'none',
+              }}
+            />
+          ) : (
+            <span>{label || 'Group'}</span>
+          )}
+        </div>
+      )}
+      {isLoop && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -28,
+            left: 12,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: '0.01em',
+            color: isDark ? 'rgba(148,163,184,0.9)' : 'rgba(100,116,139,0.9)',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+          }}
+          onClick={handleLabelClick}
+          title="Click to edit loop label"
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>↻</span>
+          <span>{isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="nodrag nopan"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontSize: 11,
+                fontWeight: 500,
+                color: isDark ? 'rgba(148,163,184,0.9)' : 'rgba(100,116,139,0.9)',
+                cursor: 'text',
+                padding: 0,
+              }}
+            />
+          ) : (label || 'Group')}</span>
+        </div>
+      )}
 
       <NodeHandles nodeId={id} />
     </div>

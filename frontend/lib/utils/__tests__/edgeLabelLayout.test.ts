@@ -75,9 +75,9 @@ describe('computeEdgeLabelLayout', () => {
     const anchor = res.get('e1')
     expect(anchor).toBeDefined()
     expect(anchor!.t).toBeCloseTo(0.5, 3)
-    // Straight route (260,140) -> (500,140): midpoint is (380,140).
+    // Straight route (260,150) -> (500,150): midpoint is (380,150).
     expect(anchor!.x).toBeCloseTo(380, 0)
-    expect(anchor!.y).toBeCloseTo(140, 0)
+    expect(anchor!.y).toBeCloseTo(150, 0)
   })
 
   it('respects a stored labelT as the preferred position', () => {
@@ -158,8 +158,8 @@ describe('computeEdgeLabelLayout', () => {
     const niB = nodeInternals(nodesB)
     const ra = computeEdgeLabelLayout(edges, niA, 'LR')
     const rb = computeEdgeLabelLayout(edges, niB, 'LR')
-    expect(ra.get('e1')!.y).toBeCloseTo(140, 0)
-    expect(rb.get('e1')!.y).toBeCloseTo(240, 0)
+    expect(ra.get('e1')!.y).toBeCloseTo(150, 0)
+    expect(rb.get('e1')!.y).toBeCloseTo(250, 0)
     expect(ra).not.toBe(rb)
   })
 
@@ -286,7 +286,7 @@ describe('computeEdgeLabelLayout', () => {
     expect(anchor.x).toBeGreaterThan(0)
     expect(anchor.x).toBeLessThan(500)
     expect(anchor.y).toBeGreaterThan(80)
-    expect(anchor.y).toBeLessThan(200)
+    expect(anchor.y).toBeLessThanOrEqual(200)
   })
 
   it('keeps labels off nodes even at the doubled (zoomed-out) scale', () => {
@@ -301,8 +301,8 @@ describe('computeEdgeLabelLayout', () => {
     const a = res.get('e1')!
     expect(a).toBeDefined()
 
-    // Label is centered on the horizontal edge between the nodes.
-    expect(a.y).toBeCloseTo(100 + 88 / 2, 0)
+    // Label is centered on the horizontal edge between the nodes (uniform 100px height).
+    expect(a.y).toBeCloseTo(150, 0)
     expect(a.t).toBeCloseTo(0.5, 1)
   })
 

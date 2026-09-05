@@ -42,7 +42,7 @@ describe('generatePureSVG render styles', () => {
     const { nodes, edges } = fixture();
     const svg = generatePureSVG(nodes, edges, true, '#0f172a', 'LR', 'precision');
 
-    expect(svg).toContain('<polygon points="100,4 196,100 100,196 4,100" fill=');
+    expect(svg).toContain('<polygon points="80,4 156,50 80,96 4,50" fill=');
     expect(svg).toContain('<rect x="1" y="1" width="198" height="98" rx="10" ry="10" fill=');
     expect(svg).toContain('stroke-width="1.25"');
     expect(svg).toContain('data-edge-marker="solid-arrowhead"');
@@ -56,7 +56,7 @@ describe('generatePureSVG render styles', () => {
     const svg = generatePureSVG(nodes, edges, true, '#0f172a', 'LR', 'sketch');
 
     expect(svg).not.toContain('marker-end="url(#arrow-e1)"');
-    expect(svg).not.toMatch(/<polygon points="100,4 196,100 100,196 4,100" fill=/);
+    expect(svg).not.toMatch(/<polygon points="80,4 156,50 80,96 4,50" fill=/);
     expect(svg).not.toMatch(/<rect x="1" y="1" width="198" height="98" rx="10" ry="10" fill=/);
     // Sketch uses handwritten fonts (Patrick Hand / Caveat) not Inter
     expect(svg).toContain('Patrick Hand');
