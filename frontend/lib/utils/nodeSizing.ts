@@ -55,7 +55,7 @@ const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
   cylinder: 0.85,
   hexagon: 0.58,
   cloud: 0.8,
-  actor: 0.68,
+  actor: 0.42,
   monitor: 0.72,
   mobile: 0.56,
   'dashed-rectangle': 0.88,
@@ -109,7 +109,7 @@ const SHAPE_PREFERRED_MAX_WIDTH: Record<ShapeFit, number> = {
   cylinder: SIZE_L,
   hexagon: SIZE_L,
   cloud: SIZE_L,
-  actor: SIZE_S,
+  actor: SIZE_M,
   monitor: SIZE_L,
   mobile: SIZE_S,
   'dashed-rectangle': SIZE_L,
@@ -136,7 +136,7 @@ const SHAPE_ABSOLUTE_MAX_WIDTH: Record<ShapeFit, number> = {
   cylinder: SIZE_XXL * 2,
   hexagon: SIZE_XXL,
   cloud: SIZE_XXL * 1.5,
-  actor: SIZE_M,  // Keep compact
+  actor: SIZE_L,  // Allow wider for big words like CUSTOMER/DRIVER
   monitor: SIZE_XXL * 2,
   mobile: SIZE_M,  // Keep compact
   'dashed-rectangle': SIZE_XXL * 2,
