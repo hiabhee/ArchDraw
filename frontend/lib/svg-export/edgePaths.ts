@@ -399,7 +399,7 @@ export function getPath(
       const [path, labelX, labelY] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
       return { path, labelX, labelY };
     }
-    // Default: smoothstep/smooth
+    // Default: smoothstep/smooth - must match canvas edgeRouteBuilder (24 precision, 10 brutal)
     const [path, labelX, labelY] = getSmoothStepPath({
       sourceX,
       sourceY,
@@ -407,7 +407,7 @@ export function getPath(
       targetX,
       targetY,
       targetPosition,
-      borderRadius: 50,
+      borderRadius: 24,
     });
     return { path, labelX, labelY };
   }
@@ -450,7 +450,7 @@ export function getPath(
       targetX,
       targetY,
       targetPosition,
-      borderRadius: 50,
+      borderRadius: 24,
     });
     return { path, labelX, labelY };
   }

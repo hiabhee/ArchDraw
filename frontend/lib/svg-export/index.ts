@@ -169,8 +169,9 @@ export function generatePureSVG(
       y: pt.y - bounds.minY,
     }));
 
+    const isBrutal = renderStyleId === 'neubrutalism';
     const isStep = edge.data?.pathType === 'step';
-    const borderRadius = isStep ? 0 : 40;
+    const borderRadius = isStep ? 0 : isBrutal ? 10 : 24;
 
     let svgPath = '';
     if (edge.source === edge.target) {
