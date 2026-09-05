@@ -51,7 +51,7 @@ export async function syncDiagramStateFromSession(
   sessionId: string,
   apiBase?: string
 ): Promise<boolean> {
-  const API_BASE = apiBase || process.env.API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = apiBase || process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
   try {
     const response = await fetchWithTimeout(`${API_BASE}/api/diagram/session/${encodeURIComponent(sessionId)}`);
     if (!response.ok) return false;

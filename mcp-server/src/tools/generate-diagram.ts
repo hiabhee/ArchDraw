@@ -204,7 +204,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
 
     // Handle Mermaid input directly
     if (input.mermaid) {
-      const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+      const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
       const label = input.label || 'AI Diagram';
       
       const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
@@ -414,7 +414,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
     let message: string | undefined;
     let sessionId: string | undefined;
 
-    const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+    const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
 
     try {
       const label = input.label || input.nodes[0]?.label || 'AI Diagram';

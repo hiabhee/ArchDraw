@@ -373,7 +373,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     let diagramUrl: string | undefined;
     let message: string | undefined;
     let sessionId: string | undefined;
-    const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+    const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
 
     try {
       const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {

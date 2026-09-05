@@ -191,7 +191,7 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
 
   // Best-effort persistence: save the updated canvas to a new share session so
   // the result is viewable in the editor. Never fail the update if the API is down.
-  const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
   try {
     const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
       method: 'POST',

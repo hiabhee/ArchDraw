@@ -318,7 +318,7 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
     name: 'apply_template',
     description: `Apply a pre-built architecture template with pre-defined nodes and edges.
 
-**IMPORTANT**: When this tool returns a 'diagramUrl', you MUST tell the user to open that URL in their browser to view the diagram. The URL format is: http://localhost:3000/editor?session=<sessionId>
+**IMPORTANT**: When this tool returns a 'diagramUrl', you MUST tell the user to open that URL in their browser to view the diagram. The URL format is: https://archdraw.hiabhee.online/editor?session=<sessionId>
 
 **USE WHEN**: User wants a common architecture pattern (e-commerce, chat app, rideshare, etc.)
 **OUTPUT**: Full diagram with positioned nodes and edges from the template. Check the 'message' and 'diagramUrl' fields and tell the user to open the diagramUrl.

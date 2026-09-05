@@ -2,7 +2,7 @@ import { getDiagramState } from '../lib/diagram-state.js';
 import { ExportDiagramInputSchema } from '../lib/schema.js';
 import { fetchWithTimeout } from '../lib/http.js';
 
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
 
 export async function exportDiagram(input: unknown) {
   const validated = ExportDiagramInputSchema.parse(input);
