@@ -15,6 +15,8 @@ import {
   type HandlerPairScore,
 } from './handlerPairScorer'
 
+const FOREIGN_NODE_CLEARANCE = 30
+
 export interface EdgeRouteResult {
   sourcePosition: Position
   targetPosition: Position
@@ -130,15 +132,21 @@ function pathCollidesWithRects(
 ): boolean {
   for (let i = 0; i < waypoints.length - 1; i++) {
     for (const [, rect] of nodeRects) {
+      const expanded = {
+        x: rect.x - FOREIGN_NODE_CLEARANCE,
+        y: rect.y - FOREIGN_NODE_CLEARANCE,
+        w: rect.w + FOREIGN_NODE_CLEARANCE * 2,
+        h: rect.h + FOREIGN_NODE_CLEARANCE * 2,
+      }
       if (segmentIntersectsRect(
         waypoints[i].x,
         waypoints[i].y,
         waypoints[i + 1].x,
         waypoints[i + 1].y,
-        rect.x,
-        rect.y,
-        rect.w,
-        rect.h
+        expanded.x,
+        expanded.y,
+        expanded.w,
+        expanded.h
       )) {
         return true
       }

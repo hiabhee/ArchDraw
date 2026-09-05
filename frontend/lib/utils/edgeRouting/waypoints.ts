@@ -183,10 +183,13 @@ function pickLowestBendPath(
   return best;
 }
 
+const FOREIGN_CLEARANCE = 30;
+const TERMINAL_CLEARANCE = 8;
+
 function collectObstacleMargins(
   nodeRects: Map<string, NodeRect>,
   excludedIds: Set<string>,
-  margin: number = 20,
+  margin: number = FOREIGN_CLEARANCE,
 ): { xs: number[]; ys: number[] } {
   const xs: number[] = [];
   const ys: number[] = [];
@@ -749,17 +752,18 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
     excludedNodeIds = new Set(),
   } = params;
 
-  const NODE_PADDING = 8;
   let paddedRects: Map<string, NodeRect> | undefined;
   if (nodeRects) {
     paddedRects = new Map();
     for (const [id, rect] of nodeRects) {
+      const isTerminal = id.startsWith('__edge_');
+      const pad = isTerminal ? TERMINAL_CLEARANCE : FOREIGN_CLEARANCE;
       paddedRects.set(id, {
         id: rect.id,
-        x: rect.x - NODE_PADDING,
-        y: rect.y - NODE_PADDING,
-        w: rect.w + NODE_PADDING * 2,
-        h: rect.h + NODE_PADDING * 2,
+        x: rect.x - pad,
+        y: rect.y - pad,
+        w: rect.w + pad * 2,
+        h: rect.h + pad * 2,
       });
     }
   }

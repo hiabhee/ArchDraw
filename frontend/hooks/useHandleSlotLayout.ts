@@ -10,8 +10,12 @@ import {
 } from '@/lib/utils/handleSlotOrder';
 import {
   selectBestHandlerPair,
+  scoreAllHandlerPairs,
+  buildDefaultOrthogonalWaypoints,
+  anchorOutsideBoundary,
   type HandlerRect,
 } from '@/lib/utils/handlerPairScorer';
+import { segmentIntersectsRect } from '@/lib/utils/collisionFreeEdgePath';
 
 const HANDLE_TRANSITION =
   'top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease';
@@ -94,6 +98,33 @@ function buildScorerObstacles(
   return map;
 }
 
+function orthogonalPenetratesTerminalForHandles(
+  sourceRect: HandlerRect,
+  targetRect: HandlerRect,
+  sourceSide: Position,
+  targetSide: Position,
+): boolean {
+  const srcA = anchorOutsideBoundary(sourceRect, sourceSide);
+  const tgtA = anchorOutsideBoundary(targetRect, targetSide);
+  const waypoints = buildDefaultOrthogonalWaypoints(srcA, tgtA, sourceSide, targetSide);
+  const pad = 2;
+  const shrink = (r: HandlerRect): HandlerRect => ({
+    x: r.x + pad,
+    y: r.y + pad,
+    width: Math.max(1, r.width - pad * 2),
+    height: Math.max(1, r.height - pad * 2),
+  });
+  const src = shrink(sourceRect);
+  const tgt = shrink(targetRect);
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i];
+    const b = waypoints[i + 1];
+    if (segmentIntersectsRect(a.x, a.y, b.x, b.y, src.x, src.y, src.width, src.height)) return true;
+    if (segmentIntersectsRect(a.x, a.y, b.x, b.y, tgt.x, tgt.y, tgt.width, tgt.height)) return true;
+  }
+  return false;
+}
+
 function resolveScorerSide(
   edge: Edge,
   nodeId: string,
@@ -135,7 +166,7 @@ function resolveScorerSide(
   const laneSource = sideFromDataString(data?.laneSourceSide);
   const laneTarget = sideFromDataString(data?.laneTargetSide);
 
-  const pair = selectBestHandlerPair(
+  let pair = selectBestHandlerPair(
     sourceRect,
     targetRect,
     direction,
@@ -146,6 +177,45 @@ function resolveScorerSide(
     laneSource,
     laneTarget,
   );
+
+  // Mirror edgeRouteBuilder's terminal-penetration guard so handle side
+  // matches the actual rendered side (prevents Chat left single vs Auth right dual).
+  const hasUserOverride = manualSource !== undefined && manualTarget !== undefined;
+  if (!hasUserOverride && orthogonalPenetratesTerminalForHandles(sourceRect, targetRect, pair.sourceSide, pair.targetSide)) {
+    const allScores = scoreAllHandlerPairs(
+      sourceRect,
+      targetRect,
+      direction,
+      obstacles.size > 0 ? obstacles : undefined,
+      excluded,
+    );
+    // Apply lane bias like edgeRouteBuilder (cannot beat collision but influences fallback)
+    const LANE_BIAS = -50;
+    const hasLane = laneSource !== undefined || laneTarget !== undefined;
+    if (hasLane) {
+      for (const s of allScores) {
+        if (laneSource !== undefined && s.pair.sourceSide === laneSource) s.total += LANE_BIAS;
+        if (laneTarget !== undefined && s.pair.targetSide === laneTarget) s.total += LANE_BIAS;
+      }
+      allScores.sort((a, b) => a.total - b.total);
+    }
+    // Respect partial manual overrides when filtering fallback candidates
+    let filtered = allScores;
+    if (manualSource !== undefined || manualTarget !== undefined) {
+      filtered = allScores.filter((s) => {
+        if (manualSource !== undefined && s.pair.sourceSide !== manualSource) return false;
+        if (manualTarget !== undefined && s.pair.targetSide !== manualTarget) return false;
+        return true;
+      });
+      if (filtered.length === 0) filtered = allScores;
+    }
+    const fallback = filtered.find((s) => {
+      if (s.pair.sourceSide === pair.sourceSide && s.pair.targetSide === pair.targetSide) return false;
+      return !orthogonalPenetratesTerminalForHandles(sourceRect, targetRect, s.pair.sourceSide, s.pair.targetSide);
+    });
+    if (fallback) pair = fallback.pair;
+  }
+
   return edge.source === nodeId ? pair.sourceSide : pair.targetSide;
 }
 
