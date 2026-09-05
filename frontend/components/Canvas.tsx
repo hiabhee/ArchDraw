@@ -2,7 +2,7 @@
 
 import ReactFlow, {
   Background, BackgroundVariant, MiniMap,
-  useReactFlow, ReactFlowProvider,
+  useReactFlow, ReactFlowProvider, useViewport,
   NodeMouseHandler,   EdgeMouseHandler, NodeDragHandler,
   SelectionMode, ConnectionLineType,
   ConnectionMode, MarkerType,
@@ -536,6 +536,7 @@ function CanvasInner() {
   const coloredEdges = useEdgeColors(edges);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
+  const viewport = useViewport();
   const themeVars = useMemo(
     () => resolveCanvasTokens({ renderStyleId: diagramRenderStyle, colorThemeId: diagramStyleTheme, isDark }).cssVars,
     [diagramStyleTheme, diagramRenderStyle, isDark],
@@ -630,8 +631,8 @@ function CanvasInner() {
             variant={BackgroundVariant.Dots} 
             gap={canvasBackground.gap} 
             size={canvasBackground.size}
-            color={canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)}
-            style={{ opacity: isDark ? 0.6 : 0.4 }}
+            color={canvasBackground.patternColor ?? (isDark ? '#94a3b8' : '#e2e8f0')}
+            style={{ opacity: isDark ? 0.35 : 0.5 }}
           />
         )}
         {canvasBackground.variant === 'lines' && showGrid && (
@@ -641,8 +642,10 @@ function CanvasInner() {
               position: 'absolute',
               inset: 0,
               backgroundColor: 'transparent',
-              backgroundImage: `repeating-linear-gradient(0deg, transparent 0 ${canvasBackground.gap - 2}px, ${canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)} ${canvasBackground.gap - 2}px ${canvasBackground.gap}px)`,
-              opacity: isDark ? 0.6 : 0.4,
+              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? (isDark ? '#334155' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? (isDark ? '#334155' : '#e5e7eb')} 1px, transparent 1px)`,
+              backgroundSize: `${canvasBackground.gap * viewport.zoom}px ${canvasBackground.gap * viewport.zoom}px`,
+              backgroundPosition: `${viewport.x}px ${viewport.y}px`,
+              opacity: isDark ? 0.25 : 1,
               pointerEvents: 'none',
             }}
           />
@@ -651,9 +654,9 @@ function CanvasInner() {
           <Background 
             variant={BackgroundVariant.Cross} 
             gap={canvasBackground.gap} 
-            size={6}
-            color={canvasBackground.patternColor ?? (isDark ? '#475569' : CANVAS_CONFIG.background.color)}
-            style={{ opacity: isDark ? 0.6 : 0.4 }}
+            size={1}
+            color={canvasBackground.patternColor ?? (isDark ? '#475569' : '#cbd5e1')}
+            style={{ opacity: isDark ? 0.25 : 0.35 }}
           />
         )}
         <SVGEdgeMarkerDefs />

@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import type { CanvasBackgroundVariant } from '@/store/diagram/types';
 
 const PATTERNS: Array<{ id: CanvasBackgroundVariant; label: string; preview: string }> = [
-  { id: 'dots', label: 'Dots', preview: 'radial-gradient(circle, #94a3b8 1.5px, transparent 1.5px)' },
-  { id: 'lines', label: 'Lines', preview: 'repeating-linear-gradient(0deg, transparent 0 18px, #e2e8f0 18px 19px)' },
-  { id: 'cross', label: 'Cross', preview: 'linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px)' },
+  { id: 'dots', label: 'Dots', preview: 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)' },
+  { id: 'lines', label: 'Lines', preview: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)' },
+  { id: 'cross', label: 'Cross', preview: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)' },
   { id: 'plain', label: 'Plain', preview: 'none' },
 ];
 
@@ -89,7 +89,7 @@ export function CanvasBackgroundControls() {
                     style={{
                       backgroundColor: '#ffffff',
                       backgroundImage: p.preview === 'none' ? 'none' : p.preview,
-                      backgroundSize: p.id === 'dots' ? '16px 16px' : p.id === 'lines' ? '100% 20px' : '20px 20px',
+                      backgroundSize: p.id === 'dots' ? '16px 16px' : '24px 24px',
                       backgroundPosition: 'center',
                     }}
                   />

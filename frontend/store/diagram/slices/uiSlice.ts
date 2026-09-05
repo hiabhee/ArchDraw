@@ -62,10 +62,10 @@ export const createUiSlice: StateCreator<
   isPenModeActive: false,
   horizontalOnlyHandles: false,
   canvasBackground: {
-    variant: 'dots',
+    variant: 'lines',
     bgColor: null,
     patternColor: null,
-    gap: 20,
+    gap: 24,
     size: 1,
   },
   setGuideLines: (lines) => set({ guideLines: lines }),
