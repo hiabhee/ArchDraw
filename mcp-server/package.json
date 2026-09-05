@@ -4,6 +4,15 @@
   "description": "MCP server for ArchDraw architecture diagramming tool",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "archdraw-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -24,5 +33,18 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "archdraw",
+    "architecture",
+    "diagram"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hiabhee/archdraw-skill"
+  },
+  "license": "MIT"
 }
