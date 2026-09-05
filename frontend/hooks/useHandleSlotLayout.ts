@@ -248,7 +248,9 @@ export function useHandleSlotLayout(nodeId?: string) {
   const edges = useDiagramStore((s) => s.edges);
   const nodes = useDiagramStore((s) => s.nodes);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
+  const horizontalOnly = useDiagramStore((s) => s.horizontalOnlyHandles);
   const direction: 'LR' | 'TD' = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+  const effectiveSides: Position[] = horizontalOnly ? [Position.Left, Position.Right] : SIDES;
 
   const nodePositions = useMemo(() => buildNodePositions(nodes), [nodes]);
 

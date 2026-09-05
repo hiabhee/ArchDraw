@@ -66,17 +66,26 @@ function assignGeometrySides(
   }
 
   // Second pass: distribute pooled edges round-robin with dynamic cap
-  const cap = Math.ceil(connectedEdges.length / 4);
+  const cap = Math.ceil(connectedEdges.length / allSides.length);
   let si = 0;
   for (const idx of pool) {
-    while (true) {
+    let assigned = false;
+    for (let attempt = 0; attempt < allSides.length * 4; attempt++) {
       const side = allSides[si % allSides.length];
       si++;
       if (counts[side] < cap) {
         result[idx] = side;
         counts[side]++;
+        assigned = true;
         break;
       }
+    }
+    if (!assigned) {
+      // Fallback: assign to side with smallest count (should not happen with correct cap, but prevents infinite loop)
+      let minSide = allSides[0];
+      for (const s of allSides) if (counts[s] < counts[minSide]) minSide = s;
+      result[idx] = minSide;
+      counts[minSide]++;
     }
   }
 

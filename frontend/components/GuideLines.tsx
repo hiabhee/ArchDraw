@@ -6,7 +6,7 @@ import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
 const GUIDE_COLOR = '#3b82f6';
 const ARROW_SIZE = 6;
-const GUIDE_NODE_CLEARANCE = 30;
+const GUIDE_NODE_CLEARANCE = 50;
 
 /** Converts a flow-coordinate position to a screen pixel offset within the canvas container */
 function flowToScreen(pos: number, vpOffset: number, zoom: number): number {

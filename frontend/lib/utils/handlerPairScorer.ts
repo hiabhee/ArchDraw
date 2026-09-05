@@ -47,6 +47,21 @@ const ALL_SIDES: Position[] = [
   Position.Left,
 ];
 
+const HORIZONTAL_SIDES: Position[] = [
+  Position.Left,
+  Position.Right,
+];
+
+function getAllowedSides(horizontalOnly?: boolean): Position[] {
+  return horizontalOnly ? HORIZONTAL_SIDES : ALL_SIDES;
+}
+
+function clampToHorizontal(pos: Position | undefined, horizontalOnly?: boolean): Position | undefined {
+  if (!horizontalOnly) return pos;
+  if (pos === Position.Top || pos === Position.Bottom) return undefined;
+  return pos;
+}
+
 /** Matches getBoundaryAnchor / EDGE_ENDPOINT_GAP (12) in simpleFloatingEdge. */
 export const HANDLER_ENDPOINT_GAP = 12;
 
@@ -322,12 +337,14 @@ export function scoreAllHandlerPairs(
   direction: 'LR' | 'TD' = 'LR',
   obstacleRects?: Map<string, HandlerRect>,
   excludedIds?: Set<string>,
+  horizontalOnly?: boolean,
 ): HandlerPairScore[] {
   const scores: HandlerPairScore[] = [];
   const excl = excludedIds ?? new Set<string>();
+  const allowed = getAllowedSides(horizontalOnly);
 
-  for (const srcSide of ALL_SIDES) {
-    for (const tgtSide of ALL_SIDES) {
+  for (const srcSide of allowed) {
+    for (const tgtSide of allowed) {
       const srcAnchor = anchorOutsideBoundary(sourceRect, srcSide);
       const tgtAnchor = anchorOutsideBoundary(targetRect, tgtSide);
       const waypoints = buildDefaultOrthogonalWaypoints(
@@ -391,28 +408,35 @@ export function selectBestHandlerPair(
   manualTargetSide?: Position,
   laneSourcePreference?: Position,
   laneTargetPreference?: Position,
+  horizontalOnly?: boolean,
 ): HandlerPair {
-  if (manualSourceSide !== undefined && manualTargetSide !== undefined) {
+  // Clamp manual / lane vertical sides to horizontal when the toggle is on – they are invalid in that mode.
+  const effManualSource = clampToHorizontal(manualSourceSide, horizontalOnly);
+  const effManualTarget = clampToHorizontal(manualTargetSide, horizontalOnly);
+  const effLaneSource = clampToHorizontal(laneSourcePreference, horizontalOnly);
+  const effLaneTarget = clampToHorizontal(laneTargetPreference, horizontalOnly);
+
+  if (effManualSource !== undefined && effManualTarget !== undefined) {
     if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
       logger.debug('[EdgeDebug:3-Override] FULL BYPASS — both manual: src=%s tgt=%s',
-        manualSourceSide, manualTargetSide);
+        effManualSource, effManualTarget);
     }
-    return { sourceSide: manualSourceSide, targetSide: manualTargetSide };
+    return { sourceSide: effManualSource, targetSide: effManualTarget };
   }
-  if (manualSourceSide !== undefined || manualTargetSide !== undefined) {
+  if (effManualSource !== undefined || effManualTarget !== undefined) {
     const scores = scoreAllHandlerPairs(
-      sourceRect, targetRect, direction, obstacleRects, excludedIds,
+      sourceRect, targetRect, direction, obstacleRects, excludedIds, horizontalOnly,
     );
     const filtered = scores.filter(s => {
-      if (manualSourceSide !== undefined && s.pair.sourceSide !== manualSourceSide) return false;
-      if (manualTargetSide !== undefined && s.pair.targetSide !== manualTargetSide) return false;
+      if (effManualSource !== undefined && s.pair.sourceSide !== effManualSource) return false;
+      if (effManualTarget !== undefined && s.pair.targetSide !== effManualTarget) return false;
       return true;
     });
     if (filtered.length > 0) {
       if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
         logger.debug('[EdgeDebug:3-Override] PARTIAL BYPASS — src=%s tgt=%s  winner=%s→%s score=%.2f',
-          manualSourceSide ?? '*',
-          manualTargetSide ?? '*',
+          effManualSource ?? '*',
+          effManualTarget ?? '*',
           filtered[0].pair.sourceSide, filtered[0].pair.targetSide,
           filtered[0].total);
       }
@@ -421,18 +445,18 @@ export function selectBestHandlerPair(
   }
 
   const LANE_BIAS = -50;
-  const hasLanePrefs = laneSourcePreference !== undefined || laneTargetPreference !== undefined;
+  const hasLanePrefs = effLaneSource !== undefined || effLaneTarget !== undefined;
 
   const scores = scoreAllHandlerPairs(
-    sourceRect, targetRect, direction, obstacleRects, excludedIds,
+    sourceRect, targetRect, direction, obstacleRects, excludedIds, horizontalOnly,
   );
 
   if (hasLanePrefs) {
     for (const s of scores) {
-      if (laneSourcePreference !== undefined && s.pair.sourceSide === laneSourcePreference) {
+      if (effLaneSource !== undefined && s.pair.sourceSide === effLaneSource) {
         s.total += LANE_BIAS;
       }
-      if (laneTargetPreference !== undefined && s.pair.targetSide === laneTargetPreference) {
+      if (effLaneTarget !== undefined && s.pair.targetSide === effLaneTarget) {
         s.total += LANE_BIAS;
       }
     }

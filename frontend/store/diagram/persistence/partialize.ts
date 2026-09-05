@@ -11,6 +11,7 @@ export function diagramPersistPartialize(s: DiagramState) {
     diagramChromeMode: s.diagramChromeMode,
     diagramStyleTheme: s.diagramStyleTheme,
     diagramRenderStyle: s.diagramRenderStyle,
+    horizontalOnlyHandles: s.horizontalOnlyHandles,
     canvasBackground: s.canvasBackground,
     userProfile: s.userProfile,
   };

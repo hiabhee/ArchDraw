@@ -183,7 +183,7 @@ function pickLowestBendPath(
   return best;
 }
 
-const FOREIGN_CLEARANCE = 30;
+const FOREIGN_CLEARANCE = 50;
 const TERMINAL_CLEARANCE = 8;
 
 function collectObstacleMargins(

@@ -134,6 +134,11 @@ export interface DiagramState {
   canvasMode: 'empty' | 'editing' | 'template';
   activeLayoutPresetId: string;
   detailLevel: 1 | 2 | 3;
+  isPenModeActive: boolean;
+  setPenModeActive: (active: boolean) => void;
+  horizontalOnlyHandles: boolean;
+  setHorizontalOnlyHandles: (v: boolean) => void;
+  toggleHorizontalOnlyHandles: () => void;
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
@@ -148,8 +153,6 @@ export interface DiagramState {
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
   setActiveLayoutPresetId: (id: string) => void;
   setDetailLevel: (level: 1 | 2 | 3) => void;
-  isPenModeActive: boolean;
-  setPenModeActive: (active: boolean) => void;
   clarityReport?: import('@/lib/features/clarityCompiler').ClarityReport;
   canvasBackground: CanvasBackgroundConfig;
   setCanvasBackground: (patch: Partial<CanvasBackgroundConfig>) => void;

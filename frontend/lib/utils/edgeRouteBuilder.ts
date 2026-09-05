@@ -15,7 +15,7 @@ import {
   type HandlerPairScore,
 } from './handlerPairScorer'
 
-const FOREIGN_NODE_CLEARANCE = 30
+const FOREIGN_NODE_CLEARANCE = 50
 
 export interface EdgeRouteResult {
   sourcePosition: Position
