@@ -350,9 +350,9 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
       </div>
     );
   }
-  // Mirror actorPrimitives — round head + rounded-shoulder body touching at
-  // seam, drawn inside a fixed-ratio "person box" so the glyph is never
-  // stretched by the node's W:H proportions. Expanded bottom keeps title contained.
+  // Mirror actorPrimitives — round head centered, body expands with W so
+  // long titles (e.g. "End User") stay inside the white rectangle instead of
+  // spilling outside it. Body width scales with node width when W > person box.
   const RATIO = 0.72;
   const ph = Math.min(H, W / RATIO);
   const pw = ph * RATIO;
@@ -364,11 +364,12 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
   const gap = Math.max(1, Math.round(ph * 0.02));
   const bodyH = Math.max(28, Math.round(ph * 0.42));
 
-  const headX = Math.round(px0 + (pw - headW) / 2);
+  const headX = Math.round((W - headW) / 2);
   const headY = py0 + topPad;
 
-  const bodyW = Math.max(36, Math.round(pw * 0.78));
-  const bodyX = Math.round(px0 + (pw - bodyW) / 2);
+  // Body expands to contain title: at least pw*0.78, but grows with W (outer width) so title doesn't fall out
+  const bodyW = Math.max(36, Math.round(Math.min(W - 12, Math.max(pw * 0.78, W * 0.78 - 8))));
+  const bodyX = Math.round((W - bodyW) / 2);
   const bodyY = Math.round(headY + headW + gap);
   const r = Math.min(14, Math.round(bodyH * 0.50), Math.round(bodyW * 0.16));
 

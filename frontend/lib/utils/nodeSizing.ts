@@ -109,7 +109,7 @@ const SHAPE_PREFERRED_MAX_WIDTH: Record<ShapeFit, number> = {
   cylinder: SIZE_L,
   hexagon: SIZE_L,
   cloud: SIZE_L,
-  actor: SIZE_M,
+  actor: SIZE_L,
   monitor: SIZE_L,
   mobile: SIZE_S,
   'dashed-rectangle': SIZE_L,
@@ -136,7 +136,7 @@ const SHAPE_ABSOLUTE_MAX_WIDTH: Record<ShapeFit, number> = {
   cylinder: SIZE_XXL * 2,
   hexagon: SIZE_XXL,
   cloud: SIZE_XXL * 1.5,
-  actor: SIZE_L,  // Allow wider for big words like CUSTOMER/DRIVER
+  actor: SIZE_XXL,  // Allow wider for big words like CUSTOMER/DRIVER - expands if needed
   monitor: SIZE_XXL * 2,
   mobile: SIZE_M,  // Keep compact
   'dashed-rectangle': SIZE_XXL * 2,
@@ -164,7 +164,7 @@ const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
   cylinder: 160,
   hexagon: 160,
   cloud: 160,
-  actor: SIZE_XS,
+  actor: SIZE_S,
   monitor: 160,
   mobile: SIZE_XS,
   'dashed-rectangle': 160,
@@ -221,7 +221,7 @@ export interface DimensionOptions {
 /** Fixed grid: widths snap to 160/200/240 (120/160 for XS). Beyond L only when caller explicitly opts-in via max > L. */
 export function fitWidthToContent(width: number, min = SIZE_S, max = SIZE_L): number {
   const clamped = Math.min(Math.max(width, min), max);
-  // Compact XS tier (actor/mobile): 120 or 160 only; respect caller's max
+  // Compact XS tier (mobile, circle, diamond with 140): 120 or 160 only; actor now uses 160 min so bypasses this
   if (min < SIZE_S) {
     const xsSnap = clamped <= 135 ? SIZE_XS : SIZE_S;
     return Math.min(max, Math.max(min, xsSnap));

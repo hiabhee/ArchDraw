@@ -491,7 +491,6 @@ export function actorPrimitives(W: number, H: number): ShapePrimitive[] {
   const RATIO = 0.72; // wider person box so body can contain title (expand bottom space)
   const ph = Math.min(H, W / RATIO);
   const pw = ph * RATIO;
-  const px0 = Math.round((W - pw) / 2);
   const py0 = Math.round((H - ph) / 2);
 
   const topPad = Math.max(3, Math.round(ph * 0.04));
@@ -499,11 +498,12 @@ export function actorPrimitives(W: number, H: number): ShapePrimitive[] {
   const gap = Math.max(1, Math.round(ph * 0.02));
   const bodyH = Math.max(28, Math.round(ph * 0.42)); // expanded bottom
 
-  const headX = Math.round(px0 + (pw - d) / 2);
+  const headX = Math.round((W - d) / 2);
   const headY = py0 + topPad;
 
-  const bodyW = Math.max(36, Math.round(pw * 0.78)); // wider torso contains title
-  const bodyX = Math.round(px0 + (pw - bodyW) / 2);
+  // Body expands with W so title stays inside white rectangle
+  const bodyW = Math.max(36, Math.round(Math.min(W - 12, Math.max(pw * 0.78, W * 0.78 - 8))));
+  const bodyX = Math.round((W - bodyW) / 2);
   const bodyY = Math.round(headY + d + gap);
   const r = Math.min(14, Math.round(bodyH * 0.5), Math.round(bodyW * 0.16));
 

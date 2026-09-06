@@ -83,7 +83,7 @@ describe('semantic silhouette sizing', () => {
   const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
     hexagon: { wMin: 160, wMax: 240, hMin: 100, hMax: 100 },
     cloud: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 100 },
-    actor: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 100 },
+    actor: { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 100 },
     monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 100 },
     mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 100 },
     'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 100 },
@@ -119,10 +119,22 @@ describe('semantic silhouette sizing', () => {
   it('actor and mobile use the compact size tier', () => {
     const actor = calculateNodeDimensions('Alice', undefined, { shape: 'actor' });
     const mobile = calculateNodeDimensions('Mobile App', undefined, { shape: 'mobile' });
-    expect(actor.width).toBeLessThanOrEqual(SIZE_S);
+    expect(actor.width).toBeLessThanOrEqual(SIZE_L);
     expect(mobile.width).toBeLessThanOrEqual(SIZE_S);
-    expect(actor.width).toBeGreaterThanOrEqual(SIZE_XS);
+    expect(actor.width).toBeGreaterThanOrEqual(SIZE_S);
     expect(mobile.width).toBeGreaterThanOrEqual(SIZE_XS);
+  });
+
+  it('actor expands width for long titles so label stays inside body', () => {
+    const shortActor = calculateNodeDimensions('Alice', undefined, { shape: 'actor' });
+    const longActor = calculateNodeDimensions('End User', 'Actor', { shape: 'actor' });
+    const veryLongActor = calculateNodeDimensions('Super Administrator Approver', undefined, { shape: 'actor' });
+    // End User (8 chars) should be at least 160 and not overflow
+    expect(longActor.width).toBeGreaterThanOrEqual(SIZE_S);
+    // Very long should expand beyond S to M/L
+    expect(veryLongActor.width).toBeGreaterThan(shortActor.width);
+    expect(veryLongActor.width).toBeGreaterThan(SIZE_S);
+    expect(veryLongActor.width).toBeLessThanOrEqual(320);
   });
 
   it('fitWidthToContent supports the extra-small tier', () => {
