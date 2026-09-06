@@ -50,7 +50,7 @@ export const createUiSlice: StateCreator<
   guideLines: [],
   edgeAnimations: true,
   showGrid: true,
-  iconMode: 'all',
+  iconMode: 'off',
   diagramChromeMode: 'edit',
   diagramStyleTheme: 'default',
   diagramRenderStyle: 'precision',
