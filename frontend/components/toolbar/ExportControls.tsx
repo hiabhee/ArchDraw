@@ -376,20 +376,21 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
         const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
         const maxPixels = 48_000_000; // allow ~6000×8000 @4× for large Canva prints
-        pixelRatio = desiredRatio;
-        while (pixelRatio > 2 && svgW * pixelRatio * svgH * pixelRatio > maxPixels) {
-          pixelRatio -= 0.5;
-        }
-        pixelRatio = Math.max(2.5, pixelRatio);
+        // Adaptive hires: cap to feasible ratio for very large diagrams (e.g. 8590×1780 → 1.5× = 34M <48M)
+        const maxFeasibleRatio = Math.sqrt(maxPixels / (svgW * svgH));
+        const feasibleSteps = Math.floor(Math.min(desiredRatio, maxFeasibleRatio) * 2) / 2;
+        pixelRatio = Math.max(1, feasibleSteps);
+        // Keep at least 2× when feasible to preserve hires, otherwise use max feasible (1-1.5) for huge canvases
+        if (feasibleSteps >= 2 && pixelRatio < 2) pixelRatio = 2;
 
         // Rasterize SVG -> PNG at high DPI with retry on OOM / taint
         let svgDataUrl: string | null = null;
         const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
         const svgUrl = URL.createObjectURL(svgBlob);
         try {
-          // Try from high to low DPI; large canvases can OOM on low-memory devices
+          // Try from high to low DPI; large canvases can OOM on low-memory devices — allow down to 1× for huge diagrams (still hires vs viewport)
           let lastRasterErr: unknown = null;
-          for (let attemptRatio = pixelRatio; attemptRatio >= 2; attemptRatio -= 0.5) {
+          for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
             try {
               const attemptW = Math.round(svgW * attemptRatio);
               const attemptH = Math.round(svgH * attemptRatio);
@@ -454,23 +455,49 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
         const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
         const shouldCrop = !!reactFlowRef.instance && exportNodes.length > 0;
-        const cropRect = shouldCrop
-            ? computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12)
-            : null;
+        // Unified framing with SVG path: SVG uses 50px fixed padding (nodeLayout.ts:57).
+        // Fallback previously used 0.12 ratio -> larger padding on large diagrams and mismatched crop.
+        // Use same 50px in flow space so PNG/SVG framing is identical even when SVG raster fails.
+        let cropRect: ReturnType<typeof computeDiagramCropRect> = null;
+        if (shouldCrop) {
+          try {
+            const { getNodesBounds } = await import('reactflow');
+            const bounds = getNodesBounds(exportNodes);
+            if (bounds.width && bounds.height) {
+              const FIXED_PAD = 50;
+              const flowX = bounds.x - FIXED_PAD;
+              const flowY = bounds.y - FIXED_PAD;
+              const flowW = bounds.width + FIXED_PAD * 2;
+              const flowH = bounds.height + FIXED_PAD * 2;
+              const { x, y, zoom } = reactFlowRef.instance!.getViewport();
+              cropRect = {
+                x: flowX * zoom + x,
+                y: flowY * zoom + y,
+                width: flowW * zoom,
+                height: flowH * zoom,
+              };
+            } else {
+              cropRect = computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12);
+            }
+          } catch {
+            cropRect = computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12);
+          }
+        }
         const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
         const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-        const desiredRatio = Math.min(3.5, Math.max(2.5, Math.ceil(baseRatio * 2)));
+        // Unified hires with SVG path: SVG uses 3-4x, 48M cap, 0.5 steps. Fallback previously 2.5-3.5, 32M, 1x steps -> blurrier.
+        const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
         const elW = element.clientWidth || element.offsetWidth || 1200;
         const elH = element.clientHeight || element.offsetHeight || 800;
         let fallbackRatio = desiredRatio;
-        const maxPixels = 32_000_000;
+        const maxPixels = 48_000_000;
         while (fallbackRatio > 1 && elW * fallbackRatio * elH * fallbackRatio > maxPixels) {
           fallbackRatio -= 0.5;
         }
-        fallbackRatio = Math.max(2, fallbackRatio);
+        fallbackRatio = Math.max(1, fallbackRatio);
         let fallbackDataUrl: string | null = null;
         let fallbackErr: unknown = null;
-        for (let attemptRatio = fallbackRatio; attemptRatio >= 1; attemptRatio -= 1) {
+        for (let attemptRatio = fallbackRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
           try {
             fallbackDataUrl = await safeToPng(element, {
               backgroundColor: bgColor,

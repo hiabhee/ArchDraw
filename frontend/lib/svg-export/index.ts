@@ -145,16 +145,41 @@ export function generatePureSVG(
     }
   }
 
+  // Routing must use nodes with parent relationships intact so passable groups
+  // (ancestors of source/target) are correctly identified. preparedNodes has
+  // parents cleared and absolute positions - using it makes every group look
+  // like an obstacle, causing the export to route around Compute Tier etc.
+  // Build routingNodes that keep parents but have correct effective dimensions.
+  const routingNodes: Node[] = nodes.map((node) => {
+    const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
+    let w: number | undefined;
+    let h: number | undefined;
+    if (!isText && !isGroup) {
+      const eff = getEffectiveNodeDimensions(node);
+      w = eff.width;
+      h = eff.height;
+    } else {
+      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? undefined;
+      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? undefined;
+    }
+    return {
+      ...node,
+      ...(w !== undefined ? { width: w } : {}),
+      ...(h !== undefined ? { height: h } : {}),
+    } as Node;
+  });
+
   const nodeInternals = new Map(preparedNodes.map((n) => [n.id, n]));
   const labelLayouts = computeEdgeLabelLayout(processedEdges, nodeInternals, layoutDirection, renderStyleId);
 
   for (const edge of processedEdges) {
-    const sourceNode = preparedNodes.find((n) => n.id === edge.source);
-    const targetNode = preparedNodes.find((n) => n.id === edge.target);
+    const sourceNode = routingNodes.find((n) => n.id === edge.source);
+    const targetNode = routingNodes.find((n) => n.id === edge.target);
 
     if (!sourceNode || !targetNode) continue;
 
-    const route = computeEdgeRoute(edge, preparedNodes, processedEdges, layoutDirection);
+    const route = computeEdgeRoute(edge, routingNodes, processedEdges, layoutDirection);
 
     const sourceX = route.sourcePoint.x - bounds.minX;
     const sourceY = route.sourcePoint.y - bounds.minY;

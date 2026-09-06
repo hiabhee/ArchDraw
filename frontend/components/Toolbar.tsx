@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Github,
   PenTool,
+  Download,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -387,6 +388,21 @@ export function Toolbar() {
             </Button>
           </span>
 
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              const isDark = useDiagramStore.getState().darkMode;
+              exportControlsRef.current?.handleExport(isDark ? 'png-dark' : 'png-light');
+            }}
+            disabled={nodes.length === 0}
+            className="gap-1.5 inline-flex bg-primary text-primary-foreground hover:bg-primary/90"
+            title="Download hi-res PNG instantly"
+            aria-label="Download hi-res PNG"
+          >
+            <Download className="w-4 h-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Download</span>
+          </Button>
           <ExportControls ref={exportControlsRef} getExportFilename={getExportFilename} />
 
           <div className="relative">
