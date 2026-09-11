@@ -18,6 +18,107 @@ export interface BlogPost {
 
 export const blogs: BlogPost[] = [
   {
+    slug: 'archdraw-claude-code-opencode',
+    title: 'Give your coding agent an architecture workspace with ArchDraw',
+    kicker: 'Agent Integrations',
+    category: 'Integrations',
+    readTime: '8 min',
+    date: 'Sep 8, 2026',
+    summary:
+      'Connect ArchDraw to Codex, Claude Code, or OpenCode so an agent can turn repository context into an editable, shared architecture view while implementation work is happening.',
+    sections: [
+      {
+        heading: 'Why a coding agent needs more than a diagram generator',
+        body:
+          'A coding agent can inspect a repository, trace a request path, and suggest a safe implementation plan. But that understanding is usually trapped inside a chat session. ArchDraw gives the agent a durable visual workspace: it can turn codebase knowledge into an editable architecture view that an engineer can inspect, share, correct, and export. The valuable outcome is not a one-off image. It is a shared architecture view created at the moment the agent has the most relevant context.'
+      },
+      {
+        heading: 'How the ArchDraw skill and MCP server work together',
+        body:
+          'The ArchDraw skill provides the agent with architecture-specific guidance: when to model a system, what evidence to inspect, how to distinguish current state from a proposal, and what makes a diagram useful. The MCP server provides the actions. The agent can generate a diagram from Mermaid, validate the active view, fix its layout, make targeted updates, preserve checkpoints, and export the result. Together, they turn an architecture question into an ArchDraw workspace rather than a disconnected text response.'
+      },
+      {
+        heading: 'Set up ArchDraw in Codex',
+        body:
+          'Codex supports local MCP servers and discovers installed skills from its skills directory. Copy the complete archdraw-diagram skill directory to ~/.codex/skills/archdraw-diagram/, then add the ArchDraw MCP server. Restart Codex after installing the skill or changing MCP configuration.',
+        code: `codex mcp add archdraw -- npx -y @hiabhee/archdraw-mcp-server
+codex mcp list`,
+        bullets: [
+          'The ArchDraw skill supplies architecture-specific guidance; the MCP server provides the diagram actions.',
+          'The same setup works in Codex CLI and makes the ArchDraw tools available to the agent working in your repository.',
+          'To use a self-hosted ArchDraw deployment, set API_BASE_URL when adding the MCP server.',
+        ],
+      },
+      {
+        heading: 'Set up ArchDraw in Claude Code',
+        body:
+          'Install the ArchDraw skill first, then connect the local MCP server. Restart Claude Code after the connection is added. The skill tells Claude how to approach architecture work; the MCP server creates and manages the diagram in ArchDraw.',
+        code: `npx skills add hiabhee/archdraw-skill --skill archdraw-diagram -g -a claude-code
+claude mcp add archdraw -- npx -y @hiabhee/archdraw-mcp-server
+claude mcp list`,
+        bullets: [
+          'Node.js 18 or newer is required to run the MCP server.',
+          'The default MCP configuration connects to the hosted ArchDraw application.',
+          'Use API_BASE_URL in the MCP server environment when connecting to a self-hosted ArchDraw deployment.',
+        ],
+      },
+      {
+        heading: 'Set up ArchDraw in OpenCode',
+        body:
+          'OpenCode supports local MCP servers and discovers skills from a project or user-level skills directory. Add ArchDraw to an opencode.json configuration, then copy the complete archdraw-diagram skill directory into .opencode/skills for a project-specific installation. OpenCode automatically connects the local server unless it is disabled.',
+        code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "archdraw": {
+        "type": "local",
+        "command": ["npx", "-y", "@hiabhee/archdraw-mcp-server"]
+      }
+    }
+  }
+}
+
+opencode mcp list`,
+        bullets: [
+          'Install the skill at .opencode/skills/archdraw-diagram/SKILL.md for one repository, or ~/.config/opencode/skills/archdraw-diagram/SKILL.md for personal use.',
+          'OpenCode prefixes MCP tool names with the server name, so ArchDraw actions appear under names such as archdraw_generate_diagram.',
+          'Ask explicitly for the archdraw-diagram skill if you want to guarantee that the agent loads its architecture workflow.',
+        ],
+      },
+      {
+        heading: 'Ask an architecture question, not a drawing question',
+        body:
+          'The strongest prompts connect a diagram to an engineering decision. Ask the agent to inspect the relevant code and documentation before modelling, then request an editable view and a clear account of uncertainty. This prevents a generic boxes-and-arrows diagram from being mistaken for an accurate architecture record.',
+        code: `Use ArchDraw to map the checkout request flow in this repository. Inspect the relevant routes,
+services, data stores, and external integrations first. Create an editable diagram, identify any
+uncertain relationships, and give me the ArchDraw URL.`,
+      },
+      {
+        heading: 'Use a proposed-state view before implementation',
+        body:
+          'Architecture diagrams are most valuable before a risky change—not after the details have been forgotten. Ask the agent to create a proposed-state view for a migration, refactor, or new asynchronous workflow. It should identify changed components, new dependencies, affected data or event paths, and the assumptions that require a human decision. A proposal must be labelled clearly so it is never confused with the repository’s current state.',
+        code: `We are splitting the payment module. Use ArchDraw to create a proposed-state architecture view,
+show the affected dependencies and data flows, and clearly separate facts from assumptions.`,
+      },
+      {
+        heading: 'A practical workflow for engineering teams',
+        body:
+          'Start each significant change with an architecture question. Let the agent inspect the accessible repository and create a current-state view, then review and correct it with the team in ArchDraw. Create a proposed-state view before implementation, and link the finished view in a pull request, design document, or handover note. For a GitHub repository that is not already available in an agent’s workspace, use ArchDraw’s Repo2Diagram workflow where it is available. This keeps diagrams connected to real engineering work instead of treating them as presentation artifacts.',
+        bullets: [
+          'Map the relevant subsystem before changing it.',
+          'Review evidence and correct any uncertain relationships.',
+          'Create a distinct proposed-state view before implementation.',
+          'Share the final ArchDraw URL where the team reviews the change.',
+        ],
+      },
+      {
+        heading: 'The result: shared architectural memory',
+        body:
+          'The purpose of the integration is not to make agents draw prettier diagrams. It is to give agents and humans a shared place to understand a system, reason about change, and preserve the decisions that matter. Install the skill and MCP server, open a repository, and start with one question: before I change this code, what architecture do I need to understand?'
+      },
+    ],
+  },
+  {
     slug: 'canvas-editor-react-flow',
     title: 'How we built an interactive, state-driven diagramming canvas',
     kicker: 'Canvas System',
