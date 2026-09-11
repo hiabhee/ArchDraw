@@ -163,6 +163,8 @@ model SharedCanvas {
   linkPermission  String   @default("viewer") @map("link_permission")
   users           Json     @default("[]")
   ownerId         String?  @map("owner_id")
+  revision        Int      @default(1)
+  mcpUpdateToken  String?  @unique @map("mcp_update_token")
   User            User?    @relation(fields: [ownerId], references: [id])
 
   @@map("shared_canvases")
