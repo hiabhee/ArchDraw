@@ -2,7 +2,7 @@ import type { LoadCheckpointInput } from '../lib/schema.js';
 import { loadCheckpoint as loadCheckpointFromStore, getCheckpointState, listCheckpoints } from '../lib/checkpoints.js';
 import { setDiagramState } from '../lib/diagram-state.js';
 
-export async function loadCheckpoint(input: LoadCheckpointInput): Promise<{
+export async function loadCheckpoint(input: LoadCheckpointInput, workingSession?: string): Promise<{
   success: boolean;
   name?: string;
   restoredAt?: string;
@@ -13,7 +13,7 @@ export async function loadCheckpoint(input: LoadCheckpointInput): Promise<{
   error?: string;
 }> {
   if (input.listAvailable) {
-    const checkpoints = listCheckpoints();
+    const checkpoints = listCheckpoints(workingSession);
     return {
       success: true,
       availableCheckpoints: checkpoints,
@@ -23,15 +23,15 @@ export async function loadCheckpoint(input: LoadCheckpointInput): Promise<{
     };
   }
 
-  const result = loadCheckpointFromStore(input.name);
+  const result = loadCheckpointFromStore(input.name, workingSession);
   
   if (!result.success) {
     return result;
   }
 
-  const state = getCheckpointState(input.name);
+  const state = getCheckpointState(input.name, workingSession);
   if (state) {
-    setDiagramState(state as any);
+    setDiagramState(state as any, workingSession);
   }
 
   return result;

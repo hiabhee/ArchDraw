@@ -241,6 +241,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
   };
   diagramUrl?: string;
   sessionId?: string;
+  updateToken?: string;
   shareUrl?: string;
   embeddedDiagram?: { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] };
   message?: string;
@@ -265,8 +266,8 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       };
     }
 
-    let templateNodes = template.nodes;
-    const templateEdges = template.edges;
+    let templateNodes = template.nodes.map(node => ({ ...node }));
+    const templateEdges = template.edges.map(edge => ({ ...edge }));
 
     if (input.customizations) {
       if (input.customizations.renameNodes) {
@@ -373,9 +374,10 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     let diagramUrl: string | undefined;
     let message: string | undefined;
     let sessionId: string | undefined;
-    const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
+    const API_BASE = process.env.API_BASE_URL;
+    let updateToken: string | undefined;
 
-    try {
+    if (input.publish && API_BASE) try {
       const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -383,15 +385,16 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
           label: template.name,
-          source: 'mcp',
+          source: 'mcp', publish: true,
         }),
       });
 
       if (saveResponse.ok) {
-        const saveData = await saveResponse.json() as { sessionId: string; url?: string };
+        const saveData = await saveResponse.json() as { sessionId: string; url?: string; updateToken: string };
         const urlPath = saveData.url || `/editor?session=${saveData.sessionId}`;
         diagramUrl = `${API_BASE}${urlPath}`;
         sessionId = saveData.sessionId;
+        updateToken = saveData.updateToken;
         const shareUrl = `${API_BASE}/share/${sessionId}`;
         message = `✅ Template loaded! Open this URL to view and edit the diagram:\n\n${diagramUrl}\n\n🔗 Shareable link:\n${shareUrl}\n\nOr copy and paste this link in your browser. The template has ${reactFlowNodes.length} nodes and ${reactFlowEdges.length} edges.\n\n**To export**: Use the session ID "${sessionId}" with the export_diagram tool (format: json/png/svg).`;
       }
@@ -410,6 +413,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       },
       diagramUrl,
       sessionId,
+      updateToken,
       shareUrl: sessionId ? `${API_BASE}/share/${sessionId}` : undefined,
       embeddedDiagram: {
         nodes: reactFlowNodes,

@@ -1,6 +1,7 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { UpdateDiagramInput } from '../lib/schema.js';
-import { getDiagramState, setDiagramState } from '../lib/diagram-state.js';
+import { getDiagramState } from '../lib/diagram-state.js';
+import { validateGraph } from './validate-diagram.js';
 import { fetchWithTimeout } from '../lib/http.js';
 import {
   TIER_COLORS,
@@ -69,7 +70,7 @@ function buildEdge(edge: {
   };
 }
 
-export async function updateDiagram(input: UpdateDiagramInput): Promise<{
+export async function updateDiagram(input: UpdateDiagramInput, workingSession?: string): Promise<{
   success: boolean;
   nodes: ReactFlowNode[];
   edges: ReactFlowEdge[];
@@ -86,7 +87,7 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
   diagramUrl?: string;
   error?: string;
 }> {
-  const state = getDiagramState();
+  const state = getDiagramState(workingSession);
 
   if (state.nodes.length === 0 && state.edges.length === 0) {
     return {
@@ -123,6 +124,14 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
   }
 
   if (input.addNodes && input.addNodes.length > 0) {
+    const existingIds = new Set(nodes.map(node => node.id));
+    const addedIds = new Set<string>();
+    for (const node of input.addNodes) {
+      if (existingIds.has(node.id) || addedIds.has(node.id)) {
+        return { success: false, nodes: state.nodes, edges: state.edges, message: '', changes, error: `Node id "${node.id}" already exists.` };
+      }
+      addedIds.add(node.id);
+    }
     const newNodes: ReactFlowNode[] = input.addNodes.map(node => {
       const tier = (node.tier || 'compute').toLowerCase();
       const isGroup = node.isGroup === true;
@@ -184,33 +193,51 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
     changes.edgesAdded = input.addEdges.length;
   }
 
-  setDiagramState({ nodes, edges });
+  const validation = validateGraph(nodes, edges);
+  const errors = validation.issues.filter(issue => issue.severity === 'error');
+  if (errors.length > 0) {
+    return {
+      success: false,
+      nodes: state.nodes,
+      edges: state.edges,
+      message: '',
+      changes: { nodesAdded: 0, nodesRemoved: 0, nodesUpdated: 0, edgesAdded: 0, edgesRemoved: 0, nodesRepositioned: 0 },
+      error: `Update rejected: ${errors.map(issue => issue.message).join(' ')}`,
+    };
+  }
 
   let sessionId: string | undefined;
   let diagramUrl: string | undefined;
 
-  // Best-effort persistence: save the updated canvas to a new share session so
-  // the result is viewable in the editor. Never fail the update if the API is down.
-  const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
-  try {
+  // A published canvas is updated in place using its capability token and
+  // optimistic revision. Local-only diagrams never leave this MCP process.
+  const API_BASE = process.env.API_BASE_URL;
+  if (API_BASE && state.sessionId && state.updateToken) {
+    try {
     const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        action: 'mcp-update',
+        sessionId: state.sessionId,
+        updateToken: state.updateToken,
+        expectedRevision: input.expectedRevision ?? state.revision,
         nodes,
         edges,
-        label: 'Updated MCP Diagram',
-        source: 'mcp',
       }),
     });
     if (saveResponse.ok) {
-      const saveData = await saveResponse.json() as { sessionId: string; url?: string };
+      const saveData = await saveResponse.json() as { sessionId: string; revision: number };
       sessionId = saveData.sessionId;
-      const urlPath = saveData.url || `/editor?session=${saveData.sessionId}`;
+      const urlPath = `/editor?session=${saveData.sessionId}`;
       diagramUrl = `${API_BASE}${urlPath}`;
+      state.revision = saveData.revision;
+    } else {
+      return { success: false, nodes: state.nodes, edges: state.edges, message: '', changes, error: 'Published diagram changed elsewhere or could not be updated. Reload it before trying again.' };
     }
-  } catch {
-    // ignore — local state is still updated
+    } catch {
+      return { success: false, nodes: state.nodes, edges: state.edges, message: '', changes, error: 'Could not update the published diagram. Your local diagram was left unchanged.' };
+    }
   }
 
   const changeSummary = [
@@ -229,7 +256,7 @@ export async function updateDiagram(input: UpdateDiagramInput): Promise<{
     edges,
     message: `Diagram updated. ${changeSummary}.${urlLine}`,
     changes,
-    sessionId,
+    sessionId: sessionId || state.sessionId,
     diagramUrl,
   };
 }

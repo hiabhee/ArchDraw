@@ -1,4 +1,5 @@
 import { getDiagramState } from '../lib/diagram-state.js';
+import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import { TIER_RANK } from '../lib/constants.js';
 import type { TierType } from '../types/index.js';
 
@@ -12,14 +13,14 @@ function getTier(node: { data: { layer?: string; tier?: string } }): string {
   return (node.data.tier || node.data.layer || 'compute').toLowerCase();
 }
 
-export async function validateDiagram(): Promise<{
+export function validateGraph(nodes: ReactFlowNode[], edges: ReactFlowEdge[]): {
   valid: boolean;
   errorCount: number;
   warningCount: number;
   suggestionCount: number;
   issues: Issue[];
-}> {
-  const state = getDiagramState();
+} {
+  const state = { nodes, edges };
   
   if (state.nodes.length === 0 && state.edges.length === 0) {
     return {
@@ -79,13 +80,34 @@ export async function validateDiagram(): Promise<{
     if (!nodeIds.has(edge.target)) {
       issues.push({ severity: 'error', nodeId: edge.target, message: `Edge '${edge.id}' references non-existent target node '${edge.target}'` });
     }
+    if (edge.source === edge.target) {
+      issues.push({ severity: 'error', nodeId: edge.source, message: `Edge '${edge.id}' cannot connect a node to itself` });
+    }
+  }
+
+  const edgeIds = new Set<string>();
+  for (const edge of state.edges) {
+    if (edgeIds.has(edge.id)) {
+      issues.push({ severity: 'error', message: `Duplicate edge ID: '${edge.id}'` });
+    }
+    edgeIds.add(edge.id);
+  }
+
+  for (const node of state.nodes) {
+    const parentId = node.parentNode || node.data?.parentId;
+    if (parentId && !nodeIds.has(parentId)) {
+      issues.push({ severity: 'error', nodeId: node.id, message: `Node '${node.id}' references missing parent '${parentId}'` });
+    }
+    if (parentId && node.data?.isGroup) {
+      issues.push({ severity: 'error', nodeId: node.id, message: `Group '${node.id}' cannot also be a child node` });
+    }
   }
 
   // ─── Orphan nodes ─────────────────────────────────────────────────────────
   for (const node of state.nodes) {
     const edgeCount = nodeEdgeCounts.get(node.id) || 0;
     if (edgeCount === 0 && !node.data?.isGroup) {
-      issues.push({ severity: 'error', nodeId: node.id, message: `Orphan node '${node.data.label}' has no connections` });
+      issues.push({ severity: 'warning', nodeId: node.id, message: `Orphan node '${node.data.label}' has no connections` });
     }
   }
 
@@ -99,11 +121,11 @@ export async function validateDiagram(): Promise<{
     const inbound = nodeInboundCounts.get(node.id) || 0;
     const label = node.data?.label || node.id;
 
-    // Client-tier nodes should ONLY be sources (edges flow FROM them, not TO them)
-    // except for the very rare response-back pattern
+    // These are architecture heuristics, not correctness constraints. A
+    // notification or streaming system may legitimately have return paths.
     if (tier === 'client' && inbound > 2) {
       issues.push({
-        severity: 'error',
+        severity: 'warning',
         nodeId: node.id,
         message: `STAR TOPOLOGY ERROR: Client node '${label}' is the TARGET of ${inbound} edges. ` +
           `Client tier nodes (Web App, Mobile App) are SOURCES — they initiate requests. ` +
@@ -112,10 +134,10 @@ export async function validateDiagram(): Promise<{
       });
     }
 
-    // Any node receiving more than 50% of all edges is a hub — anti-pattern
+    // Gateways, event brokers, and read models can all be intentional hubs.
     if (totalEdges >= 4 && inbound >= Math.ceil(totalEdges * 0.5) && tier !== 'edge') {
       issues.push({
-        severity: 'error',
+        severity: 'warning',
         nodeId: node.id,
         message: `STAR TOPOLOGY ERROR: Node '${label}' (${tier} tier) is the hub — ${inbound} of ${totalEdges} edges point TO it. ` +
           `Architecture must use a tiered flow, not a star/hub pattern. ` +
@@ -137,10 +159,10 @@ export async function validateDiagram(): Promise<{
     const sourceTierOrder = TIER_RANK[sourceTier] ?? 2;
     const targetTierOrder = TIER_RANK[targetTier] ?? 2;
 
-    // Severe backward: data/compute → client (e.g., database connecting to Web App)
+    // Direction is visual guidance only; it is not a validity condition.
     if (sourceTierOrder > 1 && targetTierOrder === 0) {
       issues.push({
-        severity: 'error',
+        severity: 'warning',
         nodeId: edge.source,
         message: `BACKWARD EDGE: '${sourceNode.data?.label}' (${sourceTier}) → '${targetNode.data?.label}' (client). ` +
           `Service and data nodes must NEVER connect to the client tier. ` +
@@ -214,4 +236,9 @@ export async function validateDiagram(): Promise<{
     suggestionCount,
     issues,
   };
+}
+
+export async function validateDiagram(workingSession?: string): Promise<ReturnType<typeof validateGraph>> {
+  const state = getDiagramState(workingSession);
+  return validateGraph(state.nodes, state.edges);
 }

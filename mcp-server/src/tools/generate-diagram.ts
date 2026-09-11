@@ -1,26 +1,21 @@
-import type { ArchitectureNode, ArchitectureEdge, ReactFlowNode, ReactFlowEdge, TierType } from '../types/index.js';
+import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { GenerateDiagramInput } from '../lib/schema.js';
-import { runELKLayout, validateLayout } from '../lib/elk-runner.js';
-import { parseUserPrompt } from '../lib/parse-prompt.js';
 import { fetchWithTimeout } from '../lib/http.js';
-import {
-  TIER_COLORS,
-  TIER_ORDER,
-  TIER_RANK,
-  COMM_COLORS,
-  DEFAULT_NODE_WIDTH,
-  DEFAULT_NODE_HEIGHT,
-  DEFAULT_GROUP_WIDTH,
-  DEFAULT_GROUP_HEIGHT,
-} from '../lib/constants.js';
+import { validateGraph } from './validate-diagram.js';
 
-function assignTierFromLayer(layer: string): TierType {
-  const normalized = layer.toLowerCase();
-  if (TIER_ORDER.includes(normalized as TierType)) return normalized as TierType;
-  return 'compute';
+function structuredInputToMermaid(nodes: NodeInput[], edges: NonNullable<GenerateDiagramInput['edges']>, direction: GenerateDiagramInput['direction']): string {
+  const graphDirection = direction === 'DOWN' || direction === 'UP' ? 'TD' : 'LR';
+  const lines = [`graph ${graphDirection}`];
+  for (const node of nodes) {
+    const label = (node.label || node.id || 'Component').replaceAll('"', "'").replaceAll('\n', ' ');
+    lines.push(`  ${node.id || 'component'}["${label}"]`);
+  }
+  for (const edge of edges || []) lines.push(`  ${edge.source} --> ${edge.target}`);
+  return lines.join('\n');
 }
 
-function validateNodes(nodes: ArchitectureNode[], techStack?: string[], customFeatures?: string[]): string[] {
+/* Legacy ELK validation retained only until the next major release. */
+/* function validateNodes(nodes: ArchitectureNode[], techStack?: string[], customFeatures?: string[]): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
 
@@ -157,7 +152,7 @@ function validateEdgeTopology(
   }
 
   return topologyErrors;
-}
+} */
 
 interface NodeInput {
   id?: string;
@@ -192,33 +187,35 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
   };
   diagramUrl?: string;
   sessionId?: string;
+  updateToken?: string;
   shareUrl?: string;
   embeddedDiagram?: { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] };
   message?: string;
   errors?: string[];
 }> {
-  const errors: string[] = [];
-
   try {
     const { direction } = input;
 
     // Handle Mermaid input directly
     if (input.mermaid) {
-      const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
+      const API_BASE = process.env.API_BASE_URL;
       const label = input.label || 'AI Diagram';
+      if (!API_BASE) {
+        return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 }, errors: ['Mermaid generation requires API_BASE_URL to run the ArchDraw pipeline.'] };
+      }
       
-      const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
+      const previewResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mermaid: input.mermaid,
           label,
-          source: 'mcp',
+          dryRun: true,
         }),
       });
 
-      if (!saveResponse.ok) {
-        const errText = await saveResponse.text();
+      if (!previewResponse.ok) {
+        const errText = await previewResponse.text();
         let errData;
         try {
           errData = JSON.parse(errText);
@@ -232,11 +229,30 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         };
       }
 
-      const saveData = await saveResponse.json() as { sessionId: string; nodes: any[]; edges: any[]; warnings?: string[] };
-      const urlPath = `/editor?session=${saveData.sessionId}`;
-      const diagramUrl = `${API_BASE}${urlPath}`;
-      const sessionId = saveData.sessionId;
-      const shareUrl = `${API_BASE}/share/${sessionId}`;
+      const preview = await previewResponse.json() as { nodes: ReactFlowNode[]; edges: ReactFlowEdge[]; warnings?: string[] };
+      const validation = validateGraph(preview.nodes, preview.edges);
+      const structuralErrors = validation.issues.filter(issue => issue.severity === 'error').map(issue => issue.message);
+      if (structuralErrors.length > 0) {
+        return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 }, errors: structuralErrors };
+      }
+
+      let sessionId: string | undefined;
+      let updateToken: string | undefined;
+      let diagramUrl: string | undefined;
+      let shareUrl: string | undefined;
+      if (input.publish) {
+        const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mermaid: input.mermaid, label, source: 'mcp', publish: true }),
+        });
+        if (!saveResponse.ok) return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 }, errors: ['Could not publish diagram.'] };
+        const saved = await saveResponse.json() as { sessionId: string; updateToken: string };
+        sessionId = saved.sessionId;
+        updateToken = saved.updateToken;
+        diagramUrl = `${API_BASE}/editor?session=${sessionId}`;
+        shareUrl = `${API_BASE}/share/${sessionId}`;
+      }
+      const saveData = preview;
       const nodeCount = saveData.nodes.filter(n => !n.data?.isGroup).length;
       const groupCount = saveData.nodes.filter(n => n.data?.isGroup).length;
 
@@ -251,7 +267,8 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       const promptLine = input.userPrompt
         ? `\n\n💬 **From prompt**: "${input.userPrompt.substring(0, 100)}${input.userPrompt.length > 100 ? '...' : ''}"` : '';
 
-      const message = `✅ Diagram ready! Open this URL to view and edit:\n\n${diagramUrl}\n\n🔗 Shareable link:\n${shareUrl}\n\n📊 ${nodeCount} nodes, ${groupCount} groups, ${saveData.edges.length} edges.${techLine}${featuresLine}${promptLine}\n\n**To export**: Use session ID "${sessionId}" with the export_diagram tool.`;
+      const linkLine = diagramUrl ? ` Open and edit it: ${diagramUrl}\n\nShare link: ${shareUrl}` : ' It is held locally in this MCP session. Set publish:true only when the user explicitly requests a browser link.';
+      const message = `✅ Diagram ready!${linkLine}\n\n📊 ${nodeCount} nodes, ${groupCount} groups, ${saveData.edges.length} edges.${techLine}${featuresLine}${promptLine}`;
 
       return {
         success: true,
@@ -267,10 +284,11 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         },
         diagramUrl,
         sessionId,
+        updateToken,
         shareUrl,
         embeddedDiagram: { nodes: saveData.nodes, edges: saveData.edges },
         message,
-        errors: saveData.warnings && saveData.warnings.length > 0 ? saveData.warnings : undefined,
+        errors: [...(saveData.warnings || []), ...validation.issues.filter(issue => issue.severity !== 'error').map(issue => issue.message)],
       };
     }
 
@@ -282,6 +300,17 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       };
     }
 
+    // JSON remains supported for existing agents, but is deliberately adapted
+    // into Mermaid so every generated diagram uses the editor's canonical
+    // Mermaid → Dagre pipeline rather than a competing ELK layout.
+    return generateDiagram({
+      ...input,
+      mermaid: structuredInputToMermaid(input.nodes as NodeInput[], input.edges || [], input.direction),
+    });
+
+    /* Retained temporarily only as migration history; JSON input returns above
+       through the canonical Mermaid pipeline. */
+    /*
     // Check if AI used groups — warn if not
     const groupNodes = input.nodes.filter((n: NodeInput) => n.isGroup);
     if (groupNodes.length === 0) {
@@ -360,23 +389,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       architectureNodes,
       (input.edges || []).map(e => ({ source: e.source, target: e.target, label: e.label, id: e.id }))
     );
-    if (topologyErrors.length > 0) {
-      errors.push(...topologyErrors);
-      // Return early with topology errors — do NOT render a broken diagram
-      return {
-        success: false,
-        nodes: [],
-        edges: [],
-        elkPositions: [],
-        metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'ELK layered', direction, groupCount: 0 },
-        errors,
-        message:
-          `❌ Diagram rejected due to topology errors. Fix the following issues and call generate_diagram again:\n\n` +
-          topologyErrors.map((e, i) => `${i + 1}. ${e}`).join('\n\n') +
-          `\n\n📐 CORRECT FLOW: client → API Gateway → Services → Async → Data → External\n` +
-          `   Edges must flow LEFT→RIGHT through tiers. Never connect service/data nodes back to the client.`,
-      };
-    }
+    errors.push(...topologyErrors.map(error => `WARNING: ${error}`));
 
     const architectureEdges: ArchitectureEdge[] = (input.edges || []).map((edge, index) => {
       const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
@@ -410,13 +423,25 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       errors.push(...layoutValidation.errors);
     }
 
+    const graphValidation = validateGraph(layoutResult.nodes, layoutResult.edges);
+    const structuralErrors = graphValidation.issues.filter(issue => issue.severity === 'error').map(issue => issue.message);
+    if (structuralErrors.length > 0) {
+      return {
+        success: false, nodes: [], edges: [], elkPositions: [],
+        metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'ELK layered', direction, groupCount: 0 },
+        errors: structuralErrors,
+      };
+    }
+    errors.push(...graphValidation.issues.filter(issue => issue.severity !== 'error').map(issue => issue.message));
+
     let diagramUrl: string | undefined;
     let message: string | undefined;
     let sessionId: string | undefined;
+    let updateToken: string | undefined;
 
-    const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
+    const API_BASE = process.env.API_BASE_URL;
 
-    try {
+    if (input.publish && API_BASE) try {
       const label = input.label || input.nodes[0]?.label || 'AI Diagram';
       const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
@@ -425,15 +450,16 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
           nodes: layoutResult.nodes,
           edges: layoutResult.edges,
           label,
-          source: 'mcp',
+          source: 'mcp', publish: true,
         }),
       });
 
       if (saveResponse.ok) {
-        const saveData = await saveResponse.json() as { sessionId: string; url?: string };
+        const saveData = await saveResponse.json() as { sessionId: string; url?: string; updateToken: string };
         const urlPath = saveData.url || `/editor?session=${saveData.sessionId}`;
         diagramUrl = `${API_BASE}${urlPath}`;
         sessionId = saveData.sessionId;
+        updateToken = saveData.updateToken;
         const shareUrl = `${API_BASE}/share/${sessionId}`;
         const nodeCount = layoutResult.nodes.filter(n => !n.data?.isGroup).length;
         const groupCount = layoutResult.nodes.filter(n => n.data?.isGroup).length;
@@ -470,11 +496,13 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       },
       diagramUrl,
       sessionId,
+      updateToken,
       shareUrl: sessionId ? `${API_BASE}/share/${sessionId}` : undefined,
       embeddedDiagram: { nodes: layoutResult.nodes, edges: layoutResult.edges },
       message,
       errors: errors.length > 0 ? errors : undefined,
     };
+    */
 
   } catch (error) {
     return {

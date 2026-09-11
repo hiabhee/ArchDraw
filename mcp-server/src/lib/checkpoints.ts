@@ -8,14 +8,25 @@ export interface Checkpoint {
   };
 }
 
-const checkpoints = new Map<string, Checkpoint>();
+const checkpointsBySession = new Map<string, Map<string, Checkpoint>>();
+
+function checkpointsFor(workingSession: string): Map<string, Checkpoint> {
+  let checkpoints = checkpointsBySession.get(workingSession);
+  if (!checkpoints) {
+    checkpoints = new Map();
+    checkpointsBySession.set(workingSession, checkpoints);
+  }
+  return checkpoints;
+}
 
 export function saveCheckpoint(
   name: string,
   description: string | undefined,
-  state: { nodes: unknown[]; edges: unknown[] }
+  state: { nodes: unknown[]; edges: unknown[] },
+  workingSession = 'default'
 ): { success: boolean; name: string; savedAt: string; nodeCount: number; edgeCount: number; overwritten?: boolean } {
   const savedAt = new Date().toISOString();
+  const checkpoints = checkpointsFor(workingSession);
   const overwritten = checkpoints.has(name);
   
   checkpoints.set(name, {
@@ -38,7 +49,7 @@ export function saveCheckpoint(
   };
 }
 
-export function loadCheckpoint(name: string): {
+export function loadCheckpoint(name: string, workingSession = 'default'): {
   success: boolean;
   name?: string;
   restoredAt?: string;
@@ -48,7 +59,7 @@ export function loadCheckpoint(name: string): {
   availableCheckpoints?: Array<{ name: string; description?: string; savedAt: string; nodeCount: number; edgeCount: number }>;
   error?: string;
 } {
-  const checkpoint = checkpoints.get(name);
+  const checkpoint = checkpointsFor(workingSession).get(name);
   
   if (!checkpoint) {
     return {
@@ -69,16 +80,16 @@ export function loadCheckpoint(name: string): {
   };
 }
 
-export function getCheckpointState(name: string): { nodes: unknown[]; edges: unknown[] } | null {
-  const checkpoint = checkpoints.get(name);
+export function getCheckpointState(name: string, workingSession = 'default'): { nodes: unknown[]; edges: unknown[] } | null {
+  const checkpoint = checkpointsFor(workingSession).get(name);
   return checkpoint ? {
     nodes: JSON.parse(JSON.stringify(checkpoint.state.nodes)),
     edges: JSON.parse(JSON.stringify(checkpoint.state.edges)),
   } : null;
 }
 
-export function listCheckpoints(): Array<{ name: string; description?: string; savedAt: string; nodeCount: number; edgeCount: number }> {
-  return Array.from(checkpoints.values()).map(cp => ({
+export function listCheckpoints(workingSession = 'default'): Array<{ name: string; description?: string; savedAt: string; nodeCount: number; edgeCount: number }> {
+  return Array.from(checkpointsFor(workingSession).values()).map(cp => ({
     name: cp.name,
     description: cp.description,
     savedAt: cp.savedAt,

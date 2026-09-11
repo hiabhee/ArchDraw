@@ -81,4 +81,13 @@ describe('diagram-state', () => {
     setDiagramState({ nodes: [makeNode('a')], edges: [] });
     expect(hasDiagramState()).toBe(true);
   });
+
+  it('isolates state by working session', async () => {
+    const { setDiagramState, getDiagramState } = await import('../diagram-state.js');
+    setDiagramState({ nodes: [makeNode('one')], edges: [] }, 'workspace-one');
+    setDiagramState({ nodes: [makeNode('two')], edges: [] }, 'workspace-two');
+
+    expect(getDiagramState('workspace-one').nodes[0]?.id).toBe('one');
+    expect(getDiagramState('workspace-two').nodes[0]?.id).toBe('two');
+  });
 });

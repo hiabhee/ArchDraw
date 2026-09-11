@@ -92,6 +92,17 @@ describe('updateDiagram', () => {
     expect(result.error).toContain('generate_diagram');
   });
 
+  it('rejects an update with a dangling edge without changing stored state', async () => {
+    const { setDiagramState, getDiagramState } = await import('../../lib/diagram-state.js');
+    const { updateDiagram } = await import('../update-diagram.js');
+    setDiagramState({ nodes: [makeNode('a')], edges: [] });
+
+    const result = await updateDiagram({ addEdges: [{ source: 'a', target: 'missing' }] });
+
+    expect(result.success).toBe(false);
+    expect(getDiagramState().edges).toEqual([]);
+  });
+
   it('does not mutate the previous state object', async () => {
     const { setDiagramState } = await import('../../lib/diagram-state.js');
     const { updateDiagram } = await import('../update-diagram.js');

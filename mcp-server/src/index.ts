@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -58,51 +59,20 @@ Use \`direction\` to pick LR (default) or TD. Any graph \`graph TD\` implies top
 The web parser runs Mermaid → React Flow → Dagre layout, so positions come out clean automatically.
 Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` are supported for non-native shapes.
 
-**Mode 2 (legacy): Structured JSON** — pass \`nodes\` and \`edges\` arrays (schemas below). Less preferred;
-the JSON path uses the internal ELK layout and cannot round-trip through the product pipeline.
+**Mode 2 (compatibility): Structured JSON** — pass \`nodes\` and \`edges\` arrays (schemas below). ArchDraw converts this input to Mermaid and uses the same editor pipeline.
 
 **ALWAYS ALSO PASS** (when you have them):
 - \`userPrompt\`: the user's request verbatim — node subtitles must reflect any tech stack they named.
 - \`techStack\`: explicit list of technologies (["Next.js", "PostgreSQL 15", "Redis"]).
 - \`customFeatures\`: features the user explicitly asked for.
 
-**🚨 CRITICAL SYSTEMATIC RULES — VIOLATIONS WILL BE FLAGGED:**
+**Architecture guidance, not hard rules:** use groups and concise labels where they help comprehension. Model only the components and flows supported by the user’s context. Gateways, event brokers, direct client streams, and domain-specific services are valid when the architecture calls for them.
 
-**RULE A — AUTH SERVICE TOPOLOGY**: The Auth Service receives arrows ONLY from login and token refresh endpoints. NO other arrows from the gateway into Auth Service are permitted. All other routes: gateway validates JWT internally and routes DIRECTLY to the target service. BEFORE FINALIZING: audit every edge targeting Auth Service — if label is not login/register/token-refresh, delete it.
-
-**RULE B — OBJECT STORAGE IS MANDATORY FOR MEDIA DOMAINS**: For video streaming, image sharing, audio streaming, or any diagram with a CDN or Transcoding Worker — Object Storage (S3/GCS) MUST be present. Required pipeline: Upload → Object Storage (raw) → Transcoding Worker → Object Storage (output) → CDN → Client. Drawing CDN without an origin storage is architecturally invalid.
-
-**RULE C — ANALYTICS EVENT STREAM IS CORE INFRASTRUCTURE**: For video/audio streaming, social media, e-commerce, or gaming domains — an Analytics Event Stream (Kafka/Kinesis) feeding a Recommendation Engine is mandatory. Pattern: Client → (play/click event) → Event Stream → Analytics Processor → Recommendation Engine. This is not optional logging — it is the product's primary feedback loop.
-
-**RULE D — SECURITY SERVICES MUST NOT BYPASS THE GATEWAY**: DRM, Auth, and License Servers must NEVER connect directly to client-tier nodes. Always route through API Gateway (client → gateway → DRM). A direct client→DRM connection means unauthenticated users can request licenses.
-
-**RULE E — EDGE DIRECTION: LEFT->RIGHT ONLY, NO STAR TOPOLOGY** THIS IS THE #1 GENERATION ERROR:
-Edges MUST flow from lower-numbered tier to higher-numbered tier:
-  client(0) -> edge(1) -> compute(2) -> async(3) -> data(4) -> external(5)
-
-Client tier nodes (Web App, Mobile App) are REQUEST INITIATORS -- they are edge SOURCES, NOT targets.
-- CORRECT: Web App -> API Gateway -> Order Service -> PostgreSQL
-- WRONG:   Order Service -> Web App  (backward edge, FORBIDDEN)
-- WRONG:   PostgreSQL -> Web App     (data to client, FORBIDDEN)
-- WRONG:   10 services all -> Web App (star topology, REJECTED)
-
-Web Client is NOT a hub. Do NOT draw edges from backend/data/service nodes back to the client.
-If backend needs to push: add a WebSocket Gateway (tier:edge) or Notification Service (tier:compute) as intermediary.
-
-DIAGRAMS WITH STAR TOPOLOGY WILL BE AUTOMATICALLY REJECTED. Fix by:
-1. Reverse any edges that point TO a client-tier node FROM a backend node
-2. Remove all edges where target=web_client that do not originate from another client-tier node
-
-**MANDATORY REQUIREMENTS** — diagrams missing these will be flagged:
-1. At least ONE group (a Mermaid \`subgraph\`, or \`isGroup:true\` in JSON mode) to cluster related services
-2. Every node MUST have a subtitle describing its specific role
-3. All async/stream/event edges MUST have a label (the event/message name)
-4. Every node MUST have a tier assigned
-5. Domain-specific required nodes must be present (see read_me for checklist)
+**Privacy:** diagrams stay in this MCP session by default. Set \`publish:true\` only after the user explicitly asks for a browser-accessible link. Retain and resend \`workingSessionId\` from the result when working on more than one diagram in parallel.
 
 **WORKFLOW**:
-1. Call read_me FIRST for the full reference guide and domain checklist
-2. Identify the domain and verify all required domain nodes are planned
+1. Identify the user’s actual domain and constraints
+2. Model only supported components and relationships
 3. Optionally call list_node_types to find icon names
 4. Design the Mermaid graph: groups (subgraphs) first, then children inside them
 5. Design edges: use correct communicationType, audit Auth Service edges, verify no security bypass
@@ -168,7 +138,7 @@ DIAGRAMS WITH STAR TOPOLOGY WILL BE AUTOMATICALLY REJECTED. Fix by:
               height: { type: 'number', description: 'Height px. Groups: 200-400. Nodes: 60-90.' },
               shape: { type: 'string', enum: ['rectangle', 'diamond', 'ellipse', 'hexagon'], description: 'Node shape' },
             },
-            required: ['label'],
+            required: ['id', 'label', 'tier', 'subtitle'],
           },
         },
         edges: {
@@ -194,7 +164,7 @@ DIAGRAMS WITH STAR TOPOLOGY WILL BE AUTOMATICALLY REJECTED. Fix by:
               },
               label: { type: 'string', description: 'Edge label. REQUIRED for async/stream/event. Describe the message or event name.' },
             },
-            required: ['source', 'target'],
+            required: ['source', 'target', 'label'],
           },
         },
         direction: {
@@ -208,17 +178,19 @@ DIAGRAMS WITH STAR TOPOLOGY WILL BE AUTOMATICALLY REJECTED. Fix by:
         userPrompt: { type: 'string', description: 'The user\'s original request verbatim. Subtitle content must reflect any tech stack/services the user named.' },
         techStack: { type: 'array', items: { type: 'string' }, description: 'Explicit technologies/services extracted from the prompt (e.g. ["Next.js", "PostgreSQL 15"]).' },
         customFeatures: { type: 'array', items: { type: 'string' }, description: 'Custom features/components the user explicitly requested.' },
+        publish: { type: 'boolean', default: false, description: 'Set true only after the user explicitly asks for a browser-accessible link.' },
+        workingSessionId: { type: 'string', description: 'Opaque local workspace key. Resend it to keep parallel diagrams isolated.' },
       },
       required: [],
     },
   },
   {
     name: 'fix_layout',
-    description: `Apply ELK auto-layout algorithm to existing nodes and edges.
+    description: `Apply the same Mermaid → Dagre auto-layout pipeline used by the ArchDraw editor.
 
 **USE WHEN**: User provides nodes/edges that need automatic positioning
 **INPUT**: Nodes with their tier assignments, plus edges between them
-**OUTPUT**: Returns nodes with x,y positions computed by ELK layered algorithm
+**OUTPUT**: Returns nodes with x,y positions computed by the editor pipeline
 
 This tool does NOT generate or modify nodes/edges - it only computes optimal positions.
 
@@ -365,6 +337,8 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
             },
           },
         },
+        publish: { type: 'boolean', default: false, description: 'Set true only after the user explicitly asks for a browser-accessible link.' },
+        workingSessionId: { type: 'string', description: 'Opaque local workspace key for isolating parallel diagrams.' },
       },
       required: ['templateId'],
     },
@@ -546,6 +520,15 @@ class ArchDrawMCPServer {
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
+      // Stdio normally has one client, but hosts can multiplex calls. Agents
+      // should retain and resend this opaque key to isolate parallel diagrams.
+      let workingSession = typeof args?.workingSessionId === 'string' && args.workingSessionId.trim()
+        ? args.workingSessionId.trim()
+        : '';
+      if (!workingSession && (name === 'generate_diagram' || name === 'apply_template')) {
+        workingSession = randomUUID();
+      }
+      if (!workingSession) workingSession = 'default';
 
       try {
         switch (name) {
@@ -554,7 +537,7 @@ class ArchDrawMCPServer {
             const result = await generateDiagram(input);
             if (result.success) {
               const { setDiagramState } = await import('./lib/diagram-state.js');
-              setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId });
+              setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken }, workingSession);
             }
             return {
               content: [
@@ -566,6 +549,7 @@ class ArchDrawMCPServer {
                     diagramUrl: result.diagramUrl,
                     shareUrl: result.shareUrl,
                     sessionId: result.sessionId,
+                    workingSessionId: workingSession,
                     metadata: result.metadata,
                     errors: result.errors,
                     note: "Raw nodes and edges omitted for brevity."
@@ -606,7 +590,7 @@ class ArchDrawMCPServer {
             const result = await applyTemplate(input);
             if (result.success) {
               const { setDiagramState } = await import('./lib/diagram-state.js');
-              setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId });
+              setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken }, workingSession);
             }
             return {
               content: [
@@ -618,6 +602,7 @@ class ArchDrawMCPServer {
                     diagramUrl: result.diagramUrl,
                     shareUrl: result.shareUrl,
                     sessionId: result.sessionId,
+                    workingSessionId: workingSession,
                     errors: result.errors,
                     note: "Raw nodes and edges omitted for brevity."
                   }, null, 2),
@@ -654,7 +639,7 @@ class ArchDrawMCPServer {
             const { sessionId } = (args ?? {}) as { sessionId?: string };
             if (typeof sessionId === 'string' && sessionId.trim().length > 0) {
               const { syncDiagramStateFromSession } = await import('./lib/diagram-state.js');
-              const synced = await syncDiagramStateFromSession(sessionId.trim());
+              const synced = await syncDiagramStateFromSession(sessionId.trim(), undefined, workingSession);
               if (!synced) {
                 return {
                   content: [
@@ -671,7 +656,7 @@ class ArchDrawMCPServer {
                 };
               }
             }
-            const state = getDiagramState();
+            const state = getDiagramState(workingSession);
             return {
               content: [
                 {
@@ -690,10 +675,11 @@ class ArchDrawMCPServer {
 
           case 'update_diagram': {
             const input = UpdateDiagramInputSchema.parse(args);
-            const result = await updateDiagram(input);
+            const result = await updateDiagram(input, workingSession);
             if (result.success) {
               const { setDiagramState } = await import('./lib/diagram-state.js');
-              setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId });
+              const previous = getDiagramState(workingSession);
+              setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: previous.updateToken }, workingSession);
             }
             return {
               content: [
@@ -706,6 +692,7 @@ class ArchDrawMCPServer {
                     changes: result.changes,
                     diagramUrl: result.diagramUrl,
                     sessionId: result.sessionId,
+                    workingSessionId: workingSession,
                     note: "Raw nodes and edges omitted for brevity."
                   }, null, 2),
                 },
@@ -714,7 +701,7 @@ class ArchDrawMCPServer {
           }
 
           case 'validate_diagram': {
-            const result = await validateDiagram();
+            const result = await validateDiagram(workingSession);
             return {
               content: [
                 {
@@ -727,7 +714,7 @@ class ArchDrawMCPServer {
 
           case 'save_checkpoint': {
             const input = SaveCheckpointInputSchema.parse(args);
-            const result = await saveCheckpoint(input);
+            const result = await saveCheckpoint(input, workingSession);
             return {
               content: [
                 {
@@ -740,7 +727,7 @@ class ArchDrawMCPServer {
 
           case 'load_checkpoint': {
             const input = LoadCheckpointInputSchema.parse(args);
-            const result = await loadCheckpoint(input);
+            const result = await loadCheckpoint(input, workingSession);
             return {
               content: [
                 {
