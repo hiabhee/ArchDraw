@@ -5,9 +5,10 @@ import { Navbar } from '@/components/landing/Navbar';
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'ArchDraw Terms of Service.',
+  alternates: { canonical: 'https://archdraw.hiabhee.online/terms' },
   openGraph: {
     type: 'website',
-    url: 'https://archdraw.app/terms',
+    url: 'https://archdraw.hiabhee.online/terms',
     title: 'Terms of Service — ArchDraw',
     description: 'The terms of service for using ArchDraw.',
     images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw Terms of Service' }],
@@ -25,7 +26,7 @@ export default function TermsPage() {
         <div className="prose prose-slate max-w-none space-y-10 text-slate-700">
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">1. Acceptance of Terms</h2>
-            <p>By accessing or using ArchDraw at archdraw.app, you agree to be bound by these Terms of Service. If you do not agree, please do not use the service.</p>
+            <p>By accessing or using ArchDraw at https://archdraw.hiabhee.online/, you agree to be bound by these Terms of Service. If you do not agree, please do not use the service.</p>
           </section>
 
           <section>

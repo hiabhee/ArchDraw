@@ -2,17 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowRight, Menu, X } from 'lucide-react';
+import { START_CTA_LABEL, startCtaHref } from './cta';
 
 const NAV_LINKS = [
-  { label: 'Why', href: '#why', track: 'nav_why' },
-  { label: 'How it works', href: '#how-it-works', track: 'nav_how_it_works' },
-  { label: 'Pricing', href: '#pricing', track: 'nav_pricing' },
+  { label: 'Features', href: '/#features', track: 'nav_features' },
+  { label: 'How it works', href: '/#how-it-works', track: 'nav_how_it_works' },
+  { label: 'Pricing', href: '/pricing', track: 'nav_pricing' },
   { label: 'Docs', href: '/docs', track: 'nav_docs' },
 ];
 
 export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
+  const pathname = usePathname();
+  const startHref = startCtaHref(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -27,10 +31,10 @@ export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className={`fixed top-0 left-0 right-0 z-50 h-14 transition-all duration-200 ${
+      className={`fixed top-0 left-0 right-0 z-50 h-14 transition-all duration-200 border-b ${
         scrolled
-          ? 'bg-[#f7f7f5]/85 backdrop-blur-xl border-b border-[#e4e4df]/60'
-          : 'bg-[#f7f7f5]'
+          ? 'bg-[#f7f7f5]/85 backdrop-blur-xl border-[#e4e4df]/60'
+          : 'bg-transparent border-transparent'
       }`}
     >
       <div className="max-w-[1280px] mx-auto px-6 h-full flex items-center justify-between">
@@ -69,18 +73,19 @@ export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
             Sign in
           </a>
           <a
-            href="/dashboard"
+            href={startHref}
             data-track="nav_get_started"
-            className="group inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-4 py-1.5 rounded-lg transition-all duration-200 shadow-[0_4px_12px_rgba(30,144,255,0.2)] hover:shadow-[0_4px_18px_rgba(30,144,255,0.35)] hover:-translate-y-0.5"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8] px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap"
           >
-            Get started free
-            <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+            {START_CTA_LABEL}
+            <ArrowRight className="w-3.5 h-3.5" />
           </a>
         </div>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="md:hidden p-2 text-[#575752] hover:text-[#1c1c1a] transition-colors"
           aria-label="Toggle menu"
+          aria-expanded={menuOpen}
         >
           {menuOpen ? <X size="20" /> : <Menu size="20" />}
         </button>
@@ -108,11 +113,11 @@ export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
               Sign in
             </a>
             <a
-              href="/dashboard"
+              href={startHref}
               onClick={() => setMenuOpen(false)}
               className="text-sm font-semibold text-center text-white bg-brand hover:bg-brand-hover px-4 py-3 rounded-lg transition-colors"
             >
-              Get started free
+              {START_CTA_LABEL}
             </a>
           </div>
         </div>

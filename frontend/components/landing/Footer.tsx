@@ -4,30 +4,30 @@ const COLUMNS = [
   {
     title: 'Product',
     links: [
-      { label: 'Features', href: '#why' },
-      { label: 'How it works', href: '#how-it-works' },
+      { label: 'Features', href: '/#features' },
+      { label: 'How it works', href: '/#how-it-works' },
+      { label: 'Pricing', href: '/pricing' },
       { label: 'Canvas', href: '/editor' },
-      { label: 'Pricing', href: '#pricing' },
     ],
   },
   {
     title: 'Resources',
     links: [
       { label: 'Docs', href: '/docs' },
-      { label: 'MCP Server', href: '/mcp' },
-      { label: 'Repo → Diagram', href: '/repo-diagram' },
-      { label: 'Examples', href: '/dashboard/templates' },
       { label: 'Tutorials', href: '/tutorials' },
       { label: 'Blog', href: '/blogs' },
+      { label: 'FAQ', href: '/faq' },
+      { label: 'MCP Server', href: '/mcp' },
+      { label: 'Repo → Diagram', href: '/repo-diagram' },
     ],
   },
   {
     title: 'Company',
     links: [
-      { label: 'About', href: '#founder' },
-      { label: 'GitHub', href: 'https://github.com' },
+      { label: 'About', href: '/about' },
+      { label: 'Contact', href: '/contact' },
+      { label: 'GitHub', href: 'https://github.com/hiabhee/ArchDraw' },
       { label: 'Twitter', href: 'https://twitter.com' },
-      { label: 'Contact', href: 'mailto:hello@archdraw.app' },
     ],
   },
 ];

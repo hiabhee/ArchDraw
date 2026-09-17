@@ -9,10 +9,10 @@ const TECH_LOGOS = [
 
 export function SocialProof() {
   return (
-    <section className="py-14 px-6 border-y border-[#e4e4df] bg-[#f1f1eb]/40 overflow-hidden">
+    <section className="py-10 px-6 border-y border-[#e4e4df] bg-[#fbfbfa] overflow-hidden">
       <div className="max-w-[1280px] mx-auto">
         <motion.p
-          className="text-center text-[11px] font-bold tracking-[2px] uppercase text-[#8a8f98] mb-7"
+          className="text-center text-[11px] font-bold tracking-[2px] uppercase text-[#5a6066] mb-7"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-50px' }}
@@ -20,7 +20,7 @@ export function SocialProof() {
         >
           Built for the systems you already design around
         </motion.p>
-        <div className="relative overflow-hidden mask-fade-x">
+        <div className="relative overflow-hidden">
           <div
             className="flex gap-14 animate-marquee"
             style={{ width: 'max-content' }}

@@ -1,65 +1,55 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
   MarkerType,
   ReactFlowProvider,
+  useNodesState,
+  useEdgesState,
   type Edge,
   type Node,
   type ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { EDGE_TYPES, NODE_TYPES } from '@/lib/constants/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import dagre from 'dagre';
 import '@/components/nodes/nodeStyles.css';
 import styles from './LandingCanvasPreview.module.css';
 
-const NODES: Node[] = [
-  {
-    id: 'landing-client',
+// Mirror main canvas exactly: same nodeTypes, edgeTypes, Dagre layout, same sizing.
+// Synchronous layout via useMemo — no async setState on mount (avoids React 19 “state update on unmounted” warning).
+function makeNode(id: string, label: string, subtitle: string, serviceType: string, category: string, layer: string, shape?: string): Node {
+  const dims = calculateNodeDimensions(label, subtitle, { shape });
+  return {
+    id,
     type: 'systemNode',
-    position: { x: 10, y: 168 },
-    draggable: false,
-    selectable: false,
+    position: { x: 0, y: 0 },
+    width: dims.width,
+    height: dims.height,
+    draggable: true,
+    selectable: true,
     data: {
-      typeId: 'client', label: 'Web application', subtitle: 'Next.js client',
-      serviceType: 'client', category: 'Client', layer: 'client', nodeWidth: 200, nodeHeight: 100,
+      typeId: serviceType === 'database' ? 'database' : serviceType === 'service' ? 'service' : serviceType,
+      label,
+      subtitle,
+      serviceType,
+      category,
+      layer,
+      shape,
+      nodeWidth: dims.width,
+      nodeHeight: dims.height,
     },
-  },
-  {
-    id: 'landing-api',
-    type: 'systemNode',
-    position: { x: 275, y: 168 },
-    draggable: false,
-    selectable: false,
-    data: {
-      typeId: 'api', label: 'API gateway', subtitle: 'Auth + routes',
-      serviceType: 'api', category: 'Compute', layer: 'compute', nodeWidth: 200, nodeHeight: 100,
-    },
-  },
-  {
-    id: 'landing-worker',
-    type: 'systemNode',
-    position: { x: 540, y: 48 },
-    draggable: false,
-    selectable: false,
-    data: {
-      typeId: 'service', label: 'Job worker', subtitle: 'Async processing',
-      serviceType: 'service', category: 'Async', layer: 'async', nodeWidth: 200, nodeHeight: 100,
-    },
-  },
-  {
-    id: 'landing-database',
-    type: 'systemNode',
-    position: { x: 540, y: 282 },
-    draggable: false,
-    selectable: false,
-    data: {
-      typeId: 'database', label: 'Postgres', subtitle: 'Primary data store',
-      serviceType: 'database', category: 'Data', layer: 'data', shape: 'cylinder', nodeWidth: 200, nodeHeight: 100,
-    },
-  },
+  };
+}
+
+const RAW_NODES: Node[] = [
+  makeNode('landing-client', 'Web application', 'Next.js client', 'client', 'Client', 'client'),
+  makeNode('landing-api', 'API gateway', 'Auth + routes', 'api', 'Compute', 'compute'),
+  makeNode('landing-worker', 'Job worker', 'Async processing', 'service', 'Async', 'async'),
+  makeNode('landing-database', 'Postgres', 'Primary data store', 'database', 'Data', 'data', 'cylinder'),
 ];
 
 const edge = (id: string, source: string, target: string, label: string, color: string): Edge => ({
@@ -68,20 +58,49 @@ const edge = (id: string, source: string, target: string, label: string, color: 
   target,
   type: 'simpleFloating',
   label,
-  sourceHandle: 'source-right',
-  targetHandle: 'target-left',
-  markerEnd: { type: MarkerType.ArrowClosed, color },
-  style: { stroke: color, strokeWidth: 1.5 },
-  data: { pathType: 'Smoothstep', sourceSide: 'right', targetSide: 'left' },
+  animated: true,
+  markerEnd: { type: MarkerType.ArrowClosed, color, width: 10, height: 10 },
+  style: { stroke: color, strokeWidth: 1.4 },
+  data: { label, pathType: 'Smoothstep' },
 });
 
-const EDGES: Edge[] = [
+const RAW_EDGES: Edge[] = [
   edge('landing-request', 'landing-client', 'landing-api', 'HTTPS', '#64748b'),
   edge('landing-queue', 'landing-api', 'landing-worker', 'ENQUEUE', '#b45309'),
   edge('landing-data', 'landing-api', 'landing-database', 'QUERY', '#475569'),
 ];
 
+function useLayoutedGraph() {
+  return useMemo(() => {
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({ rankdir: 'LR', nodesep: 120, ranksep: 120, marginx: 20, marginy: 20 });
+    g.setDefaultEdgeLabel(() => ({}));
+    for (const n of RAW_NODES) {
+      const w = (n.width as number) ?? 200;
+      const h = (n.height as number) ?? 72;
+      g.setNode(n.id, { width: w, height: h });
+    }
+    for (const e of RAW_EDGES) g.setEdge(e.source, e.target);
+    dagre.layout(g);
+    const nodes: Node[] = RAW_NODES.map((n) => {
+      const pos = g.node(n.id);
+      const w = (n.width as number) ?? 200;
+      const h = (n.height as number) ?? 72;
+      return { ...n, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
+    });
+    return { nodes, edges: RAW_EDGES };
+  }, []);
+}
+
 function Canvas() {
+  const { nodes: initialNodes, edges: initialEdges } = useLayoutedGraph();
+  const [nodes, , onNodesChange] = useNodesState(initialNodes);
+  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+
+  // Keep nodes in sync if layout recomputes (e.g. theme change); preserve drag positions otherwise
+  // initialNodes is memo-stable, so this only runs on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   const onInit = useCallback((instance: ReactFlowInstance) => {
     requestAnimationFrame(() => instance.fitView({ padding: 0.18, duration: 0 }));
   }, []);
@@ -89,23 +108,28 @@ function Canvas() {
   return (
     <ReactFlow
       className={styles.flow}
-      nodes={NODES}
-      edges={EDGES}
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
       nodeTypes={NODE_TYPES}
       edgeTypes={EDGE_TYPES}
       onInit={onInit}
-      nodesDraggable={false}
+      nodesDraggable
       nodesConnectable={false}
-      elementsSelectable={false}
-      panOnDrag={false}
+      elementsSelectable
+      panOnDrag
+      panOnScroll={false}
       zoomOnScroll={false}
       zoomOnPinch={false}
       zoomOnDoubleClick={false}
+      preventScrolling={false}
+      selectNodesOnDrag
       proOptions={{ hideAttribution: true }}
       fitView
       fitViewOptions={{ padding: 0.18, duration: 0 }}
     >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d9dfdc" />
+      <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#d9dfdc" />
     </ReactFlow>
   );
 }
@@ -119,7 +143,7 @@ export function LandingCanvasPreview() {
         <span className={styles.canvasStatus}><i /> live canvas</span>
       </div>
       <div className={styles.canvas}><ReactFlowProvider><Canvas /></ReactFlowProvider></div>
-      <div className={styles.caption}><span>GENERATED FROM REPOSITORY</span><span>EDITABLE</span></div>
+      <div className={styles.caption}><span>EXAMPLE CANVAS</span><span>EDITABLE</span></div>
     </div>
   );
 }

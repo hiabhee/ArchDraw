@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { ComponentType } from 'react';
 import { ArrowRight, Terminal, Cpu, Zap, Shield, GitBranch } from 'lucide-react';
+import { LandingNav } from '@/components/landing/LandingNav';
+import { Footer } from '@/components/landing/Footer';
 
 export const metadata = {
   title: 'What is an MCP server for diagramming?',
@@ -74,75 +76,38 @@ const FAQ_JSON_LD = {
   ],
 };
 
-function Header() {
-  return (
-    <header
-      className="sticky top-0 z-30 backdrop-blur-xl border-b border-[hsl(var(--border)/0.12)]"
-      style={{ background: 'hsl(var(--background) / 0.8)' }}
-    >
-      <div className="max-w-[980px] mx-auto px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[hsl(var(--foreground))]">
-            <svg className="w-3.5 h-3.5 text-[hsl(var(--background))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-            </svg>
-          </div>
-          <span className="font-semibold text-sm text-[hsl(var(--foreground))] tracking-tight">ArchDraw</span>
-        </Link>
-        <nav className="flex items-center gap-4 text-xs font-semibold">
-          <Link href="/docs" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
-            Documentation
-          </Link>
-          <Link href="/blogs" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
-            Engineering Blog
-          </Link>
-          <Link
-            href="/dashboard"
-            className="text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors flex items-center gap-1"
-          >
-            <span>Go to Dashboard</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </nav>
-      </div>
-    </header>
-  );
-}
-
 function FeatureCard({ icon: Icon, title, desc }: { icon: ComponentType<{ className?: string }>; title: string; desc: string }) {
   return (
-    <div className="rounded-xl border border-[hsl(var(--border)/0.16)] bg-[hsl(var(--card))] p-5">
-      <Icon className="w-4 h-4 text-[hsl(var(--muted-foreground))] mb-3" />
-      <h3 className="text-sm font-bold text-[hsl(var(--foreground))] mb-1.5">{title}</h3>
-      <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">{desc}</p>
+    <div className="rounded-xl border border-[#e4e4df] bg-white p-5">
+      <Icon className="w-4 h-4 text-[#1E90FF] mb-3" />
+      <h3 className="text-sm font-bold text-[#1c1c1a] mb-1.5">{title}</h3>
+      <p className="text-xs text-[#5a6066] leading-relaxed">{desc}</p>
     </div>
   );
 }
 
 export default function McpPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
-      <Header />
+    <div className="min-h-screen flex flex-col bg-[#f7f7f5] text-[#1c1c1a]">
+      <LandingNav />
 
-      <main className="flex-1 max-w-[980px] w-full mx-auto px-6 py-12">
+      <main className="flex-1 max-w-[980px] w-full mx-auto px-6 pt-24 pb-16">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }}
         />
 
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mb-5"
-            style={{ background: 'hsl(var(--muted)/0.5)', border: '1px solid hsl(var(--border)/0.12)', color: 'hsl(var(--muted-foreground))' }}
-          >
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mb-5 bg-white border border-[#e4e4df] text-[#5a6066]">
             <Terminal className="w-3 h-3" />
             MCP · Model Context Protocol
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-6">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-6 text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
             What is an MCP server for diagramming?
           </h1>
 
-          <p className="text-sm sm:text-base text-[hsl(var(--muted-foreground))] leading-relaxed mb-4">
+          <p className="text-sm sm:text-base text-[#5a6066] leading-relaxed mb-4">
             An MCP server for diagramming is a local bridge that lets AI assistants like Claude and
             Cursor read, edit, and lay out architecture diagrams programmatically. ArchDraw ships one:
             instead of describing the diagram you want, the AI manipulates your actual canvas — adding

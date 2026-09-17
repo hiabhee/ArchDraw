@@ -5,9 +5,10 @@ import { Navbar } from '@/components/landing/Navbar';
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'ArchDraw Privacy Policy — how we collect, use, and protect your data.',
+  alternates: { canonical: 'https://archdraw.hiabhee.online/privacy' },
   openGraph: {
     type: 'website',
-    url: 'https://archdraw.app/privacy',
+    url: 'https://archdraw.hiabhee.online/privacy',
     title: 'Privacy Policy — ArchDraw',
     description: 'How ArchDraw collects, uses, and protects your data.',
     images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw Privacy Policy' }],
@@ -25,7 +26,7 @@ export default function PrivacyPage() {
         <div className="prose prose-slate max-w-none space-y-10 text-slate-700">
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">Introduction</h2>
-            <p>ArchDraw is a visual system architecture design tool. This policy explains how we collect, use, and protect your information when you use our service at archdraw.app.</p>
+            <p>ArchDraw is a visual system architecture design tool. This policy explains how we collect, use, and protect your information when you use our service at https://archdraw.hiabhee.online/.</p>
           </section>
 
           <section>
