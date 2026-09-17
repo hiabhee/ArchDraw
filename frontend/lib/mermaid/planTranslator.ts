@@ -98,7 +98,7 @@ export function classifyNode(name: string, groupName?: string): NodeClassificati
   // Actor (person) — only actual human end-users, not system operators/developers
   if (
     lower === 'user' || lower === 'actor' || lower === 'customer' ||
-    lower.includes('person')
+    lower.includes('person') || lower.includes('end user')
   ) return { shape: 'actor', serviceType: 'actor' }
 
   if (

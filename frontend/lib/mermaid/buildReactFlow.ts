@@ -147,6 +147,13 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         componentType: meta.typeId,
         typeId: meta.typeId,
         color: categoryColor,
+        // Preserve Mermaid `style` / `classDef` colors. `fill` controls the
+        // surface while `stroke` controls the outline and accent details.
+        ...(pNode.style?.fill ? { fillColor: pNode.style.fill } : {}),
+        ...(pNode.style?.stroke ? {
+          strokeColor: pNode.style.stroke,
+          accentColor: pNode.style.stroke,
+        } : {}),
         category: meta.category,
         icon: resolvedIcon.icon,
         iconSource: resolvedIcon.source,
@@ -196,8 +203,8 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       markerEnd: isInvisible ? undefined : { type: ARROW_MARKER },
       data: {
         label: isInvisible ? undefined : (pEdge.label ?? undefined),
-        connectionType: pEdge.type === 'dotted' || isInvisible ? 'async' : 'sync',
-        edgeVariant,
+        connectionType: pEdge.type === 'dotted' || isInvisible || semantics.syncAsync === 'async' ? 'async' : 'sync',
+        edgeVariant: semantics.syncAsync === 'async' && edgeVariant === 'solid' ? 'dashed' : edgeVariant,
         importance: isInvisible ? 'optional' : semantics.importance,
         syncAsync: semantics.syncAsync,
         portType: semantics.portType,

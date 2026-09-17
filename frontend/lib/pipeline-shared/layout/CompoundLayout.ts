@@ -68,6 +68,223 @@ interface CompoundContext {
   globalEdgeCount?: number;
 }
 
+interface LayoutRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Move a root and all of its descendants together in the absolute coordinate
+ * map emitted by the two-phase layout. Sizing converts those absolute child
+ * positions back to parent-relative coordinates later in the pipeline.
+ */
+function moveLayoutSubtree(
+  rootId: string,
+  delta: { x: number; y: number },
+  positions: Map<string, { x: number; y: number }>,
+  parentOf: Map<string, string>,
+): void {
+  for (const [id, position] of positions) {
+    let current: string | undefined = id;
+    const seen = new Set<string>();
+    let belongsToRoot = false;
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      if (current === rootId) {
+        belongsToRoot = true;
+        break;
+      }
+      current = parentOf.get(current);
+    }
+    if (belongsToRoot) {
+      positions.set(id, { x: position.x + delta.x, y: position.y + delta.y });
+    }
+  }
+}
+
+function descendantsOf(rootId: string, parentOf: Map<string, string>): Set<string> {
+  const descendants = new Set<string>([rootId]);
+  for (const id of parentOf.keys()) {
+    let current: string | undefined = id;
+    const seen = new Set<string>();
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      if (current === rootId) {
+        descendants.add(id);
+        break;
+      }
+      current = parentOf.get(current);
+    }
+  }
+  return descendants;
+}
+
+/**
+ * Returns a rendered-size approximation for a group from the absolute child
+ * positions. The +padding terms mirror `recomputeSubgraphBounds`, so the
+ * placement pass reasons about the box users actually see rather than the
+ * small placeholder dimensions present before sizing.
+ */
+function groupRect(
+  groupId: string,
+  positions: Map<string, { x: number; y: number }>,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+): LayoutRect {
+  const origin = positions.get(groupId) ?? { x: 0, y: 0 };
+  const descendants = descendantsOf(groupId, parentOf);
+  let maxX = origin.x;
+  let maxY = origin.y;
+  for (const id of descendants) {
+    if (id === groupId) continue;
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) continue;
+    maxX = Math.max(maxX, position.x + dims.width);
+    maxY = Math.max(maxY, position.y + dims.height);
+  }
+
+  return {
+    x: origin.x,
+    y: origin.y,
+    width: Math.max(dimsById.get(groupId)?.width ?? 1, maxX - origin.x + SUBGRAPH_PADDING_X),
+    height: Math.max(dimsById.get(groupId)?.height ?? 1, maxY - origin.y + SUBGRAPH_PADDING_BOTTOM),
+  };
+}
+
+function rootRect(
+  rootId: string,
+  groupIds: Set<string>,
+  positions: Map<string, { x: number; y: number }>,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+): LayoutRect {
+  if (groupIds.has(rootId)) {
+    return groupRect(rootId, positions, parentOf, dimsById);
+  }
+  const position = positions.get(rootId) ?? { x: 0, y: 0 };
+  const dims = dimsById.get(rootId) ?? { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
+  return { x: position.x, y: position.y, width: dims.width, height: dims.height };
+}
+
+function rectsOverlap(a: LayoutRect, b: LayoutRect): boolean {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+/**
+ * Place narrow, multi-connection groups beside the main flow instead of
+ * forcing them into the same left-to-right rank as a wide group.
+ *
+ * A compound graph lays out a populated group as one macro-node. That is
+ * correct for ranking, but it can be visually poor when several leaf edges
+ * attach to the middle of a wide group: the real leaf-to-leaf routes then
+ * become enormous top/bottom trunks. Sidecar placement preserves the macro
+ * ranking while moving those support groups to an orthogonal lane where their
+ * actual attachment points stay close to the main flow.
+ */
+function placeSidecarGroups(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  parentOf: Map<string, string>,
+  childrenByParent: Map<string, string[]>,
+  dimsById: Map<string, { width: number; height: number }>,
+  rankSep: number,
+): void {
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const rootIds = params.nodes.filter(node => !parentOf.has(node.id)).map(node => node.id);
+  const rootGroupIds = rootIds.filter(id => groupIds.has(id) && (childrenByParent.get(id)?.length ?? 0) > 0);
+  if (rootGroupIds.length < 2) return;
+
+  const descendantSets = new Map(rootGroupIds.map(id => [id, descendantsOf(id, parentOf)]));
+  const rootEdgeDegree = (id: string) => params.edges.filter(edge => {
+    const sourceIn = descendantSets.get(id)?.has(edge.source);
+    const targetIn = descendantSets.get(id)?.has(edge.target);
+    return sourceIn || targetIn;
+  }).length;
+  const mainGroupId = [...rootGroupIds].sort((a, b) => {
+    // Use graph centrality first. The largest group is frequently a data or
+    // observability group and should not automatically become the visual spine.
+    const degreeDiff = rootEdgeDegree(b) - rootEdgeDegree(a);
+    if (degreeDiff !== 0) return degreeDiff;
+    const countDiff = (descendantSets.get(b)?.size ?? 0) - (descendantSets.get(a)?.size ?? 0);
+    if (countDiff !== 0) return countDiff;
+    const aRect = groupRect(a, positions, parentOf, dimsById);
+    const bRect = groupRect(b, positions, parentOf, dimsById);
+    return bRect.width * bRect.height - aRect.width * aRect.height;
+  })[0];
+  const mainDescendants = descendantSets.get(mainGroupId);
+  if (!mainDescendants) return;
+
+  const candidates = rootGroupIds
+    .filter(id => id !== mainGroupId)
+    .map(id => {
+      const candidateDescendants = descendantSets.get(id)!;
+      const crossEdges = params.edges.filter(edge => {
+        const sourceInMain = mainDescendants.has(edge.source);
+        const targetInMain = mainDescendants.has(edge.target);
+        const sourceInCandidate = candidateDescendants.has(edge.source);
+        const targetInCandidate = candidateDescendants.has(edge.target);
+        return (sourceInMain && targetInCandidate) || (targetInMain && sourceInCandidate);
+      });
+      return { id, candidateDescendants, crossEdges };
+    })
+    // A single attachment is usually an entry/exit group. Reposition only
+    // multi-connection sidecars, where the long-trunk problem is measurable.
+    .filter(candidate => candidate.crossEdges.length >= 2);
+  if (candidates.length === 0) return;
+
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const mainRect = () => groupRect(mainGroupId, positions, parentOf, dimsById);
+
+  for (const candidate of candidates) {
+    const candidateRect = groupRect(candidate.id, positions, parentOf, dimsById);
+    const main = mainRect();
+    const attachmentPoints = candidate.crossEdges.flatMap(edge => {
+      const mainId = mainDescendants.has(edge.source) ? edge.source : edge.target;
+      const position = positions.get(mainId);
+      const dims = dimsById.get(mainId);
+      if (!position || !dims) return [];
+      return [{ x: position.x + dims.width / 2, y: position.y + dims.height / 2 }];
+    });
+    if (attachmentPoints.length === 0) continue;
+
+    const anchor = attachmentPoints.reduce(
+      (sum, point) => ({ x: sum.x + point.x / attachmentPoints.length, y: sum.y + point.y / attachmentPoints.length }),
+      { x: 0, y: 0 },
+    );
+    const preferred = horizontalFlow
+      ? { x: anchor.x - candidateRect.width / 2, y: main.y - candidateRect.height - rankSep }
+      : { x: main.x - candidateRect.width - rankSep, y: anchor.y - candidateRect.height / 2 };
+    const alternate = horizontalFlow
+      ? { x: anchor.x - candidateRect.width / 2, y: main.y + main.height + rankSep }
+      : { x: main.x + main.width + rankSep, y: anchor.y - candidateRect.height / 2 };
+
+    const occupiedRoots = rootIds
+      .filter(id => id !== candidate.id)
+      .map(id => rootRect(id, groupIds, positions, parentOf, dimsById));
+    const canPlace = (origin: { x: number; y: number }) => {
+      const proposed = { ...candidateRect, x: origin.x, y: origin.y };
+      return !occupiedRoots.some(rect => rectsOverlap(proposed, rect));
+    };
+    const destination = canPlace(preferred) ? preferred : canPlace(alternate) ? alternate : undefined;
+    if (!destination) continue;
+
+    moveLayoutSubtree(
+      candidate.id,
+      { x: destination.x - candidateRect.x, y: destination.y - candidateRect.y },
+      positions,
+      parentOf,
+    );
+  }
+}
+
 function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0): LevelLayout {
   const memberSet = new Set(members);
 
@@ -244,7 +461,9 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     const size = estimateEdgeLabelSize(edge.label);
     const prev = pairSize.get(pairKey);
     if (prev) {
-      prev.width = Math.max(prev.width, size.width);
+      // Parallel relationships are rendered separately downstream. Reserve
+      // a lane for every label instead of only the widest one.
+      prev.width += size.width + 12;
       prev.height = Math.max(prev.height, size.height);
     } else {
       pairSize.set(pairKey, { source, target, width: size.width, height: size.height });
@@ -418,6 +637,20 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
 
     const result = layoutLevel(roots, ctx);
 
+    // Keep multi-connection support groups in an orthogonal side lane of the
+    // main flow. This prevents leaf-to-leaf edges from becoming giant trunks
+    // around a wide compound group (for example planner → knowledge/cache in
+    // an agent loop) while leaving ordinary single-entry/single-exit groups in
+    // their Dagre-ranked positions.
+    placeSidecarGroups(
+      result.positions,
+      params,
+      parentOf,
+      childrenByParent,
+      dimsById,
+      ctx.rankSep || defaults.rankSep || 170,
+    );
+
     // Root offset: keeps absolute coordinates clear of (0,0) and gives the
     // diagram a small margin on the canvas.
     const ORIGIN_X = 60;
@@ -443,39 +676,12 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       };
     });
 
-    // Deduplicate populated-group edges that duplicate a leaf-hub edge to same target
-    // (e.g. Gateway Layer → Auth Service alongside Load Balancer → Auth Service).
-    // Keep group edges that have no leaf duplicate (e.g. b → G → c bridging).
-    const populatedGroupIds = new Set(
-      Array.from(childrenByParent.keys()).filter(id => (childrenByParent.get(id)?.length ?? 0) > 0)
-    );
-    const isDescendantOf = (groupId: string, leafId: string): boolean => {
-      let cur: string | undefined = leafId;
-      const seen = new Set<string>();
-      while (cur && !seen.has(cur)) {
-        seen.add(cur);
-        if (cur === groupId) return true;
-        cur = parentOf.get(cur);
-      }
-      return false;
-    };
-    const filteredEdges = params.edges.filter(e => {
-      const isGroupEdge = populatedGroupIds.has(e.source) || populatedGroupIds.has(e.target);
-      if (!isGroupEdge) return true;
-      const isDuplicate = params.edges.some(other => {
-        if (other.id === e.id) return false;
-        if (populatedGroupIds.has(e.source) && isDescendantOf(e.source, other.source) && other.target === e.target) return true;
-        if (populatedGroupIds.has(e.target) && isDescendantOf(e.target, other.target) && other.source === e.source) return true;
-        return false;
-      });
-      return !isDuplicate;
-    });
-
     return {
       nodes: positionedNodes,
-      // Edge geometry is recomputed by the floating-edge renderer downstream;
-      // the flat engine's points never survive IntegratedLayout anyway.
-      edges: filteredEdges.map(edge => ({ ...edge, points: undefined })),
+      // Edge geometry is recomputed by the floating-edge renderer downstream.
+      // Preserve every relationship here. Group-level deduplication used to
+      // make real parallel/group connections disappear on layout toggles.
+      edges: params.edges.map(edge => ({ ...edge, points: undefined })),
       warnings,
     };
   } catch (err) {

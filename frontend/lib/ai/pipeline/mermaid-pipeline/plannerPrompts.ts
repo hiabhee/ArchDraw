@@ -1,9 +1,81 @@
+export const PLANNER_EXAMPLES = [
+  {
+    "category": "EXPLAIN_CONCEPT",
+    "prompt": "Explain Kafka architecture",
+    "output": {
+      "reasoning": "Show the requested components and their essential interactions. Preserve meaningful alternate paths and outcomes.",
+      "diagramType": "graph LR",
+      "theme": "slate",
+      "mermaidCode": "graph LR\n producer[\"Producer\"] -->|publishes records| leader[\"Leader Partition\"]\n leader -->|replicates records| replica[\"Follower Replica\"]\n consumer[\"Consumer\"] -->|polls records| leader\n controller[\"KRaft Controller\"] -->|manages metadata| leader"
+    }
+  },
+  {
+    "category": "APPLICATION",
+    "prompt": "Web app login with Redis session cache and PostgreSQL",
+    "output": {
+      "reasoning": "Show the requested components and their essential interactions. Preserve meaningful alternate paths and outcomes.",
+      "diagramType": "graph TD",
+      "theme": "slate",
+      "mermaidCode": "graph TD\n browser[\"Web Browser\"] -->|submits credentials| auth[\"Auth Service\"]\n auth -->|checks session| cache[\"Redis Session Cache\"]\n auth -->|queries users| db[(\"PostgreSQL\")]"
+    }
+  },
+  {
+    "category": "APPLICATION",
+    "prompt": "Order service publishes events to Kafka, inventory consumer processes them",
+    "output": {
+      "reasoning": "Show the requested components and their essential interactions. Preserve meaningful alternate paths and outcomes.",
+      "diagramType": "graph LR",
+      "theme": "slate",
+      "mermaidCode": "graph LR\n order[\"Order Service\"] -.->|publishes event| kafka[\"Kafka\"]\n kafka -.->|delivers event| inventory[\"Inventory Consumer\"]"
+    }
+  },
+  {
+    "category": "INFRASTRUCTURE",
+    "prompt": "Kubernetes ingress routes traffic to two pods with persistent storage",
+    "output": {
+      "reasoning": "Show the requested components and their essential interactions. Preserve meaningful alternate paths and outcomes.",
+      "diagramType": "graph TD",
+      "theme": "slate",
+      "mermaidCode": "graph TD\n ingress{{\"Ingress\"}} -->|routes traffic| service[\"Kubernetes Service\"]\n subgraph pods[\"Application Pods\"]\n a[\"Pod A\"]\n b[\"Pod B\"]\n end\n service -->|balances traffic| a\n service -->|balances traffic| b\n a -->|mounts storage| volume[(\"Persistent Volume\")]\n b -->|mounts storage| volume"
+    }
+  },
+  {
+    "category": "APPLICATION",
+    "prompt": "URL shortener with Redis cache and PostgreSQL",
+    "output": {
+      "reasoning": "Show the requested components and their essential interactions. Preserve meaningful alternate paths and outcomes.",
+      "diagramType": "graph LR",
+      "theme": "slate",
+      "mermaidCode": "graph LR\n browser[\"Web Browser\"] -->|creates short URL| api[\"URL Service\"]\n api -->|stores mapping| db[(\"PostgreSQL\")]\n api -->|caches mapping| cache[\"Redis Cache\"]"
+    }
+  },
+  {
+    "category": "WORKFLOW",
+    "prompt": "Create a checkout workflow with payment approval and an out-of-stock path",
+    "output": {
+      "reasoning": "Show the requested components and their essential interactions. Preserve meaningful alternate paths and outcomes.",
+      "diagramType": "graph LR",
+      "theme": "slate",
+      "mermaidCode": "graph LR\n start[\"Review cart\"] --> stock{\"Items available?\"}\n stock -->|yes| payment[\"Submit payment\"]\n stock -->|no| unavailable[\"Show out-of-stock message\"]\n payment --> approved{\"Payment approved?\"}\n approved -->|yes| confirmation[\"Confirm order\"]\n approved -->|no| retry[\"Choose another payment method\"]\n retry --> payment"
+    }
+  }
+];
+
 /**
- * Architecture planner prompts — intent-first design to avoid generic web/LB/DB templates.
+ * Diagram planner prompts — intent-first design to avoid generic web/LB/DB templates.
  */
 
 export function buildPlannerSystemPrompt(): string {
-  return `You are an Architecture Planner. Produce production-grade system diagrams as JSON.
+  return `You are a Diagram Planner. Produce a clear, production-grade diagram that matches the user's requested diagram type as JSON.
+
+## Diagram type (ALWAYS decide before choosing components)
+- **Architecture / system / infrastructure diagram**: show stable system components, their boundaries, and the important interfaces between them. Use architectural layers only when they clarify ownership or deployment boundaries.
+- **Flowchart / workflow / process diagram**: show the ordered steps, decisions, hand-offs, and end states. Use action phrases for process nodes and diamond nodes only for real yes/no or branching decisions. Do not force an API gateway, database, or architectural layers into a process that does not need them.
+- **Sequence / interaction diagram request**: express the chronological interaction as a left-to-right flow in the supported Mermaid graph format. Keep participants stable and label each hand-off with the action.
+- **Data flow / pipeline request**: show inputs, transformations, stores, and outputs in order. Do not present transformations as a layered application architecture unless the prompt asks for one.
+- If the user says only "diagram", infer the most natural type from the nouns and verbs in the prompt. If they explicitly name a type, that instruction wins.
+
+Architecture is the default only when the request explicitly asks for an architecture, system, service, deployment, or infrastructure diagram. Never relabel a requested workflow or flowchart as an architecture diagram.
 
 ## Step 0 — Classify intent (ALWAYS first — determines what to diagram)
 - EXPLAIN_CONCEPT: "describe X", "how does X work", "explain X architecture" → diagram X's INTERNAL architecture. Do NOT invent an application around it.
@@ -21,14 +93,23 @@ IMPORTANT: Intent classification examples:
 ## Core Rules
 1. **Direction choice**: Use graph LR for workflows, pipelines, event chains, and horizontal processes. Use graph TD for layered architectures (client → server → data), hierarchical systems, and vertical request flows. Default to LR if unclear.
 2. **Flow clarity (avoid web)**: Show a single forward edge per interaction by default. Add a B→A return edge ONLY when the return carries a distinct, meaningful operation (e.g., "returns token", "confirms write", "cache hit" vs "cache miss"). Do NOT mirror every A→B with a generic response — this doubles edge count and creates a tangled web that hides the primary flow. Exception: fire-and-forget async (producer→queue) never has a return.
-3. **Data persistence**: Systems that store data MUST have a database/storage component.
+3. **Data persistence**: Architecture diagrams that store data MUST show the relevant database/storage component. Do not add storage merely to decorate a workflow or conceptual process.
 4. **Edge labels**: 2-4 words describing the operation. Avoid "/" in most labels (use "and"/"or" instead), but allow for standard technical terms like "HTTP/REST", "TCP/UDP", "CRUD ops", or "read/write". Good: "validates JWT", "publishes event", "HTTP/REST call". Bad: "calls", "sends", "request/response".
-5. **Subgraphs**: Group by architectural layer (Client, Gateway, Services, Data, External, Background). Keep each subgraph to 2-5 nodes; nest only when a layer truly contains distinct sub-services (max 2 levels deep). Do NOT create subgraphs for 1-2 unrelated nodes — fewer, cohesive groups beat many fragmented ones.
-6. **No dead-end nodes** except final storage/logs. Every node must have a purpose.
+5. **Subgraphs**: For architecture/infrastructure diagrams, group by a real layer or ownership boundary (Client, Gateway, Services, Data, External, Background). Keep each subgraph to 2-5 nodes; nest only when a layer truly contains distinct sub-services (max 2 levels deep). Do NOT create subgraphs for a simple flowchart.
+6. **No accidental dead-end nodes**: final storage/logs in architecture diagrams and explicit terminal outcomes in workflows are valid endpoints. Every other node must have a purpose.
 7. **Node count**: Stay within the requested max. Fewer, focused nodes > many loose ones.
-8. **Edge density**: Aim for 1.0-1.4 edges per node on average. If you approach 1.8+, the diagram will look like a web — drop low-value return edges and long spanning shortcuts; prefer edges between adjacent layers (Client→Gateway, Gateway→Service) over Client→Data shortcuts.
-9. **Bidirectional pairs**: For immediate 2-way exchanges that are logically one interaction (e.g., 'List ↔ Extract', 'Fetch ↔ Database', 'Create E-Mail ↔ Email Template'), use a single 'A <--> B' edge (arrowheads on both ends) instead of two separate 'A --> B' and 'B --> A' edges. Keep the double-arrow short and vertical so it stays centered.
+8. **Edge density**: Aim for 1.0-1.4 edges per node on average. This is a readability preference, never a reason to drop a required interaction; prefer edges between adjacent layers (Client→Gateway, Gateway→Service) over Client→Data shortcuts.
+9. **Bidirectional pairs**: For immediate 2-way exchanges that are logically one interaction (e.g., 'List ↔ Extract', 'Fetch ↔ Database', 'Create E-Mail ↔ Email Template'), use a single 'A <--> B' edge (arrowheads on both ends) instead of two separate 'A --> B' and 'B --> A' edges. Use it only when the two directions do not need separate labels; the layout engine determines its position.
 10. **Loop / Repeat groups**: When the prompt describes a loop, repeat, or 'for each' (e.g., "Repeat for each customer ID"), create a dashed subgraph with 'direction TB' containing the repeated steps stacked vertically ('Fetch → Create → Box'), and give the subgraph the loop condition as its label. The edge that exits the loop (e.g., 'Box → Control Room') should leave the loop to the next stage outside.
+11. **Label nodes for the chosen diagram type**: In architecture diagrams, node labels MUST be noun phrases (e.g., "Auth Service", "Rate Limiter", "URL Shorten Service"); operations belong on edges. In flowcharts and workflows, action nodes SHOULD be concise verb phrases (e.g., "Validate payment", "Reserve inventory") and edges SHOULD carry conditions or outcomes (e.g., "approved", "out of stock").
+12. **Reuse IDs, do not duplicate**: If a cache exists as \`cache["Cache (Redis)"]\`, reuse \`cache\` for every cache edge (\`api -->|caches mapping| cache\`). Do NOT create plural/synonym duplicates like \`caches["caches"]\`, \`redisCache["Redis Cache"]\`. Normalize IDs to singular, lowercase.
+13. **No Service→Gateway reversal**: Avoid service-to-gateway request edges unless the requested topology requires them; explicit responses, callbacks and control-plane operations are valid. Do NOT add \`redirect -->|redirects client| lb\`. Imply routine responses on the forward edge; show separate return edges when requested or operationally distinct.
+
+## Readability and group layout
+- Establish one primary path before adding supporting relationships. In a checkout architecture, for example, the core chain is Client → Gateway → Checkout → Payment/Order; inventory, fraud, cache, and notifications are supporting dependencies, not parallel entrances to Checkout.
+- Keep a group's internal edges local. Prefer a clear entry node, a clear orchestrator, and a clear exit node over several long edges that enter and leave opposite sides of the same group.
+- Avoid connecting every service to every dependency. Show only the dependency that explains the requested flow; use one event broker edge for fan-out instead of direct cross-group shortcuts.
+- Place supporting groups (data stores, async workers, external providers) beside the service that uses them, not between two stages of the primary path.
 
 ## Async vs Sync (critical)
 - **Queues/brokers** (Kafka, RabbitMQ, SQS): Producers → queue = async edge. Queue → consumer = async edge.
@@ -70,7 +151,7 @@ Each shape has specific meaning. Use the archdraw-shape directive for semantic s
   - Example: %% archdraw-shape: {"id":"auth","shape":"shield"}
               auth["Auth Service"]
 
-- **actor**: End users/humans ONLY (customers, not developers/admins/operators)
+- **actor**: End users/humans ONLY (customers, including developers/admins/operators)
   - Example: %% archdraw-shape: {"id":"user","shape":"actor"}
               user["End User"]
 
@@ -107,29 +188,20 @@ Optional title format (only if requested): %% archdraw-text: {"id":"title","text
 - Do NOT create subgraphs for single nodes (minimum 2 nodes per subgraph)
 - Do NOT create archdraw-note annotations (these create large text boxes that clutter the diagram)
 - Do NOT create long spanning Client→Data shortcuts when a Client→Gateway→Service→Data path already exists — they add crossings that turn the layout into a web
+- In architecture diagrams, do NOT create single-verb service nodes such as \`authenticates("authenticates")\`, \`caches("caches")\`, or \`validates("validates")\` — verbs belong on edges, nouns belong on nodes. This does not prohibit action nodes in a flowchart or workflow.
+- Do NOT duplicate cache/storage/queue nodes with plural or synonym IDs — reuse the single canonical ID (\`cache\`, not \`caches\`; \`db\`, not \`database2\`)
+- Do NOT invent backward request edges. Explicit response, callback and control-plane relationships are valid.
 
 ## Reasoning (scale with complexity)
 - Small diagrams (≤8 nodes): 2-3 sentences covering intent, key components, and flow
-- Medium diagrams (9-15 nodes): 3-5 sentences covering all 8 steps briefly
-- Large diagrams (16-25 nodes): 5-8 sentences with detail on each step
+- Medium diagrams (9-15 nodes): 3-5 sentences covering the essential decisions
+- Large diagrams (16-25 nodes): 5-8 sentences covering the essential decisions
 
-All diagrams must address: Step 0 - Intent classification. Step 1 - Components. Step 2 - Forward flow. Step 3 - Return flow. Step 4 - Key edge labels. Step 5 - Shapes. Step 6 - Subgraphs. Step 7 - Validation. Step 8 - Node count.
+Briefly explain intent, essential components, boundaries, and meaningful interactions. Do not recite numbered steps. Workflows must instead explain the primary path, decisions, alternate paths, and terminal outcomes.
 
-## Example 1 — EXPLAIN_CONCEPT (Kafka internals)
-Prompt: "Describe kafka cluster"
-{"reasoning":"Step 0 - EXPLAIN_CONCEPT: Kafka's internal architecture, not an app using Kafka. Step 1 - Producers, topic partitions, leader/follower replicas, ZooKeeper or KRaft, consumers. Step 2 - Producer→leader partition→replicate to followers. Step 3 - Consumers poll leader, ZooKeeper manages metadata. Step 4 - 'publishes records','replicates partitions','polls messages','manages metadata'. Step 5 - Brokers=queue, ZooKeeper=cylinder, topics=queue partitions. Step 6 - Group Producers/Broker Cluster/Coordination/Consumers. Step 7 - No dead ends, async edges to queues. Step 8 - 8 nodes.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\n  subgraph Producers[\"Producers\"]\n    prod1[\"Producer A\"]\n    prod2[\"Producer B\"]\n  end\n  subgraph Broker[\"Broker Cluster\"]\n    %% archdraw-shape: {\\"id\\":\\"leader\\",\\"shape\\":\\"queue\\"}\n    leader[\\"Leader Partition\\"]\n    %% archdraw-shape: {\\"id\\":\\"f1\\",\\"shape\\":\\"queue\\"}\n    f1[\\"Follower Replica\\"]\n    %% archdraw-shape: {\\"id\\":\\"f2\\",\\"shape\\":\\"queue\\"}\n    f2[\\"Follower Replica\\"]\n  end\n  subgraph Coordination[\"Coordination\"]\n    zk[(\"ZooKeeper or KRaft\")]\n  end\n  subgraph Consumers[\"Consumer Groups\"]\n    c1[\"Consumer Group A\"]\n    c2[\"Consumer Group B\"]\n  end\n  prod1-->|publishes records| leader\n  prod2-->|publishes records| leader\n  leader-->|replicates partitions| f1\n  leader-->|replicates partitions| f2\n  zk-->|manages metadata| leader\n  leader-->|polls messages| c1\n  leader-->|polls messages| c2"}
-
-## Example 2 — APPLICATION (auth flow with async cache)
-Prompt: "Web app login with Redis session cache and PostgreSQL"
-{"reasoning":"Step 0 - APPLICATION: specific web login system with named components. Step 1 - Browser, LB, auth service, Redis cache, PostgreSQL. Step 2 - Browser→LB→auth→checks Redis→queries Postgres→creates session. Step 3 - Response flows back: Postgres→auth→LB→browser with session token. Step 4 - 'submits credentials','routes request','checks cache','queries users','creates session','returns token'. Step 5 - Browser=monitor, LB=hexagon, auth=shield, cache=cache, DB=cylinder. Step 6 - Group Client/Gateway/Service/Data. Step 7 - Bidirectional, no dead ends. Step 8 - 5 nodes.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\n  subgraph Client[\"Client Layer\"]\n    %% archdraw-shape: {\\"id\\":\\"browser\\",\\"shape\\":\\"monitor\\"}\n    browser[\\"Web Browser\"]\n  end\n  subgraph Gateway[\"Gateway Layer\"]\n    lb{{\\"Load Balancer\\"}}\n  end\n  subgraph Service[\"Service Layer\"]\n    %% archdraw-shape: {\\"id\\":\\"auth\\",\\"shape\\":\\"shield\\"}\n    auth[\\"Auth Service\\"]\n  end\n  subgraph Data[\"Data Layer\"]\n    %% archdraw-shape: {\\"id\\":\\"cache\\",\\"shape\\":\\"cache\\"}\n    cache[\\"Session Cache\\"]\n    db[(\\"User Database\\")]\n  end\n  browser-->|submits credentials| lb\n  lb-->|routes request| auth\n  auth-->|checks cache| cache\n  cache-->|cache miss| auth\n  auth-->|queries users| db\n  db-->|returns user| auth\n  auth-->|creates session| cache\n  cache-->|confirms| auth\n  auth-->|returns token| lb\n  lb-->|returns token| browser"}
-
-## Example 3 — APPLICATION (async messaging with Kafka)
-Prompt: "Order service publishes events to Kafka, inventory consumer processes them"
-{"reasoning":"Step 0 - APPLICATION: order event-driven system with Kafka. Step 1 - Order Service, Kafka broker, Inventory Consumer, Order DB. Step 2 - Order→Order DB (persist)→Kafka (publish event). Step 3 - Kafka→Inventory Consumer→updates inventory. Step 4 - 'places order','persists order','publishes event','consumes event','updates inventory'. Step 5 - Order Service=rounded-rect, Kafka=queue, Consumer=rounded-rect, DB=cylinder. Step 6 - Group Services/Messaging/Data. Step 7 - Async edges to/from queue, sync to DB. Step 8 - 4 nodes.","diagramType":"graph LR","theme":"slate","mermaidCode":"graph LR\n  subgraph Services[\"Services\"]\n    order[\\"Order Service\\"]\n    inventory[\\"Inventory Consumer\\"]\n  end\n  subgraph Messaging[\"Event Bus\"]\n    %% archdraw-shape: {\\"id\\":\\"kafka\\",\\"shape\\":\\"queue\\"}\n    kafka[\\"Kafka Broker\\"]\n  end\n  subgraph Data[\"Data Layer\"]\n    db[(\"Order Database\")]\n  end\n  order-->|persists order| db\n  db-->|confirms| order\n  order-->|publishes event| kafka\n  kafka-->|consumes event| inventory\n  inventory-->|updates stock| db"}
-
-## Example 4 — INFRASTRUCTURE (Kubernetes deployment topology)
-Prompt: "Kubernetes deployment with ingress, services, pods, and persistent storage"
-{"reasoning":"Step 0 - INFRASTRUCTURE: K8s topology showing deployment architecture. Step 1 - External traffic, Ingress, Services (frontend/backend), Pods, ConfigMap, Persistent Volume. Step 2 - Traffic→Ingress→Service→Pods. Step 3 - Pods read ConfigMap, write to PV. Step 4 - 'routes traffic','load balances','serves requests','reads config','persists data'. Step 5 - Ingress=hexagon, Services=rounded-rect, Pods nested in Services, ConfigMap=document, PV=cylinder. Step 6 - Group External/Ingress Layer/Application Layer/Storage Layer. Nested subgraphs for pods within services. Step 7 - Complete flow from external to storage, bidirectional where needed. Step 8 - 9 nodes (ingress + 2 services with 2 pods each + config + storage).","diagramType":"graph TD","theme":"slate","mermaidCode":"graph TD\n  subgraph External[\"External\"]\n    traffic[\\"External Traffic\\"]\n  end\n  subgraph Ingress[\"Ingress Layer\"]\n    ing{{\\"Ingress Controller\\"}}\n  end\n  subgraph Apps[\"Application Layer\"]\n    subgraph Frontend[\"Frontend Service\"]\n      frontend[\\"Service\\"]\n      fp1[\\"Pod 1\\"]\n      fp2[\\"Pod 2\\"]\n    end\n    subgraph Backend[\"Backend Service\"]\n      backend[\\"Service\\"]\n      bp1[\\"Pod 1\\"]\n      bp2[\\"Pod 2\\"]\n    end\n  end\n  subgraph Config[\"Configuration\"]\n    %% archdraw-shape: {\\"id\\":\\"cm\\",\\"shape\\":\\"document\\"}\n    cm[\\"ConfigMap\\"]\n  end\n  subgraph Storage[\"Storage Layer\"]\n    pv[(\\"Persistent Volume\\")]\n  end\n  traffic-->|HTTPS requests| ing\n  ing-->|routes by path| frontend\n  ing-->|routes /api| backend\n  frontend-->|load balances| fp1\n  frontend-->|load balances| fp2\n  backend-->|load balances| bp1\n  backend-->|load balances| bp2\n  fp1-->|calls REST API| backend\n  fp2-->|calls REST API| backend\n  bp1-->|reads config| cm\n  bp2-->|reads config| cm\n  bp1-->|persists data| pv\n  bp2-->|persists data| pv"}
+${PLANNER_EXAMPLES.map((example, index) => `## Example ${index + 1} — ${example.category}
+Prompt: ${example.prompt}
+${JSON.stringify(example.output)}`).join('\n\n')}
 
 SCHEMA: {"reasoning":"string","diagramType":"graph TD|graph LR","theme":"forest-green|slate|dark-minimal|luxury|default","mermaidCode":"string"}
 
@@ -146,22 +218,30 @@ export function buildPlannerUserPrompt(
   }
 ): string {
   const editDirective = options.existingSummary
-    ? `\n\nEDIT MODE: Modify existing diagram. Keep valid components, add/remove/reconnect as needed.\n\nCURRENT:\n${options.existingSummary}\n`
+    ? `\n\nEDIT MODE: Modify existing diagram. Preserve existing IDs, labels, groups and relationships except where the user explicitly asks for a change. Return the complete edited diagram, including unchanged content. The node cap does not justify dropping existing components.\n\nCURRENT:\n${options.existingSummary}\n`
     : '';
 
-  return `Design architecture: "${prompt}"${editDirective}
+  return `Design a diagram for: "${prompt}"${editDirective}
+
+SCOPE: ${options.detailGuidance}
 
 QUALITY REQUIREMENTS:
-1. Classify intent first — "describe X" = EXPLAIN_CONCEPT (X internals), "my app uses X" = APPLICATION
-2. Choose direction wisely: graph LR for workflows/pipelines, graph TD for layered architectures
-3. Flow clarity: single forward edge per interaction; add return edge ONLY when it carries a distinct label (e.g., "returns token", "confirms write"). Do NOT mirror every forward edge — that creates a web.
-4. Async edges for queues/brokers: "publishes event", "consumes message", "enqueues job" (fire-and-forget, no return)
-5. Sync edges for databases/APIs: forward "queries", "validates" — only add explicit "returns" edge if the return step is operationally distinct and labeled; otherwise imply the response on the forward edge.
-6. Correct shapes with directives: cylinder=DB, queue=Kafka/RabbitMQ, cache=Redis, shield=auth, hexagon=LB, actor=human ONLY
-7. Subgraph grouping by layer (2-5 nodes per group, max 2 levels deep); keep edges between adjacent layers — avoid long Client→Data shortcuts that cross the diagram.
-8. No dead-end nodes. No invented components.
-9. Stay within max ${options.maxNodes} nodes and ~1.3 edges per node — fewer, clear edges beat many crossing lines.
-10. Avoid "/" in labels unless standard tech term (OK: "HTTP/REST", "TCP/UDP". Bad: "request/response" → use "validates and responds").
+1. Choose the requested diagram type first. Architecture is appropriate only for architecture/system/deployment/infrastructure requests; use a workflow/flowchart for an ordered process and a pipeline/data-flow diagram for transformations.
+2. Classify intent — "describe X" = EXPLAIN_CONCEPT (X internals), "my app uses X" = APPLICATION
+3. Choose direction wisely: graph LR for workflows/pipelines, graph TD for layered architectures
+4. Flow clarity: single forward edge per interaction; add return edge ONLY when it carries a distinct label (e.g., "returns token", "confirms write"). Do NOT mirror every forward edge — that creates a web. Preserve explicitly requested responses, callbacks and control-plane interactions.
+5. Async edges for queues/brokers: "publishes event", "consumes message", "enqueues job" (fire-and-forget, no return)
+6. Sync edges for databases/APIs: forward "queries", "validates" — only add explicit "returns" edge if the return step is operationally distinct and labeled; otherwise imply the response on the forward edge.
+7. Correct shapes with directives: cylinder=DB, queue=Kafka/RabbitMQ, cache=Redis, shield=auth, hexagon=LB, actor=human ONLY. For workflows, use diamonds only for real decisions and action phrases for steps.
+8. Use subgraph layers only for architecture/infrastructure diagrams (2-5 nodes per group, max 2 levels deep). Do not wrap a simple workflow in service layers.
+9. No invented components. Architecture nodes use nouns; workflow nodes use short action phrases and must include clear start/end or terminal outcomes.
+10. Aim for max ${options.maxNodes} nodes and ~1.3 edges per node, but preserve all explicitly requested components and interactions. Reuse canonical IDs (cache, db) — do NOT create plural duplicates (caches).
+11. Avoid "/" in labels unless standard tech term (OK: "HTTP/REST", "TCP/UDP". Bad: "request/response" → use "validates and responds").
+
+HARD CONSTRAINTS (must not violate):
+- Architecture nodes represent components; workflow and pipeline nodes may be actions, including single verbs.
+- Architecture: no accidental duplicate synonym nodes (cache vs caches). Workflows may repeat the same action at distinct steps.
+- Do not invent backward request edges; preserve meaningful responses, callbacks and control-plane operations.
 
 Title: Only add a Title if the user explicitly requested a title/heading. Do NOT add a heading by default.`;
 }
@@ -171,13 +251,13 @@ export function getDetailGuidance(detailLevel: 1 | 2 | 3): string {
     return 'SCOPE: ESSENTIAL ONLY. Core components and primary forward flow. Skip peripherals and non-essential returns. Reasoning: 2-3 sentences.';
   }
   if (detailLevel === 2) {
-    return 'SCOPE: STANDARD. Core components, main forward interactions, key supporting services. Add return edges only when distinct (e.g., "returns token", "cache hit"). Reasoning: 3-5 sentences covering all steps.';
+    return 'SCOPE: STANDARD. Core components, main forward interactions, key supporting services. Add return edges only when distinct (e.g., "returns token", "cache hit"). Reasoning: 3-5 sentences covering the essential decisions.';
   }
-  return 'SCOPE: COMPREHENSIVE. Full detail including secondary flows, error paths, async processing, monitoring. Return edges only for distinct operations, not for every forward edge. Reasoning: 5-8 sentences with detail on each validation step.';
+  return 'SCOPE: COMPREHENSIVE. Full detail including secondary flows, error paths, async processing, monitoring. Return edges only for distinct operations, not for every forward edge. Reasoning: 3-4 concise sentences covering the essential decisions. First inventory every explicitly named component in the user request; every requested component must appear as a node unless two are truly the same component.';
 }
 
 export function getMaxNodesForSize(size: 'small' | 'medium' | 'large'): number {
-  if (size === 'small') return 8;
-  if (size === 'medium') return 15;
-  return 25;
+  if (size === 'small') return 7;
+  if (size === 'medium') return 12;
+  return 20;
 }

@@ -349,10 +349,11 @@ class ApiKeyManager {
   }
 
   async executeWithRetry<T>(
-    operation: (groq: Groq) => Promise<T>,
-    options?: { maxRetries?: number; provider?: AIProvider }
+    operation: (groq: Groq, signal?: AbortSignal) => Promise<T>,
+    options?: { maxRetries?: number; provider?: AIProvider; timeoutMs?: number; maxKeys?: number; disableOpenRouterFallback?: boolean; signal?: AbortSignal }
   ): Promise<T> {
     const maxRetries = options?.maxRetries ?? 3;
+    const timeoutMs = options?.timeoutMs ?? 60_000;
     
     // Count one logical call per executeWithRetry entry (pipeline depth)
     const store = requestContext.getStore();
@@ -371,9 +372,10 @@ class ApiKeyManager {
     // With round-robin unplugged, walk keys in fixed order (last → first) so
     // the active behavior is a simple fallback chain. When enabled, cycle
     // through all keys starting from the last one used.
-    const keyOrder: number[] = ROUND_ROBIN_GROQ_KEYS
+    const keyOrder: number[] = (ROUND_ROBIN_GROQ_KEYS
       ? Array.from({ length: keyCount }, (_, i) => (this.currentGroqIndex + i) % keyCount)
-      : Array.from({ length: keyCount }, (_, i) => keyCount - 1 - i);
+      : Array.from({ length: keyCount }, (_, i) => keyCount - 1 - i))
+      .slice(0, Math.max(1, options?.maxKeys ?? keyCount));
 
     for (const keyIndex of keyOrder) {
       const keyState = this.groqKeys[keyIndex];
@@ -390,12 +392,38 @@ class ApiKeyManager {
       }
       
       for (let attempt = 0; attempt < maxRetries; attempt++) {
+        if (options?.signal?.aborted) {
+          throw options.signal.reason ?? new Error('AI request aborted');
+        }
         keyState.inUse++;
         keyState.lastUsed = Date.now();
         if (store) store.networkAttempts++;
         try {
-          const groq = new Groq({ apiKey: keyState.key, timeout: 60_000 });
-          const result = await operation(groq);
+          const groq = new Groq({ apiKey: keyState.key, timeout: timeoutMs });
+          const requestController = new AbortController();
+          const abortRequest = () => requestController.abort(options?.signal?.reason);
+          options?.signal?.addEventListener('abort', abortRequest, { once: true });
+          const timer = setTimeout(
+            () => requestController.abort(new Error(`AI request timed out after ${timeoutMs}ms`)),
+            timeoutMs
+          );
+          let result: T;
+          try {
+            // Some legacy callers do not yet pass this signal into their SDK
+            // request. Keep the boundary race so those calls remain bounded;
+            // callers that do pass it (the classifier) also cancel transport.
+            result = await Promise.race([
+              operation(groq, requestController.signal),
+              new Promise<never>((_, reject) => {
+                requestController.signal.addEventListener('abort', () => {
+                  reject(requestController.signal.reason ?? new Error('AI request aborted'));
+                }, { once: true });
+              }),
+            ]);
+          } finally {
+            clearTimeout(timer);
+            options?.signal?.removeEventListener('abort', abortRequest);
+          }
           keyState.consecutiveErrors = 0;
           if (ROUND_ROBIN_GROQ_KEYS) {
             // Advance the pointer so the next logical call starts at the next key.
@@ -459,7 +487,7 @@ class ApiKeyManager {
     }
     
     // Step 2: Fallback to OpenRouter if all Groq keys failed
-    if (this.openrouterKeys.length > 0) {
+    if (!options?.disableOpenRouterFallback && this.openrouterKeys.length > 0) {
       try {
         logger.log('[ApiKeyManager] All Groq keys failed, trying OpenRouter...');
         return await this.executeWithOpenRouter(

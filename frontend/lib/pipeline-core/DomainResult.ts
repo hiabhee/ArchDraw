@@ -2,6 +2,7 @@ import type { PipelineMetrics, PipelineResult } from './PipelineResult';
 
 export type DomainErrorCode =
   | 'aborted'
+  | 'generation_incomplete'
   | 'generation_failed'
   | 'parse_failed'
   | 'ingestion_failed'
@@ -50,6 +51,7 @@ export function inferDomainErrorCode(
   if (stageName === 'ingesting' || message.includes('ingest')) return 'ingestion_failed';
   if (stageName.includes('parse') || message.includes('parse')) return 'parse_failed';
   if (stageName.includes('validat') || message.includes('validat')) return 'validation_failed';
+  if (message.includes('incomplete') || message.includes('quality gate')) return 'generation_incomplete';
   if (message.includes('abort')) return 'aborted';
   if (message.includes('generation') || message.includes('generat')) return 'generation_failed';
 

@@ -188,6 +188,36 @@ describe('Layout Direction Validation', () => {
     expect(resTD.passed).toBe(false);
     expect(resTD.warnings[0].type).toBe('LAYOUT_DIRECTION_FAILURE');
   });
+
+  it('allows response and event edges to run against the primary layout direction', () => {
+    const nodes = [
+      { id: 'service', position: { x: 50, y: 100 }, data: { label: 'Service' } },
+      { id: 'stripe', position: { x: 50, y: 50 }, data: { label: 'Stripe' } },
+      { id: 'kafka', position: { x: 150, y: 50 }, data: { label: 'Kafka' } },
+    ] as unknown as RFNode[];
+    const edges = [
+      { id: 'stripe-service', source: 'service', target: 'stripe', data: { label: 'returns payment status' } },
+      { id: 'service-kafka', source: 'service', target: 'kafka', data: { label: 'publishes order event', syncAsync: 'async', connectionType: 'async' } },
+    ] as unknown as RFEdge[];
+
+    expect(validateDiagramOutput(nodes, edges, 'TD').warnings).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'LAYOUT_DIRECTION_FAILURE' })]),
+    );
+  });
+
+  it('checks absolute positions for edges that cross group boundaries', () => {
+    const nodes = [
+      { id: 'client-group', position: { x: 0, y: 300 }, data: { label: 'Clients' } },
+      { id: 'service-group', position: { x: 0, y: 0 }, data: { label: 'Services' } },
+      { id: 'client', parentNode: 'client-group', position: { x: 20, y: 20 }, data: { label: 'Client' } },
+      { id: 'service', parentNode: 'service-group', position: { x: 20, y: 20 }, data: { label: 'Service' } },
+    ] as unknown as RFNode[];
+    const edges = [{ id: 'client-service', source: 'client', target: 'service' }] as unknown as RFEdge[];
+
+    expect(validateDiagramOutput(nodes, edges, 'TD').warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'LAYOUT_DIRECTION_FAILURE' })]),
+    );
+  });
 });
 
 describe('Mermaid Parser ArchDraw Text Directives', () => {

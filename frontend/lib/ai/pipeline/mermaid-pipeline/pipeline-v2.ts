@@ -32,7 +32,8 @@ export async function runAiMermaidPipelineV2(
   const { parseOutput, plan, scoreOutput, validationOutput } = completed;
 
   const pipelineDiagnostics: PipelineDiagnostics = {
-    style: plan.styleConfig.theme as ArchitectureStyle,
+    qualityRepair: { attempted: completed.repairAttempted ?? false, accepted: completed.repairAccepted ?? false },
+    style: 'generic',
     productionDepth: 'conceptual',
     semanticIssues: validationOutput.semanticIssues,
     mechanicalRepairs: validationOutput.mechanicalRepairs,
@@ -72,7 +73,7 @@ export async function runAiMermaidPipelineV2(
     reactFlowNodes: parseOutput.nodes,
     graph: null,
     score: scoreOutput.score,
-    iteration: 0,
+    iteration: completed.repairAttempted ? 1 : 0,
     history: [],
     errors: [],
     useAWS: false,

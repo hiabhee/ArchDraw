@@ -131,6 +131,23 @@ describe('DagreLayoutEngine', () => {
     expect(producer.x).toBeLessThan(kafka.x);
     expect(kafka.x).toBeLessThan(analytics.x);
   });
+
+  it('preserves parallel edges involving populated groups', async () => {
+    const result = await applyRfLayout({
+      nodes: [
+        { id: 'source', type: 'shapeNode', position: { x: 0, y: 0 }, data: {}, width: 180, height: 80 },
+        { id: 'group', type: 'groupNode', position: { x: 0, y: 0 }, data: { isGroup: true }, width: 180, height: 120 },
+        { id: 'a', type: 'shapeNode', position: { x: 0, y: 0 }, parentNode: 'group', data: {}, width: 180, height: 80 },
+        { id: 'b', type: 'shapeNode', position: { x: 0, y: 0 }, parentNode: 'group', data: {}, width: 180, height: 80 },
+      ],
+      edges: [
+        { id: 'one', source: 'source', target: 'group', data: { label: 'primary' } },
+        { id: 'two', source: 'source', target: 'group', data: { label: 'audit' } },
+      ],
+    }, 'LR');
+
+    expect(result.edges.map(edge => edge.id)).toEqual(['one', 'two']);
+  });
 });
 
 describe('applyRfLayout (canonical entry)', () => {
@@ -163,6 +180,44 @@ describe('applyRfLayout (canonical entry)', () => {
     expect(tb.paddingLeft).toBe(28);
     expect(tb.paddingTop).toBe(48);
     expect(tb.paddingBottom).toBe(28);
+  });
+
+  it('places a multi-connection support group in a side lane of the main flow', () => {
+    const result = applyRfLayout({
+      nodes: [
+        { id: 'User', type: 'groupNode', position: { x: 0, y: 0 }, data: { isGroup: true } },
+        { id: 'Core', type: 'groupNode', position: { x: 0, y: 0 }, data: { isGroup: true } },
+        { id: 'Support', type: 'groupNode', position: { x: 0, y: 0 }, data: { isGroup: true } },
+        { id: 'dev', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Developer' }, width: 160, height: 80, parentNode: 'User' },
+        { id: 'ui', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'IDE Plugin' }, width: 160, height: 80, parentNode: 'User' },
+        { id: 'tm', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Task Manager' }, width: 160, height: 80, parentNode: 'Core' },
+        { id: 'planner', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Planning Service' }, width: 160, height: 80, parentNode: 'Core' },
+        { id: 'gen', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Code Generator' }, width: 160, height: 80, parentNode: 'Core' },
+        { id: 'memory', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Knowledge Base' }, width: 160, height: 80, parentNode: 'Support' },
+        { id: 'cache', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Result Cache' }, width: 160, height: 80, parentNode: 'Support' },
+        { id: 'logger', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'Log Service' }, width: 160, height: 80, parentNode: 'Support' },
+      ],
+      edges: [
+        { id: 'dev-ui', source: 'dev', target: 'ui' },
+        { id: 'ui-tm', source: 'ui', target: 'tm' },
+        { id: 'tm-planner', source: 'tm', target: 'planner' },
+        { id: 'planner-gen', source: 'planner', target: 'gen' },
+        { id: 'planner-memory', source: 'planner', target: 'memory' },
+        { id: 'gen-cache', source: 'gen', target: 'cache' },
+      ],
+    }, 'LR');
+
+    const user = result.nodes.find(node => node.id === 'User')!;
+    const core = result.nodes.find(node => node.id === 'Core')!;
+    const support = result.nodes.find(node => node.id === 'Support')!;
+    const coreChildren = result.nodes.filter(node => node.parentNode === 'Core');
+    const coreMinX = Math.min(...coreChildren.map(node => node.position.x));
+    const coreMaxX = Math.max(...coreChildren.map(node => node.position.x + (node.width ?? 0)));
+
+    expect(user.position.x).toBeLessThan(core.position.x);
+    expect(support.position.y).toBeLessThan(core.position.y);
+    expect(support.position.x).toBeLessThan(coreMaxX);
+    expect(support.position.x + (support.width ?? 0)).toBeGreaterThan(coreMinX);
   });
 
   it('exposes IntegratedLayoutEngine singleton', () => {

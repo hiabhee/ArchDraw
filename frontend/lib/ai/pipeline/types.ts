@@ -89,6 +89,7 @@ export interface ReasoningResult {
 }
 
 export interface DiagramScore {
+  geometry?: ReturnType<typeof import('@/lib/pipeline-shared/layout/layoutQuality').measureLayoutQuality>;
   grade: 'A' | 'B' | 'C' | 'F';
   nodeCount: number;
   edgeCount: number;
@@ -149,6 +150,7 @@ export interface ArchitectureStylePlan {
 }
 
 export interface PipelineDiagnostics {
+  qualityRepair?: { attempted: boolean; accepted: boolean };
   style: ArchitectureStyle;
   productionDepth: ProductionDepth;
   /** Warnings / info about architectural issues — diagnostic only, no mutations */

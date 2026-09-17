@@ -199,6 +199,6 @@ describe('Pipeline integration - full Mermaid pipeline', () => {
   it('composes production path from class stages', async () => {
     const { createMermaidPipelineStages } = await import('../../pipeline');
     const names = createMermaidPipelineStages().map(s => s.name);
-    expect(names).toEqual(['parse', 'validate', 'build', 'layout', 'size', 'place-text', 'validate-output']);
+    expect(names).toEqual(['parse', 'validate', 'sanitize', 'build', 'layout', 'size', 'place-text', 'validate-output']);
   });
 });

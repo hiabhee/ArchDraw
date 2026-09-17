@@ -1,5 +1,8 @@
 import type { RFNode, RFEdge, ValidationReport, ValidationWarning, Direction } from './types'
 import { isTextNode } from './textNodes'
+import { classifyNode } from './planTranslator'
+import { isVerbNodeLabel } from './sanitize'
+import { isReturnInteraction } from '@/lib/ai/pipeline/mermaid-pipeline/diagramIntent'
 
 // Pipes are legitimate inside quoted labels ("Kafka | Redpanda").
 const labelArtifacts = ['-->', '---', ' -- ', '["']
@@ -7,6 +10,22 @@ const labelArtifacts = ['-->', '---', ' -- ', '["']
 export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], direction?: Direction): ValidationReport {
   const warnings: ValidationWarning[] = []
   const nodeIds = new Set(nodes.map(n => n.id))
+  const nodesById = new Map(nodes.map(node => [node.id, node]))
+  const absolutePosition = (node: RFNode) => {
+    let x = node.position.x
+    let y = node.position.y
+    let parentId = node.parentNode
+    const visited = new Set([node.id])
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId)
+      const parent = nodesById.get(parentId)
+      if (!parent) break
+      x += parent.position.x
+      y += parent.position.y
+      parentId = parent.parentNode
+    }
+    return { x, y }
+  }
 
   // 1. Node label artifacts (free-text labels may contain `|` or `-->` legitimately)
   for (const node of nodes) {
@@ -25,30 +44,35 @@ export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], directio
   }
 
   // 3. Layout direction check
-  const parentChildEdges = edges.filter(e => {
-    const src = nodes.find(n => n.id === e.source)
-    const tgt = nodes.find(n => n.id === e.target)
-    return src && tgt && !src.parentNode && !tgt.parentNode
-  })
-  for (const edge of parentChildEdges) {
-    const src = nodes.find(n => n.id === edge.source)
-    const tgt = nodes.find(n => n.id === edge.target)
+  for (const edge of edges) {
+    const src = nodesById.get(edge.source)
+    const tgt = nodesById.get(edge.target)
     if (src && tgt) {
+      const label = String(edge.data?.label ?? edge.label ?? '').toLowerCase()
+      const isReverseOrAsync = isReturnInteraction(label) ||
+        edge.data?.syncAsync === 'async' ||
+        edge.data?.connectionType === 'async'
+      // A response or event may intentionally run against the primary layout
+      // direction. Its arrow still communicates direction without making the
+      // diagram's top-level request flow invalid.
+      if (isReverseOrAsync) continue
+      const sourcePosition = absolutePosition(src)
+      const targetPosition = absolutePosition(tgt)
       const dir = direction || 'TD'
       if (dir === 'LR') {
-        if (src.position.x >= tgt.position.x) {
+        if (sourcePosition.x >= targetPosition.x) {
           warnings.push({ type: 'LAYOUT_DIRECTION_FAILURE', edgeId: edge.id, message: `Edge ${edge.id}: source ${edge.source} not to the left of target ${edge.target}` })
         }
       } else if (dir === 'RL') {
-        if (src.position.x <= tgt.position.x) {
+        if (sourcePosition.x <= targetPosition.x) {
           warnings.push({ type: 'LAYOUT_DIRECTION_FAILURE', edgeId: edge.id, message: `Edge ${edge.id}: source ${edge.source} not to the right of target ${edge.target}` })
         }
       } else if (dir === 'BT') {
-        if (src.position.y <= tgt.position.y) {
+        if (sourcePosition.y <= targetPosition.y) {
           warnings.push({ type: 'LAYOUT_DIRECTION_FAILURE', edgeId: edge.id, message: `Edge ${edge.id}: source ${edge.source} not below target ${edge.target}` })
         }
       } else { // TD or TB
-        if (src.position.y >= tgt.position.y) {
+        if (sourcePosition.y >= targetPosition.y) {
           warnings.push({ type: 'LAYOUT_DIRECTION_FAILURE', edgeId: edge.id, message: `Edge ${edge.id}: source ${edge.source} not above target ${edge.target}` })
         }
       }
@@ -101,6 +125,60 @@ export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], directio
           edgeId: edge.id,
           message: `Sync connection to Queue "${tgtLabel}". Connections to message queues/streams should be asynchronous.`
         })
+      }
+
+      // 5d. General tier-reversal: Service/DB/Queue/Cache -> Gateway is backward (allow Auth returns)
+      {
+        const downstream = new Set(['service', 'function', 'container', 'cache', 'database', 'queue', 'storage']);
+        // Re-classify if serviceType missing or generic — use label-based classify
+        const srcClassified = src.data?.serviceType ? srcService : classifyNode(srcLabel, undefined).serviceType;
+        const tgtClassified = tgt.data?.serviceType ? tgtService : classifyNode(tgtLabel, undefined).serviceType;
+        if (downstream.has(srcClassified) && tgtClassified === 'load-balancer') {
+          warnings.push({
+            type: 'TIER_REVERSAL',
+            edgeId: edge.id,
+            message: `Backward tier edge: "${srcLabel}" (${srcClassified}) -> Gateway "${tgtLabel}" — services must not target gateway.`,
+          });
+        }
+      }
+    }
+  }
+
+  // 6. General verb-node detection (any prompt)
+  for (const node of nodes) {
+    if (node.type === 'groupNode' || isTextNode(node)) continue;
+    const label = (node.data?.label as string) ?? '';
+    if (isVerbNodeLabel(label, node.id)) {
+      warnings.push({ type: 'VERB_NODE', nodeId: node.id, message: `Node "${label}" (id=${node.id}) is a single verb — should be an edge label, not a node.` });
+    }
+  }
+
+  // 7. General duplicate/synonym detection (cache vs caches, etc.)
+  // Intentional replicas with identical multi-word labels (e.g., two "Follower Replica" nodes) are NOT flagged
+  {
+    const seen = new Map<string, RFNode>();
+    for (const node of nodes) {
+      if (node.type === 'groupNode' || isTextNode(node)) continue;
+      const label = (node.data?.label as string) || node.id;
+      const cls = (node.data?.serviceType as string) || classifyNode(label, undefined).serviceType;
+      let key = `${cls}:${label.toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[^a-z0-9]/g, '')}`;
+      const singKey = key.endsWith('s') && key.length > 3 && !key.endsWith('ss') ? key.slice(0, -1) : key;
+      const existing = seen.get(key) || seen.get(singKey);
+      if (existing) {
+        const existingLabel = (existing.data?.label as string) || existing.id;
+        const aTokens = label.trim().split(/\s+/).length;
+        const bTokens = String(existingLabel).trim().split(/\s+/).length;
+        const identicalMultiWord = aTokens > 1 && bTokens > 1 && label.trim().toLowerCase() === String(existingLabel).trim().toLowerCase();
+        if (!identicalMultiWord) {
+          warnings.push({
+            type: 'DUPLICATE_SYNONYM',
+            nodeId: node.id,
+            message: `Duplicate/synonym node "${label}" duplicates "${existing.data?.label || existing.id}" — reuse canonical id.`,
+          });
+        }
+      } else {
+        seen.set(key, node);
+        if (singKey !== key) seen.set(singKey, node);
       }
     }
   }

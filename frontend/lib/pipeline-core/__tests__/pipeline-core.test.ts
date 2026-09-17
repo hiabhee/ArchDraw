@@ -237,6 +237,25 @@ describe('Pipeline', () => {
     expect(result.aborted).toBe(true);
   });
 
+  it('aborts the stage signal when its configured timeout expires', async () => {
+    let stageSignal: AbortSignal | undefined;
+    const stage: Stage<string, string> = {
+      name: 'abortable-stage',
+      async execute(_input, context): Promise<StageResult<string>> {
+        stageSignal = context.signal;
+        await new Promise<void>((resolve) => context.signal?.addEventListener('abort', () => resolve(), { once: true }));
+        return errorResult(context.signal?.reason instanceof Error ? context.signal.reason : new Error('missing abort reason'));
+      },
+    };
+
+    const pipeline = new Pipeline<string, string>('timeout-test', [stage]);
+    const result = await pipeline.execute('input', { context: { metadata: { stageTimeoutMs: 5 } } });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain('timed out');
+    expect(stageSignal?.aborted).toBe(true);
+  });
+
   it('BaseStage provides default validate', () => {
     class TestStage extends BaseStage<string, string> {
       constructor() {

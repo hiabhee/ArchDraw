@@ -2,7 +2,6 @@ import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core'
 import type { PipelineContext } from '@/lib/pipeline-core';
 import type { ArchitecturePlan } from './ArchitecturePlanningStage';
 import type { ConceptDetectionOutput } from './ConceptDetectionStage';
-import logger from '@/lib/logger';
 
 export interface LayoutOverrideInput {
   plan: ArchitecturePlan;
@@ -16,24 +15,14 @@ export class LayoutOverrideStage extends BaseStage<LayoutOverrideInput, Architec
 
   async execute(input: LayoutOverrideInput, _context: PipelineContext): Promise<StageResult<ArchitecturePlan>> {
     const { plan, conceptDetection } = input;
-    const { implicitConcept, isVerticalRequested } = conceptDetection;
-
-    let mermaidCode = plan.mermaidCode;
-    const formatConfig = { ...plan.formatConfig };
-
-    if (implicitConcept) {
-      logger.info(`[ConceptTemplate] Using implicit concept compiler: ${implicitConcept.subject} (${implicitConcept.domain})`);
-      formatConfig.diagramType = 'graph LR';
-      mermaidCode = mermaidCode.replace(/^graph TD/m, 'graph LR');
-    } else if (isVerticalRequested) {
-      logger.info('[DownstreamGuard] Override: vertical layout requested. Forcing graph TD.');
-      formatConfig.diagramType = 'graph TD';
-      mermaidCode = mermaidCode.replace(/^graph LR/m, 'graph TD');
-    } else {
-      logger.info('[DownstreamGuard] Default layout is horizontal (graph LR).');
-      formatConfig.diagramType = 'graph LR';
-      mermaidCode = mermaidCode.replace(/^graph TD/m, 'graph LR');
-    }
+    const { isVerticalRequested, promptLower } = conceptDetection;
+    const horizontal = /\b(horizontal|horizontally|left[- ]to[- ]right|graph lr)\b/.test(promptLower);
+    const header = plan.mermaidCode.match(/^\s*(?:graph|flowchart)\s+(TD|TB|LR)\b/m)?.[1];
+    const direction = isVerticalRequested ? 'TD' : horizontal ? 'LR'
+      : header === 'TD' || header === 'TB' ? 'TD' : header === 'LR' ? 'LR'
+      : plan.formatConfig.diagramType === 'graph TD' ? 'TD' : 'LR';
+    const mermaidCode = plan.mermaidCode.replace(/^(\s*)(?:graph|flowchart)\s+(?:TD|TB|LR)\b/m, `$1graph ${direction}`);
+    const formatConfig = { ...plan.formatConfig, diagramType: `graph ${direction}` as 'graph TD' | 'graph LR' };
 
     return successResult({ ...plan, mermaidCode, formatConfig });
   }

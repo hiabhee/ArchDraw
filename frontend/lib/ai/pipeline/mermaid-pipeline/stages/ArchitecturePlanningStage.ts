@@ -1,8 +1,7 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
 import { runArchitecturePlanner } from '../architecturePlanner';
 import { getConceptTemplatePlan } from '../conceptTemplates';
-import { generateFallbackPlan } from './FallbackPlan';
 import type { ConceptDetectionOutput } from './ConceptDetectionStage';
 import type { UserIntent } from '../../../types';
 import logger from '@/lib/logger';
@@ -27,6 +26,8 @@ export interface ArchitecturePlan {
   usedFallback: boolean;
   droppedExistingContext: boolean;
   inEditMode: boolean;
+  /** Concept diagrams have curated components that may be terminal by design. */
+  isConceptTemplate?: boolean;
 }
 
 export interface ArchitecturePlanningInput {
@@ -50,38 +51,19 @@ export class ArchitecturePlanningStage extends BaseStage<ArchitecturePlanningInp
       existingContext && (existingContext.nodes?.length || existingContext.edges?.length)
     );
 
-    const useConceptTemplate = Boolean(implicitConcept) && detailLevel >= 2;
-
-    let plan: {
-      formatConfig: ArchitecturePlan['formatConfig'];
-      styleConfig: ArchitecturePlan['styleConfig'];
-      mermaidCode: string;
-      reasoning?: string;
-    };
+    let plan: Awaited<ReturnType<typeof runArchitecturePlanner>>;
     let usedFallback = false;
-
-    if (useConceptTemplate && !inEditMode) {
-      const templatePlan = getConceptTemplatePlan(implicitConcept!, detailLevel);
-      plan = {
-        formatConfig: templatePlan.formatConfig,
-        styleConfig: templatePlan.styleConfig,
-        mermaidCode: templatePlan.mermaidCode,
-        reasoning: templatePlan.reasoning,
-      };
-    } else {
-      try {
-        plan = await runArchitecturePlanner(prompt, diagramSize, detailLevel, model, existingContext);
-      } catch (err) {
-        logger.warn('[PlanningStage] Architecture planner failed, using fallback plan:', err);
-        const fallback = generateFallbackPlan(prompt);
-        plan = {
-          formatConfig: fallback.formatConfig,
-          styleConfig: fallback.styleConfig,
-          mermaidCode: fallback.mermaidCode,
-          reasoning: 'Fallback due to planner failure',
-        };
-        usedFallback = true;
+    try {
+      plan = await runArchitecturePlanner(prompt, diagramSize, detailLevel, model, existingContext);
+    } catch (err) {
+      // Templates are a disclosed recovery path, never a silent bypass of planning.
+      // Never replace an edit or an unknown topic with a generic web stack.
+      if (inEditMode || !implicitConcept) {
+        return errorResult(err instanceof Error ? err : new Error(String(err)));
       }
+      logger.warn('[PlanningStage] Planner failed; using a matching concept template', err);
+      plan = getConceptTemplatePlan(implicitConcept, detailLevel);
+      usedFallback = true;
     }
 
     return successResult({
@@ -89,6 +71,7 @@ export class ArchitecturePlanningStage extends BaseStage<ArchitecturePlanningInp
       usedFallback,
       droppedExistingContext: false,
       inEditMode,
+      isConceptTemplate: Boolean(implicitConcept),
     });
   }
 }

@@ -9,6 +9,7 @@ import type { RFObjects, RFNode, RFEdge, Direction, MermaidAST } from './types'
 import {
   ParseStage,
   ValidateStage,
+  SanitizeStage,
   BuildStage,
   LayoutStage,
   SizeStage,
@@ -22,18 +23,30 @@ export interface PipelineResult {
   warnings: string[]
   success: boolean
   direction?: Direction
+  nodesRemoved?: number
+  edgesRemoved?: number
+  groupsRemoved?: number
+  removedNodeIds?: string[]
 }
 
 export interface MermaidPipelineData {
+  originalNodeIds?: string[]
+  originalEdgeIds?: string[]
+  originalGroupIds?: string[]
   text: string
   ast: MermaidAST | null
   objects: RFObjects | null
   direction: Direction
   warnings: string[]
+  reduceRedundantEdges?: boolean
+  diagramKind?: 'architecture' | 'workflow'
+  pruneOrphans?: boolean
+  removedNodeIds?: string[]
 }
 
 const parseStage = new ParseStage()
 const validateStage = new ValidateStage()
+const sanitizeStage = new SanitizeStage()
 const buildStage = new BuildStage()
 const layoutStage = new LayoutStage()
 const sizeStage = new SizeStage()
@@ -52,11 +65,17 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
           return errorResult(result.error ?? new Error('Mermaid parsing failed'), result.warnings)
         }
         return successResult({
+          originalNodeIds: result.data.nodes.map(n => n.id),
+          originalEdgeIds: result.data.edges.map(e => e.id),
+          originalGroupIds: result.data.subgraphs.map(g => g.id),
           text: input,
           ast: result.data,
           objects: null,
           direction: result.data.direction,
           warnings: [],
+          reduceRedundantEdges: context.metadata?.reduceRedundantEdges === true,
+          diagramKind: context.metadata?.diagramKind as MermaidPipelineData['diagramKind'],
+          pruneOrphans: context.metadata?.pruneOrphans === true,
         })
       },
     },
@@ -69,7 +88,32 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
         if (!result.success || !result.data) {
           return errorResult(result.error ?? new Error('AST validation failed'), result.warnings)
         }
-        return successResult({ ...input, ast: result.data })
+        return successResult({ ...input, ast: result.data, warnings: [...input.warnings, ...(result.warnings ?? [])] })
+      },
+    },
+    {
+      name: 'sanitize',
+      description: 'Sanitize hallucinated nodes, tier reversals, and redundant generated edges',
+      async execute(input: MermaidPipelineData, context: PipelineContext): Promise<StageResult<MermaidPipelineData>> {
+        if (!input.ast) return errorResult(new Error('No AST to sanitize'))
+        const result = await sanitizeStage.execute({
+          ast: input.ast,
+          reduceRedundantEdges: input.reduceRedundantEdges,
+          diagramKind: input.diagramKind,
+          pruneOrphans: input.pruneOrphans,
+        }, context)
+        if (!result.success || !result.data) {
+          return errorResult(result.error ?? new Error('Sanitize failed'), result.warnings)
+        }
+        const sanitizedAst = result.data
+        const sanitizeWarnings = result.warnings ?? []
+        const newWarnings = [...(input.warnings ?? []), ...sanitizeWarnings]
+        return successResult({
+          ...input,
+          ast: sanitizedAst,
+          warnings: newWarnings,
+          removedNodeIds: [...(input.removedNodeIds ?? []), ...sanitizeWarnings.filter(w => w.startsWith('[ORPHAN_NODE]'))],
+        }, newWarnings)
       },
     },
     {
@@ -144,7 +188,7 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
         if (!result.success || !result.data) {
           return errorResult(result.error ?? new Error('Output validation failed'), result.warnings)
         }
-        const warnings = result.data.validationWarnings
+        const warnings = [...new Set([...input.warnings, ...result.data.validationWarnings])]
         const data = { ...input, warnings }
         return warnings.length > 0 ? warningResult(data, warnings) : successResult(data)
       },
@@ -152,13 +196,22 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
   )
 }
 
-export async function runMermaidPipeline(mermaidText: string): Promise<DomainPipelineResult<PipelineResult>> {
+export async function runMermaidPipeline(
+  mermaidText: string,
+  options: {
+    reduceRedundantEdges?: boolean;
+    diagramKind?: 'architecture' | 'workflow';
+    pruneOrphans?: boolean;
+  } = {},
+): Promise<DomainPipelineResult<PipelineResult>> {
   const pipeline = new Pipeline<string, MermaidPipelineData>(
     'mermaid-pipeline-v2',
     createMermaidPipelineStages()
   )
 
-  const result: CorePipelineResult<MermaidPipelineData> = await pipeline.execute(mermaidText)
+  const result: CorePipelineResult<MermaidPipelineData> = await pipeline.execute(mermaidText, {
+    context: { metadata: options },
+  })
 
   const domainResult = toDomainResult(result)
 
@@ -172,6 +225,10 @@ export async function runMermaidPipeline(mermaidText: string): Promise<DomainPip
     warnings: domainResult.data.warnings,
     success: true,
     direction: domainResult.data.direction,
+    nodesRemoved: domainResult.data.originalNodeIds?.filter(id => !domainResult.data.objects?.nodes.some(n => n.id === id)).length ?? 0,
+    edgesRemoved: domainResult.data.originalEdgeIds?.filter(id => !domainResult.data.ast?.edges.some(e => e.id === id)).length ?? 0,
+    groupsRemoved: domainResult.data.originalGroupIds?.filter(id => !domainResult.data.objects?.nodes.some(n => n.id === id)).length ?? 0,
+    removedNodeIds: domainResult.data.removedNodeIds,
   }
 
   return {

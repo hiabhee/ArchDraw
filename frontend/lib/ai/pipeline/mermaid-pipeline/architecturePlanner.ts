@@ -1,4 +1,5 @@
 import { apiKeyManager } from '../../utils/apiKeyManager';
+import { AI_CAPACITY } from '../../services/aiCapacity';
 import { groqJsonCompletion } from '../../utils/groqJsonCompletion';
 import logger from '@/lib/logger';
 import { DEFAULT_GENERATION_MODEL, FALLBACK_GENERATION_MODEL } from '@/lib/ai/models';
@@ -38,29 +39,24 @@ class RateLimiter {
 
 const rateLimiter = new RateLimiter();
 
-function describeExistingContext(ctx: { nodes?: unknown[]; edges?: unknown[] }): string {
-  const lines: string[] = [];
-  const nodes = (ctx.nodes ?? []) as Array<Record<string, unknown>>;
-  const edges = (ctx.edges ?? []) as Array<Record<string, unknown>>;
-  const MAX_NODES = 10;
-  const MAX_EDGES = 8;
-  if (nodes.length > 0) {
-    lines.push('Nodes:');
-    for (const n of nodes.slice(0, MAX_NODES)) {
-      const data = n.data as Record<string, unknown> | undefined;
-      const label = data?.label ?? data?.text ?? data?.title ?? n.label ?? n.id;
-      lines.push(`  - ${String(label ?? n.id ?? 'unknown')}`);
-    }
-    if (nodes.length > MAX_NODES) lines.push(`  +${nodes.length - MAX_NODES} more`);
-  }
-  if (edges.length > 0) {
-    lines.push('Edges:');
-    for (const e of edges.slice(0, MAX_EDGES)) {
-      lines.push(`  - ${String(e.source ?? '?')}->${String(e.target ?? '?')}`);
-    }
-    if (edges.length > MAX_EDGES) lines.push(`  +${edges.length - MAX_EDGES} more`);
-  }
-  return lines.join('\n');
+export function describeExistingContext(ctx: { nodes?: unknown[]; edges?: unknown[] }): string {
+  // Keep stable IDs, boundaries, shapes and relationship labels for the entire graph.
+  // Never summarize the tail: edits must be able to address every component.
+  return JSON.stringify({
+    nodes: (ctx.nodes ?? []).map(value => {
+      const n = value as Record<string, unknown>;
+      const data = (n.data ?? {}) as Record<string, unknown>;
+      return { id: n.id, type: n.type, parentNode: n.parentNode ?? n.parentId ?? data.parentId,
+        label: data.label ?? data.text ?? n.label, shape: data.shape,
+        serviceType: data.serviceType, subtitle: data.subtitle };
+    }),
+    edges: (ctx.edges ?? []).map(value => {
+      const e = value as Record<string, unknown>;
+      const data = (e.data ?? {}) as Record<string, unknown>;
+      return { id: e.id, source: e.source, target: e.target, label: e.label ?? data.label,
+        type: e.type, data };
+    }),
+  });
 }
 
 function stripJsonFences(raw: string): string {
@@ -305,7 +301,8 @@ export async function runArchitecturePlanner(
   diagramSize: 'small' | 'medium' | 'large' = 'medium',
   detailLevel: 1 | 2 | 3 = 2,
   model?: string,
-  existingContext?: { nodes?: unknown[]; edges?: unknown[] }
+  existingContext?: { nodes?: unknown[]; edges?: unknown[] },
+  retryOptions: { maxAttempts?: number; allowModelFallback?: boolean } = {}
 ): Promise<{ formatConfig: FormatConfig; styleConfig: StyleConfig; mermaidCode: string; reasoning?: string }> {
   const maxNodes = getMaxNodesForSize(diagramSize);
   const systemPrompt = buildPlannerSystemPrompt();
@@ -323,7 +320,7 @@ export async function runArchitecturePlanner(
 
   const requestedModel = model || DEFAULT_GENERATION_MODEL;
   const isGptOss = /^openai\/gpt-oss/i.test(requestedModel);
-  const modelsToTry = isGptOss ? [requestedModel, FALLBACK_GENERATION_MODEL] : [requestedModel];
+  const modelsToTry = isGptOss && retryOptions.allowModelFallback !== false ? [requestedModel, FALLBACK_GENERATION_MODEL] : [requestedModel];
 
   let resultStr = '';
   let lastError: Error | null = null;
@@ -331,7 +328,7 @@ export async function runArchitecturePlanner(
   // Each executeWithRetry call rotates through ALL Groq keys before throwing,
   // so a single attempt exercises the full key pool. We retry a few times in
   // case TPM windows roll between attempts or JSON is truncated.
-  const maxAttempts = 3;
+  const maxAttempts = retryOptions.maxAttempts ?? 3;
 
   outer: for (const currentModel of modelsToTry) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -344,15 +341,22 @@ export async function runArchitecturePlanner(
             attempt > 1 || isParseRetry
               ? `${userPrompt}\n\nIMPORTANT: Output ONLY a valid JSON object with keys "reasoning", "diagramType", "theme", and "mermaidCode". Keep "reasoning" to 2 sentences max (under 300 chars) to avoid truncation. No markdown fences, no prose.`
               : userPrompt;
+          // Lower temperature for deterministic Mermaid; bump reasoning for complex diagrams
+          const temperature = diagramSize === 'large' || detailLevel === 3 ? 0.3 : 0.25;
+          const reasoningEffort: 'low' | 'medium' = diagramSize === 'large' || detailLevel === 3 ? 'medium' : 'low';
           return await groqJsonCompletion(groq, {
             model: currentModel,
-            reasoning_effort: 'low',
+            reasoning_effort: reasoningEffort,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: attemptPrompt },
             ],
-            temperature: 0.7,
-            max_tokens: 8192,
+            temperature,
+            // Keep the response budget proportional to the requested graph. A large
+            // fixed budget causes unnecessary TPM failures and truncation retries.
+            // Keep planner output within the same centrally configured
+            // capacity budget used by admission control.
+            max_tokens: AI_CAPACITY.plannerTokens[detailLevel],
           });
         });
 

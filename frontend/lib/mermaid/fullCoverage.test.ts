@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseMermaid } from './parse';
+import { buildReactFlowObjects } from './buildReactFlow';
 
 function p(code: string) {
   const r = parseMermaid(code);
@@ -534,6 +535,20 @@ flowchart LR
       expect(r.ast.nodes.find(n => n.id === 'A')?.style?.fill).toBe('#ff0000');
       expect(r.ast.nodes.find(n => n.id === 'B')?.style?.fill).toBe('#00ff00');
       expect(r.ast.nodes.find(n => n.id === 'B')?.style?.stroke).toBe('#222');
+    }
+  });
+
+  it('carries Mermaid node colors into React Flow rendering data', () => {
+    const r = p(`graph LR
+      classDef hot fill:#ff0000,stroke:#111
+      A["Hot"]
+      class A hot`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const node = buildReactFlowObjects(r.ast).nodes.find(n => n.id === 'A');
+      expect(node?.data.fillColor).toBe('#ff0000');
+      expect(node?.data.strokeColor).toBe('#111');
+      expect(node?.data.accentColor).toBe('#111');
     }
   });
 

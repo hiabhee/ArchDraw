@@ -10,6 +10,8 @@ import { isTokenExhaustedError, SERVER_BUSY_USER_MESSAGE } from '@/lib/ai/utils/
 import { z } from 'zod';
 import { getClientIP } from '@/lib/server/ip';
 import { checkAIGenerationQuota, getSessionFromRequest, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
+import { CREDIT_POLICY, consumeCredits, getCreditSnapshot, type DetailLevel } from '@/lib/credits';
+import { acquireAiCapacity, CapacityBusyError, getGenerationBudget } from '@/lib/ai/services/aiCapacity';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -81,6 +83,16 @@ export async function POST(req: NextRequest) {
     }
 
     const { description, systemType, complexity, model, diagramSize, detailLevel } = validatedInput.data as GenerateDiagramInput;
+    const effectiveDiagramSize = diagramSize ?? (detailLevel === 1 ? 'small' : detailLevel === 3 ? 'large' : 'medium');
+    const requestedDetailLevel = (detailLevel ?? 2) as DetailLevel;
+    const creditSnapshot = await getCreditSnapshot(req);
+    const creditCost = CREDIT_POLICY.costs[requestedDetailLevel];
+    if (creditSnapshot.balance < creditCost) {
+      return NextResponse.json(
+        { error: 'Not enough credits for this generation.', code: 'INSUFFICIENT_CREDITS', required: creditCost, ...creditSnapshot },
+        { status: 402 },
+      );
+    }
 
     // Fast path: an identical prompt+model+detail request was generated recently.
     // Regenerate re-submits the same prompt, so this serves it instantly instead
@@ -92,6 +104,7 @@ export async function POST(req: NextRequest) {
         data: cached,
         progress: [],
         cached: true,
+        credits: creditSnapshot,
       });
     }
 
@@ -100,15 +113,29 @@ export async function POST(req: NextRequest) {
       systemType: systemType ?? inferSystemType(description),
       complexity: complexity ?? inferComplexity(description),
       model,
-      diagramSize,
+      diagramSize: effectiveDiagramSize,
       detailLevel,
     };
 
-    const progressEvents: GenerationProgress[] = [];
+    const releaseCapacity = await acquireAiCapacity(getGenerationBudget(description, requestedDetailLevel));
 
-    const result = await generateDiagram(userIntent, (progress) => {
-      progressEvents.push(progress);
+    const progressEvents: GenerationProgress[] = [];
+    let result;
+    try {
+      result = await generateDiagram(userIntent, (progress) => {
+        progressEvents.push(progress);
+      });
+    } finally {
+      releaseCapacity();
+    }
+
+    const consumed = await consumeCredits(req, requestedDetailLevel, {
+      description: description.substring(0, 100),
+      nodeCount: result.nodes?.length || 0,
     });
+    if (!consumed.allowed) {
+      logger.warn('[Credits] Balance changed during generation; result returned without a credit charge');
+    }
 
     setCachedDiagram(description, detailLevel, model, result);
 
@@ -131,6 +158,7 @@ export async function POST(req: NextRequest) {
       data: result,
       progress: progressEvents,
       quotaRemaining: quotaCheck.remaining,
+      credits: consumed.allowed ? { ...creditSnapshot, balance: consumed.balance } : await getCreditSnapshot(req),
     });
 
   } catch (error) {
@@ -138,6 +166,10 @@ export async function POST(req: NextRequest) {
 
     const message = error instanceof Error ? error.message : 'Unknown error occurred';
     const err = error as Error & { status?: number };
+
+    if (error instanceof CapacityBusyError) {
+      return NextResponse.json({ success: false, error: error.message, code: error.code, retryable: true }, { status: 503 });
+    }
 
     // Out of token budget / rate-limited / credits exhausted → friendly busy message
     if (isTokenExhaustedError({ status: err.status, message })) {
@@ -172,6 +204,3 @@ export async function GET() {
     },
   });
 }
-
-
-

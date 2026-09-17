@@ -1,3 +1,4 @@
+import { repairDiagramQuality } from './stages/QualityRepairStage';
 import { pipelineStages } from '@/lib/pipeline-core';
 import type { Stage } from '@/lib/pipeline-core/Stage';
 import type { StageResult } from '@/lib/pipeline-core/StageResult';
@@ -95,6 +96,7 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
         const result = await mermaidMaterializeStage.execute(
           {
             plan: data.plan,
+            existingContext: data.userIntent.existingContext,
             prompt: data.prompt,
             diagramSize: data.diagramSize,
             detailLevel: data.detailLevel,
@@ -118,6 +120,9 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
         }
         const result = await scoreStage.execute(
           {
+            nodesRemoved: data.parseOutput.nodesRemoved,
+            edgesRemoved: data.parseOutput.edgesRemoved,
+            groupsRemoved: data.parseOutput.groupsRemoved,
             nodes: data.parseOutput.nodes,
             edges: data.parseOutput.edges,
             diagramSize: data.diagramSize,
@@ -125,7 +130,7 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
             styleTheme: data.plan.styleConfig.theme,
             prompt: data.prompt,
             stylePlan: {
-              style: data.plan.styleConfig.theme as ArchitectureStyle,
+              style: 'generic',
               strictness: 'explicit' as const,
               productionDepth: 'conceptual' as const,
             },
@@ -150,6 +155,7 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
           {
             nodes: data.parseOutput.nodes,
             edges: data.parseOutput.edges,
+            prompt: data.prompt,
             reasoning: data.plan.reasoning,
             diagramSize: data.diagramSize,
             detailLevel: data.detailLevel,
@@ -162,6 +168,7 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
         }
         return successResult({ ...data, validationOutput: result.data });
       },
-    }
+    },
+    { name: 'quality-repair', description: 'Repair quality issues once and retain the better diagram', weight: 2, execute: repairDiagramQuality }
   );
 }

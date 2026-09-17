@@ -112,7 +112,33 @@ export class Pipeline<TInput = unknown, TOutput = unknown> {
           continue;
         }
 
-        const result: StageResult<unknown> = await stage.execute(currentOutput, context);
+        const configuredStageTimeout = Number((context.metadata as Record<string, unknown>)?.stageTimeoutMs);
+        const stageController = new AbortController();
+        const abortStageFromPipeline = () => stageController.abort(context.signal?.reason);
+        if (context.signal) {
+          if (context.signal.aborted) abortStageFromPipeline();
+          else context.signal.addEventListener('abort', abortStageFromPipeline, { once: true });
+        }
+        const stageContext = Object.create(context) as PipelineContext;
+        Object.defineProperty(stageContext, 'signal', { value: stageController.signal });
+        const stageRun = stage.execute(currentOutput, stageContext);
+        let stageTimer: ReturnType<typeof setTimeout> | undefined;
+        const result: StageResult<unknown> = Number.isFinite(configuredStageTimeout) && configuredStageTimeout > 0
+          ? await Promise.race([
+              stageRun,
+              new Promise<never>((_, reject) => { stageTimer = setTimeout(
+                () => {
+                  const error = new Error(`Stage "${stage.name}" timed out after ${configuredStageTimeout}ms`);
+                  stageController.abort(error);
+                  reject(error);
+                },
+                configuredStageTimeout
+              ); }),
+            ]).finally(() => {
+              if (stageTimer) clearTimeout(stageTimer);
+              context.signal?.removeEventListener('abort', abortStageFromPipeline);
+            })
+          : await stageRun.finally(() => context.signal?.removeEventListener('abort', abortStageFromPipeline));
 
         stageDurationMs = Date.now() - stageStart;
 

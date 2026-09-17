@@ -23,7 +23,39 @@ export async function saveUserCanvas(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to save canvas');
+  if (!res.ok) {
+    let details: Record<string, unknown> = {};
+    let bodyText = '';
+    try {
+      // Clone so we can try json then text
+      details = await res.clone().json();
+    } catch {
+      try {
+        bodyText = await res.text();
+        details = bodyText ? { bodyText, statusText: res.statusText } : { statusText: res.statusText };
+      } catch {
+        details = { statusText: res.statusText };
+      }
+    }
+    // Ensure details is never empty for logging
+    if (Object.keys(details).length === 0) {
+      details = { statusText: res.statusText, bodyText };
+    }
+    const message =
+      (details.error as string) ||
+      (details.message as string) ||
+      (bodyText && bodyText.slice(0, 200)) ||
+      `Failed to save canvas (${res.status} ${res.statusText || 'unknown'})`;
+    const err = new Error(message) as Error & {
+      status: number;
+      code?: string;
+      details: Record<string, unknown>;
+    };
+    err.status = res.status;
+    err.code = details.code as string | undefined;
+    err.details = details;
+    throw err;
+  }
   return res.json();
 }
 

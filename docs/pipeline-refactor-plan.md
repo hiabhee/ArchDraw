@@ -275,7 +275,7 @@ Rules:
 
 **Implementation Details**
 
-- Added typed shared-data keys for Mermaid (`MERMAID_SHARED`) and AI (`AI_SHARED`) pipelines
+- Pipeline stage data is passed through typed stage inputs and outputs
 - Updated `runMermaidPipeline` to return `DomainPipelineResult<PipelineResult>` instead of raw result
 - Updated `runAiMermaidPipelineV2` to return `DomainPipelineResult<PipelineResult>` instead of raw result
 - Updated repo pipeline to already use `DomainPipelineResult` (was already implemented)
