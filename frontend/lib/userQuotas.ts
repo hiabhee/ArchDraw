@@ -44,7 +44,9 @@ export type UserQuotas = GuestQuotas | AuthenticatedQuotas;
 export const USER_QUOTAS: Record<string, UserQuotas> = {
   guest: {
     tier: 'guest',
-    aiGenerationsPerHour: 3,
+    // Credit balance is the product limit; this remains a generous abuse
+    // backstop for bursts while credits are being spent per generation.
+    aiGenerationsPerHour: 10,
     maxCanvases: 1,
     maxNodesPerCanvas: 50,
     allowedExportFormats: ['json', 'png'],
@@ -63,7 +65,9 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
   },
   authenticated: {
     tier: 'authenticated',
-    aiGenerationsPerDay: 10,
+    // Credit balance is the product limit; keep a separate request-rate
+    // backstop so a compromised account cannot make unlimited calls.
+    aiGenerationsPerDay: 30,
     maxCanvases: 5,
     maxNodesPerCanvas: 150,
     allowedExportFormats: ['json', 'png', 'svg', 'pdf', 'html-embed'],

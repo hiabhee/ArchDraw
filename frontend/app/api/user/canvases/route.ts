@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { getUserCanvases, upsertUserCanvas } from '@/lib/db';
+import { CanvasOwnershipError, getUserCanvases, upsertUserCanvas } from '@/lib/db';
 import { headers } from 'next/headers';
 import { getUserTier, getUserQuotas } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
@@ -85,6 +85,18 @@ export async function PUT(req: NextRequest) {
     const result = await upsertUserCanvas(userId, body);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof CanvasOwnershipError) {
+      logger.warn('User canvases PUT forbidden (ownership):', { canvasId: error.canvasId });
+      return NextResponse.json({ error: 'Forbidden', code: 'FORBIDDEN' }, { status: 403 });
+    }
+    // JSON body too large or malformed
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('request entity too large') || msg.includes('PayloadTooLarge') || msg.includes('Body exceeded')) {
+      return NextResponse.json(
+        { error: 'Canvas payload too large', code: 'PAYLOAD_TOO_LARGE' },
+        { status: 413 }
+      );
+    }
     logger.error('User canvases PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
