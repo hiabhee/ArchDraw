@@ -8,6 +8,12 @@ import type { RepoEnrichmentState } from './enrichment-types';
 import { recomputeDegradedAnything } from './enrichment-types';
 import logger from '@/lib/logger';
 
+/** Library/framework source repositories are represented by one verified core
+ * module. Extracting application-style components only adds generic noise. */
+export function shouldSkipComponentExtraction(repoType: string | undefined): boolean {
+  return repoType === 'library' || repoType === 'framework';
+}
+
 export class ExtractStage extends BaseStage<RepoEnrichmentState, RepoEnrichmentState> {
   constructor() {
     super('extracting_components', {
@@ -40,13 +46,15 @@ export class ExtractStage extends BaseStage<RepoEnrichmentState, RepoEnrichmentS
     };
 
     context.onProgress?.('extracting_components', 65, 'Extracting components...');
-    if (!repoProfile) {
+    if (shouldSkipComponentExtraction(repoProfile?.repoType)) {
+      logger.info('[Pipeline] Skipping component extraction for library/framework repository');
+    } else if (!repoProfile) {
       heuristicComponentFallback = true;
       runHeuristic();
     } else {
       try {
         const detail = detailLevelFromContext(context);
-        const llmNodes = await extractComponents(snapshot, repoProfile, detectionReportText, summaries, { detailLevel: detail });
+        const llmNodes = await extractComponents(snapshot, repoProfile, detectionReportText, summaries, { detailLevel: detail, signal: context.signal });
         if (llmNodes.length > 0) {
           workingNodes = mergeLlmIntoBaseline(baselineNodes, llmNodes);
           logger.log(`  Baseline: ${baselineNodes.length}, LLM: ${llmNodes.length}, Merged: ${workingNodes.length}`);

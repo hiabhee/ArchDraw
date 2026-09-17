@@ -59,11 +59,25 @@ function formatWait(resetEpochSeconds: number | null): string {
 }
 
 async function fetchJson(url: string, headers: Record<string, string>, signal?: AbortSignal): Promise<Response> {
+  const controller = new AbortController();
+  const abortFromPipeline = () => controller.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) abortFromPipeline();
+    else signal.addEventListener('abort', abortFromPipeline, { once: true });
+  }
+  const timeoutMs = Number(process.env.REPO_GITHUB_REQUEST_TIMEOUT_MS) || 12_000;
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`GitHub request timed out after ${timeoutMs}ms`)),
+    timeoutMs,
+  );
   try {
-    return await fetch(url, { headers, signal });
+    return await fetch(url, { headers, signal: controller.signal });
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') throw err;
     throw new Error('Network error connecting to GitHub API');
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortFromPipeline);
   }
 }
 
@@ -490,7 +504,9 @@ export async function ingestRepo(
   // When the archive is available, all subsequent "fetches" are free in-memory
   // lookups, eliminating 1-API-call-per-file rate-limit pressure and budget
   // starvation (fix 1.1, 1.4, 1.5). Falls back to the Contents-API path below.
-  const archiveMap = await loadArchiveMap(owner, repo, defaultBranch, headers, signal);
+  const archiveMap = process.env.REPO_DISABLE_ARCHIVE === 'true'
+    ? null
+    : await loadArchiveMap(owner, repo, defaultBranch, headers, signal);
   const usingArchive = archiveMap !== null;
   const failedPaths: string[] = [];
   logger.info(`[Ingest] archive=${usingArchive ? 'hit' : 'fallback'}`);

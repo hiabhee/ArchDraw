@@ -69,5 +69,30 @@ export function formatSourceFilesForPrompt(files: FileEntry[]): string {
   return chunks.join('\n\n') + footer;
 }
 
+/**
+ * Keep subsystem context bounded before it is interpolated into an LLM prompt.
+ * A large monorepo can yield hundreds of summaries; joining them unbounded
+ * blocks the event loop long enough to defeat request and stage timeouts.
+ */
+export function formatSubsystemSummariesForPrompt(summaries: string[] | undefined, maxChars: number): string {
+  if (!summaries?.length || maxChars <= 0) return '';
+
+  const kept: string[] = [];
+  let used = 0;
+  for (const summary of summaries) {
+    const separatorLength = kept.length === 0 ? 0 : 2;
+    const remaining = maxChars - used - separatorLength;
+    if (remaining <= 0) break;
+    if (summary.length > remaining) {
+      kept.push(`${summary.slice(0, remaining)}\n... [subsystem summaries truncated]`);
+      break;
+    }
+    kept.push(summary);
+    used += separatorLength + summary.length;
+  }
+
+  return kept.join('\n\n');
+}
+
 export const JSON_OUTPUT_REMINDER =
   'Respond with a single JSON object only. Do not repeat or quote the source files. Do not use markdown fences.';

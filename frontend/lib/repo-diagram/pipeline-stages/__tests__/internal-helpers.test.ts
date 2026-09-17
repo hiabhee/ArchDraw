@@ -58,6 +58,17 @@ describe('mergeLlmIntoBaseline', () => {
     expect(result).toHaveLength(1);
   });
 
+  it('keeps distinct architectural boundaries that share a source file', () => {
+    const sourceFiles = ['utils/stripe/server.ts'];
+    const base = [sampleNode({ id: 'stripe', label: 'Stripe', type: 'EXTERNAL_SERVICE', sourceFiles })];
+    const llm = [sampleNode({ id: 'checkout', label: 'Checkout API', type: 'API_ROUTE', sourceFiles })];
+
+    const result = mergeLlmIntoBaseline(base, llm);
+
+    expect(result).toHaveLength(2);
+    expect(result.map(node => node.label)).toEqual(expect.arrayContaining(['Stripe', 'Checkout API']));
+  });
+
   it('filters out generic external services from LLM', () => {
     const base: ExtractedNode[] = [];
     const llm = [sampleNode({

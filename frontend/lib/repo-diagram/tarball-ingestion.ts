@@ -27,17 +27,31 @@ export async function fetchRepoArchive(
   signal?: AbortSignal
 ): Promise<ArchiveResult | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/zipball/${ref}`;
+  const controller = new AbortController();
+  const abortFromPipeline = () => controller.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) abortFromPipeline();
+    else signal.addEventListener('abort', abortFromPipeline, { once: true });
+  }
+  const timeoutMs = Number(process.env.REPO_GITHUB_REQUEST_TIMEOUT_MS) || 12_000;
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`GitHub archive request timed out after ${timeoutMs}ms`)),
+    timeoutMs,
+  );
   let res: Response;
   try {
     res = await fetch(url, {
       headers,
-      signal,
+      signal: controller.signal,
       redirect: 'follow',
     });
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') throw err;
     logger.warn(`[Tarball] network error fetching ${url}:`, err instanceof Error ? err.message : err);
     return null;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortFromPipeline);
   }
 
   if (!res.ok) {
@@ -119,6 +133,11 @@ export async function fetchRepoArchive(
 
   // Stream the response body into the unzip decoder.
   const reader = res.body.getReader();
+  const cancelReader = () => {
+    aborted = true;
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener('abort', cancelReader, { once: true });
   try {
     for (;;) {
       if (aborted) {
@@ -136,6 +155,8 @@ export async function fetchRepoArchive(
     if (err instanceof Error && err.name === 'AbortError') throw err;
     logger.warn('[Tarball] error while streaming archive:', err instanceof Error ? err.message : err);
     return null;
+  } finally {
+    signal?.removeEventListener('abort', cancelReader);
   }
 
   if (files.size === 0) {

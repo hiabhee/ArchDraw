@@ -103,18 +103,20 @@ export function RepoDiagramGenerator({ onClose }: Props) {
         const text = decoder.decode(value);
         for (const line of text.split('\n')) {
           if (!line.startsWith('data: ')) continue;
+          let event: { type?: string; message?: string; progress?: number; payload?: RepoDiagramApiResponse };
           try {
-            const event = JSON.parse(line.slice(6));
-            if (event.type === 'progress') {
-              setProgressMessage(event.message);
-              setProgressPct(event.progress);
-            } else if (event.type === 'result') {
-              resultData = event.payload;
-            } else if (event.type === 'error') {
-              throw new Error(event.message);
-            }
+            event = JSON.parse(line.slice(6));
           } catch {
             // skip malformed lines
+            continue;
+          }
+          if (event.type === 'progress') {
+            setProgressMessage(event.message ?? 'Generating diagram...');
+            setProgressPct(event.progress ?? 0);
+          } else if (event.type === 'result' && event.payload) {
+            resultData = event.payload;
+          } else if (event.type === 'error') {
+            throw new Error(event.message ?? 'Diagram generation incomplete. Please retry.');
           }
         }
       }

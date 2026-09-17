@@ -72,9 +72,18 @@ export class BaselineStage extends BaseStage<BaselineInput, BaselineOutput> {
     const graph = buildSubsystemGraph(subsystems, snapshot.selectedFiles, signals);
     let { nodes, edges } = intermediateToArchitecture(graph, subsystems);
     nodes = expandBaselineFromSignals(nodes, signals);
-    if (subsystems.length === 1 && nodes.length <= 2) {
-      const dirNodes = nodesFromTopLevelDirs(snapshot);
-      if (dirNodes.length > 0) nodes = dirNodes;
+    ({ nodes, edges } = addComposeArchitecture(nodes, edges, signals));
+    edges = addQueryEvidenceEdges(nodes, edges, signals);
+    edges = addExternalSdkEvidenceEdges(nodes, edges, signals);
+    // A single root subsystem is common for libraries and small APIs. Always
+    // expose meaningful source-directory boundaries; the previous `nodes <= 2`
+    // guard suppressed them as soon as a datastore or route signal appeared.
+    if (subsystems.length === 1) {
+      const detailLevel = Number(((_context.metadata as Record<string, unknown>)?.detailLevel ?? 2));
+      const dirNodes = shouldExpandRoot(snapshot)
+        ? nodesFromTopLevelDirs(snapshot, detailLevel === 1 ? 3 : 2, detailLevel === 3 ? 32 : detailLevel === 2 ? 16 : 8)
+        : [];
+      if (dirNodes.length > 0) nodes = mergeBaselineNodes(nodes, dirNodes);
     }
     edges = demoteGuessedEdges(edges, nodes, importGraph);
     const evidenceEdges = importGraph ? deriveEvidenceEdges(nodes, importGraph) : [];
@@ -89,17 +98,161 @@ export class BaselineStage extends BaseStage<BaselineInput, BaselineOutput> {
   }
 }
 
-function nodesFromTopLevelDirs(snapshot: RepoSnapshot): ExtractedNode[] {
+/** Connect a route/module to an SDK boundary only when both use the same source file. */
+export function addExternalSdkEvidenceEdges(
+  nodes: ExtractedNode[],
+  edges: RichEdge[],
+  signals: StaticSignal[],
+): RichEdge[] {
+  const nextEdges = [...edges];
+  for (const sdk of signals.filter((signal) => signal.type === 'sdk_usage')) {
+    const target = nodes.find((node) => node.type === 'EXTERNAL_SERVICE' && node.label === sdk.label);
+    const source = nodes.find((node) =>
+      ['API_ROUTE', 'SERVICE', 'CONTROLLER'].includes(node.type) && node.sourceFiles.includes(sdk.source)
+    );
+    if (!source || !target || nextEdges.some((edge) => edge.from === source.id && edge.to === target.id)) continue;
+    nextEdges.push({
+      from: source.id,
+      to: target.id,
+      type: 'external_call',
+      label: `uses ${sdk.label}`,
+      direction: 'sync',
+      protocol: 'sdk',
+      dataFlow: '',
+      triggeredBy: 'request',
+      description: `${sdk.label} SDK usage detected in ${sdk.source}.`,
+      confidence: 'high',
+    });
+  }
+  return nextEdges;
+}
+
+/** Avoid turning reusable libraries and config-only repositories into fake layers. */
+export function shouldExpandRoot(snapshot: RepoSnapshot): boolean {
+  const paths = snapshot.fileTree.map(path => path.toLowerCase());
+  const hasRuntime = paths.some(path => /\.(ts|tsx|js|jsx|py|go|rs|java|rb|php|cs|kt)$/.test(path));
+  if (!hasRuntime) return false;
+  return paths.some(path =>
+    /^(app|pages|routes|routers|controllers|handlers|services|backend|frontend|server|api)\//.test(path) ||
+    /^(src|server|backend|frontend)\/(app|pages|routes|routers|controllers|handlers|services|api)\//.test(path) ||
+    /(^|\/)(schema\.prisma|docker-compose\.ya?ml)$/.test(path)
+  );
+}
+
+function mergeBaselineNodes(primary: ExtractedNode[], additions: ExtractedNode[]): ExtractedNode[] {
+  const byId = new Map(primary.map(node => [node.id, { ...node, sourceFiles: [...node.sourceFiles] }]));
+  for (const addition of additions) {
+    const existing = byId.get(addition.id);
+    if (!existing) {
+      byId.set(addition.id, { ...addition, sourceFiles: [...addition.sourceFiles] });
+      continue;
+    }
+    existing.sourceFiles = [...new Set([...existing.sourceFiles, ...addition.sourceFiles])];
+    if (existing.confidence === 'low' && addition.confidence !== 'low') existing.confidence = addition.confidence;
+  }
+  return Array.from(byId.values());
+}
+
+/** Connect a source-backed API/module to a detected datastore only when code contains a query. */
+export function addQueryEvidenceEdges(
+  nodes: ExtractedNode[],
+  edges: RichEdge[],
+  signals: StaticSignal[],
+): RichEdge[] {
+  const datastores = nodes.filter(node => ['DATABASE', 'CACHE', 'STORAGE'].includes(node.type));
+  if (datastores.length === 0) return edges;
+  const nextEdges = [...edges];
+  for (const query of signals.filter(signal => signal.type === 'db_query')) {
+    const source = nodes.find(node =>
+      ['API_ROUTE', 'SERVICE', 'CONTROLLER'].includes(node.type) && node.sourceFiles.includes(query.source)
+    );
+    if (!source) continue;
+    // Static analysis can identify the query but not always its exact store;
+    // only use an unambiguous single datastore in that case.
+    if (datastores.length !== 1) continue;
+    const target = datastores[0];
+    if (nextEdges.some(edge => edge.from === source.id && edge.to === target.id)) continue;
+    nextEdges.push({
+      from: source.id,
+      to: target.id,
+      type: 'db_query',
+      label: 'queries',
+      direction: 'sync',
+      protocol: 'database',
+      dataFlow: '',
+      triggeredBy: 'request',
+      description: `Database query detected in ${query.source}.`,
+      confidence: 'high',
+    });
+  }
+  return nextEdges;
+}
+
+/** Materialize docker-compose as primary architecture evidence, not LLM hints. */
+export function addComposeArchitecture(
+  nodes: ExtractedNode[],
+  edges: RichEdge[],
+  signals: StaticSignal[],
+): { nodes: ExtractedNode[]; edges: RichEdge[] } {
+  const composeServices = signals.filter(signal => signal.type === 'docker_service');
+  if (composeServices.length === 0) return { nodes, edges };
+
+  const nextNodes = [...nodes];
+  const nodeIdForService = new Map<string, string>();
+  for (const service of composeServices) {
+    const key = service.label.toLowerCase();
+    const id = `compose_${key.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+    nodeIdForService.set(key, id);
+    if (nextNodes.some(node => node.id === id)) continue;
+    const type = /postgres|mysql|mariadb|mongo/.test(key) ? 'DATABASE'
+      : /redis|memcached/.test(key) ? 'CACHE'
+        : /kafka|rabbitmq|nats/.test(key) ? 'QUEUE'
+          : 'SERVICE';
+    nextNodes.push({
+      id,
+      label: service.label,
+      type,
+      description: `Docker Compose service declared in ${service.source}.`,
+      sourceFiles: [service.source],
+      confidence: 'high',
+    });
+  }
+
+  const nextEdges = [...edges];
+  for (const dependency of signals.filter(signal => signal.type === 'compose_dependency')) {
+    const from = String(dependency.details.from ?? '').toLowerCase();
+    const to = dependency.label.toLowerCase();
+    const sourceId = nodeIdForService.get(from);
+    const targetId = nodeIdForService.get(to);
+    if (!sourceId || !targetId || nextEdges.some(edge => edge.from === sourceId && edge.to === targetId)) continue;
+    nextEdges.push({
+      from: sourceId,
+      to: targetId,
+      type: 'depends_on',
+      label: 'depends on',
+      direction: 'sync',
+      protocol: 'docker-compose',
+      dataFlow: '',
+      triggeredBy: 'startup',
+      description: `Compose dependency declared in ${dependency.source}.`,
+      confidence: 'high',
+    });
+  }
+  return { nodes: nextNodes, edges: nextEdges };
+}
+
+function nodesFromTopLevelDirs(snapshot: RepoSnapshot, minimumFiles = 3, maxGroups = 16): ExtractedNode[] {
   const containers = new Set(['src', 'app']);
   const sourceDirs = new Set([
     'lib', 'routes', 'routers', 'services', 'models', 'controllers', 'api',
     'pages', 'components', 'modules', 'handlers', 'views', 'middleware',
-    'prisma', 'db', 'database', 'tests', 'test', 'commands', 'jobs',
+    'prisma', 'db', 'database', 'commands', 'jobs',
     'workers', 'config',
   ]);
   const groups = new Map<string, string[]>();
 
   for (const path of snapshot.fileTree) {
+    if (/(^|\/)(examples?|samples?|tests?|__tests__|fixtures?)\//i.test(path) || /\.(test|spec)\.[^.\/]+$/i.test(path)) continue;
     const parts = path.split('/');
     if (parts.length < 2) continue;
     let bucket: string | null = null;
@@ -124,7 +277,8 @@ function nodesFromTopLevelDirs(snapshot: RepoSnapshot): ExtractedNode[] {
   }
 
   return Array.from(groups.entries())
-    .filter(([, files]) => files.length >= 3)
+    .filter(([, files]) => files.length >= minimumFiles)
+    .slice(0, maxGroups)
     .map(([dir, files]) => ({
       id: dir.toLowerCase(),
       label: `${dir.charAt(0).toUpperCase()}${dir.slice(1)}`,

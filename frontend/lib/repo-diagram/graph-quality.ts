@@ -6,6 +6,7 @@ import type {
   ReviewCorrection,
   Workflow,
   NodeType,
+  RepoProfile,
 } from '@/lib/types/repo-diagram';
 
 function slugId(input: string): string {
@@ -82,6 +83,12 @@ function deriveRouteGroup(sourcePath: string): { id: string; label: string; sour
       label: `${titleCase(name)} API`,
       source: sourcePath,
     };
+  }
+
+  // FastAPI/Flask and small Express services commonly declare routes directly
+  // in their entry file rather than a routes/ directory.
+  if (/(^|\/)(main|app|server|index)\.(py|ts|js)$/.test(p)) {
+    return { id: 'api_root', label: 'Application API', source: sourcePath };
   }
 
   return null;
@@ -180,7 +187,89 @@ export function expandBaselineFromSignals(
     });
   }
 
+  // Schemas and source-level SDK calls are direct architectural evidence. They
+  // must be present even when the LLM times out or chooses generic labels.
+  const schemaSignals = signals.filter((s) => s.type === 'schema');
+  const schemaSources = schemaSignals.map((s) => s.source);
+  if (schemaSources.length > 0) {
+    const provider = String(schemaSignals.find((s) => s.details.provider)?.details.provider ?? '').toLowerCase();
+    const databaseLabel = provider === 'postgresql' ? 'PostgreSQL'
+      : provider === 'mysql' ? 'MySQL'
+        : provider === 'mongodb' ? 'MongoDB'
+          : 'Database';
+    addNode({
+      id: 'database',
+      label: databaseLabel,
+      type: 'DATABASE',
+      description: 'Database schema detected in repository source.',
+      sourceFiles: [...new Set(schemaSources)],
+      confidence: 'high',
+    });
+  }
+  for (const sdk of signals.filter((s) => s.type === 'sdk_usage')) {
+    if (!['payments', 'external_api', 'queue'].includes(String(sdk.details.category))) continue;
+    addNode({
+      id: `external_${slugId(sdk.label)}`,
+      label: sdk.label,
+      type: String(sdk.details.category) === 'queue' ? 'QUEUE' : 'EXTERNAL_SERVICE',
+      description: `${sdk.label} usage detected in source code.`,
+      sourceFiles: [sdk.source],
+      confidence: 'medium',
+    });
+  }
+
   return nodes;
+}
+
+/**
+ * Apply deterministic shape limits where a generic component graph would be
+ * misleading. Framework source repositories are libraries, not applications;
+ * config/example repositories describe deployments rather than being one.
+ */
+export function constrainGraphForRepoType(
+  nodes: ExtractedNode[],
+  edges: RichEdge[],
+  profile: RepoProfile | null,
+  signals: StaticSignal[],
+): { nodes: ExtractedNode[]; edges: RichEdge[] } {
+  if (!profile) return { nodes, edges };
+
+  if (profile.repoType === 'library' || profile.repoType === 'framework') {
+    const framework = profile.primaryStack.framework || 'Library';
+    const sourceFiles = [...new Set(nodes.flatMap((node) => node.sourceFiles))].slice(0, 12);
+    return {
+      nodes: [{
+        id: slugId(framework),
+        label: framework,
+        type: 'CORE_MODULE',
+        description: `${framework} reusable library/framework source repository.`,
+        sourceFiles,
+        confidence: 'high',
+      }],
+      edges: [],
+    };
+  }
+
+  if (profile.repoType === 'devops_config') {
+    const configSources = [...new Set(signals
+      .filter((signal) => ['docker_service', 'terraform_resource', 'kubernetes_resource', 'config'].includes(signal.type))
+      .map((signal) => signal.source))];
+    if (configSources.length > 1) {
+      return {
+        nodes: [{
+          id: 'configuration_catalog',
+          label: 'Configuration Examples',
+          type: 'INFRASTRUCTURE',
+          description: 'Repository contains deployment/configuration examples, not one deployed system.',
+          sourceFiles: configSources.slice(0, 20),
+          confidence: 'high',
+        }],
+        edges: [],
+      };
+    }
+  }
+
+  return { nodes, edges };
 }
 
 function shouldMergeNodes(a: ExtractedNode, b: ExtractedNode): boolean {

@@ -5,8 +5,11 @@
  */
 
 export const MAX_FILE_SIZE_BYTES = 500 * 1024;
-export const MAX_ARCHIVE_CONTENT_LENGTH_BYTES = 500 * 1024 * 1024; // 500MB → reject only truly enormous repos
-export const MAX_TOTAL_EXTRACTED_BYTES = 200 * 1024 * 1024; // 200MB of text → abort cleanly
+// The archive is an ingestion optimisation, not a checkout. Keep it below the
+// L3 content budget's practical working set so a large public repository cannot
+// monopolise an interactive diagram request.
+export const MAX_ARCHIVE_CONTENT_LENGTH_BYTES = 32 * 1024 * 1024;
+export const MAX_TOTAL_EXTRACTED_BYTES = 16 * 1024 * 1024;
 export const MAX_PER_FILE_BYTES = 500 * 1024; // 500KB per file — canonical (same as MAX_FILE_SIZE_BYTES)
 
 /** Detail-level file budgets — replaces IngestionStage inline constants (Phase 1.4: GH2R-006) */

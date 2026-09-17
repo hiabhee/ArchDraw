@@ -2,8 +2,8 @@ import { apiKeyManager } from '@/lib/ai/utils/apiKeyManager';
 import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { extractComponentsHeuristic } from './repo-heuristic-extractor';
-import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
-import { REPO_LLM_MODEL, EXTRACTOR_MAX_TOKENS, EXTRACTOR_PROMPT_CHARS } from '@/lib/ai/utils/repoModels';
+import { JSON_OUTPUT_REMINDER, formatSubsystemSummariesForPrompt } from './repo-prompt-utils';
+import { REPO_LLM_MODEL, EXTRACTOR_MAX_TOKENS, EXTRACTOR_PROMPT_CHARS, REPO_LLM_MAX_OUTPUT_TOKENS, REPO_LLM_REQUEST_OPTIONS } from '@/lib/ai/utils/repoModels';
 import { parse as parseYaml } from 'yaml';
 import { MAX_META_FILE_CONTEXT_CHARS } from '@/lib/repo-diagram/skip-rules';
 import type { RepoSnapshot, RepoProfile, ExtractedNode, FileEntry } from '@/lib/types/repo-diagram';
@@ -11,7 +11,7 @@ import logger from '@/lib/logger';
 
 export type { ExtractedNode };
 
-const KEY_FILE_BUDGET = 60_000;
+const KEY_FILE_BUDGET = 4_000;
 
 /**
  * GH2R-024 — component count scales with detail level (was hardcoded 25).
@@ -22,7 +22,10 @@ const MAX_COMPONENTS_BY_LEVEL: Record<number, number> = { 1: 25, 2: 45, 3: 70 };
 
 // Cap on the ARCHITECTURE MANIFESTS block we inject into the loader prompt.
 const META_CONTEXT_BUDGET = 16_000;
-const README_CONTEXT_BUDGET = 24_000;
+const README_CONTEXT_BUDGET = 3_000;
+const MANIFEST_CONTEXT_BUDGET = 2_000;
+const STATIC_DETECTION_CONTEXT_BUDGET = 2_000;
+const FILE_TREE_CONTEXT_PATHS = 200;
 
 const ARCHITECTURAL_FILE_PATTERNS = [
   /route\.(ts|js|tsx)$/,
@@ -83,7 +86,7 @@ function pickKeyFiles(snapshot: RepoSnapshot): { path: string; content: string }
   for (const file of scored) {
     if (budget <= 0) break;
     const isReadme = /(^|\/)readme(\.[^/]+)?$/i.test(file.path);
-    const maxChars = isReadme ? 16_000 : 10_000;
+    const maxChars = isReadme ? 3_000 : 2_500;
     const content =
       file.content.length > maxChars
         ? file.content.slice(0, maxChars) + '\n... [truncated]'
@@ -96,6 +99,11 @@ function pickKeyFiles(snapshot: RepoSnapshot): { path: string; content: string }
   }
 
   return selected;
+}
+
+/** Always reduce a non-empty source-file set; used by prompt-budget trimming. */
+export function nextKeyFileCount(count: number): number {
+  return Math.max(1, Math.floor(count * 0.7));
 }
 
 // ─── GH2R-024: architecture-manifest context builders ───────────────────────
@@ -276,19 +284,23 @@ export async function extractComponents(
   repoProfile: RepoProfile,
   staticDetectionReport: string,
   summaries?: string[],
-  opts?: { detailLevel?: 1 | 2 | 3 }
+  opts?: { detailLevel?: 1 | 2 | 3; signal?: AbortSignal }
 ): Promise<ExtractedNode[]> {
   const detail = opts?.detailLevel ?? 2;
   const maxComponents = MAX_COMPONENTS_BY_LEVEL[detail] ?? 45;
+  const detectionReport = staticDetectionReport.length > STATIC_DETECTION_CONTEXT_BUDGET
+    ? `${staticDetectionReport.slice(0, STATIC_DETECTION_CONTEXT_BUDGET)}\n... [static detection truncated]`
+    : staticDetectionReport;
 
   // Budget sized for gpt-oss-120b's context window (the old 28k cap was sized
   // for the retired llama-3.3-70b 12K TPM ceiling and starved the extractor).
   const PROMPT_CHAR_CAP = EXTRACTOR_PROMPT_CHARS;
-  const fileTreeText = snapshot.fileTree.slice(0, 1000).join('\n');
+  const fileTreeText = snapshot.fileTree.slice(0, FILE_TREE_CONTEXT_PATHS).join('\n');
   let keyFiles = pickKeyFiles(snapshot);
 
-  const summariesBlock = summaries?.length
-    ? `\nSUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}\n`
+  const summaryContext = formatSubsystemSummariesForPrompt(summaries, 1_500);
+  const summariesBlock = summaryContext
+    ? `\nSUBSYSTEM SUMMARIES:\n${summaryContext}\n`
     : '';
 
   const profileBlock = JSON.stringify({
@@ -308,7 +320,7 @@ export async function extractComponents(
     let readmeUsed = 0;
     const readmeParts: string[] = [];
     for (const f of readmeFiles) {
-      const part = `### ${f.path}\n${f.content.slice(0, 8000)}`;
+      const part = `### ${f.path}\n${f.content.slice(0, 3_000)}`;
       if (readmeParts.length > 0 && readmeUsed + part.length > README_CONTEXT_BUDGET) break;
       readmeParts.push(part);
       readmeUsed += part.length;
@@ -318,10 +330,13 @@ export async function extractComponents(
 
   // GH2R-024: manifest context from phase 1.5 metaFiles (docker-compose,
   // terraform, CI, package.json, prisma) — explicit architecture evidence.
-  const manifestBlock = buildManifestContext(snapshot.metaFiles);
+  const rawManifestBlock = buildManifestContext(snapshot.metaFiles);
+  const manifestBlock = rawManifestBlock.length > MANIFEST_CONTEXT_BUDGET
+    ? `${rawManifestBlock.slice(0, MANIFEST_CONTEXT_BUDGET)}\n... [architecture manifests truncated]\n`
+    : rawManifestBlock;
 
   // Truncate key files if total prompt exceeds budget
-  const templatePrefix = `Identify architectural components in this repository.\n\n${readmeBlock}${manifestBlock}STATIC DETECTION:\n${staticDetectionReport}\n\nREPO PROFILE:\n${profileBlock}\n\nFILE TREE:\n${fileTreeText}${summariesBlock}\n\n`;
+  const templatePrefix = `Identify architectural components in this repository.\n\n${readmeBlock}${manifestBlock}STATIC DETECTION:\n${detectionReport}\n\nREPO PROFILE:\n${profileBlock}\n\nFILE TREE:\n${fileTreeText}${summariesBlock}\n\n`;
   const templateSuffix = `\n\n${JSON_OUTPUT_REMINDER}\nRequired shape: ...}`;
   const fixedOverhead = templatePrefix.length + templateSuffix.length + summariesBlock.length;
   let keyFilesBlock = keyFiles.length > 0
@@ -329,14 +344,14 @@ export async function extractComponents(
     : '(no key source files available)';
   while (keyFilesBlock.length > 1000 && keyFilesBlock.length + fixedOverhead > PROMPT_CHAR_CAP) {
     if (keyFiles.length <= 1) break;
-    keyFiles = keyFiles.slice(0, Math.ceil(keyFiles.length * 0.7));
+    keyFiles = keyFiles.slice(0, nextKeyFileCount(keyFiles.length));
     keyFilesBlock = `KEY SOURCE FILES (architectural evidence):\n${keyFiles.map((f) => `### ${f.path}\n${f.content}`).join('\n\n')}`;
   }
 
   const userPrompt = `Identify architectural components in this repository.
 
 ${readmeBlock}${manifestBlock}STATIC DETECTION:
-${staticDetectionReport}
+${detectionReport}
 
 REPO PROFILE:
 ${profileBlock}
@@ -365,7 +380,7 @@ Required shape: { "nodes": [ { "id": "snake_case_id", "label": "Human Name", "ty
   logger.info(`[ComponentExtractor] Calling LLM (~${Math.ceil(userPrompt.length / 4)} est tokens, ${keyFiles.length} key files)...`);
 
   try {
-    const result = await apiKeyManager.executeWithRetry(async (client) =>
+    const result = await apiKeyManager.executeWithRetry(async (client, signal) =>
       groqJsonCompletion(client, {
         model: REPO_LLM_MODEL,
         messages: [
@@ -396,7 +411,8 @@ Rules:
         ],
         temperature: 0.1,
         max_tokens: EXTRACTOR_MAX_TOKENS,
-      })
+        signal,
+      }), { ...REPO_LLM_REQUEST_OPTIONS, signal: opts?.signal }
     );
 
     // Phase 6.5 — one retry on JSON-parse failure / empty result with explicit JSON reminder + 1.5× tokens.
@@ -417,7 +433,7 @@ Rules:
       logger.warn('[ComponentExtractor] JSON parse failed — retrying with explicit JSON reminder:',
         parseErr instanceof Error ? parseErr.message : parseErr);
       try {
-        const retryResult = await apiKeyManager.executeWithRetry(async (client) =>
+        const retryResult = await apiKeyManager.executeWithRetry(async (client, signal) =>
           groqJsonCompletion(client, {
             model: REPO_LLM_MODEL,
             messages: [
@@ -450,8 +466,9 @@ Rules:
               },
             ],
             temperature: 0.1,
-            max_tokens: Math.round(EXTRACTOR_MAX_TOKENS * 1.5),
-          })
+            max_tokens: Math.min(REPO_LLM_MAX_OUTPUT_TOKENS, Math.round(EXTRACTOR_MAX_TOKENS * 1.5)),
+            signal,
+          }), { ...REPO_LLM_REQUEST_OPTIONS, signal: opts?.signal }
         );
         const retryParsed = parseLlmJson<Record<string, unknown>>(retryResult, 'ComponentExtractor');
         const retryNodes = extractNodesFromParsed(retryParsed);

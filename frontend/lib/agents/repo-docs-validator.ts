@@ -16,7 +16,7 @@ import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
 import { buildManifestContext } from './repo-component-extractor';
-import { REPO_LLM_MODEL, DOCS_MAX_TOKENS, DOCS_PROMPT_CHARS } from '@/lib/ai/utils/repoModels';
+import { REPO_LLM_MODEL, DOCS_MAX_TOKENS, DOCS_PROMPT_CHARS, REPO_LLM_MAX_OUTPUT_TOKENS, REPO_LLM_REQUEST_OPTIONS } from '@/lib/ai/utils/repoModels';
 import { MAX_META_FILE_CONTEXT_CHARS } from '@/lib/repo-diagram/skip-rules';
 import type { ExtractedNode, RichEdge, Workflow, ReviewResult, ReviewCorrection, FileEntry } from '@/lib/types/repo-diagram';
 import logger from '@/lib/logger';
@@ -181,7 +181,7 @@ export async function validateAgainstDocs(input: DocsValidationInput): Promise<R
         messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: DOCS_MAX_TOKENS,
-      })
+      }), REPO_LLM_REQUEST_OPTIONS
     );
 
     try {
@@ -197,8 +197,8 @@ export async function validateAgainstDocs(input: DocsValidationInput): Promise<R
             { role: 'user', content: prompt + '\n\nIMPORTANT: You MUST return valid JSON. No markdown fences, no commentary before/after.' },
           ],
           temperature: 0.1,
-          max_tokens: Math.round(DOCS_MAX_TOKENS * 1.5),
-        })
+          max_tokens: Math.min(REPO_LLM_MAX_OUTPUT_TOKENS, Math.round(DOCS_MAX_TOKENS * 1.5)),
+          }), REPO_LLM_REQUEST_OPTIONS
       );
       const retryParsed = parseLlmJson<Record<string, unknown>>(retryResult, 'DocsValidator');
       return normalizeResult(retryParsed);

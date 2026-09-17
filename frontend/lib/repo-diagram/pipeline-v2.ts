@@ -59,6 +59,20 @@ export async function generateRepoArchitectureDiagramV2(
   onProgress?: (event: PipelineProgressEvent) => void
 ): Promise<DomainPipelineResult<RepoPipelineResult>> {
   const resolvedDetailLevel = detailLevel ?? 2;
+  const pipelineTimeoutMs = Number(process.env.REPO_PIPELINE_TIMEOUT_MS) || 180_000;
+  const timeoutController = new AbortController();
+  const abortFromCaller = () => timeoutController.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) abortFromCaller();
+    else signal.addEventListener('abort', abortFromCaller, { once: true });
+  }
+  let timedOut = false;
+  const timeoutError = new Error(`Repository diagram pipeline timed out after ${pipelineTimeoutMs}ms`);
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    timeoutController.abort(timeoutError);
+  }, pipelineTimeoutMs);
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
   const pipeline = new Pipeline<IngestionInput, RepoPipelineResult>(
     'repo-pipeline-v2',
     createRepoDiagramStages()
@@ -70,28 +84,52 @@ export async function generateRepoArchitectureDiagramV2(
     userGithubToken,
   };
 
-  const result = await pipeline.execute(ingestInput, {
-    signal,
-    context: {
-      metadata: {
-        repoUrl,
-        detailLevel: resolvedDetailLevel,
-        // GH2R-018: thread per-request token presence so Finalization can tailor reviewNotes (avoid "Set GITHUB_TOKEN" when user supplied github_pat_)
-        userGithubTokenPresent: Boolean(userGithubToken),
+  try {
+    const pipelineRun = pipeline.execute(ingestInput, {
+      signal: timeoutController.signal,
+      context: {
+        metadata: {
+          repoUrl,
+          detailLevel: resolvedDetailLevel,
+          stageTimeoutMs: Number(process.env.REPO_STAGE_TIMEOUT_MS) || 30_000,
+          // GH2R-018: thread per-request token presence so Finalization can tailor reviewNotes (avoid "Set GITHUB_TOKEN" when user supplied github_pat_)
+          userGithubTokenPresent: Boolean(userGithubToken),
+        },
       },
-    },
-    onProgress: (stage: string, progress: number, message: string) => {
-      onProgress?.({
-        stage: PROGRESS_STAGE_MAP[stage] || 'compiling',
-        message,
-        progress,
-      });
-    },
-  });
+      onProgress: (stage: string, progress: number, message: string) => {
+        onProgress?.({
+          stage: PROGRESS_STAGE_MAP[stage] || 'compiling',
+          message,
+          progress,
+        });
+      },
+    });
+    const result = await Promise.race([
+      pipelineRun,
+      new Promise<never>((_, reject) => { deadlineTimer = setTimeout(() => {
+        timedOut = true;
+        timeoutController.abort(timeoutError);
+        reject(timeoutError);
+      }, pipelineTimeoutMs); }),
+    ]);
 
-  const domain = toDomainResult(result);
-  if (!domain.success) {
-    logger.error('[PipelineV2] Pipeline failed:', domain.error, domain.code);
+    const domain = toDomainResult(result);
+    if (!domain.success) {
+      logger.error('[PipelineV2] Pipeline failed:', domain.error, domain.code);
+    }
+    return domain;
+  } catch (error) {
+    if (!timedOut) throw error;
+    return {
+      success: false,
+      error: timeoutError,
+      code: 'aborted',
+      warnings: ['Repository diagram generation exceeded its time limit and was aborted.'],
+      aborted: true,
+    };
+  } finally {
+    clearTimeout(timeout);
+    if (deadlineTimer) clearTimeout(deadlineTimer);
+    signal?.removeEventListener('abort', abortFromCaller);
   }
-  return domain;
 }

@@ -10,6 +10,7 @@ import {
   normalizeDatabase,
   scoreRepo,
   aggregateScores,
+  sparseGraphViolations,
 } from '../score';
 import type { GoldenGraph, PredictedGraph } from '../types';
 
@@ -18,6 +19,39 @@ describe('normalizeId', () => {
     expect(normalizeId('Order_API!')).toBe('order_api');
     expect(normalizeId('PostgreSQL DB')).toBe('postgresql_db');
     expect(normalizeId('___')).toBe('node');
+  });
+});
+
+describe('sparseGraphViolations', () => {
+  const golden: GoldenGraph = {
+    repo: 'https://github.com/acme/app',
+    classification: { repoType: 'fullstack_monolith', framework: 'Next.js', database: 'PostgreSQL' },
+    nodes: [
+      { id: 'web', label: 'Web', type: 'PAGE' },
+      { id: 'api', label: 'API', type: 'API_ROUTE' },
+      { id: 'db', label: 'Database', type: 'DATABASE' },
+      { id: 'auth', label: 'Auth', type: 'AUTH' },
+    ],
+    edges: [{ from: 'web', to: 'api' }, { from: 'api', to: 'db' }],
+    forbiddenNodes: [],
+  };
+
+  it('flags an empty relationship graph for a multi-component reference', () => {
+    const violations = sparseGraphViolations({
+      classification: { repoType: 'fullstack_monolith', framework: 'Next.js', database: 'PostgreSQL' },
+      nodes: [{ id: 'web', label: 'Web', type: 'PAGE', sourceFiles: [] }],
+      edges: [],
+    }, golden);
+    expect(violations).toContain('only 1 node(s); reference has 4');
+    expect(violations).toContain('no edges; reference has 2');
+  });
+
+  it('allows a one-node library reference', () => {
+    const library: GoldenGraph = { ...golden, nodes: [golden.nodes[0]], edges: [] };
+    expect(sparseGraphViolations({
+      classification: { repoType: 'library', framework: null, database: null },
+      nodes: [{ id: 'core', label: 'Core', type: 'CORE_MODULE', sourceFiles: [] }], edges: [],
+    }, library)).toEqual([]);
   });
 });
 

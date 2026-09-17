@@ -31,6 +31,9 @@ function isEvidenceFile(file: FileEntry): boolean {
   if (/(^|\/)(license|licence|changelog|contributing|code_of_conduct|security)(\.|$)/.test(p)) return false;
   if (/(^|\/)docs?\//.test(p)) return false;
   if (/(^|\/)(examples?|samples?)\//.test(p)) return false;
+  // Test fixtures routinely mention optional databases, queues, and SaaS
+  // integrations to exercise adapters. They are not production evidence.
+  if (/(^|\/)(__tests__|tests?|spec|fixtures?)\//.test(p) || /\.(test|spec)\.[^.\/]+$/.test(p)) return false;
   return true;
 }
 
@@ -129,8 +132,8 @@ function inferArchitectureNodes(
   };
 
   if (framework.includes('next')) {
-    appNodeLabel = 'Frontend App (Next.js)';
-    fileCluster.api = paths.filter((p) => /^app\/api\/.+route\.(ts|js)$/.test(p)).slice(0, 8);
+    appNodeLabel = 'Next.js Web App';
+    fileCluster.api = paths.filter((p) => /^app\/api\/.+route\.(ts|tsx|js)$/.test(p) || /^pages\/api\/.+\.(ts|tsx|js)$/.test(p)).slice(0, 8);
     fileCluster.pages = paths.filter((p) => /^app\/(?:.+\/)?page\.(tsx|ts|js)$/.test(p)).slice(0, 8);
     fileCluster.services = paths.filter((p) => /^lib\/|^utils\/|^services\//.test(p) && (p.endsWith('.ts') || p.endsWith('.js'))).slice(0, 6);
   } else if (framework.includes('express') || framework.includes('fastify') || framework.includes('nestjs')) {
@@ -201,7 +204,7 @@ export function extractComponentsHeuristic(
   addNode({
     id: 'app_entry',
     label: appNodeLabel,
-    type: 'SERVICE',
+    type: repoProfile?.primaryStack?.framework?.toLowerCase().includes('next') ? 'PAGE' : 'SERVICE',
     sourceFiles: entryFile ? [entryFile] : files.map((f) => f.path).slice(0, 2),
     description: 'Core application entry point.',
   });
@@ -372,13 +375,43 @@ export function extractComponentsHeuristic(
 
   // Framework-specific additions
   const framework = repoProfile?.primaryStack?.framework?.toLowerCase() || '';
-  if (framework.includes('next') && nodes.length < 4) {
-    if (!seen.has('api_routes') && paths.some((p) => p.startsWith('app/api/'))) {
+  if (framework.includes('next')) {
+    const nextRoutes = paths.filter((p) => /^app\/api\/.+\/route\.(ts|tsx|js)$/.test(p) || /^pages\/api\/.+\.(ts|tsx|js)$/.test(p));
+    for (const routePath of nextRoutes.slice(0, 8)) {
+      const appRoute = /^app\/api\//.test(routePath);
+      const routeWithoutPrefix = routePath.replace(appRoute ? /^app\/api\// : /^pages\/api\//, '');
+      const routeName = appRoute
+        ? routeWithoutPrefix.split('/').slice(0, -1).join(' ')
+        : routeWithoutPrefix.replace(/\.(ts|tsx|js)$/, '');
+      const normalizedName = routeName.replace(/[-_]/g, ' ').trim();
+      const isWebhook = /webhooks?/i.test(normalizedName);
+      const label = isWebhook ? 'Stripe Webhook' : `${humanLabel(normalizedName)} API`;
+      addNode({
+        id: `api_${slugId(routeName)}`,
+        label,
+        type: 'API_ROUTE',
+        sourceFiles: [routePath],
+        description: `Next.js ${isWebhook ? 'webhook handler' : 'API route'} detected at ${routePath}.`,
+      });
+    }
+    const checkoutSource = files.find(file =>
+      /(^|\/)utils\/stripe\/server\.(ts|tsx|js)$/.test(file.path) && /checkout/i.test(file.content)
+    );
+    if (checkoutSource) {
+      addNode({
+        id: 'checkout_api',
+        label: 'Checkout API',
+        type: 'API_ROUTE',
+        sourceFiles: [checkoutSource.path],
+        description: `Stripe checkout session creation detected in ${checkoutSource.path}.`,
+      });
+    }
+    if (nextRoutes.length === 0 && !seen.has('api_routes') && paths.some((p) => p.startsWith('app/api/') || p.startsWith('pages/api/'))) {
       addNode({
         id: 'api_routes',
         label: 'API Routes',
         type: 'API_ROUTE',
-        sourceFiles: paths.filter((p) => p.startsWith('app/api/')).slice(0, 5),
+        sourceFiles: paths.filter((p) => p.startsWith('app/api/') || p.startsWith('pages/api/')).slice(0, 5),
         description: 'Next.js API route handlers.',
       });
     }

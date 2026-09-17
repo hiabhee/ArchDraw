@@ -53,7 +53,6 @@ export function mergeLlmIntoBaseline(
     merged.set(id, { ...llm, id });
   }
 
-  const llmSourceFiles = new Set(llmNodes.flatMap(n => n.sourceFiles));
   const llmNormLabels = new Map(llmNodes.map(n => [normalizeLabelKey(n.label), n]));
 
   for (const base of baseline) {
@@ -69,13 +68,16 @@ export function mergeLlmIntoBaseline(
     }
 
     const baseNormKey = normalizeLabelKey(base.label);
-    const overlapsSource = base.sourceFiles.some(sf => llmSourceFiles.has(sf));
+    const sourceMatch = [...merged.values()].find(n =>
+      n.type === base.type && n.sourceFiles.some(sf => base.sourceFiles.includes(sf))
+    );
+    const overlapsSource = Boolean(sourceMatch);
     const overlapsLabel = baseNormKey && llmNormLabels.has(baseNormKey);
 
     if (overlapsSource || overlapsLabel) {
       const llmNode = overlapsLabel
         ? llmNormLabels.get(baseNormKey)
-        : [...merged.values()].find(n => n.sourceFiles.some(sf => base.sourceFiles.includes(sf)));
+        : sourceMatch;
       if (llmNode) {
         const llmId = normalizeId(llmNode.id);
         const mergedNode = { ...llmNode, id: llmId };
@@ -143,7 +145,12 @@ export function buildSummariesForLLM(subsystems: Subsystem[], signals: StaticSig
   });
 }
 
-export async function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProfile, cap: number): Promise<FileEntry[]> {
+export async function gatherPass2Files(
+  snapshot: RepoSnapshot,
+  profile: RepoProfile,
+  cap: number,
+  signal?: AbortSignal,
+): Promise<FileEntry[]> {
   const selected = new Set(snapshot.selectedFiles.map(f => f.path));
   const candidates: string[] = [];
   const allPaths = [
@@ -173,7 +180,7 @@ export async function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProf
   // silently degrading every non-tarball run. Fetch the candidates directly
   // (bounded by `cap`). Uses env GITHUB_TOKEN — private repos authorized only
   // by a per-request user token degrade to today's behavior for these files.
-  const fetched = await fetchFileContentsByPaths(snapshot.owner, snapshot.repo, candidates);
+  const fetched = await fetchFileContentsByPaths(snapshot.owner, snapshot.repo, candidates, { signal });
   if (fetched.length < candidates.length) {
     logger.warn(`[gatherPass2Files] Contents-API fallback fetched ${fetched.length}/${candidates.length} pass-2 file(s)`);
   }

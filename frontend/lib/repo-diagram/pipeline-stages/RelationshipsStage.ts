@@ -33,7 +33,7 @@ export class RelationshipsStage extends BaseStage<RepoEnrichmentState, RepoEnric
         input.summaries ?? [],
         input.detectionReportText ?? '',
         { importGraph: input.importGraph, signals: input.signals },
-        { detailLevel: detailLevelFromContext(context) },
+        { detailLevel: detailLevelFromContext(context), signal: context.signal },
       );
       if (relOutput.edges.length > 0) currentEdges = relOutput.edges;
       if (relOutput.workflows.length > 0) currentWorkflows = relOutput.workflows;

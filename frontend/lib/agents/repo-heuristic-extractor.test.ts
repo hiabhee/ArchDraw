@@ -43,12 +43,13 @@ describe('repo-heuristic-extractor', () => {
   it('extracts Next.js architecture nodes', () => {
     const snapshot = makeSnapshot({
       fileTree: [
-        'package.json', 'app/layout.tsx', 'app/page.tsx', 'app/api/auth/route.ts',
+        'package.json', 'app/layout.tsx', 'app/page.tsx', 'pages/api/checkout.ts', 'pages/api/webhooks.ts',
         'middleware.ts', 'prisma/schema.prisma',
       ],
       selectedFiles: [
         { path: 'package.json', content: '{"dependencies": {"next": "^14.0.0"}}' },
         { path: 'app/page.tsx', content: 'export default function Home() { return <div>Hello</div>; }' },
+        { path: 'utils/stripe/server.ts', content: 'stripe.checkout.sessions.create({})' },
       ],
       surfaceClassification: { primaryLanguage: 'JavaScript/TypeScript', detectedFrameworks: ['Next.js'], hasDocker: false, hasMultipleServices: false, isMonorepo: false, projectType: 'unknown' },
     });
@@ -66,7 +67,10 @@ describe('repo-heuristic-extractor', () => {
     });
 
     expect(nodes.length).toBeGreaterThanOrEqual(3);
-    expect(nodes.some((n) => n.id === 'app_entry')).toBe(true);
+    expect(nodes.some((n) => n.id === 'app_entry' && n.label === 'Next.js Web App' && n.type === 'PAGE')).toBe(true);
+    expect(nodes.some((n) => n.label === 'Checkout API')).toBe(true);
+    expect(nodes.some((n) => n.label === 'Stripe Webhook')).toBe(true);
+    expect(nodes.some((n) => n.label === 'Checkout API')).toBe(true);
   });
 
   it('handles docs-only repos gracefully', () => {
@@ -121,6 +125,19 @@ describe('repo-heuristic-extractor', () => {
     expect(nodes.some((n) => n.id.includes('stripe'))).toBe(false);
     expect(nodes.some((n) => n.id.includes('clerk'))).toBe(false);
     expect(nodes.some((n) => n.id.includes('resend'))).toBe(false);
+  });
+
+  it('does NOT treat test fixtures as runtime datastore evidence', () => {
+    const snapshot = makeSnapshot({
+      fileTree: ['lib/express.js', 'test/redis.js'],
+      selectedFiles: [
+        { path: 'lib/express.js', content: 'export const express = true;' },
+        { path: 'test/redis.js', content: 'const redis = createFakeRedis();' },
+      ],
+    });
+
+    const nodes = extractComponentsHeuristic(snapshot);
+    expect(nodes.some((n) => n.id === 'redis_cache')).toBe(false);
   });
 
   it('returns empty edges for single node', () => {

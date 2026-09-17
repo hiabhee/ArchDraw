@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGitHubUrl, isGitHubRepoUrl } from '../githubUrl';
+import { parseGitHubUrl, isGitHubRepoUrl, coerceGitHubRepoInput } from '../githubUrl';
 
 describe('parseGitHubUrl', () => {
   it('parses standard GitHub URLs', () => {
@@ -68,5 +68,16 @@ describe('isGitHubRepoUrl', () => {
   it('returns false for invalid URLs', () => {
     expect(isGitHubRepoUrl('not a url')).toBe(false);
     expect(isGitHubRepoUrl('https://gitlab.com/owner/repo')).toBe(false);
+  });
+});
+
+describe('coerceGitHubRepoInput', () => {
+  it('expands owner/repo shorthand', () => {
+    expect(coerceGitHubRepoInput('nestjs/nest')).toBe('https://github.com/nestjs/nest');
+  });
+
+  it('leaves full URLs and prompts unchanged', () => {
+    expect(coerceGitHubRepoInput('https://github.com/owner/repo')).toBe('https://github.com/owner/repo');
+    expect(coerceGitHubRepoInput('Ride-sharing app with payments')).toBe('Ride-sharing app with payments');
   });
 });

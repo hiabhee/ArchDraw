@@ -251,13 +251,14 @@ function detectSchemas(file: FileEntry, path: string, lower: string): StaticSign
   const signals: StaticSignal[] = [];
 
   if (path.endsWith('schema.prisma')) {
+    const provider = file.content.match(/provider\s*=\s*["']([^"']+)["']/)?.[1];
     const modelNames = file.content.match(/model\s+(\w+)/g) || [];
     for (const m of modelNames) {
       signals.push({
         type: 'schema',
         label: m.replace('model ', ''),
         source: path,
-        details: { orm: 'prisma' },
+        details: { orm: 'prisma', provider },
         confidence: 'high',
       });
     }

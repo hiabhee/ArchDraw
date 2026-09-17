@@ -62,7 +62,7 @@ type RunResult =
   | { score: RepoScore }
   | { score: RepoScore; error: string };
 
-async function runOne(repo: CorpusRepo): Promise<RunResult> {
+async function runOne(repo: CorpusRepo, detailLevelOverride?: 1 | 2 | 3): Promise<RunResult> {
   const golden = loadGolden(repo.id);
   process.stdout.write(`\n▶ ${repo.id} (${repo.stack}) …\n`);
   try {
@@ -75,7 +75,25 @@ async function runOne(repo: CorpusRepo): Promise<RunResult> {
     } catch { /* blob cache clear is best-effort */ }
 
     const { generateRepoArchitectureDiagramV2 } = await import('@/lib/repo-diagram/pipeline-v2');
-    const outcome = await generateRepoArchitectureDiagramV2(repo.url, repo.detailLevel);
+    const controller = new AbortController();
+    const repoTimeoutMs = Number(process.env.REPO_EVAL_TIMEOUT_MS) || 90_000;
+    const timeoutError = new Error(`Evaluation timed out after ${repoTimeoutMs}ms`);
+    const timer = setTimeout(() => controller.abort(timeoutError), repoTimeoutMs);
+    let outcome;
+    try {
+      outcome = await Promise.race([
+        generateRepoArchitectureDiagramV2(
+          repo.url,
+          detailLevelOverride ?? repo.detailLevel,
+          controller.signal,
+          undefined,
+          (event) => process.stdout.write(`  ${event.stage}: ${event.message}\n`),
+        ),
+        new Promise<never>((_, reject) => setTimeout(() => reject(timeoutError), repoTimeoutMs + 1_000)),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
     if (!outcome.success) {
       throw outcome.error;
     }
@@ -89,13 +107,16 @@ async function runOne(repo: CorpusRepo): Promise<RunResult> {
     const score = scoreRepo({ repoId: repo.id, url: repo.url, predicted, golden });
     process.stdout.write(
       `  composite=${Math.round(score.composite * 100)}%  nodes=${score.predictedNodeCount}  edges=${score.predictedEdgeCount}` +
-      `  forbid=${score.forbiddenViolations}\n`
+      `  forbid=${score.forbiddenViolations}  sparse=${score.sparseViolations.length}\n`
     );
     if (score.forbiddenViolations > 0) {
       process.stdout.write(`  ⚠ forbidden hallucinations: ${score.forbiddenLabels.join(', ')}\n`);
     }
     if (score.unmatchedGoldenLabels.length > 0) {
       process.stdout.write(`  ⊘ unmatched golden nodes: ${score.unmatchedGoldenLabels.join(', ')}\n`);
+    }
+    if (score.sparseViolations.length > 0) {
+      process.stdout.write(`  ⚠ sparse output: ${score.sparseViolations.join('; ')}\n`);
     }
     return { score };
   } catch (err) {
@@ -104,7 +125,7 @@ async function runOne(repo: CorpusRepo): Promise<RunResult> {
       repoId: repo.id, url: repo.url,
       nodeRecall: 0, nodePrecision: 0, edgeRecall: 0, edgePrecision: 0,
       classificationAccuracy: 0, composite: 0, forbiddenViolations: 0,
-      forbiddenLabels: [], unmatchedGoldenLabels: [],
+      forbiddenLabels: [], sparseViolations: [], unmatchedGoldenLabels: [],
       predictedNodeCount: 0, predictedEdgeCount: 0,
       goldenNodeCount: golden.nodes.length, goldenEdgeCount: golden.edges.length,
       error,
@@ -157,6 +178,11 @@ async function main() {
   const concurrency = concIdx >= 0 ? Math.max(1, Number(args[concIdx + 1]) || 2) : 2;
   const thrIdx = args.indexOf('--threshold');
   const threshold = thrIdx >= 0 ? Number(args[thrIdx + 1]) : 90;
+  const levelIdx = args.indexOf('--detail-level');
+  const detailLevelOverride = levelIdx >= 0 ? Number(args[levelIdx + 1]) : undefined;
+  if (detailLevelOverride !== undefined && ![1, 2, 3].includes(detailLevelOverride)) {
+    fail('--detail-level must be 1, 2, or 3.');
+  }
 
   let corpus = loadCorpus();
   if (only) {
@@ -171,7 +197,7 @@ async function main() {
   const t0 = Date.now();
   const scores: RepoScore[] = [];
   await runConcurrent(corpus, concurrency, async (r) => {
-    const res = await runOne(r);
+    const res = await runOne(r, detailLevelOverride as 1 | 2 | 3 | undefined);
     scores.push(res.score);
   });
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
@@ -180,7 +206,7 @@ async function main() {
 
   console.log(`\n═══ Results (${elapsed}s) ═══\n`);
   console.log(formatScoreTable(scores));
-  console.log(`\nComposite: ${(agg.composite * 100).toFixed(1)}%  | nodeR ${(agg.nodeRecall * 100).toFixed(1)}%  nodeP ${(agg.nodePrecision * 100).toFixed(1)}%  edgeR ${(agg.edgeRecall * 100).toFixed(1)}%  edgeP ${(agg.edgePrecision * 100).toFixed(1)}%  cls ${(agg.classificationAccuracy * 100).toFixed(1)}%  | forbidden ${agg.totalForbiddenViolations}\n`);
+  console.log(`\nComposite: ${(agg.composite * 100).toFixed(1)}%  | nodeR ${(agg.nodeRecall * 100).toFixed(1)}%  nodeP ${(agg.nodePrecision * 100).toFixed(1)}%  edgeR ${(agg.edgeRecall * 100).toFixed(1)}%  edgeP ${(agg.edgePrecision * 100).toFixed(1)}%  cls ${(agg.classificationAccuracy * 100).toFixed(1)}%  | forbidden ${agg.totalForbiddenViolations} sparse ${agg.totalSparseViolations}\n`);
 
   // Persist dated results JSON.
   mkdirSync(evalResultsDir, { recursive: true });
@@ -214,6 +240,14 @@ async function main() {
   if (agg.totalForbiddenViolations > 0) {
     console.error(`\n✗ ${agg.totalForbiddenViolations} forbidden-node hallucination(s) detected`);
     process.exit(3);
+  }
+  if (scores.some((score) => score.error)) {
+    console.error(`\n✗ ${scores.filter((score) => score.error).length} repository evaluation(s) failed`);
+    process.exit(4);
+  }
+  if (agg.totalSparseViolations > 0) {
+    console.error(`\n✗ ${agg.totalSparseViolations} sparse-output violation(s) detected`);
+    process.exit(5);
   }
   console.log('\n✓ All thresholds passed.');
 }

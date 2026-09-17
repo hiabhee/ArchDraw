@@ -171,4 +171,20 @@ describe('deriveEvidenceEdges', () => {
     const edges = deriveEvidenceEdges(nodes, graph);
     expect(edges).toHaveLength(0);
   });
+
+  it('prefers narrow directory ownership over an overlapping root node', () => {
+    const nodes: ExtractedNode[] = [
+      { id: 'root', label: 'Application', type: 'SERVICE', description: '', sourceFiles: ['src/routes/api.ts', 'src/db/client.ts', 'src/services/users.ts'], confidence: 'high' },
+      { id: 'routes', label: 'Routes', type: 'API_ROUTE', description: '', sourceFiles: ['src/routes/api.ts'], confidence: 'medium' },
+      { id: 'db', label: 'Database', type: 'DATABASE', description: '', sourceFiles: ['src/db/client.ts'], confidence: 'medium' },
+    ];
+    const files: FileEntry[] = [
+      { path: 'src/routes/api.ts', content: "import { client } from '../db/client';\n" },
+      { path: 'src/db/client.ts', content: 'export const client = {};\n' },
+    ];
+    const graph = buildImportGraph(files, files.map(file => file.path));
+    const edges = deriveEvidenceEdges(nodes, graph);
+    expect(edges.map(edge => `${edge.from}->${edge.to}`)).toContain('routes->db');
+    expect(edges.some(edge => edge.from === 'root' || edge.to === 'root')).toBe(false);
+  });
 });

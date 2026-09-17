@@ -3,7 +3,7 @@ import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { inferRelationshipsHeuristic } from './repo-heuristic-extractor';
 import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
-import { REPO_LLM_MODEL, RELATIONSHIP_MAX_TOKENS } from '@/lib/ai/utils/repoModels';
+import { REPO_LLM_MODEL, RELATIONSHIP_MAX_TOKENS, REPO_LLM_MAX_OUTPUT_TOKENS, REPO_LLM_REQUEST_OPTIONS } from '@/lib/ai/utils/repoModels';
 import logger from '@/lib/logger';
 import type { RepoSnapshot, RepoProfile, DependencyMap, ExtractedNode } from '@/lib/types/repo-diagram';
 import type { RichEdge, StaticSignal } from '@/lib/types/repo-diagram';
@@ -104,7 +104,7 @@ export async function analyzeRelationships(
   summaries?: string[],
   staticDetectionReport?: string,
   evidence?: { importGraph?: ImportGraph; signals?: StaticSignal[] },
-  opts?: { detailLevel?: 1 | 2 | 3 }
+  opts?: { detailLevel?: 1 | 2 | 3; signal?: AbortSignal }
 ): Promise<{ edges: RichEdge[]; workflows: { name: string; description: string; steps: string[] }[] }> {
   const detail = opts?.detailLevel ?? 2;
   const maxEdges = MAX_EDGES_BY_LEVEL[detail] ?? 60;
@@ -190,7 +190,7 @@ Required output shape:
   logger.log(`[RelationshipAnalyst] Calling LLM (${nodes.length} nodes, ~${Math.ceil(prompt.length / 4)} est tokens)...`);
 
   try {
-    const result = await apiKeyManager.executeWithRetry(async (client) =>
+    const result = await apiKeyManager.executeWithRetry(async (client, signal) =>
       groqJsonCompletion(client, {
         model: REPO_LLM_MODEL,
         messages: [
@@ -225,7 +225,8 @@ RULES:
         ],
         temperature: 0.1,
         max_tokens: RELATIONSHIP_MAX_TOKENS,
-      })
+        signal,
+      }), { ...REPO_LLM_REQUEST_OPTIONS, signal: opts?.signal }
     );
 
     try {
@@ -271,7 +272,7 @@ RULES:
       );
       // Phase 6.5 — one retry with explicit JSON-only reminder appended and larger max_tokens.
       try {
-        const retryResult = await apiKeyManager.executeWithRetry(async (client) =>
+        const retryResult = await apiKeyManager.executeWithRetry(async (client, signal) =>
           groqJsonCompletion(client, {
             model: REPO_LLM_MODEL,
             messages: [
@@ -279,8 +280,9 @@ RULES:
               { role: 'user', content: prompt + '\n\nReturn ONLY the JSON object. No prose, no fences.' },
             ],
             temperature: 0.1,
-            max_tokens: Math.round(RELATIONSHIP_MAX_TOKENS * 1.5),
-          })
+            max_tokens: Math.min(REPO_LLM_MAX_OUTPUT_TOKENS, Math.round(RELATIONSHIP_MAX_TOKENS * 1.5)),
+            signal,
+          }), { ...REPO_LLM_REQUEST_OPTIONS, signal: opts?.signal }
         );
         const parsed2 = parseLlmJson<{ edges?: RichEdge[]; workflows?: { name: string; description: string; steps: string[] }[] }>(retryResult, 'RelationshipAnalyst[retry]');
         let edges2 = Array.isArray(parsed2.edges) ? parsed2.edges : [];

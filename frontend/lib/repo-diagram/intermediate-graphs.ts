@@ -91,7 +91,10 @@ export function buildSubsystemGraph(
   // instead of brute-force O(F*B) edges.
   const frontends = subsystems.filter((s) => s.type === 'frontend' || s.type === 'application');
   const backends = subsystems.filter((s) => s.type === 'backend' || s.type === 'service' || s.type === 'worker');
-  if (frontends.length > 0 && backends.length > 0 && frontends.length + backends.length <= 8) {
+  // Package boundaries are explicit in a monorepo. Do not manufacture a web →
+  // API edge there: derive it later from imports so diagrams remain grounded.
+  const isMonorepo = subsystems.some((sub) => /^(apps|packages|services|libs)\//.test(sub.path));
+  if (!isMonorepo && frontends.length > 0 && backends.length > 0 && frontends.length + backends.length <= 8) {
     // Small subsystem count: reasonable to assume all call all
     for (const fe of frontends) {
       for (const be of backends) {
@@ -105,7 +108,7 @@ export function buildSubsystemGraph(
         }
       }
     }
-  } else if (frontends.length > 0 && backends.length > 0) {
+  } else if (!isMonorepo && frontends.length > 0 && backends.length > 0) {
     // Large subsystem count: only connect frontends to the most referenced backends.
     // Pick the backend whose name shares the longest prefix with each frontend.
     for (const fe of frontends) {
@@ -153,6 +156,9 @@ function titleCase(input: string): string {
 
 function labelForSubsystem(sub: Subsystem): string {
   if (sub.name === 'root') {
+    if (sub.detectedFramework && ['Express', 'Fastify', 'Koa', 'Gin', 'Echo', 'Axum', 'Flask'].includes(sub.detectedFramework) && sub.type === 'application') {
+      return `${sub.detectedFramework} Core`;
+    }
     if (sub.detectedFramework) return `${sub.detectedFramework} Application`;
     if (sub.type === 'infrastructure') return 'Infrastructure';
     if (sub.type === 'frontend') return 'Frontend App';
@@ -283,7 +289,13 @@ export function intermediateToArchitecture(
       label: gn.label,
       type: nodeType || 'SERVICE',
       description: sub ? describeSubsystem(sub) : 'Detected component from source evidence.',
-      sourceFiles: sub ? sub.files.slice(0, 5) : [],
+      // Keep enough files for cross-package import evidence. This is metadata,
+      // not LLM prompt context, and remains bounded for very large workspaces.
+      sourceFiles: sub
+        ? (sub.files.filter((file) => isRuntimeSource(file)).slice(0, 100).length > 0
+          ? sub.files.filter((file) => isRuntimeSource(file)).slice(0, 100)
+          : sub.files.slice(0, 100))
+        : [],
       confidence: sub ? 'high' : 'medium',
     });
   }
@@ -309,6 +321,12 @@ export function intermediateToArchitecture(
   }
 
   return { nodes, edges };
+}
+
+function isRuntimeSource(file: string): boolean {
+  return /\.(ts|tsx|js|jsx|py|go|rs|java|rb|php|cs|kt)$/i.test(file) &&
+    !/(^|\/)(examples?|samples?|tests?|__tests__|fixtures?)\//i.test(file) &&
+    !/\.(test|spec)\.[^.\/]+$/i.test(file);
 }
 
 function describeSubsystem(sub: Subsystem): string {

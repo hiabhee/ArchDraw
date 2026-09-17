@@ -53,31 +53,51 @@ function inferEntryPoints(paths: string[]): string[] {
 export function buildFallbackRepoProfile(snapshot: RepoSnapshot): RepoProfile {
   const sc = snapshot.surfaceClassification;
   const paths = snapshot.fileTree.map((p) => p.toLowerCase());
-  const frameworks = sc.detectedFrameworks;
+  const runtimePaths = paths.filter((p) => !/(^|\/)(examples?|samples?|tests?|__tests__|fixtures?)\//.test(p) && !/\.(test|spec)\.[^.\/]+$/.test(p));
+  const frameworks = sc.detectedFrameworks ?? [];
   const framework =
     frameworks[0] ??
     inferFrameworkFromFiles([...snapshot.phase1Files, ...snapshot.phase2Files]);
+  const packageName = String(snapshot.repoMeta.packageJson?.name ?? '').toLowerCase();
+  const frameworkKey = framework?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+  const namedFrameworkLibrary = Boolean(
+    framework && frameworkKey && (
+      packageName.includes(frameworkKey) ||
+      snapshot.repo.toLowerCase().replace(/[^a-z0-9]/g, '') === frameworkKey
+    )
+  );
 
   const hasFrontendFiles = paths.some((p) => /\.(tsx|jsx|vue|svelte)$/.test(p));
   const hasBackendPy = paths.some((p) => p.endsWith('.py'));
   const hasBackendJs = paths.some(
     (p) => p.includes('/api/') || p.includes('route.ts') || p.includes('routes/')
   );
+  const hasAppEntry = runtimePaths.some((p) => /(^|\/)(app|server|main|index)\.(js|ts|py|go|rs)$/.test(p));
+  const hasInfrastructureConfig = paths.some((p) =>
+    p.includes('docker-compose') || p === 'compose.yml' || p === 'compose.yaml' ||
+    p.endsWith('.tf') || p.includes('terraform/') || p.includes('kubernetes/') || p.includes('k8s/')
+  );
+  const hasSourceCode = paths.some((p) => /\.(ts|tsx|js|jsx|py|go|rs|java|rb|php|cs)$/.test(p));
 
   let repoType: RepoType = 'unknown';
-  if (sc.isMonorepo) repoType = 'monorepo';
+  if (hasInfrastructureConfig && !hasSourceCode) repoType = 'devops_config';
+  else if (sc.isMonorepo) repoType = 'monorepo';
   else if (sc.hasMultipleServices) repoType = 'microservices';
   else if (hasFrontendFiles && (hasBackendPy || hasBackendJs)) repoType = 'fullstack_monolith';
   else if (hasFrontendFiles) repoType = 'frontend_only';
+  else if (namedFrameworkLibrary) repoType = 'library';
   else if (sc.primaryLanguage === 'Python' || framework === 'FastAPI' || framework === 'Django' || framework === 'Flask') {
     repoType = 'backend_only';
   } else if (sc.primaryLanguage === 'JavaScript/TypeScript' && !hasFrontendFiles) {
-    repoType = 'backend_only';
+    repoType = namedFrameworkLibrary || (!hasBackendJs && !hasAppEntry) ? 'library' : 'backend_only';
+  } else if (sc.primaryLanguage === 'Go' && !hasAppEntry && !hasBackendJs) {
+    repoType = 'library';
   }
 
   let architecturePattern: ArchitecturePattern = 'unknown';
-  if (repoType === 'backend_only' || repoType === 'fullstack_monolith') architecturePattern = 'layered';
-  if (framework === 'FastAPI' || framework === 'Express') architecturePattern = 'layered';
+  if (repoType === 'devops_config') architecturePattern = 'pipeline';
+  else if (repoType === 'backend_only' || repoType === 'fullstack_monolith') architecturePattern = 'layered';
+  if (repoType === 'backend_only' && (framework === 'FastAPI' || framework === 'Express')) architecturePattern = 'layered';
 
   const language =
     sc.primaryLanguage === 'Python'
@@ -114,7 +134,7 @@ export function buildFallbackRepoProfile(snapshot: RepoSnapshot): RepoProfile {
       language,
       runtime,
     },
-    applicationDomain: framework ? `${framework} application` : 'Web application',
+    applicationDomain: repoType === 'devops_config' ? 'Infrastructure and service deployment configuration' : framework ? `${framework} application` : 'Web application',
     coreCapabilities: [],
     primaryUserFlows: [],
     confidence: 'low',

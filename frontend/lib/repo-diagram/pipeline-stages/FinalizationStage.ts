@@ -1,4 +1,4 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
 import {
   collectGroundedNodeIds, isImportantOrphan,
@@ -31,6 +31,49 @@ export interface FinalizationInput {
   /** GH2R-024 — docs revalidation (DocsReviewStage) outcome; surfaced in reviewNotes. */
   docsReviewNotes?: string;
   docsReviewFailed?: boolean;
+}
+
+/**
+ * Rejects diagrams that would otherwise look successful despite failed LLM
+ * enrichment or missing the minimum structure for the detected repo type.
+ * L1 is an explicitly requested static scan, so it remains available with its
+ * existing degraded review note rather than masquerading as an AI diagram.
+ */
+export function assessRepoDiagramQuality(input: {
+  nodes: ExtractedNode[];
+  edges: RichEdge[];
+  repoProfile: RepoProfile | null;
+  degraded: DegradedFlags;
+  groundedNodeRatio: number;
+  useLlm: boolean;
+}): string | null {
+  if (!input.useLlm) return null;
+
+  if (input.groundedNodeRatio < 0.75) {
+    return 'Diagram generation incomplete: too few components were grounded in repository evidence. Please retry.';
+  }
+
+  const repoType = input.repoProfile?.repoType ?? 'unknown';
+  const minimums: Partial<Record<RepoProfile['repoType'], { nodes: number; edges: number }>> = {
+    fullstack_monolith: { nodes: 4, edges: 3 },
+    fullstack_separated: { nodes: 4, edges: 3 },
+    microservices: { nodes: 4, edges: 3 },
+    monorepo: { nodes: 4, edges: 3 },
+    backend_only: { nodes: 2, edges: 1 },
+    frontend_only: { nodes: 2, edges: 1 },
+    mobile: { nodes: 2, edges: 1 },
+    data_ml: { nodes: 2, edges: 1 },
+    devops_config: { nodes: 2, edges: 1 },
+    unknown: { nodes: 2, edges: 1 },
+  };
+  const minimum = minimums[repoType];
+  if (minimum && (input.nodes.length < minimum.nodes || input.edges.length < minimum.edges)) {
+    return `Diagram generation incomplete: detected ${input.nodes.length} components and ${input.edges.length} relationships; ${repoType.replace(/_/g, ' ')} requires at least ${minimum.nodes} components and ${minimum.edges} relationships. Please retry.`;
+  }
+  // A deterministic fallback is acceptable when it still meets the topology
+  // contract above; reviewNotes already identifies which enrichment stages
+  // degraded so users can retry for richer semantic labels/workflows.
+  return null;
 }
 
 function sanitizeRepoGraph(
@@ -225,6 +268,17 @@ export class FinalizationStage extends BaseStage<FinalizationInput, RepoPipeline
     const groundedNodeRatio = finalNodes.filter(n =>
       n.sourceFiles.length > 0 || collectGroundedNodeIds(finalNodes, signals).has(n.id)
     ).length / Math.max(finalNodes.length, 1);
+    const qualityFailure = assessRepoDiagramQuality({
+      nodes: finalNodes,
+      edges: finalEdges,
+      repoProfile,
+      degraded,
+      groundedNodeRatio,
+      useLlm,
+    });
+    if (qualityFailure) {
+      return errorResult(new Error(qualityFailure));
+    }
     const evidencedEdgeRatio = (useLlm ? preVerifierHighEdgeCount : edges.filter(e => e.confidence === 'high').length) / Math.max(edges.length, 1);
     const pipelineConfidence: 'high' | 'medium' | 'low' =
       groundedNodeRatio >= 0.85 && evidencedEdgeRatio >= 0.70 && !degraded.anything
