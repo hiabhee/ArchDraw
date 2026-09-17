@@ -6,6 +6,7 @@ import { MAX_GUEST_CANVASES } from '../constants';
 import { invokeFitView } from '../fitView';
 import { makeCanvas, INITIAL_CANVAS } from '../helpers/canvasHelpers';
 import { deleteCanvasFromDB } from '../persistence/dbSave';
+import { getUserQuotas, getUserTier } from '@/lib/userQuotas';
 
 export type CanvasSlice = Pick<
   DiagramState,
@@ -104,6 +105,14 @@ export const createCanvasSlice: StateCreator<
       }
     }
 
+    // Enforce canvas limit for authenticated users (guests handled above) — show toast instead of letting DB save fail
+    const tier = getUserTier(userProfile?.id);
+    const quotas = getUserQuotas(tier);
+    if (!isGuest && canvases.length >= quotas.maxCanvases) {
+      toast.error(`Maximum ${quotas.maxCanvases} canvases allowed. Delete one to create a new canvas.`);
+      return get().activeCanvasId;
+    }
+
     const baseName = customName || getRandomAnimalName();
     let newName = baseName;
     const existingNames = new Set(canvases.map((c) => c.name));
@@ -132,6 +141,12 @@ export const createCanvasSlice: StateCreator<
     const isGuest = !userProfile || userProfile.id === 'guest';
     if (isGuest) {
       toast.error('Sign in to duplicate canvases.');
+      return;
+    }
+    const tier = getUserTier(userProfile?.id);
+    const quotas = getUserQuotas(tier);
+    if (canvases.length >= quotas.maxCanvases) {
+      toast.error(`Maximum ${quotas.maxCanvases} canvases allowed. Delete one to create a new canvas.`);
       return;
     }
     const source = canvases.find((c) => c.id === id);

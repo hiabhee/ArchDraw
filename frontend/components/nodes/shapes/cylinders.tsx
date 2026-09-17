@@ -16,7 +16,7 @@ export function Cylinder({ id, data, selected, backplates, isDark, styles, width
   // Cylinder is ONLY for vertical drums (databases)
   // For horizontal pipes/queues, use shape='queue' instead
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   const pillStyle: React.CSSProperties = isDark
     ? { background: 'rgba(30, 41, 59, 0.72)', backdropFilter: 'blur(2px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '3px 8px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }
     : { background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(2px)', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 6, padding: '3px 8px', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' };
@@ -73,7 +73,7 @@ function cylinderShades(isDark: boolean, styles: NodeStyleConfig) {
 
 function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, false, data.fillColor, data.strokeColor);
   const { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge } = cylinderShades(isDark, styles);
   const RY = Math.max(10, Math.round(H * 0.12));
   const rx = (W - 4) / 2;
@@ -162,7 +162,7 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
 // New diagrams should use shape='queue' instead of shape='cylinder' with cylinderAxis='horizontal'
 export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch = false, brutal = false }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
 
   // Sketch: hand-drawn capsule via rough.js — ensures queue nodes match other shapes in sketch theme
   if (sketch) {

@@ -33,6 +33,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
 import { RenderStyleToggle } from '@/components/toolbar/ThemeToggles';
+import { CreditsPill } from '@/components/toolbar/CreditsPill';
 
 
 export function Toolbar() {
@@ -339,6 +340,7 @@ export function Toolbar() {
 
           <ThemeToggle />
           <CanvasBackgroundControls />
+          <CreditsPill />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
             <Button
@@ -667,4 +669,3 @@ export function Toolbar() {
     </>
   );
 }
-

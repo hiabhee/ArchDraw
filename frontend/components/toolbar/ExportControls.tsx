@@ -56,6 +56,51 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function svgToDataUri(svg: string): string {
+  // Blob URLs are intermittently rejected by Safari/Firefox when the SVG
+  // contains filters, embedded glyphs, or large path data. An encoded data URI
+  // stays same-origin and gives the image decoder the complete XML document.
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+async function loadSvgImage(svg: string, width: number, height: number): Promise<CanvasImageSource> {
+  const image = new window.Image();
+  image.decoding = 'async';
+  const source = svgToDataUri(svg);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error('SVG image load timeout')), 15000);
+      image.onload = () => { window.clearTimeout(timeout); resolve(); };
+      image.onerror = () => { window.clearTimeout(timeout); reject(new Error('Failed to decode generated SVG')); };
+      image.src = source;
+    });
+    // decode() waits for the raster decoder, not merely the load event. This
+    // avoids drawing a partially decoded image on high-DPI canvases.
+    if (typeof image.decode === 'function') await image.decode();
+    if (!image.naturalWidth || !image.naturalHeight) {
+      throw new Error(`Decoded SVG has invalid dimensions (${width}x${height})`);
+    }
+    return image;
+  } catch (imageError) {
+    // Some WebKit builds reject both blob URLs and data-URI <img> decoding for
+    // SVGs containing filters. createImageBitmap uses the browser's image
+    // decoder directly and avoids the DOM image security path.
+    if (typeof window.createImageBitmap === 'function') {
+      try {
+        const bitmap = await window.createImageBitmap(
+          new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }),
+        );
+        if (!bitmap.width || !bitmap.height) bitmap.close();
+        else return bitmap;
+      } catch {
+        // Preserve the original error below so diagnostics identify the SVG
+        // decode failure rather than the optional bitmap fallback.
+      }
+    }
+    throw imageError;
+  }
+}
+
 async function addWatermark(dataUrl: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new window.Image();
@@ -385,9 +430,6 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
         // Rasterize SVG -> PNG at high DPI with retry on OOM / taint
         let svgDataUrl: string | null = null;
-        const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-        const svgUrl = URL.createObjectURL(svgBlob);
-        try {
           // Try from high to low DPI; large canvases can OOM on low-memory devices — allow down to 1× for huge diagrams (still hires vs viewport)
           let lastRasterErr: unknown = null;
           for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
@@ -397,16 +439,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
               if (attemptW <= 0 || attemptH <= 0) throw new Error(`Invalid SVG size ${svgW}x${svgH}`);
               if (attemptW * attemptH > 64_000_000) continue; // skip absurd sizes before even trying
 
-              const img = new window.Image();
-              await new Promise<void>((resolve, reject) => {
-                const t = window.setTimeout(() => reject(new Error('SVG image load timeout')), 6000);
-                img.onload = () => { clearTimeout(t); resolve(); };
-                img.onerror = () => { clearTimeout(t); reject(new Error('Failed to load SVG blob as image')); };
-                // For blob: URLs crossOrigin must not be set (would taint); keep same-origin
-                img.src = svgUrl;
-                // If already cached/complete, resolve immediately (some browsers fire sync)
-                if (img.complete && img.naturalWidth !== 0) { clearTimeout(t); resolve(); }
-              });
+              const img = await loadSvgImage(svgContent, svgW, svgH);
 
               const canvas = document.createElement('canvas');
               canvas.width = attemptW;
@@ -424,6 +457,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
               }
               ctx.scale(attemptRatio, attemptRatio);
               ctx.drawImage(img, 0, 0, svgW, svgH);
+              if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) img.close();
               svgDataUrl = canvas.toDataURL('image/png');
               pixelRatio = attemptRatio;
               lastRasterErr = null;
@@ -436,9 +470,6 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           }
           if (!svgDataUrl) throw lastRasterErr ?? new Error('All SVG raster attempts failed');
           dataUrl = svgDataUrl;
-        } finally {
-          URL.revokeObjectURL(svgUrl);
-        }
         // Skip DOM-screenshot path entirely on success
       } catch (svgErr) {
         lastErr = svgErr;

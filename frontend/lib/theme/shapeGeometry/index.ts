@@ -785,20 +785,25 @@ export function containerPrimitives(W: number, H: number): ShapePrimitive[] {
  * Distinct from vertical cylinder databases.
  */
 export function bucketPrimitives(W: number, H: number): ShapePrimitive[] {
-  const taper = Math.round(W * 0.08);
-  const rimH = Math.max(10, Math.round(H * 0.16));
-  const inset = 2;
+  // Keep the vessel visually lighter than the node bounds so the label and
+  // storage glyph remain the focus. The inset also gives the silhouette a
+  // small, deliberate "bucket" footprint instead of reading like a drum.
+  const sideInset = Math.max(8, Math.round(W * 0.09));
+  const topInset = Math.max(4, Math.round(H * 0.05));
+  const taper = Math.max(8, Math.round(W * 0.07));
+  const rimH = Math.max(8, Math.round(H * 0.11));
+  const inset = sideInset;
 
   // Bucket body — trapezoid (wider at top, narrower at bottom)
   const bodyPts = [
-    `${inset},${inset + rimH}`,
-    `${W - inset},${inset + rimH}`,
+    `${inset},${topInset + rimH}`,
+    `${W - inset},${topInset + rimH}`,
     `${W - inset - taper},${H - inset}`,
     `${inset + taper},${H - inset}`,
   ].join(' ');
 
   // Top ellipse rim
-  const rimCY = inset + rimH;
+  const rimCY = topInset + rimH;
   const rimRX = (W - inset * 2) / 2;
   const rimRY = Math.max(4, Math.round(rimH * 0.55));
 

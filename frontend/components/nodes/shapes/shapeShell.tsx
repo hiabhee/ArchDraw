@@ -255,8 +255,8 @@ export function Label({
           onDoubleClick={labelEdit.startEdit}
           style={{
             cursor: 'text',
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            wordBreak: 'normal',
             whiteSpace: isPipeMultiline ? 'pre-line' : isPipeText ? 'normal' : 'normal',
             maxWidth: '100%',
             textAlign: 'center',
@@ -331,12 +331,16 @@ export function resolveShapeSurface(
   accentColor: string,
   sketch = false,
   brutal = false,
+  fillColor?: string,
+  strokeColor?: string,
 ) {
   return resolveRenderSurface({
     renderStyleId: brutal ? 'neubrutalism' : sketch ? 'sketch' : 'precision',
     isDark,
     selected,
     accentColor,
+    fillColor,
+    strokeColor,
     nodeStyle: styles,
   });
 }

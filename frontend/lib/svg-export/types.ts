@@ -33,6 +33,8 @@ export interface ShapeNodeData extends NodeData {
   shape?: string;
   sublabel?: string;
   accentColor?: string;
+  fillColor?: string;
+  strokeColor?: string;
   serviceType?: string;
   cylinderAxis?: 'vertical' | 'horizontal';
 }

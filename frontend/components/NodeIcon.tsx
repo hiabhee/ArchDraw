@@ -76,7 +76,7 @@ export function NodeIcon({
   
   // Normalize color (replace legacy purple with semantic colors)
   const normalizedFallbackColor = normalizeColor(fallbackColor, iconName);
-  const color = entry?.color ?? normalizedFallbackColor ?? GENERIC_ICON_COLOR;
+  const color = normalizeColor(entry?.color ?? normalizedFallbackColor ?? GENERIC_ICON_COLOR, iconName);
 
   // Technology brand logos: only render in modes where they're allowed
   if (technology && getTechnologyBrandSlug(technology) && entry?.kind !== 'aws') {

@@ -461,6 +461,8 @@ export function renderShapeNode(
     isDark,
     selected: selected ?? false,
     accentColor: color,
+    fillColor: shapeData.fillColor,
+    strokeColor: shapeData.strokeColor,
   });
   const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   // Sketch titles/subtitles are warm ink (brown on paper, chalk on board) —

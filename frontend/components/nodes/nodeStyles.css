@@ -329,7 +329,8 @@
   line-height: 1.25;
   flex: 1;
   min-width: 0;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: break-word;
   text-align: center;
   letter-spacing: -0.015em;
   font-family: Inter, "IBM Plex Sans", system-ui, -apple-system, sans-serif;
@@ -621,9 +622,9 @@
 .node-queue .node-title {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 /* Message pipe: a tube of cells across the top of the card.
@@ -1440,4 +1441,3 @@
 [data-render-style='neubrutalism'] .react-flow__node-frameNode {
   z-index: -1 !important;
 }
-

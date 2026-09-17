@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Node, Edge } from 'reactflow';
 import dynamic from 'next/dynamic';
@@ -25,7 +26,7 @@ import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import type { GenerationProgress } from '@/lib/ai/types';
 import { ContextualSidebar } from '@/components/editor/ContextualSidebar';
-import { isGitHubRepoUrl } from '@/lib/utils/githubUrl';
+import { isGitHubRepoUrl, coerceGitHubRepoInput } from '@/lib/utils/githubUrl';
 import {
   generateDiagramFromPrompt,
   generateDiagramFromRepo,
@@ -96,6 +97,8 @@ export default function EditorPage() {
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
   const isMobile = useIsMobile();
+  const searchParams = useSearchParams();
+  const landingGenerateStarted = useRef(false);
 
   // Mobile: close sidebars by default and auto-close on canvas interaction
   useEffect(() => {
@@ -477,6 +480,7 @@ export default function EditorPage() {
       
       markPipelineDone();
       handleGenerationComplete(responseData.data, canvasName, !!responseData.cached, replace);
+      window.dispatchEvent(new CustomEvent('archdraw:credits-updated'));
 
       analytics.track({
         event_type: 'diagram_generated',
@@ -523,6 +527,22 @@ export default function EditorPage() {
       }, 2000);
     }
   };
+
+  const handleGenerateRef = useRef(handleGenerate);
+  handleGenerateRef.current = handleGenerate;
+
+  useEffect(() => {
+    const raw = searchParams.get('generate');
+    if (!raw?.trim() || landingGenerateStarted.current) return;
+    landingGenerateStarted.current = true;
+    const description = coerceGitHubRepoInput(raw);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('generate');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+    void handleGenerateRef.current(description, 2, { replace: true });
+  }, [searchParams]);
 
   // Mobile: close properties when tapping canvas on mobile
   useEffect(() => {

@@ -19,7 +19,9 @@ export function getShapeLabelMaxWidth(
   row: 'title' | 'subtitle' = 'title',
 ): number {
   const bandFor: Record<string, { title: number; subtitle: number }> = {
-    diamond: { title: 0.42, subtitle: 0.34 },
+    // Keep the diamond's label lane wide enough for common gateway/service
+    // names. Wrapping should happen at spaces, never inside a word.
+    diamond: { title: 0.52, subtitle: 0.42 },
     circle: { title: 0.42, subtitle: 0.34 },
     parallelogram: { title: 0.68, subtitle: 0.6 },
     hexagon: { title: 0.52, subtitle: 0.42 },

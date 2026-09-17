@@ -17,7 +17,7 @@ import {
 
 export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal }: ShapeShellProps & { rounded: boolean }) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   const r = getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', width, height)[0].rx ?? 6;
   if (sketch) {
     return (
@@ -71,7 +71,7 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
 
 export function Diamond({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -124,7 +124,7 @@ export function Diamond({ id, data, selected, backplates, isDark, styles, width:
 
 export function Circle({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     // Scale up the rough.js body so the circle looks bigger in sketch mode.
     const sketchScale = 1.3;
@@ -199,7 +199,7 @@ export function Circle({ id, data, selected, backplates, isDark, styles, width: 
 
 export function Parallelogram({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>

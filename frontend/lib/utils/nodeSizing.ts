@@ -49,7 +49,9 @@ export type ShapeFit =
 const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
   rectangle: 0.88,
   'rounded-rectangle': 0.88,
-  diamond: 0.42,
+  // Diamonds have a generous center lane so multi-word labels wrap between
+  // words instead of splitting a word (e.g. "API Gateway" → "API" / "Gateway").
+  diamond: 0.52,
   parallelogram: 0.72,
   circle: 0.42,
   cylinder: 0.85,
@@ -302,7 +304,8 @@ export function calculateNodeDimensions(
   const heightRange = SHAPE_HEIGHT_RANGE[shape];
 
   const minWidth = options.minWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_MIN_WIDTH[shape]);
-  const maxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);
+  const preferredMaxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);
+  const absoluteMaxWidth = SHAPE_ABSOLUTE_MAX_WIDTH[shape];
 
   // Width: longest line -> ideal bbox, then snap to fixed grid (no expansion beyond max)
   const lines = [
@@ -310,9 +313,17 @@ export function calculateNodeDimensions(
     ...(subtitle ? String(subtitle).split(/\n/) : []),
   ].filter(Boolean);
   const longestLineLength = Math.max(1, ...lines.map((line) => line.length));
+  const longestWordLength = Math.max(1, ...lines.flatMap((line) => line.split(/\s+/).map((word) => word.length)));
   const idealBandWidth = longestLineLength * AVG_CHAR_WIDTH + 16;
   const idealBBoxWidth = idealBandWidth / band;
-  const width = fitWidthToContent(idealBBoxWidth, minWidth, maxWidth);
+  // Silhouettes with a narrow center lane (especially diamonds) may need to
+  // grow past the preferred grid so a long word remains whole. This is a
+  // content-triggered expansion only; ordinary labels still use 160/200/240.
+  const wordWidth = longestWordLength * (shape === 'diamond' ? 9.4 : AVG_CHAR_WIDTH) + 18;
+  const contentMaxWidth = wordWidth / band > preferredMaxWidth
+    ? Math.min(absoluteMaxWidth, Math.ceil((wordWidth / band) / 40) * 40)
+    : preferredMaxWidth;
+  const width = fitWidthToContent(idealBBoxWidth, minWidth, contentMaxWidth);
 
   // Uniform 100px for all nodes per user request — no per-shape variation, no growth with lines.
   const height = 100;

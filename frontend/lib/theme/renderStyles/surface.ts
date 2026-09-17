@@ -38,6 +38,8 @@ export interface ResolveRenderSurfaceInput {
   isDark: boolean;
   selected?: boolean;
   accentColor?: string;
+  fillColor?: string;
+  strokeColor?: string;
   nodeStyle?: NodeStyleConfig;
   shape?: string | null;
 }
@@ -59,13 +61,13 @@ export function resolveRenderSurface(input: ResolveRenderSurfaceInput): RenderSu
   const accentColor = input.accentColor ?? '#0f766e';
 
   // Sketch: clean paper fill + hand-ink border; brutal: flat fill + heavy black
-  const fill = sketch
+  const fill = input.fillColor ?? (sketch
     ? input.isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT
     : brutal
       ? input.isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT
-      : input.isDark ? styles.background : '#ffffff';
+      : input.isDark ? styles.background : '#ffffff');
   // Brutal selection: saturated accent ring (bold, not muted).
-  const stroke = selected
+  const stroke = input.strokeColor ?? (selected
     ? sketch
       ? hexToRgba(accentColor, input.isDark ? 0.52 : 0.44)
       : brutal
@@ -77,7 +79,7 @@ export function resolveRenderSurface(input: ResolveRenderSurfaceInput): RenderSu
         ? input.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER
         : input.isDark
           ? 'rgba(255, 255, 255, 0.12)'
-          : 'rgba(15, 23, 42, 0.14)';
+          : 'rgba(15, 23, 42, 0.14)');
   const strokeWidth = selected ? (brutal ? 3.5 : sketch ? 2 : 2) : brutal ? 3.25 : sketch ? 1.35 : 1.25;
   // Brutal has a hard offset shadow; sketch none; precision soft.
   // Dark brutal inverts to light shadow per neubrutalism dark-section rule

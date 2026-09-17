@@ -136,9 +136,6 @@ export interface DiagramState {
   detailLevel: 1 | 2 | 3;
   isPenModeActive: boolean;
   setPenModeActive: (active: boolean) => void;
-  horizontalOnlyHandles: boolean;
-  setHorizontalOnlyHandles: (v: boolean) => void;
-  toggleHorizontalOnlyHandles: () => void;
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;

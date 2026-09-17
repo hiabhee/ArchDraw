@@ -18,11 +18,8 @@ export type UiSlice = Pick<
   | 'activeLayoutPresetId'
   | 'detailLevel'
   | 'isPenModeActive'
-  | 'horizontalOnlyHandles'
   | 'canvasBackground'
   | 'setGuideLines'
-  | 'setHorizontalOnlyHandles'
-  | 'toggleHorizontalOnlyHandles'
   | 'toggleEdgeAnimations'
   | 'toggleGrid'
   | 'setIconMode'
@@ -60,7 +57,6 @@ export const createUiSlice: StateCreator<
   activeLayoutPresetId: 'layered-lr',
   detailLevel: 3,
   isPenModeActive: false,
-  horizontalOnlyHandles: false,
   canvasBackground: {
     variant: 'lines',
     bgColor: null,
@@ -74,19 +70,6 @@ export const createUiSlice: StateCreator<
   setActiveLayoutPresetId: (id: string) => set({ activeLayoutPresetId: id }),
   setDetailLevel: (level: 1 | 2 | 3) => set({ detailLevel: level }),
   setPenModeActive: (active: boolean) => set({ isPenModeActive: active }),
-  setHorizontalOnlyHandles: (v) => {
-    set({ horizontalOnlyHandles: v });
-    setTimeout(() => {
-      try { get().recalculateHandles(); } catch {}
-    }, 0);
-  },
-  toggleHorizontalOnlyHandles: () => {
-    const next = !get().horizontalOnlyHandles;
-    set({ horizontalOnlyHandles: next });
-    setTimeout(() => {
-      try { get().recalculateHandles(); } catch {}
-    }, 0);
-  },
   toggleGrid: () => set({ showGrid: !get().showGrid }),
   setCanvasBackground: (patch) => set({ canvasBackground: { ...get().canvasBackground, ...patch } }),
   setIconMode: (mode) => set({ iconMode: mode }),

@@ -16,7 +16,7 @@ import {
 /** Flat-top hexagon — ingress / load balancers / gateways. */
 export function Hexagon({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -71,7 +71,7 @@ export function Hexagon({ id, data, selected, backplates, isDark, styles, width:
 /** Queue — message-lane horizontal shape for Event Buses / queues. */
 export function Queue({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   const pillStyle: React.CSSProperties = isDark
     ? { background: 'rgba(30, 41, 59, 0.72)', backdropFilter: 'blur(2px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '3px 8px', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }
     : { background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(2px)', border: '1px solid rgba(15,23,42,0.06)', borderRadius: 6, padding: '3px 8px', boxShadow: '0 1px 2px rgba(15,23,42,0.08)' };
@@ -118,7 +118,7 @@ export function Queue({ id, data, selected, backplates, isDark, styles, width: W
 
 export function Cache({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -155,7 +155,7 @@ export function Cache({ id, data, selected, backplates, isDark, styles, width: W
 
 export function FunctionShape({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -192,7 +192,7 @@ export function FunctionShape({ id, data, selected, backplates, isDark, styles, 
 
 export function Container({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -229,13 +229,13 @@ export function Container({ id, data, selected, backplates, isDark, styles, widt
 
 export function Bucket({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
         <SketchBody shape="bucket" width={W} height={H} surface={surface} seed={sketchSeed(id)} isDark={isDark} />
         <Handles color={color} nodeId={id} />
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', inset: 0, paddingTop: 10, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="bucket" sketch />
         </div>
       </div>
@@ -246,7 +246,7 @@ export function Bucket({ id, data, selected, backplates, isDark, styles, width: 
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
         <BrutalBody shape="bucket" width={W} height={H} surface={surface} isDark={isDark} />
         <Handles color={color} nodeId={id} />
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', inset: 0, paddingTop: 10, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="bucket" brutal />
         </div>
       </div>
@@ -257,7 +257,7 @@ export function Bucket({ id, data, selected, backplates, isDark, styles, width: 
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       <svg width={W} height={H} style={{ ...SVG_SURFACE_STYLE(W, H), filter: surface.dropShadow }} dangerouslySetInnerHTML={{ __html: body }} />
       <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, paddingTop: 10, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="bucket" />
       </div>
     </div>
@@ -287,7 +287,7 @@ function cloudSilhouette(W: number, H: number): string {
 
 export function Cloud({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#57534e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -327,7 +327,7 @@ export function Cloud({ id, data, selected, isDark, styles, width: W, height: H,
 /** Person glyph — end users / actors. Two-part head + body, no outer container. */
 export function Actor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#475569';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -400,7 +400,7 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
 /** Minimal monitor — web / desktop clients. Rounded screen + stand notch. */
 export function Monitor({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#2563eb';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -452,7 +452,7 @@ export function Monitor({ id, data, selected, isDark, styles, width: W, height: 
 /** Tall phone — mobile clients. Rounded rect + speaker notch. */
 export function Mobile({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#2563eb';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -495,7 +495,7 @@ export function Mobile({ id, data, selected, isDark, styles, width: W, height: H
 /** Out-of-system / optional scope — dashed border, near-transparent fill. */
 export function DashedRectangle({ id, data, selected, isDark, styles, width, height, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#64748b';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
@@ -549,7 +549,7 @@ export function DashedRectangle({ id, data, selected, isDark, styles, width, hei
 /** Document with folded corner — files, reports, configs. */
 export function Document({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
@@ -589,7 +589,7 @@ export function Document({ id, data, selected, isDark, styles, width: W, height:
 /** Multiple stacked documents — document collections, file sets. */
 export function Documents({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
-  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal);
+  const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
     return (
       <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>

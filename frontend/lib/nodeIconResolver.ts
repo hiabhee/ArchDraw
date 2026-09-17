@@ -273,7 +273,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     const manualTechnology = input.technology ?? technologyFromIcon(input.icon);
     const manualTechEntry = getTechnologyEntry(manualTechnology);
     if (manualTechEntry) {
-      return { icon: input.icon, color: manualTechEntry.color, technology: manualTechnology, source: 'technology' };
+      return { icon: input.icon, color: normalizeColor(manualTechEntry.color, input.icon, isDark), technology: manualTechnology, source: 'technology' };
     }
     const color = normalizeColor(input.color, input.icon, isDark);
     return { icon: input.icon, color, technology: input.technology, source: 'manual' };
@@ -305,16 +305,16 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
   if (techEntry) {
     // If the technology uses a custom icon, return it directly
     if (techEntry.kind === 'custom' || techEntry.icon.startsWith('arch-')) {
-      return { icon: techEntry.icon, color: techEntry.color, technology: resolvedTechnology, source: 'technology' };
+      return { icon: techEntry.icon, color: normalizeColor(techEntry.color, techEntry.icon, isDark), technology: resolvedTechnology, source: 'technology' };
     }
     // AWS / Azure service keys keep their provider icon id
     if (techEntry.kind === 'aws' || resolvedTechnology?.startsWith('azure-')) {
-      return { icon: techEntry.icon, color: techEntry.color, technology: resolvedTechnology, source: 'technology' };
+      return { icon: techEntry.icon, color: normalizeColor(techEntry.color, techEntry.icon, isDark), technology: resolvedTechnology, source: 'technology' };
     }
     // Normalize lucide icon names to distinctive arch glyphs when possible
     return {
       icon: normalizeArchIconName(techEntry.icon) || techEntry.icon,
-      color: techEntry.color,
+      color: normalizeColor(techEntry.color, techEntry.icon, isDark),
       technology: resolvedTechnology,
       source: 'technology',
     };

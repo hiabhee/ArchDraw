@@ -8,6 +8,9 @@ export interface ShapeNodeData {
   shape: ShapeType;
   color?: string;
   accentColor?: string;
+  /** Mermaid `fill`/`stroke` styles preserved from pasted source. */
+  fillColor?: string;
+  strokeColor?: string;
   category?: string;
   componentType?: string;
   typeId?: string;

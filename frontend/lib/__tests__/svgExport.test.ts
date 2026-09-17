@@ -42,6 +42,9 @@ describe('generatePureSVG render styles', () => {
     const { nodes, edges } = fixture();
     const svg = generatePureSVG(nodes, edges, true, '#0f172a', 'LR', 'precision');
 
+    expect(svg).toMatch(/^<svg[^>]*xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink"/);
+    expect(svg).toContain('shape-rendering="geometricPrecision"');
+    expect(svg).toContain('text-rendering="geometricPrecision"');
     expect(svg).toContain('<polygon points="80,4 156,50 80,96 4,50" fill=');
     expect(svg).toContain('<rect x="1" y="1" width="198" height="98" rx="10" ry="10" fill=');
     expect(svg).toContain('stroke-width="1.25"');

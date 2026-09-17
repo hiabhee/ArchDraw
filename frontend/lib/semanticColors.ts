@@ -86,6 +86,26 @@ export const DEFAULT_SEMANTIC_COLOR = '#1E90FF';
  */
 export const LEGACY_PURPLE_COLORS = new Set(['#6366f1', '#6366F1']);
 
+/** Purple/violet brand colors are hard to read in the restrained diagram palette. */
+function isPurpleLike(color: string): boolean {
+  const match = color.trim().match(/^#([0-9a-f]{6})$/i);
+  if (!match) return false;
+  const value = Number.parseInt(match[1], 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max === min) return false;
+  let hue = 0;
+  if (max === r) hue = ((g - b) / (max - min)) % 6;
+  else if (max === g) hue = (b - r) / (max - min) + 2;
+  else hue = (r - g) / (max - min) + 4;
+  hue = Math.round(hue * 60);
+  if (hue < 0) hue += 360;
+  return (hue >= 255 && hue <= 310) && (max - min > 35);
+}
+
 /**
  * Get semantic color for a category, respecting dark mode.
  */
@@ -211,7 +231,7 @@ export function normalizeColor(
   isDark: boolean = false
 ): string {
   // If no color provided or it's legacy purple, use semantic color
-  if (!color || LEGACY_PURPLE_COLORS.has(color)) {
+  if (!color || LEGACY_PURPLE_COLORS.has(color) || isPurpleLike(color)) {
     if (iconName) {
       return resolveSemanticColorForIcon(iconName, isDark);
     }
