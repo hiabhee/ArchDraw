@@ -172,6 +172,8 @@ export function rehydrateDiagramState(state: DiagramState): void {
 
   if (!state.canvasBackground) {
     state.canvasBackground = { variant: 'lines', bgColor: null, patternColor: null, gap: 24, size: 1 };
+  } else if (state.canvasBackground.variant !== 'dots' && state.canvasBackground.variant !== 'lines') {
+    state.canvasBackground = { ...state.canvasBackground, variant: 'lines' };
   }
 }
 

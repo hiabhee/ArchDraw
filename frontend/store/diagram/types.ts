@@ -229,7 +229,7 @@ export interface DiagramState {
   clearPipelineStatus: () => void;
 }
 
-export type CanvasBackgroundVariant = 'dots' | 'lines' | 'cross' | 'plain';
+export type CanvasBackgroundVariant = 'dots' | 'lines';
 export interface CanvasBackgroundConfig {
   variant: CanvasBackgroundVariant;
   bgColor: string | null;

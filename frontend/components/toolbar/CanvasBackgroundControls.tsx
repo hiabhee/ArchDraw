@@ -9,8 +9,6 @@ import type { CanvasBackgroundVariant } from '@/store/diagram/types';
 const PATTERNS: Array<{ id: CanvasBackgroundVariant; label: string; preview: string }> = [
   { id: 'dots', label: 'Dots', preview: 'radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)' },
   { id: 'lines', label: 'Lines', preview: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)' },
-  { id: 'cross', label: 'Cross', preview: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)' },
-  { id: 'plain', label: 'Plain', preview: 'none' },
 ];
 
 export function CanvasBackgroundControls() {
@@ -74,9 +72,7 @@ export function CanvasBackgroundControls() {
                   key={p.id}
                   onClick={() => {
                     setCanvasBackground({ variant: p.id });
-                    // Ensure grid visibility matches variant: plain → hidden, others → visible
-                    if (p.id === 'plain' && showGrid) toggleGrid();
-                    if (p.id !== 'plain' && !showGrid) toggleGrid();
+                    if (!showGrid) toggleGrid();
                   }}
                   className={`relative h-[72px] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-end pb-2 transition-all ${
                     active ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40'

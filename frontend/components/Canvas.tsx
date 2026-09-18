@@ -645,15 +645,6 @@ function CanvasInner() {
             }}
           />
         )}
-        {canvasBackground.variant === 'cross' && showGrid && (
-          <Background
-            variant={BackgroundVariant.Cross}
-            gap={canvasBackground.gap}
-            size={1}
-            color={canvasBackground.patternColor ?? (isDark ? '#475569' : '#cbd5e1')}
-            style={{ opacity: isDark ? 0.25 : 0.35 }}
-          />
-        )}
         <SVGEdgeMarkerDefs />
         <GuideLines />
       </ReactFlow>
