@@ -7,10 +7,10 @@ export type ResolveResult =
   | { kind: 'unresolved'; path: string };
 
 const JS_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'];
-const PY_EXTENSIONS = ['py'];
-const GO_EXTENSIONS = ['go'];
-const JAVA_EXTENSIONS = ['java'];
-const RS_EXTENSIONS = ['rs'];
+const _PY_EXTENSIONS = ['py'];
+const _GO_EXTENSIONS = ['go'];
+const _JAVA_EXTENSIONS = ['java'];
+const _RS_EXTENSIONS = ['rs'];
 
 const NODE_BUILTINS = new Set([
   'fs', 'path', 'os', 'http', 'https', 'url', 'util', 'crypto', 'stream',

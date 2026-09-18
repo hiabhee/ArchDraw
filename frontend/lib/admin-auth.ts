@@ -55,16 +55,16 @@ export async function verifyAdminSession(req: NextRequest): Promise<boolean> {
       const sessionData =
         adminSessionTracking.get(sessionCookie) ?? (await getTrackedAdminSession(sessionCookie));
       if (sessionData) {
-        const currentIP = getClientIP(req);
+        const _currentIP = getClientIP(req);
         const currentUA = req.headers.get('user-agent') || 'unknown';
-        
+
         // Allow some tolerance for IP changes (mobile networks, etc.)
         // but require user agent to match exactly
         if (sessionData.ua !== currentUA) {
           logger.warn('[AdminAuth] User agent mismatch for admin session');
           return false;
         }
-        
+
         // Update timestamp for active session
         sessionData.timestamp = Date.now();
       }

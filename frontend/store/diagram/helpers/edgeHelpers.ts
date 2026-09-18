@@ -48,8 +48,8 @@ export function positionToSide(pos: Position): string {
  */
 function nodeSupportsHandle(
   node: Node | undefined,
-  type: 'source' | 'target',
-  side: string,
+  _type: 'source' | 'target',
+  _side: string,
 ): boolean {
   if (!node) return false;
   if (node.type === 'textLabelNode' || node.type === 'annotationNode') return false;

@@ -47,7 +47,7 @@ export function verifyGraph(input: VerifierInput): VerifierResult {
   const { nodes, edges, signals, fileTree, importGraph } = input;
 
   const fileSet = new Set(fileTree);
-  const signalSources = new Set(signals.map((s) => s.source).filter((s): s is string => !!s));
+  const _signalSources = new Set(signals.map((s) => s.source).filter((s): s is string => !!s));
 
   // Build the import-graph edge set in *predicted-id* space using node sourceFiles.
   const evidenceEdgeSet = buildEvidenceEdgeSet(nodes, importGraph);

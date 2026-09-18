@@ -8,11 +8,10 @@ import { useTutorialStore } from '@/store/tutorialStore';
 import { saveTutorialProgress as apiSaveTutorialProgress } from '@/lib/api-client';
 import { getTutorialById } from '@/data/tutorials';
 import * as engine from '@/lib/tutorial/engine';
-import { STORAGE_KEYS } from '@/lib/config';
 
 const SESSION_REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
-async function migrateGuestProgress(userId: string) {
+async function migrateGuestProgress(_userId: string) {
   const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
   if (!authEnabled) return;
   const { richProgress, completedTutorials } = useTutorialStore.getState();
@@ -179,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }, 800);
     }
-  }, []);
+  }, [initialized]);
 
   return <>{children}</>;
 }

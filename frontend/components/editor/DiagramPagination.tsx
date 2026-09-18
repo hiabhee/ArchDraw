@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, Loader2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,7 @@ export function DiagramPagination() {
   
   const [isNavigating, setIsNavigating] = useState(false);
 
-  // Canvas list from store
-  const canvasList = canvases || [];
+  const canvasList = useMemo(() => canvases ?? [], [canvases]);
   const total = canvasList.length;
   
   // Find current index (0-based)

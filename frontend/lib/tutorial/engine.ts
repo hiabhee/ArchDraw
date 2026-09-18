@@ -1,6 +1,6 @@
 import type { Node, Edge } from 'reactflow';
-import type { TutorialDefinition, TutorialSession, PhaseName, ValidationRule, TutorialStep, PhaseContent } from './schema';
-import { PHASE_ORDER, getNextPhase } from './schema';
+import type { TutorialDefinition, TutorialSession, ValidationRule, TutorialStep, PhaseContent } from './schema';
+import { getNextPhase } from './schema';
 import { validateRules } from './detection';
 
 export function initSession(tutorial: TutorialDefinition): TutorialSession {
@@ -81,10 +81,10 @@ export function getProgress(
   const totalSteps = tutorial.levels.reduce((acc, level) => acc + level.steps.length, 0);
   const completedSteps = session.completedStepIds.length;
   const percent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-  
+
   const currentStep = getCurrentStep(session, tutorial);
   const currentLevel = tutorial.levels[session.levelIndex];
-  
+
   return {
     percent,
     stepLabel: currentStep?.title ?? '',
@@ -149,7 +149,7 @@ function moveToNextStep(session: TutorialSession, tutorial: TutorialDefinition):
   if (!currentStep) return session;
 
   const newCompletedSteps = [...session.completedStepIds, currentStep.id];
-  
+
   let newLevelIndex = session.levelIndex;
   let newStepIndex = session.stepIndex + 1;
   let newCompletedLevels = session.completedLevelIds;
@@ -159,7 +159,7 @@ function moveToNextStep(session: TutorialSession, tutorial: TutorialDefinition):
     newCompletedLevels = [...newCompletedLevels, currentLevel.id];
     newStepIndex = 0;
     newLevelIndex = newLevelIndex + 1;
-    
+
     if (newLevelIndex >= tutorial.levels.length) {
       return {
         ...session,
@@ -198,19 +198,19 @@ export function checkValidation(
   }
 
   const result = validateRules(step.validation, nodes, edges);
-  
+
   if (result.passed) {
-    return { 
-      passed: true, 
-      unmetRules: [], 
-      shouldAdvance: true 
+    return {
+      passed: true,
+      unmetRules: [],
+      shouldAdvance: true
     };
   }
 
-  return { 
-    passed: false, 
-    unmetRules: result.unmetRules, 
-    shouldAdvance: false 
+  return {
+    passed: false,
+    unmetRules: result.unmetRules,
+    shouldAdvance: false
   };
 }
 

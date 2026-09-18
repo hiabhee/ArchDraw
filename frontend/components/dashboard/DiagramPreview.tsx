@@ -2,15 +2,7 @@
 
 import { useMemo } from 'react';
 import type { Node, Edge } from 'reactflow';
-import {
-  getBezierPath,
-  getSmoothStepPath,
-  getStraightPath,
-  Position,
-} from 'reactflow';
-import {
-  getNodeCenter,
-} from '@/lib/utils/simpleFloatingEdge';
+import { getBezierPath, getStraightPath } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { EDGE_TYPE_CONFIGS, getEdgeConfig, type EdgeType } from '@/data/edgeTypes';

@@ -5,8 +5,7 @@ import { resolveImportSpec, buildTsAliasConfig } from '../import-resolvers';
 import { buildImportGraph } from '../import-graph';
 import { extractStaticSignals } from '../static-analyzer';
 import { deduplicateNodes } from '../graph-quality';
-import type { FileEntry, PipelineResult, StaticSignal } from '@/lib/types/repo-diagram';
-import type { TsAliasConfig } from '../import-graph';
+import type { FileEntry, PipelineResult } from '@/lib/types/repo-diagram';
 
 // ─── GH2R-007 unified skip rules ────────────────────────────────
 describe('skip-rules (GH2R-007)', () => {
@@ -138,7 +137,7 @@ describe('Python import roots (GH2R-009)', () => {
 describe('TS alias baseUrl="." (GH2R-010)', () => {
   it('resolves @/components/Button with baseUrl="." + paths @/*->src/*', () => {
     const files: FileEntry[] = [
-      { path: 'pages/index.tsx', content: "import {Btn} from '@/components/Button';\n" },
+      { path: 'pages/index.tsx', content: "import { Btn } from '@/components/Button';\n" },
       { path: 'src/components/Button.tsx', content: 'export const Btn=1;\n' },
     ];
     const alias = buildTsAliasConfig([
@@ -153,7 +152,7 @@ describe('TS alias baseUrl="." (GH2R-010)', () => {
 
   it('resolves @/lib/foo with baseUrl="." + paths @/*->./src/* (dot-slash variant)', () => {
     const files: FileEntry[] = [
-      { path: 'app/api/route.ts', content: "import {x} from '@/lib/foo';\n" },
+      { path: 'app/api/route.ts', content: "import { x } from '@/lib/foo';\n" },
       { path: 'src/lib/foo.ts', content: 'export const x=1;\n' },
     ];
     const alias = buildTsAliasConfig([
@@ -167,7 +166,7 @@ describe('TS alias baseUrl="." (GH2R-010)', () => {
 
   it('end-to-end buildImportGraph with alias', () => {
     const files: FileEntry[] = [
-      { path: 'pages/index.tsx', content: "import {db} from '@/lib/db';\n" },
+      { path: 'pages/index.tsx', content: "import { db } from '@/lib/db';\n" },
       { path: 'src/lib/db.ts', content: 'export const db=1;\n' },
     ];
     const alias = buildTsAliasConfig([{ path: 'tsconfig.json', content: '{"compilerOptions":{"baseUrl":".","paths":{"@/*":["src/*"]}}}' }]);
@@ -278,7 +277,7 @@ describe('normalizeLabelKey generic collision (GH2R-016)', () => {
       { id: 'service', label: 'Service', type: 'SERVICE' as const, description: '', sourceFiles: ['b.ts'], confidence: 'high' as const },
     ];
     // deduplicateNodes should keep both
-    const { nodes: out } = deduplicateNodes(nodes as any, []);
+    const { nodes: out } = deduplicateNodes(nodes, []);
     expect(out.length).toBe(2);
   });
   it('Order API vs Order Service merge when stems equal after stripping (same domain concept)', () => {
@@ -287,7 +286,7 @@ describe('normalizeLabelKey generic collision (GH2R-016)', () => {
       { id: 'order_service', label: 'Order Service', type: 'SERVICE' as const, description: '', sourceFiles: ['b.ts'], confidence: 'high' as const },
     ];
     // Both normalize to "order" after stripping generic token → deduplicate merges them (prevents duplicate domain nodes like "Order API" + "Order Service" for same "order" concept)
-    const { nodes: out } = deduplicateNodes(nodes as any, []);
+    const { nodes: out } = deduplicateNodes(nodes, []);
     expect(out.length).toBe(1);
   });
 });

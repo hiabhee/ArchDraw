@@ -1,25 +1,15 @@
 import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '@/store/diagram/types';
 import type { EdgeData } from '@/data/edgeTypes';
-import { NODE_WIDTH, NODE_HEIGHT } from '@/lib/theme/stylingConstants';
+
 import { computeEdgeRoute, type EdgeRouteDirection } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
-import {
-  calculateBounds,
-  nodeDepth,
-  resolveAbsolutePosition,
-} from './nodeLayout';
-import {
-  renderSystemNode,
-  renderTextLabel,
-  renderAnnotationNode,
-  renderGroupNode,
-  renderShapeNode,
-} from './renderNodes';
+import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
+import { renderSystemNode, renderTextLabel, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
 import { renderEdge } from './renderEdges';
 import type { SystemNodeRenderData, EdgeRenderData } from './types';
 

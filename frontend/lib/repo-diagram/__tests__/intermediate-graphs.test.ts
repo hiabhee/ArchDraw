@@ -80,7 +80,7 @@ describe('intermediateToArchitecture', () => {
       nodes: [{ id: 'api', label: 'api', type: 'API_ROUTE' }],
       edges: [],
     };
-    const { nodes, edges } = intermediateToArchitecture(graph, subsystems);
+    const { nodes } = intermediateToArchitecture(graph, subsystems);
     expect(nodes).toHaveLength(1);
     expect(nodes[0].id).toBe('api');
     expect(nodes[0].description).toContain('5 files');

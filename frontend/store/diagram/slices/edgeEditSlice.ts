@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Connection, Edge } from 'reactflow';
+
 import type { DiagramState } from '../types';
 import { distributeTargetHandles } from '../helpers/edgeHelpers';
 

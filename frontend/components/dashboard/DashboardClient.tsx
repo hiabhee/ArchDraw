@@ -2,15 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import {
-  Sparkles,
-  Plus,
-  FolderOpen,
-  ChevronRight,
-  GraduationCap,
-  BookOpen,
-  ArrowRight,
-} from 'lucide-react';
+import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { analytics } from '@/lib/analytics';
@@ -38,7 +30,7 @@ interface QuotaData {
   };
 }
 
-export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) {
+export function DashboardClient(_props: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
@@ -152,13 +144,11 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 max-w-[1280px] mx-auto">
 
-
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
-        
+
         {/* LEFT COLUMN: Metrics, Chart, and Projects */}
         <div className="space-y-6">
-
 
           {/* Projects List */}
           <div className="border border-border-default rounded-xl p-5 bg-surface-panel shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
@@ -166,7 +156,7 @@ export function DashboardClient({ templates, aiPrompts }: DashboardClientProps) 
               <h3 className="text-sm font-semibold text-text-primary">
                 {searchQuery ? 'Matching Diagrams' : 'Recent Diagrams'}
               </h3>
-              <button 
+              <button
                 onClick={() => router.push('/editor')}
                 className="text-xs font-semibold text-brand-text hover:text-brand-hover flex items-center gap-0.5 transition-colors cursor-pointer"
               >

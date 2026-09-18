@@ -1,4 +1,4 @@
-import type { ProgressEvent, ProgressCallback } from './ProgressEvent';
+import type { ProgressCallback } from './ProgressEvent';
 import { createProgressEvent } from './ProgressEvent';
 
 export class ProgressTracker {

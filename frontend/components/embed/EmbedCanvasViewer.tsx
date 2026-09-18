@@ -28,17 +28,17 @@ interface EmbedCanvasProps {
   pathType?: 'smooth' | 'step' | 'straight' | 'bezier';
 }
 
-function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls = true, pathType = 'smooth' }: EmbedCanvasProps) {
+function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls = true, pathType: _pathType = 'smooth' }: EmbedCanvasProps) {
   const { fitView } = useReactFlow();
   const isDark = theme === 'dark';
-  
+
   const backgroundColor = isDark ? '#0f172a' : '#ffffff';
   const gridColor = isDark ? '#475569' : '#64748b';
   const gridOpacity = isDark ? 0.6 : 0.4;
   const controlBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
   const controlBorder = isDark ? 'rgba(51, 65, 85, 0.6)' : 'rgba(226, 232, 240, 0.8)';
-  
-  const pathTypeConfig: Record<string, { borderRadius?: number }> = useMemo(() => ({
+
+  const _pathTypeConfig: Record<string, { borderRadius?: number }> = useMemo(() => ({
     smooth: { borderRadius: 24 },
     bezier: {},
     step: { borderRadius: 0 },

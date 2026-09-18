@@ -6,7 +6,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 export type Theme = 'dark' | 'light';
 
 export function useTheme() {
-  const { theme, setTheme, resolvedTheme } = useNextTheme();
+  const { setTheme, resolvedTheme } = useNextTheme();
   const darkMode = useDiagramStore((s) => s.darkMode);
   const isDark = resolvedTheme === 'dark';
 

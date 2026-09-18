@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { randomUUID } from 'crypto';
+
 import Groq from 'groq-sdk';
 import logger from '@/lib/logger';
-import { DEFAULT_GENERATION_MODEL, MODELS, type AIProvider, getCheaperModel, getRecommendedMaxTokens } from '@/lib/ai/models';
+import { DEFAULT_GENERATION_MODEL, MODELS, type AIProvider, getCheaperModel } from '@/lib/ai/models';
 
 // Ambient request ID for LLM call counting — no signature changes needed downstream
 // Two counters:
@@ -67,7 +67,7 @@ class ApiKeyManager {
   initializeKeys(): void {
     this.groqKeys = [];
     this.openrouterKeys = [];
-    
+
     // Load Groq keys
     const groqKeyEnvVars = [
       'GROQ_API_KEY_FOR_DESC_1',
@@ -153,11 +153,11 @@ class ApiKeyManager {
   private getAvailableKey(provider: AIProvider): { key: string; index: number } | null {
     const keys = provider === 'groq' ? this.groqKeys : this.openrouterKeys;
     const currentIndex = provider === 'groq' ? this.currentGroqIndex : this.currentOpenrouterIndex;
-    
+
     if (keys.length === 0) return null;
 
     const now = Date.now();
-    
+
     for (let attempt = 0; attempt < keys.length; attempt++) {
       const index = (currentIndex + attempt) % keys.length;
       const keyState = keys[index];
@@ -253,14 +253,14 @@ class ApiKeyManager {
         return result;
       } catch (error: unknown) {
         this.releaseKey('openrouter', keyInfo.index);
-        
+
         const err = error as { status?: number; code?: string; message?: string };
         const status = err.status;
         const errorMessage = err.message || '';
-        
+
         logger.log(`[ApiKeyManager] OpenRouter key ${keyInfo.index + 1} error: ${errorMessage}`);
 
-        const isRateLimit = status === 429 || 
+        const isRateLimit = status === 429 ||
           errorMessage.includes('rate limit') ||
           errorMessage.includes('Too many requests');
 
@@ -314,14 +314,14 @@ class ApiKeyManager {
         return result;
       } catch (error: unknown) {
         this.releaseKey(provider, keyInfo.index);
-        
+
         const err = error as { status?: number; code?: string; message?: string };
         const status = err.status;
         const errorMessage = err.message || '';
-        
+
         logger.log(`[ApiKeyManager] ${provider} key ${keyInfo.index + 1} error: ${errorMessage}`);
 
-        const isRateLimit = status === 429 || 
+        const isRateLimit = status === 429 ||
           errorMessage.includes('rate limit') ||
           errorMessage.includes('tokens per day') ||
           errorMessage.includes('tokens per minute') ||
@@ -354,15 +354,15 @@ class ApiKeyManager {
   ): Promise<T> {
     const maxRetries = options?.maxRetries ?? 3;
     const timeoutMs = options?.timeoutMs ?? 60_000;
-    
+
     // Count one logical call per executeWithRetry entry (pipeline depth)
     const store = requestContext.getStore();
     if (store) store.logicalCalls++;
-    
+
     // Strategy: 1. Try Groq keys in a fixed fallback order (skipping
     // rate-limited keys), rotating round-robin only when ROUND_ROBIN_GROQ_KEYS
     // is enabled. 2. Fall back to OpenRouter only after all Groq keys fail.
-    
+
     let lastError: Error | null = null;
     const keyCount = this.groqKeys.length;
     if (keyCount === 0) {
@@ -381,7 +381,7 @@ class ApiKeyManager {
       const keyState = this.groqKeys[keyIndex];
       const keyNumber = keyIndex + 1;
       lastError = null; // Reset per key so stale errors don't mask actual failure
-      
+
       // Skip rate-limited keys
       if (keyState.isRateLimited) {
         const timeSinceLastUse = Date.now() - keyState.lastUsed;
@@ -390,7 +390,7 @@ class ApiKeyManager {
         }
         keyState.isRateLimited = false;
       }
-      
+
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         if (options?.signal?.aborted) {
           throw options.signal.reason ?? new Error('AI request aborted');
@@ -434,19 +434,19 @@ class ApiKeyManager {
         } catch (error: unknown) {
           const err = error as { status?: number; message?: string };
           lastError = new Error(err.message || 'Unknown error');
-          
+
           // Fail fast on request-level errors no key rotation can fix
           if (err.status === 400 || err.status === 402 || err.status === 422) {
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} unrecoverable error ${err.status}: ${err.message} — aborting key rotation`);
             throw lastError;
           }
-          
+
           // Don't retry on auth errors
           if (err.status === 401 || err.status === 403) {
             logger.log(`[ApiKeyManager] Groq key ${keyNumber} auth failed, skipping...`);
             break;
           }
-          
+
           // 413 = TPM (tokens per minute) exhausted. Always rotate to the next
           // key — even when all keys share the same org, trying the next key
           // may succeed if the TPM window has rolled or the key is on a
@@ -461,7 +461,7 @@ class ApiKeyManager {
             await this.delay(2000);
             break; // try next key
           }
-          
+
           // Rate limit — back off then try next key
           if (err.status === 429 || (err.message || '').includes('rate limit')) {
             keyState.consecutiveErrors++;
@@ -485,7 +485,7 @@ class ApiKeyManager {
         }
       }
     }
-    
+
     // Step 2: Fallback to OpenRouter if all Groq keys failed
     if (!options?.disableOpenRouterFallback && this.openrouterKeys.length > 0) {
       try {
@@ -498,7 +498,7 @@ class ApiKeyManager {
         logger.log(`[ApiKeyManager] OpenRouter also failed: ${(openrouterError as Error).message}`);
       }
     }
-    
+
     throw lastError || new Error('All API keys exhausted');
   }
 
@@ -506,10 +506,10 @@ class ApiKeyManager {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  getStats(): { 
-    total: number; 
-    available: number; 
-    inUse: number; 
+  getStats(): {
+    total: number;
+    available: number;
+    inUse: number;
     rateLimited: number;
     groqKeys: number;
     openrouterKeys: number;
@@ -547,8 +547,8 @@ export class OpenRouterClient {
         temperature?: number;
         max_tokens?: number;
         stream?: boolean;
-      }) => Promise<{ 
-        choices: { message: { content: string } }[] 
+      }) => Promise<{
+        choices: { message: { content: string } }[]
       }>;
     };
   };
@@ -572,7 +572,7 @@ export class OpenRouterClient {
   constructor(apiKey: string, model?: string) {
     this.apiKey = apiKey;
     this.model = OpenRouterClient.mapModel(model) || DEFAULT_GENERATION_MODEL;
-    
+
     this.chat = {
       completions: {
         create: this.createCompletion.bind(this),
@@ -586,24 +586,24 @@ export class OpenRouterClient {
     temperature?: number;
     max_tokens?: number;
     stream?: boolean;
-  }): Promise<{ 
-    choices: { message: { content: string } }[] 
+  }): Promise<{
+    choices: { message: { content: string } }[]
   }> {
     const targetModel = OpenRouterClient.mapModel(options.model) || this.model;
     const requestedMaxTokens = options.max_tokens ?? 4096;
-    
+
     // First attempt with requested model and tokens
     const result = await this.attemptCompletion(targetModel, options, requestedMaxTokens);
-    
+
     // If successful, return
     if (result.success) {
       return result.data!;
     }
-    
+
     // If 402 error (insufficient credits), try cheaper alternatives
     if (result.status === 402 && result.affordableTokens) {
       logger.log(`[OpenRouterClient] Insufficient credits for ${requestedMaxTokens} tokens (can afford ${result.affordableTokens})`);
-      
+
       // Strategy 1: Try with reduced tokens on the same model
       if (result.affordableTokens >= 1024) {
         logger.log(`[OpenRouterClient] Retrying with reduced tokens: ${result.affordableTokens}`);
@@ -613,7 +613,7 @@ export class OpenRouterClient {
           return retryResult.data!;
         }
       }
-      
+
       // Strategy 2: Try a cheaper model with original token count
       const cheaperModel = getCheaperModel(targetModel);
       if (cheaperModel && cheaperModel !== targetModel) {
@@ -623,7 +623,7 @@ export class OpenRouterClient {
           logger.log(`[OpenRouterClient] Success with cheaper model: ${cheaperModel}`);
           return cheaperResult.data!;
         }
-        
+
         // Strategy 3: Cheaper model + reduced tokens
         if (result.affordableTokens >= 1024) {
           logger.log(`[OpenRouterClient] Trying cheaper model with reduced tokens`);
@@ -635,7 +635,7 @@ export class OpenRouterClient {
         }
       }
     }
-    
+
     // All strategies failed, throw the original error
     throw result.error!;
   }
@@ -648,8 +648,8 @@ export class OpenRouterClient {
       stream?: boolean;
     },
     maxTokens: number
-  ): Promise<{ 
-    success: boolean; 
+  ): Promise<{
+    success: boolean;
     data?: { choices: { message: { content: string } }[] };
     status?: number;
     affordableTokens?: number;
@@ -657,7 +657,7 @@ export class OpenRouterClient {
   }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
-    
+
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -680,7 +680,7 @@ export class OpenRouterClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        
+
         // Parse 402 error to extract affordable token count
         let affordableTokens: number | undefined;
         if (response.status === 402) {
@@ -689,10 +689,10 @@ export class OpenRouterClient {
             affordableTokens = parseInt(match[1], 10);
           }
         }
-        
+
         const error = new Error(`OpenRouter API error: ${response.status} - ${errorText}`) as Error & { status?: number };
         error.status = response.status;
-        
+
         return {
           success: false,
           status: response.status,
@@ -703,7 +703,7 @@ export class OpenRouterClient {
 
       const data = await response.json();
       return { success: true, data };
-      
+
     } catch (error) {
       clearTimeout(timeout);
       if ((error as Error).name === 'AbortError') {

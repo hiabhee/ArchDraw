@@ -46,7 +46,6 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProcessedRef = useRef<string>('');
 
-
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
   const mermaidDirection = activeLayoutPresetId === 'layered-lr' ? 'LR' : 'TD';
 
@@ -66,7 +65,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       setCopied(true);
       toast.success('Mermaid code copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Failed to copy code');
     }
   };
@@ -198,13 +197,13 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
 
           // Check if label or subtitle changed in editor
           const labelChanged = existingNode && (
-            node.data?.label !== existingNode.data?.label || 
+            node.data?.label !== existingNode.data?.label ||
             node.data?.subtitle !== existingNode.data?.subtitle
           );
 
           const width = (preserveNode && !labelChanged) ? (existingNode.width ?? node.width ?? 100) : (node.width ?? 100);
           const height = (preserveNode && !labelChanged) ? (existingNode.height ?? node.height ?? 60) : (node.height ?? 60);
-          const nodeStyle = (preserveNode && !labelChanged) 
+          const nodeStyle = (preserveNode && !labelChanged)
             ? (existingNode.style ? { ...existingNode.style } : (node.style ? { ...node.style } : undefined))
             : (node.style ? { ...node.style } : undefined);
 
@@ -212,7 +211,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
             id: node.id,
             type: isGroup ? 'groupNode' : (existingNode?.type || 'shapeNode'),
             position: directionChanged ? { ...node.position } : { x: absX, y: absY },
-            data: { 
+            data: {
               ...(existingNode?.data || {}),
               ...node.data
             },
@@ -275,7 +274,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
               node.position = { x: node.absX, y: node.absY };
             }
           });
-          
+
           subgraphs.forEach(subgraph => {
             const childIds = childIdsByParent.get(subgraph.id) || [];
             if (childIds.length === 0) {

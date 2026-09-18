@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
@@ -90,7 +91,27 @@ export function InteractiveDemo() {
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          {loadDemo ? <InteractiveLandingDemo /> : <DemoPlaceholder />}
+          <div className="relative isolate">
+            <div className="relative z-10">
+              {loadDemo ? <InteractiveLandingDemo /> : <DemoPlaceholder />}
+            </div>
+            <motion.div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-x-16 -inset-y-12 z-20 hidden lg:block"
+              initial={{ opacity: 0, scale: 0.97 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <Image
+                src="/demo-hands-frame.png"
+                alt=""
+                fill
+                sizes="(max-width: 1023px) 0px, min(100vw, 1528px)"
+                className="object-contain"
+              />
+            </motion.div>
+          </div>
         </motion.div>
       </div>
     </section>

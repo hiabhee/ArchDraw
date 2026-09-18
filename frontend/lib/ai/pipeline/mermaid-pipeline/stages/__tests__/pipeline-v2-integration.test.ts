@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Pipeline } from '@/lib/pipeline-core/Pipeline';
 import { successResult, errorResult } from '@/lib/pipeline-core/StageResult';
 import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';

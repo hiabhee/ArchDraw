@@ -2,25 +2,12 @@
 
 import { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import {
-  EdgeLabelRenderer,
-  EdgeProps,
-  useReactFlow,
-  useStore,
-  ReactFlowState,
-  Position,
-  Edge,
-} from 'reactflow';
+import { EdgeLabelRenderer, EdgeProps, useReactFlow, useStore, ReactFlowState, Position, Edge } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
-import {
-  getPointOnPath,
-  findClosestT,
-  shortenSvgPathEnd,
-  SKETCH_ARROWHEAD_TRIM_PX,
-} from '@/lib/utils/edgeLabelDrag';
+import { getPointOnPath, findClosestT, shortenSvgPathEnd, SKETCH_ARROWHEAD_TRIM_PX } from '@/lib/utils/edgeLabelDrag';
 import { buildSmoothStepSvg, trimWaypointsEnd } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
-import { sideFromDataString, getSharedTerminalEdges } from '@/lib/utils/simpleFloatingEdge';
+
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { useCanvasTheme } from '@/lib/theme';
@@ -74,12 +61,12 @@ export default function SimpleFloatingEdge({
   data,
   selected,
   style: edgeStyle,
-  sourceX = 0,
-  sourceY = 0,
-  targetX = 0,
-  targetY = 0,
-  sourcePosition = Position.Right,
-  targetPosition = Position.Left,
+  sourceX: _sourceX = 0,
+  sourceY: _sourceY = 0,
+  targetX: _targetX = 0,
+  targetY: _targetY = 0,
+  sourcePosition: _sourcePosition = Position.Right,
+  targetPosition: _targetPosition = Position.Left,
   sourceHandleId,
   targetHandleId,
   markerEnd,
@@ -96,9 +83,8 @@ export default function SimpleFloatingEdge({
   // Extract primitive data values for stable memoization
   const edgeVariant = data?.edgeVariant;
   const isBundle = data?.isBundle;
-  const edgeType = data?.edgeType;
   const isAsync = edgeVariant === 'dashed' || data?.async || data?.connectionType === 'async';
-  const customWaypoints = data?.customWaypoints as Array<{ x: number; y: number }> | undefined;
+  const _customWaypoints = data?.customWaypoints as Array<{ x: number; y: number }> | undefined;
   const responseLabel = data?.responseLabel;
   const isReturn = data?.isReturn || false;
   const bundledEdges = data?.bundledEdges;
@@ -124,8 +110,8 @@ export default function SimpleFloatingEdge({
   }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges, activeLayoutPresetId, renderStyleId]);
 
   const {
-    sourcePosition: sourcePos,
-    targetPosition: targetPos,
+    sourcePosition: _sourcePos,
+    targetPosition: _targetPos,
     sourcePoint: { x: sx, y: sy },
     targetPoint: { x: tx, y: ty },
     svgPath: edgePath,
@@ -299,7 +285,7 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, edgeType, isDenseBundle, data, sketch, sketchInk, brutal]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, isDenseBundle, data, sketch, sketchInk, brutal]);
 
   const resolvedStroke = typeof strokeStyle.stroke === 'string' ? strokeStyle.stroke : undefined;
   const arrowheadColor = resolvedStroke ?? '#94a3b8';
@@ -393,6 +379,15 @@ export default function SimpleFloatingEdge({
 
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
+    // Marketing previews intentionally value a balanced composition over the
+    // production canvas's collision-avoidance heuristics.
+    if (data?.labelPlacement === 'midpoint') {
+      try {
+        return getPointOnPath(stableEdgePath, 0.5);
+      } catch {
+        return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
+      }
+    }
     const resolved = labelLayouts.get(id);
     if (resolved) return { x: resolved.x, y: resolved.y, angle: 0 };
     try {
@@ -400,7 +395,7 @@ export default function SimpleFloatingEdge({
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayouts, id, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty]);
+  }, [labelLayouts, id, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill

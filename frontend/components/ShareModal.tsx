@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { analytics } from '@/lib/analytics';
-import { Link, Link2, Check, Copy, X, ChevronDown, Users, Globe, Lock, Mail } from 'lucide-react';
+import { Link, Link2, Check, X, ChevronDown, Users, Globe, Lock, Mail } from 'lucide-react';
 
 export interface SharePerson {
   id: string;
@@ -27,10 +27,10 @@ interface ShareModalProps {
   onCopyLink?: (url: string) => void;
 }
 
-export function ShareModal({ 
-  isOpen, 
-  onClose, 
-  shareUrl, 
+export function ShareModal({
+  isOpen,
+  onClose,
+  shareUrl,
   sessionId,
   initialPeople = [],
   accessType: initialAccessType,
@@ -79,10 +79,10 @@ export function ShareModal({
         event_type: 'sharing',
         event_name: 'share_link_copied',
         page_path: window.location.pathname,
-        payload: { 
+        payload: {
           access_mode: accessMode,
           link_permission: linkPerm,
-          session_id: sessionId 
+          session_id: sessionId
         }
       });
     }
@@ -122,7 +122,7 @@ export function ShareModal({
 
   const handleInvite = () => {
     if (!validateEmail(inviteEmail)) return;
-    
+
     const newPerson: SharePerson = {
       id: inviteEmail,
       name: inviteEmail.split('@')[0],
@@ -135,9 +135,9 @@ export function ShareModal({
         event_type: 'sharing',
         event_name: 'user_invited',
         page_path: window.location.pathname,
-        payload: { 
+        payload: {
           permission: invitePermission,
-          session_id: sessionId 
+          session_id: sessionId
         }
       });
     }
@@ -172,9 +172,9 @@ export function ShareModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/25 backdrop-blur-[2px]"
-        onClick={onClose} 
+        onClick={onClose}
       />
 
       {/* Modal */}
@@ -252,7 +252,7 @@ export function ShareModal({
                   </div>
                 )}
               </div>
-              
+
               <button
                 onClick={handleInvite}
                 disabled={!validateEmail(inviteEmail)}
@@ -268,7 +268,7 @@ export function ShareModal({
           {/* SECTION 2: GENERAL ACCESS */}
           <div className="space-y-3">
             <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-[0.08em]">General access</label>
-            
+
             <div className="space-y-2">
               {/* Restricted */}
               <button
@@ -280,9 +280,9 @@ export function ShareModal({
                       event_type: 'sharing',
                       event_name: 'access_mode_changed',
                       page_path: window.location.pathname,
-                      payload: { 
+                      payload: {
                         mode: 'restricted',
-                        session_id: sessionId 
+                        session_id: sessionId
                       }
                     });
                   }
@@ -306,7 +306,7 @@ export function ShareModal({
                 </div>
                 <Lock className="w-4 h-4 text-[#9CA3AF]" />
               </button>
-              
+
               {/* Link access */}
               <button
                 onClick={() => {
@@ -317,9 +317,9 @@ export function ShareModal({
                       event_type: 'sharing',
                       event_name: 'access_mode_changed',
                       page_path: window.location.pathname,
-                      payload: { 
+                      payload: {
                         mode: 'anyone_with_link',
-                        session_id: sessionId 
+                        session_id: sessionId
                       }
                     });
                   }
@@ -344,7 +344,7 @@ export function ShareModal({
                 <Globe className="w-4 h-4 text-[#9CA3AF]" />
               </button>
             </div>
-            
+
             {/* Link permission selector */}
             {accessMode === 'link' && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-3 sm:ml-[52px]">
@@ -406,7 +406,7 @@ export function ShareModal({
             <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-[0.08em]">
               People with access {people.length > 0 && `(${people.length})`}
             </label>
-            
+
             {people.length === 0 ? (
               <div className="text-center py-8">
                 <Users className="w-8 h-8 mx-auto mb-2 text-[#D1D5DB]" />
@@ -422,17 +422,20 @@ export function ShareModal({
                   >
                     {/* Avatar */}
                     {person.avatar ? (
-                      <img
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
                         src={person.avatar}
                         alt={person.name}
                         className="w-10 h-10 rounded-[9999px] object-cover border-2 border-white"
                       />
+                      </>
                     ) : (
                       <div className="w-10 h-10 rounded-[9999px] bg-[#F3F4F6] flex items-center justify-center text-[14px] font-medium text-[#6B7280]">
                         {getInitials(person.name)}
                       </div>
                     )}
-                    
+
                     {/* Name/Email */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[14px] font-medium text-[#111118] truncate">
@@ -440,7 +443,7 @@ export function ShareModal({
                       </p>
                       <p className="text-[13px] text-[#6B7280] truncate">{person.email}</p>
                     </div>
-                    
+
                     {/* Role */}
                     {person.role === 'owner' ? (
                       <div className="flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-[#DCFCE7]">
@@ -456,7 +459,7 @@ export function ShareModal({
                           {person.role}
                           <ChevronDown className="w-3 h-3" />
                         </button>
-                        
+
                         {showRoleDropdown === person.id && (
                           <div className="absolute right-0 mt-1 w-32 rounded-[10px] overflow-hidden z-10 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-[#E5E7EB]">
                             <button
@@ -481,7 +484,7 @@ export function ShareModal({
                         )}
                       </div>
                     )}
-                    
+
                     {/* Remove button (visible on hover; always visible on touch devices) */}
                     {person.role !== 'owner' && (
                       <button

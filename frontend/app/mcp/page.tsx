@@ -2,7 +2,6 @@ import Link from 'next/link';
 import type { ComponentType } from 'react';
 import { ArrowRight, Terminal, Cpu, Zap, Shield, GitBranch } from 'lucide-react';
 import { LandingNav } from '@/components/landing/LandingNav';
-import { Footer } from '@/components/landing/Footer';
 
 export const metadata = {
   title: 'What is an MCP server for diagramming?',

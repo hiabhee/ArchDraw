@@ -1,8 +1,6 @@
 /**
- * Mode-specific icon filtering for sketch vs precision rendering.
- * 
- * In sketch mode: prefer internal arch-* glyphs to match hand-drawn style
- * In precision mode: allow brand/provider icons when they add recognition
+ * Icon filtering so the canvas always uses the custom stroke glyph set
+ * instead of brand logos or vendor pictograms.
  */
 
 export type RenderStyleId = 'sketch' | 'precision' | 'neubrutalism';
@@ -136,56 +134,31 @@ const SKETCH_MODE_BRAND_TO_GLYPH: Record<string, string> = {
 export function filterIconForMode(
   iconName: string,
   technology: string | undefined,
-  renderStyle: RenderStyleId
+  _renderStyle: RenderStyleId
 ): string {
-  // Precision / neubrutalism mode: allow all icons as-is
-  if (renderStyle === 'precision' || renderStyle === 'neubrutalism') {
-    return iconName;
-  }
-  
-  // Sketch mode: prefer internal glyphs over brand logos
-  
-  // Already an arch-* glyph: keep it
   if (iconName.startsWith('arch-')) {
     return iconName;
   }
-  
-  // AWS/Azure provider icons: keep them (they're already role-appropriate SVG glyphs)
-  if (iconName.startsWith('aws-') || iconName.startsWith('azure-')) {
-    return iconName;
-  }
-  
-  // Technology brands: replace with role-appropriate glyph in sketch mode
+
   if (technology && SKETCH_MODE_BRAND_TO_GLYPH[technology]) {
     return SKETCH_MODE_BRAND_TO_GLYPH[technology];
   }
-  
-  // If iconName is itself a technology slug (e.g., 'mongodb', 'redis'), replace it
+
   if (SKETCH_MODE_BRAND_TO_GLYPH[iconName]) {
     return SKETCH_MODE_BRAND_TO_GLYPH[iconName];
   }
-  
-  // Lucide icons: keep them (they're generic enough)
-  // Simple Icons brand logos that aren't in our mapping: keep them in sketch mode
-  // (This handles edge cases where a brand is actually useful for recognition)
-  
+
   return iconName;
 }
 
 /**
- * Check if a technology should bypass brand logo rendering in sketch mode.
- * Used by TechnologyBrandIcon component to determine whether to render.
+ * Brand logos are never drawn on the canvas; role glyphs are used instead.
  */
 export function shouldUseBrandLogoInMode(
-  technology: string,
-  renderStyle: RenderStyleId
+  _technology: string,
+  _renderStyle: RenderStyleId
 ): boolean {
-  if (renderStyle === 'precision' || renderStyle === 'neubrutalism') {
-    return true;
-  }
-  
-  // In sketch mode, only use brand logos for technologies NOT in our replacement map
-  return !SKETCH_MODE_BRAND_TO_GLYPH[technology];
+  return false;
 }
 
 /**

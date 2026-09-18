@@ -85,9 +85,65 @@ export const LUCIDE_TO_ARCH_ICON: Record<string, string> = {
   CalendarClock: 'arch-scheduler',
 };
 
+/** Official AWS keys → role glyphs so diagrams stay on one stroke language. */
+export const AWS_TO_ARCH_ICON: Record<string, string> = {
+  'aws-ec2': 'arch-vm',
+  'aws-lambda': 'arch-function',
+  'aws-ecs': 'arch-docker',
+  'aws-eks': 'arch-kubernetes',
+  'aws-fargate': 'arch-docker',
+  'aws-beanstalk': 'arch-service',
+  'aws-s3': 'arch-storage',
+  'aws-ebs': 'arch-storage',
+  'aws-efs': 'arch-file',
+  'aws-glacier': 'arch-backup',
+  'aws-rds': 'arch-database',
+  'aws-dynamodb': 'arch-key-value',
+  'aws-elasticache': 'arch-cache',
+  'aws-aurora': 'arch-database',
+  'aws-redshift': 'arch-warehouse',
+  'aws-documentdb': 'arch-document-db',
+  'aws-api-gateway': 'arch-api-gateway',
+  'aws-cloudfront': 'arch-cdn',
+  'aws-route53': 'arch-dns',
+  'aws-vpc': 'arch-router',
+  'aws-elb': 'arch-load-balancer',
+  'aws-alb': 'arch-load-balancer',
+  'aws-sqs': 'arch-message-queue',
+  'aws-sns': 'arch-notification',
+  'aws-eventbridge': 'arch-event-stream',
+  'aws-kinesis': 'arch-event-stream',
+  'aws-msk': 'arch-broker',
+  'aws-opensearch': 'arch-search',
+  'aws-cloudwatch': 'arch-metrics',
+  'aws-cloudtrail': 'arch-logs',
+  'aws-shield': 'arch-firewall',
+  'aws-sagemaker': 'arch-ai',
+};
+
 export function normalizeArchIconName(iconName?: string | null): string | undefined {
   if (!iconName?.trim()) return undefined;
   const trimmed = iconName.trim();
   if (trimmed.startsWith('arch-') || trimmed.startsWith('aws-')) return trimmed;
   return LUCIDE_TO_ARCH_ICON[trimmed] ?? trimmed;
+}
+
+/** Icon actually drawn on the canvas (always an `arch-*` glyph when possible). */
+export function toCanvasArchIcon(iconName?: string | null): string | undefined {
+  const normalized = normalizeArchIconName(iconName);
+  if (!normalized) return undefined;
+  if (normalized.startsWith('arch-')) return normalized;
+  if (AWS_TO_ARCH_ICON[normalized]) return AWS_TO_ARCH_ICON[normalized];
+  if (normalized.startsWith('azure-')) {
+    if (/sql|cosmos|db|postgres|mysql/i.test(normalized)) return 'arch-database';
+    if (/blob|storage|disk/i.test(normalized)) return 'arch-storage';
+    if (/func|function/i.test(normalized)) return 'arch-function';
+    if (/aks|kube/i.test(normalized)) return 'arch-kubernetes';
+    if (/queue|servicebus|eventhub/i.test(normalized)) return 'arch-message-queue';
+    if (/redis|cache/i.test(normalized)) return 'arch-cache';
+    if (/cdn|front-?door/i.test(normalized)) return 'arch-cdn';
+    if (/app.?gw|gateway|apim/i.test(normalized)) return 'arch-api-gateway';
+    return 'arch-service';
+  }
+  return LUCIDE_TO_ARCH_ICON[normalized] ?? normalized;
 }

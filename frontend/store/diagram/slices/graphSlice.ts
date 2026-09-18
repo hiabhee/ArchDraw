@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Connection, Edge, Node } from 'reactflow';
+import type { Edge, Node } from 'reactflow';
 import { addEdge, applyNodeChanges, applyEdgeChanges } from 'reactflow';
 import { toast } from 'sonner';
 import { runClarityCompiler } from '@/lib/features/clarityCompiler';
@@ -327,7 +327,7 @@ export const createGraphSlice: StateCreator<
         const label = node.data?.label || '';
         const subtitle = node.data?.subtitle || '';
         const newDimensions = calculateNodeDimensions(label, subtitle, { shape: data.shape });
-        
+
         // Update both data and dimensions
         const nodes = get().nodes.map((n) =>
           n.id === id
@@ -348,7 +348,7 @@ export const createGraphSlice: StateCreator<
         return;
       }
     }
-    
+
     // Normal path for non-shape updates
     const nodes = get().nodes.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, ...data } } : n

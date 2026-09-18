@@ -1,7 +1,7 @@
 import { Pipeline, toDomainResult } from '@/lib/pipeline-core';
 import type { DomainPipelineResult } from '@/lib/pipeline-core';
 import type { UserIntent, LayerType, ArchitectureEdge } from '../../types';
-import type { ArchitectureStyle, DiagramScore, PipelineDiagnostics } from '../types';
+import type { DiagramScore, PipelineDiagnostics } from '../types';
 import type { PipelineResult, PipelineState } from './types';
 import { assertCompletedAiPipelineData, type AiPipelineData } from './aiPipelineTypes';
 import { createAiMermaidStages } from './createAiMermaidStages';

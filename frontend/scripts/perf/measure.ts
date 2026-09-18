@@ -7,7 +7,7 @@
  */
 
 import { performance } from 'node:perf_hooks';
-import { execSync, spawn } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -18,6 +18,18 @@ import type { EndpointConfig } from './config.js';
 const here = dirname(fileURLToPath(import.meta.url));
 export const frontendDir = resolve(here, '..', '..');
 export const nextDir = join(frontendDir, '.next');
+
+function unknownErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
+function spawnFailure(e: unknown): { status?: number; stderr?: { toString(): string }; message?: string } {
+  if (typeof e === 'object' && e !== null) {
+    return e as { status?: number; stderr?: { toString(): string }; message?: string };
+  }
+  return { message: String(e) };
+}
 
 // ---------- build ----------
 
@@ -40,10 +52,11 @@ export async function measureBuildTime(skipBuild = false): Promise<BuildMeasure 
     });
     const durationMs = Math.round(performance.now() - start);
     return { durationMs, exitCode: 0 };
-  } catch (e: any) {
+  } catch (e: unknown) {
     const durationMs = Math.round(performance.now() - start);
-    const stderr = (e.stderr?.toString() ?? e.message ?? '').slice(-2000);
-    return { durationMs, exitCode: e.status ?? 1, stderrTail: stderr };
+    const fail = spawnFailure(e);
+    const stderr = (fail.stderr?.toString() ?? fail.message ?? '').slice(-2000);
+    return { durationMs, exitCode: fail.status ?? 1, stderrTail: stderr };
   }
 }
 
@@ -201,9 +214,9 @@ export async function measureEndpoint(
       const buf = await res.arrayBuffer().catch(() => new ArrayBuffer(0));
       const totalMs = Math.round(performance.now() - start);
       samples.push({ status: res.status, ttfbMs, totalMs, bytes: buf.byteLength });
-    } catch (e: any) {
+    } catch (e: unknown) {
       const totalMs = Math.round(performance.now() - start);
-      samples.push({ status: 0, ttfbMs: ttfbMs || totalMs, totalMs, bytes: 0, error: e?.message ?? String(e) });
+      samples.push({ status: 0, ttfbMs: ttfbMs || totalMs, totalMs, bytes: 0, error: unknownErrorMessage(e) });
     } finally {
       clearTimeout(t);
     }
@@ -308,9 +321,9 @@ export async function measurePage(baseUrl: string, path: string, name: string, t
     const linkTagCount = (text.match(/<link\b/g) || []).length;
     const hasNextFont = text.includes('next/font') || text.includes('__next_font') || text.includes('Geist');
     return { name, path, status: res.status, ttfbMs, totalMs, htmlBytes, gzipBytes, scriptTagCount, linkTagCount, hasNextFont };
-  } catch (e: any) {
+  } catch (e: unknown) {
     const totalMs = Math.round(performance.now() - start);
-    return { name, path, status: 0, ttfbMs: totalMs, totalMs, htmlBytes: 0, gzipBytes: 0, scriptTagCount: 0, linkTagCount: 0, hasNextFont: false, error: e?.message ?? String(e) };
+    return { name, path, status: 0, ttfbMs: totalMs, totalMs, htmlBytes: 0, gzipBytes: 0, scriptTagCount: 0, linkTagCount: 0, hasNextFont: false, error: unknownErrorMessage(e) };
   } finally { clearTimeout(t); }
 }
 
@@ -360,4 +373,16 @@ export function quickStaticLint(): StaticLint {
     }
   }
   return { outlineNoneWithoutReplacement: outlineNone, transitionAll, hardcodedHexTokens: hexCount, imgWithoutDimensions: imgNoDims, iconButtonMissingAriaLabelEstimate: iconNoLabel };
+}
+
+export interface PerfSnapshot {
+  date?: string;
+  endpoints?: EndpointStats[];
+  pages?: PageMeasure[];
+  bundle?: {
+    totalStaticGzip: number;
+    firstLoadApproxGzip: number;
+    chunkCount?: number;
+  };
+  build?: { durationMs: number };
 }

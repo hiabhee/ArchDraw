@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { generateDiagramFromRepo, GenerationServiceError } from '../generationService';
+import { generateDiagramFromRepo } from '../generationService';
 import type { GenerationProgress } from '@/lib/ai/types';
 
 const NDJSON = [

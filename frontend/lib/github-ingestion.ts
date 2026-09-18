@@ -3,22 +3,7 @@ import { parseGitHubUrl as sharedParseGitHubUrl } from '@/lib/utils/githubUrl';
 import logger from '@/lib/logger';
 import { fetchRepoArchive } from './repo-diagram/tarball-ingestion';
 import { parse as parseYaml } from 'yaml';
-import {
-  isSkipped,
-  MAX_FILE_SIZE_BYTES,
-  BINARY_RE,
-  SKIPPED_DIRECTORIES,
-  ConfigSkipReason,
-  MAX_ARCHIVE_CONTENT_LENGTH_BYTES,
-  MAX_TOTAL_EXTRACTED_BYTES,
-  MAX_PER_FILE_BYTES,
-  DEFAULT_FILE_BUDGET,
-  DEFAULT_CONTENT_BUDGET_KB,
-  MAX_README_FILES,
-  MAX_META_FILES,
-  MAX_META_CONTENT_BYTES,
-  isArchitectureMetaFile,
-} from './repo-diagram/skip-rules';
+import { isSkipped, MAX_PER_FILE_BYTES, DEFAULT_FILE_BUDGET, DEFAULT_CONTENT_BUDGET_KB, MAX_README_FILES, MAX_META_FILES, MAX_META_CONTENT_BYTES, isArchitectureMetaFile } from './repo-diagram/skip-rules';
 // Re-export for backwards compatibility (tests importing from github-ingestion)
 export { isSkipped } from './repo-diagram/skip-rules';
 

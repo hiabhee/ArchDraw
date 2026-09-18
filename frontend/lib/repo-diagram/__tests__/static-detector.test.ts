@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildStaticDetectionReport, formatDetectionReport } from '../static-detector';
-import { extractStaticSignals } from '../static-analyzer';
-import type { RepoSnapshot, FileEntry, Subsystem, StaticSignal } from '@/lib/types/repo-diagram';
+
+import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/types/repo-diagram';
 
 const emptySubsystems: Subsystem[] = [];
 

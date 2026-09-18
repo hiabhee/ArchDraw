@@ -9,9 +9,10 @@ export function FeaturedProof() {
       <div className={styles.shell}>
         <div className={styles.featuredPanel}>
           <div>
-            <h2 id="featured-proof-heading">The same pipeline, on a real repository.</h2>
+            <p className={styles.proofKicker}>From source to shared understanding</p>
+            <h2 id="featured-proof-heading">A repository becomes a visual system.</h2>
             <p>
-              ArchDraw maps its own GitHub tree: Next.js canvas, Groq generation path, local MCP server, Dagre layout. Paste the URL. Edit the result.
+              Bring a repository, a Mermaid graph, or a rough idea. ArchDraw turns the parts and relationships into a canvas your team can inspect, refine, and share.
             </p>
             <Link
               className={styles.primaryAction}
@@ -23,16 +24,16 @@ export function FeaturedProof() {
           </div>
           <dl>
             <div>
-              <dt>Input</dt>
-              <dd>github.com/hiabhee/ArchDraw</dd>
+              <dt>Start with</dt>
+              <dd>A repository, a prompt, or Mermaid</dd>
             </div>
             <div>
-              <dt>What it reads</dt>
-              <dd>README, package manifests, app routes, MCP tools</dd>
+              <dt>It reveals</dt>
+              <dd>Boundaries, services, and relationships</dd>
             </div>
             <div>
-              <dt>What you get</dt>
-              <dd>An editable canvas, not a static PNG</dd>
+              <dt>You shape</dt>
+              <dd>An editable canvas—not a static PNG</dd>
             </div>
           </dl>
         </div>

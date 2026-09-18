@@ -1,15 +1,16 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Documentation — User Guide & API Reference',
+  title: 'ArchDraw Documentation | Architecture Diagram Guides',
   description:
-    'ArchDraw documentation: getting started, node types, diagram types, MCP server setup, prompt guide, API reference, and keyboard shortcuts.',
+    'Guides for generating, editing, arranging, and sharing architecture diagrams with ArchDraw.',
   keywords: [
-    'ArchDraw docs',
+    'ArchDraw documentation',
     'architecture diagram tool documentation',
     'MCP server guide',
     'system design tool guide',
   ],
+  alternates: { canonical: 'https://archdraw.hiabhee.online/docs' },
   openGraph: {
     type: 'website',
     url: 'https://archdraw.hiabhee.online/docs',

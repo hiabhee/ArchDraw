@@ -1,6 +1,6 @@
 'use client';
 
-import { useReactFlow, useStore, type ReactFlowState } from 'reactflow';
+import { useReactFlow, useStore, type ReactFlowState, type Node } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
@@ -13,28 +13,27 @@ function flowToScreen(pos: number, vpOffset: number, zoom: number): number {
   return pos * zoom + vpOffset;
 }
 
+type GuideNode = Node & {
+  positionAbsolute?: { x: number; y: number };
+  parentId?: string;
+  parentNode?: string;
+};
+
 /** Collect expanded node rects in flow coordinates (absolute). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getExpandedNodeRects(nodes: Map<string, any>): Array<{ x: number; y: number; w: number; h: number }> {
+function getExpandedNodeRects(nodes: Map<string, GuideNode>): Array<{ x: number; y: number; w: number; h: number }> {
   const rects: Array<{ x: number; y: number; w: number; h: number }> = [];
   for (const n of nodes.values()) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pos = (n as any).positionAbsolute ?? (n as any).position ?? { x: 0, y: 0 };
+    const pos = n.positionAbsolute ?? n.position ?? { x: 0, y: 0 };
     let ax = pos.x ?? 0;
     let ay = pos.y ?? 0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!(n as any).positionAbsolute && (n as any).parentId) {
+    if (!n.positionAbsolute && n.parentId) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const all = useDiagramStore.getState().nodes as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const map = new Map(all.map((m: any) => [m.id, m]));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let cur: any = n as any;
+        const all = useDiagramStore.getState().nodes as GuideNode[];
+        const map = new Map(all.map((m) => [m.id, m]));
+        let cur: GuideNode | undefined = n;
         while (cur?.parentId || cur?.parentNode) {
-          const pid = cur.parentId || cur.parentNode;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const p: any = map.get(pid);
+          const pid: string | undefined = cur.parentId || cur.parentNode;
+          const p: GuideNode | undefined = pid ? map.get(pid) : undefined;
           if (!p) break;
           ax += p.position?.x ?? 0;
           ay += p.position?.y ?? 0;
@@ -42,8 +41,7 @@ function getExpandedNodeRects(nodes: Map<string, any>): Array<{ x: number; y: nu
         }
       } catch {}
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { width, height } = getEffectiveNodeDimensions(n as any);
+    const { width, height } = getEffectiveNodeDimensions(n);
     rects.push({
       x: ax - GUIDE_NODE_CLEARANCE,
       y: ay - GUIDE_NODE_CLEARANCE,
@@ -79,8 +77,7 @@ function mergeIntervals(intervals: Array<[number, number]>): Array<[number, numb
 export function GuideLines() {
   const guideLines = useDiagramStore((s) => s.guideLines);
   const { getViewport } = useReactFlow();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const nodeInternals = useStore((s: ReactFlowState) => (s as unknown as { nodeInternals: Map<string, any> }).nodeInternals as Map<string, any>);
+  const nodeInternals = useStore((s: ReactFlowState) => (s as unknown as { nodeInternals: Map<string, GuideNode> }).nodeInternals);
 
   if (guideLines.length === 0) return null;
 
@@ -94,8 +91,7 @@ export function GuideLines() {
 
   const expandedRects =
     nodeInternals && nodeInternals.size > 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? getExpandedNodeRects(nodeInternals as unknown as Map<string, any>)
+      ? getExpandedNodeRects(nodeInternals as unknown as Map<string, GuideNode>)
       : [];
 
   return (

@@ -21,7 +21,7 @@ async function main() {
     const start = performance.now();
     const result = live ? await runAiMermaidPipelineV2({ description: test.prompt, systemType: 'architecture', complexity: 'medium', diagramSize: test.existingContext ? 'large' : 'medium', detailLevel: test.existingContext ? 3 : 2, model: model === 'default' ? undefined : model, existingContext: test.existingContext }) : await runMermaidPipeline(test.mermaid);
     if (!result.success) { rows.push({ id: test.id, model, passed: false, error: String(result.error) }); continue; }
-    rows.push({ id: test.id, model, durationMs: Math.round(performance.now() - start), ...evaluateDiagram(test, result.data.nodes as any, result.data.edges as any) });
+    rows.push({ id: test.id, model, durationMs: Math.round(performance.now() - start), ...evaluateDiagram(test, result.data.nodes as import('../../../lib/mermaid/types').RFNode[], result.data.edges as import('../../../lib/mermaid/types').RFEdge[]) });
   }
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify({ mode: live ? 'live' : 'fixtures', createdAt: new Date().toISOString(), rows }, null, 2));

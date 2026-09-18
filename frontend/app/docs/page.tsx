@@ -1,432 +1,156 @@
-'use client';
-
-import React, { useState } from 'react';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { BookOpen, GitBranch, LayoutPanelTop, Sparkles, Terminal } from 'lucide-react';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
-import { 
-  Play, Layers, Cpu, Terminal, Shield, Database, Keyboard, HelpCircle, Info, AlertTriangle
-} from 'lucide-react';
 
-type SectionID = 'getting-started' | 'node-types' | 'diagram-types' | 'mcp-server' | 'prompt-guide' | 'api-ref' | 'shortcuts' | 'faq';
-
-interface SidebarItem {
-  id: SectionID;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
+const DOC_GROUPS = [
+  {
+    label: 'Get started',
+    links: [
+      { href: '#overview', label: 'Overview', current: true },
+      { href: '#generate', label: 'Generate a diagram' },
+      { href: '#repository', label: 'Map a repository' },
+    ],
+  },
+  {
+    label: 'Build on the canvas',
+    links: [
+      { href: '#canvas', label: 'Nodes, edges & groups' },
+      { href: '#layout', label: 'Layout & direction' },
+      { href: '#mermaid', label: 'Mermaid round-trip' },
+    ],
+  },
+  {
+    label: 'Integrate',
+    links: [
+      { href: '#mcp', label: 'MCP server' },
+      { href: '#export', label: 'Share & export' },
+      { href: '#faq', label: 'FAQ' },
+    ],
+  },
+] as const;
 
 const DOC_JSON_LD = {
   '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'TechArticle',
-      '@id': 'https://archdraw.hiabhee.online/docs#article',
-      headline: 'ArchDraw Documentation',
-      description: 'Getting started, node types, diagram types, MCP server setup, prompt guide, API reference, keyboard shortcuts, FAQ.',
-      url: 'https://archdraw.hiabhee.online/docs',
-      publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
-      inLanguage: 'en-US',
-      articleSection: 'Documentation',
-    },
-    {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://archdraw.hiabhee.online/' },
-        { '@type': 'ListItem', position: 2, name: 'Documentation', item: 'https://archdraw.hiabhee.online/docs' },
-      ],
-    },
-  ],
+  '@type': 'TechArticle',
+  headline: 'ArchDraw Documentation',
+  description: 'Guides for generating, editing, laying out, exporting, and automating architecture diagrams with ArchDraw.',
+  url: 'https://archdraw.hiabhee.online/docs',
+  inLanguage: 'en-US',
+  articleSection: 'Documentation',
 };
 
+function DocIcon({ children }: { children: ReactNode }) {
+  return <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#dfe4df] bg-white text-[#1686f5]">{children}</span>;
+}
+
 export default function DocsPage() {
-  const [activeSection, setActiveSection] = useState<SectionID>('getting-started');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const sidebarItems: SidebarItem[] = [
-    { id: 'getting-started', label: 'Getting Started', icon: Play },
-    { id: 'node-types', label: 'Node Types', icon: Layers },
-    { id: 'diagram-types', label: 'Diagram Types', icon: Cpu },
-    { id: 'mcp-server', label: 'MCP Server Guide', icon: Terminal },
-    { id: 'prompt-guide', label: 'Prompt Guide', icon: Shield },
-    { id: 'api-ref', label: 'API Reference', icon: Database },
-    { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
-    { id: 'faq', label: 'FAQ', icon: HelpCircle },
-  ];
-
-  const filteredItems = sidebarItems.filter(item => 
-    item.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f7f5] text-[#1c1c1a]">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(DOC_JSON_LD) }} />
+    <div className="min-h-screen bg-[#fbfcfa] text-[#16211f]">
       <LandingNav />
-      
-      <main className="flex-1 max-w-[1160px] w-full mx-auto px-6 pt-24 pb-16">
-        <div className="mb-8">
-          <p className="text-[11px] font-bold tracking-[2px] uppercase text-[#5a6066] mb-3">Documentation</p>
-          <h1 className="font-bold tracking-tight leading-[0.95]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', letterSpacing: '-0.04em' }}>
-            How ArchDraw <em className="text-[#155e9c] font-normal">works</em>
-          </h1>
-          <p className="mt-3 text-sm text-[#5a6066] leading-relaxed max-w-2xl">Everything from first diagram to MCP automation — in the same paper, same type, same canvas you already use.</p>
-        </div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(DOC_JSON_LD) }} />
 
-        <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-          
-          {/* Sticky Left Sidebar — paper theme */}
-          <aside className="hidden lg:block space-y-4 self-start lg:sticky lg:top-[72px] max-h-[calc(100vh-96px)] overflow-y-auto pr-1">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search docs…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-[#e4e4df] focus:border-[#1E90FF] rounded-lg px-3 py-2 text-xs text-[#1c1c1a] placeholder-[#8a8f98] outline-none transition-colors"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] px-3 mb-2">
-                Navigation
-              </div>
-              <nav className="space-y-1">
-                {filteredItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeSection === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveSection(item.id)}
-                      className={`w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium transition-all ${
-                        isActive
-                          ? 'bg-[#1c1c1a] text-white'
-                          : 'text-[#5a6066] hover:bg-white hover:text-[#1c1c1a] border border-transparent hover:border-[#e4e4df]'
-                      }`}
-                    >
-                      <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-[#8a8f98]'}`} />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-                {filteredItems.length === 0 && (
-                  <div className="text-xs text-[#8a8f98] p-3 italic">No results found</div>
-                )}
-              </nav>
-            </div>
+      <main className="mx-auto w-full max-w-[1400px] px-5 pb-20 pt-20 sm:px-8">
+        <div className="grid gap-10 py-10 lg:grid-cols-[220px_minmax(0,720px)_180px] lg:gap-14">
+          <aside className="hidden lg:block">
+            <nav className="sticky top-20 space-y-7" aria-label="Documentation navigation">
+              <Link href="/docs" className="mb-6 flex items-center gap-2 text-sm font-bold tracking-tight text-[#16211f]"><BookOpen size={16} className="text-[#1686f5]" /> Docs home</Link>
+              {DOC_GROUPS.map((group) => (
+                <div key={group.label}>
+                  <p className="mb-2 px-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-[#8b9691]">{group.label}</p>
+                  <div className="space-y-0.5">
+                    {group.links.map((link) => <a key={link.href} href={link.href} className={`block rounded-md px-3 py-1.5 text-sm transition-colors ${'current' in link && link.current ? 'bg-[#eaf4ff] font-semibold text-[#075aaf]' : 'text-[#65706c] hover:bg-white hover:text-[#16211f]'}`}>{link.label}</a>)}
+                  </div>
+                </div>
+              ))}
+            </nav>
           </aside>
 
-          {/* Mobile Navigation Dropdown */}
-          <div className="block lg:hidden w-full mb-4">
-            <label htmlFor="docs-section-select" className="sr-only">Select a section</label>
-            <select
-              id="docs-section-select"
-              value={activeSection}
-              onChange={(e) => setActiveSection(e.target.value as SectionID)}
-              className="w-full bg-white border border-[#e4e4df] rounded-lg px-3 py-2.5 text-xs text-[#1c1c1a] outline-none focus:border-[#1E90FF]"
-            >
-              {sidebarItems.map(item => (
-                <option key={item.id} value={item.id}>{item.label}</option>
-              ))}
-            </select>
-          </div>
+          <article className="min-w-0">
+            <section id="overview" className="scroll-mt-24">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Overview</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Start with what you know.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">ArchDraw is an AI-assisted architecture canvas. Start from a description, a GitHub repository, or Mermaid; then edit the generated system as a diagram rather than a static image.</p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><Sparkles size={17} /></DocIcon><h3 className="mt-4 text-sm font-bold">Describe</h3><p className="mt-1 text-xs leading-5 text-[#65706c]">Turn a system idea into an editable starting point.</p></div>
+                <div className="rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><GitBranch size={17} /></DocIcon><h3 className="mt-4 text-sm font-bold">Inspect</h3><p className="mt-1 text-xs leading-5 text-[#65706c]">Map the services and relationships in a repository.</p></div>
+                <div className="rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><LayoutPanelTop size={17} /></DocIcon><h3 className="mt-4 text-sm font-bold">Shape</h3><p className="mt-1 text-xs leading-5 text-[#65706c]">Edit, rearrange, export, or share the live canvas.</p></div>
+              </div>
+            </section>
 
-          {/* Content Viewport — white card on paper */}
-          <div className="min-w-0">
-            <div className="rounded-xl border border-[#e4e4df] bg-white p-6 md:p-8" style={{ boxShadow: '0 8px 24px rgba(28,28,26,0.04)' }}>
-              
-              {activeSection === 'getting-started' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Getting Started
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      Getting Started
-                    </h2>
-                    <p className="mt-3 text-sm text-[#5a6066] leading-relaxed">
-                      Welcome to ArchDraw. A system architecture tool for people who think in systems — drag, connect, and let the layout do the rest.
-                    </p>
-                  </div>
+            <section id="generate" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Generate a diagram</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">From prompt to editable architecture.</h2>
+              <ol className="mt-6 space-y-4 border-l border-[#dfe4df] pl-5 text-sm leading-6 text-[#51605a]">
+                <li><strong className="text-[#16211f]">Give the system context.</strong> Describe the clients, services, integrations, and data stores that matter.</li>
+                <li><strong className="text-[#16211f]">Review the first draft.</strong> ArchDraw produces nodes, edges, and layout you can inspect on the canvas.</li>
+                <li><strong className="text-[#16211f]">Refine the diagram.</strong> Change labels, nodes, connections, groups, and direction as the discussion evolves.</li>
+              </ol>
+              <pre className="mt-7 overflow-x-auto rounded-xl border border-[#dfe4df] bg-[#16211f] p-5 font-mono text-xs leading-6 text-[#d9e8e1]"><code>{'Web client → API gateway → order service → Postgres\nSend completed orders to a notification worker.'}</code></pre>
+            </section>
 
-                  <div className="grid gap-4 sm:grid-cols-2 mt-6">
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-1.5">
-                      <h3 className="font-bold text-[#1c1c1a] text-sm">1. Drag & Drop</h3>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        Pick from 150+ components — compute, data, external — all sized on a 160/200/240 grid.
-                      </p>
-                    </div>
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-1.5">
-                      <h3 className="font-bold text-[#1c1c1a] text-sm">2. Connect Edges</h3>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        Edges float (±16px slots) and route orthogonally — no overlap, no manual cleanup.
-                      </p>
-                    </div>
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-1.5">
-                      <h3 className="font-bold text-[#1c1c1a] text-sm">3. AI Compilation</h3>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        Prompt → Mermaid → Dagre. Validated, tier-ordered, auto-laid-out.
-                      </p>
-                    </div>
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-1.5">
-                      <h3 className="font-bold text-[#1c1c1a] text-sm">4. Share & Export</h3>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        PNG/SVG/JSON/Mermaid + live share link. The same canvas, everywhere.
-                      </p>
-                    </div>
-                  </div>
+            <section id="repository" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Repository diagrams</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Map the codebase you inherited.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">Paste a GitHub repository URL. ArchDraw examines architecture-signalling files such as README files, manifests, routes, infrastructure definitions, and service boundaries to form an editable system map.</p>
+              <div className="mt-6 rounded-xl border border-[#cfe5f7] bg-[#f1f8ff] p-4 text-sm leading-6 text-[#38617d]"><strong className="text-[#075aaf]">Tip:</strong> Treat the result as a reviewable first draft. Keep the parts that reflect your system and edit the rest on the canvas.</div>
+            </section>
 
-                  <div className="flex gap-2.5 bg-[#eef6ff] border border-[#d8e9fb] p-4 rounded-xl mt-6">
-                    <Info className="w-4 h-4 text-[#1E90FF] shrink-0 mt-0.5" />
-                    <p className="text-xs text-[#5a6066] leading-relaxed">
-                      <strong className="text-[#1c1c1a]">Note:</strong> Canvases autosave locally + to Supabase when signed in. No work lost on refresh.
-                    </p>
-                  </div>
+            <section id="canvas" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Canvas</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Use a visual vocabulary that stays readable.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">System nodes, shape nodes, groups, annotations, and labeled connections give architecture discussions a common language. Nodes are sized on a compact optical grid so labels wrap before diagrams become oversized.</p>
+              <div className="mt-7 overflow-hidden rounded-xl border border-[#dfe4df] bg-white">
+                <div className="grid grid-cols-[1fr_1.4fr] border-b border-[#dfe4df] px-4 py-3 text-xs"><span className="font-semibold">System node</span><span className="text-[#65706c]">A service or deployable component with an optional subtitle.</span></div>
+                <div className="grid grid-cols-[1fr_1.4fr] border-b border-[#dfe4df] px-4 py-3 text-xs"><span className="font-semibold">Shape node</span><span className="text-[#65706c]">A semantic silhouette for clients, gateways, databases, auth, and external systems.</span></div>
+                <div className="grid grid-cols-[1fr_1.4fr] px-4 py-3 text-xs"><span className="font-semibold">Group</span><span className="text-[#65706c]">A boundary that collects related components into a subsystem.</span></div>
+              </div>
+            </section>
 
-                  <div className="pt-4">
-                    <h3 className="text-base font-bold text-[#1c1c1a] mb-2">Workspace Structure</h3>
-                    <p className="text-[#5a6066] text-xs leading-relaxed mb-3">
-                      A diagram is JSON — nodes, edges, groups — round-trippable to Mermaid:
-                    </p>
-                    <pre className="overflow-x-auto rounded-lg border border-[#e4e4df] bg-[#fbfbfa] p-4 text-xs font-mono text-[#1c1c1a] leading-relaxed">
-{`{
-  "nodes": [{ "id": "api", "label": "API Service", "type": "systemNode" }],
-  "edges": [{ "source": "client", "target": "api", "label": "HTTPS" }]
-}`}
-                    </pre>
-                  </div>
-                </div>
-              )}
+            <section id="layout" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Layout</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Keep the flow legible.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">Use the layout control to arrange a diagram left-to-right or top-to-bottom. ArchDraw keeps the graph and its groups on the same Mermaid-to-Dagre layout path, so generated diagrams and manual reflows use consistent spacing.</p>
+            </section>
 
-              {activeSection === 'node-types' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Reference
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      Node Types
-                    </h2>
-                    <p className="mt-3 text-sm text-[#5a6066] leading-relaxed">
-                      Five concerns, one palette — color is structure, not decoration.
-                    </p>
-                  </div>
+            <section id="mermaid" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Mermaid</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Keep diagrams portable.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">Import Mermaid when you already have a text representation, or export the canvas when the diagram needs to travel with code, documentation, or a pull request.</p>
+              <pre className="mt-7 overflow-x-auto rounded-xl border border-[#dfe4df] bg-[#f6f7f3] p-5 font-mono text-xs leading-6 text-[#283731]"><code>{'graph LR\n  Client[Web client] --> Gateway{{API gateway}}\n  Gateway --> Service[Order service]\n  Service --> Database[(Postgres)]'}</code></pre>
+            </section>
 
-                  <div className="overflow-x-auto pt-2">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-[#e4e4df] text-[10px] font-mono text-[#5a6066]">
-                          <th className="py-2.5 font-semibold">Tier</th>
-                          <th className="py-2.5 font-semibold">Color</th>
-                          <th className="py-2.5 font-semibold">Examples</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#e4e4df]/70 text-xs">
-                        <tr>
-                          <td className="py-3 font-semibold text-[#1c1c1a]">Client</td>
-                          <td className="py-3 text-[#5a6066] font-mono text-[10px]">slate #64748b</td>
-                          <td className="py-3 text-[#5a6066]">Web, Mobile</td>
-                        </tr>
-                        <tr>
-                          <td className="py-3 font-semibold text-[#1c1c1a]">Compute</td>
-                          <td className="py-3 text-[#5a6066] font-mono text-[10px]">teal #0d9488</td>
-                          <td className="py-3 text-[#5a6066]">API, Worker</td>
-                        </tr>
-                        <tr>
-                          <td className="py-3 font-semibold text-[#1c1c1a]">Data</td>
-                          <td className="py-3 text-[#5a6066] font-mono text-[10px]">blue #3b82f6</td>
-                          <td className="py-3 text-[#5a6066]">Postgres, Redis</td>
-                        </tr>
-                        <tr>
-                          <td className="py-3 font-semibold text-[#1c1c1a]">Async</td>
-                          <td className="py-3 text-[#5a6066] font-mono text-[10px]">amber #d97706</td>
-                          <td className="py-3 text-[#5a6066]">Kafka, SQS</td>
-                        </tr>
-                        <tr>
-                          <td className="py-3 font-semibold text-[#1c1c1a]">External</td>
-                          <td className="py-3 text-[#5a6066] font-mono text-[10px]">violet #8b5cf6</td>
-                          <td className="py-3 text-[#5a6066]">Stripe, CDN</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+            <section id="mcp" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">MCP server</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Bring ArchDraw into your AI workflow.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">The local MCP server exposes diagram tools for compatible assistants. Use it to generate, update, validate, lay out, and export the same canvas you use in the browser.</p>
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><Terminal size={17} /></DocIcon><p className="text-sm leading-6 text-[#51605a]">Read the MCP guide for the current tool list and connection instructions before adding it to an assistant configuration.</p></div>
+            </section>
 
-                  <div className="flex gap-2.5 bg-[#fef3c7] border border-[#fde68a] p-4 rounded-xl mt-6">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-[#5a6066] leading-relaxed">
-                      <strong>Rule:</strong> Nodes snap to 160/200/240. Labels wrap — they never truncate in export.
-                    </p>
-                  </div>
-                </div>
-              )}
+            <section id="export" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">Share & export</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Take the architecture with you.</h2>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">Export a canvas as JSON, Mermaid, PNG, or SVG where available. Share links and embeds give teammates a view without turning the diagram into a stale screenshot.</p>
+            </section>
 
-              {activeSection === 'diagram-types' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Guides
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      Diagram Types
-                    </h2>
-                    <p className="mt-3 text-sm text-[#5a6066] leading-relaxed">
-                      Four shapes that cover most reviews.
-                    </p>
-                  </div>
+            <section id="faq" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">FAQ</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Common questions.</h2>
+              <div className="mt-6 divide-y divide-[#dfe4df] rounded-xl border border-[#dfe4df] bg-white">
+                <details className="group p-5" open><summary className="cursor-pointer list-none text-sm font-semibold">Can I edit what ArchDraw generates?</summary><p className="mt-3 text-sm leading-6 text-[#65706c]">Yes. Generated diagrams open as editable canvases, so you can move, rename, connect, group, and remove components.</p></details>
+                <details className="group p-5"><summary className="cursor-pointer list-none text-sm font-semibold">Can I start from an existing diagram?</summary><p className="mt-3 text-sm leading-6 text-[#65706c]">Yes. Mermaid is supported as an import and export format, alongside the canvas&apos;s JSON representation.</p></details>
+                <details className="group p-5"><summary className="cursor-pointer list-none text-sm font-semibold">What should I do if a generated layout needs work?</summary><p className="mt-3 text-sm leading-6 text-[#65706c]">Adjust the canvas directly or use the layout controls to reflow the graph in your preferred direction.</p></details>
+              </div>
+            </section>
+          </article>
 
-                  <div className="grid gap-4 sm:grid-cols-2 mt-4">
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-2">
-                      <div className="font-bold text-[#1c1c1a] text-sm">Video / CDN</div>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        S3 → transcode → S3 → CDN → client, plus Event Stream → Recommendation.
-                      </p>
-                    </div>
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-2">
-                      <div className="font-bold text-[#1c1c1a] text-sm">E-Commerce</div>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        Cart, payments, orders, plus analytics stream feeding search.
-                      </p>
-                    </div>
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-2">
-                      <div className="font-bold text-[#1c1c1a] text-sm">Realtime</div>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        WebSocket Gateway → service → pub/sub → storage. Edges flow LR.
-                      </p>
-                    </div>
-                    <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl space-y-2">
-                      <div className="font-bold text-[#1c1c1a] text-sm">Social</div>
-                      <p className="text-xs text-[#5a6066] leading-relaxed">
-                        Feed, media store, CDN, notification broker — with event stream.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeSection === 'mcp-server' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Integration
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      MCP Server
-                    </h2>
-                    <p className="mt-3 text-sm text-[#5a6066] leading-relaxed">
-                      Let Claude/Cursor drive the canvas via stdio JSON-RPC.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="text-base font-bold text-[#1c1c1a]">How it works</h3>
-                    <p className="text-[#5a6066] text-xs leading-relaxed">
-                      Tools: generate-diagram, update-diagram, validate-diagram, fix-layout, export. Guard 14a: JWT validated at gateway, never client→DRM.
-                    </p>
-                  </div>
-
-                  <pre className="overflow-x-auto rounded-lg border border-[#e4e4df] bg-[#fbfbfa] p-4 text-xs font-mono text-[#1c1c1a] leading-relaxed">
-{`{
-  "mcpServers": {
-    "archdraw": { "command": "npx", "args": ["-y", "@hiabhee/archdraw-mcp-server"] }
-  }
-}`}
-                  </pre>
-                </div>
-              )}
-
-              {activeSection === 'prompt-guide' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Aesthetics
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      Prompt Guide
-                    </h2>
-                    <p className="mt-3 text-sm text-[#5a6066] leading-relaxed">
-                      Left→right only. Client is source, data is sink.
-                    </p>
-                  </div>
-
-                  <div className="border border-[#e4e4df] bg-[#fbfbfa] p-4 rounded-xl text-xs font-mono space-y-1">
-                    <div className="text-[#5a6066]">Tier order</div>
-                    <div className="text-[#1c1c1a] font-semibold">client → edge → compute → async → data → external</div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2 pt-2">
-                    <div className="border border-red-200 bg-red-50 p-4 rounded-xl">
-                      <div className="text-red-600 font-bold text-[10px] font-mono uppercase mb-1">Avoid</div>
-                      <p className="text-xs text-[#5a6066] italic">“chat app with db and brokers”</p>
-                    </div>
-                    <div className="border border-emerald-200 bg-emerald-50 p-4 rounded-xl">
-                      <div className="text-emerald-700 font-bold text-[10px] font-mono uppercase mb-1">Prefer</div>
-                      <p className="text-xs text-[#5a6066] italic">“Web → API → RabbitMQ → Chat → Postgres, LR”</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeSection === 'api-ref' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Developers
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      API Reference
-                    </h2>
-                    <p className="mt-3 text-sm text-[#5a6066] leading-relaxed">
-                      REST + MCP. Same pipeline, two surfaces.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4 pt-2 text-xs">
-                    <div className="flex items-center gap-2"><span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-mono font-bold">POST</span><code className="font-semibold text-[#1c1c1a]">/api/generate-diagram</code></div>
-                    <div className="flex items-center gap-2"><span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-mono font-bold">POST</span><code className="font-semibold text-[#1c1c1a]">/api/repo-diagram</code></div>
-                    <div className="flex items-center gap-2"><span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-mono font-bold">GET</span><code className="font-semibold text-[#1c1c1a]">/api/diagram/session/:id</code></div>
-                  </div>
-                </div>
-              )}
-
-              {activeSection === 'shortcuts' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      UX Controls
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      Keyboard Shortcuts
-                    </h2>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 pt-2">
-                    <div className="flex justify-between items-center p-3 border border-[#e4e4df] bg-[#fbfbfa] rounded-xl text-xs"><span>Command Palette</span><kbd className="bg-white border border-[#e4e4df] px-2 py-0.5 rounded text-[10px] font-mono">⌘ K</kbd></div>
-                    <div className="flex justify-between items-center p-3 border border-[#e4e4df] bg-[#fbfbfa] rounded-xl text-xs"><span>Delete</span><kbd className="bg-white border border-[#e4e4df] px-2 py-0.5 rounded text-[10px] font-mono">Del</kbd></div>
-                    <div className="flex justify-between items-center p-3 border border-[#e4e4df] bg-[#fbfbfa] rounded-xl text-xs"><span>Multi-select</span><kbd className="bg-white border border-[#e4e4df] px-2 py-0.5 rounded text-[10px] font-mono">Shift + Click</kbd></div>
-                    <div className="flex justify-between items-center p-3 border border-[#e4e4df] bg-[#fbfbfa] rounded-xl text-xs"><span>Snap</span><kbd className="bg-white border border-[#e4e4df] px-2 py-0.5 rounded text-[10px] font-mono">⌘ drag</kbd></div>
-                  </div>
-                </div>
-              )}
-
-              {activeSection === 'faq' && (
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#5a6066] mb-2">
-                      Help Desk
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
-                      FAQ
-                    </h2>
-                  </div>
-                  <div className="space-y-3 pt-2 text-sm">
-                    <div><h3 className="font-bold text-[#1c1c1a]">Is it free?</h3><p className="text-[#5a6066] text-xs leading-relaxed">Yes — free during beta, 3/hour guests, 10/day signed-in.</p></div>
-                    <div className="border-t border-[#e4e4df]/70 pt-3"><h3 className="font-bold text-[#1c1c1a]">Why do parallel edges overlap?</h3><p className="text-[#5a6066] text-xs leading-relaxed">We auto-offset ±16px on shared sides. If you see merging, run fix-layout.</p></div>
-                  </div>
-                </div>
-              )}
-
+          <aside className="hidden xl:block">
+            <div className="sticky top-20 border-l border-[#dfe4df] pl-5">
+              <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-[#8b9691]">On this page</p>
+              <div className="space-y-2 text-xs"><a className="block text-[#65706c] hover:text-[#075aaf]" href="#overview">Overview</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#generate">Generate a diagram</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#repository">Map a repository</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#canvas">Canvas concepts</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#mcp">MCP server</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#faq">FAQ</a></div>
             </div>
-          </div>
-
+          </aside>
         </div>
       </main>
       <Footer />

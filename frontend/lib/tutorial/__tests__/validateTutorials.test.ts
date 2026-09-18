@@ -1,9 +1,8 @@
 import type { TutorialDefinition } from '@/lib/tutorial/schema';
-import type { ValidationRule } from '@/lib/tutorial/schema';
 
 const tutorialFiles = import.meta.glob('../../../data/tutorials/*-architecture.ts', { eager: true });
 
-const forbiddenImports = ['react', 'zustand', '@/store'];
+const _forbiddenImports = ['react', 'zustand', '@/store'];
 
 interface TestResult {
   file: string;
@@ -13,13 +12,13 @@ interface TestResult {
 
 function validateTutorialDefinition(tutorial: unknown, filePath: string): TestResult {
   const errors: string[] = [];
-  
+
   if (!tutorial || typeof tutorial !== 'object') {
     return { file: filePath, passed: false, errors: ['Tutorial is not an object'] };
   }
-  
+
   const t = tutorial as Record<string, unknown>;
-  
+
   if (!t.id || typeof t.id !== 'string') {
     errors.push('Missing or invalid id');
   }
@@ -72,7 +71,7 @@ function validateTutorialDefinition(tutorial: unknown, filePath: string): TestRe
       }
     });
   }
-  
+
   return { file: filePath, passed: errors.length === 0, errors };
 }
 

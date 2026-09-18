@@ -1,6 +1,6 @@
 'use client';
 
-import { Image } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
 import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 
@@ -30,7 +30,7 @@ export function NodeIconModeToggle() {
       role="group"
       aria-label="Node icons"
     >
-      <Image className="w-3.5 h-3.5 mx-1 text-muted-foreground" aria-hidden="true" />
+      <ImageIcon className="w-3.5 h-3.5 mx-1 text-muted-foreground" aria-hidden="true" />
       {(
         [
           { value: 'all', label: 'On' },

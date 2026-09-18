@@ -75,7 +75,7 @@ export function useSnapping() {
                 const dx = snapX ?? 0;
                 const dy = snapY ?? 0;
                 if (dx !== 0 || dy !== 0) {
-                    const toUpdate = draggedNodes && draggedNodes.length > 1 ? draggedNodes : [draggedNode];
+                    const _toUpdate = draggedNodes && draggedNodes.length > 1 ? draggedNodes : [draggedNode];
                     // Mutate position for immediate visual feedback and update store
                     // React Flow will still emit onNodesChange, but we preemptively snap
                     const currentNodes = useDiagramStore.getState().nodes;

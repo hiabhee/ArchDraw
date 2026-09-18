@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { X, Type, Layers, ExternalLink, ChevronRight, Info, Zap, Trash2, Pencil } from 'lucide-react';
+import { X, Layers, ExternalLink, Info, Zap, Trash2, Pencil } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
-import { useTutorialStore } from '@/store/tutorialStore';
-import { componentKnowledgeBase, getComponentKnowledge } from '@/lib/knowledge/componentKnowledge';
+
+import { getComponentKnowledge } from '@/lib/knowledge/componentKnowledge';
 import { TIER_THEME } from '@/lib/tierColors';
 import type { TierType } from '@/lib/theme/stylingConstants';
 
@@ -17,11 +17,11 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
   const { nodes, updateNodeData, removeNode } = useDiagramStore();
   const node = nodes.find(n => n.id === nodeId);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   const knowledge = useMemo(() => {
     if (!node) return null;
-    return getComponentKnowledge(node.data.label) || 
-           getComponentKnowledge((node.data as Record<string, unknown>).componentType as string || '') || 
+    return getComponentKnowledge(node.data.label) ||
+           getComponentKnowledge((node.data as Record<string, unknown>).componentType as string || '') ||
            null;
   }, [node]);
 
@@ -63,14 +63,14 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
       <div className="p-4 space-y-6">
         {/* Quick Actions */}
         <div className="flex gap-2">
-          <button 
+          <button
             onClick={() => setIsEditing(!isEditing)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand hover:bg-brand/80 text-xs font-medium transition-all"
           >
             <Pencil className="w-3.5 h-3.5" />
             Edit
           </button>
-          <button 
+          <button
             onClick={() => { removeNode(nodeId); onClose(); }}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-medium transition-all"
           >
@@ -121,7 +121,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {knowledge.concepts.map(concept => (
-                      <span 
+                      <span
                         key={concept}
                         className="px-2 py-0.5 rounded-md bg-brand text-[10px] text-muted-foreground border border-border/50"
                       >

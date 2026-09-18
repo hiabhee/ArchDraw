@@ -1,14 +1,10 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Handle, Position, NodeProps, NodeResizer, useReactFlow, useUpdateNodeInternals } from 'reactflow';
-import { hexToRgba } from '@/lib/utils';
+import { NodeProps, NodeResizer, useReactFlow, useUpdateNodeInternals } from 'reactflow';
+
 import { NodeHandles } from '@/components/nodes/NodeHandles';
-import {
-  ANNOTATION_FONT_SIZE,
-  ANNOTATION_FONT_WEIGHT,
-  type TextSize,
-} from '@/lib/utils/textSizing';
+import { ANNOTATION_FONT_SIZE, ANNOTATION_FONT_WEIGHT, type TextSize } from '@/lib/utils/textSizing';
 
 export interface AnnotationNodeData {
   title?: string;
@@ -32,14 +28,14 @@ interface SizeButtonProps {
 function SizeButton({ size, currentSize, onClick }: SizeButtonProps) {
   const labels = { small: 'S', medium: 'M', large: 'L', heading: 'H' };
   const isActive = currentSize === size;
-  
+
   return (
     <button
       onClick={onClick}
       onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
       className={`nodrag nopan w-8 h-8 shrink-0 flex items-center justify-center rounded text-xs font-bold select-none ${
-        isActive 
-          ? 'bg-primary text-primary-foreground shadow-sm' 
+        isActive
+          ? 'bg-primary text-primary-foreground shadow-sm'
           : 'bg-transparent text-muted-foreground hover:bg-muted'
       }`}
       style={{ WebkitTapHighlightColor: 'transparent' }}
@@ -53,20 +49,20 @@ function SizeButton({ size, currentSize, onClick }: SizeButtonProps) {
 function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNodeData>) {
   const updateNodeInternals = useUpdateNodeInternals();
   const { setNodes } = useReactFlow();
-  
+
   // Use state only for the values being edited, initialized from props
   const [title, setTitle] = useState(data.title ?? '');
   const [body, setBody] = useState(data.body ?? '');
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const [activeField, setActiveField] = useState<'title' | 'body' | null>(null);
-  
+
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const SIZE_ORDER: TextSize[] = useMemo(() => ['small', 'medium', 'large', 'heading'], []);
-  
+
   useEffect(() => {
     updateNodeInternals(id);
   }, [id, updateNodeInternals]);
@@ -79,31 +75,31 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
 
   const currentSize = activeField === 'title' ? titleSize : bodySize;
   const currentBold = activeField === 'title' ? titleBold : bodyBold;
-  
+
   const updateTitleSize = useCallback((size: TextSize) => {
-    setNodes((nds) => nds.map((n) => 
+    setNodes((nds) => nds.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, titleSize: size } } : n
     ));
   }, [id, setNodes]);
-  
+
   const updateTitleBold = useCallback((bold: boolean) => {
-    setNodes((nds) => nds.map((n) => 
+    setNodes((nds) => nds.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, titleBold: bold } } : n
     ));
   }, [id, setNodes]);
-  
+
   const updateBodySize = useCallback((size: TextSize) => {
-    setNodes((nds) => nds.map((n) => 
+    setNodes((nds) => nds.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, bodySize: size } } : n
     ));
   }, [id, setNodes]);
-  
+
   const updateBodyBold = useCallback((bold: boolean) => {
-    setNodes((nds) => nds.map((n) => 
+    setNodes((nds) => nds.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, bodyBold: bold } } : n
     ));
   }, [id, setNodes]);
-  
+
   const setCurrentSize = useCallback((size: TextSize) => {
     if (activeField === 'title') {
       updateTitleSize(size);
@@ -111,7 +107,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
       updateBodySize(size);
     }
   }, [activeField, updateTitleSize, updateBodySize]);
-  
+
   const setCurrentBold = useCallback((bold: boolean) => {
     if (activeField === 'title') {
       updateTitleBold(bold);
@@ -133,7 +129,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
   const commitTitle = useCallback(() => {
     setEditingTitle(false);
     setActiveField(null);
-    setNodes((nds) => nds.map((n) => 
+    setNodes((nds) => nds.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, title, titleSize, titleBold } } : n
     ));
   }, [id, title, titleSize, titleBold, setNodes]);
@@ -141,36 +137,36 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
   const commitBody = useCallback(() => {
     setEditingBody(false);
     setActiveField(null);
-    setNodes((nds) => nds.map((n) => 
+    setNodes((nds) => nds.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, body, bodySize, bodyBold } } : n
     ));
   }, [id, body, bodySize, bodyBold, setNodes]);
 
   useEffect(() => {
     if (!editingTitle && !editingBody) return;
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMod = e.metaKey || e.ctrlKey;
-      
+
       if (isMod && e.key === 'b') {
         e.preventDefault();
         setCurrentBold(!currentBold);
         return;
       }
-      
+
       if (isMod && e.shiftKey && (e.key === '.' || e.key === '>')) {
         e.preventDefault();
         increaseSize();
         return;
       }
-      
+
       if (isMod && e.shiftKey && (e.key === ',' || e.key === '<')) {
         e.preventDefault();
         decreaseSize();
         return;
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [editingTitle, editingBody, currentBold, increaseSize, decreaseSize, setCurrentBold]);
@@ -178,7 +174,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
   useEffect(() => {
     const isEditing = editingTitle || editingBody;
     if (!isEditing) return;
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (containerRef.current && !containerRef.current.contains(target)) {
@@ -186,11 +182,11 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         if (editingBody) commitBody();
       }
     };
-    
+
     const timeoutId = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside);
     }, 0);
-    
+
     return () => {
       clearTimeout(timeoutId);
       document.removeEventListener('mousedown', handleClickOutside);
@@ -206,7 +202,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
   };
 
   const renderSizeToolbar = () => (
-    <div 
+    <div
       className="flex items-center gap-0.5 bg-card/95 backdrop-blur-sm border border-border rounded-md px-1.5 py-1 shadow-lg"
       style={{ width: 'fit-content', flexShrink: 0 }}
     >
@@ -214,8 +210,8 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         onClick={() => setCurrentBold(!currentBold)}
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
         className={`nodrag nopan w-8 h-8 shrink-0 flex items-center justify-center rounded text-xs font-bold select-none ${
-          currentBold 
-            ? 'bg-primary text-primary-foreground shadow-sm' 
+          currentBold
+            ? 'bg-primary text-primary-foreground shadow-sm'
             : 'bg-transparent text-muted-foreground hover:bg-muted'
         }`}
         style={{ WebkitTapHighlightColor: 'transparent' }}
@@ -267,7 +263,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         <NodeHandles handleStyle={handleStyle} nodeId={id} />
 
         {editingTitle && (
-          <div 
+          <div
             className="nodrag nopan"
             style={{ marginBottom: 4, pointerEvents: 'all' }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -305,11 +301,11 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
           />
         ) : (
           <div
-            onDoubleClick={(e) => { 
+            onDoubleClick={(e) => {
               e.stopPropagation();
-              setEditingTitle(true); 
+              setEditingTitle(true);
               setActiveField('title');
-              setTimeout(() => titleRef.current?.focus(), 0); 
+              setTimeout(() => titleRef.current?.focus(), 0);
             }}
             onMouseDown={(e) => e.stopPropagation()}
             style={{
@@ -328,7 +324,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
         <div style={{ height: 1, background: 'hsl(var(--border))', flexShrink: 0 }} />
 
         {editingBody && (
-          <div 
+          <div
             className="nodrag nopan"
             style={{ marginTop: 4, pointerEvents: 'all' }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -371,11 +367,11 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
           />
         ) : (
           <div
-            onDoubleClick={(e) => { 
+            onDoubleClick={(e) => {
               e.stopPropagation();
-              setEditingBody(true); 
+              setEditingBody(true);
               setActiveField('body');
-              setTimeout(() => bodyRef.current?.focus(), 0); 
+              setTimeout(() => bodyRef.current?.focus(), 0);
             }}
             onMouseDown={(e) => e.stopPropagation()}
             style={{

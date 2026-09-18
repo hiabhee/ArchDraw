@@ -4,7 +4,7 @@
  * from their usable mid-band so silhouettes stay compact.
  */
 
-import { SIZE_S, SIZE_M, SIZE_L, clampToSizeGrid, SHAPE_LANE_HEIGHT_CAP, ICON_SIZE } from '@/lib/theme/stylingConstants';
+import { SIZE_S, SIZE_M, SIZE_L, clampToSizeGrid } from '@/lib/theme/stylingConstants';
 
 /** Soft ceiling for rare callers that opt into wider cards. */
 export const SIZE_XL = 280;
@@ -14,11 +14,6 @@ export const SIZE_XXL = 320;
 export const SIZE_XS = 120;
 
 const AVG_CHAR_WIDTH = 7.2; // ~13–14px semibold
-const LINE_HEIGHT = 18;
-const PADDING_Y = 32;
-const MIN_HEIGHT = 100;
-/** Vertical room for icon above label — keep aligned with ICON_SIZE.box. */
-const ICON_STACK = ICON_SIZE.box + 12;
 
 export type ShapeFit =
   | 'rectangle'
@@ -71,34 +66,7 @@ const SHAPE_TEXT_BAND: Record<ShapeFit, number> = {
   documents: 0.75,
 };
 
-/** Mild height padding for non-rect silhouettes (not a large multiplier). */
-const SHAPE_HEIGHT_FACTOR: Record<ShapeFit, number> = {
-  rectangle: 0.92,
-  'rounded-rectangle': 0.92,
-  diamond: 1.12,
-  parallelogram: 1.05,
-  circle: 1.1,
-  cylinder: 0.93,
-  hexagon: 1.12,
-  cloud: 1.12,
-  actor: 1.1,
-  monitor: 1.1,
-  mobile: 1.1,
-  'dashed-rectangle': 1,
-  // New architecture-native shapes
-  queue: 1,
-  cache: 1.08,
-  'function': 1.08,
-  container: 1.08,
-  bucket: 1.1,
-  document: 1.4,  // Taller portrait orientation
-  documents: 1.4, // Taller portrait orientation
-};
-
-/** Legacy compact icon stack for diamonds (excluded from enlarged icons). */
-const DIAMOND_ICON_STACK = ICON_SIZE.diamond.box + 8;
-
-/** 
+/**
  * Default max width: preferred maximum, but can grow larger for content.
  * This is a soft limit - nodes will expand beyond this if content requires it.
  */
@@ -178,29 +146,6 @@ const SHAPE_MIN_WIDTH: Record<ShapeFit, number> = {
   bucket: 140,
   document: 120,  // Increased min width
   documents: 120,
-};
-
-/** Uniform height: all nodes are 100px per user request — no per-shape variation. */
-const SHAPE_HEIGHT_RANGE: Record<ShapeFit, { min: number; max: number; absoluteMax: number }> = {
-  rectangle: { min: 100, max: 100, absoluteMax: 100 },
-  'rounded-rectangle': { min: 100, max: 100, absoluteMax: 100 },
-  diamond: { min: 100, max: 100, absoluteMax: 100 },
-  parallelogram: { min: 100, max: 100, absoluteMax: 100 },
-  circle: { min: 100, max: 100, absoluteMax: 100 },
-  cylinder: { min: 100, max: 100, absoluteMax: 100 },
-  hexagon: { min: 100, max: 100, absoluteMax: 100 },
-  cloud: { min: 100, max: 100, absoluteMax: 100 },
-  actor: { min: 100, max: 100, absoluteMax: 100 },
-  monitor: { min: 100, max: 100, absoluteMax: 100 },
-  mobile: { min: 100, max: 100, absoluteMax: 100 },
-  'dashed-rectangle': { min: 100, max: 100, absoluteMax: 100 },
-  queue: { min: 100, max: 100, absoluteMax: 100 },
-  cache: { min: 100, max: 100, absoluteMax: 100 },
-  'function': { min: 100, max: 100, absoluteMax: 100 },
-  container: { min: 100, max: 100, absoluteMax: 100 },
-  bucket: { min: 100, max: 100, absoluteMax: 100 },
-  document: { min: 100, max: 100, absoluteMax: 100 },
-  documents: { min: 100, max: 100, absoluteMax: 100 },
 };
 
 export interface NodeDimensions {
@@ -301,7 +246,6 @@ export function calculateNodeDimensions(
   const isQueue = shape === 'queue';
   const isHorizontalPipe = (shape === 'cylinder' && options.cylinderAxis === 'horizontal') || shape === 'queue';
   const band = SHAPE_TEXT_BAND[shape];
-  const heightRange = SHAPE_HEIGHT_RANGE[shape];
 
   const minWidth = options.minWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_MIN_WIDTH[shape]);
   const preferredMaxWidth = options.maxWidth ?? ((isHorizontalPipe || isQueue) ? SIZE_L : SHAPE_PREFERRED_MAX_WIDTH[shape]);

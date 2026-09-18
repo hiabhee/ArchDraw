@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -23,7 +23,7 @@ export function Navbar() {
     <>
       <header
         className="fixed top-0 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-[1200px] mx-auto rounded-2xl bg-card shadow-soft-2"
-        style={{ 
+        style={{
           padding: '18px 24px',
           marginTop: '16px'
         }}

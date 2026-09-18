@@ -5,7 +5,7 @@ import { CLOUD_BRAND_COLORS } from '@/lib/cloudIcons/dictionaries';
 import { inferBrandTechnologyFromLabel } from '@/lib/brandIcons';
 import { AWS_COMPONENTS, DB_COMPONENTS, SERVICES_COMPONENTS } from '@/lib/componentRegistry';
 import { resolveKubernetesRole, isKubernetesContext } from '@/lib/kubernetes';
-import { resolveSemanticColorForIcon, normalizeColor } from '@/lib/semanticColors';
+import { normalizeColor } from '@/lib/semanticColors';
 
 export type NodeIconSource = 'manual' | 'kubernetes-role' | 'explicit-role' | 'technology' | 'component' | 'label' | 'serviceType' | 'fallback';
 
@@ -263,7 +263,7 @@ function getTechnologyEntry(technology?: string) {
 
 export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
   const isDark = input.isDark ?? false;
-  
+
   // PRIORITY 1: Explicit arch-/aws-/azure- icon from the properties panel.
   // A recognized technology — named explicitly, or inferred from the icon itself
   // via ICON_TO_TECHNOLOGY (e.g. arch-kubernetes → kubernetes) — brands the node
@@ -286,7 +286,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     technologyFromLabel(input.label) ??
     inferBrandTechnologyFromLabel(input.label) ??
     technologyFromIcon(input.icon);
-  
+
   if (isKubernetesContext(input.label, resolvedTechnology)) {
     const k8sRole = resolveKubernetesRole(input.label);
     if (k8sRole) {

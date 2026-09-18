@@ -6,7 +6,7 @@ import { BuildStage } from '../BuildStage';
 import { LayoutStage } from '../LayoutStage';
 import { SizeStage } from '../SizeStage';
 import { FinalValidationStage } from '../ValidationStage';
-import type { MermaidAST, RFObjects, RFNode, RFEdge, Direction } from '../../types';
+import type { RFNode, RFEdge, Direction } from '../../types';
 import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
 
 const validMermaidCode = `graph TD
@@ -16,12 +16,12 @@ const validMermaidCode = `graph TD
     B
   end`;
 
-const invalidMermaidCode = `graph TD
+const _invalidMermaidCode = `graph TD
   A --> B
   %% this is fine
   `;
 
-const emptyMermaidCode = `graph TD`;
+const _emptyMermaidCode = `graph TD`;
 
 function createContext() {
   return new DefaultPipelineContext('test-exec');

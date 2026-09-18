@@ -1,18 +1,12 @@
 import { Position } from 'reactflow';
 import { describe, it, expect } from 'vitest';
-import {
-  scoreAllHandlerPairs,
-  selectBestHandlerPair,
-  buildDefaultOrthogonalWaypoints,
-  anchorOutsideBoundary,
-  type HandlerRect,
-} from '../handlerPairScorer';
+import { scoreAllHandlerPairs, selectBestHandlerPair, buildDefaultOrthogonalWaypoints, anchorOutsideBoundary, type HandlerRect } from '../handlerPairScorer';
 
 function makeRect(x: number, y: number, w: number, h: number): HandlerRect {
   return { x, y, width: w, height: h };
 }
 
-function sideLabel(side: Position): string {
+function _sideLabel(side: Position): string {
   switch (side) {
     case Position.Top: return 'Top';
     case Position.Right: return 'Right';
@@ -63,7 +57,7 @@ describe('Invariant: edges terminate on node boundary', () => {
     const sides: Position[] = [Position.Top, Position.Right, Position.Bottom, Position.Left];
 
     for (const side of sides) {
-      const scores = scoreAllHandlerPairs(rect, rect, 'LR');
+      const _scores = scoreAllHandlerPairs(rect, rect, 'LR');
       // Verify anchor computation matches expected boundary positions
       const expected = expectedAnchor(rect, side);
       const actual = anchorOnBoundary(rect, side);
@@ -601,7 +595,7 @@ describe('Invariant: lane preferences bias scoring, not bypass', () => {
     const target = makeRect(500, 300, 120, 70);
 
     // Without lane preference: diagonal might prefer L-shape
-    const bestNoLane = selectBestHandlerPair(source, target, 'LR');
+    const _bestNoLane = selectBestHandlerPair(source, target, 'LR');
 
     // With lane preference for Bottom→Top: should bias toward that
     const bestWithLane = selectBestHandlerPair(

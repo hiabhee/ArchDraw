@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import RevampedLanding from '@/components/landing/RevampedLanding';
 
 export const metadata: Metadata = {
-  title: 'ArchDraw — See your codebase as a system',
+  title: 'ArchDraw — Reimagine your codebase as a visual system',
   description:
-    'Turn a GitHub repository, Mermaid, or plain English into an editable system architecture diagram. Auto-laid-out, shareable, export to PNG, SVG and live link — free during beta.',
+    'Turn a GitHub repository, Mermaid diagram, or plain-English description into an editable architecture canvas your team can explore, refine, and share.',
   keywords: [
     'system architecture diagram',
     'architecture diagram tool',
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: 'https://archdraw.hiabhee.online/',
-    title: 'ArchDraw — See your codebase as a system',
+    title: 'ArchDraw — Reimagine your codebase as a visual system',
     description:
       'Turn a GitHub repository, Mermaid, or plain English into an editable architecture map your team can understand at a glance.',
     siteName: 'ArchDraw',
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ArchDraw — See your codebase as a system',
+    title: 'ArchDraw — Reimagine your codebase as a visual system',
     description:
       'Turn a GitHub repository, Mermaid, or plain English into an editable architecture map.',
     images: ['/api/og/home'],

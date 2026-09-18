@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type CSSProperties } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -15,11 +15,18 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
 import dagre from 'dagre';
 import '@/components/nodes/nodeStyles.css';
 import styles from './LandingCanvasPreview.module.css';
 
-// Mirror main canvas exactly: same nodeTypes, edgeTypes, Dagre layout, same sizing.
+const PREVIEW_CANVAS_TOKENS = resolveCanvasTokens({
+  renderStyleId: 'precision',
+  colorThemeId: 'default',
+  isDark: false,
+}).cssVars as CSSProperties;
+
+// Mirror the editor's precision canvas: same node types, edge types, theme tokens, and sizing.
 // Synchronous layout via useMemo — no async setState on mount (avoids React 19 “state update on unmounted” warning).
 function makeNode(id: string, label: string, subtitle: string, serviceType: string, category: string, layer: string, shape?: string): Node {
   const dims = calculateNodeDimensions(label, subtitle, { shape });
@@ -57,11 +64,13 @@ const edge = (id: string, source: string, target: string, label: string, color: 
   source,
   target,
   type: 'simpleFloating',
+  sourceHandle: 'source-right',
+  targetHandle: 'target-left',
   label,
   animated: true,
   markerEnd: { type: MarkerType.ArrowClosed, color, width: 10, height: 10 },
   style: { stroke: color, strokeWidth: 1.4 },
-  data: { label, pathType: 'Smoothstep' },
+  data: { label, pathType: 'Smoothstep', sourceSide: 'right', targetSide: 'left', labelPlacement: 'midpoint' },
 });
 
 const RAW_EDGES: Edge[] = [
@@ -96,10 +105,6 @@ function Canvas() {
   const { nodes: initialNodes, edges: initialEdges } = useLayoutedGraph();
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
-
-  // Keep nodes in sync if layout recomputes (e.g. theme change); preserve drag positions otherwise
-  // initialNodes is memo-stable, so this only runs on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     requestAnimationFrame(() => instance.fitView({ padding: 0.18, duration: 0 }));
@@ -136,7 +141,13 @@ function Canvas() {
 
 export function LandingCanvasPreview() {
   return (
-    <div className={styles.preview} aria-label="An ArchDraw canvas preview showing a web application, API gateway, job worker, and Postgres database.">
+    <div
+      className={styles.preview}
+      aria-label="An ArchDraw canvas preview showing a web application, API gateway, job worker, and Postgres database."
+      data-render-style="precision"
+      data-color-theme="default"
+      style={PREVIEW_CANVAS_TOKENS}
+    >
       <div className={styles.chrome}>
         <span className={styles.windowControls}><i /><i /><i /></span>
         <span className={styles.canvasName}>Production architecture</span>

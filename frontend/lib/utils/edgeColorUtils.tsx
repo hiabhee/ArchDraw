@@ -1,6 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React from 'react';
 
 /**
  * Classifies an edge by its flow type using its label, source node name, or target node name.
@@ -14,35 +13,35 @@ export function getFlowColor(
   const src = (sourceNodeLabel || '').toLowerCase();
   const tgt = (targetNodeLabel || '').toLowerCase();
 
-  const isStreaming = 
+  const isStreaming =
     lbl.includes('stream') || lbl.includes('audio') || lbl.includes('video') || lbl.includes('live') || lbl.includes('websocket') || lbl.includes('ws') || lbl.includes('grpc') ||
     src.includes('stream') || src.includes('audio') || src.includes('video') || src.includes('live') || src.includes('websocket') || src.includes('ws') || src.includes('grpc') ||
     tgt.includes('stream') || tgt.includes('audio') || tgt.includes('video') || tgt.includes('live') || tgt.includes('websocket') || tgt.includes('ws') || tgt.includes('grpc');
 
   if (isStreaming) return '#14B8A6';
 
-  const isEvent = 
+  const isEvent =
     lbl.includes('event') || lbl.includes('kafka') || lbl.includes('pubsub') || lbl.includes('queue') || lbl.includes('rabbitmq') || lbl.includes('sqs') || lbl.includes('sns') || lbl.includes('broker') || lbl.includes('message') ||
     src.includes('event') || src.includes('kafka') || src.includes('pubsub') || src.includes('queue') || src.includes('rabbitmq') || src.includes('sqs') || src.includes('sns') || src.includes('broker') || src.includes('message') ||
     tgt.includes('event') || tgt.includes('kafka') || tgt.includes('pubsub') || tgt.includes('queue') || tgt.includes('rabbitmq') || tgt.includes('sqs') || tgt.includes('sns') || tgt.includes('broker') || tgt.includes('message');
 
   if (isEvent) return '#F97316';
 
-  const isAuth = 
+  const isAuth =
     lbl.includes('auth') || lbl.includes('login') || lbl.includes('signup') || lbl.includes('oauth') || lbl.includes('session') || lbl.includes('jwt') || lbl.includes('authorize') || lbl.includes('identity') ||
     src.includes('auth') || src.includes('login') || src.includes('signup') || src.includes('oauth') || src.includes('session') || src.includes('jwt') || src.includes('authorize') || src.includes('identity') ||
     tgt.includes('auth') || tgt.includes('login') || tgt.includes('signup') || tgt.includes('oauth') || tgt.includes('session') || tgt.includes('jwt') || tgt.includes('authorize') || tgt.includes('identity');
 
   if (isAuth) return '#1E90FF';
 
-  const isCache = 
+  const isCache =
     lbl.includes('cache') || lbl.includes('redis') || lbl.includes('memcached') || lbl.includes('caching') ||
     src.includes('cache') || src.includes('redis') || src.includes('memcached') || src.includes('caching') ||
     tgt.includes('cache') || tgt.includes('redis') || tgt.includes('memcached') || tgt.includes('caching');
 
   if (isCache) return '#3B82F6';
 
-  const isAnalytics = 
+  const isAnalytics =
     lbl.includes('analytics') || lbl.includes('metrics') || lbl.includes('logging') || lbl.includes('prometheus') || lbl.includes('grafana') || lbl.includes('observe') || lbl.includes('observability') || lbl.includes('amplitude') || lbl.includes('mixpanel') || lbl.includes('telemetry') || lbl.includes('dashboard') ||
     src.includes('analytics') || src.includes('metrics') || src.includes('logging') || src.includes('prometheus') || src.includes('grafana') || src.includes('observe') || src.includes('observability') || src.includes('amplitude') || src.includes('mixpanel') || src.includes('telemetry') || src.includes('dashboard') ||
     tgt.includes('analytics') || tgt.includes('metrics') || tgt.includes('logging') || tgt.includes('prometheus') || tgt.includes('grafana') || tgt.includes('observe') || tgt.includes('observability') || tgt.includes('amplitude') || tgt.includes('mixpanel') || tgt.includes('telemetry') || tgt.includes('dashboard');

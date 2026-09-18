@@ -1,17 +1,7 @@
 'use client';
 
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
-import {
-  BrutalBody,
-  Handles,
-  Label,
-  SVG_SURFACE_STYLE,
-  SketchBody,
-  renderPrimitivesSvg,
-  resolveShapeSurface,
-  sketchSeed,
-  type ShapeShellProps,
-} from './shapeShell';
+import { BrutalBody, Handles, Label, SVG_SURFACE_STYLE, SketchBody, renderPrimitivesSvg, resolveShapeSurface, sketchSeed, type ShapeShellProps } from './shapeShell';
 
 /** Flat-top hexagon — ingress / load balancers / gateways. */
 export function Hexagon({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
@@ -116,7 +106,7 @@ export function Queue({ id, data, selected, backplates, isDark, styles, width: W
   );
 }
 
-export function Cache({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
+export function Cache({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
@@ -153,7 +143,7 @@ export function Cache({ id, data, selected, backplates, isDark, styles, width: W
   );
 }
 
-export function FunctionShape({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
+export function FunctionShape({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
@@ -190,7 +180,7 @@ export function FunctionShape({ id, data, selected, backplates, isDark, styles, 
   );
 }
 
-export function Container({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
+export function Container({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
@@ -227,7 +217,7 @@ export function Container({ id, data, selected, backplates, isDark, styles, widt
   );
 }
 
-export function Bucket({ id, data, selected, backplates, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
+export function Bucket({ id, data, selected, isDark, styles, width: W, height: H, labelMaxWidth, sketch, brutal }: ShapeShellProps) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   if (sketch) {
@@ -356,7 +346,7 @@ export function Actor({ id, data, selected, isDark, styles, width: W, height: H,
   const RATIO = 0.72;
   const ph = Math.min(H, W / RATIO);
   const pw = ph * RATIO;
-  const px0 = Math.round((W - pw) / 2);
+  const _px0 = Math.round((W - pw) / 2);
   const py0 = Math.round((H - ph) / 2);
 
   const topPad = Math.max(3, Math.round(ph * 0.04));

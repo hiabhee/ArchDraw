@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { FileEntry } from '@/lib/types/repo-diagram';
-import { buildImportGraph, extractImports, extractJsImports, extractPythonImports, extractGoImports } from '../import-graph';
+import { buildImportGraph, extractJsImports, extractPythonImports, extractGoImports } from '../import-graph';
 import { buildTsAliasConfig } from '../import-resolvers';
 import { deriveEvidenceEdges } from '../evidence-from-graph';
 import type { ExtractedNode } from '@/lib/types/repo-diagram';
@@ -71,7 +71,7 @@ describe('extractGoImports', () => {
 describe('buildImportGraph', () => {
   it('edges between TS relative specifiers', () => {
     const files: FileEntry[] = [
-      { path: 'app/api/orders/route.ts', content: "import {pool} from '@/lib/db';\nexport function GET() {}\n" },
+      { path: 'app/api/orders/route.ts', content: "import { pool } from '@/lib/db';\nexport function GET() {}\n" },
       { path: 'lib/db.ts', content: "export const pool = {};\n" },
       { path: 'app/layout.tsx', content: "import '~/styles/globals.css';\n" },
     ];
@@ -119,7 +119,7 @@ describe('buildImportGraph', () => {
 
   it('TS path alias @/* resolves to ./src/*', () => {
     const files: FileEntry[] = [
-      { path: 'pages/index.tsx', content: "import {db} from '@/lib/db';\n" },
+      { path: 'pages/index.tsx', content: "import { db } from '@/lib/db';\n" },
       { path: 'src/lib/db.ts', content: "export const db = {};\n" },
     ];
     const tsConfigFiles = [{ path: 'tsconfig.json', content: '{"compilerOptions":{"baseUrl":".","paths":{"@/*":["./src/*"]}}}' }];
@@ -147,7 +147,7 @@ describe('deriveEvidenceEdges', () => {
       { id: 'db', label: 'DB', type: 'DATABASE', description: '', sourceFiles: ['lib/db.ts'], confidence: 'high' },
     ];
     const files: FileEntry[] = [
-      { path: 'app/api/route.ts', content: "import {pool} from '@/lib/db';\nimport {pool2} from '@/lib/db';\n" },
+      { path: 'app/api/route.ts', content: "import { pool } from '@/lib/db';\nimport { pool2 } from '@/lib/db';\n" },
       { path: 'lib/db.ts', content: 'export const pool = {};\n' },
     ];
     const tsAlias = buildTsAliasConfig([{ path: 'tsconfig.json', content: '{"compilerOptions":{"baseUrl":".","paths":{"@/*":["."]}}}' }]);

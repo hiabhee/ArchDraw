@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, PanelLeft, Blocks, Layers, Square, Search } from 'lucide-react';
 import { CreateComponentModal, COMPONENT_TYPES, type CreateComponentData } from './CreateComponentModal';
 import { componentRegistry, CORE_COMPONENTS, AWS_COMPONENTS, DB_COMPONENTS, SERVICES_COMPONENTS } from '@/lib/componentRegistry';
@@ -158,7 +158,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
     }
   };
 
-  const filteredComponents = q 
+  const filteredComponents = q
     ? [...customComponents, ...CORE_COMPONENTS, ...AWS_COMPONENTS, ...DB_COMPONENTS, ...SERVICES_COMPONENTS]
         .filter(c => c.label.toLowerCase().includes(q) || c.category.toLowerCase().includes(q))
         .slice(0, 30)

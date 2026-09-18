@@ -1,4 +1,4 @@
-import type { ServiceType } from '@/lib/ai/types';
+
 
 export interface NodeShapeConfig {
   width: number;

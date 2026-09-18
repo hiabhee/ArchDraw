@@ -7,16 +7,8 @@ import type { PipelineContext } from '@/lib/pipeline-core/PipelineContext';
 import type { UserIntent } from '../../types';
 import type { AiPipelineData } from './aiPipelineTypes';
 import { createInitialAiPipelineData } from './aiPipelineTypes';
-import {
-  ConceptDetectionStage,
-  ArchitecturePlanningStage,
-  LayoutOverrideStage,
-  MermaidMaterializeStage,
-  ScoreStage,
-  ValidationStage,
-} from './stages';
+import { ConceptDetectionStage, ArchitecturePlanningStage, LayoutOverrideStage, MermaidMaterializeStage, ScoreStage, ValidationStage } from './stages';
 import type { ArchitecturePlanningInput } from './stages/ArchitecturePlanningStage';
-import type { ArchitectureStyle } from '../types';
 
 const conceptDetectionStage = new ConceptDetectionStage();
 const architecturePlanningStage = new ArchitecturePlanningStage();

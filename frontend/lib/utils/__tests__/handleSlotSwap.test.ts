@@ -1,13 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Position, type Node, type Edge } from 'reactflow';
-import {
-  getHandleSlotLayout,
-  getEdgeShiftOffset,
-  getCenteredSides,
-  INCOMING_OUTGOING_GAP,
-  sideFromHandleId,
-  resolveSideFromEdgeHandles,
-} from '../simpleFloatingEdge';
+import { getHandleSlotLayout, getEdgeShiftOffset, getCenteredSides, INCOMING_OUTGOING_GAP, sideFromHandleId, resolveSideFromEdgeHandles } from '../simpleFloatingEdge';
 import type { EdgeSideResolver } from '../simpleFloatingEdge';
 
 function node(id: string, x: number, y: number): Node {
@@ -180,7 +173,7 @@ describe('getEdgeShiftOffset with resolveSide — centers when only one directio
 });
 
 describe('getCenteredSides', () => {
-  const internals = new Map<string, Node>([
+  const _internals = new Map<string, Node>([
     ['hub', node('hub', 200, 200)],
     ['a', node('a', 50, 80)],
     ['b', node('b', 50, 200)],

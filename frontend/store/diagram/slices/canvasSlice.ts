@@ -425,7 +425,7 @@ export const createCanvasSlice: StateCreator<
   },
 
   getOverflowCanvases: () => {
-    const { canvases, activeCanvasId, openCanvasIds } = get();
+    const { canvases, openCanvasIds } = get();
     const MAX_VISIBLE = 3;
 
     const openCanvases = openCanvasIds

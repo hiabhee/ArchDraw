@@ -1,4 +1,4 @@
-import { MarkerType, type Edge } from 'reactflow';
+import { type Edge } from 'reactflow';
 
 export type PathType = 'smooth' | 'Smoothstep' | 'bezier' | 'step' | 'straight';
 export type EdgeType = 'sync' | 'async' | 'stream' | 'event' | 'dep' | 'dotted';
@@ -98,6 +98,8 @@ export interface EdgeData {
   connectionType?: EdgeType;
   color?: string;
   labelT?: number;
+  /** Keep a label at its rendered-path midpoint instead of collision-aware placement. */
+  labelPlacement?: 'auto' | 'midpoint';
   sourceSide?: EdgePortSide;
   targetSide?: EdgePortSide;
   curvature?: number;

@@ -2,18 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 import { useUpdateNodeInternals } from 'reactflow';
-import {
-  ICON_SIZE,
-  PROMINENT_ICON_SLOT_PX,
-  PROMINENT_ICON_GLYPH_RATIO,
-  prominentIconGlyphSize,
-  type NodeStyleConfig,
-} from '@/lib/theme/stylingConstants';
+import { ICON_SIZE, PROMINENT_ICON_SLOT_PX, PROMINENT_ICON_GLYPH_RATIO, prominentIconGlyphSize, type NodeStyleConfig } from '@/lib/theme/stylingConstants';
 import { countPipeLabelLines } from '@/lib/utils/nodeSizing';
-import {
-  getDiamondLabelNudge,
-  getShapeLabelMaxWidth,
-} from '@/lib/utils/shapeTextLayout';
+import { getDiamondLabelNudge, getShapeLabelMaxWidth } from '@/lib/utils/shapeTextLayout';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -26,18 +17,7 @@ import { TechnologyBrandIcon } from '@/components/icons/TechnologyBrandIcon';
 import { getTechnologyBrandSlug } from '@/lib/brandIcons';
 import { type ShapeType } from '@/lib/shapeRegistry';
 import { getShapePrimitives, type ShapeGeometryAxis } from '@/lib/theme/shapeGeometry';
-import {
-  applyShapeSurface,
-  getStrokeRenderer,
-  resolveRenderSurface,
-  renderSketchSurface,
-  BRUTAL_SHADOW_FILTER,
-  BRUTAL_SHADOW_FILTER_DARK,
-  BRUTAL_SHADOW_FILTER_ID,
-  BRUTAL_SHADOW_FILTER_ID_DARK,
-  type RenderSurface,
-  type ShapePrimitive,
-} from '@/lib/theme/renderStyles';
+import { applyShapeSurface, getStrokeRenderer, resolveRenderSurface, renderSketchSurface, BRUTAL_SHADOW_FILTER, BRUTAL_SHADOW_FILTER_DARK, BRUTAL_SHADOW_FILTER_ID, BRUTAL_SHADOW_FILTER_ID_DARK, type RenderSurface, type ShapePrimitive } from '@/lib/theme/renderStyles';
 import type { ShapeNodeData } from './types';
 import { resolveShapeLabelLayout } from './labelLayout';
 
@@ -54,7 +34,7 @@ export const HANDLE_STYLE = (_color: string) => ({
 export function Handles({
   color,
   nodeId,
-  shape,
+  shape: _shape,
 }: {
   color: string;
   nodeId: string;

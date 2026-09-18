@@ -18,8 +18,8 @@ import { resolveShapeNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
  */
 function simulateToggleSequence(
   initial: { nodeWidth?: number; nodeHeight?: number },
-  layoutWidth: number,
-  layoutHeight: number,
+  _layoutWidth: number,
+  _layoutHeight: number,
   label: string,
   shape: string,
 ): { writes: number; finalWidth: number; finalHeight: number } {
@@ -27,7 +27,6 @@ function simulateToggleSequence(
   let nodeHeight = initial.nodeHeight;
   let writes = 0;
 
-  // emulate ShapeNode.resolveShapeSize (reads data.*, no RF floats)
   const computeWidth = () =>
     resolveShapeNodeDimensions({ label, shape, nodeWidth, nodeHeight }).width;
   const computeHeight = () =>
@@ -35,28 +34,17 @@ function simulateToggleSequence(
 
   let width = computeWidth();
   let height = computeHeight();
-  let storedWidth = layoutWidth; // RF measured node.width, starts at dagre/measured value
-  let storedHeight = layoutHeight;
 
   // Safety cap to fail the test if it does NOT converge (i.e. regression).
   const MAX_ITER = 100;
   let iter = 0;
   while (iter < MAX_ITER) {
     iter++;
-    // OLD guard: compared computed vs RF node.width (float) — would loop.
-    // NEW guard: compare computed vs our own persisted data.*
     if (nodeWidth === width && nodeHeight === height) break;
 
-    // updateNodeSize writes node.width+node.height AND data.nodeWidth/nodeHeight
     nodeWidth = width;
     nodeHeight = height;
     writes++;
-    // store node.width to RF; RF re-measures and reports a FLOAT that differs
-    // from our integer by subpixel (emulated), overwriting node.width — but
-    // this no longer feeds the guard.
-    storedWidth = width + 0.001;
-    storedHeight = height + 0.001;
-    // re-render → recompute
     width = computeWidth();
     height = computeHeight();
   }

@@ -175,7 +175,11 @@ function TemplateRow({
 }) {
   const handleClick = () => {
     if (disabled) return;
-    isLocked ? onUpgrade?.() : onLoad();
+    if (isLocked) {
+      onUpgrade?.();
+      return;
+    }
+    onLoad();
   };
 
   return (

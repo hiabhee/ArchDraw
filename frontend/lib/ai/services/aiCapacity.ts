@@ -58,7 +58,7 @@ type Waiter = { tokens: number; resolve: (release: () => void) => void; reject: 
 let activeJobs = 0;
 let reservedTokens = 0;
 let windowStartedAt = Date.now();
-let queued: Waiter[] = [];
+const queued: Waiter[] = [];
 
 function resetWindowIfNeeded() {
   if (Date.now() - windowStartedAt >= 60_000) {

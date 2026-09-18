@@ -16,18 +16,12 @@ import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
 import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
-import {
-  getConcernColor,
-  SIZE_M,
-  STATUS_COLORS,
-  CONCERN_COLORS,
-  ICON_SIZE,
-} from '@/lib/theme/stylingConstants';
+import { getConcernColor, SIZE_M, STATUS_COLORS, CONCERN_COLORS, ICON_SIZE } from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import './nodes/nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
-const NODE_HEIGHT = DIAGRAM_CONSTANTS.node.minHeight;
+const _NODE_HEIGHT = DIAGRAM_CONSTANTS.node.minHeight;
 
 function hexToRgba(hex: string, alpha: number): string {
   if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) return hex;

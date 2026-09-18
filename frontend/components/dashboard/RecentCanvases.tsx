@@ -54,9 +54,9 @@ export function RecentCanvases() {
       </h3>
       <div className="space-y-0.5">
         {recentCanvases.map((canvas) => {
-          const nodeCount = canvas.nodes?.length || 0;
+          const _nodeCount = canvas.nodes?.length || 0;
           const isActive = hoveredId === canvas.id;
-          
+
           return (
             <div
               key={canvas.id}

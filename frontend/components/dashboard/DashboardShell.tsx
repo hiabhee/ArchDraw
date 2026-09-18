@@ -2,18 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import {
-  Plus,
-  Search,
-  Bell,
-  LayoutDashboard,
-  FolderOpen,
-  Sparkles,
-  ChevronDown,
-  ChevronRight,
-  Menu,
-  X,
-} from 'lucide-react';
+import { Search, Bell, LayoutDashboard, FolderOpen, Sparkles, ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { UserAvatar, SettingsPanel } from '@/components/UserAvatar';
@@ -168,7 +157,7 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const handleNewCanvas = () => {
+  const _handleNewCanvas = () => {
     addCanvas();
     router.push('/editor');
   };
@@ -187,12 +176,12 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
   return (
     <div className="min-h-screen p-4 md:p-6 bg-surface-page">
       <div className="max-w-[1400px] mx-auto grid md:grid-cols-[260px_1fr] gap-4 md:gap-6">
-        
+
         {/* MOBILE DRAWER SIDEBAR */}
         {mobileMenuOpen && (
-          <div 
-            className="fixed inset-0 bg-[#000000]/40 backdrop-blur-xs z-40 md:hidden animate-fade-in" 
-            onClick={() => setMobileMenuOpen(false)} 
+          <div
+            className="fixed inset-0 bg-[#000000]/40 backdrop-blur-xs z-40 md:hidden animate-fade-in"
+            onClick={() => setMobileMenuOpen(false)}
           />
         )}
         <aside
@@ -216,8 +205,8 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
                 <span className="text-[10px] text-text-muted">Workspace</span>
               </div>
             </div>
-            <button 
-              onClick={() => setMobileMenuOpen(false)} 
+            <button
+              onClick={() => setMobileMenuOpen(false)}
               className="p-1.5 rounded-lg hover:bg-surface-page text-text-muted"
             >
               <X className="w-5 h-5" />

@@ -14,6 +14,8 @@ export function TechnologyBrandIcon({ technology, size = 18, color }: Technology
   if (!slug) return null;
 
   return (
+    <>
+    {/* eslint-disable-next-line @next/next/no-img-element */}
     <img
       src={technologyBrandIconUrl(slug, color)}
       alt=""
@@ -29,5 +31,6 @@ export function TechnologyBrandIcon({ technology, size = 18, color }: Technology
       }}
       draggable={false}
     />
+    </>
   );
 }

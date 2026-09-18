@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import ReactFlow, {
   Background,
-  Controls,
   useNodesState,
   useEdgesState,
   Node,
@@ -17,13 +16,7 @@ import ReactFlow, {
   MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import {
-  Undo2, Redo2, LayoutGrid, Sun, Moon, Share2, Download,
-  Sparkles, Database, Server, Globe, Activity,
-  Send, ChevronDown, Plus, Folder, Trash2, MoreHorizontal,
-  Layers, MessageSquare, BookOpen, Square, HelpCircle, Code, Mic,
-  PanelLeftClose, FolderOpen, LayoutDashboard, ChevronLeft, Slash, MousePointer2
-} from 'lucide-react';
+import { Undo2, Redo2, LayoutGrid, Sun, Moon, Share2, Download, Send, ChevronDown, Plus, Trash2, MoreHorizontal, Layers, Square, Code, Mic, PanelLeftClose, FolderOpen, LayoutDashboard, ChevronLeft, Slash } from 'lucide-react';
 import dagre from 'dagre';
 import { toast } from 'sonner';
 import { DEMO_NODE_TYPES, DEMO_EDGE_TYPES } from './landing-demo/DemoNodes';
@@ -39,9 +32,9 @@ export default function InteractiveLandingDemo() {
 }
 
 function InteractiveLandingDemoContent() {
-  const [activeChip, setActiveChip] = useState<'loadBalancer'>('loadBalancer');
-  const [nodes, setNodes, onNodesChange] = useNodesState(PRESETS.loadBalancer.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(PRESETS.loadBalancer.edges);
+  const [_activeChip, setActiveChip] = useState<'loadBalancer'>('loadBalancer');
+  const [nodes, setNodes, _onNodesChange] = useNodesState(PRESETS.loadBalancer.nodes);
+  const [edges, setEdges, _onEdgesChange] = useEdgesState(PRESETS.loadBalancer.edges);
   const [title, setTitle] = useState(PRESETS.loadBalancer.title);
   const [inputText, setInputText] = useState('');
   const [isDemoDark, setIsDemoDark] = useState(false);
@@ -89,15 +82,15 @@ function InteractiveLandingDemoContent() {
     );
   }, [setNodes]);
 
-  const displayNodes = useMemo(() => 
-    nodes.map(n => ({ 
-      ...n, 
-      data: { 
-        ...n.data, 
+  const displayNodes = useMemo(() =>
+    nodes.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
         isDemoDark,
         onRename: updateNodeLabel,
-      } 
-    })), 
+      }
+    })),
     [nodes, isDemoDark, updateNodeLabel]
   );
 
@@ -163,7 +156,7 @@ function InteractiveLandingDemoContent() {
   };
 
   // Dagre Layout Rearranging
-  const handleLayoutArrange = () => {
+  const _handleLayoutArrange = () => {
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setDefaultEdgeLabel(() => ({}));
     g.setGraph({ rankdir: 'TB', nodesep: 160, ranksep: 200 });
@@ -219,7 +212,7 @@ function InteractiveLandingDemoContent() {
       setNodes(nextNodes);
       pushState(nextNodes, edges);
       toast.success('Rearranged diagram layout');
-    } catch (e) {
+    } catch {
       toast.error('Could not layout diagram');
     }
   };
@@ -264,11 +257,11 @@ function InteractiveLandingDemoContent() {
       id: newId,
       type: 'demoNode',
       position: { x: 280, y: 120 },
-      data: { 
-        label: `Compute Service`, 
-        subtitle: 'Node.js App', 
-        layer: 'compute', 
-        icon: '💻' 
+      data: {
+        label: `Compute Service`,
+        subtitle: 'Node.js App',
+        layer: 'compute',
+        icon: '💻'
       },
       draggable: true,
     };
@@ -299,8 +292,8 @@ function InteractiveLandingDemoContent() {
 
   return (
     <div className={`w-full h-[400px] sm:h-[560px] lg:h-[740px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
-      isDemoDark 
-        ? 'dark bg-[#090b0d] text-[#f7f8f8] border-[#202327]' 
+      isDemoDark
+        ? 'dark bg-[#090b0d] text-[#f7f8f8] border-[#202327]'
         : 'bg-surface-panel text-text-primary border-border-default'
     }`}>
       <style jsx global>{`
@@ -347,7 +340,7 @@ function InteractiveLandingDemoContent() {
               <span>Dashboard</span>
             </div>
             <ChevronLeft className={`w-3.5 h-3.5 ${isDemoDark ? 'text-[#3f444e]' : 'text-[#cbd5e1]'}`} />
-            
+
             {/* Title display */}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer transition-all ${
               isDemoDark ? 'bg-[#121316] border-[#23252a] text-[#f7f8f8]' : 'bg-[#f1f5f9] border-[#cbd5e1] text-[#0f172a]'
@@ -356,11 +349,11 @@ function InteractiveLandingDemoContent() {
               <ChevronDown className="w-3 h-3 text-[#8a8f98]" />
             </div>
 
-            <button 
+            <button
               onClick={handleAddNode}
               className={`p-1.5 rounded-lg transition-all ${
                 isDemoDark ? 'text-[#8a8f98] hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
-              }`} 
+              }`}
               title="Add node"
             >
               <Plus className="w-4 h-4" />
@@ -403,7 +396,7 @@ function InteractiveLandingDemoContent() {
           {/* Right panel items */}
           <div className="flex items-center gap-1.5">
             <div className="relative">
-              <div 
+              <div
                 onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
                 className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold transition-all ${
                   isDemoDark ? 'bg-[#121316] border-[#23252a] text-[#f7f8f8]' : 'bg-[#f1f5f9] border-[#cbd5e1] text-[#0f172a]'
@@ -446,8 +439,8 @@ function InteractiveLandingDemoContent() {
             >
               {isDemoDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
-            
-            <button 
+
+            <button
               onClick={handleDeleteSelected}
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
@@ -456,8 +449,8 @@ function InteractiveLandingDemoContent() {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-            
-            <button 
+
+            <button
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
               }`}
@@ -465,7 +458,7 @@ function InteractiveLandingDemoContent() {
             >
               <Share2 className="w-3.5 h-3.5" />
             </button>
-            <button 
+            <button
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
               }`}
@@ -473,7 +466,7 @@ function InteractiveLandingDemoContent() {
             >
               <Download className="w-3.5 h-3.5" />
             </button>
-            <button 
+            <button
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
               }`}
@@ -513,14 +506,14 @@ function InteractiveLandingDemoContent() {
             }`} title="Line">
               <Slash className="w-4 h-4 -rotate-45" />
             </button>
-            
+
             <span className={`w-6 h-px self-center ${isDemoDark ? 'bg-[#202327]' : 'bg-[#e2e8f0]'}`} />
 
-            <button 
+            <button
               onClick={handleAddNode}
               className={`p-2 rounded-xl transition-all ${
                 isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
-              }`} 
+              }`}
               title="Add Connection"
             >
               <Plus className="w-4 h-4" />
@@ -557,11 +550,11 @@ function InteractiveLandingDemoContent() {
           edgesUpdatable={false}
           proOptions={{ hideAttribution: true }}
         >
-          <Background 
-            variant={BackgroundVariant.Dots} 
-            gap={24} 
-            size={2} 
-            color={isDemoDark ? '#4b5563' : '#cbd5e1'} 
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={24}
+            size={2}
+            color={isDemoDark ? '#4b5563' : '#cbd5e1'}
           />
         </ReactFlow>
       </div>
@@ -574,8 +567,8 @@ function InteractiveLandingDemoContent() {
         }`}>
           <div className="flex items-center gap-1.5 flex-1 min-w-0 pl-0.5">
             {/* Plus Button */}
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={handleAddNode}
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all shrink-0 ${
                 isDemoDark ? 'bg-[#202327] text-[#8a8f98] hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900'
@@ -584,7 +577,7 @@ function InteractiveLandingDemoContent() {
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
-            
+
             <input
               type="text"
               value={inputText}

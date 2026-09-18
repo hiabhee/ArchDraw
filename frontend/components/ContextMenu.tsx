@@ -4,11 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useReactFlow } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { getViewportCenter } from '@/lib/utils';
-import { 
-  Copy, Clipboard, Scissors, Trash2, Group, Type, 
-  MessageSquare, CheckSquare, Layers, ZoomIn, ZoomOut,
-  Maximize2, ChevronRight, GitBranch
-} from 'lucide-react';
+import { Copy, Scissors, Group, Type, MessageSquare, CheckSquare, ZoomIn, ZoomOut, Maximize2, ChevronRight, GitBranch } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { createNode, createTextLabelNode } from '@/lib/factory';
 
@@ -30,11 +26,11 @@ export function ContextMenu({ menu, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { fitView } = useReactFlow();
   const {
-    nodes, edges, removeNode, deleteEdge: storeDeleteEdge, setSelectedNodeId,
+    nodes, removeNode, deleteEdge: storeDeleteEdge,
     selectedNodeIds, setSelectedNodeIds, createGroup, ungroupNodes, moveToGroup,
-    pushHistory, fitView: storeFitView, updateEdgeData, appendNode,
+    pushHistory, fitView: _storeFitView, updateEdgeData, appendNode,
   } = useDiagramStore();
 
   useEffect(() => {
@@ -120,7 +116,7 @@ export function ContextMenu({ menu, onClose }: Props) {
     if (menu.edgeId) { setConfirmDelete(true); }
   }, [menu.edgeId]);
 
-  const handleDeleteEdgeConfirm = useCallback(() => {
+  const _handleDeleteEdgeConfirm = useCallback(() => {
     if (menu.edgeId) { storeDeleteEdge(menu.edgeId); onClose(); }
     setConfirmDelete(false);
   }, [menu.edgeId, storeDeleteEdge, onClose]);
@@ -190,10 +186,10 @@ export function ContextMenu({ menu, onClose }: Props) {
     >
       {isEdgeMenu ? (
         <>
-          <MenuItemWithSubmenu 
-            icon={<GitBranch size={14} />} 
+          <MenuItemWithSubmenu
+            icon={<GitBranch size={14} />}
             label="Connection Type"
-            submenuOpen={openSubmenu === 'connectionType'} 
+            submenuOpen={openSubmenu === 'connectionType'}
             onMouseEnter={() => setOpenSubmenu('connectionType')}
             onMouseLeave={() => setOpenSubmenu(null)}
           >
@@ -247,10 +243,10 @@ export function ContextMenu({ menu, onClose }: Props) {
             return null;
           })()}
           <Separator />
-          <MenuItemWithSubmenu 
-            icon={<Type size={14} />} 
+          <MenuItemWithSubmenu
+            icon={<Type size={14} />}
             label="Add Text Label"
-            submenuOpen={openSubmenu === 'textLabel'} 
+            submenuOpen={openSubmenu === 'textLabel'}
             onMouseEnter={() => setOpenSubmenu('textLabel')}
             onMouseLeave={() => setOpenSubmenu(null)}
             onClick={() => addTextLabel('medium')}
@@ -266,10 +262,10 @@ export function ContextMenu({ menu, onClose }: Props) {
         </>
       ) : (
         <>
-          <MenuItemWithSubmenu 
-            icon={<Type size={14} />} 
+          <MenuItemWithSubmenu
+            icon={<Type size={14} />}
             label="Add Text Label"
-            submenuOpen={openSubmenu === 'textLabel'} 
+            submenuOpen={openSubmenu === 'textLabel'}
             onMouseEnter={() => setOpenSubmenu('textLabel')}
             onMouseLeave={() => setOpenSubmenu(null)}
             onClick={() => addTextLabel('medium')}
@@ -316,14 +312,14 @@ export function ContextMenu({ menu, onClose }: Props) {
   );
 }
 
-function MenuItem({ 
-  children, 
-  onClick, 
+function MenuItem({
+  children,
+  onClick,
   danger,
-  icon 
-}: { 
-  children: React.ReactNode; 
-  onClick: () => void; 
+  icon
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
   danger?: boolean;
   icon?: React.ReactNode;
 }) {
@@ -352,16 +348,16 @@ function Separator() {
   return <div className="my-1.5 h-px bg-foreground/10 mx-2" />;
 }
 
-function MenuItemWithSubmenu({ 
-  children, 
-  icon, 
+function MenuItemWithSubmenu({
+  children,
+  icon,
   label,
   submenuOpen,
   onMouseEnter,
   onMouseLeave,
   onClick
-}: { 
-  children: React.ReactNode; 
+}: {
+  children: React.ReactNode;
   icon?: React.ReactNode;
   label: string;
   submenuOpen: boolean;
@@ -380,7 +376,7 @@ function MenuItemWithSubmenu({
         <ChevronRight size={14} className="opacity-50" />
       </button>
       {submenuOpen && (
-        <div 
+        <div
           className="absolute left-full top-0 ml-1 bg-card rounded-xl shadow-soft-4 py-2 min-w-[120px] animate-in fade-in-0 zoom-in-95 duration-150"
         >
           {children}
@@ -390,11 +386,11 @@ function MenuItemWithSubmenu({
   );
 }
 
-function SubmenuItem({ 
-  children, 
-  onClick 
-}: { 
-  children: React.ReactNode; 
+function SubmenuItem({
+  children,
+  onClick
+}: {
+  children: React.ReactNode;
   onClick: () => void;
 }) {
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, forwardRef, useImperativeHandle } from 'react';
+import { useState, forwardRef, useImperativeHandle, useCallback, useRef } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -617,7 +617,10 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
     }
   };
 
-  const handleExport = (format: ExportFormat) => {
+  const doExportRef = useRef(doExport);
+  doExportRef.current = doExport;
+
+  const handleExport = useCallback((format: ExportFormat) => {
     if (!isExportFormatAllowed(tier, format)) {
       setUpgradeModal({
         feature: 'export',
@@ -626,8 +629,8 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
       });
       return;
     }
-    doExport(format);
-  };
+    void doExportRef.current(format);
+  }, [tier]);
 
   useImperativeHandle(ref, () => ({ handleExport }), [handleExport]);
 

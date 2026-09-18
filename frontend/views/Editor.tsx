@@ -25,16 +25,9 @@ import { componentRegistry } from '@/lib/componentRegistry';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import type { GenerationProgress } from '@/lib/ai/types';
-import { ContextualSidebar } from '@/components/editor/ContextualSidebar';
+
 import { isGitHubRepoUrl, coerceGitHubRepoInput } from '@/lib/utils/githubUrl';
-import {
-  generateDiagramFromPrompt,
-  generateDiagramFromRepo,
-  mergeGeneratedNodes,
-  inferDiagramDirection,
-  extractRepoName,
-  GenerationServiceError,
-} from '@/lib/ai/generationService';
+import { generateDiagramFromPrompt, generateDiagramFromRepo, mergeGeneratedNodes, inferDiagramDirection, extractRepoName, GenerationServiceError } from '@/lib/ai/generationService';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
 import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
@@ -62,23 +55,23 @@ const QUICK_SHAPE_KEYS: Record<string, ShapeType> = {
 
 function generateCanvasName(prompt: string): string {
   const words = prompt.trim().split(/\s+/);
-  const filtered = words.filter(w => 
+  const filtered = words.filter(w =>
     !['a', 'an', 'the', 'for', 'with', 'and', 'or', 'to', 'of', 'in', 'on', 'at', 'by', 'is', 'are', 'was', 'were', 'be', 'build', 'design', 'create', 'make', 'generate', 'architecture', 'diagram', 'system'].includes(w.toLowerCase())
   );
-  
+
   const topic = filtered.slice(0, 3).join(' ');
   return topic ? `${topic.charAt(0).toUpperCase() + topic.slice(1)} diagram` : 'AI Diagram';
 }
 
 export default function EditorPage() {
-  const { 
-    selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen, 
-    importDiagram, importSequenceDiagram, fitView, renameCanvas, 
+  const {
+    selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen,
+    importDiagram, importSequenceDiagram, fitView, renameCanvas,
     activeCanvasId, sequenceDiagrams, canvases,
     startGeneration, markPipelineDone, markPipelineError
   } = useDiagramStore();
   const { user } = useAuthStore();
-  const tier = getUserTier(user?.id);
+  const _tier = getUserTier(user?.id);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editComponent, setEditComponent] = useState<ComponentToEdit | null>(null);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
@@ -93,7 +86,7 @@ export default function EditorPage() {
     }
     return null;
   });
-  const [lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [_lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
   const isMobile = useIsMobile();
@@ -120,7 +113,7 @@ export default function EditorPage() {
       setShowCodePanel(false);
     }
   }, [isSequenceDiagram]);
-  
+
   // Refs for useEffect to avoid dependency issues
   const sidebarOpenRef = useRef(sidebarOpen);
   const canvasSidebarOpenRef = useRef(canvasSidebarOpen);
@@ -136,9 +129,6 @@ export default function EditorPage() {
 
   // Initialize onboarding (auto-open + drag detection)
   useOnboarding();
-
-
-
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -295,12 +285,12 @@ export default function EditorPage() {
     if (result.type === 'sequence') {
       const mermaidSyntax = result.metadata?.mermaidSyntax as string;
       const title = (result.metadata?.title as string) || canvasName;
-      
+
       importSequenceDiagram(mermaidSyntax, title);
-      
+
       const { activeCanvasId } = useDiagramStore.getState();
       renameCanvas(activeCanvasId, title);
-      
+
       setProgress({
         phase: 'complete',
         iteration: 0,
@@ -395,7 +385,7 @@ export default function EditorPage() {
       if (!usedImportDiagram) {
         setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
       }
-      
+
       if (cached) {
         toast.success(`Loaded cached diagram: ${result.nodes.length} nodes`);
       } else {
@@ -412,7 +402,6 @@ export default function EditorPage() {
       progress: 100,
     });
   }, [fitView, importDiagram, importSequenceDiagram, renameCanvas]);
-
 
   const handleGenerate = async (description: string, detailLevelOrSize?: 1 | 2 | 3 | 'small' | 'medium' | 'large', options?: { replace?: boolean }) => {
     const { replace = false } = options ?? {};
@@ -477,7 +466,7 @@ export default function EditorPage() {
         { description, detailLevel, model: selectedModel },
         (p) => setProgress(p),
       );
-      
+
       markPipelineDone();
       handleGenerationComplete(responseData.data, canvasName, !!responseData.cached, replace);
       window.dispatchEvent(new CustomEvent('archdraw:credits-updated'));
@@ -566,7 +555,7 @@ export default function EditorPage() {
         ) : (
           <Canvas />
         )}
-        
+
         <Toolbar />
 
         {showExpirationNudge && (
@@ -578,7 +567,7 @@ export default function EditorPage() {
                   Guest work expires soon. <strong>Sign in</strong> to save.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('trigger-share'));
                 }}
@@ -589,11 +578,11 @@ export default function EditorPage() {
             </div>
           </div>
         )}
-        
+
         {canvasSidebarOpen && (
           <CanvasSidebar onClose={() => setCanvasSidebarOpen(false)} />
         )}
-        
+
         {sidebarOpen && (
           <ComponentSidebar
             onOpenCreateModal={() => setShowCreateModal(true)}
@@ -601,11 +590,11 @@ export default function EditorPage() {
         )}
 
         {(selectedNodeId || selectedNodeIds.length > 0 || selectedEdgeId) && <PropertiesPanel />}
-        
+
         <CommandPalette />
         <OnboardingOverlay />
-          <FloatingAIBar 
-          onGenerate={handleGenerate} 
+          <FloatingAIBar
+          onGenerate={handleGenerate}
           onToggleCode={() => setShowCodePanel(prev => !prev)}
           codeAction={isSequenceDiagram ? 'hidden' : showCodePanel ? 'hide' : 'show'}
           isCanvasEmpty={nodes.length === 0}
@@ -617,8 +606,8 @@ export default function EditorPage() {
             <MermaidCodePanel onClose={() => setShowCodePanel(false)} />
           )}
         </AnimatePresence>
-        <GenerationProgressDisplay 
-          progress={progress} 
+        <GenerationProgressDisplay
+          progress={progress}
           onCancel={() => {
             setProgress(null);
           }}

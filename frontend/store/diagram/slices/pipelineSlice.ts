@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Edge, Node } from 'reactflow';
+
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import type { DiagramState } from '../types';
 import { normalizeNodes, normalizeNodeType } from '../helpers/nodeHelpers';

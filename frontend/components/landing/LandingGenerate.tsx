@@ -8,9 +8,9 @@ import { editorGenerateHref, FEATURED_REPO_URL, START_CTA_LABEL } from './cta';
 import styles from './RevampedLanding.module.css';
 
 const EXAMPLES = [
-  { label: 'hiabhee/ArchDraw', value: FEATURED_REPO_URL },
-  { label: 'Ride-sharing with dispatch', value: 'Ride-sharing app with payments, dispatch, and live location' },
-  { label: 'nestjs/nest', value: 'https://github.com/nestjs/nest' },
+  { label: 'Explore ArchDraw', value: FEATURED_REPO_URL },
+  { label: 'Design a ride-share system', value: 'Ride-sharing app with payments, dispatch, and live location' },
+  { label: 'Map NestJS', value: 'https://github.com/nestjs/nest' },
 ] as const;
 
 export function LandingGenerate() {
@@ -35,7 +35,7 @@ export function LandingGenerate() {
         }}
       >
         <label className={styles.generateLabel} htmlFor="landing-generate-input">
-          GitHub URL or system description
+          Repository URL or system idea
         </label>
         <div className={styles.generateRow}>
           <input
@@ -46,7 +46,8 @@ export function LandingGenerate() {
             spellCheck={false}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="https://github.com/owner/repo or describe a system"
+            aria-describedby="landing-generate-note"
+            placeholder="Paste a GitHub repo or describe what you’re building"
           />
           <button
             className={styles.primaryAction}
@@ -73,7 +74,7 @@ export function LandingGenerate() {
           </button>
         ))}
       </div>
-      <p className={styles.reassurance}>Free during beta. No credit card. Every diagram stays editable.</p>
+      <p id="landing-generate-note" className={styles.reassurance}>Free during beta. No credit card. Every diagram stays editable.</p>
     </div>
   );
 }

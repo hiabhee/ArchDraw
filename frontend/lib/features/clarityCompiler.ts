@@ -68,7 +68,7 @@ function assignVisualHierarchy(
   spine: SpineResult
 ): Edge[] {
   const spineEdgeSet = new Set(spine.spineEdgeIds)
-  const spineNodeSet = new Set(spine.spineNodeIds)
+  const _spineNodeSet = new Set(spine.spineNodeIds)
   const nodeServiceTypes = new Map<string, string>()
 
   for (const node of nodes) {

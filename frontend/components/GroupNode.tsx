@@ -7,7 +7,7 @@ import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { getConcernColor, CONCERN_COLORS } from '@/lib/theme/stylingConstants';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
-import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, BRUTAL_SHADOW_FILTER, type RenderSurface } from '@/lib/theme/renderStyles';
+import { renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodes/nodeStyles.css';

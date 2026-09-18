@@ -3,7 +3,7 @@ export type NodeCategory = 'client' | 'edge' | 'compute' | 'async' | 'data' | 'o
 export function isValidConnection(
   sourceCategory: string | undefined,
   targetCategory: string | undefined,
-  connectionType: string = 'sync'
+  _connectionType: string = 'sync'
 ): boolean {
   return true;
 }

@@ -4,9 +4,8 @@ import { BaseStage } from '../Stage';
 import type { Stage } from '../Stage';
 import type { StageResult } from '../StageResult';
 import { successResult, errorResult, skipResult, warningResult } from '../StageResult';
-import type { PipelineContext } from '../PipelineContext';
+
 import { DefaultPipelineContext } from '../PipelineContext';
-import type { PipelineResult } from '../PipelineResult';
 
 describe('StageResult', () => {
   it('creates success result', () => {

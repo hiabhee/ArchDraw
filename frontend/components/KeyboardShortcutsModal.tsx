@@ -1,14 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X, Keyboard } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Keyboard } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const SHORTCUTS = [
   { category: 'Selection', items: [
@@ -67,8 +61,8 @@ interface Props {
 
 export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { 
-      if (e.key === 'Escape') onOpenChange(false); 
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -86,7 +80,7 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
             A reference of all available keyboard shortcuts for the canvas editor.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="grid grid-cols-2 gap-x-6 gap-y-5">
             {SHORTCUTS.map((section) => (
@@ -96,8 +90,8 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
                 </p>
                 <div className="space-y-0.5">
                   {section.items.map(({ key, action }) => (
-                    <div 
-                      key={key} 
+                    <div
+                      key={key}
                       className="flex items-center justify-between py-1.5"
                     >
                       <span className="text-xs text-foreground/80">{action}</span>
@@ -111,7 +105,7 @@ export function KeyboardShortcutsModal({ open, onOpenChange }: Props) {
             ))}
           </div>
         </div>
-        
+
         <div className="px-6 py-3 shrink-0 border-t border-border/40">
           <p className="text-[11px] text-muted-foreground/60 text-center">Press ? to toggle this panel</p>
         </div>

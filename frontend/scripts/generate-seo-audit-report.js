@@ -1,4 +1,4 @@
-const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType, VerticalAlign, PageNumber, TabStopType, TabStopPosition, LevelFormat, convertInchesToTwip } = require('docx');
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType, VerticalAlign, PageNumber, _TabStopType, _TabStopPosition, LevelFormat, _convertInchesToTwip } = require('docx');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,7 +18,7 @@ function statusLabel(score) { if (score>=8) return 'Strong'; if (score>=5) retur
 function statusColor(score) { return scoreColor(score); }
 
 // Helpers
-function cell(text, opts={}) {
+function _cell(text, opts={}) {
   const { bold=false, size=11, color='1E293B', align=AlignmentType.LEFT, shading, italics=false, font='Arial' } = opts;
   const para = new Paragraph({
     alignment: align,
@@ -47,7 +47,7 @@ function body(text, opts={}) {
     alignment: AlignmentType.LEFT,
   });
 }
-function bullet(text) {
+function _bullet(text) {
   return new Paragraph({
     bullet: { level: 0 },
     spacing: { after: 60 },

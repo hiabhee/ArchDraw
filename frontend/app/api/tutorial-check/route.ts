@@ -30,16 +30,16 @@ function checkCheckRateLimit(key: string): boolean {
   if (++checkAccessCount % 10 === 0) cleanupCheckExpired();
 
   const record = checkRateLimitMap.get(key);
-  
+
   if (!record || now > record.resetTime) {
     checkRateLimitMap.set(key, { count: 1, resetTime: now + CHECK_RATE_WINDOW_MS });
     return true;
   }
-  
+
   if (record.count >= MAX_CHECK_REQUESTS) {
     return false;
   }
-  
+
   record.count++;
   return true;
 }
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const validatedInput = tutorialCheckSchema.safeParse(body);
-    
+
     if (!validatedInput.success) {
       const errorMessage = validatedInput.error.issues
         .map((e) => `${e.path.join('.')}: ${e.message}`)
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const {
-      tutorialId,
+      tutorialId: _tutorialId,
       stepNumber,
       stepTitle,
       stepExplanation,

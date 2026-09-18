@@ -2,17 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
 import { NodeResizer } from '@reactflow/node-resizer';
 import SimpleFloatingEdge from '@/components/edges/SimpleFloatingEdge';
-import {
-  getTierColorNormalized,
-  getDarkCategoryStyle,
-  hexToRgba,
-  STATUS_COLORS,
-} from './demoColors';
+import { getTierColorNormalized, getDarkCategoryStyle, hexToRgba, STATUS_COLORS } from './demoColors';
 import type { DemoNodeData, DemoGroupData } from './demoTypes';
 
 // Custom Dotted Node Component
 function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; selected: boolean }) {
-  const isDark = data.isDemoDark !== false;
+  const _isDark = data.isDemoDark !== false;
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label || '');
   const inputRef = useRef<HTMLInputElement>(null);

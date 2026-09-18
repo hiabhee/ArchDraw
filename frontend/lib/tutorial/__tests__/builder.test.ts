@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { step, level, defineTutorial, node, edge } from '@/lib/tutorial/builder';
+import { step, level, defineTutorial } from '@/lib/tutorial/builder';
 import { COMPONENT_TOOLTIPS } from '@/data/componentTooltips';
 
 describe('tutorial builder — teaching enrichment', () => {

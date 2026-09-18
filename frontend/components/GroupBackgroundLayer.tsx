@@ -37,17 +37,22 @@ export function GroupBackgroundLayer() {
   const [viewportEl, setViewportEl] = useState<Element | null>(null);
 
   useEffect(() => {
-    // .react-flow__viewport is created by ReactFlow; portal the layer there
-    // as its first child so it paints before .react-flow__edges.
-    const el = document.querySelector('.react-flow__viewport');
-    setViewportEl(el);
-    if (!el) return;
+    let cancelled = false;
+    const sync = () => {
+      if (cancelled) return;
+      const el = document.querySelector('.react-flow__viewport');
+      setViewportEl(el);
+    };
+    const frame = requestAnimationFrame(sync);
     const obs = new MutationObserver(() => {
-      const next = document.querySelector('.react-flow__viewport');
-      if (next !== el) setViewportEl(next);
+      requestAnimationFrame(sync);
     });
     obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      obs.disconnect();
+    };
   }, []);
 
   if (!brutal || groups.length === 0 || !viewportEl) return null;

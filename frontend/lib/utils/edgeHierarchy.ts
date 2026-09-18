@@ -4,7 +4,7 @@
  */
 
 import { EDGE_CONFIG } from '@/lib/config';
-import { EDGE_STYLES, FLOW_ACCENT } from '@/lib/theme/stylingConstants';
+import { EDGE_STYLES } from '@/lib/theme/stylingConstants';
 import { sketchEdgeInk, type SketchEdgeInk } from '@/lib/theme/renderStyles';
 import { isAsyncEdge } from '@/lib/utils/edgeStroke';
 

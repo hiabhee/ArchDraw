@@ -31,9 +31,9 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { performance } from 'node:perf_hooks';
+
 import { ENDPOINTS, PAGES, DEFAULT_RUNS, DEFAULT_CONCURRENCY, DEFAULT_TIMEOUT_MS } from './config.js';
-import { measureBuildTime, measureBundle, measureAllEndpoints, measureAllPages, quickStaticLint, frontendDir, nextDir } from './measure.js';
+import { measureBuildTime, measureBundle, measureAllEndpoints, measureAllPages, quickStaticLint, frontendDir, type EndpointStats, type PerfSnapshot } from './measure.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const perfResultsDir = resolve(frontendDir, 'perf-results');
@@ -104,7 +104,7 @@ function fmtMs(n: number): string { return `${n} ms`; }
 
 function renderMarkdown(
   result: Awaited<ReturnType<typeof runBenchmark>>,
-  baseline?: any
+  baseline?: PerfSnapshot | null
 ): string {
   const lines: string[] = [];
   lines.push(`# Perf Benchmark — ${result.date} ${result.gitSha ? `(${result.gitSha.slice(0, 7)})` : ''}`);
@@ -181,11 +181,11 @@ function renderMarkdown(
   if (baseline) {
     lines.push('## Δ vs Baseline');
     lines.push('');
-    const baseEndpoints = new Map((baseline.endpoints ?? []).map((e: any) => [e.name, e]));
+    const baseEndpoints = new Map((baseline.endpoints ?? []).map((e: EndpointStats) => [e.name, e]));
     lines.push('| Endpoint | Baseline p95 TTFB | Current p95 TTFB | Δ | Baseline p95 Total | Current p95 Total | Δ |');
     lines.push('|---|---|---|---|---|---|---|');
     for (const cur of result.endpoints) {
-      const base = baseEndpoints.get(cur.name) as any;
+      const base = baseEndpoints.get(cur.name);
       if (!base) { lines.push(`| ${cur.name} | — | ${fmtMs(cur.ttfb.p95)} | new | — | ${fmtMs(cur.total.p95)} | new |`); continue; }
       const dTtfb = cur.ttfb.p95 - base.ttfb.p95;
       const dTot = cur.total.p95 - base.total.p95;
@@ -262,11 +262,11 @@ async function runBenchmark(cli: CliArgs) {
   } else {
     baseUrl = candidates[0]!;
   }
-  const devFallback = resolvedCandidate ?? baseUrl;
+  const _devFallback = resolvedCandidate ?? baseUrl;
   let spawned: ReturnType<typeof spawn> | null = null;
   let shouldKillSpawn = false;
   const baseReachable = cli.skipEndpoints ? true : !!resolvedCandidate;
-  const devReachable = baseReachable;
+  const _devReachable = baseReachable;
 
   if (!cli.skipEndpoints) {
     if (!baseReachable && cli.spawn) {
@@ -367,8 +367,8 @@ async function main() {
       console.error(`No latest.json at ${latestGlob} — run a benchmark first.`);
       process.exit(1);
     }
-    const baseline = JSON.parse(baselineRaw);
-    const latest = JSON.parse(latestRaw);
+    const baseline = JSON.parse(baselineRaw) as PerfSnapshot;
+    const latest = JSON.parse(latestRaw) as Awaited<ReturnType<typeof runBenchmark>>;
     // render diff to stdout
     const md = renderMarkdown(latest, baseline);
     console.log(md);
@@ -388,10 +388,10 @@ async function main() {
   writeFileSync(latestJson, JSON.stringify(result, null, 2) + '\n', 'utf8');
 
   // try to render with baseline diff if baseline exists
-  let baselineData: any = null;
+  let baselineData: PerfSnapshot | null = null;
   const baselinePath = join(perfResultsDir, 'baseline.json');
   if (existsSync(baselinePath) && outJson !== baselinePath) {
-    try { baselineData = JSON.parse(readFileSync(baselinePath, 'utf8')); } catch {}
+    try { baselineData = JSON.parse(readFileSync(baselinePath, 'utf8')) as PerfSnapshot; } catch {}
   }
   const md = renderMarkdown(result, baselineData ?? undefined);
   writeFileSync(outMd, md, 'utf8');

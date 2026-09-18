@@ -1,16 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import {
-  Trash2, Upload,
-  Undo2, Redo2, Share2, Loader2, Check,
-  GraduationCap, MoreHorizontal, HelpCircle,
-  PanelLeftClose, LayoutTemplate, FolderOpen,
-  LayoutDashboard,
-  Github,
-  PenTool,
-  Download,
-} from 'lucide-react';
+import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useAuthStore } from '@/store/authStore';
@@ -35,7 +26,6 @@ import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
 import { RenderStyleToggle } from '@/components/toolbar/ThemeToggles';
 import { CreditsPill } from '@/components/toolbar/CreditsPill';
 
-
 export function Toolbar() {
   const router = useRouter();
   const {
@@ -44,14 +34,14 @@ export function Toolbar() {
     canvases, activeCanvasId, removeCanvas,
     getVisibleCanvases,
     savingState, userProfile, setSidebarOpen, sidebarOpen,
-    activeLayoutPresetId, sequenceDiagrams,
+    sequenceDiagrams,
     isPenModeActive, setPenModeActive,
   } = useDiagramStore();
 
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
-  const isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
+  const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -81,10 +71,6 @@ export function Toolbar() {
   const handleDeleteCanvas = () => {
     setConfirmDeleteId(activeCanvasId);
   };
-
-
-
-
 
   const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
@@ -126,7 +112,7 @@ export function Toolbar() {
     const currentUser = useAuthStore.getState().user;
     const userEmail = currentUser?.email || 'owner@local';
     const userName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Owner';
-    
+
     setIsSharing(true);
     try {
       const response = await fetch('/api/diagram/load', {
@@ -158,7 +144,7 @@ export function Toolbar() {
         });
         return;
       }
-      
+
       if (response.ok && data.sessionId) {
         // Prefer the current origin so local/staging links stay on the same host.
         const baseUrl = window.location.origin;
@@ -293,7 +279,6 @@ export function Toolbar() {
             <span>{edges.length}</span>
             <span className="hidden sm:inline">edges</span>
           </span>
-
 
           {userProfile && savingState !== 'idle' && (
             <>
@@ -573,7 +558,7 @@ export function Toolbar() {
           onAccessChange={(accessType, linkPermission) => {
             setShareAccessType(accessType);
             setShareLinkPermission(linkPermission);
-            
+
             // Persist to backend
             fetch('/api/diagram/load', {
               method: 'PATCH',
@@ -588,7 +573,7 @@ export function Toolbar() {
           onInvite={(email, role) => {
             const userName = email.split('@')[0];
             setSharePeople(prev => [...prev, { email, name: userName, role }]);
-            
+
             fetch('/api/diagram/load', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -602,7 +587,7 @@ export function Toolbar() {
           }}
           onRemove={(userId) => {
             setSharePeople(prev => prev.filter(p => p.email !== userId));
-            
+
             fetch('/api/diagram/load', {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
@@ -613,10 +598,10 @@ export function Toolbar() {
             }).catch((err) => logger.error('Remove user error:', err));
           }}
           onRoleChange={(userId, newRole) => {
-            setSharePeople(prev => prev.map(p => 
+            setSharePeople(prev => prev.map(p =>
               p.email === userId ? { ...p, role: newRole === 'can edit' ? 'editor' : 'viewer' } : p
             ));
-            
+
             fetch('/api/diagram/load', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },

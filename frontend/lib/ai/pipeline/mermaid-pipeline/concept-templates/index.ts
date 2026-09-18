@@ -1,13 +1,6 @@
-import type { ConceptTemplatePlan, ConceptDomain, ImplicitConcept } from './types';
+import type { ConceptTemplatePlan, ImplicitConcept } from './types';
 import { BASE_STYLE, FORMAT } from './types';
-import {
-  dockerMermaid,
-  apiGatewayMermaid,
-  kafkaMermaid,
-  linuxMermaid,
-  domainMermaid,
-  sanitizeLabel,
-} from './templateMermaid';
+import { dockerMermaid, apiGatewayMermaid, kafkaMermaid, linuxMermaid, domainMermaid, sanitizeLabel } from './templateMermaid';
 import { trimMermaidByDetailLevel } from './trimming';
 
 export function getConceptTemplatePlan(
@@ -41,7 +34,6 @@ export function getConceptTemplatePlan(
   }
   return plan;
 }
-
 
 export function buildPlan(mermaidCode: string, reasoning: string): ConceptTemplatePlan {
   return {

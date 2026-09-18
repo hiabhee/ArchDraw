@@ -1,16 +1,13 @@
 'use client';
 
 import ReactFlow, {
-  Background, BackgroundVariant, MiniMap,
+  Background, BackgroundVariant,
   useReactFlow, ReactFlowProvider, useViewport,
-  NodeMouseHandler,   EdgeMouseHandler, NodeDragHandler,
   SelectionMode, ConnectionLineType,
-  ConnectionMode, MarkerType,
+  ConnectionMode,
   type OnSelectionChangeParams,
   type Connection,
   type Edge,
-  type NodeChange,
-  type ReactFlowInstance,
   type OnConnectStart,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -23,7 +20,7 @@ import { ContextMenu, type ContextMenuState } from '@/components/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/CometTrailCanvas';
 import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
-import { useCallback, useEffect, useRef, DragEvent, useState, useMemo, Suspense } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme';
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded } from '@/lib/theme/renderStyles';
@@ -37,9 +34,8 @@ import { TemplateModal } from '@/components/TemplateModal';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { isValidConnection, wouldCreateCycle } from '@/lib/config/edgeConfig';
-import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
+import { useSearchParams, useRouter } from 'next/navigation';
+
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS, EDGE_CONFIG } from '@/lib/config';
 
 import { useGrouping } from '@/hooks/useGrouping';
@@ -118,7 +114,7 @@ function CanvasUrlSync() {
         });
       });
       const edgesWithType = (data.edges as Edge[]).map((e) => {
-        const { id, source, target, label, type, sourceHandle, targetHandle, data: extraData, ...rest } = e;
+        const { id, source, target, label, data: extraData, ...rest } = e;
         return createEdge(source, target, String(extraData?.label || label || ''), {
           id, type: 'simpleFloating', sourceHandle: undefined, targetHandle: undefined,
           data: { ...extraData, pathType: 'Smoothstep' }, ...rest
@@ -163,13 +159,13 @@ function CanvasInner() {
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const diagramStyleTheme = useDiagramStore((s) => s.diagramStyleTheme);
   const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
-  const selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
+  const _selectedEdgeId = useDiagramStore((s) => s.selectedEdgeId);
   const isMobile = useIsMobile();
 
   const {
     onNodesChange, onEdgesChange, onConnect, onReconnect,
     setSelectedNodeId, setSelectedNodeIds, setSelectedEdgeId,
-    setPendingLabelEdgeId, setCanvasMode,
+    setPendingLabelEdgeId,
     setNodes, addNodeOnEdgeDrop, addNode,
   } = useDiagramStore(useShallow((s) => ({
     onNodesChange: s.onNodesChange,
@@ -180,7 +176,6 @@ function CanvasInner() {
     setSelectedNodeIds: s.setSelectedNodeIds,
     setSelectedEdgeId: s.setSelectedEdgeId,
     setPendingLabelEdgeId: s.setPendingLabelEdgeId,
-    setCanvasMode: s.setCanvasMode,
     setNodes: s.setNodes,
     addNodeOnEdgeDrop: s.addNodeOnEdgeDrop,
     addNode: s.addNode,
@@ -229,10 +224,10 @@ function CanvasInner() {
   const connectSucceededRef = useRef(false);
   // Suppress the pane click that follows the same mouseup as edge-drop create.
   const suppressPaneClickRef = useRef(false);
-  
+
   // Onboarding state - only show when canvas is empty
-  const [isOnboardingVisible, setIsOnboardingVisible] = useState(nodes.length === 0);
-  const [isOnboardingFading, setIsOnboardingFading] = useState(false);
+  const [_isOnboardingVisible, _setIsOnboardingVisible] = useState(nodes.length === 0);
+  const [_isOnboardingFading, _setIsOnboardingFading] = useState(false);
 
   // Keep module ref in sync so store.fitView() can call it directly
   useEffect(() => {
@@ -560,7 +555,7 @@ function CanvasInner() {
   // React Flow parent MUST have explicit width/height — #1 blank canvas cause (skill Rule 3).
   // Editor.tsx provides fixed inset-0 (100dvh); this div resolves h-full → explicit via style fallback.
   return (
-    <div 
+    <div
       className={cn(
         'w-full h-full relative transition-colors duration-200 overscroll-contain',
         !canvasBackground.bgColor && 'bg-[hsl(var(--canvas-bg))]',
@@ -572,12 +567,12 @@ function CanvasInner() {
       data-pipeline={pipelineStatus}
         onDragOver={(e) => e.preventDefault()}
         onDoubleClick={onPaneDoubleClick}
-      style={{ 
+      style={{
         width: '100%',
         height: '100%',
-        overscrollBehavior: 'contain', 
+        overscrollBehavior: 'contain',
         ...(canvasBackground.bgColor ? { backgroundColor: canvasBackground.bgColor } : {}),
-        ...themeVars 
+        ...themeVars
       }}
     >
       <ReactFlow
@@ -627,9 +622,9 @@ function CanvasInner() {
       >
         <GroupBackgroundLayer />
         {canvasBackground.variant === 'dots' && showGrid && (
-          <Background 
-            variant={BackgroundVariant.Dots} 
-            gap={canvasBackground.gap} 
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={canvasBackground.gap}
             size={canvasBackground.size}
             color={canvasBackground.patternColor ?? (isDark ? '#94a3b8' : '#e2e8f0')}
             style={{ opacity: isDark ? 0.35 : 0.5 }}
@@ -651,9 +646,9 @@ function CanvasInner() {
           />
         )}
         {canvasBackground.variant === 'cross' && showGrid && (
-          <Background 
-            variant={BackgroundVariant.Cross} 
-            gap={canvasBackground.gap} 
+          <Background
+            variant={BackgroundVariant.Cross}
+            gap={canvasBackground.gap}
             size={1}
             color={canvasBackground.patternColor ?? (isDark ? '#475569' : '#cbd5e1')}
             style={{ opacity: isDark ? 0.25 : 0.35 }}
@@ -694,8 +689,6 @@ function CanvasInner() {
           </div>
         </div>
       )}
-
-
 
       <KeyboardShortcutsModal open={showShortcuts} onOpenChange={(open) => setShowShortcuts(open)} />
       {templatesOpen && <TemplateModal onClose={() => setTemplatesOpen(false)} />}

@@ -161,7 +161,7 @@ export function validateDiagramOutput(nodes: RFNode[], edges: RFEdge[], directio
       if (node.type === 'groupNode' || isTextNode(node)) continue;
       const label = (node.data?.label as string) || node.id;
       const cls = (node.data?.serviceType as string) || classifyNode(label, undefined).serviceType;
-      let key = `${cls}:${label.toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[^a-z0-9]/g, '')}`;
+      const key = `${cls}:${label.toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[^a-z0-9]/g, '')}`;
       const singKey = key.endsWith('s') && key.length > 3 && !key.endsWith('ss') ? key.slice(0, -1) : key;
       const existing = seen.get(key) || seen.get(singKey);
       if (existing) {

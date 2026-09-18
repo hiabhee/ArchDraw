@@ -8,7 +8,6 @@ import { get as getCachedDiagram, set as setCachedDiagram } from '@/lib/ai/servi
 import logger from '@/lib/logger';
 import { isTokenExhaustedError, SERVER_BUSY_USER_MESSAGE } from '@/lib/ai/utils/apiKeyManager';
 import { z } from 'zod';
-import { getClientIP } from '@/lib/server/ip';
 import { checkAIGenerationQuota, getSessionFromRequest, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
 import { CREDIT_POLICY, consumeCredits, getCreditSnapshot, type DetailLevel } from '@/lib/credits';
 import { acquireAiCapacity, CapacityBusyError, getGenerationBudget } from '@/lib/ai/services/aiCapacity';
@@ -36,15 +35,6 @@ const generateDiagramSchema = z.object({
 
 type GenerateDiagramInput = z.infer<typeof generateDiagramSchema>;
 
-/**
- * Get rate limit identifier from request.
- * Uses the trusted-proxy-aware client IP resolver so that a spoofable
- * leftmost X-Forwarded-For value cannot reset the rate-limit counter.
- */
-function getRateLimitIdentifier(request: NextRequest): string {
-  return getClientIP(request);
-}
-
 export async function POST(req: NextRequest) {
   // Tier-aware quota enforcement
   const quotaCheck = await checkAIGenerationQuota(req);
@@ -71,7 +61,7 @@ export async function POST(req: NextRequest) {
     // Parse and validate request body with Zod
     const body = await req.json();
     const validatedInput = generateDiagramSchema.safeParse(body);
-    
+
     if (!validatedInput.success) {
       const errorMessage = validatedInput.error.issues
         .map((e) => `${e.path.join('.')}: ${e.message}`)

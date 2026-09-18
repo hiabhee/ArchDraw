@@ -4,7 +4,7 @@ import { setRepoDiagram } from '@/lib/ai/services/diagramCache';
 import { setRepoDiagramInRedis } from '@/lib/ai/services/repoDiagramRedisCache';
 import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
 import { REPO_SHARED } from './shared-keys';
-import type { CacheWriteShared } from './shared-keys';
+
 import { detailLevelFromContext } from './context-utils';
 import logger from '@/lib/logger';
 

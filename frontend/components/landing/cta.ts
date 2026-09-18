@@ -1,4 +1,4 @@
-export const START_CTA_LABEL = 'Map your codebase';
+export const START_CTA_LABEL = 'Generate diagram';
 export const START_CTA_HASH = '#generate';
 export const FEATURED_REPO_URL = 'https://github.com/hiabhee/ArchDraw';
 
