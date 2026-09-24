@@ -35,7 +35,6 @@ export const MODELS: readonly ModelDefinition[] = [
   { id: 'openai/gpt-oss-120b', label: 'OpenAI GPT OSS (120B)', provider: 'groq', supportsStreaming: true, costTier: 4, recommendedMaxTokens: 4096 },
   { id: 'openai/gpt-oss-20b', label: 'OpenAI GPT OSS (20B)', provider: 'groq', costTier: 2, recommendedMaxTokens: 3072 },
   { id: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 (27B)', provider: 'groq', costTier: 2, recommendedMaxTokens: 4096 },
-  { id: 'groq/compound-mini', label: 'Groq Compound Mini', provider: 'groq', costTier: 1, recommendedMaxTokens: 8192 },
   // OpenRouter (additional options)
   { id: 'google/gemma-4-26b-a4b-it', label: 'Google Gemma 4 (26B)', provider: 'openrouter', costTier: 2, recommendedMaxTokens: 3072 },
   { id: 'nvidia/nemotron-3-super-120b-a12b', label: 'Nvidia Nemotron 3 Super (120B)', provider: 'openrouter', costTier: 5, recommendedMaxTokens: 4096 },
@@ -44,7 +43,7 @@ export const MODELS: readonly ModelDefinition[] = [
 ] as const;
 
 /** Default model for prompt → diagram generation (longer context, higher TPM on Groq). */
-export const DEFAULT_GENERATION_MODEL = 'groq/compound-mini';
+export const DEFAULT_GENERATION_MODEL = 'openai/gpt-oss-20b';
 
 /** Fallback when the primary model hits TPM limits or fails. */
 export const FALLBACK_GENERATION_MODEL = 'openai/gpt-oss-120b';

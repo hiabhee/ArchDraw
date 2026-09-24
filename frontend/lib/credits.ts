@@ -33,7 +33,30 @@ export async function getCreditSnapshot(req: NextRequest) {
   const tier = getUserTier(userId);
   const guestId = tier === 'guest' ? (getGuestId(req) ?? 'unknown') : null;
   const spent = userId || guestId ? await spentSince(tier, userId, guestId) : 0;
-  const allowance = CREDIT_POLICY[tier].allowance;
+  let allowance = CREDIT_POLICY[tier].allowance;
+  // Admin and granted credits (featureFlags.credits) — for jamdadeabhishek039@gmail.com
+  if (userId) {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, featureFlags: true } });
+      const adminEmail = process.env.ALLOWED_ADMIN_EMAIL?.trim().toLowerCase();
+      if (adminEmail && user?.email?.toLowerCase() === adminEmail) {
+        // Admin gets effectively unlimited
+        return {
+          tier,
+          balance: 999,
+          allowance: 999,
+          costs: CREDIT_POLICY.costs,
+          periodEndsAt: new Date(Date.now() + CREDIT_POLICY[tier].periodMs).toISOString(),
+        };
+      }
+      const extra = (user?.featureFlags as Record<string, unknown> | null)?.credits;
+      if (typeof extra === 'number' && Number.isFinite(extra) && extra > 0) {
+        allowance += extra;
+      }
+    } catch {
+      // ignore, fall back to base allowance
+    }
+  }
   return {
     tier,
     balance: Math.max(0, allowance - spent),

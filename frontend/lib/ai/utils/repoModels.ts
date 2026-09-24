@@ -2,12 +2,13 @@
  * Centralized model names for the repo-diagram LLM agents.
  * Env-overridable so evals/dev can swap models without code changes.
  *
- * Default: 'groq/compound-mini' (Groq compound, tool-aware) — was 'openai/gpt-oss-120b' before Phase 6.
- * Override via `REPO_LLM_MODEL` env var (e.g. REPO_LLM_MODEL=openai/gpt-oss-120b to revert).
+ * Default: 'openai/gpt-oss-120b' (Groq) — `groq/compound-mini` returned
+ * model_not_found against the raw Groq SDK and was removed.
+ * Override via `REPO_LLM_MODEL` env var.
  */
 
 export const REPO_LLM_MODEL: string =
-  process.env.REPO_LLM_MODEL || 'groq/compound-mini';
+  process.env.REPO_LLM_MODEL || 'openai/gpt-oss-120b';
 
 /** Max tokens for classification (small — single JSON object). */
 export const CLASSIFIER_MAX_TOKENS = Number(process.env.REPO_CLASSIFIER_MAX_TOKENS) || 3000;
@@ -18,9 +19,9 @@ export const RELATIONSHIP_MAX_TOKENS = Number(process.env.REPO_RELATIONSHIP_MAX_
 /** Max tokens for the docs revalidation pass (verifies the graph against README/docs). */
 export const DOCS_MAX_TOKENS = Number(process.env.REPO_DOCS_MAX_TOKENS) || 4000;
 
-// The default compound-mini endpoint rejects the previous 60–120k-character
-// payloads with HTTP 413. These caps leave room for system prompts and output
-// tokens while preserving the highest-signal files and manifests.
+// Large repo payloads are rejected with HTTP 413 on constrained endpoints.
+// These caps leave room for system prompts and output tokens while
+// preserving the highest-signal files and manifests.
 export const CLASSIFIER_PROMPT_CHARS = Number(process.env.REPO_CLASSIFIER_PROMPT_CHARS) || 12_000;
 export const EXTRACTOR_PROMPT_CHARS = Number(process.env.REPO_EXTRACTOR_PROMPT_CHARS) || 12_000;
 export const SOURCE_FILES_PROMPT_CHARS = Number(process.env.REPO_SOURCE_FILES_PROMPT_CHARS) || 12_000;
