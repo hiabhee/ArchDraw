@@ -90,7 +90,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       return false;
     } catch (err) {
-      logger.error('[Auth] Session refresh failed:', err);
+      // A visibility-triggered refresh can race a local dev-server restart.
+      // The caller treats this as a best-effort check, so don't surface a
+      // caught network interruption as a blocking Next.js error overlay.
+      logger.warn('[Auth] Session refresh unavailable:', err);
       return false;
     }
   },

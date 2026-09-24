@@ -339,7 +339,8 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         let svgBg = 'none';
         if (!isTransparent) {
           if (bgType === 'dark') {
-            svgBg = '#000000';
+            const { getDiagramTheme } = await import('@/lib/theme/stylingConstants');
+            svgBg = getDiagramTheme(state.diagramStyleTheme).dark.canvasHint;
           } else if (element) {
             svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
           } else {
@@ -348,7 +349,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         }
 
         const { generatePureSVG } = await import('@/lib/svgExport');
-        const isDarkForSvg = isTransparent ? !!state.darkMode : svgBg === '#000000';
+        const isDarkForSvg = isTransparent ? !!state.darkMode : bgType === 'dark';
         const svgContent = generatePureSVG(
           exportNodes,
           state.edges,
@@ -356,6 +357,8 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           svgBg,
           layoutDirection,
           state.diagramRenderStyle,
+          state.diagramStyleTheme,
+          state.iconMode,
         );
         downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
         toast.success(isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG');
@@ -396,13 +399,15 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
         let svgBg: string = 'none';
         if (bgType !== 'transparent') {
-          if (bgType === 'dark') svgBg = '#000000';
-          else if (element) svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
+          if (bgType === 'dark') {
+            const { getDiagramTheme } = await import('@/lib/theme/stylingConstants');
+            svgBg = getDiagramTheme(state.diagramStyleTheme).dark.canvasHint;
+          } else if (element) svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
           else svgBg = '#ffffff';
         }
 
         const { generatePureSVG } = await import('@/lib/svgExport');
-        const isDarkForSvg = bgType === 'transparent' ? !!state.darkMode : svgBg === '#000000';
+        const isDarkForSvg = bgType === 'transparent' ? !!state.darkMode : bgType === 'dark';
         const svgContent = generatePureSVG(
           exportNodes,
           state.edges,
@@ -410,6 +415,8 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           svgBg,
           layoutDirection,
           state.diagramRenderStyle,
+          state.diagramStyleTheme,
+          state.iconMode,
         );
 
         // Parse SVG dimensions from the generated markup (width/height in viewBox)
@@ -651,7 +658,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           <>
             <div className="fixed inset-0 z-20" onClick={() => setExportOpen(false)} />
             <div
-              className="absolute right-0 top-full mt-3 w-56 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
+              className="absolute right-0 top-full mt-3 w-44 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
               style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
             >
               <div className="px-4 py-3">

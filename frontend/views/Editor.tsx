@@ -333,6 +333,7 @@ export default function EditorPage() {
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
       const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
         title: canvasName,
+        renderStyleId: store.diagramRenderStyle,
       });
       // `store` was a snapshot taken before the await — the user may have
       // edited (or another generation may have landed) meanwhile. Re-read the

@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTutorialStore, useTutorialHelpers } from '@/store/tutorialStore';
 import { useAuthStore } from '@/store/authStore';
+import { useDiagramStore } from '@/store/diagramStore';
 import type { PhaseName, PhaseContent } from '@/lib/tutorial/schema';
 import {
   canRequestExplain,
@@ -470,7 +471,9 @@ export function GuidePanel() {
       // stops a slow stale relayout from clobbering newer canvas edits.
       if (tutorialLayoutEnabled && nodes.length > 1) {
         const requestId = ++tutorialLayoutRequestRef.current;
-        layoutDiagramViaMermaid(nodes, edges, 'LR')
+        layoutDiagramViaMermaid(nodes, edges, 'LR', {
+          renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+        })
           .then((res) => {
             if (res.success && requestId === tutorialLayoutRequestRef.current) {
               setNodes(res.nodes);

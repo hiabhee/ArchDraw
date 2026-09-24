@@ -179,10 +179,12 @@ export function PropertiesPanel() {
     componentType: data.componentType,
     serviceType: data.serviceType,
     technology: data.technology || data.tech,
+    category: data.category,
     icon: data.icon,
+    iconSource: data.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
     color: accent,
   });
-  const currentIcon = data.icon?.startsWith('arch-') || data.icon?.startsWith('aws-')
+  const currentIcon = data.iconSource === 'manual' && (data.icon?.startsWith('arch-') || data.icon?.startsWith('aws-'))
     ? data.icon
     : resolvedIcon.icon;
   const iconVisible = resolveNodeIconVisibility(iconMode, data.showIcon);
@@ -344,7 +346,7 @@ export function PropertiesPanel() {
               return (
                 <button
                   key={entry.id}
-                  onClick={() => applyToAll({ icon: entry.id })}
+                  onClick={() => applyToAll({ icon: entry.id, iconSource: 'manual' })}
                   title={entry.label}
                   className={`aspect-square rounded-xl flex items-center justify-center border transition-all ${isSelected ? 'bg-foreground text-background border-foreground shadow-sm scale-[0.98]' : 'bg-card border-border/50 hover:border-border hover:bg-secondary/50'}`}
                 >

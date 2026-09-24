@@ -27,16 +27,23 @@ export function LayoutToggleButton() {
       const canvasName = canvases.find((c) => c.id === activeCanvasId)?.name;
 
       const { nodes: layoutedNodes, edges: layoutedEdges, success, warnings } =
-        await layoutDiagramViaMermaid(nodes, edges, nextDirection, { title: canvasName });
+        await layoutDiagramViaMermaid(nodes, edges, nextDirection, {
+          title: canvasName,
+          renderStyleId: store.diagramRenderStyle,
+        });
 
       if (requestId !== latestRequestRef.current) return;
+      const liveStore = useDiagramStore.getState();
+      if (liveStore.activeCanvasId !== activeCanvasId || liveStore.nodes !== nodes || liveStore.edges !== edges) {
+        return;
+      }
       if (!success) {
         toast.error(`Layout toggle failed: ${warnings.join('; ') || 'unknown error'}`);
         return;
       }
 
-      store.importDiagram(layoutedNodes, layoutedEdges);
-      store.setActiveLayoutPresetId(presetIdFromDirection(nextDirection));
+      liveStore.importDiagram(layoutedNodes, layoutedEdges);
+      liveStore.setActiveLayoutPresetId(presetIdFromDirection(nextDirection));
     } catch (err) {
       if (requestId === latestRequestRef.current) {
         toast.error(err instanceof Error ? err.message : 'Layout toggle failed');

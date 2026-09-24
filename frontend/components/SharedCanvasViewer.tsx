@@ -125,6 +125,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     const style = new URLSearchParams(window.location.search).get('style');
     if (style === 'sketch') setRenderStyle('sketch');
     else if (style === 'neubrutalism') setRenderStyle('neubrutalism');
+    else if (style === 'studio-minimal') setRenderStyle('studio-minimal');
   }, []);
 
   useEffect(() => {
@@ -137,7 +138,11 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   }, [renderStyle]);
 
   const themeVars = useMemo(
-    () => resolveCanvasTokens({ renderStyleId: renderStyle, colorThemeId: 'slate', isDark }).cssVars,
+    () => resolveCanvasTokens({
+      renderStyleId: renderStyle,
+      colorThemeId: renderStyle === 'studio-minimal' ? 'studio-minimal' : 'slate',
+      isDark,
+    }).cssVars,
     [renderStyle, isDark],
   );
 

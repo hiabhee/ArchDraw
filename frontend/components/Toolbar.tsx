@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Download } from 'lucide-react';
+import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Download, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useAuthStore } from '@/store/authStore';
@@ -23,7 +23,6 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
-import { RenderStyleToggle } from '@/components/toolbar/ThemeToggles';
 import { CreditsPill } from '@/components/toolbar/CreditsPill';
 
 export function Toolbar() {
@@ -60,6 +59,8 @@ export function Toolbar() {
   const exportControlsRef = useRef<ExportControlsHandle>(null);
 
   const openGuide = useOnboardingStore((s) => s.open);
+  const darkMode = useDiagramStore((s) => s.darkMode);
+  const toggleDarkMode = useDiagramStore((s) => s.toggleDarkMode);
 
   useCallback(getVisibleCanvases, [getVisibleCanvases])();
 
@@ -324,6 +325,16 @@ export function Toolbar() {
           </span>
 
           <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleDarkMode}
+            className="!w-8 sm:!w-9 !h-8 sm:!h-9"
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <Sun className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Moon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+          </Button>
           <CanvasBackgroundControls />
           <CreditsPill />
 
@@ -344,8 +355,6 @@ export function Toolbar() {
             </Button>
 
             <LayoutToggleButton />
-
-            <RenderStyleToggle />
 
             <NodeIconModeToggle />
 
@@ -375,21 +384,6 @@ export function Toolbar() {
             </Button>
           </span>
 
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              const isDark = useDiagramStore.getState().darkMode;
-              exportControlsRef.current?.handleExport(isDark ? 'png-dark' : 'png-light');
-            }}
-            disabled={nodes.length === 0}
-            className="gap-1.5 inline-flex bg-primary text-primary-foreground hover:bg-primary/90"
-            title="Download hi-res PNG instantly"
-            aria-label="Download hi-res PNG"
-          >
-            <Download className="w-4 h-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Download</span>
-          </Button>
           <ExportControls ref={exportControlsRef} getExportFilename={getExportFilename} />
 
           <div className="relative">

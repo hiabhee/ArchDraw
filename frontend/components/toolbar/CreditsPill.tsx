@@ -31,7 +31,6 @@ export function CreditsPill() {
       <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-2.5 text-xs font-medium text-foreground shadow-sm" title={`${credits.balance} of ${credits.allowance} credits remaining`}>
         <Coins className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
         <span>{credits.balance}</span>
-        <span className="hidden md:inline text-muted-foreground">credits</span>
       </span>
       <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-44 rounded-xl border border-border bg-popover p-3 text-[11px] text-popover-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <p className="font-medium">Generation cost</p>
