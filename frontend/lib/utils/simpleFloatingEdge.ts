@@ -1,6 +1,6 @@
 import type { Edge, Node } from 'reactflow';
 import { Position } from '@/lib/utils/edgePositions';
-import { computeDynamicSlotOffsets, getBidirectionalLaneOffset } from './handleSlotOrder';
+import { computeDynamicSlotOffsets, getBidirectionalLaneOffset, inferEdgeSide } from './handleSlotOrder';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
 export interface EdgePositions {
@@ -176,7 +176,7 @@ function hasBothDirectionsOnSide(
   edges: Edge[],
   resolveSide?: EdgeSideResolver,
 ): boolean {
-  if (!resolveSide) return true;
+  if (!resolveSide) return false;
   if (!edges) return false;
 
   let hasIncoming = false;
@@ -210,9 +210,10 @@ export function getEdgeShiftOffset(
     allNodeRects?: Map<string, { id: string; x: number; y: number; w: number; h: number }>,
     excludedNodeIds?: Set<string>,
     resolveSide?: EdgeSideResolver,
+    renderStyleId?: string,
   ]
 ): number {
-  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide] = args;
+  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide, renderStyleId] = args;
 
   const self = edges.find(
     (e) => e.id === edgeId && (e.source === nodeId || e.target === nodeId),
@@ -224,7 +225,7 @@ export function getEdgeShiftOffset(
     for (const [id, node] of nodeInternals) {
       const x = node.positionAbsolute?.x ?? node.position.x;
       const y = node.positionAbsolute?.y ?? node.position.y;
-      const { width, height } = getEffectiveNodeDimensions(node);
+      const { width, height } = getEffectiveNodeDimensions(node, renderStyleId);
       nodePositions.set(id, {
         x,
         y,
@@ -233,6 +234,7 @@ export function getEdgeShiftOffset(
       });
     }
   }
+  const effectiveResolveSide = resolveSide ?? ((edge: Edge, id: string) => inferEdgeSide(edge, id, nodePositions));
 
   // Only use per-edge bidirectional lane when the side contains *only* that
   // pair. If the side also has other edges (e.g. Client right has 2 outgoing
@@ -245,7 +247,7 @@ export function getEdgeShiftOffset(
     const otherId = self.source === nodeId ? self.target : self.source;
     for (const e of edges) {
       if (e.source !== nodeId && e.target !== nodeId) continue;
-      const s = resolveSide ? resolveSide(e, nodeId) : undefined;
+      const s = effectiveResolveSide(e, nodeId);
       if (s !== side) continue;
       countOnSide++;
       const o = e.source === nodeId ? e.target : e.source;
@@ -254,10 +256,10 @@ export function getEdgeShiftOffset(
     if (countOnSide === 2 && !hasOther) return bidirectionalLane;
   }
 
-  if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
+  if (!hasBothDirectionsOnSide(nodeId, side, edges, effectiveResolveSide as EdgeSideResolver)) return 0;
 
   const { incomingOffset, outgoingOffset } = computeDynamicSlotOffsets(
-    nodeId, side, edges, nodePositions, resolveSide,
+    nodeId, side, edges, nodePositions, effectiveResolveSide,
   );
 
   const isIncoming = self.target === nodeId;

@@ -444,6 +444,21 @@ export function sanitizeMermaidAST(ast: MermaidAST, options: SanitizeOptions = {
       const from = idRemap.get(e.source) || e.source;
       const to = idRemap.get(e.target) || e.target;
       if (from === to) {
+        // Keep intentional feedback loops (retry/backoff) even after dedup — they are
+        // semantically meaningful self-references, not duplicates.
+        const lbl = (e.label || '').toLowerCase();
+        const isFeedbackLoop = ['retry', 'backoff', 'failure', 'feedback', 'loop', 'replay', 'self'].some(t => lbl.includes(t));
+        if (isFeedbackLoop) {
+          const pairKey = `${from}->${to}:${e.label ?? ''}`;
+          if (seenPair.has(pairKey)) {
+            removedEdgeIds.push(e.id);
+            warnings.push(`[DUPLICATE_NODE] Dropped duplicate edge ${from}->${to}`);
+            continue;
+          }
+          seenPair.add(pairKey);
+          remappedEdges.push({ ...e, source: from, target: to });
+          continue;
+        }
         removedEdgeIds.push(e.id);
         warnings.push(`[DUPLICATE_NODE] Dropped self-loop ${e.source}->${e.target} after dedup`);
         continue;

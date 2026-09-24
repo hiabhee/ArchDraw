@@ -30,7 +30,7 @@ function sideFromDataString(value: unknown): Position | undefined {
  * router: explicit data override first, then lane override, then center-to-center geometry.
  * Handle ids no longer pin sides.
  */
-function inferEdgeSide(
+export function inferEdgeSide(
   edge: Edge,
   nodeId: string,
   nodePositions?: Map<string, SlotNodePos>,

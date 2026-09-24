@@ -29,6 +29,7 @@ export function renderEdge(
   edge: EdgeRenderData,
   isDark: boolean,
   renderStyleId: DiagramRenderStyleId = 'precision',
+  aesthetics?: import('@/lib/theme/renderStyles').ResolvedCanvasTokens,
 ): string {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected, isFloating } = edge;
 
@@ -38,11 +39,20 @@ export function renderEdge(
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
 
+  const studioInk = renderStyleId === 'studio-minimal' && aesthetics ? {
+    primary: aesthetics.colors.edgePrimary,
+    default: aesthetics.colors.edgeDefault,
+    supporting: aesthetics.colors.edgeDefault,
+    dep: aesthetics.colors.edgeDefault,
+    async: aesthetics.colors.edgeAsync,
+    stream: aesthetics.colors.edgePrimary,
+    event: aesthetics.colors.edgeAsync,
+  } : undefined;
   const visual = resolveEdgeVisual(
     data as Record<string, unknown> | undefined,
     isDark,
     isSketch,
-    isSketch ? sketchEdgeInk(isDark) : undefined,
+    isSketch ? sketchEdgeInk(isDark) : studioInk,
   );
   let strokeColor = data?.color || visual.stroke;
   if (selected) {

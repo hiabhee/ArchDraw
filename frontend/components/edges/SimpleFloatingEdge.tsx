@@ -234,10 +234,10 @@ export default function SimpleFloatingEdge({
     [edges, nodeInternals, activeLayoutPresetId, renderStyleId],
   );
   const sketchInk = useMemo(
-    () => sketch
-      ? { primary: colors.edgePrimary, default: colors.edgeDefault, async: colors.edgeAsync }
+    () => (sketch || renderStyleId === 'studio-minimal')
+      ? { primary: colors.edgePrimary, default: colors.edgeDefault, supporting: colors.edgeDefault, dep: colors.edgeDefault, async: colors.edgeAsync, stream: colors.edgePrimary, event: colors.edgeAsync }
       : undefined,
-    [sketch, colors.edgePrimary, colors.edgeDefault, colors.edgeAsync],
+    [sketch, renderStyleId, colors.edgePrimary, colors.edgeDefault, colors.edgeAsync],
   );
 
   const strokeStyle: React.CSSProperties = useMemo(() => {

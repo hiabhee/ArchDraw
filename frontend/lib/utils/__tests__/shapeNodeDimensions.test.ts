@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveShapeNodeDimensions, getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
+import { resolveShapeNodeDimensions, getEffectiveNodeDimensions, studioContentNodeSize } from '@/lib/utils/shapeNodeDimensions';
 import type { Node } from 'reactflow';
 
 describe('resolveShapeNodeDimensions', () => {
@@ -65,5 +65,53 @@ describe('resolveShapeNodeDimensions', () => {
     // Fixed grid: heights stay on 100px lane so Dagre rank centers align and edges sit on same Y
     expect(wrappedDims.height).toBe(shortDims.height);
     expect(wrappedDims.height).toBe(100);
+  });
+
+  it('uses compact 160×64 for Studio Minimal so edges meet handles', () => {
+    const node: Node = {
+      id: 'n1',
+      type: 'shapeNode',
+      position: { x: 0, y: 0 },
+      data: { label: 'Payment Service', shape: 'rounded-rectangle', nodeWidth: 160, nodeHeight: 100 },
+    };
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal')).toEqual({ width: 160, height: 64 });
+    expect(getEffectiveNodeDimensions(node).height).toBe(100);
+  });
+
+  it('grows Studio cards for wrapped Mermaid titles and details', () => {
+    const short = studioContentNodeSize('YES', 'Urgent: 0.94', true);
+    const detailed = studioContentNodeSize(
+      'Probability Distribution',
+      'Billing: 0.82 · Technical: 0.13 · Other: 0.05',
+      true,
+    );
+    expect(short.height).toBe(64);
+    expect(detailed.height).toBeGreaterThan(short.height);
+
+    const node: Node = {
+      id: 'distribution', type: 'shapeNode', position: { x: 0, y: 0 },
+      data: { label: 'Probability Distribution', subtitle: 'Billing: 0.82 · Technical: 0.13 · Other: 0.05', shape: 'rounded-rectangle' },
+    };
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual(detailed);
+  });
+
+  it('widens Studio Minimal cards to 200px when an icon is stored', () => {
+    const node: Node = {
+      id: 'n1',
+      type: 'shapeNode',
+      position: { x: 0, y: 0 },
+      data: { label: 'Ride Service', shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 64 },
+    };
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal')).toEqual({ width: 200, height: 64 });
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'off')).toEqual({ width: 160, height: 64 });
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 200, height: 64 });
+  });
+
+  it('uses the measured Studio card width for edge anchors', () => {
+    const node: Node = {
+      id: 'system', type: 'systemNode', position: { x: 0, y: 0 }, width: 240, height: 64,
+      data: { label: 'Long Service Name' },
+    };
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 240, height: 64 });
   });
 });

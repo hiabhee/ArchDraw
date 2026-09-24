@@ -10,6 +10,10 @@ import { resolveCylinderAxis } from '@/lib/utils/cylinderAxis';
 import { semanticShapeBodySvg } from '@/lib/utils/shapeSilhouetteSvg';
 import { resolveTextLabelColor } from '@/lib/utils/textSizing';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
+import { Fragment, isValidElement, type ReactNode } from 'react';
+import { CustomNodeIcon, toCustomNodeIconName } from '@/components/icons/CustomNodeIcon';
+import { resolveNodeIcon, type NodeIconSource } from '@/lib/nodeIconResolver';
+import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import {
   applyShapeSurface,
   getRenderStyle,
@@ -53,16 +57,66 @@ import type {
   AnnotationNodeData,
 } from './types';
 
+/** Serialize the app's own SVG glyph elements for browser and server export. */
+function iconElementSvg(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (Array.isArray(node)) return node.map(iconElementSvg).join('');
+  if (typeof node === 'string' || typeof node === 'number') return escapeXml(String(node));
+  if (!isValidElement(node)) return '';
+
+  const props = node.props as Record<string, unknown>;
+  if (node.type === Fragment) return iconElementSvg(props.children as ReactNode);
+  if (typeof node.type === 'function') {
+    return iconElementSvg((node.type as (props: Record<string, unknown>) => ReactNode)(props));
+  }
+  if (typeof node.type !== 'string') return '';
+
+  const attributes = Object.entries(props)
+    .filter(([key, value]) => key !== 'children' && key !== 'key' && value != null && typeof value !== 'function')
+    .map(([key, value]) => {
+      const name = key === 'className'
+        ? 'class'
+        : key === 'viewBox' || key === 'preserveAspectRatio'
+          ? key
+          : key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      return ` ${name}="${escapeXml(String(value))}"`;
+    })
+    .join('');
+  return `<${node.type}${attributes}>${iconElementSvg(props.children as ReactNode)}</${node.type}>`;
+}
+
+function studioIconSvg(data: ShapeNodeData, color: string, isDark: boolean): string {
+  const resolved = resolveNodeIcon({
+    label: data.label,
+    typeId: data.typeId,
+    componentType: data.componentType,
+    serviceType: data.serviceType,
+    technology: data.technology,
+    category: data.category,
+    icon: data.icon,
+    iconSource: data.iconSource as NodeIconSource | undefined,
+    color,
+    isDark,
+  });
+  const name = toCustomNodeIconName(resolved.icon);
+  return name ? `<g data-semantic-icon="${name}">${iconElementSvg(CustomNodeIcon({ name, color, size: 36 }))}</g>` : '';
+}
+
 export function renderSystemNode(
   node: SystemNodeRenderData,
   isDark: boolean,
   renderStyleId: DiagramRenderStyleId = 'precision',
+  aesthetics?: import('@/lib/theme/renderStyles').ResolvedCanvasTokens,
+  iconMode: NodeIconMode = 'all',
 ): string {
   const { x, y, width, height, data, selected } = node;
   const sketch = renderStyleId === 'sketch';
 
+  const studio = renderStyleId === 'studio-minimal' && aesthetics;
   const tierColor = getTierColorNormalized(data.layer);
-  const accentColor = data.accentColor || data.color || tierColor || '#0f766e';
+  const accentColor = data.accentColor || (studio
+    ? getConcernColor(data.layer || data.serviceType || data.category, aesthetics.concerns)
+    : data.color || tierColor || '#0f766e');
 
   const statusColor = STATUS_COLORS[data.status || 'healthy'] || '#10B981';
   const showStatus = data.status && data.status !== 'healthy';
@@ -94,6 +148,14 @@ export function renderSystemNode(
     styleAttr = selected
       ? `style="filter: drop-shadow(0 1px 2px rgba(15,23,42,0.06));"`
       : '';
+  }
+
+  if (studio) {
+    borderCol = selected ? accentColor : hexToRgba(accentColor, isDark ? 0.5 : 0.36);
+    iconColor = accentColor;
+    fillBg = aesthetics.colors.nodeFill;
+    titleColor = aesthetics.colors.title;
+    subtitleColor = aesthetics.colors.subtitle;
   }
 
   if (sketch) {
@@ -189,6 +251,21 @@ export function renderSystemNode(
       ${showStatus ? `
       <circle cx="${width - 16}" cy="${height - 14}" r="3.5" fill="${statusColor}" />` : ''}
     </g>
+    `.trim();
+  }
+
+  if (studio) {
+    const showIcon = resolveNodeIconVisibility(iconMode, data.showIcon);
+    const icon = showIcon ? studioIconSvg(data as ShapeNodeData, accentColor, isDark) : '';
+    const textX = icon ? 70 : 16;
+    return `
+      <g transform="translate(${x}, ${y})">
+        <rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="18" fill="${fillBg}" stroke="${borderCol}" stroke-width="1.5" />
+        ${icon ? `<rect x="10" y="8" width="48" height="48" rx="11" fill="${hexToRgba(accentColor, isDark ? 0.2 : 0.11)}" /><g transform="translate(16, 14)">${icon}</g>` : ''}
+        <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${titleColor}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="16.2" font-weight="600">${escapeXml(data.label || 'Service')}</text>
+        ${data.subtitle ? `<text x="${textX}" y="47" fill="${subtitleColor}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="10.5">${escapeXml(String(data.subtitle))}</text>` : ''}
+        ${showStatus ? `<circle cx="${width - 13}" cy="${height - 13}" r="3" fill="${statusColor}" />` : ''}
+      </g>
     `.trim();
   }
 
@@ -350,13 +427,17 @@ export function renderGroupNode(
   node: SystemNodeRenderData,
   isDark: boolean,
   renderStyleId: DiagramRenderStyleId = 'precision',
+  aesthetics?: import('@/lib/theme/renderStyles').ResolvedCanvasTokens,
 ): string {
   const { x, y, width, height, data, selected } = node;
 
   const groupColor = (data as { accentColor?: string; groupColor?: string })?.accentColor ||
                     (data as { groupColor?: string })?.groupColor ||
                     (data as { color?: string })?.color ||
-                    getConcernColor((data as { layer?: string; label?: string }).layer || (data as { label?: string }).label) ||
+                    getConcernColor(
+                      (data as { layer?: string; label?: string }).layer || (data as { label?: string }).label,
+                      renderStyleId === 'studio-minimal' ? aesthetics?.concerns : undefined,
+                    ) ||
                     '#0f766e';
 
   const sketch = renderStyleId === 'sketch';
@@ -450,27 +531,38 @@ export function renderShapeNode(
   node: SystemNodeRenderData,
   isDark: boolean,
   renderStyleId: DiagramRenderStyleId = 'precision',
+  aesthetics?: import('@/lib/theme/renderStyles').ResolvedCanvasTokens,
+  iconMode: NodeIconMode = 'all',
 ): string {
   const { x, y, width: W, height: H, data, selected } = node;
   const shapeData = data as ShapeNodeData;
-  const shape = shapeData.shape || 'rounded-rectangle';
-  const color = shapeData.accentColor ?? shapeData.color ?? getConcernColor(shapeData.layer) ?? '#0f766e';
+  const studio = renderStyleId === 'studio-minimal' && aesthetics;
+  const shape = studio ? 'rounded-rectangle' : shapeData.shape || 'rounded-rectangle';
+  const shapeHint = shapeData.category || shapeData.serviceType || shapeData.layer || (
+    ['actor', 'monitor', 'mobile'].includes(shapeData.shape || '') ? 'client' :
+    ['cylinder', 'cache', 'bucket'].includes(shapeData.shape || '') ? 'data' :
+    shapeData.shape === 'queue' ? 'async' :
+    ['cloud', 'dashed-rectangle'].includes(shapeData.shape || '') ? 'external' : 'compute'
+  );
+  const color = shapeData.accentColor ?? (studio
+    ? getConcernColor(shapeHint, aesthetics.concerns)
+    : shapeData.color ?? getConcernColor(shapeData.layer) ?? '#0f766e');
   const sketch = renderStyleId === 'sketch';
   const surface = resolveRenderSurface({
     renderStyleId,
     isDark,
     selected: selected ?? false,
     accentColor: color,
-    fillColor: shapeData.fillColor,
-    strokeColor: shapeData.strokeColor,
+    fillColor: studio ? aesthetics.colors.nodeFill : shapeData.fillColor,
+    strokeColor: studio ? (selected ? color : hexToRgba(color, isDark ? 0.5 : 0.36)) : shapeData.strokeColor,
   });
   const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   // Sketch titles/subtitles are warm ink (brown on paper, chalk on board) —
   // not the precision slate.
-  const titleColor = sketch
+  const titleColor = studio ? aesthetics.colors.title : sketch
     ? isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
     : styles.titleColor;
-  const subtitleColor = sketch
+  const subtitleColor = studio ? aesthetics.colors.subtitle : sketch
     ? isDark ? SKETCH_INK_DARK_SUBTITLE : SKETCH_INK_LIGHT_SUBTITLE
     : styles.subtitleColor;
   const title = shapeData.label || '';
@@ -556,6 +648,20 @@ export function renderShapeNode(
   const titleFontSize = sketch ? 18 : 16.2;  // Increased from 14 for better prominence
   const subtitleFontSize = sketch ? 11 : 10.5;  // Reduced from 11.5 for better hierarchy
   const subtitleFillOpacity = sketch ? 0.7 : 1;  // Reduced from 0.75 for more subtlety
+
+  if (studio) {
+    const showIcon = resolveNodeIconVisibility(iconMode, shapeData.showIcon);
+    const icon = showIcon ? studioIconSvg(shapeData, color, isDark) : '';
+    const textX = icon ? 70 : W / 2;
+    return `
+      <g transform="translate(${x}, ${y})">
+        ${body}
+        ${icon ? `<rect x="10" y="8" width="48" height="48" rx="11" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" /><g transform="translate(16, 14)">${icon}</g>` : ''}
+        ${title ? `<text x="${textX}" y="${subtitle ? 29 : 39}" fill="${titleColor}" font-family="${fontFamily}" font-size="16.2" font-weight="600" text-anchor="${icon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
+        ${subtitle ? `<text x="${textX}" y="47" fill="${subtitleColor}" font-family="${fontFamily}" font-size="10.5" text-anchor="${icon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
+      </g>
+    `.trim();
+  }
 
   return `
     <g transform="translate(${x}, ${y})">

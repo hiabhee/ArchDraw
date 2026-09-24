@@ -75,8 +75,8 @@ describe('computeEdgeLabelLayout', () => {
     const anchor = res.get('e1')
     expect(anchor).toBeDefined()
     expect(anchor!.t).toBeCloseTo(0.5, 3)
-    // Straight route (260,150) -> (500,150): midpoint is (380,150).
-    expect(anchor!.x).toBeCloseTo(380, 0)
+    // Route (312,150) -> (488,150) with SystemNode width 200: midpoint is (400,150).
+    expect(anchor!.x).toBeCloseTo(400, 0)
     expect(anchor!.y).toBeCloseTo(150, 0)
   })
 
@@ -91,6 +91,23 @@ describe('computeEdgeLabelLayout', () => {
     // point is computed from the same path geometry the engine uses.
     const route = computeEdgeRoute(edges[0], nodes, edges, 'LR')
     const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.25)
+    expect(anchor!.x).toBeCloseTo(expected.x, 0)
+    expect(anchor!.y).toBeCloseTo(expected.y, 0)
+  })
+
+  it('uses the Studio Minimal route geometry for label placement', () => {
+    const nodes = [
+      makeNode('a', 100, 100, 200, 64),
+      makeNode('b', 420, 300, 200, 64),
+    ]
+    const edge = makeEdge('e1', 'a', 'b', { label: 'REQUEST', labelT: 0.5 })
+    const renderStyle = 'studio-minimal' as const
+
+    const anchor = computeEdgeLabelLayout([edge], nodeInternals(nodes), 'TD', renderStyle).get('e1')
+    const route = computeEdgeRoute(edge, nodes, [edge], 'TD', renderStyle)
+    const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+
+    expect(anchor).toBeDefined()
     expect(anchor!.x).toBeCloseTo(expected.x, 0)
     expect(anchor!.y).toBeCloseTo(expected.y, 0)
   })
@@ -362,9 +379,12 @@ describe('computeEdgeLabelLayout', () => {
 
     for (const edge of edges) {
       const route = computeEdgeRoute(edge, nodes, edges, 'LR')
-      const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
       const anchor = res.get(edge.id)!
-      expect(anchor.t).toBeCloseTo(0.5, 2)
+      const expected = pointAtFraction(buildPathSegments(route.waypoints), anchor.t)
+      // With SystemNode width 200 the gap a(312)->b(388) is 76px vs old 116px,
+      // the label may be nudged off 0.5 to clear the node; just verify it's on the path and roughly centered.
+      expect(anchor.t).toBeGreaterThan(0.3)
+      expect(anchor.t).toBeLessThan(0.7)
       expect(anchor.x).toBeCloseTo(expected.x, 0)
       expect(anchor.y).toBeCloseTo(expected.y, 0)
     }

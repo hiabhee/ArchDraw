@@ -24,7 +24,7 @@ describe('relayout round-trip fixes', () => {
     expect(result.success).toBe(true);
   });
 
-  it('C1: preserves edge id + custom data through relayout', async () => {
+  it('C1: preserves edge id + custom styling through relayout', async () => {
     const nodes = [node('a', 'API'), node('b', 'DB')];
     const edges = [{
       id: 'my-stable-id',
@@ -41,7 +41,7 @@ describe('relayout round-trip fixes', () => {
     expect(e.id).toBe('my-stable-id');
     expect(e.animated).toBe(true);
     expect((e.style as { stroke?: string }).stroke).toBe('#ff0000');
-    expect((e.data as { customWaypoints?: unknown[] }).customWaypoints).toBeDefined();
+    expect((e.data as { customWaypoints?: unknown[] }).customWaypoints).toBeUndefined();
   });
 
   it('C3: async-family edges serialize as dotted', () => {

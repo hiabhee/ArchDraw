@@ -41,7 +41,7 @@ function getExpandedNodeRects(nodes: Map<string, GuideNode>): Array<{ x: number;
         }
       } catch {}
     }
-    const { width, height } = getEffectiveNodeDimensions(n);
+    const { width, height } = getEffectiveNodeDimensions(n, useDiagramStore.getState().diagramRenderStyle);
     rects.push({
       x: ax - GUIDE_NODE_CLEARANCE,
       y: ay - GUIDE_NODE_CLEARANCE,

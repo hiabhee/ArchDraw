@@ -1111,6 +1111,13 @@
   pointer-events: none !important;
 }
 
+/* Unused sides offer a source handle when the node is being edited. */
+.diagram-chrome-edit .react-flow__node:hover .handle--empty-source[style*="visibility: hidden"],
+.diagram-chrome-edit .react-flow__node.selected .handle--empty-source[style*="visibility: hidden"] {
+  visibility: visible !important;
+  pointer-events: all !important;
+}
+
 /* During connection drawing, temporarily show all handles so the user
    can connect to any side — even handles that have no current edges. */
 .react-flow--connection-drawing .react-flow__handle[style*="visibility: hidden"],

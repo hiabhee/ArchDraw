@@ -199,7 +199,7 @@ export const DARK_NODE_STYLES: NodeStyleConfig = {
 
 // ── Diagram theme packs ─────────────────────────────────────────────────────
 
-export type DiagramThemeId = 'default' | 'slate' | 'forest-green' | 'dark-minimal' | 'luxury';
+export type DiagramThemeId = 'default' | 'slate' | 'forest-green' | 'dark-minimal' | 'studio-minimal' | 'luxury';
 
 export interface DiagramThemePack {
   id: DiagramThemeId;
@@ -378,6 +378,46 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       data:     concern('#404040', 'rgba(64,64,64,0.1)', 'Data'),
       async:    concern('#a16207', 'rgba(161,98,7,0.08)', 'Async'),
       external: concern('#78716c', 'rgba(120,113,108,0.07)', 'External'),
+    },
+  },
+  'studio-minimal': {
+    id: 'studio-minimal',
+    label: 'Studio Minimal',
+    light: {
+      // A quiet editorial surface: warm white, hairline blue-gray structure,
+      // and just enough lift to separate cards from the canvas.
+      canvasHint: '#fdfdfc',
+      nodeFill: '#ffffff',
+      nodeStroke: 'rgba(148, 163, 184, 0.30)',
+      title: '#172033',
+      subtitle: '#71809a',
+      groupFill: 'rgba(255, 255, 255, 0.42)',
+      groupStroke: 'rgba(148, 163, 184, 0.38)',
+      edgeDefault: '#71809a',
+      edgePrimary: '#356ad2',
+      edgeAsync: '#dc6537',
+      shadow: '0 2px 5px rgba(15, 23, 42, 0.045), 0 10px 28px rgba(15, 23, 42, 0.025)',
+    },
+    dark: {
+      // Studio Minimal Dark keeps compact cards and bright semantic connectors on black.
+      canvasHint: '#000000',
+      nodeFill: '#15171b',
+      nodeStroke: 'rgba(255, 255, 255, 0.14)',
+      title: '#f5f7fb',
+      subtitle: '#929db0',
+      groupFill: 'rgba(255, 255, 255, 0.04)',
+      groupStroke: 'rgba(255, 255, 255, 0.14)',
+      edgeDefault: '#a7b2c4',
+      edgePrimary: '#82aaff',
+      edgeAsync: '#ff9a70',
+      shadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5)',
+    },
+    concerns: {
+      client:   concern('#2864d8', 'rgba(40,100,216,0.14)', 'Client'),
+      compute:  concern('#008f6b', 'rgba(0,143,107,0.14)', 'Compute'),
+      data:     concern('#7558d8', 'rgba(117,88,216,0.14)', 'Data'),
+      async:    concern('#e05a33', 'rgba(224,90,51,0.14)', 'Async'),
+      external: concern('#c63d88', 'rgba(198,61,136,0.14)', 'External'),
     },
   },
   luxury: {

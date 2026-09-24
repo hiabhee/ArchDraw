@@ -25,6 +25,27 @@ function node(id: string, label: string, parent?: string): Node {
 }
 
 describe('layoutDiagramViaMermaid', () => {
+  it('gives Studio Minimal a wider editorial rank rhythm without changing the default profile', async () => {
+    const nodes: Node[] = [node('client', 'Client'), node('api', 'API'), node('data', 'Data')];
+    const edges: Edge[] = [
+      { id: 'e1', source: 'client', target: 'api' } as Edge,
+      { id: 'e2', source: 'api', target: 'data' } as Edge,
+    ];
+
+    const standard = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+    const studio = await layoutDiagramViaMermaid(nodes, edges, 'LR', { renderStyleId: 'studio-minimal' });
+    expect(standard.success).toBe(true);
+    expect(studio.success).toBe(true);
+
+    const gapAfter = (result: typeof standard, sourceId: string, targetId: string) => {
+      const source = result.nodes.find((item) => item.id === sourceId)!;
+      const target = result.nodes.find((item) => item.id === targetId)!;
+      return target.position.x - (source.position.x + (source.width ?? 0));
+    };
+
+    expect(gapAfter(studio, 'client', 'api')).toBeGreaterThan(gapAfter(standard, 'client', 'api'));
+  });
+
   it('sizes an outer group to contain nested group children (LR)', async () => {
     const nodes: Node[] = [
       group('kafka', 'Kafka'),
@@ -76,13 +97,48 @@ describe('layoutDiagramViaMermaid', () => {
     expect(api.parentNode).toBe('app');
   });
 
-  it('returns the input unchanged when the pipeline rejects the graph', async () => {
+  it('keeps a single empty group available for layout', async () => {
+    const nodes: Node[] = [group('empty', 'Empty group')];
+    const result = await layoutDiagramViaMermaid(nodes, [], 'LR');
+    expect(result.success).toBe(true);
+    expect(result.nodes.map((item) => item.id)).toEqual(['empty']);
+    expect(result.nodes[0].type).toBe('groupNode');
+  });
+
+  it('restores distinct React Flow ids and endpoints after Mermaid layout', async () => {
+    const nodes: Node[] = [node('api.prod', 'Production'), node('api_prod', 'Staging')];
+    const edges: Edge[] = [{ id: 'connection', source: 'api.prod', target: 'api_prod' } as Edge];
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+    expect(result.success).toBe(true);
+    expect(new Set(result.nodes.map((item) => item.id))).toEqual(new Set(['api.prod', 'api_prod']));
+    expect(result.edges).toMatchObject([{ id: 'connection', source: 'api.prod', target: 'api_prod' }]);
+  });
+
+  it('restores parent and annotation anchor ids after layout', async () => {
     const nodes: Node[] = [
-      { id: 'bad', type: 'groupNode', position: { x: 0, y: 0 }, data: { label: '' } } as Node,
+      group('group.one', 'Group'),
+      node('api.prod', 'API', 'group.one'),
+      {
+        id: 'note.one', type: 'annotationNode', position: { x: 0, y: 0 },
+        data: { title: 'Note', body: 'Body', anchor: 'node', anchorTarget: 'api.prod' },
+      } as Node,
     ];
     const result = await layoutDiagramViaMermaid(nodes, [], 'LR');
-    expect(result.success).toBe(false);
-    expect(result.nodes).toBe(nodes);
+    expect(result.success).toBe(true);
+    expect(result.nodes.find((item) => item.id === 'api.prod')?.parentNode).toBe('group.one');
+    expect(result.nodes.find((item) => item.id === 'note.one')?.data.anchorTarget).toBe('api.prod');
+  });
+
+  it('clears absolute manual bends when the nodes move', async () => {
+    const nodes: Node[] = [node('api', 'API'), node('db', 'DB')];
+    const edges: Edge[] = [{
+      id: 'custom', source: 'api', target: 'db',
+      data: { customWaypoints: [{ x: 5000, y: 5000 }], edgeType: 'async' },
+    } as Edge];
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'TD');
+    expect(result.success).toBe(true);
+    expect(result.edges[0].data?.customWaypoints).toBeUndefined();
+    expect(result.edges[0].data?.edgeType).toBe('async');
   });
 
   it('layouts the ArchDraw template (same path as template load + toggler)', async () => {

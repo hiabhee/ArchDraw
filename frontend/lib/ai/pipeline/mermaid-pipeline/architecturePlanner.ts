@@ -19,7 +19,7 @@ interface PlannerOutput {
   mermaidCode: string;
 }
 
-const THEMES = ['forest-green', 'slate', 'dark-minimal', 'luxury', 'default'] as const;
+const THEMES = ['forest-green', 'slate', 'dark-minimal', 'studio-minimal', 'luxury', 'default'] as const;
 
 /** Throttle back-to-back gpt-oss calls to reduce TPM spikes. */
 class RateLimiter {
@@ -271,7 +271,7 @@ function salvagePlannerOutput(raw: string): PlannerOutput | null {
 
   // Try to extract other fields leniently
   const typeMatch = raw.match(/"diagramType"\s*:\s*"(graph\s+(?:TD|LR))"/);
-  const themeMatch = raw.match(/"theme"\s*:\s*"(forest-green|slate|dark-minimal|luxury|default)"/);
+  const themeMatch = raw.match(/"theme"\s*:\s*"(forest-green|slate|dark-minimal|studio-minimal|luxury|default)"/);
   const reasoningMatch = raw.match(/"reasoning"\s*:\s*"([\s\S]*?)"\s*,\s*"/);
   let reasoning: string | undefined;
   if (reasoningMatch) {
@@ -427,7 +427,7 @@ export async function runArchitecturePlanner(
     background: getDiagramTheme(theme).light.canvasHint,
     backgroundColor: getDiagramTheme(theme).light.canvasHint,
     fontFamily: 'Inter, sans-serif',
-    theme: theme as 'forest-green' | 'slate' | 'dark-minimal' | 'luxury' | 'default',
+    theme: theme as 'forest-green' | 'slate' | 'dark-minimal' | 'studio-minimal' | 'luxury' | 'default',
     nodeTypeStyles: themeToNodeTypeStyles(theme),
   };
 

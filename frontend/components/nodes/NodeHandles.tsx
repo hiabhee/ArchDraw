@@ -20,9 +20,10 @@ interface NodeHandleProps {
   slotOffset: number;
   handleTransition: string;
   style?: React.CSSProperties;
+  emptySource?: boolean;
 }
 
-function SingleHandle({ side, type, slotOffset, handleTransition, style }: NodeHandleProps) {
+function SingleHandle({ side, type, slotOffset, handleTransition, style, emptySource }: NodeHandleProps) {
   const id = `${type}-${side}`;
   const isHorizontal = side === 'left' || side === 'right';
   const pos = sideToPosition(side);
@@ -53,7 +54,7 @@ function SingleHandle({ side, type, slotOffset, handleTransition, style }: NodeH
     ...style,
   };
 
-  return <Handle type={type} position={pos} id={id} style={base} />;
+  return <Handle type={type} position={pos} id={id} className={emptySource ? 'handle--empty-source' : undefined} style={base} />;
 }
 
 interface NodeHandlesProps {
@@ -67,11 +68,11 @@ interface NodeHandlesProps {
  * - side with only outgoing → only source handle (centered)
  * - side with only incoming → only target handle (centered)
  * - side with both → two handles offset ±16
- * - empty side → both handles overlapping at 0 (preserve creation affordance)
+ * - empty side → source appears on hover/selection; target stays mounted for drops
  * Slots center dynamically per side when only one direction exists.
  */
 export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesProps) {
-  const { getSlotOffset, shouldRenderHandle, handleTransition } = useHandleSlotLayout(nodeId);
+  const { getSlotOffset, shouldRenderHandle, isEmptySide, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
@@ -86,6 +87,7 @@ export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesP
               type={type}
               slotOffset={getSlotOffset(pos, type)}
               handleTransition={handleTransition}
+              emptySource={type === 'source' && isEmptySide(pos)}
               style={{
                 ...handleStyle,
                 visibility: active ? 'visible' : 'hidden',

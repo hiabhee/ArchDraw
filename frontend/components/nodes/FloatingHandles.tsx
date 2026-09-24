@@ -20,9 +20,10 @@ interface FloatingHandleProps {
   slotOffset: number;
   handleTransition: string;
   hidden?: boolean;
+  emptySource?: boolean;
 }
 
-function SingleFloatingHandle({ side, type, slotOffset, handleTransition, hidden }: FloatingHandleProps) {
+function SingleFloatingHandle({ side, type, slotOffset, handleTransition, hidden, emptySource }: FloatingHandleProps) {
   const id = `${type}-${side}`;
   const pos = sideToPosition(side);
 
@@ -31,7 +32,7 @@ function SingleFloatingHandle({ side, type, slotOffset, handleTransition, hidden
       type={type}
       position={pos}
       id={id}
-      className={`rh rh--${side} rh--${type}`}
+      className={`rh rh--${side} rh--${type}${emptySource ? ' handle--empty-source' : ''}`}
       style={{
         ['--rh-slot' as string]: `${slotOffset}px`,
         transition: handleTransition,
@@ -50,10 +51,10 @@ interface FloatingHandlesProps {
  * - only outgoing on side → only source handle centered
  * - only incoming on side → only target handle centered
  * - both → two handles offset ±16 (aligned with edge anchors)
- * - empty side → both overlapping at 0 (preserve creation affordance)
+ * - empty side → source appears on hover/selection; target stays mounted for drops
  */
 export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
-  const { getSlotOffset, shouldRenderHandle, handleTransition } = useHandleSlotLayout(nodeId);
+  const { getSlotOffset, shouldRenderHandle, isEmptySide, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
@@ -69,6 +70,7 @@ export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
               slotOffset={getSlotOffset(pos, type)}
               handleTransition={handleTransition}
               hidden={!active}
+              emptySource={type === 'source' && isEmptySide(pos)}
             />
           );
         });

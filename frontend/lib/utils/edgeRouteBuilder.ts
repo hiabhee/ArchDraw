@@ -16,6 +16,10 @@ import {
 } from './handlerPairScorer'
 
 const FOREIGN_NODE_CLEARANCE = 50
+// A direct edge may pass near a node without detouring around it. The larger
+// clearance remains for deliberate reroutes; using it for a clear straight
+// corridor creates conspicuous U-turns around nodes that the edge never hits.
+const DIRECT_FOREIGN_NODE_CLEARANCE = 20
 
 export interface EdgeRouteResult {
   sourcePosition: Position
@@ -59,9 +63,9 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   return { x, y }
 }
 
-function getNodeRect(node: Node, nodes: Node[]): ObstacleRect {
+function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string): ObstacleRect {
   const pos = getAbsolutePosition(node, nodes)
-  const { width: w, height: h } = getEffectiveNodeDimensions(node)
+  const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId)
   return { x: pos.x, y: pos.y, w, h }
 }
 
@@ -111,6 +115,7 @@ function buildBlockingNodeRects(
   nodes: Node[],
   excludedIds: Set<string>,
   passableGroupIds: Set<string> = new Set(),
+  renderStyleId?: string,
 ): Map<string, { id: string; x: number; y: number; w: number; h: number }> {
   const nodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>()
   for (const node of nodes) {
@@ -120,7 +125,7 @@ function buildBlockingNodeRects(
       // that group, but must not slice through any other group's rectangle.
       if (passableGroupIds.has(node.id)) continue
     }
-    const rect = getNodeRect(node, nodes)
+    const rect = getNodeRect(node, nodes, renderStyleId)
     nodeRects.set(node.id, { id: node.id, ...rect })
   }
   return nodeRects
@@ -128,15 +133,16 @@ function buildBlockingNodeRects(
 
 function pathCollidesWithRects(
   waypoints: Array<{ x: number; y: number }>,
-  nodeRects: Map<string, { id: string; x: number; y: number; w: number; h: number }>
+  nodeRects: Map<string, { id: string; x: number; y: number; w: number; h: number }>,
+  clearance: number = FOREIGN_NODE_CLEARANCE,
 ): boolean {
   for (let i = 0; i < waypoints.length - 1; i++) {
     for (const [, rect] of nodeRects) {
       const expanded = {
-        x: rect.x - FOREIGN_NODE_CLEARANCE,
-        y: rect.y - FOREIGN_NODE_CLEARANCE,
-        w: rect.w + FOREIGN_NODE_CLEARANCE * 2,
-        h: rect.h + FOREIGN_NODE_CLEARANCE * 2,
+        x: rect.x - clearance,
+        y: rect.y - clearance,
+        w: rect.w + clearance * 2,
+        h: rect.h + clearance * 2,
       }
       if (segmentIntersectsRect(
         waypoints[i].x,
@@ -198,11 +204,36 @@ function computeDirectWaypoints(
   targetRect: ObstacleRect,
   borderRadius: number = 24,
 ): Array<{ x: number; y: number }> {
+  // A tiny height difference should read as one shallow connector. An
+  // orthogonal Z route makes a short vertical kink in the middle, while
+  // moving either endpoint would detach the line from its visible handle.
+  const nearHorizontal =
+    ((sourcePosition === Position.Right && targetPosition === Position.Left && sh.x < th.x) ||
+      (sourcePosition === Position.Left && targetPosition === Position.Right && sh.x > th.x)) &&
+    Math.abs(sh.y - th.y) > 0.01 &&
+    Math.abs(sh.y - th.y) < 8;
+  const nearVertical =
+    ((sourcePosition === Position.Bottom && targetPosition === Position.Top && sh.y < th.y) ||
+      (sourcePosition === Position.Top && targetPosition === Position.Bottom && sh.y > th.y)) &&
+    Math.abs(sh.x - th.x) > 0.01 &&
+    Math.abs(sh.x - th.x) < 8;
+  if (edgeOffset === 0 && (nearHorizontal || nearVertical)) {
+    const straight = [sh, th];
+    const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
+    if (!blocked && !pathEntersTerminalInterior(straight, sourceRect, targetRect)) {
+      return straight;
+    }
+  }
+
   const directWaypoints = buildDefaultOrthogonalWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
   )
 
-  const hitsObstacle = !!(nodeRects && nodeRects.size > 0 && pathCollidesWithRects(directWaypoints, nodeRects))
+  const hitsObstacle = !!(
+    nodeRects &&
+    nodeRects.size > 0 &&
+    pathCollidesWithRects(directWaypoints, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE)
+  )
   const hitsTerminal = pathEntersTerminalInterior(directWaypoints, sourceRect, targetRect)
 
   if (!hitsObstacle && !hitsTerminal) {
@@ -235,6 +266,7 @@ function buildScorerObstacles(
   nodes: Node[],
   excludedIds: Set<string>,
   passableGroupIds: Set<string> = new Set(),
+  renderStyleId?: string,
 ): Map<string, HandlerRect> {
   const map = new Map<string, HandlerRect>()
   for (const node of nodes) {
@@ -242,7 +274,7 @@ function buildScorerObstacles(
     if (isGroupNode(node)) {
       if (passableGroupIds.has(node.id)) continue
     }
-    const rect = getNodeRect(node, nodes)
+    const rect = getNodeRect(node, nodes, renderStyleId)
     map.set(node.id, toHandlerRect(rect))
   }
   return map
@@ -325,27 +357,17 @@ function resolveEdgeSideOnNode(
   e: Edge,
   nodeId: string,
   nodes: Node[],
+  edges: Edge[],
   direction: 'LR' | 'TD',
   _allObstacles?: Map<string, HandlerRect>,
+  renderStyleId?: string,
 ): Position {
   // Floating-side behavior: handle ids no longer pin a side. Only explicit
-  // user/lane overrides are respected; everything else re-scores from live
+  // user overrides are fixed; lane preferences bias the scorer. Otherwise use live
   // geometry every frame so edges hop to the natural side as nodes move.
 
   const data = e.data as Record<string, unknown> | undefined
-  if (e.source === nodeId) {
-    const manual = sideToPosition(data?.sourceSide as string)
-    if (manual !== undefined) return manual
-    const lane = sideToPosition(data?.laneSourceSide as string)
-    if (lane !== undefined) return lane
-  } else if (e.target === nodeId) {
-    const manual = sideToPosition(data?.targetSide as string)
-    if (manual !== undefined) return manual
-    const lane = sideToPosition(data?.laneTargetSide as string)
-    if (lane !== undefined) return lane
-  } else {
-    return Position.Right
-  }
+  if (e.source !== nodeId && e.target !== nodeId) return Position.Right
 
   const sourceNode = nodes.find(n => n.id === e.source)
   const targetNode = nodes.find(n => n.id === e.target)
@@ -353,18 +375,31 @@ function resolveEdgeSideOnNode(
     return Position.Right
   }
 
-  const sourceRect = getNodeRect(sourceNode, nodes)
-  const targetRect = getNodeRect(targetNode, nodes)
+  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId)
+  const targetRect = getNodeRect(targetNode, nodes, renderStyleId)
+  const sourceHandlerRect = { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h }
+  const targetHandlerRect = { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h }
+  const bidirectionalSides = resolveBidirectionalFacingSides(e, edges, sourceHandlerRect, targetHandlerRect)
+  if (bidirectionalSides) {
+    return e.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide
+  }
+  if (e.source === nodeId) {
+    const manual = sideToPosition(data?.sourceSide as string)
+    if (manual !== undefined) return manual
+  } else {
+    const manual = sideToPosition(data?.targetSide as string)
+    if (manual !== undefined) return manual
+  }
   const excluded = new Set([e.source, e.target])
   // Match useHandleSlotLayout: per-edge obstacles, not the main edge's.
   const passableGroupIds = new Set<string>([
     ...getAncestorGroupIds(e.source, nodes),
     ...getAncestorGroupIds(e.target, nodes),
   ])
-  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds)
-  const pair = selectBestHandlerPair(
-    { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h },
-    { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h },
+  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId)
+  let pair = selectBestHandlerPair(
+    sourceHandlerRect,
+    targetHandlerRect,
     direction,
     obstacles.size > 0 ? obstacles : undefined,
     excluded,
@@ -373,10 +408,44 @@ function resolveEdgeSideOnNode(
     sideToPosition(data?.laneSourceSide as string),
     sideToPosition(data?.laneTargetSide as string),
   )
+  const manualSource = sideToPosition(data?.sourceSide as string)
+  const manualTarget = sideToPosition(data?.targetSide as string)
+  const usesCustomWaypoints = Array.isArray(data?.customWaypoints) && data.customWaypoints.length > 0
+  if ((manualSource === undefined || manualTarget === undefined) && !usesCustomWaypoints) {
+    if (orthogonalPenetratesTerminal(sourceHandlerRect, targetHandlerRect, pair.sourceSide, pair.targetSide)) {
+      let scores = scoreAllHandlerPairs(
+        sourceHandlerRect, targetHandlerRect, direction, obstacles, excluded,
+      )
+      scores = applyLaneBias(
+        scores,
+        sideToPosition(data?.laneSourceSide as string),
+        sideToPosition(data?.laneTargetSide as string),
+      )
+      if (manualSource !== undefined || manualTarget !== undefined) {
+        scores = scores.filter(s =>
+          (manualSource === undefined || s.pair.sourceSide === manualSource) &&
+          (manualTarget === undefined || s.pair.targetSide === manualTarget),
+        )
+      }
+      const fallback = scores.find(s =>
+        (s.pair.sourceSide !== pair.sourceSide || s.pair.targetSide !== pair.targetSide) &&
+        !orthogonalPenetratesTerminal(sourceHandlerRect, targetHandlerRect, s.pair.sourceSide, s.pair.targetSide),
+      )
+      if (fallback) pair = fallback.pair
+    }
+  }
   return e.source === nodeId ? pair.sourceSide : pair.targetSide
 }
 
 export type EdgeRouteDirection = 'LR' | 'TD';
+
+/** Live React Flow handle centers — edges must terminate here, not on a parallel size box. */
+export interface EdgeRouteHandleAnchors {
+  source: { x: number; y: number };
+  target: { x: number; y: number };
+  sourceSide?: Position;
+  targetSide?: Position;
+}
 
 export function computeEdgeRoute(
   edge: Edge,
@@ -384,6 +453,7 @@ export function computeEdgeRoute(
   edges: Edge[],
   direction: EdgeRouteDirection = 'LR',
   renderStyleId?: string,
+  handleAnchors?: EdgeRouteHandleAnchors,
 ): EdgeRouteResult {
   const sourceNode = nodes.find(n => n.id === edge.source)
   const targetNode = nodes.find(n => n.id === edge.target)
@@ -403,29 +473,115 @@ export function computeEdgeRoute(
   const curveRadius = brutal ? 10 : 24;
 
   if (edge.source === edge.target) {
-    const sRect = getNodeRect(sourceNode, nodes)
-    const cx = sRect.x + sRect.w / 2
+    const sRect = getNodeRect(sourceNode, nodes, renderStyleId)
     const cy = sRect.y + sRect.h / 2
     const top = sRect.y
+    const left = sRect.x
     const right = sRect.x + sRect.w
-    const r = 40
+    const cx = sRect.x + sRect.w / 2
+    const edgeSelfData = edge.data as Record<string, unknown> | undefined
+    const loopVariant = (edgeSelfData?.selfLoopStyle as string) || (edgeSelfData?.loopVariant as string) || 'wrap'
+    const isSketchSelf = renderStyleId === 'sketch'
+    // Handles: SystemNode (FloatingHandles) center 7px outside, edge 12px outside;
+    // ShapeNode (NodeHandles) center 12px outside, edge 17px outside.
+    // The path must terminate exactly on the handle *edge* (where the donut
+    // meets the line), not the center, so the line doesn't start before or
+    // end after the handle. Use live handleAnchors (centers) and offset by
+    // handle radius (5px) outward to the edge.
+    const HANDLE_R = 5
+    const isSystemNode = sourceNode.type === 'systemNode'
+    // Edge (outer) GAP for fallback when handleAnchors not yet measured
+    const GAP_EDGE = isSystemNode ? 12 : 17
+    const toEdge = (pt: { x: number; y: number } | undefined, side: Position, fallback: { x: number; y: number }) => {
+      if (!pt) return fallback
+      switch (side) {
+        case Position.Left: return { x: pt.x - HANDLE_R, y: pt.y }
+        case Position.Right: return { x: pt.x + HANDLE_R, y: pt.y }
+        case Position.Top: return { x: pt.x, y: pt.y - HANDLE_R }
+        case Position.Bottom: return { x: pt.x, y: pt.y + HANDLE_R }
+        default: return pt
+      }
+    }
+    // For the default wrap we *always* want Left → Right (your sketch),
+    // even if the edge was dragged Top → Right. The sketch is Left-mid
+    // to Right-mid. Corner variant keeps Top → Right.
+    const wrapSrcPt = { x: left - GAP_EDGE, y: cy }
+    const wrapTgtPt = { x: right + GAP_EDGE, y: cy }
+    // Keep corner anchors handle-aware (Top → Right) for back-compat
+    const srcSide = handleAnchors?.sourceSide ?? Position.Top
+    const tgtSide = handleAnchors?.targetSide ?? Position.Right
+    const anchorTop = toEdge(handleAnchors?.source, srcSide, { x: cx, y: top - GAP_EDGE })
+    const anchorRightForCorner = toEdge(handleAnchors?.target, tgtSide, { x: right + GAP_EDGE, y: cy })
+
+    // Sketch-exact path (image 1 → image 2): generous wrap that leaves
+    // Left-mid, goes out left, up, across the top, down, enters Right-mid.
+    // Matches the hand-drawn loop in the user's sketch — much wider than the
+    // old Top→Right corner arc (r=40). Use 'corner' for the old tight variant.
+    if (loopVariant === 'corner' || loopVariant === 'arc') {
+      const baseLift = isSketchSelf ? 52 : 48
+      const baseOut = isSketchSelf ? 36 : 32
+      const scale = Math.min(1, Math.max(0.7, sRect.w / 220))
+      const lift = Math.round(baseLift * scale)
+      const out = Math.round(baseOut * scale)
+      // Anchor exactly on handles: Top handle → Right handle
+      const srcPt = anchorTop
+      const tgtPt = anchorRightForCorner
+      const c1x = cx + 8
+      const c1y = top - lift
+      const c2x = right + out
+      const c2y = cy - lift + 8
+      const waypoints = [
+        { x: srcPt.x, y: srcPt.y },
+        { x: c1x, y: c1y },
+        { x: c2x, y: c2y },
+        { x: tgtPt.x, y: tgtPt.y },
+      ]
+      return {
+        sourcePosition: Position.Top,
+        targetPosition: Position.Right,
+        sourcePoint: srcPt,
+        targetPoint: tgtPt,
+        waypoints,
+        svgPath: `M ${srcPt.x},${srcPt.y} C ${c1x},${c1y} ${c2x},${c2y} ${tgtPt.x},${tgtPt.y}`,
+      }
+    }
+
+    // Default: full wrap (sketch) — Left → Right over the top, rounded
+    // orthogonal with SmoothStep (22px radius, 10px in neubrutalism). This is
+    // what the user's sketch and "left node → right node" wants: a clear
+    // feedback loop that doesn't hug the corner. Always Left → Right,
+    // ignoring drag handles, so it matches the sketch exactly.
+    const baseLift = isSketchSelf ? 62 : 58
+    const baseOut = isSketchSelf ? 42 : 38
+    const scale = Math.min(1, Math.max(0.68, sRect.w / 220))
+    // 'tight' stays close for dense diagrams
+    const tight = loopVariant === 'tight'
+    const lift = Math.round((tight ? baseLift * 0.55 : baseLift) * scale)
+    const out = Math.round((tight ? baseOut * 0.55 : baseOut) * scale)
+    const r = brutal ? 10 : (tight ? 14 : 22)
+
+    const srcPt = wrapSrcPt
+    const tgtPt = wrapTgtPt
+    const waypoints = [
+      { x: srcPt.x, y: srcPt.y },
+      { x: left - out, y: cy },
+      { x: left - out, y: top - lift },
+      { x: right + out, y: top - lift },
+      { x: right + out, y: cy },
+      { x: tgtPt.x, y: tgtPt.y },
+    ]
     return {
-      sourcePosition: Position.Top,
+      sourcePosition: Position.Left,
       targetPosition: Position.Right,
-      sourcePoint: { x: cx, y: top },
-      targetPoint: { x: right, y: cy },
-      waypoints: [
-        { x: cx, y: top },
-        { x: cx + r, y: top - r },
-        { x: right + r, y: cy - r },
-        { x: right, y: cy },
-      ],
-      svgPath: `M ${cx},${top} C ${cx},${top - r} ${right + r},${cy - r} ${right},${cy}`,
+      sourcePoint: srcPt,
+      targetPoint: tgtPt,
+      waypoints,
+      svgPath: buildSmoothStepSvg(waypoints, r),
     }
   }
 
-  const sourceRect = getNodeRect(sourceNode, nodes)
-  const targetRect = getNodeRect(targetNode, nodes)
+  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId)
+  const targetRect = getNodeRect(targetNode, nodes, renderStyleId)
   const edgeData = edge.data as Record<string, unknown> | undefined
 
   // `direction` is now passed in by the caller (the parent component reads
@@ -444,7 +600,7 @@ export function computeEdgeRoute(
     ...getAncestorGroupIds(edge.source, nodes),
     ...getAncestorGroupIds(edge.target, nodes),
   ])
-  const scorerObstacles = buildScorerObstacles(nodes, excludedIds, passableGroupIds)
+  const scorerObstacles = buildScorerObstacles(nodes, excludedIds, passableGroupIds, renderStyleId)
   const srcHandlerRect: HandlerRect = {
     x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h,
   }
@@ -489,36 +645,25 @@ export function computeEdgeRoute(
     const sourceShift = getEdgeShiftOffset(
       edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
       undefined, undefined,
-      (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, direction, scorerObstacles),
+      (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId),
+      renderStyleId,
     )
     const targetShift = getEdgeShiftOffset(
       edge.target, edge.id, targetPosition, edges, nodeMap, 24,
       undefined, undefined,
-      (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, direction, scorerObstacles),
+      (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId),
+      renderStyleId,
     )
-    let sh = getBoundaryAnchor(
+    let sh = handleAnchors?.source ?? getBoundaryAnchor(
       sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
       sourcePosition, sourceShift,
     )
-    let th = getBoundaryAnchor(
+    let th = handleAnchors?.target ?? getBoundaryAnchor(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
       targetPosition, targetShift,
     )
-    // Same straight-snap as main path — keeps custom edges from wavering when anchors are ~aligned
-    {
-      const STRAIGHT_SNAP = 8;
-      const isH = (sourcePosition === Position.Right && targetPosition === Position.Left) || (sourcePosition === Position.Left && targetPosition === Position.Right);
-      const isV = (sourcePosition === Position.Top && targetPosition === Position.Bottom) || (sourcePosition === Position.Bottom && targetPosition === Position.Top);
-      if (isH && Math.abs(sh.y - th.y) < STRAIGHT_SNAP) {
-        const avgY = Math.round((sh.y + th.y) / 2);
-        sh = { ...sh, y: avgY };
-        th = { ...th, y: avgY };
-      } else if (isV && Math.abs(sh.x - th.x) < STRAIGHT_SNAP) {
-        const avgX = Math.round((sh.x + th.x) / 2);
-        sh = { ...sh, x: avgX };
-        th = { ...th, x: avgX };
-      }
-    }
+    if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+    if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
 
@@ -593,104 +738,38 @@ export function computeEdgeRoute(
     }
   }
 
+  if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+  if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
   const resolveSide = (e: Edge, nodeId: string) =>
-    resolveEdgeSideOnNode(e, nodeId, nodes, direction, scorerObstacles)
+    resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId)
 
   const sourceShift = getEdgeShiftOffset(
     edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
-    undefined, undefined, resolveSide,
+    undefined, undefined, resolveSide, renderStyleId,
   )
   const targetShift = getEdgeShiftOffset(
     edge.target, edge.id, targetPosition, edges, nodeMap, 24,
-    undefined, undefined, resolveSide,
+    undefined, undefined, resolveSide, renderStyleId,
   )
-  let sh = getBoundaryAnchor(
+  let sh = handleAnchors?.source ?? getBoundaryAnchor(
     sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
     sourcePosition, sourceShift,
   )
-  let th = getBoundaryAnchor(
+  let th = handleAnchors?.target ?? getBoundaryAnchor(
     targetRect.x, targetRect.y, targetRect.w, targetRect.h,
     targetPosition, targetShift,
   )
 
-  // Auto-straighten: if edge is nearly horizontal/vertical, snap to make it perfectly straight
-  // so small 2-8px misalignments don't create the wavy S-jog seen in screenshots.
-  // Keeps full freedom — only snaps when already close, and respects custom waypoints.
-  const STRAIGHT_SNAP = 8;
-  const isHorizontalPair =
-    (sourcePosition === Position.Right && targetPosition === Position.Left) ||
-    (sourcePosition === Position.Left && targetPosition === Position.Right);
-  const isVerticalPair =
-    (sourcePosition === Position.Top && targetPosition === Position.Bottom) ||
-    (sourcePosition === Position.Bottom && targetPosition === Position.Top);
-  if (isHorizontalPair && Math.abs(sh.y - th.y) < STRAIGHT_SNAP) {
-    const avgY = Math.round((sh.y + th.y) / 2);
-    sh = { ...sh, y: avgY };
-    th = { ...th, y: avgY };
-  } else if (isVerticalPair && Math.abs(sh.x - th.x) < STRAIGHT_SNAP) {
-    const avgX = Math.round((sh.x + th.x) / 2);
-    sh = { ...sh, x: avgX };
-    th = { ...th, x: avgX };
-  }
 
   // Intermediate nodes only for the obstacle map — source/target are added
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
-  const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds)
+  const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
-  // Lane offset: keep parallel same-source/target edges separated, and also
-  // spread fan-out (same source) / fan-in (same target) bundles that otherwise
-  // share a single vertical/horizontal trunk (LB → 2 services, Analytics → Cache/DB).
-  // Simple approach: exact parallel > larger fan group > fan-in tie-break for convergence.
-  const computeFanOffset = (): number => {
-    const parallels = edges.filter((e) => e.source === edge.source && e.target === edge.target)
-    if (parallels.length > 1) {
-      const sorted = [...parallels].sort((a, b) => a.id.localeCompare(b.id))
-      const idx = sorted.findIndex((e) => e.id === edge.id)
-      return idx === -1 ? 0 : (idx - (sorted.length - 1) / 2) * 20
-    }
-    const fanOut = edges.filter((e) => e.source === edge.source)
-    const fanIn = edges.filter((e) => e.target === edge.target)
-    const fanOutSize = fanOut.length
-    const fanInSize = fanIn.length
-    if (fanOutSize <= 1 && fanInSize <= 1) return 0
-
-    // Choose the bundle that gives more separation; tie prefers fan-in so
-    // converging edges (svc1→DB, svc2→DB) separate by source order.
-    let useFanOut = false
-    if (fanOutSize > 1 && fanInSize > 1) {
-      useFanOut = fanOutSize > fanInSize
-    } else {
-      useFanOut = fanOutSize > 1
-    }
-
-    if (useFanOut) {
-      const sorted = [...fanOut].sort((a, b) => {
-        const aNode = nodes.find((n) => n.id === a.target)
-        const bNode = nodes.find((n) => n.id === b.target)
-        const aPos = aNode ? getAbsolutePosition(aNode, nodes) : { y: 0 }
-        const bPos = bNode ? getAbsolutePosition(bNode, nodes) : { y: 0 }
-        if (aPos.y !== bPos.y) return aPos.y - bPos.y
-        if (a.target !== b.target) return a.target.localeCompare(b.target)
-        return a.id.localeCompare(b.id)
-      })
-      const idx = sorted.findIndex((e) => e.id === edge.id)
-      return idx === -1 ? 0 : (idx - (sorted.length - 1) / 2) * 18
-    } else {
-      const sorted = [...fanIn].sort((a, b) => {
-        const aNode = nodes.find((n) => n.id === a.source)
-        const bNode = nodes.find((n) => n.id === b.source)
-        const aPos = aNode ? getAbsolutePosition(aNode, nodes) : { y: 0 }
-        const bPos = bNode ? getAbsolutePosition(bNode, nodes) : { y: 0 }
-        if (aPos.y !== bPos.y) return aPos.y - bPos.y
-        if (a.source !== b.source) return a.source.localeCompare(b.source)
-        return a.id.localeCompare(b.id)
-      })
-      const idx = sorted.findIndex((e) => e.id === edge.id)
-      return idx === -1 ? 0 : (idx - (sorted.length - 1) / 2) * 18
-    }
-  }
-  const edgeOffset = computeFanOffset()
+  // Keep it simple: no fan-out/fan-in height staggering.
+  // Same-level nodes now share the exact same orthogonal height.
+  const edgeOffset = 0
 
   const waypointsRaw = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,

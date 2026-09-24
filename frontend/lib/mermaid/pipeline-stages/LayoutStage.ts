@@ -16,6 +16,16 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
   }
 
   async execute(input: LayoutStageInput, _context: PipelineContext): Promise<StageResult<RFObjects>> {
+    // Studio Minimal is intentionally an editorial, low-density map: the
+    // primary reading direction gets a generous column rhythm while branches
+    // receive enough vertical room to stay distinct. Other appearances keep
+    // the shared default geometry unchanged.
+    const layoutOptions = _context.metadata.layoutProfile === 'studio-minimal'
+      ? {
+          nodeSep: input.direction === 'TD' || input.direction === 'BT' ? 140 : 160,
+          rankSep: 220,
+        }
+      : undefined;
     const candidates = [input.objects.nodes, [...input.objects.nodes].reverse()];
     let layouted: RFObjects | undefined;
     let best: ReturnType<typeof measureLayoutQuality> | undefined;
@@ -25,6 +35,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const candidate = applyRfLayout(
         { ...input.objects, nodes } as unknown as Parameters<typeof applyRfLayout>[0],
         input.direction,
+        layoutOptions,
       ) as unknown as RFObjects;
       // Dagre emits absolute child coordinates. Normalize them through the
       // canonical sizing pass before measuring, otherwise parent offsets are

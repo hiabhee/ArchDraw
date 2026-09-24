@@ -474,7 +474,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
       if (/^(style|classDef|class|linkStyle|click)\s/i.test(l)) return false
       return true
     })
-  if (nodes.length === 0 && edges.length === 0 && meaningfulLines.length > 0) {
+  if (nodes.length === 0 && edges.length === 0 && subgraphs.length === 0 && meaningfulLines.length > 0) {
     return {
       ok: false,
       errors: [{ line: 1, reason: 'No nodes or edges were parsed from non-empty input.' }],

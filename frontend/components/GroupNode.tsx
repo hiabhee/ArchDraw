@@ -24,6 +24,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const aesthetics = useDiagramAesthetics();
   const sketch = aesthetics.renderStyleId === 'sketch';
   const brutal = aesthetics.renderStyleId === 'neubrutalism';
+  const studio = aesthetics.renderStyleId === 'studio-minimal';
 
   useEffect(() => {
     updateNodeInternals(id);
@@ -71,7 +72,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
     dataRec.accentColor ||
     dataRec.groupColor ||
     dataRec.color ||
-    getConcernColor(concernHint) ||
+    getConcernColor(concernHint, aesthetics.concerns) ||
     CONCERN_COLORS.compute.color;
   // Pastel #eff6ff etc with 0.08 alpha is invisible on white in precision.
   // Groups created after 0d66a6a stored pastel directly; map back to saturated for precision so the tint reads.
@@ -95,12 +96,16 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   // the opaque #dbeafe fill never covers edge paths. Keep the node itself
   // transparent and let the layer provide the visual plate.
   // Precision was invisible with pastel #eff6ff at 0.08 (near-white). Saturated colors at 0.12 read clearly.
-  const bg = brutal
+  const bg = studio
+    ? isDark ? hexToRgba(color, 0.10) : hexToRgba(color, 0.055)
+    : brutal
     ? 'transparent'
     : sketch
       ? isDark ? hexToRgba(color, 0.06) : hexToRgba(color, 0.04)
       : isDark ? hexToRgba(color, 0.14) : hexToRgba(color, 0.12);
-  const borderColor = brutal
+  const borderColor = studio
+    ? selected ? color : isDark ? hexToRgba(color, 0.46) : hexToRgba(color, 0.34)
+    : brutal
     ? (isDark ? '#e4e4e7' : '#1a1a1a')
     : selected
       ? isDark
@@ -115,8 +120,8 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
           : hexToRgba(color, 0.35);
 
   const isLoop = !!(dataRec as { isLoop?: boolean; variant?: string }).isLoop || (dataRec as { variant?: string }).variant === 'dashed';
-  const borderWidth = brutal ? 3 : selected ? 1.5 : 1.25;
-  const borderStyle: 'dashed' | 'solid' = isLoop ? 'dashed' : sketch ? 'dashed' : 'solid';
+  const borderWidth = brutal ? 3 : studio ? (selected ? 1.5 : 1) : selected ? 1.5 : 1.25;
+  const borderStyle: 'dashed' | 'solid' = isLoop || sketch || studio ? 'dashed' : 'solid';
 
   // Sketch body: rough rounded-rect with light hachure swimlane (penciled zone)
   // Recomputed on resize via `box`. Pass explicit hachure so the warm paper
@@ -147,7 +152,9 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   // ink like the rest of brutal titles (BRUTAL_TITLE_*), not echo the raw
   // concern color which clashes with the fixed brutal surface (green on
   // light-blue, etc.). Sketch/precision keep the concern tint.
-  const tagText = brutal
+  const tagText = studio
+    ? isDark ? '#cbd5e1' : '#52627a'
+    : brutal
     ? aesthetics.colors.title
     : isDark
       ? hexToRgba(color, 0.9)
@@ -204,7 +211,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
         // above it. Keep the node itself transparent in brutal.
         backgroundColor: brutal ? 'transparent' : sketch ? 'transparent' : bg,
         border: brutal ? 'none' : sketch ? 'none' : `${borderWidth}px ${borderStyle} ${borderColor}`,
-        borderRadius: sketch ? 0 : brutal ? 8 : 12,
+        borderRadius: sketch ? 0 : brutal ? 8 : studio ? 16 : 12,
         boxShadow: 'none',
         position: 'relative',
         boxSizing: 'border-box',
@@ -254,14 +261,14 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
           className={sketch || brutal ? 'group-label' : undefined}
           style={{
             position: 'absolute',
-            top: 16,
-            left: 12,
+          top: studio ? 18 : 16,
+          left: studio ? 18 : 12,
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,
             padding: brutal ? '4px 10px' : 0,
-            fontSize: brutal ? 12 : 11,
-            fontWeight: brutal ? 700 : 500,
+            fontSize: brutal ? 12 : studio ? 13 : 11,
+            fontWeight: brutal ? 700 : studio ? 600 : 500,
             letterSpacing: '0.04em',
             textTransform: brutal ? 'uppercase' : 'none',
             color: tagText,

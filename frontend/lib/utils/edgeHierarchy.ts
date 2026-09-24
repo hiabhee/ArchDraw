@@ -28,6 +28,10 @@ const MUTED = {
 /** Request-path / spine edges that should read as the primary flow. */
 export function isPrimaryEdge(data?: Record<string, unknown> | null): boolean {
   if (!data) return true;
+  // Self-loops are feedback, never primary blue — they should be muted dashed
+  if (data.selfLoopStyle || data.loopVariant) return false;
+  const label = String(data.label || '').toLowerCase();
+  if (label.includes('retry') || label.includes('failure') || label.includes('feedback') || label.includes('loop')) return false;
   if (data.isSpine === true) return true;
   if (data.importance === 'primary') return true;
   if (data.edgeVariant === 'thick') return true;
@@ -73,7 +77,9 @@ export function resolveEdgeVisual(
   const control = isControlPlane(data);
   const importance = typeof data?.importance === 'string' ? data.importance : 'secondary';
   const connectionType = String(data?.connectionType || '').toLowerCase();
-  const palette = sketch ? { ...sketchEdgeInk(isDark), ...ink } : undefined;
+  // Precision themes supply the same semantic connector slots as sketch.
+  // With no override, retain the established black/white precision treatment.
+  const palette = ink ? { ...sketchEdgeInk(isDark), ...ink } : undefined;
 
   if (async) {
     const c = palette ? palette.async : isDark ? MUTED.asyncDark : MUTED.asyncLight;
@@ -87,11 +93,11 @@ export function resolveEdgeVisual(
   }
 
   if (connectionType === 'stream') {
-    const c = isDark ? '#ffffff' : '#000000';
+    const c = palette ? palette.stream : isDark ? '#ffffff' : '#000000';
     return { stroke: c, markerColor: c, strokeWidth: 1.5, opacity: 1, isPrimary: false };
   }
   if (connectionType === 'event') {
-    const c = isDark ? '#ffffff' : '#000000';
+    const c = palette ? palette.event : isDark ? '#ffffff' : '#000000';
     return { stroke: c, markerColor: c, strokeWidth: 1.5, opacity: 1, isPrimary: false };
   }
   if (connectionType === 'dep') {

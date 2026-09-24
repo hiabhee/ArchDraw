@@ -220,7 +220,10 @@ export function CommandPalette() {
     if (loadingTemplateId) return;
     setLoadingTemplateId(template.id);
     try {
-      const result = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', { title: template.name });
+      const result = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', {
+        title: template.name,
+        renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+      });
       if (!result.success) {
         toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
       }

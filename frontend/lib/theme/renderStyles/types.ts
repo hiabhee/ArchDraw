@@ -4,7 +4,7 @@
  */
 
 /** Render / aesthetic style id — how shapes are drawn (not color, not chrome). */
-export type DiagramRenderStyleId = 'precision' | 'sketch' | 'neubrutalism';
+export type DiagramRenderStyleId = 'precision' | 'sketch' | 'neubrutalism' | 'studio-minimal';
 
 /** Which stroke engine draws primitives. */
 export type StrokeEngineId = 'crisp' | 'rough' | 'brutalist';

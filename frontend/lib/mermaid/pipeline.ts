@@ -29,6 +29,8 @@ export interface PipelineResult {
   removedNodeIds?: string[]
 }
 
+export type MermaidLayoutProfile = 'studio-minimal';
+
 export interface MermaidPipelineData {
   originalNodeIds?: string[]
   originalEdgeIds?: string[]
@@ -202,6 +204,7 @@ export async function runMermaidPipeline(
     reduceRedundantEdges?: boolean;
     diagramKind?: 'architecture' | 'workflow';
     pruneOrphans?: boolean;
+    layoutProfile?: MermaidLayoutProfile;
   } = {},
 ): Promise<DomainPipelineResult<PipelineResult>> {
   const pipeline = new Pipeline<string, MermaidPipelineData>(

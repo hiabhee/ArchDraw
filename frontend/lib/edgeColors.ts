@@ -43,6 +43,15 @@ export function resolveEdgePalette(
 export function useEdgeColors(edges: Edge[]): Edge[] {
   const { isDark, renderStyleId, colors } = useDiagramAesthetics();
   const sketch = renderStyleId === 'sketch';
+  const themeInk: Partial<SketchEdgeInk> = {
+    primary: colors.edgePrimary,
+    default: colors.edgeDefault,
+    supporting: colors.edgeDefault,
+    dep: colors.edgeDefault,
+    async: colors.edgeAsync,
+    stream: colors.edgePrimary,
+    event: colors.edgePrimary,
+  };
 
   return useMemo(() => {
     return edges.map((edge) => {
@@ -50,9 +59,7 @@ export function useEdgeColors(edges: Edge[]): Edge[] {
         edge.data as Record<string, unknown> | undefined,
         isDark,
         sketch,
-        sketch
-          ? { primary: colors.edgePrimary, default: colors.edgeDefault, async: colors.edgeAsync }
-          : undefined,
+        themeInk,
       );
       return {
         ...edge,

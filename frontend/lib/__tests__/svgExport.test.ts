@@ -83,6 +83,48 @@ describe('generatePureSVG render styles', () => {
     expect(svg).toContain('stroke-dasharray="5,4"');
   });
 
+  it('preserves Studio Minimal white cards with semantic accents and colored edges in SVG', () => {
+    const nodes: Node[] = [
+      { id: 'service', type: 'shapeNode', position: { x: 0, y: 0 }, width: 200, height: 100, data: { label: 'Service' } },
+      { id: 'browser', type: 'shapeNode', position: { x: 320, y: 0 }, width: 200, height: 100, data: { label: 'Browser', shape: 'monitor' } },
+    ];
+    const edges: Edge[] = [{ id: 'request', source: 'service', target: 'browser', type: 'simpleFloating', data: { importance: 'primary' } }];
+    const svg = generatePureSVG(
+      nodes,
+      edges,
+      false,
+      '#fdfdfc',
+      'LR',
+      'studio-minimal',
+      'studio-minimal',
+    );
+
+    // PNG rasterizes this SVG, so its colors must match the canvas theme.
+    expect(svg).toContain('#ffffff');
+    expect(svg).toContain('stroke="rgba(0,143,107,0.36)"');
+    expect(svg).toContain('stroke="rgba(40,100,216,0.36)"');
+    expect(svg).toContain('stroke="#356ad2"');
+    expect(svg).toContain('data-semantic-icon="arch-service"');
+    expect(svg).toContain('data-semantic-icon="arch-web"');
+    expect(svg).toContain('viewBox="0 0 24 24"');
+
+    const asyncSvg = generatePureSVG(nodes, [{ ...edges[0], data: { connectionType: 'async' } }], false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal');
+    expect(asyncSvg).toContain('stroke="#dc6537"');
+
+    const darkSvg = generatePureSVG(nodes, edges, true, '#000000', 'LR', 'studio-minimal', 'studio-minimal');
+    expect(darkSvg).toContain('stroke="#82aaff"');
+
+    const systemSvg = generatePureSVG([
+      { id: 'database', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Database', category: 'Data' } },
+    ], [], false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal');
+    expect(systemSvg).toContain('fill="#ffffff"');
+    expect(systemSvg).toContain('stroke="#7558d8"');
+    expect(systemSvg).toContain('data-semantic-icon="arch-database"');
+
+    const withoutIcons = generatePureSVG(nodes, edges, false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal', 'off');
+    expect(withoutIcons).not.toContain('data-semantic-icon=');
+  });
+
   it('correctly exports the five new architecture-native shapes to precision and sketch SVG', () => {
     const nodes: Node[] = [
       {

@@ -203,7 +203,7 @@ ${PLANNER_EXAMPLES.map((example, index) => `## Example ${index + 1} — ${exampl
 Prompt: ${example.prompt}
 ${JSON.stringify(example.output)}`).join('\n\n')}
 
-SCHEMA: {"reasoning":"string","diagramType":"graph TD|graph LR","theme":"forest-green|slate|dark-minimal|luxury|default","mermaidCode":"string"}
+SCHEMA: {"reasoning":"string","diagramType":"graph TD|graph LR","theme":"forest-green|slate|dark-minimal|studio-minimal|luxury|default","mermaidCode":"string"}
 
 OUTPUT: Return ONLY the JSON object. No markdown fences.`;
 }

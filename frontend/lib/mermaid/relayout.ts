@@ -4,6 +4,7 @@ import { runMermaidPipeline } from './pipeline';
 import { isDomainSuccess } from '@/lib/pipeline-core';
 import { resolveShapeNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import { ensureDiagramHeading } from './diagramHeading';
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 
 export interface RelayoutCanvasResult {
   nodes: Node[];
@@ -17,6 +18,8 @@ export type LayoutDirection = 'TD' | 'LR';
 export interface RelayoutOptions {
   /** Used when the graph has no top heading yet (templates, manual diagrams). */
   title?: string;
+  /** Applies an appearance-specific spacing profile without changing topology. */
+  renderStyleId?: DiagramRenderStyleId;
 }
 
 /** Map toolbar / store preset ids to Mermaid graph direction. */
@@ -80,8 +83,33 @@ export async function layoutDiagramViaMermaid(
   const nodesWithHeading = ensureDiagramHeading(nodes, options.title);
 
   try {
-    const mermaid = reactFlowToMermaid(nodesWithHeading, edges, direction);
-    const result = await runMermaidPipeline(mermaid);
+    // Mermaid ids are more restrictive than React Flow ids. Use a reversible,
+    // collision-free set for this layout pass ("api.prod" and "api_prod" must
+    // never become the same vertex).
+    const toLayoutId = new Map(nodesWithHeading.map((node, index) => [node.id, `layout_${index}`]));
+    const fromLayoutId = new Map([...toLayoutId].map(([original, layout]) => [layout, original]));
+    const mapId = (id: string | undefined) => id ? (toLayoutId.get(id) ?? id) : undefined;
+    const restoreId = (id: string | undefined) => id ? (fromLayoutId.get(id) ?? id) : undefined;
+    const layoutNodes = nodesWithHeading.map((node) => ({
+      ...node,
+      id: toLayoutId.get(node.id)!,
+      parentNode: mapId(node.parentNode),
+      parentId: mapId((node as Node & { parentId?: string }).parentId),
+      data: {
+        ...node.data,
+        parentId: mapId((node.data as { parentId?: string } | undefined)?.parentId),
+        anchorTarget: mapId((node.data as { anchorTarget?: string } | undefined)?.anchorTarget),
+      },
+    })) as Node[];
+    const layoutEdges = edges.map((edge) => ({
+      ...edge,
+      source: mapId(edge.source)!,
+      target: mapId(edge.target)!,
+    }));
+    const mermaid = reactFlowToMermaid(layoutNodes, layoutEdges, direction);
+    const result = await runMermaidPipeline(mermaid, {
+      layoutProfile: options.renderStyleId === 'studio-minimal' ? 'studio-minimal' : undefined,
+    });
 
     if (!isDomainSuccess(result)) {
       return {
@@ -94,7 +122,13 @@ export async function layoutDiagramViaMermaid(
 
     const originalNodeMap = new Map(nodesWithHeading.map((n) => [n.id, n]));
 
-    const preservedNodes = result.data.nodes.map((newNode) => {
+    const preservedNodes = result.data.nodes.map((layoutNode) => {
+      const newNode = {
+        ...layoutNode,
+        id: restoreId(layoutNode.id)!,
+        parentNode: restoreId(layoutNode.parentNode),
+        parentId: restoreId((layoutNode as { parentId?: string }).parentId),
+      };
       const originalNode = originalNodeMap.get(newNode.id);
       if (!originalNode) return newNode as Node;
 
@@ -184,7 +218,12 @@ export async function layoutDiagramViaMermaid(
       console.warn(`[Relayout] Edge loss detected: pipeline produced ${pipelineEdgeCount} edges but input had ${expectedEdgeCount}. Keeping original edges for missing ones.`);
     }
 
-    const preservedEdges = (result.data.edges as Edge[]).map((newEdge) => {
+    const preservedEdges = (result.data.edges as Edge[]).map((layoutEdge) => {
+      const newEdge = {
+        ...layoutEdge,
+        source: restoreId(layoutEdge.source)!,
+        target: restoreId(layoutEdge.target)!,
+      };
       const bucket = originalEdgeBuckets.get(edgeKey(newEdge.source, newEdge.target, newEdge.label))
         ?? originalEdgeBuckets.get(`${newEdge.source}|${newEdge.target}|`);
       // Also try matching via data.label if label is empty
@@ -203,7 +242,7 @@ export async function layoutDiagramViaMermaid(
         hidden: original.hidden ?? newEdge.hidden,
         markerStart: original.markerStart ?? newEdge.markerStart,
         markerEnd: original.markerEnd ?? newEdge.markerEnd,
-        data: { ...newEdge.data, ...original.data },
+        data: { ...newEdge.data, ...original.data, customWaypoints: undefined },
       } as Edge;
     });
 
@@ -215,7 +254,10 @@ export async function layoutDiagramViaMermaid(
       }
       if (remaining.length > 0) {
         console.warn(`[Relayout] Restoring ${remaining.length} dropped edges`);
-        preservedEdges.push(...remaining);
+        preservedEdges.push(...remaining.map((edge) => ({
+          ...edge,
+          data: { ...edge.data, customWaypoints: undefined },
+        })));
       }
     }
 

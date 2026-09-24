@@ -6,6 +6,8 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import {
   computeDynamicSlotOffsets,
+  INCOMING_OUTGOING_GAP,
+  resolveBidirectionalFacingSides,
   type DynamicSlotOffsets,
 } from '@/lib/utils/handleSlotOrder';
 import {
@@ -50,9 +52,9 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   return { x, y };
 }
 
-function getNodeRect(node: Node, nodes: Node[]): HandlerRect {
+function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string): HandlerRect {
   const pos = getAbsolutePosition(node, nodes);
-  const { width: w, height: h } = getEffectiveNodeDimensions(node);
+  const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId);
   return { x: pos.x, y: pos.y, width: w, height: h };
 }
 
@@ -87,12 +89,13 @@ function buildScorerObstacles(
   nodes: Node[],
   excludedIds: Set<string>,
   passableGroupIds: Set<string>,
+  renderStyleId?: string,
 ): Map<string, HandlerRect> {
   const map = new Map<string, HandlerRect>();
   for (const node of nodes) {
     if (excludedIds.has(node.id)) continue;
     if (isGroupNode(node) && passableGroupIds.has(node.id)) continue;
-    const rect = getNodeRect(node, nodes);
+    const rect = getNodeRect(node, nodes, renderStyleId);
     map.set(node.id, rect);
   }
   return map;
@@ -129,37 +132,39 @@ function resolveScorerSide(
   edge: Edge,
   nodeId: string,
   nodes: Node[],
+  edges: Edge[],
   direction: 'LR' | 'TD',
+  renderStyleId?: string,
 ): Position | undefined {
   const data = edge.data as Record<string, unknown> | undefined;
-  // Manual / lane overrides pin the side exactly like edgeRouteBuilder.
+  if (edge.source !== nodeId && edge.target !== nodeId) return undefined;
+  const sourceNode = nodes.find((n) => n.id === edge.source);
+  const targetNode = nodes.find((n) => n.id === edge.target);
+  if (!sourceNode || !targetNode) return undefined;
+  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId);
+  const targetRect = getNodeRect(targetNode, nodes, renderStyleId);
+  const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, sourceRect, targetRect);
+  if (bidirectionalSides) {
+    return edge.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide;
+  }
+  // Explicit manual sides pin; lane sides only bias the scorer.
   // Handle ids do NOT pin sides — floating behavior.
   if (edge.source === nodeId) {
     const manual = sideFromDataString(data?.sourceSide);
     if (manual !== undefined) return manual;
-    const lane = sideFromDataString(data?.laneSourceSide);
-    if (lane !== undefined) return lane;
   } else if (edge.target === nodeId) {
     const manual = sideFromDataString(data?.targetSide);
     if (manual !== undefined) return manual;
-    const lane = sideFromDataString(data?.laneTargetSide);
-    if (lane !== undefined) return lane;
   } else {
     return undefined;
   }
 
-  const sourceNode = nodes.find((n) => n.id === edge.source);
-  const targetNode = nodes.find((n) => n.id === edge.target);
-  if (!sourceNode || !targetNode) return undefined;
-
-  const sourceRect = getNodeRect(sourceNode, nodes);
-  const targetRect = getNodeRect(targetNode, nodes);
   const excluded = new Set([edge.source, edge.target]);
   const passableGroupIds = new Set<string>([
     ...getAncestorGroupIds(edge.source, nodes),
     ...getAncestorGroupIds(edge.target, nodes),
   ]);
-  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds);
+  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId);
 
   const manualSource = sideFromDataString(data?.sourceSide);
   const manualTarget = sideFromDataString(data?.targetSide);
@@ -181,7 +186,8 @@ function resolveScorerSide(
   // Mirror edgeRouteBuilder's terminal-penetration guard so handle side
   // matches the actual rendered side (prevents Chat left single vs Auth right dual).
   const hasUserOverride = manualSource !== undefined && manualTarget !== undefined;
-  if (!hasUserOverride && orthogonalPenetratesTerminalForHandles(sourceRect, targetRect, pair.sourceSide, pair.targetSide)) {
+  const usesCustomWaypoints = Array.isArray(data?.customWaypoints) && data.customWaypoints.length > 0;
+  if (!hasUserOverride && !usesCustomWaypoints && orthogonalPenetratesTerminalForHandles(sourceRect, targetRect, pair.sourceSide, pair.targetSide)) {
     const allScores = scoreAllHandlerPairs(
       sourceRect,
       targetRect,
@@ -207,7 +213,6 @@ function resolveScorerSide(
         if (manualTarget !== undefined && s.pair.targetSide !== manualTarget) return false;
         return true;
       });
-      if (filtered.length === 0) filtered = allScores;
     }
     const fallback = filtered.find((s) => {
       if (s.pair.sourceSide === pair.sourceSide && s.pair.targetSide === pair.targetSide) return false;
@@ -221,11 +226,12 @@ function resolveScorerSide(
 
 function buildNodePositions(
   nodes: Node[],
+  renderStyleId?: string,
 ): Map<string, { x: number; y: number; width: number; height: number }> {
   const map = new Map<string, { x: number; y: number; width: number; height: number }>();
   for (const n of nodes) {
     const pos = getAbsolutePosition(n, nodes);
-    const { width, height } = getEffectiveNodeDimensions(n);
+    const { width, height } = getEffectiveNodeDimensions(n, renderStyleId);
     map.set(n.id, { x: pos.x, y: pos.y, width, height });
   }
   return map;
@@ -240,17 +246,18 @@ function buildNodePositions(
  * centered (offset 0). When both directions exist on a side, ordering is
  * derived from relative positions of connected nodes.
  *
- * Strict visibility: empty sides show one handle per side (centered, both
- * types overlapping visually as one); only outgoing shows only source;
+ * Strict visibility: empty sides reveal one source affordance on hover or selection;
+ * only outgoing shows only source;
  * only incoming shows only target; both shows two offset ±16.
  */
 export function useHandleSlotLayout(nodeId?: string) {
   const edges = useDiagramStore((s) => s.edges);
   const nodes = useDiagramStore((s) => s.nodes);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
+  const renderStyleId = useDiagramStore((s) => s.diagramRenderStyle);
   const direction: 'LR' | 'TD' = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
-  const nodePositions = useMemo(() => buildNodePositions(nodes), [nodes]);
+  const nodePositions = useMemo(() => buildNodePositions(nodes, renderStyleId), [nodes, renderStyleId]);
 
   // Scorer side for each incident edge, memoized per node — same scorer as edgeRouteBuilder.
   const incidentEdges = useMemo(
@@ -262,16 +269,25 @@ export function useHandleSlotLayout(nodeId?: string) {
     if (!nodeId) return new Map<string, Position>();
     const cache = new Map<string, Position>();
     for (const edge of incidentEdges) {
-      const side = resolveScorerSide(edge, nodeId, nodes, direction);
+      const side = resolveScorerSide(edge, nodeId, nodes, edges, direction, renderStyleId);
       if (side) cache.set(edge.id, side);
     }
     return cache;
-  }, [incidentEdges, nodeId, nodes, direction]);
+  }, [incidentEdges, nodeId, nodes, edges, direction, renderStyleId]);
 
   const sidePresence = useMemo(() => {
     const map = new Map<Position, { hasIncoming: boolean; hasOutgoing: boolean }>();
     for (const side of SIDES) map.set(side, { hasIncoming: false, hasOutgoing: false });
     for (const edge of incidentEdges) {
+      if (edge.source === nodeId && edge.target === nodeId) {
+        const data = edge.data as { selfLoopStyle?: string; loopVariant?: string } | undefined;
+        const sourceSide = data?.selfLoopStyle === 'corner' || data?.loopVariant === 'corner' ||
+          data?.selfLoopStyle === 'arc' || data?.loopVariant === 'arc'
+          ? Position.Top : Position.Left;
+        map.get(sourceSide)!.hasOutgoing = true;
+        map.get(Position.Right)!.hasIncoming = true;
+        continue;
+      }
       const side = edgeSideCache.get(edge.id);
       if (!side) continue;
       const entry = map.get(side)!;
@@ -307,7 +323,7 @@ export function useHandleSlotLayout(nodeId?: string) {
   const getSlotOffset = (side: Position, type: 'source' | 'target') => {
     if (centeredSides.has(side)) return 0;
     const offsets = dynamicOffsets.get(side);
-    if (!offsets || offsets.centered) return 0;
+    if (!offsets || offsets.centered) return type === 'source' ? -INCOMING_OUTGOING_GAP : INCOMING_OUTGOING_GAP;
     return type === 'source' ? offsets.outgoingOffset : offsets.incomingOffset;
   };
 
@@ -315,11 +331,16 @@ export function useHandleSlotLayout(nodeId?: string) {
     const presence = sidePresence.get(side);
     if (!presence) return false;
     const { hasIncoming, hasOutgoing } = presence;
-    // Empty side: both handles overlapping at 0 (preserve creation affordance per AGENTS.md).
+    // Empty side: keep both mounted, but reveal only the source on hover/selection.
     // Single-direction → only that type centered. Both → two offset ±16.
-    if (!hasIncoming && !hasOutgoing) return true;
+    if (!hasIncoming && !hasOutgoing) return false;
     return type === 'source' ? hasOutgoing : hasIncoming;
   };
 
-  return { centeredSides, sidePresence, dynamicOffsets, getSlotOffset, shouldRenderHandle, handleTransition: HANDLE_TRANSITION };
+  const isEmptySide = (side: Position) => {
+    const presence = sidePresence.get(side);
+    return !!presence && !presence.hasIncoming && !presence.hasOutgoing;
+  };
+
+  return { centeredSides, sidePresence, dynamicOffsets, getSlotOffset, shouldRenderHandle, isEmptySide, handleTransition: HANDLE_TRANSITION };
 }

@@ -5,7 +5,9 @@ import type { EdgeData } from '@/data/edgeTypes';
 import { computeEdgeRoute, type EdgeRouteDirection } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
-import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import { resolveCanvasTokens, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import type { DiagramThemeId } from '@/lib/theme/stylingConstants';
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
@@ -20,7 +22,10 @@ export function generatePureSVG(
   backgroundColor: string = '#0f172a',
   layoutDirection: EdgeRouteDirection = 'LR',
   renderStyleId: DiagramRenderStyleId = 'precision',
+  colorThemeId: DiagramThemeId | string | null = 'default',
+  iconMode: NodeIconMode = 'all',
 ): string {
+  const aesthetics = resolveCanvasTokens({ renderStyleId, colorThemeId, isDark });
   const rawNodeMap = new Map(nodes.map((n) => [n.id, n]));
 
   const preparedNodes = nodes.map((node) => {
@@ -40,7 +45,7 @@ export function generatePureSVG(
       h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 200;
     } else {
       // Use the same effective dimensions as canvas (uniform 100px height) so export matches what user sees
-      const eff = getEffectiveNodeDimensions(node);
+      const eff = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
       w = eff.width;
       h = eff.height;
     }
@@ -87,11 +92,11 @@ export function generatePureSVG(
     } else if (node.type === 'annotationNode') {
       nodeElements.push(renderAnnotationNode(nodeData, isDark));
     } else if (node.type === 'groupNode' || node.type === 'group') {
-      nodeElements.push(renderGroupNode(nodeData, isDark, renderStyleId));
+      nodeElements.push(renderGroupNode(nodeData, isDark, renderStyleId, aesthetics));
     } else if (node.type === 'shapeNode') {
-      nodeElements.push(renderShapeNode(nodeData, isDark, renderStyleId));
+      nodeElements.push(renderShapeNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
     } else {
-      nodeElements.push(renderSystemNode(nodeData, isDark, renderStyleId));
+      nodeElements.push(renderSystemNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
     }
   }
 
@@ -146,7 +151,7 @@ export function generatePureSVG(
     let w: number | undefined;
     let h: number | undefined;
     if (!isText && !isGroup) {
-      const eff = getEffectiveNodeDimensions(node);
+      const eff = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
       w = eff.width;
       h = eff.height;
     } else {
@@ -189,11 +194,20 @@ export function generatePureSVG(
     const borderRadius = isStep ? 0 : isBrutal ? 10 : 24;
 
     let svgPath = '';
-    if (edge.source === edge.target) {
-      const r = 40;
-      svgPath = `M ${sourceX},${sourceY} C ${sourceX},${sourceY - r} ${targetX + r},${targetY} ${targetX},${targetY}`;
-    } else if (translatedWaypoints.length > 0) {
+    if (translatedWaypoints.length > 0) {
+      // Use the same wrap/corner logic as the canvas (computeEdgeRoute handles
+      // self-loops with Left→Right wrap, not the old r=40 Top→Right corner)
       svgPath = buildSmoothStepSvg(translatedWaypoints, borderRadius);
+      // Fallback to the route's own svgPath (cubic for Top→Right corner) if
+      // waypoints were cubic — computeEdgeRoute already built the correct path.
+      if (!svgPath && route.svgPath) {
+        // Translate the route's svgPath from absolute to bounds-relative
+        svgPath = route.svgPath.replace(/([MLC])\s*(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (_m, cmd, x, y) => {
+          return `${cmd} ${parseFloat(x) - bounds.minX},${parseFloat(y) - bounds.minY}`;
+        });
+      }
+    } else if (route.svgPath) {
+      svgPath = route.svgPath;
     }
 
     const labelAnchor = labelLayouts.get(edge.id);
@@ -217,7 +231,7 @@ export function generatePureSVG(
       labelY,
     };
 
-    edgeElements.push(renderEdge(edgeData, isDark, renderStyleId));
+    edgeElements.push(renderEdge(edgeData, isDark, renderStyleId, aesthetics));
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">

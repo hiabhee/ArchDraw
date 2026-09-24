@@ -352,10 +352,12 @@ export function findUniqueStemRange(
 const MIN_LABEL_SEGMENT_LEN = 32
 /**
  * Minimum gap (px) between a label pill and a node bounding box.
- * Node clearance uses 1.5x safe scale.
+ * Increased from 12 → 20 so "publishes order event" doesn't sit
+ * on the Message Queue handle (your screenshot). Node clearance uses
+ * 1.5x safe scale, so world gap is ~30px.
  */
-const NODE_LABEL_GAP = 12
-const BRUTAL_NODE_LABEL_GAP = 14
+const NODE_LABEL_GAP = 20
+const BRUTAL_NODE_LABEL_GAP = 22
 
 function totalPathLength(segs: PathSegment[]): number {
   return segs.reduce((sum, seg) => sum + seg.len, 0)
@@ -554,17 +556,19 @@ function buildCandidates(
   }
   const candidates: LabelCandidate[] = [mk(preferredT)]
   const STEP = 0.01
-  // Keep labels away from arrowhead / source tip: at least 15% from ends
-  // prevents "label too close to marker" on short edges or bends near target.
-  // Also enforce 28px world-space gap from target (arrowhead) for short edges
-  // where 15% is still < arrow size.
-  // Neubrutalism's pill + hard shadow + larger arrowhead need more clearance
-  // so the label never sits on the marker.
+  // Keep labels well clear of arrowhead / source tip: at least 22% from ends
+  // and an absolute world-space gap so short horizontals (like the
+  // "consumes event" fan-in in the screenshot) don't sit on the marker.
+  // Label half-width + arrow (26px) + gap needs ~56px for "consumes event".
+  // Neubrutalism's larger pill + shadow needs even more.
   const brutal = renderStyle === 'neubrutalism'
   const totalLen = segs.reduce((s, seg) => s + seg.len, 0)
-  const minDistFromEnds = brutal ? 44 : 28
-  const tMarginCap = brutal ? 0.22 : 0.18
-  const tMargin = totalLen > 1 ? Math.min(tMarginCap, minDistFromEnds / totalLen) : 0.15
+  const minDistFromEnds = brutal ? 56 : 48
+  const tMarginCap = brutal ? 0.32 : 0.28
+  const tMarginRaw = totalLen > 1 ? minDistFromEnds / totalLen : 0.22
+  // For very short edges the fractional margin would be huge (>0.5) — clamp
+  // to keep a usable middle, but never below the absolute 48/56px gap.
+  const tMargin = Math.min(tMarginCap, Math.max(0.22, tMarginRaw))
   const lo = preferredRange ? Math.max(tMargin, preferredRange.lo) : tMargin
   const hi = preferredRange ? Math.min(1 - tMargin, preferredRange.hi) : 1 - tMargin
 
@@ -628,7 +632,10 @@ function computeLayout(
   // against unlabeled siblings that occupy the same corridor.
   const routed: RoutedEdge[] = []
   for (const edge of edges) {
-    const route = computeEdgeRoute(edge, nodes, edges, direction)
+    // Match the canvas route exactly. Studio Minimal changes the effective
+    // node height, so omitting its render style here places labels on the
+    // route for a different-sized graph.
+    const route = computeEdgeRoute(edge, nodes, edges, direction, renderStyle)
     if (!route.waypoints || route.waypoints.length < 2) continue
     const segs = buildPathSegments(route.waypoints)
     if (segs.length === 0) continue
