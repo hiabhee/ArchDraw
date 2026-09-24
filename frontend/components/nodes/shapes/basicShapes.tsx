@@ -15,10 +15,10 @@ import {
   type ShapeShellProps,
 } from './shapeShell';
 
-export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal }: ShapeShellProps & { rounded: boolean }) {
+export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal, studio }: ShapeShellProps & { rounded: boolean }) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
-  const r = getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', width, height)[0].rx ?? 6;
+  const r = studio ? 16 : getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', width, height)[0].rx ?? 6;
   if (sketch) {
     return (
       <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
@@ -62,7 +62,7 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
           transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
         }}
       >
-        <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} />
+          <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} studio={studio} />
       </div>
       <Handles color={color} nodeId={id} />
     </div>

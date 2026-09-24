@@ -3,9 +3,12 @@ import { normalizeArchIconName } from '@/lib/iconAliases';
 import { classifyCloudNode, getNodeProviderAffinity, normalizeCloudLabel } from '@/lib/cloudIcons/classifier';
 import { CLOUD_BRAND_COLORS } from '@/lib/cloudIcons/dictionaries';
 import { inferBrandTechnologyFromLabel } from '@/lib/brandIcons';
-import { AWS_COMPONENTS, DB_COMPONENTS, SERVICES_COMPONENTS } from '@/lib/componentRegistry';
+import awsComponents from '@/data/aws-components.json';
+import dbComponents from '@/data/db-components.json';
+import servicesComponents from '@/data/services-components.json';
 import { resolveKubernetesRole, isKubernetesContext } from '@/lib/kubernetes';
 import { normalizeColor } from '@/lib/semanticColors';
+import { resolveConcern } from '@/lib/theme/stylingConstants';
 
 export type NodeIconSource = 'manual' | 'kubernetes-role' | 'explicit-role' | 'technology' | 'component' | 'label' | 'serviceType' | 'fallback';
 
@@ -17,6 +20,7 @@ export interface ResolveNodeIconInput {
   technology?: string;
   category?: string;
   icon?: string;
+  iconSource?: NodeIconSource;
   color?: string;
   /** Dark-mode flag for brand-color normalization; defaults to light. */
   isDark?: boolean;
@@ -207,8 +211,8 @@ const LABEL_MATCHERS: Array<{
   { source: 'label', icon: 'arch-realtime', test: /\b(websocket|realtime|real-time|streaming token)\b/i },
   { source: 'label', icon: 'arch-maps', test: /\b(map|maps|geolocation|geo)\b/i },
   { source: 'label', icon: 'arch-users', test: /\b(user service|users|identity store)\b/i },
-  { source: 'label', icon: 'arch-web', test: /\b(web|browser|frontend|client|ui)\b/i },
   { source: 'label', icon: 'arch-mobile', test: /\b(mobile|ios|android|phone)\b/i },
+  { source: 'label', icon: 'arch-web', test: /\b(web|browser|frontend|client|ui)\b/i },
   { source: 'label', icon: 'arch-api-gateway', test: /\b(api gateway|gateway|bff|rest api)\b/i },
   { source: 'label', icon: 'arch-load-balancer', test: /\b(load balancer|balancer|lb|ingress)\b/i },
   { source: 'label', icon: 'arch-message-queue', test: /\b(queue|message queue|mq|pub\/sub|pubsub)\b/i },
@@ -233,7 +237,7 @@ const LABEL_MATCHERS: Array<{
 ];
 
 const LABEL_TO_TECHNOLOGY = new Map<string, string>(
-  [...AWS_COMPONENTS, ...DB_COMPONENTS, ...SERVICES_COMPONENTS]
+  [...awsComponents, ...dbComponents, ...servicesComponents]
     .filter((comp) => comp.technology)
     .flatMap((comp) => [
       [normalizeCloudLabel(comp.label), comp.technology!] as const,
@@ -269,7 +273,13 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
   // via ICON_TO_TECHNOLOGY (e.g. arch-kubernetes → kubernetes) — brands the node
   // with its official color and wins over a raw manual color. Only genuinely
   // generic icons (no resolvable technology) stay a plain manual override.
-  if (input.icon?.startsWith('arch-') || input.icon?.startsWith('aws-') || input.icon?.startsWith('azure-')) {
+  const inferredIcon = input.iconSource && input.iconSource !== 'manual';
+  const semanticIcon = inferredIcon ? undefined : input.icon;
+  if (input.iconSource === 'manual' && input.icon) {
+    const icon = normalizeArchIconName(input.icon) || input.icon;
+    return { icon, color: normalizeColor(input.color, icon, isDark), technology: input.technology, source: 'manual' };
+  }
+  if (!inferredIcon && (input.icon?.startsWith('arch-') || input.icon?.startsWith('aws-') || input.icon?.startsWith('azure-'))) {
     const manualTechnology = input.technology ?? technologyFromIcon(input.icon);
     const manualTechEntry = getTechnologyEntry(manualTechnology);
     if (manualTechEntry) {
@@ -285,7 +295,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     input.technology ??
     technologyFromLabel(input.label) ??
     inferBrandTechnologyFromLabel(input.label) ??
-    technologyFromIcon(input.icon);
+    technologyFromIcon(semanticIcon);
 
   if (isKubernetesContext(input.label, resolvedTechnology)) {
     const k8sRole = resolveKubernetesRole(input.label);
@@ -327,12 +337,12 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     componentId: (input as ResolveNodeIconInput & { componentId?: string }).componentId,
     technology: input.technology,
     serviceType: input.serviceType,
-    icon: input.icon,
+    icon: semanticIcon,
   };
   const affinity = getNodeProviderAffinity(cloudInput);
   if (affinity) {
     const serviceKey =
-      [input.technology, input.typeId, input.componentType, cloudInput.componentId, input.icon].find((key) =>
+      [input.technology, input.typeId, input.componentType, cloudInput.componentId, semanticIcon].find((key) =>
         key?.startsWith(`${affinity}-`),
       ) ?? null;
     if (serviceKey) {
@@ -369,7 +379,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
   // PRIORITY 6: Component type mapping (from palette components)
   const componentKey = input.typeId || input.componentType;
   const componentIcon = componentKey ? COMPONENT_ICON_MAP[componentKey] : undefined;
-  if (componentIcon) {
+  if (componentIcon && componentKey !== 'service') {
     const color = normalizeColor(input.color, componentIcon.icon, isDark);
     return {
       icon: componentIcon.icon,
@@ -380,7 +390,7 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
   }
 
   // PRIORITY 7: Lucide icon names from properties panel → arch-* glyphs
-  const normalizedManual = normalizeArchIconName(input.icon);
+  const normalizedManual = inferredIcon ? undefined : normalizeArchIconName(input.icon);
   if (normalizedManual && input.icon?.trim()) {
     const color = normalizeColor(input.color, normalizedManual, isDark);
     return {
@@ -420,11 +430,27 @@ export function resolveNodeIcon(input: ResolveNodeIconInput): ResolvedNodeIcon {
     };
   }
 
+  if (componentIcon) {
+    const color = normalizeColor(input.color, componentIcon.icon, isDark);
+    return { icon: componentIcon.icon, color, technology: componentIcon.technology, source: 'component' };
+  }
+
   // PRIORITY 9: Service type mapping
   const serviceIcon = input.serviceType ? SERVICE_TYPE_ICON_MAP[input.serviceType] : undefined;
   if (serviceIcon) {
     const color = normalizeColor(input.color, serviceIcon, isDark);
     return { icon: serviceIcon, color, technology: input.technology, source: 'serviceType' };
+  }
+
+  if (input.category) {
+    const categoryIcon = {
+      client: 'arch-web',
+      compute: 'arch-service',
+      data: 'arch-database',
+      async: 'arch-message-queue',
+      external: 'arch-external',
+    }[resolveConcern(input.category)];
+    return { icon: categoryIcon, color: normalizeColor(input.color, categoryIcon, isDark), source: 'fallback' };
   }
 
   // PRIORITY 10: Final fallback

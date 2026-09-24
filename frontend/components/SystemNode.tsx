@@ -1,7 +1,7 @@
 'use client';
 
-import { memo, useCallback, useMemo, useRef } from 'react';
-import { NodeProps } from 'reactflow';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { Activity, Palette, Pencil, Copy, Trash2 } from 'lucide-react';
@@ -16,8 +16,14 @@ import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
 import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
-import { getConcernColor, SIZE_M, STATUS_COLORS, CONCERN_COLORS, ICON_SIZE } from '@/lib/theme/stylingConstants';
+import { getConcernColor, SIZE_M, STATUS_COLORS, ICON_SIZE } from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import {
+  STUDIO_ICON_GLYPH_PX,
+  STUDIO_ICON_WELL_PX,
+  studioContentNodeSize,
+  studioCompactNodeSize,
+} from '@/lib/utils/shapeNodeDimensions';
 import './nodes/nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
@@ -31,8 +37,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function getDarkCategoryStyle(layer?: string): { border: string; glow: string } {
-  const color = getConcernColor(layer);
+function getDarkCategoryStyle(color: string): { border: string; glow: string } {
   return { border: color, glow: hexToRgba(color, 0.12) };
 }
 
@@ -58,8 +63,6 @@ function ToolbarButton({
     </button>
   );
 }
-
-const ACCENT_CYCLE = Object.values(CONCERN_COLORS).map((c) => c.color);
 
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
@@ -100,8 +103,12 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     return null;
   })();
 
-  const tierColor = getConcernColor(nodeData.layer || nodeData.serviceType);
-  const accentColor = nodeData.accentColor || nodeData.color || tierColor;
+  const concernHint = nodeData.layer || nodeData.serviceType ||
+    (aesthetics.renderStyleId === 'studio-minimal' ? nodeData.category : undefined);
+  const tierColor = getConcernColor(concernHint, aesthetics.concerns);
+  // `accentColor` is an explicit user choice. Generated `data.color` is not:
+  // use the selected theme's semantic palette for generated cards.
+  const accentColor = nodeData.accentColor || tierColor;
   const resolvedIcon = resolveNodeIcon({
     label: data.label,
     typeId: nodeData.typeId,
@@ -110,9 +117,10 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     technology: nodeData.technology,
     category: nodeData.category,
     icon: nodeData.icon,
+    iconSource: nodeData.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
     color: accentColor,
   });
-  const providerIcon = resolveAutoCloudIcon({
+  const providerIcon = aesthetics.renderStyleId === 'studio-minimal' || nodeData.iconSource === 'manual' ? null : resolveAutoCloudIcon({
     label: data.label,
     typeId: nodeData.typeId,
     componentId: (nodeData as { componentId?: string }).componentId,
@@ -132,9 +140,16 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     autoStart: Boolean(nodeData.autoStartLabelEdit),
   });
 
-  const catStyle = getDarkCategoryStyle(nodeData.layer || nodeData.serviceType);
+  const sketch = aesthetics.renderStyleId === 'sketch';
+  const brutal = aesthetics.renderStyleId === 'neubrutalism';
+  const studio = aesthetics.renderStyleId === 'studio-minimal';
+  const catStyle = getDarkCategoryStyle(accentColor);
   const accentSoft = hexToRgba(accentColor, isDark ? 0.08 : 0.04);
   const accentBg = hexToRgba(accentColor, isDark ? 0.14 : 0.08);
+  const studioCardBg = aesthetics.colors.nodeFill;
+  const studioIconColor = accentColor;
+  const studioWellBg = hexToRgba(accentColor, isDark ? 0.2 : 0.11);
+  const studioBorder = hexToRgba(accentColor, isDark ? 0.5 : 0.36);
 
   const handleClick = useCallback(() => {
     setSelectedNodeId(id);
@@ -160,39 +175,87 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const handleColorChange = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    const current = nodeData.accentColor || nodeData.color || ACCENT_CYCLE[0];
-    const currentIndex = ACCENT_CYCLE.indexOf(current);
-    const nextColor = ACCENT_CYCLE[(currentIndex + 1) % ACCENT_CYCLE.length];
+    const accentCycle = Object.values(aesthetics.concerns).map((swatch) => swatch.color);
+    const current = nodeData.accentColor || accentCycle[0];
+    const currentIndex = accentCycle.indexOf(current);
+    const nextColor = accentCycle[(currentIndex + 1) % accentCycle.length];
     useDiagramStore.getState().updateNodeData(id, { accentColor: nextColor });
-  }, [id, nodeData.accentColor, nodeData.color]);
+  }, [id, nodeData.accentColor, aesthetics.concerns]);
 
   const handleEdit = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     useDiagramStore.getState().setSidebarOpen(true);
   }, []);
 
+  const studioSize = studioCompactNodeSize(showIcon);
   const fitted = calculateNodeDimensions(data.label || '', nodeData.subtitle, {
     shape: 'rounded-rectangle',
-    minWidth: SIZE_M,
+    minWidth: studio ? studioSize.width : SIZE_M,
     showIcon,
   });
-  const cardWidth = Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
-  const cardHeight = 100;
+  const cardWidth = studio ? Math.max(studioSize.width, fitted.width) : Math.max(nodeData.nodeWidth || NODE_WIDTH, fitted.width);
+  // Studio cards keep the compact height until wrapped text needs more room.
+  const cardHeight = studio
+    ? studioContentNodeSize(data.label || '', nodeData.subtitle, showIcon, cardWidth).height
+    : 100;
+  const updateNodeInternals = useUpdateNodeInternals();
+  const updateNodeSize = useDiagramStore((s) => s.updateNodeSize);
+  const storedNodeWidth = useDiagramStore((s) => {
+    const n = s.nodes.find((nd) => nd.id === id);
+    return (n?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
+  });
+  const storedNodeHeight = useDiagramStore((s) => {
+    const n = s.nodes.find((nd) => nd.id === id);
+    return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
+  });
+  const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    if (storedNodeWidth === cardWidth && storedNodeHeight === cardHeight) {
+      lastPushedSizeRef.current = { w: cardWidth, h: cardHeight };
+      return;
+    }
+    if (
+      lastPushedSizeRef.current &&
+      lastPushedSizeRef.current.w === cardWidth &&
+      lastPushedSizeRef.current.h === cardHeight
+    ) {
+      return;
+    }
+    lastPushedSizeRef.current = { w: cardWidth, h: cardHeight };
+    queueMicrotask(() => {
+      const cur = useDiagramStore.getState().nodes.find((nd) => nd.id === id);
+      const curW = (cur?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
+      const curH = (cur?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
+      if (curW === cardWidth && curH === cardHeight) return;
+      updateNodeSize(id, { width: cardWidth, height: cardHeight });
+    });
+  }, [id, cardWidth, cardHeight, storedNodeWidth, storedNodeHeight, updateNodeSize]);
+  const pendingInternalsRef = useRef(false);
+  useLayoutEffect(() => {
+    if (pendingInternalsRef.current) return;
+    pendingInternalsRef.current = true;
+    queueMicrotask(() => {
+      pendingInternalsRef.current = false;
+      updateNodeInternals(id);
+    });
+  }, [id, cardWidth, cardHeight, updateNodeInternals]);
+  // A compact Studio card can remain one row only when its icon supplies the
+  // visual anchor. Without it, a wrapped subtitle needs its own text stack;
+  // otherwise the footer is squeezed into the title row.
+  const studioTextStack = studio && !showIcon && Boolean(nodeData.subtitle);
   const cloudIconSize = Math.max(
     ICON_SIZE.cloudMin,
     Math.round(Math.min(cardWidth * 0.3, cardHeight - 20)),
   );
-  const iconBoxSize = providerIcon
-    ? cloudIconSize
-    : nodeKind === 'database' || nodeKind === 'ai'
-      ? ICON_SIZE.boxLarge
-      : ICON_SIZE.box;
-  const iconGlyphSize = providerIcon
+  // Uniform well — same style for every generic node until it is explicitly named after an AWS/GCP/Azure service.
+  // Previously database/ai used boxLarge which broke the uniform row rhythm.
+  const defaultIconBoxSize = providerIcon ? cloudIconSize : ICON_SIZE.box;
+  const iconBoxSize = studio ? STUDIO_ICON_WELL_PX : defaultIconBoxSize;
+  const defaultIconGlyphSize = providerIcon
     ? Math.round(cloudIconSize * 0.78)
     : ICON_SIZE.node;
+  const iconGlyphSize = studio ? STUDIO_ICON_GLYPH_PX : defaultIconGlyphSize;
 
-  const sketch = aesthetics.renderStyleId === 'sketch';
-  const brutal = aesthetics.renderStyleId === 'neubrutalism';
   // Sketch body: a rough SVG rounded-rect that bleeds ~2px past the card so
   // its wobbly border is fully visible once the crisp CSS border is removed.
   // Uses the same shapeGeometry → strokeRenderer path as ShapeNode.
@@ -236,9 +299,15 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       <div
         className={`node-wrapper${selected ? ' selected' : ''}${nodeKind ? ` node-${nodeKind}` : ''}`}
         style={{
-          ['--node-accent' as string]: accentColor,
+          ['--node-accent' as string]: studio ? studioIconColor : accentColor,
           ['--node-accent-soft' as string]: accentSoft,
-          ['--node-accent-bg' as string]: accentBg,
+          ['--node-accent-bg' as string]: studio ? studioWellBg : accentBg,
+          ...(studio
+            ? {
+                ['--node-card-bg' as string]: studioCardBg,
+                ['--arch-node-stroke' as string]: studioBorder,
+              }
+            : {}),
           ['--node-accent-track' as string]: hexToRgba(accentColor, 0.35),
           ['--node-glow' as string]: catStyle.glow,
           ['--node-glow-border' as string]: catStyle.border,
@@ -263,10 +332,10 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
         )}
         <div
           ref={nodeCardRef}
-          className={`group node-card${nodeKind === 'database' ? ' node-card-db' : ''}`}
+          className={`group node-card${nodeKind === 'database' ? ' node-card-db' : ''}${studioTextStack ? ' node-card--studio-text-stack' : ''}`}
           style={{
             width: cardWidth,
-            minWidth: Math.max(NODE_WIDTH, SIZE_M),
+            minWidth: studio ? studioSize.width : Math.max(NODE_WIDTH, SIZE_M),
             minHeight: cardHeight,
           }}
         onClick={handleClick}
@@ -333,57 +402,57 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             )}
           </div>
           )}
-          {labelEdit.isEditing ? (
-            <input
-              {...labelEdit.inputProps}
-              style={{
-                fontSize: sketch ? 18 : 16.2,
-                fontWeight: sketch ? 400 : brutal ? 700 : 600,
-                fontFamily: sketch
-                  ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
-                  : brutal
-                    ? 'var(--arch-font-title, sans-serif)'
-                    : undefined,
-                color: 'var(--node-title-color)',
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                padding: 0,
-                margin: 0,
-                lineHeight: 1.25,
-                letterSpacing: sketch ? '0.02em' : brutal ? '-0.02em' : '-0.015em',
-                width: '100%',
-                minWidth: 0,
-                flex: 1,
-                boxSizing: 'border-box',
-                borderRadius: 3,
-                boxShadow: '0 0 0 2px var(--node-accent)',
-                cursor: 'text',
-              }}
-            />
-          ) : (
-            <p
-              className="node-title whitespace-pre-line"
-              title={data.label || 'Double-click to rename'}
-              onDoubleClick={labelEdit.startEdit}
-              style={{
-                cursor: 'text',
-                minHeight: '1.25em',
-                opacity: data.label ? 1 : 0.45,
-              }}
-            >
-              {data.label || 'Service'}
-            </p>
-          )}
-        </div>
-        <div className="node-footer">
-          {nodeData.subtitle && (
-            <p className="node-subtitle" title={nodeData.subtitle}>
-              {nodeData.subtitle}
-            </p>
-          )}
+          <div className="flex flex-col min-w-0 flex-1 justify-center">
+            {labelEdit.isEditing ? (
+              <input
+                {...labelEdit.inputProps}
+                style={{
+                  fontSize: sketch ? 18 : 16.2,
+                  fontWeight: sketch ? 400 : brutal ? 700 : 600,
+                  fontFamily: sketch
+                    ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
+                    : brutal
+                      ? 'var(--arch-font-title, sans-serif)'
+                      : undefined,
+                  color: 'var(--node-title-color)',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  padding: 0,
+                  margin: 0,
+                  lineHeight: 1.25,
+                  letterSpacing: sketch ? '0.02em' : brutal ? '-0.02em' : '-0.015em',
+                  width: '100%',
+                  minWidth: 0,
+                  flex: 1,
+                  boxSizing: 'border-box',
+                  borderRadius: 3,
+                  boxShadow: '0 0 0 2px var(--node-accent)',
+                  cursor: 'text',
+                }}
+              />
+            ) : (
+              <p
+                className="node-title whitespace-pre-line"
+                title={data.label || 'Double-click to rename'}
+                onDoubleClick={labelEdit.startEdit}
+                style={{
+                  cursor: 'text',
+                  minHeight: '1.25em',
+                  opacity: data.label ? 1 : 0.45,
+                }}
+              >
+                {data.label || 'Service'}
+              </p>
+            )}
+            {nodeData.subtitle && (
+              <p className="node-subtitle" title={nodeData.subtitle} style={{ marginTop: 2 }}>
+                {nodeData.subtitle}
+              </p>
+            )}
+          </div>
           {showStatus && (
-            <div className="node-status-dot" />
+            <div className="node-status-dot ml-2 shrink-0" />
           )}
         </div>
         <FloatingHandles nodeId={id} />

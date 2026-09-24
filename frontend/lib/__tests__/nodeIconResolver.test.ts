@@ -46,6 +46,28 @@ describe('resolveNodeIcon', () => {
     expect(resolveNodeIcon({ componentType: 'function', icon: 'Server' }).icon).toBe('arch-function');
   });
 
+  it('uses the node meaning before a generic service icon', () => {
+    expect(resolveNodeIcon({ typeId: 'service', label: 'Email Service' }).icon).toBe('arch-email');
+    expect(resolveNodeIcon({ typeId: 'service', label: 'Mobile Client' }).icon).toBe('arch-mobile');
+    expect(resolveNodeIcon({ typeId: 'dns', label: 'Email Service' }).icon).toBe('arch-dns');
+    expect(resolveNodeIcon({ category: 'Data', label: 'Store' }).icon).toBe('arch-database');
+  });
+
+  it('refreshes inferred icons while preserving a user-selected icon', () => {
+    expect(resolveNodeIcon({
+      typeId: 'service', label: 'Payment Service', icon: 'arch-service', iconSource: 'component',
+    }).icon).toBe('arch-payment');
+    expect(resolveNodeIcon({
+      label: 'Payment Service', technology: 'postgresql', icon: 'arch-logs', iconSource: 'manual',
+    })).toMatchObject({ icon: 'arch-logs', source: 'manual' });
+    expect(resolveNodeIcon({
+      label: 'Payment Service', technology: 'postgresql', icon: 'Search', iconSource: 'manual',
+    })).toMatchObject({ icon: 'arch-search', source: 'manual' });
+    expect(resolveNodeIcon({
+      label: 'Payment Service', icon: 'arch-kubernetes', iconSource: 'technology',
+    })).toMatchObject({ icon: 'arch-payment', source: 'label' });
+  });
+
   it('uses technology-specific icons from the registry', () => {
     expect(resolveNodeIcon({ technology: 'mongodb' }).icon).toBe('arch-document-db');
     expect(resolveNodeIcon({ technology: 'pinecone' }).icon).toBe('arch-vector');

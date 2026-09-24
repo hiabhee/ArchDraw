@@ -23,7 +23,7 @@ export function NodeIcon({
   renderStyle = 'precision',
 }: NodeIconProps) {
   const entry = technology ? iconRegistry[technology] : undefined;
-  const filtered = filterIconForMode(entry?.icon ?? fallbackIcon ?? 'arch-server', technology, renderStyle);
+  const filtered = filterIconForMode(fallbackIcon ?? entry?.icon ?? 'arch-server', technology, renderStyle);
   const customName = toCustomNodeIconName(filtered) ?? 'arch-server';
   const color = normalizeColor(entry?.color ?? fallbackColor ?? GENERIC_ICON_COLOR, customName);
 

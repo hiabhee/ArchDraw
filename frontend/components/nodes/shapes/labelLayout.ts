@@ -31,8 +31,10 @@ function nodeHasProminentBrand(data: ShapeNodeData): boolean {
     technology: data.technology,
     category: data.category,
     icon: data.icon,
+    iconSource: data.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
     color: data.color,
   });
+  if (data.iconSource === 'manual') return false;
   if (resolved.technology && getTechnologyBrandSlug(resolved.technology)) return true;
   return Boolean(
     resolveAutoCloudIcon({

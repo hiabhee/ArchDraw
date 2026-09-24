@@ -6,8 +6,11 @@ import { useCanvasTheme } from '@/lib/theme';
 import {
   LIGHT_NODE_STYLES,
   DARK_NODE_STYLES,
+  getConcernColor,
 } from '@/lib/theme/stylingConstants';
-import { resolveShapeNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
+import {
+  resolveShapeNodeDimensions,
+} from '@/lib/utils/shapeNodeDimensions';
 import { getShapeLabelMaxWidth } from '@/lib/utils/shapeTextLayout';
 import { useDiagramStore } from '@/store/diagramStore';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
@@ -39,26 +42,79 @@ export type { ShapeNodeData, ShapeLabelLayout };
 export { resolveShapeLabelLayout };
 
 /** Fit to optical grid; wrap long labels inside the silhouette mid-band. */
-function resolveShapeSize(data: ShapeNodeData, showIcon?: boolean): { width: number; height: number; labelMaxWidth: number } {
-  const { width, height } = resolveShapeNodeDimensions({ ...data, showIcon });
+function resolveShapeSize(data: ShapeNodeData, showIcon?: boolean, compact = false): { width: number; height: number; labelMaxWidth: number } {
+  const { width: resolvedWidth, height: resolvedHeight } = resolveShapeNodeDimensions(
+    { ...data, showIcon }, compact ? 'studio-minimal' : undefined,
+  );
   return {
-    width,
-    height,
-    labelMaxWidth: getShapeLabelMaxWidth(data.shape, width, 'title'),
+    width: resolvedWidth,
+    height: resolvedHeight,
+    labelMaxWidth: getShapeLabelMaxWidth(data.shape, resolvedWidth, 'title'),
   };
+}
+
+function concernHintForShape(data: ShapeNodeData): string {
+  if (data.category || data.serviceType) return data.category || data.serviceType || '';
+  switch (data.shape) {
+    case 'actor':
+    case 'monitor':
+    case 'mobile':
+      return 'client';
+    case 'cylinder':
+    case 'cache':
+    case 'bucket':
+      return 'data';
+    case 'queue':
+      return 'async';
+    case 'cloud':
+    case 'dashed-rectangle':
+      return 'external';
+    default:
+      return 'compute';
+  }
+}
+
+function colorWash(color: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const { isDark } = useCanvasTheme();
-  const { renderStyleId } = useDiagramAesthetics();
-  const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
+  const aesthetics = useDiagramAesthetics();
+  const { renderStyleId } = aesthetics;
+  const studio = renderStyleId === 'studio-minimal';
+  const baseStyles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
+  const styles = {
+    ...baseStyles,
+    background: aesthetics.colors.nodeFill,
+    border: aesthetics.colors.nodeStroke,
+    titleColor: aesthetics.colors.title,
+    subtitleColor: aesthetics.colors.subtitle,
+    shadow: aesthetics.colors.shadow,
+  };
   const backplates = styles.backplates;
   const iconMode = useDiagramStore((s) => s.iconMode);
   // Resolve icon visibility for dynamic sizing — nodes shrink when icons are off.
   const nodeShowIcon = resolveNodeIconVisibility(iconMode, data.showIcon, false);
-  const { width, height, labelMaxWidth } = resolveShapeSize(data, nodeShowIcon);
+  // Studio uses one compact card vocabulary instead of the normal semantic
+  // silhouettes. The node's persisted shape remains untouched; this is visual only.
+  const studioData = studio ? { ...data, shape: 'rounded-rectangle' as const } : data;
+  const studioAccent = data.accentColor || getConcernColor(concernHintForShape(data), aesthetics.concerns);
+  const themedData: ShapeNodeData = studio
+    ? {
+        ...studioData,
+        accentColor: studioAccent,
+        fillColor: aesthetics.colors.nodeFill,
+        strokeColor: selected ? studioAccent : colorWash(studioAccent, isDark ? 0.5 : 0.36),
+      }
+    : studioData;
+  const { width, height, labelMaxWidth } = resolveShapeSize(themedData, nodeShowIcon, studio);
   const sized = { width, height, labelMaxWidth };
   const updateNodeInternals = useUpdateNodeInternals();
   const updateNodeSize = useDiagramStore((s) => s.updateNodeSize);
@@ -127,17 +183,19 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
 
   const shellProps = {
     id,
-    data,
+    data: themedData,
     selected: !!selected,
     backplates,
     isDark,
     styles,
     sketch: renderStyleId === 'sketch',
     brutal: renderStyleId === 'neubrutalism',
+    studio,
     ...sized,
   };
 
   const renderShape = () => {
+    if (studio) return <Rectangle {...shellProps} rounded />;
     switch (data.shape) {
       case 'diamond':          return <Diamond {...shellProps} />;
       case 'cylinder': {

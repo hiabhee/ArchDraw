@@ -12,6 +12,7 @@ import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { resolveAutoCloudIcon } from '@/lib/cloudIcons/autoResolution';
+import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/utils/shapeNodeDimensions';
 import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
 import { TechnologyBrandIcon } from '@/components/icons/TechnologyBrandIcon';
 import { getTechnologyBrandSlug } from '@/lib/brandIcons';
@@ -60,6 +61,7 @@ export function Label({
   shape,
   sketch = false,
   brutal = false,
+  studio = false,
 }: {
   data: ShapeNodeData;
   color: string;
@@ -70,10 +72,11 @@ export function Label({
   shape?: ShapeType;
   sketch?: boolean;
   brutal?: boolean;
+  studio?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iconMode = useDiagramStore((s) => s.iconMode);
-  const layout = resolveShapeLabelLayout(shape, data, iconMode);
+  const layout = studio ? 'default' : resolveShapeLabelLayout(shape, data, iconMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,
     currentLabel: data.label || '',
@@ -88,10 +91,11 @@ export function Label({
     technology: data.technology,
     category: data.category,
     icon: data.icon,
+    iconSource: data.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
     color,
   });
   const providerIcon =
-    shape === 'diamond'
+    studio || shape === 'diamond' || data.iconSource === 'manual'
       ? null
       : resolveAutoCloudIcon({
           label: data.label,
@@ -102,7 +106,7 @@ export function Label({
           icon: data.icon,
         });
   const iconSizes = shape === 'diamond' ? ICON_SIZE.diamond : ICON_SIZE;
-  const brandTechnology = resolvedIcon.technology && getTechnologyBrandSlug(resolvedIcon.technology)
+  const brandTechnology = !studio && resolvedIcon.source !== 'manual' && resolvedIcon.technology && getTechnologyBrandSlug(resolvedIcon.technology)
     ? resolvedIcon.technology
     : undefined;
   const hasBrandLogo = Boolean(brandTechnology) || Boolean(providerIcon);
@@ -113,8 +117,8 @@ export function Label({
     Math.round(Math.min(width * (shape === 'diamond' ? 0.2 : 0.3), height - (shape === 'diamond' ? 28 : 20))),
   );
   const prominentGlyphSize = prominentIconGlyphSize();
-  const iconSlotSize = isIconBrand ? PROMINENT_ICON_SLOT_PX : (providerIcon ? cloudIconSize : iconSizes.box);
-  const iconGlyphSize = isIconBrand
+  const iconSlotSize = studio ? STUDIO_ICON_WELL_PX : isIconBrand ? PROMINENT_ICON_SLOT_PX : (providerIcon ? cloudIconSize : iconSizes.box);
+  const iconGlyphSize = studio ? STUDIO_ICON_GLYPH_PX : isIconBrand
     ? prominentGlyphSize
     : providerIcon
       ? Math.round(cloudIconSize * 0.78)
@@ -158,10 +162,16 @@ export function Label({
     />
   );
 
+  // Horizontal icon+title when icons are on (user request) — keeps the node compact and matches SystemNode's row layout
+  const horizontalWithIcon = showIcon && !isPipeText;
   return (
     <div
       ref={containerRef}
-      className="flex flex-col items-center justify-center text-center px-1 select-none"
+      className={
+        horizontalWithIcon
+          ? 'flex flex-row items-center justify-center gap-2 px-1.5 select-none'
+          : 'flex flex-col items-center justify-center text-center px-1 select-none'
+      }
       onDoubleClick={iconOnly ? labelEdit.startEdit : undefined}
       style={{
         width: '100%',
@@ -173,7 +183,7 @@ export function Label({
     >
       {showIcon && (
       <div
-        className={isIconBrand ? undefined : 'node-icon-box mb-1'}
+        className={isIconBrand ? undefined : horizontalWithIcon ? 'node-icon-box shrink-0' : 'node-icon-box mb-1'}
         aria-hidden="true"
         style={{
           width: iconSlotSize,
@@ -182,7 +192,8 @@ export function Label({
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          marginBottom: isIconBrand ? (showTitle ? 4 : 0) : 4,
+          marginBottom: studio ? 0 : isIconBrand ? (showTitle ? 4 : 0) : 4,
+          ...(studio && !isIconBrand ? { background: `color-mix(in srgb, ${color} 12%, transparent)` } : {}),
           ...(providerIcon && !isIconBrand
             ? { borderRadius: Math.round(iconSlotSize * 0.27) }
             : {}),
@@ -202,82 +213,84 @@ export function Label({
         </div>
       </div>
       )}
-      {labelEdit.isEditing ? (
-        <input
-          {...labelEdit.inputProps}
-          style={{
-            fontSize: sketch ? 18 : brutal ? 16.2 : 16.2,
-            fontWeight: sketch ? 400 : brutal ? 700 : 600,
-            fontFamily: sketch
-              ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
-              : brutal
-                ? 'var(--arch-font-title, sans-serif)'
+      <div className={horizontalWithIcon ? 'flex min-w-0 flex-1 flex-col items-start justify-center text-left' : 'flex flex-col items-center justify-center text-center'}>
+        {labelEdit.isEditing ? (
+          <input
+            {...labelEdit.inputProps}
+            style={{
+              fontSize: sketch ? 18 : brutal ? 16.2 : 16.2,
+              fontWeight: sketch ? 400 : brutal ? 700 : 600,
+              fontFamily: sketch
+                ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
+                : brutal
+                  ? 'var(--arch-font-title, sans-serif)'
+                  : undefined,
+              color: 'var(--node-title-color, hsl(var(--foreground)))',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              padding: 0,
+              margin: 0,
+              lineHeight: 1.25,
+              letterSpacing: sketch ? '0.02em' : brutal ? '-0.02em' : '-0.015em',
+              width: '100%',
+              textAlign: horizontalWithIcon ? 'left' : 'center',
+              boxSizing: 'border-box',
+              borderRadius: 3,
+              boxShadow: `0 0 0 2px ${color}`,
+              cursor: 'text',
+            }}
+          />
+        ) : showTitle ? (
+          <span
+            className="node-title"
+            onDoubleClick={labelEdit.startEdit}
+            style={{
+              cursor: 'text',
+              overflowWrap: 'break-word',
+              wordBreak: 'normal',
+              whiteSpace: isPipeMultiline ? 'pre-line' : isPipeText ? 'normal' : 'normal',
+              maxWidth: '100%',
+              textAlign: horizontalWithIcon ? 'left' : 'center',
+              flex: 'none',
+              fontSize: sketch ? 18 : (isIconBrand ? 13.2 : isPipeText ? 13.2 : brutal ? 16.2 : undefined),
+              fontWeight: sketch ? 400 : (isIconBrand ? 500 : brutal ? 700 : undefined),
+              fontFamily: sketch
+                ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
+                : brutal
+                  ? 'var(--arch-font-title, sans-serif)'
+                  : undefined,
+              letterSpacing: sketch ? '0.015em' : undefined,
+              lineHeight: isPipeMultiline || isPipeText ? 1.15 : undefined,
+              textOverflow: undefined,
+              overflow: undefined,
+            }}
+          >
+            {data.label}
+          </span>
+        ) : null}
+        {showSubtitle && (
+          <span
+            className="node-subtitle"
+            style={{
+              maxWidth: sublabelMaxWidth,
+              overflowWrap: 'anywhere',
+              marginTop: 2,
+              textAlign: horizontalWithIcon ? 'left' : 'center',
+              fontSize: sketch ? 12.5 : shape === 'diamond' || shape === 'circle' ? 10 : isPipeText ? 10 : undefined,
+              lineHeight: 1.2,
+              fontFamily: sketch
+                ? 'var(--font-caveat, "Caveat"), var(--arch-font-subtitle, cursive)'
                 : undefined,
-            color: 'var(--node-title-color, hsl(var(--foreground)))',
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            padding: 0,
-            margin: 0,
-            lineHeight: 1.25,
-            letterSpacing: sketch ? '0.02em' : brutal ? '-0.02em' : '-0.015em',
-            width: '100%',
-            textAlign: 'center',
-            boxSizing: 'border-box',
-            borderRadius: 3,
-            boxShadow: `0 0 0 2px ${color}`,
-            cursor: 'text',
-          }}
-        />
-      ) : showTitle ? (
-        <span
-          className="node-title"
-          onDoubleClick={labelEdit.startEdit}
-          style={{
-            cursor: 'text',
-            overflowWrap: 'break-word',
-            wordBreak: 'normal',
-            whiteSpace: isPipeMultiline ? 'pre-line' : isPipeText ? 'normal' : 'normal',
-            maxWidth: '100%',
-            textAlign: 'center',
-            flex: 'none',
-            fontSize: sketch ? 18 : (isIconBrand ? 13.2 : isPipeText ? 13.2 : brutal ? 16.2 : undefined),
-            fontWeight: sketch ? 400 : (isIconBrand ? 500 : brutal ? 700 : undefined),
-            fontFamily: sketch
-              ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
-              : brutal
-                ? 'var(--arch-font-title, sans-serif)'
-                : undefined,
-            letterSpacing: sketch ? '0.015em' : undefined,
-            lineHeight: isPipeMultiline || isPipeText ? 1.15 : undefined,
-            textOverflow: undefined,
-            overflow: undefined,
-          }}
-        >
-          {data.label}
-        </span>
-      ) : null}
-      {showSubtitle && (
-        <span
-          className="node-subtitle"
-          style={{
-            maxWidth: sublabelMaxWidth,
-            overflowWrap: 'anywhere',
-            marginTop: 2,
-            textAlign: 'center',
-            fontSize: sketch ? 12.5 : shape === 'diamond' || shape === 'circle' ? 10 : isPipeText ? 10 : undefined,
-            lineHeight: 1.2,
-            fontFamily: sketch
-              ? 'var(--font-caveat, "Caveat"), var(--arch-font-subtitle, cursive)'
-              : undefined,
-            fontWeight: sketch ? 600 : undefined,
-            letterSpacing: sketch ? '0.02em' : undefined,
-            color: brutal ? 'var(--arch-subtitle, #52525b)' : undefined,
-          }}
-        >
-          {sublabel}
-        </span>
-      )}
+              fontWeight: sketch ? 600 : undefined,
+              letterSpacing: sketch ? '0.02em' : undefined,
+              color: brutal ? 'var(--arch-subtitle, #52525b)' : undefined,
+            }}
+          >
+            {sublabel}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -430,4 +443,5 @@ export type ShapeShellProps = {
   labelMaxWidth: number;
   sketch?: boolean;
   brutal?: boolean;
+  studio?: boolean;
 };
