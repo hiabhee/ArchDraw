@@ -7,6 +7,12 @@
       "skillPath": "skills/building-components/SKILL.md",
       "computedHash": "20889af7cb9b3abca1e38824f7fffaa873eb0cc4d45187967b97bd85462cf934"
     },
+    "jev-agent": {
+      "source": "jev-ai/jev-agent-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "f6c6fb9e445de4a2ef50955ad50728480f567a86d9b11ed5a06317b5cc42d996"
+    },
     "next-best-practices": {
       "source": "vercel-labs/openreview",
       "sourceType": "github",
@@ -18,6 +24,18 @@
       "sourceType": "github",
       "skillPath": ".agents/skills/next-cache-components/SKILL.md",
       "computedHash": "f835d8226c28abf012cc013928e2627c8a7a046de61127ef229be1711bd1f255"
+    },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase/SKILL.md",
+      "computedHash": "583344c20e90f3654dbb0632f088d89fd9f1dde8ac85e8a644dd12eee59b1380"
+    },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+      "computedHash": "e14e276241805c97dbcfe40dcbea1a3035269cc7293cac4b1832dda41a835e60"
     },
     "vercel-composition-patterns": {
       "source": "vercel-labs/agent-skills",
