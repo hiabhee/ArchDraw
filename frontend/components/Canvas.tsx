@@ -205,6 +205,108 @@ function CanvasInner() {
     setNodes(fixed);
   }, [nodes, setNodes]);
 
+  // Live migration: snap 1-12px near-horizontal edges to 0° so existing
+  // persisted diagrams (IMG1) don't need a click to become straight (IMG2).
+  // Dagre's float positions can be y=100 vs 102.3; the edge then renders as
+  // a diagonal slit above the grid line. This one-time fix aligns centers.
+  const straightFixRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (nodes.length === 0 || edges.length === 0) return;
+    const canvasId = useDiagramStore.getState().activeCanvasId;
+    if (!canvasId || straightFixRef.current.has(canvasId)) return;
+    const STRAIGHT_THRESHOLD = 12;
+    const isVerticalLayout = useDiagramStore.getState().activeLayoutPresetId === 'layered-tb';
+    let needsFix = false;
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    const getWH = (n: Node) => {
+      const w = (n.width as number | undefined) ?? (n.data as unknown as { nodeWidth?: number })?.nodeWidth ?? 200;
+      const h = (n.height as number | undefined) ?? (n.data as unknown as { nodeHeight?: number })?.nodeHeight ?? 100;
+      return { w, h };
+    };
+    // Find first edge that would benefit
+    for (const e of edges) {
+      const src = nodeById.get(e.source);
+      const tgt = nodeById.get(e.target);
+      if (!src || !tgt) continue;
+      const srcParent = (src as unknown as { parentId?: string }).parentId ?? (src as unknown as { parentNode?: string }).parentNode;
+      const tgtParent = (tgt as unknown as { parentId?: string }).parentId ?? (tgt as unknown as { parentNode?: string }).parentNode;
+      if (srcParent !== tgtParent) continue;
+      const { w: sw, h: sh } = getWH(src);
+      const { w: tw, h: th } = getWH(tgt);
+      const srcCX = src.position.x + sw / 2;
+      const srcCY = src.position.y + sh / 2;
+      const tgtCX = tgt.position.x + tw / 2;
+      const tgtCY = tgt.position.y + th / 2;
+      const dx = tgtCX - srcCX;
+      const dy = tgtCY - srcCY;
+      const isHorizontalEdge = Math.abs(dx) > Math.abs(dy);
+      if (!isVerticalLayout && !isHorizontalEdge) continue;
+      if (isVerticalLayout && isHorizontalEdge) continue;
+      const d = isVerticalLayout ? Math.abs(dx) : Math.abs(dy);
+      if (d > 0.01 && d < STRAIGHT_THRESHOLD) {
+        needsFix = true;
+        break;
+      }
+    }
+    if (!needsFix) {
+      straightFixRef.current.add(canvasId);
+      return;
+    }
+    // Perform same alignment as Dagre/import
+    const edgesByDelta = [...edges]
+      .map((e) => {
+        const src = nodeById.get(e.source);
+        const tgt = nodeById.get(e.target);
+        if (!src || !tgt) return null;
+        const srcParent = (src as unknown as { parentId?: string }).parentId ?? (src as unknown as { parentNode?: string }).parentNode;
+        const tgtParent = (tgt as unknown as { parentId?: string }).parentId ?? (tgt as unknown as { parentNode?: string }).parentNode;
+        if (srcParent !== tgtParent) return null;
+        const { w: sw, h: sh } = getWH(src);
+        const { w: tw, h: th } = getWH(tgt);
+        const srcCX = src.position.x + sw / 2;
+        const srcCY = src.position.y + sh / 2;
+        const tgtCX = tgt.position.x + tw / 2;
+        const tgtCY = tgt.position.y + th / 2;
+        const dx = tgtCX - srcCX;
+        const dy = tgtCY - srcCY;
+        const d = isVerticalLayout ? Math.abs(dx) : Math.abs(dy);
+        return { e, d, dx, dy, src, tgt };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null && x.d < STRAIGHT_THRESHOLD && x.d > 0.01)
+      .sort((a, b) => a.d - b.d);
+    const moved = new Set<string>();
+    const aligned = nodes.map((n) => ({ ...n, position: { ...n.position } }));
+    const alignedById = new Map(aligned.map((n) => [n.id, n]));
+    for (const { dx, dy, src, tgt } of edgesByDelta) {
+      const isHorizontalEdge = Math.abs(dx) > Math.abs(dy);
+      if (!isVerticalLayout && !isHorizontalEdge) continue;
+      if (isVerticalLayout && isHorizontalEdge) continue;
+      if (moved.has(tgt.id)) continue;
+      const alignedTgt = alignedById.get(tgt.id);
+      const alignedSrc = alignedById.get(src.id);
+      if (!alignedTgt || !alignedSrc) continue;
+      const { w: sw, h: sh } = getWH(alignedSrc);
+      const { w: tw, h: th } = getWH(alignedTgt);
+      if (!isVerticalLayout) {
+        const desiredTgtY = alignedSrc.position.y + sh / 2 - th / 2;
+        if (Math.abs(desiredTgtY - alignedTgt.position.y) < STRAIGHT_THRESHOLD) {
+          alignedTgt.position.y = desiredTgtY;
+          moved.add(tgt.id);
+        }
+      } else {
+        const desiredTgtX = alignedSrc.position.x + sw / 2 - tw / 2;
+        if (Math.abs(desiredTgtX - alignedTgt.position.x) < STRAIGHT_THRESHOLD) {
+          alignedTgt.position.x = desiredTgtX;
+          moved.add(tgt.id);
+        }
+      }
+    }
+    if (moved.size > 0) {
+      setNodes(aligned);
+    }
+    straightFixRef.current.add(canvasId);
+  }, [nodes, edges, setNodes]);
+
   // Stacking is now handled via CSS isolation + store migration above.
   // Previously a MutationObserver forced group zIndex to -1 via direct DOM;
   // removed per frontend-design audit — use token layers and CSS instead.

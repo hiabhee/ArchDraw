@@ -437,6 +437,67 @@ export const createGraphSlice: StateCreator<
       logger.warn('[ClarityCompiler]', report.warnings.join('; '));
     }
 
+    // Auto-straighten persisted diagrams: a 1-12px delta from Dagre or manual
+    // nudge shows as a diagonal slit above the grid line and only snaps to
+    // 0° after a click/drag (which triggers re-render + autoStraighten). Fix
+    // on import so the first render is already straight.
+    {
+      const STRAIGHT_THRESHOLD = 12;
+      const isVerticalLayout = get().activeLayoutPresetId === 'layered-tb';
+      const nodeById = new Map(clarityNodes.map((n) => [n.id, n]));
+      const getWH = (n: Node) => {
+        const w = (n.width as number | undefined) ?? (n.data as { nodeWidth?: number })?.nodeWidth ?? 200;
+        const h = (n.height as number | undefined) ?? (n.data as { nodeHeight?: number })?.nodeHeight ?? 100;
+        return { w, h };
+      };
+      // Sort by smallest delta first so the most aligned edge wins when a node is target of multiple edges
+      const edgesByDelta = [...clarityEdges]
+        .map((e) => {
+          const src = nodeById.get(e.source);
+          const tgt = nodeById.get(e.target);
+          if (!src || !tgt) return null;
+          const srcParent = (src as unknown as { parentId?: string }).parentId ?? (src as unknown as { parentNode?: string }).parentNode;
+          const tgtParent = (tgt as unknown as { parentId?: string }).parentId ?? (tgt as unknown as { parentNode?: string }).parentNode;
+          // Only straighten nodes that share the same parent (both top-level or same group) — cross-group side-lane edges stay as Dagre placed them
+          if (srcParent !== tgtParent) return null;
+          const { w: sw, h: sh } = getWH(src);
+          const { w: tw, h: th } = getWH(tgt);
+          const srcCX = src.position.x + sw / 2;
+          const srcCY = src.position.y + sh / 2;
+          const tgtCX = tgt.position.x + tw / 2;
+          const tgtCY = tgt.position.y + th / 2;
+          const dx = tgtCX - srcCX;
+          const dy = tgtCY - srcCY;
+          const d = isVerticalLayout ? Math.abs(dx) : Math.abs(dy);
+          return { e, d, dx, dy, src, tgt };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null && x.d < STRAIGHT_THRESHOLD && x.d > 0.01)
+        .sort((a, b) => a.d - b.d);
+
+      const moved = new Set<string>();
+      for (const { dx, dy, src, tgt } of edgesByDelta) {
+        const isHorizontalEdge = Math.abs(dx) > Math.abs(dy);
+        if (isVerticalLayout && isHorizontalEdge) continue;
+        if (!isVerticalLayout && !isHorizontalEdge) continue;
+        if (moved.has(tgt.id)) continue;
+        const { w: sw, h: sh } = getWH(src);
+        const { w: tw, h: th } = getWH(tgt);
+        if (!isVerticalLayout) {
+          const desiredTgtY = src.position.y + sh / 2 - th / 2;
+          if (Math.abs(desiredTgtY - tgt.position.y) < STRAIGHT_THRESHOLD) {
+            tgt.position = { ...tgt.position, y: desiredTgtY };
+            moved.add(tgt.id);
+          }
+        } else {
+          const desiredTgtX = src.position.x + sw / 2 - tw / 2;
+          if (Math.abs(desiredTgtX - tgt.position.x) < STRAIGHT_THRESHOLD) {
+            tgt.position = { ...tgt.position, x: desiredTgtX };
+            moved.add(tgt.id);
+          }
+        }
+      }
+    }
+
     const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId);
 
     const activeCanvas = get().canvases.find((c) => c.id === get().activeCanvasId);

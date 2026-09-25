@@ -6,6 +6,7 @@ import type {
   PositionedNode,
   PositionedEdge,
   LayoutDirection,
+  LayoutEdge,
 } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, estimateEdgeLabelSize } from './LayoutEngine';
 import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
@@ -202,6 +203,66 @@ export class DagreLayoutEngine implements LayoutEngine {
     // from under-reserved node dimensions, which the shared layoutConstants
     // now prevent. Dagre's own spacing is trusted here; group bounds are
     // recomputed afterwards by the SizeStage / recomputeSubgraphBounds pass.
+
+    // Auto-straighten: Dagre can leave 1-7px deltas between horizontally
+    // adjacent nodes (e.g. y=100 vs 102.3). That shows as a diagonal slit
+    // above the grid line and only snaps to 0° after a click/drag re-render.
+    // Snap near-horizontal / near-vertical edges to perfect straight so the
+    // initial load is already 0°/90° without user interaction.
+    {
+      const STRAIGHT_THRESHOLD = 12;
+      const isHorizontalLayout = params.direction === 'LR' || params.direction === 'RL';
+      // Sort edges by smallest delta first so the most aligned pair wins when
+      // a node is target of multiple edges.
+      const edgesByDelta = [...params.edges]
+        .map((e) => {
+          const src = positionedNodes.find((n) => n.id === e.source);
+          const tgt = positionedNodes.find((n) => n.id === e.target);
+          if (!src || !tgt) return { e, d: Infinity };
+          const srcCX = src.x + (src.width || DEFAULT_NODE_WIDTH) / 2;
+          const srcCY = src.y + (src.height || DEFAULT_NODE_HEIGHT) / 2;
+          const tgtCX = tgt.x + (tgt.width || DEFAULT_NODE_WIDTH) / 2;
+          const tgtCY = tgt.y + (tgt.height || DEFAULT_NODE_HEIGHT) / 2;
+          const dx = tgtCX - srcCX;
+          const dy = tgtCY - srcCY;
+          const d = isHorizontalLayout ? Math.abs(dy) : Math.abs(dx);
+          return { e, d, dx, dy, src, tgt };
+        })
+        .filter((x) => x.d < STRAIGHT_THRESHOLD && x.d > 0.01)
+        .sort((a, b) => a.d - b.d);
+
+      const moved = new Set<string>();
+      for (const { dx, dy, src, tgt } of edgesByDelta as Array<{ e: LayoutEdge; d: number; dx: number; dy: number; src: PositionedNode; tgt: PositionedNode }>) {
+        if (!src || !tgt) continue;
+        if (src.isGroup || tgt.isGroup) continue;
+        // Keep group-contained nodes inside their own lane — don't straighten
+        // cross-group edges (e.g. Core -> Support side-lane) or top-level vs
+        // grouped mixes, otherwise the side-lane test breaks.
+        if (src.parentId !== tgt.parentId) continue;
+        // Only straighten edges that are primarily along the layout axis
+        const isHorizontalEdge = Math.abs(dx!) > Math.abs(dy!);
+        if (isHorizontalLayout && !isHorizontalEdge) continue;
+        if (!isHorizontalLayout && isHorizontalEdge) continue;
+
+        // For LR/RL, align target's centerY to source's centerY; for TB/BT align centerX
+        if (isHorizontalLayout) {
+          if (moved.has(tgt.id)) continue; // keep first (smallest delta) winner
+          const desiredTgtY = (src.y + (src.height || DEFAULT_NODE_HEIGHT) / 2) - (tgt.height || DEFAULT_NODE_HEIGHT) / 2;
+          // Avoid creating overlap with existing nodes at that Y - only move small delta
+          if (Math.abs(desiredTgtY - tgt.y) < STRAIGHT_THRESHOLD) {
+            tgt.y = desiredTgtY;
+            moved.add(tgt.id);
+          }
+        } else {
+          if (moved.has(tgt.id)) continue;
+          const desiredTgtX = (src.x + (src.width || DEFAULT_NODE_WIDTH) / 2) - (tgt.width || DEFAULT_NODE_WIDTH) / 2;
+          if (Math.abs(desiredTgtX - tgt.x) < STRAIGHT_THRESHOLD) {
+            tgt.x = desiredTgtX;
+            moved.add(tgt.id);
+          }
+        }
+      }
+    }
 
     const positionedEdges: PositionedEdge[] = params.edges
       .map((edge, index) => {
