@@ -106,8 +106,21 @@ export default function SimpleFloatingEdge({
       edges,
       activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
       renderStyleId,
+      {
+        // React Flow already gives custom edges the measured handle centers.
+        // Recomputing these from node bounds can disagree with dynamic handle
+        // slots (and with CSS-positioned handles), producing visible gaps.
+        source: { x: _sourceX, y: _sourceY },
+        target: { x: _targetX, y: _targetY },
+        sourceSide: _sourcePosition as Position,
+        targetSide: _targetPosition as Position,
+      },
     );
-  }, [id, source, target, sourceHandleId, targetHandleId, data, nodeInternals, edges, activeLayoutPresetId, renderStyleId]);
+  }, [
+    id, source, target, sourceHandleId, targetHandleId, data,
+    nodeInternals, edges, activeLayoutPresetId, renderStyleId,
+    _sourceX, _sourceY, _targetX, _targetY, _sourcePosition, _targetPosition,
+  ]);
 
   const {
     sourcePosition: _sourcePos,

@@ -654,11 +654,11 @@ export function computeEdgeRoute(
       (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId),
       renderStyleId,
     )
-    let sh = handleAnchors?.source ?? getBoundaryAnchor(
+    const sh = handleAnchors?.source ?? getBoundaryAnchor(
       sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
       sourcePosition, sourceShift,
     )
-    let th = handleAnchors?.target ?? getBoundaryAnchor(
+    const th = handleAnchors?.target ?? getBoundaryAnchor(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
       targetPosition, targetShift,
     )
@@ -753,11 +753,11 @@ export function computeEdgeRoute(
     edge.target, edge.id, targetPosition, edges, nodeMap, 24,
     undefined, undefined, resolveSide, renderStyleId,
   )
-  let sh = handleAnchors?.source ?? getBoundaryAnchor(
+  const sh = handleAnchors?.source ?? getBoundaryAnchor(
     sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
     sourcePosition, sourceShift,
   )
-  let th = handleAnchors?.target ?? getBoundaryAnchor(
+  const th = handleAnchors?.target ?? getBoundaryAnchor(
     targetRect.x, targetRect.y, targetRect.w, targetRect.h,
     targetPosition, targetShift,
   )
