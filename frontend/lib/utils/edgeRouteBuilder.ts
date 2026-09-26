@@ -3,7 +3,7 @@ import { Position } from '@/lib/utils/edgePositions'
 import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
-import { getBidirectionalLaneOffset, hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
+import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import logger from '@/lib/logger'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
@@ -104,6 +104,21 @@ function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string): Obstacl
   const pos = getAbsolutePosition(node, nodes)
   const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId)
   return { x: pos.x, y: pos.y, w, h }
+}
+
+/** Resolve the actual React Flow handle side from its measured center. */
+function inferMeasuredHandleSide(
+  point: { x: number; y: number },
+  rect: ObstacleRect,
+): Position {
+  const distances: Array<[Position, number]> = [
+    [Position.Left, Math.abs(point.x - rect.x)],
+    [Position.Right, Math.abs(point.x - (rect.x + rect.w))],
+    [Position.Top, Math.abs(point.y - rect.y)],
+    [Position.Bottom, Math.abs(point.y - (rect.y + rect.h))],
+  ]
+  distances.sort((a, b) => a[1] - b[1])
+  return distances[0][0]
 }
 
 export function isGroupNode(node: Node): boolean {
@@ -240,6 +255,7 @@ function computeDirectWaypoints(
   sourceRect: ObstacleRect,
   targetRect: ObstacleRect,
   borderRadius: number = 24,
+  trustMeasuredTerminals: boolean = false,
 ): Array<{ x: number; y: number }> {
   // A tiny height difference should read as one shallow connector. An
   // orthogonal Z route makes a short vertical kink in the middle, while
@@ -257,7 +273,7 @@ function computeDirectWaypoints(
   if (edgeOffset === 0 && (nearHorizontal || nearVertical)) {
     const straight = [sh, th];
     const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
-    if (!blocked && !pathEntersTerminalInterior(straight, sourceRect, targetRect)) {
+    if (!blocked && (trustMeasuredTerminals || !pathEntersTerminalInterior(straight, sourceRect, targetRect))) {
       return straight;
     }
   }
@@ -271,7 +287,7 @@ function computeDirectWaypoints(
     nodeRects.size > 0 &&
     pathCollidesWithRects(directWaypoints, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE)
   )
-  const hitsTerminal = pathEntersTerminalInterior(directWaypoints, sourceRect, targetRect)
+  const hitsTerminal = !trustMeasuredTerminals && pathEntersTerminalInterior(directWaypoints, sourceRect, targetRect)
 
   if (!hitsObstacle && !hitsTerminal) {
     return directWaypoints
@@ -701,6 +717,10 @@ export function computeEdgeRoute(
     )
     if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
     if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+    if (handleAnchors) {
+      sourcePosition = inferMeasuredHandleSide(handleAnchors.source, sourceRect)
+      targetPosition = inferMeasuredHandleSide(handleAnchors.target, targetRect)
+    }
 
     if (!hasValidCustomWaypointPath(sh, th, sourcePosition, targetPosition, customWaypoints)) {
       const { customWaypoints: _staleWaypoints, ...cleanData } = edgeData ?? {}
@@ -789,6 +809,10 @@ export function computeEdgeRoute(
 
   if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
   if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+  if (handleAnchors) {
+    sourcePosition = inferMeasuredHandleSide(handleAnchors.source, sourceRect)
+    targetPosition = inferMeasuredHandleSide(handleAnchors.target, targetRect)
+  }
 
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
   const resolveSide = (e: Edge, nodeId: string) =>
@@ -816,23 +840,16 @@ export function computeEdgeRoute(
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
   const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
-  // Keep single-direction edges centered. For a bidirectional pair, the
-  // handles already use opposite ±16px lanes; give the route's middle
-  // corridor a smaller matching offset so the two paths remain visibly
-  // separated instead of merging between the nodes.
-  const routeNodePositions = new Map(
-    nodes.map((node) => {
-      const rect = getNodeRect(node, nodes, renderStyleId)
-      return [node.id, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }] as const
-    }),
-  )
-  const bidirectionalLane = getBidirectionalLaneOffset(edge, edge.source, edges, routeNodePositions)
-  const edgeOffset = bidirectionalLane === null ? 0 : Math.sign(bidirectionalLane) * 10
+  // Keep the route midpoint centered. Bidirectional handles already provide
+  // the lane separation; offsetting this midpoint moves along the route axis
+  // and creates an unwanted U-shaped dip instead of a parallel track.
+  const edgeOffset = 0
 
   const waypointsRaw = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
     nodeRectParam, sourceRect, targetRect,
     curveRadius,
+    Boolean(handleAnchors),
   )
   let waypoints = waypointsRaw
   let svgPath = buildSmoothStepSvg(waypoints, curveRadius)

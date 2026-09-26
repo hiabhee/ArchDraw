@@ -112,8 +112,6 @@ export default function SimpleFloatingEdge({
         // slots (and with CSS-positioned handles), producing visible gaps.
         source: { x: _sourceX, y: _sourceY },
         target: { x: _targetX, y: _targetY },
-        sourceSide: _sourcePosition as Position,
-        targetSide: _targetPosition as Position,
       },
     );
   }, [

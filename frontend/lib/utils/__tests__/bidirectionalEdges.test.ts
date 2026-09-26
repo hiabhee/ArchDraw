@@ -131,4 +131,21 @@ describe('bidirectional edge routing', () => {
 
     expect(route.waypoints.every((point) => point.x === 80)).toBe(true);
   });
+
+  it('uses measured horizontal handle coordinates for route orientation', () => {
+    const nodes = [makeNode('left', 0, 0, 160, 80), makeNode('right', 400, 0, 160, 80)];
+    const edge = makeEdge('left-right', 'left', 'right');
+    const route = computeEdgeRoute(
+      edge,
+      nodes,
+      [edge],
+      'LR',
+      undefined,
+      { source: { x: 172, y: 40 }, target: { x: 388, y: 40 } },
+    );
+
+    expect(route.sourcePosition).toBe(Position.Right);
+    expect(route.targetPosition).toBe(Position.Left);
+    expect(route.waypoints.every((point) => point.y === 40)).toBe(true);
+  });
 });
