@@ -45,6 +45,43 @@ function buildCustomWaypointPath(
   return { waypoints: allPoints, svgPath }
 }
 
+function isAxisAligned(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): boolean {
+  return Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5
+}
+
+/**
+ * Custom waypoints are persisted in absolute canvas coordinates. After a
+ * node moves or its measured handle changes, an old first/last waypoint can
+ * leave a diagonal terminal segment. That produces the hooked paths seen in
+ * the editor, so let the normal router recover when the saved path is stale.
+ */
+function hasValidCustomWaypointPath(
+  sourcePoint: { x: number; y: number },
+  targetPoint: { x: number; y: number },
+  sourcePosition: Position,
+  targetPosition: Position,
+  waypoints: Array<{ x: number; y: number }>,
+): boolean {
+  if (waypoints.length === 0) return false;
+  const first = waypoints[0];
+  const last = waypoints[waypoints.length - 1];
+  const sourceTerminalAligned =
+    sourcePosition === Position.Left || sourcePosition === Position.Right
+      ? Math.abs(first.y - sourcePoint.y) < 0.5
+      : Math.abs(first.x - sourcePoint.x) < 0.5;
+  const targetTerminalAligned =
+    targetPosition === Position.Left || targetPosition === Position.Right
+      ? Math.abs(last.y - targetPoint.y) < 0.5
+      : Math.abs(last.x - targetPoint.x) < 0.5;
+  if (!sourceTerminalAligned || !targetTerminalAligned) return false;
+
+  const points = [sourcePoint, ...waypoints, targetPoint];
+  return points.every((point, index) => index === 0 || isAxisAligned(points[index - 1], point));
+}
+
 function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
   let x = node.position?.x ?? 0
   let y = node.position?.y ?? 0
@@ -664,6 +701,18 @@ export function computeEdgeRoute(
     )
     if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
     if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+
+    if (!hasValidCustomWaypointPath(sh, th, sourcePosition, targetPosition, customWaypoints)) {
+      const { customWaypoints: _staleWaypoints, ...cleanData } = edgeData ?? {}
+      return computeEdgeRoute(
+        { ...edge, data: Object.keys(cleanData).length > 0 ? cleanData : undefined },
+        nodes,
+        edges,
+        direction,
+        renderStyleId,
+        handleAnchors,
+      )
+    }
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
 
