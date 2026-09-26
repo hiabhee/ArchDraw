@@ -32,8 +32,14 @@ interface MappedNode {
 
 function hashNodesEdges(nodes: Record<string, unknown>[], edges: Record<string, unknown>[]): string {
   let h = `${nodes.length}:${edges.length}`;
-  for (const n of nodes) h += `|${n.id}:${n.type}:${(n as { parentNode?: string }).parentNode || ''}`;
-  for (const e of edges) h += `|${e.id}:${e.source}-${e.target}`;
+  for (const n of nodes) {
+    const data = n.data as Record<string, unknown> | undefined;
+    h += `|${n.id}:${n.type}:${(n as { parentNode?: string }).parentNode || ''}:${data?.label ?? ''}:${data?.shape ?? ''}:${data?.direction ?? ''}`;
+  }
+  for (const e of edges) {
+    const data = e.data as Record<string, unknown> | undefined;
+    h += `|${e.id}:${e.source}-${e.target}:${e.label ?? data?.label ?? ''}:${data?.edgeVariant ?? ''}:${data?.connectionType ?? ''}:${data?.edgeType ?? ''}`;
+  }
   return h;
 }
 
@@ -213,7 +219,10 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
             position: directionChanged ? { ...node.position } : { x: absX, y: absY },
             data: {
               ...(existingNode?.data || {}),
-              ...node.data
+              ...node.data,
+              ...(existingNode?.data?.iconSource === 'manual' && existingNode.data.icon
+                ? { icon: existingNode.data.icon, iconSource: 'manual' }
+                : {}),
             },
             width,
             height,

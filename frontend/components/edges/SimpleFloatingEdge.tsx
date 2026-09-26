@@ -117,7 +117,7 @@ export default function SimpleFloatingEdge({
   }, [
     id, source, target, sourceHandleId, targetHandleId, data,
     nodeInternals, edges, activeLayoutPresetId, renderStyleId,
-    _sourceX, _sourceY, _targetX, _targetY, _sourcePosition, _targetPosition,
+    _sourceX, _sourceY, _targetX, _targetY,
   ]);
 
   const {

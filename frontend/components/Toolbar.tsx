@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Download, Moon, Sun } from 'lucide-react';
+import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useAuthStore } from '@/store/authStore';

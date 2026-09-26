@@ -43,17 +43,19 @@ export function resolveEdgePalette(
 export function useEdgeColors(edges: Edge[]): Edge[] {
   const { isDark, renderStyleId, colors } = useDiagramAesthetics();
   const sketch = renderStyleId === 'sketch';
-  const themeInk: Partial<SketchEdgeInk> = {
-    primary: colors.edgePrimary,
-    default: colors.edgeDefault,
-    supporting: colors.edgeDefault,
-    dep: colors.edgeDefault,
-    async: colors.edgeAsync,
-    stream: colors.edgePrimary,
-    event: colors.edgePrimary,
-  };
+  const { edgePrimary, edgeDefault, edgeAsync } = colors;
 
   return useMemo(() => {
+    const themeInk: Partial<SketchEdgeInk> = {
+      primary: edgePrimary,
+      default: edgeDefault,
+      supporting: edgeDefault,
+      dep: edgeDefault,
+      async: edgeAsync,
+      stream: edgePrimary,
+      event: edgePrimary,
+    };
+
     return edges.map((edge) => {
       const palette = resolveEdgePalette(
         edge.data as Record<string, unknown> | undefined,
@@ -78,7 +80,7 @@ export function useEdgeColors(edges: Edge[]): Edge[] {
         labelStyle: { ...edge.labelStyle, fill: palette.stroke },
       };
     });
-  }, [edges, isDark, sketch, colors.edgePrimary, colors.edgeDefault, colors.edgeAsync]);
+  }, [edges, isDark, sketch, edgePrimary, edgeDefault, edgeAsync]);
 }
 
 export function assignEdgeColors(

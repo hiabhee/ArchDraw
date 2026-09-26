@@ -2,12 +2,21 @@ import { describe, it, expect } from 'vitest';
 import type { Node, Edge } from 'reactflow';
 import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
+import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 
 function node(id: string, label: string): Node {
   return { id, type: 'shapeNode', position: { x: 0, y: 0 }, data: { label } } as Node;
 }
 
 describe('relayout round-trip fixes', () => {
+  it('assigns semantic icons to nodes created from Mermaid code', async () => {
+    const result = await runMermaidPipeline('graph LR\n  email["Email Service"] --> payment["Payment Service"]');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.nodes.find((n) => n.id === 'email')?.data.icon).toBe('arch-email');
+    expect(result.data.nodes.find((n) => n.id === 'payment')?.data.icon).toBe('arch-payment');
+  });
+
   it('C2: relayout succeeds when a label contains a pipe', async () => {
     const nodes = [node('a', 'Kafka | Redpanda'), node('b', 'Consumer')];
     const edges = [{ id: 'e0', source: 'a', target: 'b' } as Edge];
