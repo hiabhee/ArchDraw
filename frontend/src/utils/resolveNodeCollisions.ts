@@ -9,7 +9,12 @@ interface FlowNode extends Node {
   };
 }
 
-export function resolveNodeCollisions(nodes: Node[], margin: number = 50): Node[] {
+/**
+ * Resolve true overlaps without imposing spacing between independent nodes.
+ * A non-zero margin made separate diagrams drift apart whenever one was
+ * imported or dragged near another diagram on the same canvas.
+ */
+export function resolveNodeCollisions(nodes: Node[], margin: number = 0): Node[] {
   if (!nodes || !Array.isArray(nodes)) {
     logger.warn('[Collision] resolveNodeCollisions received invalid nodes parameter:', nodes);
     return [];
@@ -63,7 +68,9 @@ export function resolveNodeCollisions(nodes: Node[], margin: number = 50): Node[
         const bTop = B.position.y - margin / 2;
         const bBottom = B.position.y + bHeight + margin / 2;
 
-        const isOverlapping = !(aRight < bLeft || aLeft > bRight || aBottom < bTop || aTop > bBottom);
+        // Touching edges are allowed; only actual rectangle intersection is a
+        // collision. This keeps independent diagrams compact on one canvas.
+        const isOverlapping = !(aRight <= bLeft || aLeft >= bRight || aBottom <= bTop || aTop >= bBottom);
 
         if (isOverlapping) {
           overlapFound = true;
@@ -71,7 +78,7 @@ export function resolveNodeCollisions(nodes: Node[], margin: number = 50): Node[
           const overlapY = Math.min(aBottom, bBottom) - Math.max(aTop, bTop);
 
           if (overlapX < overlapY) {
-            const moveX = overlapX / 2 + 1;
+            const moveX = overlapX / 2;
             if (A.position.x < B.position.x) {
               A.position.x -= moveX;
               B.position.x += moveX;
@@ -80,7 +87,7 @@ export function resolveNodeCollisions(nodes: Node[], margin: number = 50): Node[
               B.position.x -= moveX;
             }
           } else {
-            const moveY = overlapY / 2 + 1;
+            const moveY = overlapY / 2;
             if (A.position.y < B.position.y) {
               A.position.y -= moveY;
               B.position.y += moveY;
