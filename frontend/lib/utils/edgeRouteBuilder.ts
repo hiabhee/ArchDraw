@@ -3,7 +3,7 @@ import { Position } from '@/lib/utils/edgePositions'
 import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
-import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
+import { getBidirectionalLaneOffset, hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import logger from '@/lib/logger'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
@@ -816,9 +816,18 @@ export function computeEdgeRoute(
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
   const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
-  // Keep it simple: no fan-out/fan-in height staggering.
-  // Same-level nodes now share the exact same orthogonal height.
-  const edgeOffset = 0
+  // Keep single-direction edges centered. For a bidirectional pair, the
+  // handles already use opposite ±16px lanes; give the route's middle
+  // corridor a smaller matching offset so the two paths remain visibly
+  // separated instead of merging between the nodes.
+  const routeNodePositions = new Map(
+    nodes.map((node) => {
+      const rect = getNodeRect(node, nodes, renderStyleId)
+      return [node.id, { x: rect.x, y: rect.y, width: rect.w, height: rect.h }] as const
+    }),
+  )
+  const bidirectionalLane = getBidirectionalLaneOffset(edge, edge.source, edges, routeNodePositions)
+  const edgeOffset = bidirectionalLane === null ? 0 : Math.sign(bidirectionalLane) * 10
 
   const waypointsRaw = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
