@@ -1,11 +1,13 @@
 import Link from 'next/link';
 
+type FooterProps = { tone?: 'light' | 'dark' };
+
 const COLUMNS = [
   {
     title: 'Product',
     links: [
       { label: 'Features', href: '/#features' },
-      { label: 'How it works', href: '/#how-it-works' },
+      { label: 'How it works', href: '/#workflow' },
       { label: 'Pricing', href: '/pricing' },
       { label: 'Canvas', href: '/editor' },
     ],
@@ -32,20 +34,43 @@ const COLUMNS = [
   },
 ];
 
-export function Footer() {
+export function Footer({ tone = 'light' }: FooterProps) {
+  const isDark = tone === 'dark';
+  const footerText = isDark ? 'text-[#a3afaa]' : 'text-[#575752]';
+  const footerMuted = isDark ? 'text-[#75817c]' : 'text-[#8a8f98]';
+  const footerBorder = isDark ? 'border-white/[0.09]' : 'border-[#e4e4df]';
+  const footerHover = isDark ? 'hover:text-[#e5efe9]' : 'hover:text-[#1c1c1a]';
+
+  if (isDark) {
+    return (
+      <footer className="border-t border-white/[0.09] bg-[#080b10] px-6 py-7 text-[#9ca8b7]">
+        <div className="mx-auto flex max-w-[1200px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <Link href="/" className="text-sm font-semibold text-[#edf3fa]">ArchDraw</Link>
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
+            <a href="/docs" className="transition-colors hover:text-white">Docs</a>
+            <a href="https://github.com/hiabhee/ArchDraw" className="transition-colors hover:text-white">GitHub</a>
+            <a href="/privacy" className="transition-colors hover:text-white">Privacy</a>
+            <a href="/terms" className="transition-colors hover:text-white">Terms</a>
+          </nav>
+          <span className="text-xs">© 2026 ArchDraw</span>
+        </div>
+      </footer>
+    );
+  }
+
   return (
-    <footer className="py-16 px-6 bg-[#f1f1eb] border-t border-[#e4e4df] relative">
+    <footer className={`py-16 px-6 ${isDark ? 'bg-[#080a0d]' : 'bg-[#f1f1eb]'} border-t ${footerBorder} relative`}>
       <div className="max-w-[1280px] mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-10">
           <div className="col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center shadow-[0_0_15px_rgba(30,144,255,0.3)] transition-transform duration-200 group-hover:scale-105">
+              <div className={`w-7 h-7 rounded-lg ${isDark ? 'bg-[#9dc3ff] shadow-[0_0_20px_rgba(126,169,255,0.2)]' : 'bg-brand shadow-[0_0_15px_rgba(30,144,255,0.3)]'} flex items-center justify-center transition-transform duration-200 group-hover:scale-105`}>
                 <svg
                   width="14"
                   height="14"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#fff"
+                  stroke={isDark ? '#07110d' : '#fff'}
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -55,10 +80,10 @@ export function Footer() {
                   <path d="M2 12l10 5 10-5" />
                 </svg>
               </div>
-              <span className="text-sm font-bold text-[#1c1c1a] tracking-tight">ArchDraw</span>
+              <span className={`text-sm font-bold ${isDark ? 'text-[#edf3ef]' : 'text-[#1c1c1a]'} tracking-tight`}>ArchDraw</span>
             </Link>
-            <p className="text-sm text-[#575752] max-w-[280px] leading-relaxed">
-              A visual system design tool for engineers who need shared clarity.
+            <p className={`text-sm ${footerText} max-w-[280px] leading-relaxed`}>
+              A visual workspace for the systems your coding agent helps you build.
             </p>
 
             <div className="mt-6 flex items-center gap-2">
@@ -67,7 +92,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="GitHub"
-                className="w-8 h-8 rounded-lg bg-white border border-[#e4e4df] hover:border-[#1E90FF] hover:text-[#1E90FF] text-[#575752] flex items-center justify-center transition-[color,border-color,transform] duration-200 hover:-translate-y-0.5"
+                className={`w-8 h-8 rounded-lg ${isDark ? 'bg-white/[0.025]' : 'bg-white'} border ${footerBorder} ${isDark ? 'hover:border-[#9dc3ff]/55 hover:text-[#9dc3ff]' : 'hover:border-[#1E90FF] hover:text-[#1E90FF]'} ${footerText} flex items-center justify-center transition-[color,border-color,transform] duration-200 hover:-translate-y-0.5`}
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
@@ -78,7 +103,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Twitter"
-                className="w-8 h-8 rounded-lg bg-white border border-[#e4e4df] hover:border-[#1E90FF] hover:text-[#1E90FF] text-[#575752] flex items-center justify-center transition-[color,border-color,transform] duration-200 hover:-translate-y-0.5"
+                className={`w-8 h-8 rounded-lg ${isDark ? 'bg-white/[0.025]' : 'bg-white'} border ${footerBorder} ${isDark ? 'hover:border-[#9dc3ff]/55 hover:text-[#9dc3ff]' : 'hover:border-[#1E90FF] hover:text-[#1E90FF]'} ${footerText} flex items-center justify-center transition-[color,border-color,transform] duration-200 hover:-translate-y-0.5`}
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -89,7 +114,7 @@ export function Footer() {
 
           {COLUMNS.map((col) => (
             <div key={col.title}>
-              <h4 className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#1c1c1a] mb-4">
+              <h4 className={`text-[11px] font-bold uppercase tracking-[1.5px] ${isDark ? 'text-[#e1e9e4]' : 'text-[#1c1c1a]'} mb-4`}>
                 {col.title}
               </h4>
               <ul className="flex flex-col gap-2.5">
@@ -97,7 +122,7 @@ export function Footer() {
                   <li key={link.label}>
                     <a
                       href={link.href}
-                      className="text-sm text-[#575752] hover:text-[#1c1c1a] transition-colors duration-150"
+                      className={`text-sm ${footerText} ${footerHover} transition-colors duration-150`}
                     >
                       {link.label}
                     </a>
@@ -108,13 +133,13 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 pt-6 border-t border-[#e4e4df] flex flex-col md:flex-row items-center justify-between gap-3">
-          <span className="text-xs text-[#8a8f98]">
+        <div className={`mt-12 pt-6 border-t ${footerBorder} flex flex-col md:flex-row items-center justify-between gap-3`}>
+          <span className={`text-xs ${footerMuted}`}>
             &copy; 2026 ArchDraw. Built for engineers who think in systems.
           </span>
-          <div className="flex items-center gap-5 text-xs text-[#8a8f98]">
-            <a href="/privacy" className="hover:text-[#1c1c1a] transition-colors">Privacy</a>
-            <a href="/terms" className="hover:text-[#1c1c1a] transition-colors">Terms</a>
+          <div className={`flex items-center gap-5 text-xs ${footerMuted}`}>
+            <a href="/privacy" className={`${footerHover} transition-colors`}>Privacy</a>
+            <a href="/terms" className={`${footerHover} transition-colors`}>Terms</a>
             <span>Crafted in public by Abhishek</span>
           </div>
         </div>

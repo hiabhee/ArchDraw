@@ -1,50 +1,31 @@
-import { ArrowRight, GitBranch, Sparkles, FileCode2, LayoutDashboard, Boxes, Terminal } from 'lucide-react';
 import { LandingBootstrap } from '@/components/landing/LandingBootstrap';
 import { LandingCanvasPreview } from './LandingCanvasPreview';
+import { LandingInstall } from './LandingInstall';
 import { LandingNav } from './LandingNav';
-import { LandingGenerate } from './LandingGenerate';
-import { FeaturedProof } from './FeaturedProof';
 import { Footer } from './Footer';
-import { ScrollTextReveal } from './ScrollTextReveal';
-import { START_CTA_HASH, START_CTA_LABEL } from './cta';
 import styles from './RevampedLanding.module.css';
-
-const FEATURES = [
-  { icon: Sparkles, title: 'Begin with an idea', desc: 'Describe the system you need to reason about, then start with an editable first draft.' },
-  { icon: GitBranch, title: 'Read the codebase', desc: 'Turn a repository into a map of the services, paths, and relationships that matter.' },
-  { icon: FileCode2, title: 'Keep it portable', desc: 'Move between Mermaid and canvas without losing the structure behind the diagram.' },
-  { icon: LayoutDashboard, title: 'Bring order to change', desc: 'Reflow the system as it evolves, so the important connections stay easy to follow.' },
-  { icon: Boxes, title: 'Make it your own', desc: 'Start from real architecture patterns, then edit every label, shape, connection, and group.' },
-  { icon: Terminal, title: 'Meet your workflow', desc: 'Use the MCP server from the AI tools already beside your editor.' },
-];
 
 const LANDING_JSON_LD = {
   '@context': 'https://schema.org',
   '@graph': [
     {
+      '@type': 'SoftwareApplication',
+      '@id': 'https://archdraw.hiabhee.online/#application',
+      name: 'ArchDraw',
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'Web',
+      description: 'An editable architecture canvas coding agents can use to map repositories and explain system flows.',
+      url: 'https://archdraw.hiabhee.online/',
+    },
+    {
       '@type': 'HowTo',
       '@id': 'https://archdraw.hiabhee.online/#howto',
-      name: 'How to generate an architecture diagram with ArchDraw',
-      description: 'Turn a GitHub repository, Mermaid graph, or plain English prompt into an editable visual system.',
-      totalTime: 'PT2M',
+      name: 'Connect Codex to ArchDraw',
+      description: 'Install ArchDraw MCP tools, ask Codex to map a system, then inspect and edit the diagram.',
       step: [
-        { '@type': 'HowToStep', position: 1, name: 'Start anywhere', text: 'Paste a repository URL, describe a system, or bring your Mermaid.' },
-        { '@type': 'HowToStep', position: 2, name: 'See the system', text: 'ArchDraw organizes the services, boundaries, and connections that matter.' },
-        { '@type': 'HowToStep', position: 3, name: 'Shape the story', text: 'Refine the live canvas, then share the diagram behind the decision.' },
-      ],
-    },
-    {
-      '@type': 'ItemList',
-      '@id': 'https://archdraw.hiabhee.online/#features',
-      name: 'ArchDraw Features',
-      itemListElement: FEATURES.map((f, i) => ({ '@type': 'ListItem', position: i + 1, name: f.title, description: f.desc })),
-    },
-    {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://archdraw.hiabhee.online/' },
-        { '@type': 'ListItem', position: 2, name: 'Features', item: 'https://archdraw.hiabhee.online/#features' },
-        { '@type': 'ListItem', position: 3, name: 'How it works', item: 'https://archdraw.hiabhee.online/#how-it-works' },
+        { '@type': 'HowToStep', position: 1, name: 'Install ArchDraw', text: 'Run the setup command in the project you want to map.' },
+        { '@type': 'HowToStep', position: 2, name: 'Ask Codex', text: 'Ask Codex to map the repository or trace a request flow.' },
+        { '@type': 'HowToStep', position: 3, name: 'Explore the diagram', text: 'Review and edit the architecture map on the canvas.' },
       ],
     },
   ],
@@ -53,52 +34,88 @@ const LANDING_JSON_LD = {
 export default function RevampedLanding() {
   return (
     <div className={styles.landing}>
-      <LandingNav />
+      <LandingNav tone="dark" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LANDING_JSON_LD) }} />
       <main>
-        <section id="generate" className={styles.hero}>
-          <div className={styles.heroGrid} aria-hidden="true" />
+        <section id="install" className={styles.hero}>
           <div className={styles.shell}>
-            <div className={styles.heroStage}>
+            <div className={styles.heroGrid}>
               <div className={styles.heroCopy}>
-                <h1><ScrollTextReveal eager>Reimagine your codebase<br />as a <em>visual system.</em></ScrollTextReveal></h1>
-                <LandingGenerate />
+                <h1>Spaghetti code,<br /><span>made visible.</span></h1>
+                <p className={styles.heroLead}>
+                  Let Codex map services and trace request flows in an editable diagram.
+                </p>
+                <LandingInstall />
               </div>
-            </div>
-            <div className={styles.heroDiagram}>
-              <LandingCanvasPreview />
+              <div className={styles.heroProduct}>
+                <LandingCanvasPreview />
+              </div>
             </div>
           </div>
         </section>
 
-        <FeaturedProof />
-
-        <section id="features" className={styles.features}><div className={styles.shell}>
-          <div className={styles.featuresIntro}><p className={styles.eyebrow}><span /> A tool for thinking in systems</p><h2><ScrollTextReveal>More than a first draft.<br /><em>A place to keep thinking.</em></ScrollTextReveal></h2><p>One visual workspace from raw context to the conversation that follows.</p></div>
-          <div className={styles.featuresGrid}>
-            {FEATURES.map((f, index) => (
-              <article key={f.title} className={styles.featureCard}>
-                <span className={styles.featureNumber} aria-hidden="true">0{index + 1}</span>
-                <f.icon size={16} aria-hidden="true" />
-                <h3>{f.title}</h3>
-                <p>{f.desc}</p>
-              </article>
-            ))}
+        <section id="workflow" className={styles.workflow}>
+          <div className={styles.shell}>
+            <h2>How it works</h2>
+            <ol className={styles.workflowSteps}>
+              <li className={styles.workflowStep}>
+                <span className={styles.stepNumber}>01</span>
+                <div className={styles.stepCopy}>
+                  <h3>Install ArchDraw</h3>
+                  <p>Run one command in the project you want to map.</p>
+                </div>
+              </li>
+              <li className={styles.workflowStep}>
+                <span className={styles.stepNumber}>02</span>
+                <div className={styles.stepCopy}>
+                  <h3>Ask Codex</h3>
+                  <p>Map the repository or trace a request flow.</p>
+                </div>
+              </li>
+              <li className={styles.workflowStep}>
+                <span className={styles.stepNumber}>03</span>
+                <div className={styles.stepCopy}>
+                  <h3>Explore the diagram</h3>
+                  <p>Review and edit the architecture on the canvas.</p>
+                </div>
+              </li>
+            </ol>
           </div>
-        </div></section>
+        </section>
 
-        <section id="how-it-works" className={styles.workflow}><div className={styles.shell}>
-          <div className={styles.workflowIntro}><p className={styles.eyebrow}><span /> A canvas, not a screenshot</p><h2><ScrollTextReveal>See the whole system.<br /><em>Then shape the story.</em></ScrollTextReveal></h2></div>
-          <ol className={styles.steps}>
-            <li><span>01</span><h3>Start anywhere</h3><p>Bring a repository, describe an idea, or import the diagram you already have.</p></li>
-            <li><span>02</span><h3>See the system</h3><p>ArchDraw organizes the moving parts into boundaries, services, and relationships.</p></li>
-            <li><span>03</span><h3>Design the conversation</h3><p>Edit the details, make the diagram yours, and share the view behind a decision.</p></li>
-          </ol>
-        </div></section>
+        <section className={styles.agentSection} aria-labelledby="agent-section-title">
+          <div className={`${styles.shell} ${styles.contentGrid}`}>
+            <div>
+              <h2 id="agent-section-title">Ask the question you’re stuck on.</h2>
+              <p className={styles.sectionLead}>
+                Trace a request, map a repository, or find where a service fits—all from your coding agent.
+              </p>
+            </div>
+            <ul className={styles.questionList} aria-label="Example questions for your coding agent">
+              <li>Where does checkout go after payment?</li>
+              <li>Which services handle sign-in?</li>
+              <li>What reads from the database?</li>
+            </ul>
+          </div>
+        </section>
 
-        <section className={styles.finalCta}><div className={styles.shell}><p className={styles.eyebrow}><span /> Your next system review starts here</p><h2><ScrollTextReveal>Make the next review<br /><em>unmistakably visual.</em></ScrollTextReveal></h2><a className={styles.primaryAction} href={START_CTA_HASH} data-track="final_cta">{START_CTA_LABEL} <ArrowRight size={17} /></a><p>Free during beta. Your diagram stays editable.</p></div></section>
+        <section className={styles.canvasSection} aria-labelledby="canvas-section-title">
+          <div className={`${styles.shell} ${styles.contentGrid}`}>
+            <div>
+              <h2 id="canvas-section-title">Keep shaping the answer.</h2>
+              <p className={styles.sectionLead}>
+                The result is an editable diagram. Refine the services and relationships, then share a clear view with your team.
+              </p>
+            </div>
+            <ul className={styles.canvasList} aria-label="Ways to work with the diagram">
+              <li>Move services into a clearer layout</li>
+              <li>Group components by system boundary</li>
+              <li>Share or export the diagram</li>
+            </ul>
+          </div>
+        </section>
       </main>
-      <Footer />
+      <Footer tone="dark" />
       <LandingBootstrap />
     </div>
   );

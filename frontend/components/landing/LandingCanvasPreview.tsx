@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -22,8 +22,8 @@ import styles from './LandingCanvasPreview.module.css';
 
 const PREVIEW_CANVAS_TOKENS = resolveCanvasTokens({
   renderStyleId: 'precision',
-  colorThemeId: 'default',
-  isDark: false,
+  colorThemeId: 'slate',
+  isDark: true,
 }).cssVars as CSSProperties;
 
 // Mirror the editor's precision canvas: same node types, edge types, theme tokens, and sizing.
@@ -46,6 +46,7 @@ function makeNode(id: string, label: string, subtitle: string, serviceType: stri
       category,
       layer,
       shape,
+      accentColor: '#91b8ff',
       nodeWidth: dims.width,
       nodeHeight: dims.height,
     },
@@ -67,22 +68,43 @@ const edge = (id: string, source: string, target: string, label: string, color: 
   sourceHandle: 'source-right',
   targetHandle: 'target-left',
   label,
-  animated: true,
+  animated: false,
   markerEnd: { type: MarkerType.ArrowClosed, color, width: 10, height: 10 },
   style: { stroke: color, strokeWidth: 1.4 },
   data: { label, pathType: 'Smoothstep', sourceSide: 'right', targetSide: 'left', labelPlacement: 'midpoint' },
 });
 
 const RAW_EDGES: Edge[] = [
-  edge('landing-request', 'landing-client', 'landing-api', 'HTTPS', '#64748b'),
-  edge('landing-queue', 'landing-api', 'landing-worker', 'ENQUEUE', '#b45309'),
-  edge('landing-data', 'landing-api', 'landing-database', 'QUERY', '#475569'),
+  edge('landing-request', 'landing-client', 'landing-api', 'HTTPS', '#69a8dc'),
+  edge('landing-queue', 'landing-api', 'landing-worker', 'ENQUEUE', '#91b8ff'),
+  edge('landing-data', 'landing-api', 'landing-database', 'QUERY', '#91b8ff'),
 ];
 
-function useLayoutedGraph() {
+function useNarrowCanvas() {
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 620px)');
+    const update = () => setIsNarrow(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  return isNarrow;
+}
+
+function useLayoutedGraph(direction: 'LR' | 'TB') {
   return useMemo(() => {
     const g = new dagre.graphlib.Graph();
-    g.setGraph({ rankdir: 'LR', nodesep: 120, ranksep: 120, marginx: 20, marginy: 20 });
+    const isHorizontal = direction === 'LR';
+    g.setGraph({
+      rankdir: direction,
+      nodesep: isHorizontal ? 120 : 20,
+      ranksep: isHorizontal ? 120 : 48,
+      marginx: 20,
+      marginy: 20,
+    });
     g.setDefaultEdgeLabel(() => ({}));
     for (const n of RAW_NODES) {
       const w = (n.width as number) ?? 200;
@@ -97,18 +119,41 @@ function useLayoutedGraph() {
       const h = (n.height as number) ?? 72;
       return { ...n, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
     });
-    return { nodes, edges: RAW_EDGES };
-  }, []);
+    const edges = RAW_EDGES.map((e) => ({
+      ...e,
+      sourceHandle: isHorizontal ? 'source-right' : 'source-bottom',
+      targetHandle: isHorizontal ? 'target-left' : 'target-top',
+      data: {
+        ...e.data,
+        sourceSide: isHorizontal ? 'right' : 'bottom',
+        targetSide: isHorizontal ? 'left' : 'top',
+      },
+    }));
+
+    return { nodes, edges };
+  }, [direction]);
 }
 
 function Canvas() {
-  const { nodes: initialNodes, edges: initialEdges } = useLayoutedGraph();
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+  const isNarrow = useNarrowCanvas();
+  const { nodes: layoutNodes, edges: layoutEdges } = useLayoutedGraph(isNarrow ? 'TB' : 'LR');
+  const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
+  const [instance, setInstance] = useState<ReactFlowInstance | null>(null);
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
-    requestAnimationFrame(() => instance.fitView({ padding: 0.18, duration: 0 }));
+    setInstance(instance);
   }, []);
+
+  useEffect(() => {
+    if (!instance) return;
+    setNodes(layoutNodes);
+    setEdges(layoutEdges);
+    const frame = requestAnimationFrame(() => {
+      instance.fitView({ padding: isNarrow ? 0.12 : 0.18, minZoom: 0.25, maxZoom: isNarrow ? 0.72 : 2, duration: 0 });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [instance, isNarrow, layoutNodes, layoutEdges, setNodes, setEdges]);
 
   return (
     <ReactFlow
@@ -132,9 +177,11 @@ function Canvas() {
       selectNodesOnDrag
       proOptions={{ hideAttribution: true }}
       fitView
-      fitViewOptions={{ padding: 0.18, duration: 0 }}
+      minZoom={0.25}
+      maxZoom={isNarrow ? 0.72 : 2}
+      fitViewOptions={{ padding: isNarrow ? 0.12 : 0.18, minZoom: 0.25, maxZoom: isNarrow ? 0.72 : 2, duration: 0 }}
     >
-      <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#d9dfdc" />
+      <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="var(--arch-canvas-grid)" />
     </ReactFlow>
   );
 }
@@ -142,19 +189,17 @@ function Canvas() {
 export function LandingCanvasPreview() {
   return (
     <div
-      className={styles.preview}
+      className={`${styles.preview} dark`}
       aria-label="An ArchDraw canvas preview showing a web application, API gateway, job worker, and Postgres database."
       data-render-style="precision"
-      data-color-theme="default"
+      data-color-theme="slate"
       style={PREVIEW_CANVAS_TOKENS}
     >
       <div className={styles.chrome}>
-        <span className={styles.windowControls}><i /><i /><i /></span>
-        <span className={styles.canvasName}>Production architecture</span>
-        <span className={styles.canvasStatus}><i /> live canvas</span>
+        <span className={styles.canvasName}>Example architecture</span>
+        <span className={styles.canvasStatus}><i /> editable</span>
       </div>
       <div className={styles.canvas}><ReactFlowProvider><Canvas /></ReactFlowProvider></div>
-      <div className={styles.caption}><span>EXAMPLE CANVAS</span><span>EDITABLE</span></div>
     </div>
   );
 }
