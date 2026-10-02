@@ -23,7 +23,6 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
-import { CreditsPill } from '@/components/toolbar/CreditsPill';
 
 export function Toolbar() {
   const router = useRouter();
@@ -336,7 +335,6 @@ export function Toolbar() {
             {darkMode ? <Sun className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Moon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
           </Button>
           <CanvasBackgroundControls />
-          <CreditsPill />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
             <Button
