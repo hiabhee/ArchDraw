@@ -734,12 +734,13 @@ function CanvasInner() {
         )}
         {canvasBackground.variant === 'lines' && showGrid && (
           <div
-            className="react-flow__background"
+            className="archdraw-lines-background"
             style={{
               position: 'absolute',
               inset: 0,
+              zIndex: 0,
               backgroundColor: 'transparent',
-              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? (isDark ? '#334155' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? (isDark ? '#334155' : '#e5e7eb')} 1px, transparent 1px)`,
+              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px)`,
               backgroundSize: `${canvasBackground.gap * viewport.zoom}px ${canvasBackground.gap * viewport.zoom}px`,
               backgroundPosition: `${viewport.x}px ${viewport.y}px`,
               opacity: isDark ? 0.25 : 1,
