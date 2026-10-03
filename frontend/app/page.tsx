@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import RevampedLanding from '@/components/landing/RevampedLanding';
 
 export const metadata: Metadata = {
-  title: 'ArchDraw — Give your coding agent an architecture canvas',
+  title: 'ArchDraw | Architecture diagrams from code and ideas',
   description:
-    'Connect ArchDraw to your coding agent. Map a repository, explain system flows, and refine architecture on an editable canvas.',
+    'Turn a public GitHub repository or system idea into an editable architecture diagram. Refine the graph in ArchDraw or connect a coding agent.',
   keywords: [
     'system architecture diagram',
     'architecture diagram tool',
@@ -22,17 +22,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: 'https://archdraw.hiabhee.online/',
-    title: 'ArchDraw — Give your coding agent an architecture canvas',
+    title: 'ArchDraw | Architecture diagrams from code and ideas',
     description:
-      'Map repositories, explain system flows, and refine architecture on an editable canvas with your coding agent.',
+      'Map public repositories or system ideas, then edit the architecture on a canvas or with a connected coding agent.',
     siteName: 'ArchDraw',
-    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw — system architecture diagram tool' }],
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw system architecture diagram tool' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ArchDraw — Give your coding agent an architecture canvas',
+    title: 'ArchDraw | Architecture diagrams from code and ideas',
     description:
-      'Connect ArchDraw to your coding agent to map repositories and explain system flows.',
+      'Map public repositories or system ideas, then edit the architecture on a canvas or with a connected coding agent.',
     images: ['/api/og/home'],
   },
 };

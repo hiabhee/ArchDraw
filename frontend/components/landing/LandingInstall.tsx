@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { Check, Clipboard } from 'lucide-react';
+import Link from 'next/link';
 import styles from './RevampedLanding.module.css';
 
-const INSTALL_COMMAND = 'npx archdraw-agent setup';
+const INSTALL_COMMAND = 'npx skills add hiabhee/archdraw-skill --skill archdraw-diagram';
 
 export function LandingInstall() {
   const [copied, setCopied] = useState(false);
@@ -33,7 +34,7 @@ export function LandingInstall() {
         </button>
       </div>
       <p className={styles.installNote} role={copyFailed ? 'alert' : undefined}>
-        {copyFailed ? 'Could not copy. Select the command above and copy it.' : 'Run this in your coding agent.'}
+        {copyFailed ? 'Could not copy. Select the command above and copy it.' : <>Install the skill from your project root, then <Link href="/agent-skill" className="underline underline-offset-2 hover:text-white">connect the MCP server</Link>.</>}
       </p>
     </div>
   );
