@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDiagramStore } from '@/store/diagramStore';
+import { splitComposedEdgeLabel } from '@/lib/utils/edgeLabelLayout';
 import { useCanvasTheme } from '@/lib/theme';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import {
@@ -22,6 +23,13 @@ interface EdgeLabelProps {
   color?: string;
   editing?: boolean;
   onEditingChange?: (editing: boolean) => void;
+  /**
+   * Collapsed response half ("req / resp" pills). The pill edits the joined
+   * display text, so commit splits it back — otherwise the joined string
+   * would be written into data.label while responseLabel stays, producing
+   * "req / resp / resp" on the next render.
+   */
+  responseLabel?: string;
 }
 
 /** Blend two hex colors into a fully opaque color. t = fraction of the first. */
@@ -43,10 +51,12 @@ export function EdgeLabel({
   color,
   editing: controlledEditing,
   onEditingChange,
+  responseLabel,
 }: EdgeLabelProps) {
   const { isDark } = useCanvasTheme();
   const { renderStyleId } = useDiagramAesthetics();
   const updateEdgeLabel = useDiagramStore((s) => s.updateEdgeLabel);
+  const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
 
   const isControlled = controlledEditing !== undefined;
   const [internalEditing, setInternalEditing] = useState(false);
@@ -77,9 +87,17 @@ export function EdgeLabel({
 
   const commit = useCallback(() => {
     const cleaned = getCleanedText(draft);
-    updateEdgeLabel(edgeId, cleaned);
+    if (responseLabel !== undefined) {
+      // Re-split the joined display text ("req / resp") so each half lands
+      // back in its own field. Removing the separator clears the response.
+      const { base, response } = splitComposedEdgeLabel(cleaned);
+      updateEdgeLabel(edgeId, base);
+      updateEdgeData(edgeId, { responseLabel: response });
+    } else {
+      updateEdgeLabel(edgeId, cleaned);
+    }
     setEditing(false);
-  }, [edgeId, draft, updateEdgeLabel, getCleanedText, setEditing]);
+  }, [edgeId, draft, updateEdgeLabel, updateEdgeData, responseLabel, getCleanedText, setEditing]);
 
   const cancel = useCallback(() => {
     setEditing(false);

@@ -237,6 +237,26 @@ function buildNodePositions(
   return map;
 }
 
+const nodePositionCache = new WeakMap<
+  Node[],
+  Map<string, Map<string, { x: number; y: number; width: number; height: number }>>
+>();
+
+function getCachedNodePositions(nodes: Node[], renderStyleId?: string) {
+  let byStyle = nodePositionCache.get(nodes);
+  if (!byStyle) {
+    byStyle = new Map();
+    nodePositionCache.set(nodes, byStyle);
+  }
+  const key = renderStyleId ?? '';
+  let positions = byStyle.get(key);
+  if (!positions) {
+    positions = buildNodePositions(nodes, renderStyleId);
+    byStyle.set(key, positions);
+  }
+  return positions;
+}
+
 /**
  * Per-side handle slot layout for a node.
  * Uses the same scorer as edgeRouteBuilder so the counted side for each edge
@@ -257,7 +277,9 @@ export function useHandleSlotLayout(nodeId?: string) {
   const renderStyleId = useDiagramStore((s) => s.diagramRenderStyle);
   const direction: 'LR' | 'TD' = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
-  const nodePositions = useMemo(() => buildNodePositions(nodes, renderStyleId), [nodes, renderStyleId]);
+  // Every node owns a handle hook. Share the diagram geometry map across those
+  // hooks so a drag rebuilds it once, instead of once per node.
+  const nodePositions = useMemo(() => getCachedNodePositions(nodes, renderStyleId), [nodes, renderStyleId]);
 
   // Scorer side for each incident edge, memoized per node — same scorer as edgeRouteBuilder.
   const incidentEdges = useMemo(
@@ -315,10 +337,10 @@ export function useHandleSlotLayout(nodeId?: string) {
       return edgeSideCache.get(edge.id);
     };
     for (const side of SIDES) {
-      map.set(side, computeDynamicSlotOffsets(nodeId, side, edges, nodePositions, resolver as unknown as (edge: Edge, nodeId: string) => Position | undefined));
+      map.set(side, computeDynamicSlotOffsets(nodeId, side, incidentEdges, nodePositions, resolver as unknown as (edge: Edge, nodeId: string) => Position | undefined));
     }
     return map;
-  }, [nodeId, edges, nodePositions, edgeSideCache]);
+  }, [nodeId, incidentEdges, nodePositions, edgeSideCache]);
 
   const getSlotOffset = (side: Position, type: 'source' | 'target') => {
     if (centeredSides.has(side)) return 0;

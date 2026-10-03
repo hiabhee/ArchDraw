@@ -130,9 +130,11 @@ describe('computeEdgeRoute group-node avoidance', () => {
     const edge = makeEdge('e1', 's', 't');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
-    // No unrelated groups exist, so a plain Z path is expected — not a detour.
-    expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints.length).toBeLessThanOrEqual(6);
+    // No unrelated groups exist, so a straight in-group path is expected —
+    // not a detour. (Degenerate Z midpoints are collapsed to 2 points.)
+    expect(route.waypoints.length).toBe(2);
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });
 
   it('keeps normal node avoidance unchanged when no groups are present', () => {

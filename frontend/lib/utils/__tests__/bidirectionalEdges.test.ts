@@ -122,6 +122,8 @@ describe('bidirectional edge routing', () => {
       'TD',
       undefined,
       {
+        // Inside-node garbage (a real handle sits 12px outside the node):
+        // must be coerced to the scored Bottom→Top anchors, not trusted.
         source: { x: 80, y: 80 },
         target: { x: 80, y: 300 },
         sourceSide: Position.Bottom,
@@ -129,10 +131,18 @@ describe('bidirectional edge routing', () => {
       },
     );
 
-    expect(route.waypoints.every((point) => point.x === 80)).toBe(true);
+    expect(route.sourcePosition).toBe(Position.Bottom);
+    expect(route.targetPosition).toBe(Position.Top);
+    const xs = new Set(route.waypoints.map((point) => point.x));
+    expect(xs.size).toBe(1);
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });
 
-  it('uses measured horizontal handle coordinates for route orientation', () => {
+  it('adopts fresh measured anchors that sit on the scorer winner', () => {
+    // Effective box of a 160×80 system node is 200×100, so the live Right /
+    // Left handle centers are (212, 50) and (388, 50) — pass those as the
+    // measured anchors and they must be kept subpixel-exactly.
     const nodes = [makeNode('left', 0, 0, 160, 80), makeNode('right', 400, 0, 160, 80)];
     const edge = makeEdge('left-right', 'left', 'right');
     const route = computeEdgeRoute(
@@ -141,11 +151,11 @@ describe('bidirectional edge routing', () => {
       [edge],
       'LR',
       undefined,
-      { source: { x: 172, y: 40 }, target: { x: 388, y: 40 } },
+      { source: { x: 212, y: 50 }, target: { x: 388, y: 50 } },
     );
 
     expect(route.sourcePosition).toBe(Position.Right);
     expect(route.targetPosition).toBe(Position.Left);
-    expect(route.waypoints.every((point) => point.y === 40)).toBe(true);
+    expect(route.waypoints.every((point) => point.y === 50)).toBe(true);
   });
 });

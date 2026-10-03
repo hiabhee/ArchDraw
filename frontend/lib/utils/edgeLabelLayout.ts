@@ -228,22 +228,56 @@ export function pointAtFraction(segs: PathSegment[], f: number): { x: number; y:
 
 // ── Label text & preferred position (mirrors SimpleFloatingEdge) ───────────
 
+/**
+ * Joins a request label with its collapsed response label (`request / response`).
+ * Either side may be empty (e.g. a collapsed B→A edge with no forward label) —
+ * never emit a dangling leading/trailing `/` in that case.
+ */
+export function composeEdgeDisplayLabel(
+  baseLabel: unknown,
+  responseLabel: unknown,
+): string {
+  const base = typeof baseLabel === 'string' ? baseLabel.trim() : ''
+  const resp = typeof responseLabel === 'string' ? responseLabel.trim() : ''
+  // Join with a spaced separator only when both halves are present — an empty
+  // half must never leave a dangling "/". Inner slashes ("read/write",
+  // "/api/users") are content and pass through untouched.
+  const raw = base && resp ? `${base} / ${resp}` : base || resp
+  const words = raw ? raw.split(/\s+/).filter(Boolean) : []
+  if (words.length === 0) return ''
+  const full = words.length <= 3 ? raw : words.slice(0, 3).join(' ')
+  // Defensive: strip a leftover separator from legacy data (slash with
+  // adjacent whitespace), but preserve content slashes like "/api/users".
+  return full.replace(/^\s*\/\s+/, '').replace(/\s+\/\s*$/, '').trim()
+}
+
+/**
+ * Inverse of the join in `composeEdgeDisplayLabel`: split pill text edited by
+ * the user back into its request/response halves. A missing separator clears
+ * the response (what-you-see-is-what-you-get); content slashes without
+ * surrounding spaces ("read/write") never split.
+ */
+export function splitComposedEdgeLabel(draft: string): { base: string; response: string | undefined } {
+  const sep = ' / ';
+  const idx = draft.indexOf(sep);
+  if (idx === -1) {
+    // A trailing " /" with the response deleted is a leftover separator, not
+    // content (content slashes like "api/" have no preceding space).
+    return { base: draft.trim().replace(/\s+\/$/, '').trim(), response: undefined };
+  }
+  return {
+    base: draft.slice(0, idx).trim(),
+    response: draft.slice(idx + sep.length).trim() || undefined,
+  };
+}
+
 function getDisplayLabel(edge: Edge): string {
   const data = edge.data as Record<string, unknown> | undefined
-  const responseLabel = data?.responseLabel
-  const rawLabel = responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
-    ? `${edge.label || data?.label || ''} / ${responseLabel.trim()}`
-    : typeof data?.label === 'string'
-      ? data.label.trim()
-      : typeof edge.label === 'string'
-        ? edge.label.trim()
-        : ''
-
-  const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : []
-  if (words.length === 0) return ''
-  const fullLabel = words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ')
-  // Remove trailing slash (handles both "A/" and "A / " cases)
-  return fullLabel.replace(/\s*\/\s*$/, '').trim()
+  const base =
+    typeof edge.label === 'string' && edge.label.trim()
+      ? edge.label
+      : (data?.label as unknown)
+  return composeEdgeDisplayLabel(base, data?.responseLabel as unknown)
 }
 
 function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number): number {
@@ -815,6 +849,15 @@ interface CacheEntry {
 
 const layoutCache = new Map<Edge[], CacheEntry>()
 const CACHE_MAX = 8
+const draggingCache = new WeakMap<ReadonlyMap<string, Node>, boolean>()
+
+function hasDraggingNode(nodeInternals: ReadonlyMap<string, Node>): boolean {
+  const cached = draggingCache.get(nodeInternals)
+  if (cached !== undefined) return cached
+  const dragging = Array.from(nodeInternals.values()).some((node) => Boolean((node as Node & { dragging?: boolean }).dragging))
+  draggingCache.set(nodeInternals, dragging)
+  return dragging
+}
 
 export function computeEdgeLabelLayout(
   edges: Edge[],
@@ -824,6 +867,12 @@ export function computeEdgeLabelLayout(
 ): ReadonlyMap<string, EdgeLabelAnchor> {
   const hit = layoutCache.get(edges)
   if (hit && hit.nodeInternals === nodeInternals && hit.direction === direction && hit.renderStyle === renderStyle) {
+    return hit.result
+  }
+  // During a node drag, edge paths already move every frame. Keep the last
+  // label fractions and project them onto those live paths; rerun the global
+  // obstacle-aware label planner once the drag ends.
+  if (hit && hit.direction === direction && hit.renderStyle === renderStyle && hasDraggingNode(nodeInternals)) {
     return hit.result
   }
 

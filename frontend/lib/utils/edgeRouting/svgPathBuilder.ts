@@ -50,6 +50,22 @@ export function buildSmoothStepSvg(
     const curr = cleaned[i];
     const next = cleaned[i + 1];
 
+    // React Flow measures handle centers with subpixel differences. Treat a
+    // continuing horizontal/vertical run as straight; otherwise a ~0.00001px
+    // drift becomes a visible 24px semicircle at the middle waypoint.
+    const horizontalRun =
+      Math.abs(prev.y - curr.y) < 0.5 &&
+      Math.abs(curr.y - next.y) < 0.5 &&
+      (curr.x - prev.x) * (next.x - curr.x) >= 0;
+    const verticalRun =
+      Math.abs(prev.x - curr.x) < 0.5 &&
+      Math.abs(curr.x - next.x) < 0.5 &&
+      (curr.y - prev.y) * (next.y - curr.y) >= 0;
+    if (horizontalRun || verticalRun) {
+      d += ` L ${curr.x},${curr.y}`;
+      continue;
+    }
+
     const dx1 = Math.sign(curr.x - prev.x);
     const dy1 = Math.sign(curr.y - prev.y);
     const dx2 = Math.sign(next.x - curr.x);

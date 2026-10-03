@@ -34,6 +34,18 @@ describe('Dynamic Handles Fixes', () => {
     expect(handles.targetPosition).toBe(Position.Left);
   });
 
+  it('falls back when the facing pair tunnels through a terminal', () => {
+    // Near-overlapping nodes: the facing Right→Left orthogonal path runs
+    // back through the source interior, so a non-penetrating pair must win.
+    const sourceRect = { x: 0, y: 0, width: 100, height: 50 };
+    const targetRect = { x: 10, y: 0, width: 100, height: 50 };
+
+    const handles = getObstacleAwareHandles(sourceRect, targetRect, undefined, new Set(['source', 'target']));
+    const isRightLeft =
+      handles.sourcePosition === Position.Right && handles.targetPosition === Position.Left;
+    expect(isRightLeft).toBe(false);
+  });
+
   it('should separate parallel same-direction edges on the same side', () => {
     const nodeInternals = new Map<string, Node>([
       ['A', { id: 'A', position: { x: 0, y: 0 }, data: { label: 'A' }, width: 100, height: 50, type: 'shapeNode' }],

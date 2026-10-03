@@ -46,10 +46,9 @@ describe('low-bend collision reroutes', () => {
 
     const route = computeEdgeRoute(edge, [source, target, nearby], [edge], 'LR', 'studio-minimal')
 
+    // Degenerate midpoints are collapsed: a clear corridor is exactly straight.
     expect(route.waypoints).toEqual([
       { x: 172, y: 132 },
-      { x: 330, y: 132 },
-      { x: 330, y: 132 },
       { x: 488, y: 132 },
     ])
   })

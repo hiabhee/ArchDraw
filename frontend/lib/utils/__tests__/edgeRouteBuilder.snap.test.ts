@@ -18,15 +18,17 @@ function makeEdge(id: string, source: string, target: string): Edge {
 }
 
 describe('computeEdgeRoute routing', () => {
-  it('keeps both endpoints on their handles when centers differ by less than 8px', () => {
+  it('snaps a near-aligned link (<8px) to a pixel-straight line at the midpoint', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 106)];
     const edge = makeEdge('e1', 'a', 'b');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
-    expect(route.sourcePoint).toEqual({ x: 312, y: 150 });
-    expect(route.targetPoint).toEqual({ x: 488, y: 156 });
+    // 6px of vertical drift would read as a slanted wire — both ends meet at
+    // the midpoint (153), staying inside either handle donut.
+    expect(route.sourcePoint).toEqual({ x: 312, y: 153 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 153 });
     expect(route.waypoints).toEqual([route.sourcePoint, route.targetPoint]);
-    expect(route.svgPath).toBe('M 312,150 L 488,156');
+    expect(route.svgPath).toBe('M 312,153 L 488,153');
   });
 
   it('does not straighten a near-aligned link through another node', () => {
@@ -70,5 +72,58 @@ describe('computeEdgeRoute routing', () => {
     const route = computeEdgeRoute(e1, nodes, [e1, e2], 'LR');
 
     expect(route.waypoints.length).toBeGreaterThan(2);
+  });
+
+  it('ignores stale measured anchors that left the scorer winner', () => {
+    // Same-rank nodes: scorer puts terminals at Right (312,150) / Left (488,150).
+    // Stored handle ids can point at a hidden handle elsewhere — the wire must
+    // meet the visible handle, perpendicular to it, not empty canvas.
+    const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
+    const edge = makeEdge('e1', 'a', 'b');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, {
+      source: { x: 200, y: 60 },
+      target: { x: 600, y: 200 },
+    });
+
+    expect(route.sourcePoint).toEqual({ x: 312, y: 150 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 150 });
+    expect(route.sourcePosition).toBe('right');
+    expect(route.targetPosition).toBe('left');
+  });
+
+  it('adopts fresh measured anchors that sit on the scorer winner', () => {
+    const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
+    const edge = makeEdge('e1', 'a', 'b');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, {
+      source: { x: 314, y: 150 },
+      target: { x: 488, y: 150 },
+    });
+
+    // Within tolerance of the scored anchor: keep the live handle center so
+    // the wire touches the rendered donut subpixel-exactly.
+    expect(route.sourcePoint).toEqual({ x: 314, y: 150 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 150 });
+  });
+
+  it('keeps valid custom waypoints but coerces stale measured anchors', () => {
+    const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
+    const edge = {
+      id: 'e1', source: 'a', target: 'b', type: 'default',
+      data: { customWaypoints: [{ x: 400, y: 150 }] },
+    } as Edge;
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, {
+      source: { x: 200, y: 60 },
+      target: { x: 600, y: 200 },
+    });
+
+    // The user waypoint survives (axis-aligned with scorer terminals), but
+    // the stale measured ends are replaced by the scored anchors.
+    expect(route.sourcePoint).toEqual({ x: 312, y: 150 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 150 });
+    expect(route.waypoints).toEqual([
+      { x: 312, y: 150 },
+      { x: 400, y: 150 },
+      { x: 488, y: 150 },
+    ]);
   });
 });

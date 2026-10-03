@@ -13,8 +13,12 @@
 import { Position } from 'reactflow';
 import {
   selectBestHandlerPair,
+  scoreAllHandlerPairs,
+  buildDefaultOrthogonalWaypoints,
+  anchorOutsideBoundary,
   type HandlerRect,
 } from '../utils/handlerPairScorer';
+import { segmentIntersectsRect } from '../utils/collisionFreeEdgePath';
 
 export type HandleSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -90,8 +94,77 @@ export function getObstacleAwareHandles(
     laneTarget,
   );
 
+  // Mirror computeEdgeRoute / useHandleSlotLayout: a facing pair whose
+  // default orthogonal path tunnels through a terminal must fall back,
+  // otherwise the persisted handle ids disagree with the rendered sides.
+  const customWaypoints = edgeData?.customWaypoints;
+  const usesCustomWaypoints = Array.isArray(customWaypoints) && customWaypoints.length > 0;
+  if (
+    (manualSource === undefined || manualTarget === undefined) &&
+    !usesCustomWaypoints
+  ) {
+    const fallback = scoreAllHandlerPairs(
+      sourceRect,
+      targetRect,
+      direction,
+      obstacles.size > 0 ? obstacles : undefined,
+      excludedNodeIds,
+    )
+      .map((s) => {
+        // Same -50 lane bias selectBestHandlerPair applies internally.
+        let total = s.total;
+        if (laneSource !== undefined && s.pair.sourceSide === laneSource) total -= 50;
+        if (laneTarget !== undefined && s.pair.targetSide === laneTarget) total -= 50;
+        return { ...s, total };
+      })
+      .sort((a, b) => a.total - b.total)
+      .find((s) => {
+        if (manualSource !== undefined && s.pair.sourceSide !== manualSource) return false;
+        if (manualTarget !== undefined && s.pair.targetSide !== manualTarget) return false;
+        if (s.pair.sourceSide === pair.sourceSide && s.pair.targetSide === pair.targetSide) return false;
+        return !orthogonalPenetratesTerminal(sourceRect, targetRect, s.pair.sourceSide, s.pair.targetSide);
+      });
+    if (fallback && orthogonalPenetratesTerminal(sourceRect, targetRect, pair.sourceSide, pair.targetSide)) {
+      return {
+        sourcePosition: fallback.pair.sourceSide,
+        targetPosition: fallback.pair.targetSide,
+      };
+    }
+  }
+
   return {
     sourcePosition: pair.sourceSide,
     targetPosition: pair.targetSide,
   };
+}
+
+/**
+ * Same terminal-penetration check as computeEdgeRoute: endpoints sit 12px
+ * outside the node, so a correct path never enters either interior.
+ */
+function orthogonalPenetratesTerminal(
+  sourceRect: HandlerRect,
+  targetRect: HandlerRect,
+  sourceSide: Position,
+  targetSide: Position,
+): boolean {
+  const srcA = anchorOutsideBoundary(sourceRect, sourceSide);
+  const tgtA = anchorOutsideBoundary(targetRect, targetSide);
+  const waypoints = buildDefaultOrthogonalWaypoints(srcA, tgtA, sourceSide, targetSide);
+  const pad = 2;
+  const shrink = (r: HandlerRect): HandlerRect => ({
+    x: r.x + pad,
+    y: r.y + pad,
+    width: Math.max(1, r.width - pad * 2),
+    height: Math.max(1, r.height - pad * 2),
+  });
+  const src = shrink(sourceRect);
+  const tgt = shrink(targetRect);
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i];
+    const b = waypoints[i + 1];
+    if (segmentIntersectsRect(a.x, a.y, b.x, b.y, src.x, src.y, src.width, src.height)) return true;
+    if (segmentIntersectsRect(a.x, a.y, b.x, b.y, tgt.x, tgt.y, tgt.width, tgt.height)) return true;
+  }
+  return false;
 }

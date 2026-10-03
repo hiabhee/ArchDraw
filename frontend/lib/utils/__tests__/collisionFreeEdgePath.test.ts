@@ -1,10 +1,33 @@
 import { Position } from 'reactflow';
 import { describe, it, expect } from 'vitest';
 import {
+  buildSmoothStepSvg,
   getCollisionFreeSmoothStepPath,
   getCollisionFreeWaypoints,
 } from '../collisionFreeEdgePath';
 import type { NodeRect } from '../collisionFreeEdgePath';
+
+describe('smooth step SVG rounding', () => {
+  it('keeps measured horizontal waypoints straight despite subpixel drift', () => {
+    const path = buildSmoothStepSvg([
+      { x: 0, y: 340.0000204 },
+      { x: 120, y: 340.0000204 },
+      { x: 240, y: 340.0000093 },
+    ], 24);
+
+    expect(path).not.toContain(' A ');
+  });
+
+  it('still rounds a real right-angle turn', () => {
+    const path = buildSmoothStepSvg([
+      { x: 0, y: 0 },
+      { x: 120, y: 0 },
+      { x: 120, y: 100 },
+    ], 24);
+
+    expect(path).toContain(' A 24,24 ');
+  });
+});
 
 function makeRects(entries: Array<{ id: string; x: number; y: number; w?: number; h?: number }>): Map<string, NodeRect> {
   const map = new Map<string, NodeRect>();

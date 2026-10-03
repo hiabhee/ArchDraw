@@ -4,6 +4,8 @@ import {
   computeEdgeLabelLayout,
   buildPathSegments,
   pointAtFraction,
+  composeEdgeDisplayLabel,
+  splitComposedEdgeLabel,
   type EdgeLabelAnchor,
 } from '../edgeLabelLayout'
 import { computeEdgeRoute } from '../edgeRouteBuilder'
@@ -413,5 +415,51 @@ describe('computeEdgeLabelLayout', () => {
     // Prefer mid-gap along the path, not the old source-hugging ~0.225.
     expect(a1.t).toBeGreaterThan(0.35)
     expect(a2.t).toBeGreaterThan(0.35)
+  })
+})
+
+describe('composeEdgeDisplayLabel', () => {
+  it('joins request and response labels with a separator', () => {
+    expect(composeEdgeDisplayLabel('order', 'receipt')).toBe('order / receipt')
+  })
+
+  it('never emits a leading slash when the request label is empty', () => {
+    expect(composeEdgeDisplayLabel('', 'returns payment')).toBe('returns payment')
+    expect(composeEdgeDisplayLabel(undefined, 'returns payment')).toBe('returns payment')
+  })
+
+  it('never emits a trailing slash when the response label is empty', () => {
+    expect(composeEdgeDisplayLabel('places order', '')).toBe('places order')
+    expect(composeEdgeDisplayLabel('places order', undefined)).toBe('places order')
+  })
+
+  it('returns empty string when both labels are empty', () => {
+    expect(composeEdgeDisplayLabel('', '')).toBe('')
+    expect(composeEdgeDisplayLabel(undefined, undefined)).toBe('')
+  })
+
+  it('strips stray separators from legacy joined values', () => {
+    expect(composeEdgeDisplayLabel('/ returns payment', undefined)).toBe('returns payment')
+    expect(composeEdgeDisplayLabel('places order /', undefined)).toBe('places order')
+  })
+
+  it('preserves content slashes inside labels', () => {
+    expect(composeEdgeDisplayLabel('/api/users', undefined)).toBe('/api/users')
+    expect(composeEdgeDisplayLabel('send', 'read/write')).toBe('send / read/write')
+  })
+})
+
+describe('splitComposedEdgeLabel', () => {
+  it('splits joined pill text back into halves', () => {
+    expect(splitComposedEdgeLabel('order / receipt')).toEqual({ base: 'order', response: 'receipt' })
+  })
+
+  it('clears the response when the separator is removed', () => {
+    expect(splitComposedEdgeLabel('order')).toEqual({ base: 'order', response: undefined })
+    expect(splitComposedEdgeLabel('order /')).toEqual({ base: 'order', response: undefined })
+  })
+
+  it('never splits content slashes', () => {
+    expect(splitComposedEdgeLabel('read/write')).toEqual({ base: 'read/write', response: undefined })
   })
 })

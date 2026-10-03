@@ -6,7 +6,7 @@ import { EdgeLabelRenderer, EdgeProps, useReactFlow, useStore, ReactFlowState, P
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { getPointOnPath, findClosestT, shortenSvgPathEnd, SKETCH_ARROWHEAD_TRIM_PX } from '@/lib/utils/edgeLabelDrag';
 import { buildSmoothStepSvg, trimWaypointsEnd } from '@/lib/utils/collisionFreeEdgePath';
-import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
+import { computeEdgeLabelLayout, composeEdgeDisplayLabel } from '@/lib/utils/edgeLabelLayout';
 
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
@@ -369,14 +369,11 @@ export default function SimpleFloatingEdge({
     routeWaypoints, tx, ty, id, data, isDark, sketchInk,
   ]);
 
-  const rawLabel = responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
-    ? `${label || data?.label || ''} / ${responseLabel.trim()}`
-    : (typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : ''));
-
-  const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : [];
-  const truncated = words.length === 0 ? '' : words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ');
-  // Remove trailing slash (handles both "A/" and "A / " cases)
-  const displayLabel = truncated.replace(/\s*\/\s*$/, '').trim();
+  const baseForLabel =
+    responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
+      ? (typeof label === 'string' && label.trim() ? label : data?.label)
+      : (typeof data?.label === 'string' && (data.label as string).trim() ? data.label : label);
+  const displayLabel = composeEdgeDisplayLabel(baseForLabel, responseLabel);
 
   const parallelEdges = useMemo(
     () => edges.filter((edge) =>
@@ -400,7 +397,15 @@ export default function SimpleFloatingEdge({
       }
     }
     const resolved = labelLayouts.get(id);
-    if (resolved) return { x: resolved.x, y: resolved.y, angle: 0 };
+    if (resolved) {
+      // The shared label planner routes without React Flow's measured handle
+      // centers. Keep its collision-aware position along the edge, but sample
+      // the path we actually render so the pill is centered on the visible wire.
+      if (stableEdgePath && typeof window !== 'undefined') {
+        return getPointOnPath(stableEdgePath, resolved.t);
+      }
+      return { x: resolved.x, y: resolved.y, angle: 0 };
+    }
     try {
       return getPointOnPath(stableEdgePath, labelT);
     } catch {
@@ -577,7 +582,8 @@ export default function SimpleFloatingEdge({
           >
             <EdgeLabel
               edgeId={id}
-              label={displayLabel || rawLabel}
+              label={displayLabel}
+              responseLabel={typeof responseLabel === 'string' ? responseLabel : undefined}
               labelX={labelPos.x}
               labelY={labelPos.y}
               color={resolvedStroke}

@@ -1,9 +1,9 @@
 import type { Edge, Node } from 'reactflow'
 import { Position } from '@/lib/utils/edgePositions'
 import { type ObstacleRect } from './obstacleRect'
-import { getBoundaryAnchor, getEdgeShiftOffset } from './simpleFloatingEdge'
+import { getBoundaryAnchor, getEdgeShiftOffset, INCOMING_OUTGOING_GAP } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
-import { hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
+import { getBidirectionalLaneOffset, hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import logger from '@/lib/logger'
 import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
 import {
@@ -16,6 +16,7 @@ import {
 } from './handlerPairScorer'
 
 const FOREIGN_NODE_CLEARANCE = 50
+const BIDIRECTIONAL_ROUTE_LANE_OFFSET = 24
 // A direct edge may pass near a node without detouring around it. The larger
 // clearance remains for deliberate reroutes; using it for a clear straight
 // corridor creates conspicuous U-turns around nodes that the edge never hits.
@@ -50,6 +51,46 @@ function isAxisAligned(
   b: { x: number; y: number },
 ): boolean {
   return Math.abs(a.x - b.x) < 0.5 || Math.abs(a.y - b.y) < 0.5
+}
+
+/** A measured handle anchor is trustworthy only when it sits on the scored anchor. */
+const HANDLE_ANCHOR_TOLERANCE = 6
+
+function pointsNear(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  tolerance: number = HANDLE_ANCHOR_TOLERANCE,
+): boolean {
+  return Math.abs(a.x - b.x) <= tolerance && Math.abs(a.y - b.y) <= tolerance
+}
+
+/**
+ * Snap near-aligned facing terminals to a pixel-straight line at the
+ * midpoint. A 2–7px diagonal reads as a slanted wire, while ≤4px off a
+ * handle center stays inside the handle donut. Returns the (possibly
+ * unchanged) endpoint pair.
+ */
+function snapNearAlignedEndpoints(
+  sh: { x: number; y: number },
+  th: { x: number; y: number },
+  sourcePosition: Position,
+  targetPosition: Position,
+): [{ x: number; y: number }, { x: number; y: number }] {
+  const facingHorizontal =
+    (sourcePosition === Position.Right && targetPosition === Position.Left && sh.x < th.x) ||
+    (sourcePosition === Position.Left && targetPosition === Position.Right && sh.x > th.x)
+  const facingVertical =
+    (sourcePosition === Position.Bottom && targetPosition === Position.Top && sh.y < th.y) ||
+    (sourcePosition === Position.Top && targetPosition === Position.Bottom && sh.y > th.y)
+  if (facingHorizontal && Math.abs(sh.y - th.y) > 0.01 && Math.abs(sh.y - th.y) < 8) {
+    const midY = (sh.y + th.y) / 2
+    return [{ x: sh.x, y: midY }, { x: th.x, y: midY }]
+  }
+  if (facingVertical && Math.abs(sh.x - th.x) > 0.01 && Math.abs(sh.x - th.x) < 8) {
+    const midX = (sh.x + th.x) / 2
+    return [{ x: midX, y: sh.y }, { x: midX, y: th.y }]
+  }
+  return [sh, th]
 }
 
 /**
@@ -104,21 +145,6 @@ function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string): Obstacl
   const pos = getAbsolutePosition(node, nodes)
   const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId)
   return { x: pos.x, y: pos.y, w, h }
-}
-
-/** Resolve the actual React Flow handle side from its measured center. */
-function inferMeasuredHandleSide(
-  point: { x: number; y: number },
-  rect: ObstacleRect,
-): Position {
-  const distances: Array<[Position, number]> = [
-    [Position.Left, Math.abs(point.x - rect.x)],
-    [Position.Right, Math.abs(point.x - (rect.x + rect.w))],
-    [Position.Top, Math.abs(point.y - rect.y)],
-    [Position.Bottom, Math.abs(point.y - (rect.y + rect.h))],
-  ]
-  distances.sort((a, b) => a[1] - b[1])
-  return distances[0][0]
 }
 
 export function isGroupNode(node: Node): boolean {
@@ -257,9 +283,11 @@ function computeDirectWaypoints(
   borderRadius: number = 24,
   trustMeasuredTerminals: boolean = false,
 ): Array<{ x: number; y: number }> {
-  // A tiny height difference should read as one shallow connector. An
-  // orthogonal Z route makes a short vertical kink in the middle, while
-  // moving either endpoint would detach the line from its visible handle.
+  // A tiny height difference should read as one straight connector. Snap to
+  // the midpoint so the wire is pixel-straight instead of a shallow diagonal;
+  // moving either endpoint stays inside the handle donut. An orthogonal Z
+  // route would put a short vertical kink in the middle, while moving only
+  // one endpoint would detach the line from its visible handle.
   const nearHorizontal =
     ((sourcePosition === Position.Right && targetPosition === Position.Left && sh.x < th.x) ||
       (sourcePosition === Position.Left && targetPosition === Position.Right && sh.x > th.x)) &&
@@ -271,7 +299,8 @@ function computeDirectWaypoints(
     Math.abs(sh.x - th.x) > 0.01 &&
     Math.abs(sh.x - th.x) < 8;
   if (edgeOffset === 0 && (nearHorizontal || nearVertical)) {
-    const straight = [sh, th];
+    const [ssh, sth] = snapNearAlignedEndpoints(sh, th, sourcePosition, targetPosition);
+    const straight = [ssh, sth];
     const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
     if (!blocked && (trustMeasuredTerminals || !pathEntersTerminalInterior(straight, sourceRect, targetRect))) {
       return straight;
@@ -560,11 +589,27 @@ export function computeEdgeRoute(
     // to Right-mid. Corner variant keeps Top → Right.
     const wrapSrcPt = { x: left - GAP_EDGE, y: cy }
     const wrapTgtPt = { x: right + GAP_EDGE, y: cy }
-    // Keep corner anchors handle-aware (Top → Right) for back-compat
+    // Keep corner anchors handle-aware (Top → Right) for back-compat, but
+    // only when the measured center is actually on that handle — stale ids
+    // (e.g. after a relayout) would otherwise hinge the loop on empty canvas.
     const srcSide = handleAnchors?.sourceSide ?? Position.Top
     const tgtSide = handleAnchors?.targetSide ?? Position.Right
-    const anchorTop = toEdge(handleAnchors?.source, srcSide, { x: cx, y: top - GAP_EDGE })
-    const anchorRightForCorner = toEdge(handleAnchors?.target, tgtSide, { x: right + GAP_EDGE, y: cy })
+    const topFallback = { x: cx, y: top - GAP_EDGE }
+    const rightFallback = { x: right + GAP_EDGE, y: cy }
+    const anchorTop = toEdge(
+      handleAnchors?.source && pointsNear(handleAnchors.source, topFallback, GAP_EDGE)
+        ? handleAnchors.source
+        : undefined,
+      srcSide,
+      topFallback,
+    )
+    const anchorRightForCorner = toEdge(
+      handleAnchors?.target && pointsNear(handleAnchors.target, rightFallback, GAP_EDGE)
+        ? handleAnchors.target
+        : undefined,
+      tgtSide,
+      rightFallback,
+    )
 
     // Sketch-exact path (image 1 → image 2): generous wrap that leaves
     // Left-mid, goes out left, up, across the top, down, enters Right-mid.
@@ -707,20 +752,26 @@ export function computeEdgeRoute(
       (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId),
       renderStyleId,
     )
-    const sh = handleAnchors?.source ?? getBoundaryAnchor(
+    const scoredSh = getBoundaryAnchor(
       sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
       sourcePosition, sourceShift,
     )
-    const th = handleAnchors?.target ?? getBoundaryAnchor(
+    const scoredTh = getBoundaryAnchor(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
       targetPosition, targetShift,
     )
+    // Same staleness rule as the main branch: stored handle ids go stale when
+    // a side re-floats, and the measured center then belongs to a hidden
+    // handle. Adopt it only on the scorer winner; otherwise a dragged edge
+    // validates (and draws) against empty canvas.
+    const sh = handleAnchors?.source && pointsNear(handleAnchors.source, scoredSh)
+      ? handleAnchors.source
+      : scoredSh
+    const th = handleAnchors?.target && pointsNear(handleAnchors.target, scoredTh)
+      ? handleAnchors.target
+      : scoredTh
     if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
     if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
-    if (handleAnchors) {
-      sourcePosition = inferMeasuredHandleSide(handleAnchors.source, sourceRect)
-      targetPosition = inferMeasuredHandleSide(handleAnchors.target, targetRect)
-    }
 
     if (!hasValidCustomWaypointPath(sh, th, sourcePosition, targetPosition, customWaypoints)) {
       const { customWaypoints: _staleWaypoints, ...cleanData } = edgeData ?? {}
@@ -809,10 +860,6 @@ export function computeEdgeRoute(
 
   if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
   if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
-  if (handleAnchors) {
-    sourcePosition = inferMeasuredHandleSide(handleAnchors.source, sourceRect)
-    targetPosition = inferMeasuredHandleSide(handleAnchors.target, targetRect)
-  }
 
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
   const resolveSide = (e: Edge, nodeId: string) =>
@@ -826,24 +873,61 @@ export function computeEdgeRoute(
     edge.target, edge.id, targetPosition, edges, nodeMap, 24,
     undefined, undefined, resolveSide, renderStyleId,
   )
-  const sh = handleAnchors?.source ?? getBoundaryAnchor(
+  // Scorer-side anchors are perpendicular to the visible handles by
+  // construction. Live measured centers belong to the edge's stored handle
+  // ids, which go stale when a side re-floats (React Flow keeps reporting the
+  // old handle, hidden but still mounted) — adopting one blindly lands the
+  // arrow on empty canvas at an angle. Adopt a measured anchor only when it
+  // sits on the scorer winner; otherwise use the scored anchor so the wire
+  // meets the handle it is drawn next to, perpendicular to it.
+  const scoredSh = getBoundaryAnchor(
     sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
     sourcePosition, sourceShift,
   )
-  const th = handleAnchors?.target ?? getBoundaryAnchor(
+  const scoredTh = getBoundaryAnchor(
     targetRect.x, targetRect.y, targetRect.w, targetRect.h,
     targetPosition, targetShift,
   )
+  const measuredSh = handleAnchors?.source
+  const measuredTh = handleAnchors?.target
+  const [preSh, preTh] = [
+    measuredSh && pointsNear(measuredSh, scoredSh) ? measuredSh : scoredSh,
+    measuredTh && pointsNear(measuredTh, scoredTh) ? measuredTh : scoredTh,
+  ]
+  // Pixel-straighten near-aligned facing terminals (see helper): a 2–7px
+  // diagonal reads as slanted, while the midpoint stays in both donuts.
+  const [sh, th] = snapNearAlignedEndpoints(preSh, preTh, sourcePosition, targetPosition)
 
 
   // Intermediate nodes only for the obstacle map — source/target are added
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
   const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
-  // Keep the route midpoint centered. Bidirectional handles already provide
-  // the lane separation; offsetting this midpoint moves along the route axis
-  // and creates an unwanted U-shaped dip instead of a parallel track.
-  const edgeOffset = 0
+  // Opposite-direction edges with vertically (or horizontally) staggered
+  // endpoints can otherwise share the same middle stem even though their
+  // handles use separate lanes. Give each direction its own middle track
+  // once that shared stem would exceed the handle lane gap. Near-aligned
+  // endpoints keep the simpler straight route.
+  const bidirectionalLane = getBidirectionalLaneOffset(
+    edge,
+    edge.source,
+    edges,
+    new Map([
+      [edge.source, { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h }],
+      [edge.target, { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h }],
+    ]),
+  )
+  const sourceIsHorizontal = sourcePosition === Position.Left || sourcePosition === Position.Right
+  const targetIsHorizontal = targetPosition === Position.Left || targetPosition === Position.Right
+  const routeAxisSeparation =
+    sourceIsHorizontal && targetIsHorizontal
+      ? Math.abs(sh.y - th.y)
+      : !sourceIsHorizontal && !targetIsHorizontal
+        ? Math.abs(sh.x - th.x)
+        : 0
+  const edgeOffset = bidirectionalLane !== null && routeAxisSeparation > INCOMING_OUTGOING_GAP * 2
+    ? Math.sign(bidirectionalLane) * BIDIRECTIONAL_ROUTE_LANE_OFFSET
+    : 0
 
   const waypointsRaw = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
