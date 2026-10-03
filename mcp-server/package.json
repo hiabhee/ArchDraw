@@ -1,6 +1,6 @@
 {
   "name": "@hiabhee/archdraw-mcp-server",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MCP server for ArchDraw architecture diagramming tool",
   "main": "dist/index.js",
   "type": "module",
@@ -14,7 +14,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-widget.mjs",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "archdraw",
+  "version": "0.1.2",
+  "description": "Create, refine, validate, lay out, and export architecture diagrams with ArchDraw.",
+  "author": {
+    "name": "ArchDraw"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "ArchDraw",
+        "shortDescription": "Design architecture diagrams",
+        "longDescription": "Generate and preview architecture diagrams inline in chat, then refine, validate, lay out, and export them with ArchDraw.",
+        "developerName": "ArchDraw",
+        "category": "Productivity",
+        "capabilities": ["Interactive"],
+        "logo": "./assets/archdraw.png",
+        "composerIcon": "./assets/archdraw.png",
+        "defaultPrompt": [
+          "Generate an architecture diagram inline, with an optional ArchDraw link.",
+          "Refine or validate my current ArchDraw diagram.",
+          "Show me available ArchDraw templates and components."
+        ]
+      }
+    }
+  }
+}

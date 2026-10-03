@@ -1,0 +1,28 @@
+{
+  "interface": {
+    "displayName": "ArchDraw",
+    "shortDescription": "Design architecture diagrams",
+    "longDescription": "Generate, refine, validate, lay out, and export architecture diagrams with ArchDraw's MCP tools.",
+    "developerName": "ArchDraw",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "Turn my system description into an ArchDraw architecture diagram.",
+      "Refine or validate my current ArchDraw diagram.",
+      "Show me available ArchDraw templates and components."
+    ],
+    "logo": "./assets/archdraw.png",
+    "composerIcon": "./assets/archdraw.png"
+  },
+  "name": "archdraw",
+  "version": "0.1.1",
+  "description": "Create, refine, validate, lay out, and export architecture diagrams with ArchDraw.",
+  "author": {
+    "name": "ArchDraw"
+  },
+  "keywords": [],
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}
