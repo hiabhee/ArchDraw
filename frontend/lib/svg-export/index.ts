@@ -14,6 +14,15 @@ import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayou
 import { renderSystemNode, renderTextLabel, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
 import { renderEdge } from './renderEdges';
 import type { SystemNodeRenderData, EdgeRenderData } from './types';
+import { escapeXml } from './svgPrimitives';
+
+export interface SvgCanvasBackground {
+  variant: 'dots' | 'lines';
+  gap: number;
+  size: number;
+  patternColor: string | null;
+  showGrid: boolean;
+}
 
 export function generatePureSVG(
   nodes: Node[],
@@ -24,6 +33,7 @@ export function generatePureSVG(
   renderStyleId: DiagramRenderStyleId = 'precision',
   colorThemeId: DiagramThemeId | string | null = 'default',
   iconMode: NodeIconMode = 'all',
+  canvasBackground?: SvgCanvasBackground,
 ): string {
   const aesthetics = resolveCanvasTokens({ renderStyleId, colorThemeId, isDark });
   const rawNodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -71,6 +81,17 @@ export function generatePureSVG(
   const bounds = calculateBounds(preparedNodes);
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
+
+  const gridGap = Math.max(1, canvasBackground?.gap ?? 24);
+  const gridPhaseX = ((-bounds.minX % gridGap) + gridGap) % gridGap;
+  const gridPhaseY = ((-bounds.minY % gridGap) + gridGap) % gridGap;
+  const gridColor = canvasBackground?.patternColor ?? aesthetics.cssVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0');
+  const safeGridColor = escapeXml(gridColor);
+  const backgroundPattern = canvasBackground?.showGrid
+    ? canvasBackground.variant === 'dots'
+      ? `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="${Math.max(0.5, canvasBackground.size)}" fill="${safeGridColor}" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.35 : 0.5}" />`
+      : `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><path d="M ${gridGap} 0 H 0 V ${gridGap}" fill="none" stroke="${safeGridColor}" stroke-width="1" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.25 : 1}" />`
+    : '';
 
   const nodeElements: string[] = [];
   const edgeElements: string[] = [];
@@ -237,6 +258,7 @@ export function generatePureSVG(
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
   ${renderStyleId === 'neubrutalism' ? brutalShadowFilter(isDark) : ''}
   ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
+  ${backgroundPattern}
   <g id="edges">
 ${edgeElements.map((e) => '    ' + e.replace(/\n/g, '\n    ')).join('\n')}
   </g>

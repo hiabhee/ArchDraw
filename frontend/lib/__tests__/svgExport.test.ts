@@ -100,7 +100,7 @@ describe('generatePureSVG render styles', () => {
     );
 
     // PNG rasterizes this SVG, so its colors must match the canvas theme.
-    expect(svg).toContain('#ffffff');
+    expect(svg).toContain('#fcfcfd');
     expect(svg).toContain('stroke="rgba(0,143,107,0.36)"');
     expect(svg).toContain('stroke="rgba(40,100,216,0.36)"');
     expect(svg).toContain('stroke="#356ad2"');
@@ -109,7 +109,7 @@ describe('generatePureSVG render styles', () => {
     expect(svg).toContain('viewBox="0 0 24 24"');
 
     const asyncSvg = generatePureSVG(nodes, [{ ...edges[0], data: { connectionType: 'async' } }], false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal');
-    expect(asyncSvg).toContain('stroke="#dc6537"');
+    expect(asyncSvg).toContain('stroke="#d45f3b"');
 
     const darkSvg = generatePureSVG(nodes, edges, true, '#000000', 'LR', 'studio-minimal', 'studio-minimal');
     expect(darkSvg).toContain('stroke="#82aaff"');
@@ -117,7 +117,7 @@ describe('generatePureSVG render styles', () => {
     const systemSvg = generatePureSVG([
       { id: 'database', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Database', category: 'Data' } },
     ], [], false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal');
-    expect(systemSvg).toContain('fill="#ffffff"');
+    expect(systemSvg).toContain('fill="#fcfcfd"');
     expect(systemSvg).toContain('stroke="#7558d8"');
     expect(systemSvg).toContain('data-semantic-icon="arch-database"');
 

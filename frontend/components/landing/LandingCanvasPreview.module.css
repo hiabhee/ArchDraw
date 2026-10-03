@@ -1,8 +1,9 @@
 .preview {
   overflow: hidden;
   border: 1px solid rgba(151, 174, 207, .23);
-  border-radius: 9px;
+  border-radius: 12px;
   background: var(--arch-canvas-bg, #0b1017);
+  box-shadow: 0 28px 72px rgba(21, 34, 51, .48);
 }
 .chrome {
   display: flex;
@@ -16,9 +17,15 @@
 .canvasName { color: #dbe5f2; font-size: 12px; font-weight: 560; }
 .canvasStatus { display: inline-flex; align-items: center; gap: 7px; color: #b4c7e2; font-size: 10px; }
 .canvasStatus i { width: 6px; height: 6px; border-radius: 50%; background: #91b8ff; }
-.canvas { position: relative; height: 392px; }
+.canvas { position: relative; height: 432px; }
 .flow { background: var(--arch-canvas-bg, #0b1017); }
-.flow :global(.node-wrapper) { --node-status-color: #91b8ff !important; }
+.flow :global(.node-wrapper) {
+  --node-status-color: #91b8ff !important;
+  --node-card-bg: #191d24 !important;
+  --node-title-color: #f0f2f6 !important;
+  --node-subtitle-color: #aeb8c7 !important;
+  --arch-node-stroke: rgba(185, 198, 217, .28) !important;
+}
 .flow :global(.react-flow__attribution) { display: none; }
 .flow :global(.react-flow__edge-path) { stroke-linecap: round; }
 .flow :global(.react-flow__edge-text) {

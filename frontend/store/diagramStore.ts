@@ -21,6 +21,26 @@ export { registerFitViewCallback };
 
 migrateLegacyStorage();
 
+function migrateDiagramState(persistedState: unknown, version: number): DiagramState {
+  const state = (persistedState ?? {}) as Partial<DiagramState>;
+
+  // Move users who were still on the untouched original defaults to the new
+  // default once, while preserving any other saved appearance choice.
+  if (
+    version < 1 &&
+    state.diagramStyleTheme === 'default' &&
+    state.diagramRenderStyle === 'precision'
+  ) {
+    return {
+      ...state,
+      diagramStyleTheme: 'studio-minimal',
+      diagramRenderStyle: 'studio-minimal',
+    } as DiagramState;
+  }
+
+  return state as DiagramState;
+}
+
 const useDiagramStoreRaw = create<DiagramState>()(
   persist(
     wrapCreator((set, get, api) => ({
@@ -36,6 +56,8 @@ const useDiagramStoreRaw = create<DiagramState>()(
     })),
     {
       name: 'archdraw-storage',
+      version: 1,
+      migrate: migrateDiagramState,
       storage: createJSONStorage(() => serializedStorage),
       partialize: diagramPersistPartialize,
       onRehydrateStorage: onDiagramRehydrate,

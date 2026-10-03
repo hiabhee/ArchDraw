@@ -21,12 +21,12 @@ import '@/components/nodes/nodeStyles.css';
 import styles from './LandingCanvasPreview.module.css';
 
 const PREVIEW_CANVAS_TOKENS = resolveCanvasTokens({
-  renderStyleId: 'precision',
-  colorThemeId: 'slate',
+  renderStyleId: 'studio-minimal',
+  colorThemeId: 'studio-minimal',
   isDark: true,
 }).cssVars as CSSProperties;
 
-// Mirror the editor's precision canvas: same node types, edge types, theme tokens, and sizing.
+// Mirror the editor's default canvas: same node types, edge types, theme tokens, and sizing.
 // Synchronous layout via useMemo — no async setState on mount (avoids React 19 “state update on unmounted” warning).
 function makeNode(id: string, label: string, subtitle: string, serviceType: string, category: string, layer: string, shape?: string): Node {
   const dims = calculateNodeDimensions(label, subtitle, { shape });
@@ -191,8 +191,8 @@ export function LandingCanvasPreview() {
     <div
       className={`${styles.preview} dark`}
       aria-label="An ArchDraw canvas preview showing a web application, API gateway, job worker, and Postgres database."
-      data-render-style="precision"
-      data-color-theme="slate"
+      data-render-style="studio-minimal"
+      data-color-theme="studio-minimal"
       style={PREVIEW_CANVAS_TOKENS}
     >
       <div className={styles.chrome}>

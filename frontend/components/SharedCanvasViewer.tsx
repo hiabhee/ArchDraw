@@ -119,17 +119,21 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   // Preserve the creator's render style (if any) from the share URL.
   // Read in an effect (not a state initializer) so SSR/hydration always
   // agree on the first render.
-  const [renderStyle, setRenderStyle] = useState<DiagramRenderStyleId>('precision');
+  const [renderStyle, setRenderStyle] = useState<DiagramRenderStyleId>('studio-minimal');
 
   useEffect(() => {
     const style = new URLSearchParams(window.location.search).get('style');
     if (style === 'sketch') setRenderStyle('sketch');
     else if (style === 'neubrutalism') setRenderStyle('neubrutalism');
     else if (style === 'studio-minimal') setRenderStyle('studio-minimal');
+    else if (style === 'precision') setRenderStyle('precision');
   }, []);
 
   useEffect(() => {
-    useDiagramStore.setState({ diagramRenderStyle: renderStyle });
+    useDiagramStore.setState({
+      diagramRenderStyle: renderStyle,
+      diagramStyleTheme: renderStyle === 'studio-minimal' ? 'studio-minimal' : 'slate',
+    });
     if (renderStyle === 'sketch') {
       ensureSketchFontLoaded();
     } else {

@@ -36,7 +36,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS, EDGE_CONFIG } from '@/lib/config';
+import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 
 import { useGrouping } from '@/hooks/useGrouping';
 import { toast } from 'sonner';
@@ -660,7 +660,7 @@ function CanvasInner() {
     <div
       className={cn(
         'w-full h-full relative transition-colors duration-200 overscroll-contain',
-        !canvasBackground.bgColor && 'bg-[hsl(var(--canvas-bg))]',
+        !canvasBackground.bgColor && 'bg-[var(--arch-canvas-bg)]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
         isSketch && sketchFontClass,
       )}
@@ -673,8 +673,11 @@ function CanvasInner() {
         width: '100%',
         height: '100%',
         overscrollBehavior: 'contain',
-        ...(canvasBackground.bgColor ? { backgroundColor: canvasBackground.bgColor } : {}),
-        ...themeVars
+        ...themeVars,
+        ...(canvasBackground.bgColor ? {
+          backgroundColor: canvasBackground.bgColor,
+          ['--arch-canvas-bg' as string]: canvasBackground.bgColor,
+        } : {}),
       }}
     >
       <ReactFlow
@@ -694,6 +697,7 @@ function CanvasInner() {
         onPaneContextMenu={onPaneContextMenu}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
+        onlyRenderVisibleElements
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
         fitView
@@ -713,10 +717,10 @@ function CanvasInner() {
         connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
         connectionRadius={isMobile ? 28 : CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.Bezier}
-        connectionLineStyle={{ stroke: isDark ? '#475569' : '#94a3b8', strokeWidth: 1.5, strokeDasharray: '6 4' }}
+        connectionLineStyle={{ stroke: themeVars['--arch-edge-primary'], strokeWidth: 1.5, strokeDasharray: '6 4' }}
         snapToGrid={CANVAS_CONFIG.snapToGrid}
         snapGrid={CANVAS_CONFIG.snapGrid}
-        defaultMarkerColor={isDark ? '#1E2130' : EDGE_CONFIG.strokeColor}
+        defaultMarkerColor={themeVars['--arch-edge-primary']}
         minZoom={CANVAS_CONFIG.minZoom}
         maxZoom={CANVAS_CONFIG.maxZoom}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
@@ -728,7 +732,7 @@ function CanvasInner() {
             variant={BackgroundVariant.Dots}
             gap={canvasBackground.gap}
             size={canvasBackground.size}
-            color={canvasBackground.patternColor ?? (isDark ? '#94a3b8' : '#e2e8f0')}
+            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0')}
             style={{ opacity: isDark ? 0.35 : 0.5 }}
           />
         )}
@@ -740,7 +744,7 @@ function CanvasInner() {
               inset: 0,
               zIndex: 0,
               backgroundColor: 'transparent',
-              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px)`,
+              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px)`,
               backgroundSize: `${canvasBackground.gap * viewport.zoom}px ${canvasBackground.gap * viewport.zoom}px`,
               backgroundPosition: `${viewport.x}px ${viewport.y}px`,
               opacity: isDark ? 0.25 : 1,

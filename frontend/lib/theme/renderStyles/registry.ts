@@ -12,7 +12,7 @@ export const RENDER_STYLES: Record<DiagramRenderStyleId, RenderStylePack> = {
   'studio-minimal': STUDIO_MINIMAL_RENDER_STYLE,
 };
 
-export const DEFAULT_RENDER_STYLE_ID: DiagramRenderStyleId = 'precision';
+export const DEFAULT_RENDER_STYLE_ID: DiagramRenderStyleId = 'studio-minimal';
 
 export function getRenderStyle(id?: DiagramRenderStyleId | string | null): RenderStylePack {
   if (id && id in RENDER_STYLES) return RENDER_STYLES[id as DiagramRenderStyleId];

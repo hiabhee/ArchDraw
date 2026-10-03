@@ -65,7 +65,7 @@ export function resolveRenderSurface(input: ResolveRenderSurfaceInput): RenderSu
     ? input.isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT
     : brutal
       ? input.isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT
-      : input.isDark ? styles.background : '#ffffff');
+      : styles.background);
   // Brutal selection: saturated accent ring (bold, not muted).
   const stroke = input.strokeColor ?? (selected
     ? sketch
@@ -73,13 +73,11 @@ export function resolveRenderSurface(input: ResolveRenderSurfaceInput): RenderSu
       : brutal
         ? accentColor
         : accentColor
-    : sketch
-      ? input.isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER
+      : sketch
+        ? input.isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER
       : brutal
         ? input.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER
-        : input.isDark
-          ? 'rgba(255, 255, 255, 0.12)'
-          : 'rgba(15, 23, 42, 0.14)');
+        : styles.border);
   const strokeWidth = selected ? (brutal ? 3.5 : sketch ? 2 : 2) : brutal ? 3.25 : sketch ? 1.35 : 1.25;
   // Brutal has a hard offset shadow; sketch none; precision soft.
   // Dark brutal inverts to light shadow per neubrutalism dark-section rule
