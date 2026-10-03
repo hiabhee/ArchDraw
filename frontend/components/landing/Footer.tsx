@@ -20,6 +20,7 @@ const COLUMNS = [
       { label: 'Blog', href: '/blogs' },
       { label: 'FAQ', href: '/faq' },
       { label: 'MCP Server', href: '/mcp' },
+      { label: 'Coding agent setup', href: '/agent-skill' },
       { label: 'Repo → Diagram', href: '/repo-diagram' },
     ],
   },

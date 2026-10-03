@@ -125,7 +125,7 @@ export default function DocsPage() {
               <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">MCP server</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Bring ArchDraw into your AI workflow.</h2>
               <p className="mt-4 text-[15px] leading-7 text-[#51605a]">The local MCP server exposes diagram tools for compatible assistants. Use it to generate, update, validate, lay out, and export the same canvas you use in the browser.</p>
-              <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><Terminal size={17} /></DocIcon><p className="text-sm leading-6 text-[#51605a]">Read the MCP guide for the current tool list and connection instructions before adding it to an assistant configuration.</p></div>
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><Terminal size={17} /></DocIcon><p className="text-sm leading-6 text-[#51605a]">Install the ArchDraw skill and connect the MCP server with the <Link href="/agent-skill" className="font-semibold text-[#075aaf] underline underline-offset-2">coding agent setup guide</Link>.</p></div>
             </section>
 
             <section id="export" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">

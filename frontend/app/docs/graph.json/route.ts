@@ -19,6 +19,7 @@ export function GET() {
       keywords: s.keywords,
     })),
     { id: 'mcp', url: `${SITE_URL}/mcp`, type: 'guide', title: 'What is an MCP server for diagramming?', category: 'guide' },
+    { id: 'agent-skill', url: `${SITE_URL}/agent-skill`, type: 'guide', title: 'Use ArchDraw with your coding agent', category: 'guide' },
     { id: 'repo-diagram', url: `${SITE_URL}/repo-diagram`, type: 'guide', title: 'How to generate a diagram from a GitHub repo', category: 'guide' },
     { id: 'tutorials', url: `${SITE_URL}/tutorials`, type: 'guide', title: 'Tutorials', category: 'learn' },
     ...TUTORIALS.map((t) => ({
@@ -60,6 +61,7 @@ export function GET() {
     ...blogs.map((b) => ({ from: `blog-${b.slug}`, to: 'getting-started', relation: 'related' as const })),
     // mcp relates to docs mcp-server
     { from: 'mcp', to: 'mcp-server', relation: 'expands' },
+    { from: 'agent-skill', to: 'mcp', relation: 'setup-for' },
     { from: 'repo-diagram', to: 'getting-started', relation: 'requires' },
     // discovery file relations
     { from: 'llms-full', to: 'llms-txt', relation: 'expands' },

@@ -20,7 +20,7 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
   const pathname = usePathname();
   const isDark = tone === 'dark';
   const navLinks = isDark ? DARK_NAV_LINKS : NAV_LINKS;
-  const startHref = isDark ? (pathname === '/' ? '#install' : '/#install') : startCtaHref(pathname);
+  const startHref = isDark ? (pathname === '/' ? '#generate' : '/#generate') : startCtaHref(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -37,21 +37,21 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
       transition={isDark ? { duration: 0 } : { duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className={`fixed top-0 left-0 right-0 z-50 h-14 transition-[background-color,border-color,backdrop-filter] duration-200 border-b ${
         scrolled
-          ? isDark ? 'bg-[#090d0f]/88 backdrop-blur-xl border-white/[0.08]' : 'bg-[#f7f7f5]/85 backdrop-blur-xl border-[#e4e4df]/60'
+          ? isDark ? 'bg-[#090c11]/88 backdrop-blur-xl border-white/[0.08]' : 'bg-[#f7f7f5]/85 backdrop-blur-xl border-[#e4e4df]/60'
           : 'bg-transparent border-transparent'
       }`}
     >
       <div className="max-w-[1280px] mx-auto px-6 h-full flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className={`w-7 h-7 rounded-lg ${isDark ? 'bg-[#9dc3ff] shadow-[0_0_18px_rgba(126,169,255,0.19)]' : 'bg-brand shadow-[0_0_15px_rgba(30,144,255,0.35)]'} flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105`}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isDark ? '#07110d' : '#fff'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <div className={`w-7 h-7 rounded-lg ${isDark ? 'bg-[#91b8ff]' : 'bg-brand shadow-[0_0_15px_rgba(30,144,255,0.35)]'} flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105`}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isDark ? '#07101b' : '#fff'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span className={`text-sm font-bold ${isDark ? 'text-[#eef5f0]' : 'text-[#1c1c1a]'} tracking-tight ${outfitClassName ?? ''}`}>
+            <span className={`text-sm font-bold ${isDark ? 'text-[#f2f5f9]' : 'text-[#1c1c1a]'} tracking-tight ${outfitClassName ?? ''}`}>
               ArchDraw
             </span>
           </Link>
@@ -61,7 +61,7 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
                 key={link.href}
                 href={link.href}
                 data-track={link.track}
-                className={`px-3 py-1.5 text-sm ${isDark ? 'text-[#a0aaa7] hover:text-[#eff6f1]' : 'text-[#575752] hover:text-[#1c1c1a]'} rounded-md transition-colors duration-150 font-medium`}
+                className={`px-3 py-1.5 text-sm ${isDark ? 'text-[#aeb9c7] hover:text-[#f2f5f9]' : 'text-[#575752] hover:text-[#1c1c1a]'} rounded-md transition-colors duration-150 font-medium`}
               >
                 {link.label}
               </a>
@@ -72,23 +72,23 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
           <a
             href="/dashboard"
             data-track="nav_sign_in"
-            className={`text-sm ${isDark ? 'text-[#aeb9b3] hover:text-white px-4 py-1.5 rounded-lg border border-white/[0.1] bg-white/[0.025] hover:bg-white/[0.07]' : 'text-[#575752] hover:text-[#1c1c1a] px-4 py-1.5 rounded-lg border border-[#e4e4df] bg-white hover:bg-slate-50'} transition-[color,background-color,border-color] duration-150 font-medium`}
+            className={`text-sm ${isDark ? 'text-[#aeb9c7] hover:text-white px-4 py-1.5 rounded-lg border border-white/[0.1] bg-white/[0.025] hover:bg-white/[0.07]' : 'text-[#575752] hover:text-[#1c1c1a] px-4 py-1.5 rounded-lg border border-[#e4e4df] bg-white hover:bg-slate-50'} transition-[color,background-color,border-color] duration-150 font-medium`}
           >
             Sign in
           </a>
           <a
             href={startHref}
             data-track="nav_get_started"
-            className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#9dc3ff] hover:bg-[#c0d9ff] active:bg-[#82a9ed]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
+            className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#91b8ff] hover:bg-[#b7d0ff] active:bg-[#82a9ed]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
             style={isDark ? { color: '#07101b' } : undefined}
           >
-            {isDark ? 'Install ArchDraw' : START_CTA_LABEL}
+            {isDark ? 'Start a diagram' : START_CTA_LABEL}
             <ArrowRight className="w-3.5 h-3.5" />
           </a>
         </div>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className={`md:hidden p-2 ${isDark ? 'text-[#b5c1bb] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} transition-colors`}
+          className={`md:hidden p-2 ${isDark ? 'text-[#aeb9c7] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} transition-colors`}
           aria-label="Toggle menu"
           aria-expanded={menuOpen}
         >
@@ -97,14 +97,14 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
       </div>
 
       {menuOpen && (
-        <div className={`md:hidden ${isDark ? 'bg-[#0b0f12] border-white/[0.09]' : 'bg-white border-[#e4e4df]'} border-b animate-in fade-in slide-in-from-top-4 duration-150`}>
+        <div className={`md:hidden ${isDark ? 'bg-[#090c11] border-white/[0.09]' : 'bg-white border-[#e4e4df]'} border-b animate-in fade-in slide-in-from-top-4 duration-150`}>
           <div className="px-6 py-4 flex flex-col gap-1">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className={`text-sm ${isDark ? 'text-[#a5b0aa] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} py-3 transition-colors font-medium`}
+                className={`text-sm ${isDark ? 'text-[#aeb9c7] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} py-3 transition-colors font-medium`}
               >
                 {link.label}
               </a>
@@ -113,17 +113,17 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
             <a
               href="/dashboard"
               onClick={() => setMenuOpen(false)}
-              className={`text-sm ${isDark ? 'text-[#a5b0aa] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} py-3 transition-colors font-medium`}
+              className={`text-sm ${isDark ? 'text-[#aeb9c7] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} py-3 transition-colors font-medium`}
             >
               Sign in
             </a>
             <a
               href={startHref}
               onClick={() => setMenuOpen(false)}
-              className={`text-sm font-semibold text-center ${isDark ? 'bg-[#9dc3ff] hover:bg-[#c0d9ff]' : 'text-white bg-brand hover:bg-brand-hover'} px-4 py-3 rounded-lg transition-colors`}
+              className={`text-sm font-semibold text-center ${isDark ? 'bg-[#91b8ff] hover:bg-[#b7d0ff]' : 'text-white bg-brand hover:bg-brand-hover'} px-4 py-3 rounded-lg transition-colors`}
               style={isDark ? { color: '#07101b' } : undefined}
             >
-              {isDark ? 'Install ArchDraw' : START_CTA_LABEL}
+              {isDark ? 'Start a diagram' : START_CTA_LABEL}
             </a>
           </div>
         </div>

@@ -111,6 +111,12 @@ export const CORE_PAGES: SitePage[] = [
     category: 'guide',
   },
   {
+    title: 'Use ArchDraw with your coding agent',
+    url: SITE_URL + '/agent-skill',
+    summary: 'Install the ArchDraw diagram skill, connect the MCP server to Codex, Claude Code, Cursor, or another client, and verify the tools are available.',
+    category: 'guide',
+  },
+  {
     title: 'Repo → Diagram',
     url: SITE_URL + '/repo-diagram',
     summary: 'Paste a GitHub repo URL and get an auto-laid-out architecture diagram with components, workflows, and dependency intelligence.',

@@ -45,6 +45,11 @@ Summary: What is an MCP server for diagramming — local stdio JSON-RPC bridge s
 Prerequisites: /docs#mcp-server
 URL: ${SITE_URL}/mcp
 
+## /agent-skill
+Summary: Install the ArchDraw diagram skill, connect its MCP server to a coding agent, verify tools, and try architecture prompts.
+Prerequisites: Node.js 18 or newer for the MCP server
+URL: ${SITE_URL}/agent-skill
+
 ## /repo-diagram
 Summary: How to generate an architecture diagram from a GitHub repo URL via the multi-stage repo pipeline.
 Prerequisites: /docs#getting-started
