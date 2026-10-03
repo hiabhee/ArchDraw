@@ -1,0 +1,48 @@
+{
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "frontend/app/globals.css"
+        ],
+        "createdAt": "2026-10-02T12:24:53.769Z",
+        "reason": "Agent: .react-flow__edge-path transitions only stroke, stroke-width, and opacity; no layout properties are animated."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/components/nodes/nodeStyles.css"
+        ],
+        "createdAt": "2026-10-02T12:24:53.883Z",
+        "reason": "Agent: hits are dormant topic capsule end caps and route glyph endpoints; repo search finds no JSX consumers, and the active database-card stripe was removed."
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "frontend/components/nodes/nodeStyles.css"
+        ],
+        "createdAt": "2026-10-02T12:24:53.957Z",
+        "reason": "Agent: hit is a dormant 4px database-cylinder top rim in .node-object-db; repo search finds no JSX consumer, so it is not a rounded node card."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-02T13:00:29.693Z",
+        "reason": "User confirmed Inter as the shared Precision and Studio diagram typeface."
+      }
+    ]
+  }
+}
