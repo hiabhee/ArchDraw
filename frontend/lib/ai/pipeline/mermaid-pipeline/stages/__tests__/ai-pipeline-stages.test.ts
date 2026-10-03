@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ConceptDetectionStage } from '../ConceptDetectionStage';
 import { LayoutOverrideStage } from '../LayoutOverrideStage';
 import { generateFallbackPlan } from '../FallbackPlan';
+import { themePrimaryColor } from '@/lib/theme/stylingConstants';
 import { ValidationStage } from '../ValidationStage';
 import type { ConceptDetectionOutput } from '../ConceptDetectionStage';
 import type { ArchitecturePlan } from '../ArchitecturePlanningStage';
@@ -111,7 +112,7 @@ describe('generateFallbackPlan', () => {
     expect(plan.mermaidCode).toContain('graph LR');
     expect(plan.mermaidCode).toContain('API Gateway');
     expect(plan.mermaidCode).toContain('Database');
-    expect(plan.styleConfig.primaryColor).toBe('#0f766e');
+    expect(plan.styleConfig.primaryColor).toBe(themePrimaryColor('default'));
   });
 });
 

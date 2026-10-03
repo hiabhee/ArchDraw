@@ -358,7 +358,7 @@ export async function runArchitecturePlanner(
             // capacity budget used by admission control.
             max_tokens: AI_CAPACITY.plannerTokens[detailLevel],
           });
-        });
+        }, { maxRetries: 1, timeoutMs: 30_000 });
 
         // Try to parse immediately so truncated JSON can trigger a retry
         try {
@@ -380,6 +380,14 @@ export async function runArchitecturePlanner(
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         lastError = new Error(msg);
+
+        // A timed-out provider request has already exhausted the configured
+        // key pool and OpenRouter fallback. Repeating the same plan cannot
+        // recover the upstream connection and only adds another timeout cycle.
+        if (/timed out/i.test(msg)) {
+          logger.warn(`[ArchitecturePlanner] Provider timed out; stopping planner retries: ${msg}`);
+          break outer;
+        }
 
         if (msg.includes('413') || msg.includes('tokens per minute')) {
           if (currentModel !== FALLBACK_GENERATION_MODEL) {

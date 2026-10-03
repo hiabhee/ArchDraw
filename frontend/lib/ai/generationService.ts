@@ -83,14 +83,72 @@ export async function generateDiagramFromPrompt(
     );
   }
 
-  const responseData = await response.json();
+  let responseData: Record<string, unknown>;
+  let streamedProgress = false;
+  if (response.headers.get('content-type')?.includes('text/event-stream')) {
+    if (!response.body) {
+      throw new GenerationServiceError('Generation stream ended without a response');
+    }
 
-  if (responseData.progress?.length > 0) {
-    const lastProgress = responseData.progress[responseData.progress.length - 1];
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let completedPayload: Record<string, unknown> | null = null;
+
+    const consumeEvent = (block: string) => {
+      const data = block
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n');
+      if (!data) return;
+
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(data) as Record<string, unknown>;
+      } catch {
+        throw new GenerationServiceError('Generation returned an invalid progress event');
+      }
+
+      if (event.type === 'progress') {
+        const { type: _type, ...progress } = event;
+        streamedProgress = true;
+        onProgress?.(progress as unknown as GenerationProgress);
+      } else if (event.type === 'error') {
+        const message = String(event.userMessage ?? event.details ?? event.error ?? 'Generation failed');
+        throw new GenerationServiceError(message, 'generation_failed', event);
+      } else if (event.type === 'complete') {
+        const { type: _type, ...payload } = event;
+        completedPayload = payload;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() ?? '';
+      for (const block of blocks) consumeEvent(block);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) consumeEvent(buffer);
+
+    if (!completedPayload) {
+      throw new GenerationServiceError('Generation stream ended before the diagram was ready');
+    }
+    responseData = completedPayload;
+  } else {
+    responseData = await response.json() as Record<string, unknown>;
+  }
+
+  const progressEvents = responseData.progress as GenerationProgress[] | undefined;
+  if (!streamedProgress && progressEvents?.length) {
+    const lastProgress = progressEvents[progressEvents.length - 1];
     onProgress?.(lastProgress);
   }
 
-  return responseData;
+  return responseData as unknown as AIGenerationResult;
 }
 
 /**

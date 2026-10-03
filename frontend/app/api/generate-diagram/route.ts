@@ -31,6 +31,7 @@ const generateDiagramSchema = z.object({
   ).optional(),
   diagramSize: z.enum(['small', 'medium', 'large']).optional(),
   detailLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  stream: z.boolean().optional().default(false),
 });
 
 type GenerateDiagramInput = z.infer<typeof generateDiagramSchema>;
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { description, systemType, complexity, model, diagramSize, detailLevel } = validatedInput.data as GenerateDiagramInput;
+    const { description, systemType, complexity, model, diagramSize, detailLevel, stream } = validatedInput.data as GenerateDiagramInput;
     const effectiveDiagramSize = diagramSize ?? (detailLevel === 1 ? 'small' : detailLevel === 3 ? 'large' : 'medium');
     const requestedDetailLevel = (detailLevel ?? 2) as DetailLevel;
     const creditSnapshot = await getCreditSnapshot(req);
@@ -107,49 +108,124 @@ export async function POST(req: NextRequest) {
       detailLevel,
     };
 
-    const releaseCapacity = await acquireAiCapacity(getGenerationBudget(description, requestedDetailLevel));
+    const generateAndFinalize = async (onProgress?: (progress: GenerationProgress) => void) => {
+      const releaseCapacity = await acquireAiCapacity(getGenerationBudget(description, requestedDetailLevel));
+      const progressEvents: GenerationProgress[] = [];
+      let result;
+      try {
+        result = await generateDiagram(userIntent, (progress) => {
+          progressEvents.push(progress);
+          onProgress?.(progress);
+        });
+      } finally {
+        releaseCapacity();
+      }
 
-    const progressEvents: GenerationProgress[] = [];
-    let result;
-    try {
-      result = await generateDiagram(userIntent, (progress) => {
-        progressEvents.push(progress);
+      const consumed = await consumeCredits(req, requestedDetailLevel, {
+        description: description.substring(0, 100),
+        nodeCount: result.nodes?.length || 0,
       });
-    } finally {
-      releaseCapacity();
+      if (!consumed.allowed) {
+        logger.warn('[Credits] Balance changed during generation; result returned without a credit charge');
+      }
+
+      setCachedDiagram(description, detailLevel, model, result);
+
+      // Non-blocking telemetry — response returns 30–80 ms earlier (server-after-nonblocking)
+      const sessionForTelemetry = getSessionFromRequest(req);
+      after(async () => {
+        const session = await sessionForTelemetry;
+        const uid = session?.user?.id ?? null;
+        await Promise.all([
+          incrementAIGeneration(uid),
+          logUsage(uid, getGuestId(req), 'ai_generation', {
+            description: description.substring(0, 100),
+            nodeCount: result.nodes?.length || 0,
+          }),
+        ]);
+      });
+
+      return {
+        success: true,
+        data: result,
+        progress: progressEvents,
+        quotaRemaining: quotaCheck.remaining,
+        credits: consumed.allowed ? { ...creditSnapshot, balance: consumed.balance } : await getCreditSnapshot(req),
+      };
+    };
+
+    if (stream) {
+      const encoder = new TextEncoder();
+      let controllerClosed = false;
+      const responseStream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const sendEvent = (event: Record<string, unknown>) => {
+            if (controllerClosed) return;
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            } catch {
+              controllerClosed = true;
+            }
+          };
+
+          sendEvent({ type: 'start', message: 'Starting generation...' });
+          sendEvent({
+            type: 'progress',
+            phase: 'planning',
+            iteration: 0,
+            currentAgent: 'capacity',
+            score: 0,
+            message: 'Preparing diagram generation...',
+            progress: 2,
+          });
+
+          try {
+            const payload = await generateAndFinalize((progress) => sendEvent({ type: 'progress', ...progress }));
+            sendEvent({ type: 'complete', ...payload });
+          } catch (error) {
+            logger.error('[API] Streaming generation failed:', error);
+            const message = error instanceof Error ? error.message : 'Unknown error occurred';
+            const err = error as Error & { status?: number; code?: string };
+            if (error instanceof CapacityBusyError) {
+              sendEvent({
+                type: 'error',
+                success: false,
+                error: error.code,
+                code: error.code,
+                retryable: true,
+                details: error.message,
+              });
+            } else if (isTokenExhaustedError({ status: err.status, message })) {
+              sendEvent({
+                type: 'error',
+                success: false,
+                error: err.status === 402 ? 'payment_required' : 'rate_limited',
+                details: message,
+                userMessage: SERVER_BUSY_USER_MESSAGE,
+              });
+            } else {
+              sendEvent({ type: 'error', success: false, error: 'generation_failed', details: message });
+            }
+          } finally {
+            if (!controllerClosed) controller.close();
+          }
+        },
+        cancel() {
+          controllerClosed = true;
+        },
+      });
+
+      return new Response(responseStream, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
     }
 
-    const consumed = await consumeCredits(req, requestedDetailLevel, {
-      description: description.substring(0, 100),
-      nodeCount: result.nodes?.length || 0,
-    });
-    if (!consumed.allowed) {
-      logger.warn('[Credits] Balance changed during generation; result returned without a credit charge');
-    }
-
-    setCachedDiagram(description, detailLevel, model, result);
-
-    // Non-blocking telemetry — response returns 30–80 ms earlier (server-after-nonblocking)
-    const sessionForTelemetry = getSessionFromRequest(req);
-    after(async () => {
-      const session = await sessionForTelemetry;
-      const uid = session?.user?.id ?? null;
-      await Promise.all([
-        incrementAIGeneration(uid),
-        logUsage(uid, getGuestId(req), 'ai_generation', {
-          description: description.substring(0, 100),
-          nodeCount: result.nodes?.length || 0,
-        }),
-      ]);
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-      progress: progressEvents,
-      quotaRemaining: quotaCheck.remaining,
-      credits: consumed.allowed ? { ...creditSnapshot, balance: consumed.balance } : await getCreditSnapshot(req),
-    });
+    return NextResponse.json(await generateAndFinalize());
 
   } catch (error) {
     logger.error('[API] Generation failed:', error);

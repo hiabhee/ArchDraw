@@ -16,7 +16,7 @@ export async function repairDiagramQuality(data: AiPipelineData, context: Pipeli
   const original = data.parseOutput;
   if (!original || !data.plan || !data.scoreOutput || !data.validationOutput) return successResult(data);
   const issues = actionable(data);
-  if (data.plan.usedFallback || (issues.length === 0 && data.scoreOutput.score >= 65)) return successResult(data);
+  if (data.plan.usedFallback || data.plan.isConceptTemplate || (issues.length === 0 && data.scoreOutput.score >= 65)) return successResult(data);
   const attempted = { ...data, repairAttempted: true, repairAccepted: false };
   try {
     const feedback = issues.map(i => `${i.type}: ${i.message}`).join('\n');
