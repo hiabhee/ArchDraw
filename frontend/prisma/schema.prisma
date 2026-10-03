@@ -59,6 +59,9 @@ model User {
   tutorialProgress       TutorialProgress[]
   usageLogs              UsageLog[]
   userCanvases           UserCanvas[]
+  agenticProjects        AgenticProject[]
+  agenticCredentials     AgenticCredential[]
+  agenticPairingRequests AgenticPairingRequest[]
 }
 
 model Verification {
@@ -223,6 +226,142 @@ model UserCanvas {
 
   @@index([userId])
   @@map("user_canvases")
+}
+
+model AgenticProject {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId          String   @map("owner_id")
+  name             String
+  repositoryRemote String?  @map("repository_remote")
+  defaultBranch    String?  @map("default_branch")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  owner           User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  workspaces      AgenticWorkspace[]
+  credentials     AgenticCredential[]
+  pairingRequests AgenticPairingRequest[]
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@map("agentic_projects")
+}
+
+model AgenticWorkspace {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  bindingKey      String   @map("binding_key") @db.Uuid
+  branchName      String?  @map("branch_name")
+  baseCommitSha   String?  @map("base_commit_sha")
+  currentRevision Int      @default(0) @map("current_revision")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  project         AgenticProject                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisions       AgenticArchitectureRevision[]
+  views           AgenticProjectView[]
+  proposals       AgenticProposal[]
+  pairingRequests AgenticPairingRequest[]
+
+  @@unique([projectId, bindingKey])
+  @@index([projectId, branchName])
+  @@map("agentic_workspaces")
+}
+
+model AgenticArchitectureRevision {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String   @map("workspace_id") @db.Uuid
+  revision      Int
+  baseCommitSha String?  @map("base_commit_sha")
+  snapshot      Json     @default("{\"components\":[],\"relationships\":[]}")
+  summary       String?
+  actorType     String   @default("user") @map("actor_type")
+  actorId       String?  @map("actor_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  workspace AgenticWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, revision])
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@map("agentic_architecture_revisions")
+}
+
+model AgenticProjectView {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  name        String
+  viewType    String   @default("overview") @map("view_type")
+  state       Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace AgenticWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, updatedAt(sort: Desc)])
+  @@map("agentic_project_views")
+}
+
+model AgenticProposal {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  baseRevision Int      @map("base_revision")
+  title        String
+  summary      String?
+  operations   Json     @default("[]")
+  status       String   @default("draft")
+  decision     Json?
+  verification Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  workspace AgenticWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, createdAt(sort: Desc)])
+  @@map("agentic_proposals")
+}
+
+model AgenticCredential {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId    String    @map("owner_id")
+  projectId  String    @map("project_id") @db.Uuid
+  name       String    @default("ArchDraw agent")
+  tokenHash  String    @unique @map("token_hash")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  expiresAt  DateTime  @map("expires_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  owner   User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project AgenticProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("agentic_credentials")
+}
+
+model AgenticPairingRequest {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userCodeHash  String    @unique @map("user_code_hash")
+  pollTokenHash String    @map("poll_token_hash")
+  status        String    @default("pending")
+  ownerId       String?   @map("owner_id")
+  projectId     String?   @map("project_id") @db.Uuid
+  workspaceId   String?   @map("workspace_id") @db.Uuid
+  expiresAt     DateTime  @map("expires_at")
+  approvedAt    DateTime? @map("approved_at")
+  deliveredAt   DateTime? @map("delivered_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  owner     User?             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project   AgenticProject?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace AgenticWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([projectId])
+  @@index([workspaceId])
+  @@index([expiresAt])
+  @@map("agentic_pairing_requests")
 }
 
 model Visitor {

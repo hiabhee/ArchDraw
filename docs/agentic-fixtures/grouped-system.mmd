@@ -1,0 +1,89 @@
+graph LR
+  subgraph clients["Client Applications"]
+    web["Customer Web App"]
+    mobile["Mobile App"]
+    admin["Operations Console"]
+  end
+
+  subgraph edge["Edge and Identity"]
+    cdn["CDN"]
+    gateway["API Gateway"]
+    idp["Identity Provider"]
+  end
+
+  subgraph services["Application Services"]
+    subgraph identity["Identity Domain"]
+      accounts["Account Service"]
+      sessions["Session Service"]
+      permissions["Identity and Session Policy Decision Service for Enterprise SSO"]
+      profiles["Profile Service"]
+    end
+    subgraph commerce["Commerce Domain"]
+      catalog["Catalog Service"]
+      cart["Cart Service"]
+      checkout["Checkout Service"]
+      orders["Order Service"]
+      inventory["Inventory Service"]
+    end
+  end
+
+  subgraph messaging["Messaging"]
+    bus["Event Bus"]
+    orderq["Order Queue"]
+    emailq["Email Queue"]
+    deadletter["Dead Letter Queue"]
+  end
+
+  subgraph data["Data Stores"]
+    accountdb[("Accounts DB")]
+    orderdb[("Orders DB")]
+    cache[("Redis Cache")]
+    search[("Search Index")]
+    objects[("Object Storage")]
+  end
+
+  subgraph providers["External Providers"]
+    payment["Payment Provider"]
+    mail["Email Provider"]
+    tax["Tax Service"]
+  end
+
+  subgraph observe["Operations"]
+    metrics["Metrics Collector"]
+    logs["Log Pipeline"]
+    alerts["Alert Manager"]
+  end
+
+  web --> cdn
+  mobile --> cdn
+  admin --> cdn
+  cdn --> gateway
+  gateway --> idp
+  gateway --> accounts
+  gateway --> profiles
+  gateway --> catalog
+  gateway --> cart
+  gateway --> checkout
+  accounts --> accountdb
+  sessions --> cache
+  permissions --> idp
+  profiles --> accountdb
+  catalog --> search
+  catalog --> objects
+  cart --> cache
+  checkout --> tax
+  checkout --> payment
+  checkout --> orders
+  checkout --> inventory
+  orders --> orderdb
+  orders --> bus
+  bus --> orderq
+  orderq --> inventory
+  inventory --> orderdb
+  inventory --> bus
+  bus --> emailq
+  emailq --> mail
+  emailq --> deadletter
+  gateway --> metrics
+  orders --> logs
+  alerts --> metrics

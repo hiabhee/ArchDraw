@@ -8,9 +8,10 @@ import logger from '@/lib/logger';
 interface SignInButtonsProps {
   compact?: boolean;
   className?: string;
+  callbackURL?: string;
 }
 
-export function SignInButtons({ compact = false, className = '' }: SignInButtonsProps) {
+export function SignInButtons({ compact = false, className = '', callbackURL = '/' }: SignInButtonsProps) {
   const [loadingProvider, setLoadingProvider] = useState<'google' | 'github' | null>(null);
 
   const handleGoogle = async () => {
@@ -18,7 +19,7 @@ export function SignInButtons({ compact = false, className = '' }: SignInButtons
     setLoadingProvider('google');
     try {
       logger.debug('Attempting Google sign-in');
-      await signIn.social({ provider: 'google', callbackURL: '/' });
+      await signIn.social({ provider: 'google', callbackURL });
     } catch (error) {
       logger.error('Google sign-in error:', error);
       setLoadingProvider(null);
@@ -32,7 +33,7 @@ export function SignInButtons({ compact = false, className = '' }: SignInButtons
     setLoadingProvider('github');
     try {
       logger.debug('Attempting GitHub sign-in');
-      await signIn.social({ provider: 'github', callbackURL: '/' });
+      await signIn.social({ provider: 'github', callbackURL });
     } catch (error) {
       logger.error('GitHub sign-in error:', error);
       setLoadingProvider(null);

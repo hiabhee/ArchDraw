@@ -1,0 +1,197 @@
+graph LR
+  %% Initial focused view for explanation tests: checkout
+  subgraph clients["Client Applications"]
+    web["Customer Web Experience"]
+    mobile["Native Mobile Application"]
+    admin["Operations Console"]
+    partner["Partner Portal"]
+    cli["Developer CLI"]
+    publicapi["Public API Client"]
+    support["Support Agent Workspace"]
+    bffweb["Web Experience BFF"]
+    bffmobile["Mobile Experience BFF"]
+    sdk["Partner Integration SDK"]
+  end
+
+  subgraph edge["Traffic and Identity Edge"]
+    dns["Authoritative DNS"]
+    cdn["Global Content CDN"]
+    bot["Automated Traffic Filter"]
+    waf["Web Application Firewall"]
+    lb["Regional Load Balancer"]
+    gateway["API Gateway"]
+    router["Tenant-aware Request Router"]
+    ratelimit["Per-tenant Rate Limiter"]
+    edgeauth["Edge Token Validator"]
+    ingress["Private Service Ingress"]
+  end
+
+  subgraph services["Application Services"]
+    subgraph identity["Identity and Tenant Services"]
+      accounts["Account Lifecycle Service"]
+      profiles["Customer Profile Service"]
+      sessions["Session and Device Registry"]
+      policy["Enterprise Identity and Authorization Policy Decision Service"]
+    end
+    subgraph commerce["Commerce and Fulfillment"]
+      catalog["Product Catalog Service"]
+      pricing["Dynamic Pricing Service"]
+      cart["Shopping Cart Service"]
+      checkout["Checkout Orchestrator"]
+      orders["Order Management Service"]
+      inventory["Inventory Reservation Service"]
+    end
+  end
+
+  subgraph workers["Background Processing"]
+    orderworker["Order State Consumer"]
+    paymentworker["Payment Reconciliation Worker"]
+    emailworker["Customer Notification Worker"]
+    searchworker["Search Indexing Worker"]
+    mediaworker["Media Transcoding Worker"]
+    fraudworker["Fraud Review Worker"]
+    fulfillment["Warehouse Fulfillment Worker"]
+    retryworker["Exponential Backoff Retry Worker"]
+    auditworker["Compliance Audit Export Worker"]
+    recommendation["Recommendation Feature Builder"]
+  end
+
+  subgraph data["Storage and Search"]
+    accountdb[("Account PostgreSQL Cluster")]
+    orderdb[("Orders PostgreSQL Cluster")]
+    inventorydb[("Inventory PostgreSQL Cluster")]
+    redis[("Multi-tenant Redis Cache")]
+    searchindex[("Product Search Index")]
+    media[("Original and Processed Media Store")]
+    warehouse[("Analytics Warehouse")]
+    eventstore[("Append-only Event Store")]
+    schemaregistry[("Event Schema Registry")]
+    secrets[("Encrypted Tenant Secrets")]
+  end
+
+  subgraph messaging["Event and Job Transport"]
+    kafka["Managed Kafka Cluster"]
+    ordersTopic["orders.lifecycle.v2 Topic"]
+    paymentsTopic["payments.status.v1 Topic"]
+    emailQueue["Customer Email Queue"]
+    retryQueue["Delayed Retry Queue"]
+    deadletter["Poison Message Dead Letter Queue"]
+    eventbridge["Domain Event Router"]
+    cdc["Database Change Stream"]
+    searchQueue["Product Search Index Queue"]
+    auditQueue["Audit Export Queue"]
+  end
+
+  subgraph external["External Providers"]
+    stripe["Stripe Payment Platform"]
+    tax["Regional Tax Calculation Service"]
+    ship["Shipping Rate and Label Provider"]
+    mail["Transactional Email Provider"]
+    sms["SMS Delivery Provider"]
+    idp["Enterprise SAML Identity Provider"]
+    fraud["External Fraud Scoring Network"]
+    address["Address Verification Service"]
+    warehousePartner["Third-party Fulfillment Partner"]
+    analytics["Product Analytics Collector"]
+  end
+
+  subgraph observability["Operations and Observability"]
+    metrics["OpenTelemetry Metrics Collector"]
+    traces["Distributed Trace Backend"]
+    logs["Centralized Structured Log Pipeline"]
+    alerts["On-call Alert Routing Service"]
+    dashboard["Service Health Dashboard"]
+    flags["Tenant Feature Flag Service"]
+    config["Dynamic Runtime Configuration Store"]
+    deploy["Progressive Delivery Controller"]
+    audit["Security Audit Event Monitor"]
+    secretsManager["Cloud Key and Secret Manager"]
+  end
+
+  web --> dns
+  mobile --> dns
+  partner --> dns
+  dns --> cdn
+  cdn --> bot
+  bot --> waf
+  waf --> lb
+  lb --> gateway
+  gateway --> ratelimit
+  ratelimit --> edgeauth
+  edgeauth --> router
+  router --> ingress
+  ingress --> bffweb
+  ingress --> bffmobile
+  bffweb --> catalog
+  bffmobile --> cart
+  sdk --> gateway
+  support --> gateway
+  cli --> gateway
+  publicapi --> gateway
+  gateway --> idp
+  idp --> policy
+  policy --> accounts
+  accounts --> accountdb
+  accounts --> sessions
+  sessions --> redis
+  accounts --> profiles
+  profiles --> accountdb
+  catalog --> searchindex
+  catalog --> pricing
+  pricing --> redis
+  cart --> redis
+  cart --> inventory
+  checkout --> pricing
+  checkout --> tax
+  checkout --> address
+  checkout --> stripe
+  checkout --> fraud
+  checkout --> orders
+  checkout --> inventory
+  checkout --> ship
+  orders --> orderdb
+  orders --> ordersTopic
+  ordersTopic --> orderworker
+  orderworker --> inventorydb
+  orderworker --> fulfillment
+  fulfillment --> warehousePartner
+  fulfillment --> ordersTopic
+  ordersTopic --> inventory
+  inventory --> inventorydb
+  inventory --> eventbridge
+  eventbridge --> paymentsTopic
+  paymentsTopic --> paymentworker
+  paymentworker --> stripe
+  paymentworker --> ordersTopic
+  ordersTopic --> emailQueue
+  emailQueue --> emailworker
+  emailworker --> mail
+  emailworker --> sms
+  emailworker --> retryQueue
+  retryQueue --> retryworker
+  retryworker --> deadletter
+  ordersTopic --> fraudworker
+  fraudworker --> fraud
+  catalog --> media
+  media --> eventbridge
+  eventbridge --> mediaworker
+  mediaworker --> media
+  catalog --> searchQueue
+  searchQueue --> searchworker
+  searchworker --> searchindex
+  cdc --> warehouse
+  cdc --> eventstore
+  ordersTopic --> auditQueue
+  auditQueue --> auditworker
+  auditworker --> warehouse
+  ordersTopic --> recommendation
+  recommendation --> warehouse
+  accounts --> secrets
+  gateway --> metrics
+  checkout --> traces
+  orderworker --> logs
+  alerts --> metrics
+  dashboard --> traces
+  deploy --> flags
+  audit --> eventstore
+  secretsManager --> secrets

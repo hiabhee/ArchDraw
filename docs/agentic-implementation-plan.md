@@ -90,20 +90,21 @@ Each phase is a reviewable implementation batch. Checkboxes below are intentiona
 
 Dependencies: none.
 
-- [ ] **AG-001:** Choose the first harness based on pilot access. Verify its current installation/instruction mechanisms against official documentation before implementing an adapter. Exact install command remains undecided until verified.
-- [ ] **AG-002:** Finalize project/branch identity and the logical contract above. Default: explicit project binding; repository remote is a matching hint, not authorization. Forks require an explicit existing/new project choice.
-- [ ] **AG-003:** Specify the five primary screens: setup, current architecture, focused explanation, proposal review, and reconnect/conflict recovery.
-- [ ] **AG-004:** Create representative design fixtures: small application (~10 components), grouped system (~30), and larger system (~80 with a focused initial view). Include cycles, long labels, and nested groups.
-- [ ] **AG-005:** Record baseline tool-description size, response sizes, current layout output, and setup steps. Separate measured values from future targets.
+- [x] **AG-001:** Select OpenCode as the first harness target based on the tracked `opencode.json` and MCP package configuration. Official OpenCode docs confirm local stdio MCP servers and project `AGENTS.md` instructions. The installer must recognize the supported config format: this repo uses the legacy `mcp.<name>` shape while current v2 docs nest servers under `mcp.servers`. Validate invocation and restart behavior in a fresh repository before release.
+- [x] **AG-002:** Finalize project/branch identity and the logical contract above. Repository remotes are matching hints, not authorization. Forks require an explicit existing/new project choice. The hosted project store is authoritative; worktree files hold binding/cache/pending operations only. See [`agentic-workflow-contract.md`](agentic-workflow-contract.md).
+- [x] **AG-003:** Specify the five primary screens and recovery states in [`agentic-workflow-contract.md`](agentic-workflow-contract.md).
+- [x] **AG-004:** Add small, grouped, and large Mermaid fixtures under [`agentic-fixtures/`](agentic-fixtures/README.md). Counts refer to architecture components, excluding visual group containers.
+- [ ] **AG-005:** Record measured tool and response sizes, canonical layout output, and setup steps. Initial static baseline is in [`agentic-workflow-contract.md`](agentic-workflow-contract.md); response/layout measurements still need a reproducible fixture runner and a named reference tokenizer before this item is complete.
 
-Exit gate: one documented workflow with defined states and failure behavior; no unresolved choice about the authoritative project store or first harness.
+Exit gate: one documented workflow with defined states and failure behavior; no unresolved choice about the authoritative project store or first harness. The contract and harness decisions are recorded; Phase 1 can proceed while AG-005 measurements are captured before setting performance targets.
 
 ### Phase 1 — durable private project foundation
 
 Dependencies: Phase 0 contracts.
 
-- [ ] **AG-010:** Add project persistence and private project API using existing auth/database conventions. Implement ownership checks and migrations without changing existing canvas records destructively.
+- [x] **AG-010:** Add additive project/workspace/revision/view/proposal persistence and owner-authenticated project read/create APIs. New tables enable RLS and revoke Supabase client-role grants; existing canvas records are untouched. MCP credentials and revisioned writes remain in AG-011/012.
 - [ ] **AG-011:** Implement account pairing, scoped credentials, revocation, project binding, and resume. Support repositories without remotes.
+  - Partial implementation: short-lived browser approval, activation of a project-scoped credential after approval, scoped read authentication, and owner revocation are in place. MCP-side credential storage, persistent worktree binding, and restart resume remain before this item is complete.
 - [ ] **AG-012:** Add atomic revision checks, idempotency, durable checkpoints, and branch isolation. Distinguish repository commit freshness from document revision.
 - [ ] **AG-013:** Add a project/view route that reuses the editor. Legacy `?session=` URLs remain explicit shared-diagram imports.
 - [ ] **AG-014:** Add project synchronization to the store: start with revision-aware polling while the view is visible, bounded backoff, and immediate refresh on focus. Keep transport replaceable if later measurement justifies push updates.

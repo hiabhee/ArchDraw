@@ -1,0 +1,25 @@
+graph LR
+  browser["Customer Web App"]
+  mobile["Mobile App"]
+  edge["CDN and WAF"]
+  api["Upload API"]
+  auth["Identity Provider"]
+  queue["Media Processing Queue"]
+  worker["Transcode Worker"]
+  postgres[("PostgreSQL: users and jobs")]
+  redis[("Redis: sessions and status")]
+  objects[("Object Storage: original and transcoded media")]
+
+  browser --> edge
+  mobile --> edge
+  edge -->|HTTPS upload request| api
+  api -->|OIDC token check| auth
+  api -->|create upload job| postgres
+  api -->|enqueue media.transcode| queue
+  api -->|upload progress| redis
+  queue -->|media.transcode| worker
+  worker -->|read source and write renditions| objects
+  worker -->|update job status| postgres
+  worker -->|publish completion event| queue
+  queue -->|completion callback| api
+  api -->|read current job status| redis
