@@ -80,3 +80,26 @@ frontend/.agents/skills/industrial-brutalist-ui/
 frontend/.agents/skills/minimalist-ui/
 frontend/.agents/skills/redesign-existing-projects/
 frontend/.agents/skills/stitch-design-taste/
+# Taste-skill mirrors at repo root (installer targets, same set as above)
+.agents/skills/brandkit/
+.agents/skills/design-taste-frontend*/
+.agents/skills/full-output-enforcement/
+.agents/skills/gpt-taste/
+.agents/skills/high-end-visual-design/
+.agents/skills/image-to-code/
+.agents/skills/imagegen-frontend*/
+.agents/skills/industrial-brutalist-ui/
+.agents/skills/minimalist-ui/
+.agents/skills/redesign-existing-projects/
+.agents/skills/stitch-design-taste/
+agent/skills/brandkit/
+agent/skills/design-taste-frontend*/
+agent/skills/full-output-enforcement/
+agent/skills/gpt-taste/
+agent/skills/high-end-visual-design/
+agent/skills/image-to-code/
+agent/skills/imagegen-frontend*/
+agent/skills/industrial-brutalist-ui/
+agent/skills/minimalist-ui/
+agent/skills/redesign-existing-projects/
+agent/skills/stitch-design-taste/
