@@ -1,5 +1,5 @@
 import { DagreLayoutEngine } from './DagreLayout';
-import type { LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
+import type { LayoutEdgeImportance, LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
 import { isTextNode } from '@/lib/mermaid/textNodes';
 
@@ -60,6 +60,10 @@ export class IntegratedLayoutEngine {
 
   private toLayoutParams(objects: RFObjects, options: IntegratedLayoutOptions): LayoutParams {
     const direction = this.mapDirection(options.direction ?? 'LR');
+    const serviceTypeById = new Map(objects.nodes.map(node => [
+      node.id,
+      (node.data as { serviceType?: string })?.serviceType,
+    ]));
     // Density-aware spacing: pass edgeCount so crowded graphs (e.g. 10+ edges) get extra rank/node air
     const defaults = defaultCompoundLayoutOptions(direction, {
       edgeCount: objects.edges.length,
@@ -72,6 +76,8 @@ export class IntegratedLayoutEngine {
         const mappedDir = rawDir ? this.mapDirection(rawDir as Direction) : undefined;
         return {
           id: node.id,
+          label: String((node.data as { label?: unknown })?.label ?? node.id),
+          serviceType: (node.data as { serviceType?: string })?.serviceType,
           width: node.width || DEFAULT_NODE_WIDTH,
           height: node.height || DEFAULT_NODE_HEIGHT,
           parentId: node.parentNode
@@ -87,6 +93,12 @@ export class IntegratedLayoutEngine {
         target: edge.target,
         label: (edge.label as string | undefined)
           ?? (edge.data?.label as string | undefined),
+        importance: (edge.data?.importance as LayoutEdgeImportance | undefined)
+          ?? (edge.data?.isReturn || edge.data?.responseLabel ? 'diagnostic' : undefined),
+        connectionType: (edge.data?.connectionType as string | undefined)
+          ?? (edge.data?.edgeType as string | undefined),
+        sourceServiceType: serviceTypeById.get(edge.source),
+        targetServiceType: serviceTypeById.get(edge.target),
       })),
       direction,
       options: { ...defaults, ...options.options },

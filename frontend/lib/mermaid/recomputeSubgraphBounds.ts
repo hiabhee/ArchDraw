@@ -1,5 +1,9 @@
 import type { CSSProperties } from 'react'
+import type { Node } from 'reactflow'
 import { isTextNode } from './textNodes'
+import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles'
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility'
 import {
   SUBGRAPH_PADDING_X,
   SUBGRAPH_PADDING_TOP,
@@ -44,7 +48,7 @@ function hexToRgba(hex: string, alpha: number): string {
  * Groups without children are left untouched (their `absX`/`absY` are synced to
  * `position` so a parent's bounds computation still sees a consistent box).
  */
-export function recomputeSubgraphBounds(nodes: SubgraphBoundsNode[]): SubgraphBoundsNode[] {
+export function recomputeSubgraphBounds(nodes: SubgraphBoundsNode[], expandOnly = false): SubgraphBoundsNode[] {
   const groups = new Map<string, SubgraphBoundsNode>()
   const leaves = new Map<string, SubgraphBoundsNode>()
   for (const node of nodes) {
@@ -111,10 +115,18 @@ export function recomputeSubgraphBounds(nodes: SubgraphBoundsNode[]): SubgraphBo
       continue
     }
 
-    const newWidth = maxX - minX + SUBGRAPH_PADDING_X * 2
-    const newHeight = maxY - minY + SUBGRAPH_PADDING_BOTTOM + SUBGRAPH_PADDING_TOP
-    const newX = minX - SUBGRAPH_PADDING_X
-    const newY = minY - SUBGRAPH_PADDING_TOP
+    const requiredX = minX - SUBGRAPH_PADDING_X
+    const requiredY = minY - SUBGRAPH_PADDING_TOP
+    const requiredRight = maxX + SUBGRAPH_PADDING_X
+    const requiredBottom = maxY + SUBGRAPH_PADDING_BOTTOM
+    const currentRight = group.absX + group.width
+    const currentBottom = group.absY + group.height
+    const newX = expandOnly ? Math.min(requiredX, group.absX) : requiredX
+    const newY = expandOnly ? Math.min(requiredY, group.absY) : requiredY
+    const newRight = expandOnly ? Math.max(requiredRight, currentRight) : requiredRight
+    const newBottom = expandOnly ? Math.max(requiredBottom, currentBottom) : requiredBottom
+    const newWidth = newRight - newX
+    const newHeight = newBottom - newY
 
     group.position = { x: newX, y: newY }
     group.absX = newX
@@ -156,6 +168,16 @@ interface RfLikeNode {
   style?: unknown
 }
 
+function isRfGroup(node: RfLikeNode): boolean {
+  return node.type === 'groupNode' || node.type === 'frameNode' || node.type === 'group' || node.data?.isGroup === true
+}
+
+function styleDimension(node: RfLikeNode, key: 'width' | 'height'): number | undefined {
+  const value = (node.style as Record<string, unknown> | undefined)?.[key]
+  const dimension = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseFloat(value) : NaN
+  return Number.isFinite(dimension) ? dimension : undefined
+}
+
 /**
  * RF-shaped entry point to `recomputeSubgraphBounds` — THE canonical subgraph
  * sizing pass. Use this after any layout that emits children at absolute
@@ -166,28 +188,27 @@ interface RfLikeNode {
  * groups (inner groups hit the "make relative" branch before their own bounds
  * were recomputed, leaving stale sizes / overflowing children).
  */
-export function applySubgraphBoundsToRf<T extends RfLikeNode>(nodes: T[]): T[] {
-  const isGroup = (n: RfLikeNode) => n.type === 'groupNode' || n.data?.isGroup === true
-
+export function applySubgraphBoundsToRf<T extends RfLikeNode>(nodes: T[], expandOnly = false): T[] {
   const inputs: SubgraphBoundsNode[] = nodes.map((n) => ({
     id: n.id,
     parentNode: n.parentNode ?? n.parentId,
     position: { x: n.position.x, y: n.position.y },
     width: n.width ?? 0,
-    height: n.height ?? 0,    absX: n.position.x,
+    height: n.height ?? 0,
+    absX: n.position.x,
     absY: n.position.y,
-    isGroup: isGroup(n),
+    isGroup: isRfGroup(n),
     data: n.data,
     style: n.style as CSSProperties | undefined,
     excludeFromBounds: isTextNode(n),
   }))
-  recomputeSubgraphBounds(inputs)
+  recomputeSubgraphBounds(inputs, expandOnly)
   const byId = new Map(inputs.map((n) => [n.id, n]))
 
   return nodes.map((n) => {
     const sized = byId.get(n.id)
     if (!sized) return n
-    if (isGroup(n)) {
+    if (isRfGroup(n)) {
       return {
         ...n,
         position: { ...sized.position },
@@ -202,5 +223,90 @@ export function applySubgraphBoundsToRf<T extends RfLikeNode>(nodes: T[]): T[] {
     }
     // Children come back parent-relative.
     return { ...n, position: { ...sized.position } }
+  })
+}
+
+/**
+ * Ensures persisted React Flow groups contain their rendered children.
+ * Canvas nodes store child positions relative to their parents, while the
+ * canonical bounds pass consumes absolute positions, so adapt coordinates
+ * here and restore parent-relative positions on the way out.
+ */
+export function ensureSubgraphBoundsContainChildren<T extends RfLikeNode>(
+  nodes: T[],
+  renderStyleId?: DiagramRenderStyleId | string,
+  iconMode?: NodeIconMode,
+): T[] {
+  if (!nodes.some(isRfGroup)) return nodes
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const absolutePositions = new Map<string, { x: number; y: number }>()
+  const getAbsolutePosition = (node: RfLikeNode, visiting = new Set<string>()): { x: number; y: number } => {
+    const cached = absolutePositions.get(node.id)
+    if (cached) return cached
+
+    const parentId = node.parentNode ?? node.parentId
+    const parent = parentId ? nodeById.get(parentId) : undefined
+    if (!parent || visiting.has(node.id)) {
+      const position = { x: node.position.x, y: node.position.y }
+      absolutePositions.set(node.id, position)
+      return position
+    }
+
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(node.id)
+    const parentPosition = getAbsolutePosition(parent, nextVisiting)
+    const position = {
+      x: parentPosition.x + node.position.x,
+      y: parentPosition.y + node.position.y,
+    }
+    absolutePositions.set(node.id, position)
+    return position
+  }
+
+  const absoluteNodes = nodes.map((node) => {
+    const position = getAbsolutePosition(node)
+    const dimensionsNode = isRfGroup(node)
+      ? {
+          ...node,
+          width: node.width ?? styleDimension(node, 'width'),
+          height: node.height ?? styleDimension(node, 'height'),
+          data: { ...node.data, isGroup: true },
+        }
+      : node
+    const dimensions = getEffectiveNodeDimensions(
+      dimensionsNode as unknown as Node,
+      renderStyleId,
+      iconMode ?? 'all',
+    )
+    return {
+      ...node,
+      parentNode: node.parentNode ?? node.parentId,
+      position,
+      width: dimensions.width,
+      height: dimensions.height,
+    }
+  })
+  const fittedNodes = applySubgraphBoundsToRf(absoluteNodes, true)
+  const fittedById = new Map(fittedNodes.map((node) => [node.id, node]))
+
+  return nodes.map((node) => {
+    const fitted = fittedById.get(node.id)
+    if (!fitted) return node
+
+    const isGroup = isRfGroup(node)
+    if (!isGroup) return { ...node, position: fitted.position }
+
+    return {
+      ...node,
+      position: fitted.position,
+      width: fitted.width,
+      height: fitted.height,
+      style: {
+        ...((node.style as Record<string, unknown> | undefined) ?? {}),
+        width: fitted.width,
+        height: fitted.height,
+      },
+    }
   })
 }

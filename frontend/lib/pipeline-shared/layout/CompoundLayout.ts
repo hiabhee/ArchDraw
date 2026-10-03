@@ -1,11 +1,26 @@
 import * as dagre from 'dagre';
 import type {
+  LayoutEdge,
   LayoutParams,
   LayoutResult,
   LayoutDirection,
 } from './LayoutEngine';
-import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, estimateEdgeLabelSize } from './LayoutEngine';
-import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
+import {
+  aggregateLayoutEdges,
+  defaultCompoundLayoutOptions,
+  DEFAULT_NODE_WIDTH,
+  DEFAULT_NODE_HEIGHT,
+  getLayoutEdgeWeight,
+  isCoreServiceType,
+  isInfrastructureServiceType,
+  selectAcyclicLayoutEdges,
+} from './LayoutEngine';
+import {
+  SUBGRAPH_PADDING_X,
+  SUBGRAPH_PADDING_TOP,
+  SUBGRAPH_PADDING_BOTTOM,
+  SUBGRAPH_CONTENT_RANK_SEP,
+} from './layoutConstants';
 import logger from '@/lib/logger';
 
 /**
@@ -59,13 +74,14 @@ interface CompoundContext {
   childrenByParent: Map<string, string[]>;
   parentOf: Map<string, string>;
   dimsById: Map<string, { width: number; height: number }>;
-  edges: Array<{ source: string; target: string; label?: string }>;
+  serviceTypeById: Map<string, string | undefined>;
+  edges: LayoutEdge[];
   direction: LayoutDirection;
   directionByGroup: Map<string, LayoutDirection>;
   nodeSep: number;
   rankSep: number;
   warnings: string[];
-  globalEdgeCount?: number;
+  globalEdgeDensity?: number;
 }
 
 interface LayoutRect {
@@ -203,12 +219,35 @@ function placeSidecarGroups(
   if (rootGroupIds.length < 2) return;
 
   const descendantSets = new Map(rootGroupIds.map(id => [id, descendantsOf(id, parentOf)]));
-  const rootEdgeDegree = (id: string) => params.edges.filter(edge => {
+  const nodeById = new Map(params.nodes.map(node => [node.id, node]));
+  const groupRole = (id: string): 'core' | 'support' | 'unknown' => {
+    const leafIds = [...(descendantSets.get(id) ?? [])]
+      .filter(descendantId => descendantId !== id && !groupIds.has(descendantId));
+    const leafNodes = leafIds.map(leafId => nodeById.get(leafId)).filter(Boolean);
+    const serviceTypes = leafNodes.map(node => node!.serviceType);
+    if (serviceTypes.some(isCoreServiceType)) return 'core';
+    if (
+      serviceTypes.length > 0 &&
+      serviceTypes.every(type => type && isInfrastructureServiceType(type))
+    ) return 'support';
+
+    const label = `${nodeById.get(id)?.label ?? ''} ${id}`.toLowerCase();
+    if (/\b(client|gateway|ingress|edge|service|services|core|compute|api|backend)\b/.test(label)) {
+      return 'core';
+    }
+    if (/\b(data|database|external|support|infra|infrastructure|storage|messaging|events|observability|cache|queue)\b/.test(label)) {
+      return 'support';
+    }
+    return 'unknown';
+  };
+  const rootEdgeDegree = (id: string) => params.edges.reduce((degree, edge) => {
     const sourceIn = descendantSets.get(id)?.has(edge.source);
     const targetIn = descendantSets.get(id)?.has(edge.target);
-    return sourceIn || targetIn;
-  }).length;
+    return sourceIn || targetIn ? degree + getLayoutEdgeWeight(edge) : degree;
+  }, 0);
   const mainGroupId = [...rootGroupIds].sort((a, b) => {
+    const roleDiff = Number(groupRole(b) === 'core') - Number(groupRole(a) === 'core');
+    if (roleDiff !== 0) return roleDiff;
     // Use graph centrality first. The largest group is frequently a data or
     // observability group and should not automatically become the visual spine.
     const degreeDiff = rootEdgeDegree(b) - rootEdgeDegree(a);
@@ -237,7 +276,7 @@ function placeSidecarGroups(
     })
     // A single attachment is usually an entry/exit group. Reposition only
     // multi-connection sidecars, where the long-trunk problem is measurable.
-    .filter(candidate => candidate.crossEdges.length >= 2);
+    .filter(candidate => groupRole(candidate.id) !== 'core' && candidate.crossEdges.length >= 2);
   if (candidates.length === 0) return;
 
   const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
@@ -251,12 +290,20 @@ function placeSidecarGroups(
       const position = positions.get(mainId);
       const dims = dimsById.get(mainId);
       if (!position || !dims) return [];
-      return [{ x: position.x + dims.width / 2, y: position.y + dims.height / 2 }];
+      return [{
+        x: position.x + dims.width / 2,
+        y: position.y + dims.height / 2,
+        weight: getLayoutEdgeWeight(edge),
+      }];
     });
     if (attachmentPoints.length === 0) continue;
 
+    const totalWeight = attachmentPoints.reduce((sum, point) => sum + point.weight, 0);
     const anchor = attachmentPoints.reduce(
-      (sum, point) => ({ x: sum.x + point.x / attachmentPoints.length, y: sum.y + point.y / attachmentPoints.length }),
+      (sum, point) => ({
+        x: sum.x + point.x * point.weight / totalWeight,
+        y: sum.y + point.y * point.weight / totalWeight,
+      }),
       { x: 0, y: 0 },
     );
     const preferred = horizontalFlow
@@ -282,6 +329,157 @@ function placeSidecarGroups(
       positions,
       parentOf,
     );
+  }
+}
+
+/** Move standalone infrastructure next to the core group that consumes it. */
+function placeRootInfrastructureNodes(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+  gap: number,
+): void {
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const rootIds = params.nodes.filter(node => !parentOf.has(node.id)).map(node => node.id);
+  const nodeById = new Map(params.nodes.map(node => [node.id, node]));
+  const supportNodes = params.nodes.filter(node =>
+    !groupIds.has(node.id) && !parentOf.has(node.id) && isInfrastructureServiceType(node.serviceType),
+  );
+
+  const rootAncestor = (nodeId: string): string => {
+    let current = nodeId;
+    const visited = new Set<string>();
+    while (parentOf.has(current) && !visited.has(current)) {
+      visited.add(current);
+      current = parentOf.get(current)!;
+    }
+    return current;
+  };
+
+  for (const supportNode of supportNodes) {
+    const connections = params.edges.flatMap(edge => {
+      const otherId = edge.source === supportNode.id ? edge.target
+        : edge.target === supportNode.id ? edge.source
+        : undefined;
+      const other = otherId ? nodeById.get(otherId) : undefined;
+      if (!otherId || !other || isInfrastructureServiceType(other.serviceType)) return [];
+      return [{ id: otherId, rootId: rootAncestor(otherId), weight: Math.max(1, getLayoutEdgeWeight(edge)) }];
+    });
+    if (connections.length === 0) continue;
+
+    const ownerWeights = new Map<string, number>();
+    for (const connection of connections) {
+      ownerWeights.set(connection.rootId, (ownerWeights.get(connection.rootId) ?? 0) + connection.weight);
+    }
+    const ownerId = [...ownerWeights.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!ownerId || !positions.has(ownerId)) continue;
+
+    const anchorConnections = connections.filter(connection => connection.rootId === ownerId);
+    const totalWeight = anchorConnections.reduce((sum, connection) => sum + connection.weight, 0);
+    const anchor = anchorConnections.reduce((sum, connection) => {
+      const point = positions.get(connection.id);
+      const dims = dimsById.get(connection.id);
+      if (!point || !dims) return sum;
+      return {
+        x: sum.x + (point.x + dims.width / 2) * connection.weight / totalWeight,
+        y: sum.y + (point.y + dims.height / 2) * connection.weight / totalWeight,
+      };
+    }, { x: 0, y: 0 });
+
+    const ownerRect = rootRect(ownerId, groupIds, positions, parentOf, dimsById);
+    const dims = dimsById.get(supportNode.id);
+    const current = positions.get(supportNode.id);
+    if (!dims || !current) continue;
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));
+    const slots = [
+      { x: Math.max(0, ownerRect.x - dims.width - gap), y: clamp(anchor.y - dims.height / 2, ownerRect.y, ownerRect.y + ownerRect.height - dims.height) },
+      { x: ownerRect.x + ownerRect.width + gap, y: clamp(anchor.y - dims.height / 2, ownerRect.y, ownerRect.y + ownerRect.height - dims.height) },
+      { x: clamp(anchor.x - dims.width / 2, ownerRect.x, ownerRect.x + ownerRect.width - dims.width), y: Math.max(0, ownerRect.y - dims.height - gap) },
+      { x: clamp(anchor.x - dims.width / 2, ownerRect.x, ownerRect.x + ownerRect.width - dims.width), y: ownerRect.y + ownerRect.height + gap },
+    ];
+    const occupiedRoots = rootIds
+      .filter(id => id !== supportNode.id && id !== ownerId)
+      .map(id => rootRect(id, groupIds, positions, parentOf, dimsById));
+    const available = slots
+      .map(slot => ({
+        ...slot,
+        width: dims.width,
+        height: dims.height,
+        distance: Math.abs(slot.x + dims.width / 2 - anchor.x) + Math.abs(slot.y + dims.height / 2 - anchor.y),
+      }))
+      .filter(slot => !occupiedRoots.some(rect => rectsOverlap(slot, rect)))
+      .sort((a, b) => a.distance - b.distance);
+    const destination = available[0];
+    if (!destination) continue;
+
+    moveLayoutSubtree(
+      supportNode.id,
+      { x: destination.x - current.x, y: destination.y - current.y },
+      positions,
+      parentOf,
+    );
+  }
+}
+
+/** Keep infrastructure children beside their consumers inside each group. */
+function placeInfrastructureMembers(
+  members: string[],
+  memberRects: Map<string, LayoutRect>,
+  ctx: CompoundContext,
+  resolveMember: (nodeId: string) => string | null,
+  gap: number,
+): void {
+  const supportMembers = members.filter(id => isInfrastructureServiceType(ctx.serviceTypeById.get(id)));
+  for (const supportId of supportMembers) {
+    const anchors = new Map<string, number>();
+    for (const edge of ctx.edges) {
+      const source = resolveMember(edge.source);
+      const target = resolveMember(edge.target);
+      const other = source === supportId ? target : target === supportId ? source : null;
+      if (!other || other === supportId || isInfrastructureServiceType(ctx.serviceTypeById.get(other))) continue;
+      anchors.set(other, Math.max(anchors.get(other) ?? 0, Math.max(0.5, getLayoutEdgeWeight(edge))));
+    }
+    if (anchors.size === 0) continue;
+
+    const anchorRects = [...anchors.keys()].map(id => memberRects.get(id)).filter(Boolean) as LayoutRect[];
+    const supportRect = memberRects.get(supportId);
+    if (anchorRects.length === 0 || !supportRect) continue;
+    const totalWeight = [...anchors.values()].reduce((sum, weight) => sum + weight, 0);
+    const anchor = [...anchors.entries()].reduce((sum, [id, weight]) => {
+      const rect = memberRects.get(id);
+      if (!rect) return sum;
+      return {
+        x: sum.x + (rect.x + rect.width / 2) * weight / totalWeight,
+        y: sum.y + (rect.y + rect.height / 2) * weight / totalWeight,
+      };
+    }, { x: 0, y: 0 });
+    const bounds = anchorRects.reduce((rect, anchorRect) => ({
+      x: Math.min(rect.x, anchorRect.x),
+      y: Math.min(rect.y, anchorRect.y),
+      width: Math.max(rect.x + rect.width, anchorRect.x + anchorRect.width) - Math.min(rect.x, anchorRect.x),
+      height: Math.max(rect.y + rect.height, anchorRect.y + anchorRect.height) - Math.min(rect.y, anchorRect.y),
+    }), anchorRects[0]);
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));
+    const slots = [
+      { x: bounds.x - supportRect.width - gap, y: clamp(anchor.y - supportRect.height / 2, bounds.y, bounds.y + bounds.height - supportRect.height) },
+      { x: bounds.x + bounds.width + gap, y: clamp(anchor.y - supportRect.height / 2, bounds.y, bounds.y + bounds.height - supportRect.height) },
+      { x: clamp(anchor.x - supportRect.width / 2, bounds.x, bounds.x + bounds.width - supportRect.width), y: bounds.y - supportRect.height - gap },
+      { x: clamp(anchor.x - supportRect.width / 2, bounds.x, bounds.x + bounds.width - supportRect.width), y: bounds.y + bounds.height + gap },
+    ];
+    const occupied = [...memberRects.entries()]
+      .filter(([id]) => id !== supportId)
+      .map(([, rect]) => rect);
+    const destination = slots
+      .map(slot => ({
+        ...slot,
+        width: supportRect.width,
+        height: supportRect.height,
+        distance: Math.abs(slot.x + supportRect.width / 2 - anchor.x) + Math.abs(slot.y + supportRect.height / 2 - anchor.y),
+      }))
+      .filter(slot => !occupied.some(rect => rectsOverlap(slot, rect)))
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (destination) memberRects.set(supportId, { x: destination.x, y: destination.y, width: supportRect.width, height: supportRect.height });
   }
 }
 
@@ -331,9 +529,9 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
       baseNodeSep = (ctx as unknown as { _baseNodeSep?: number })._baseNodeSep ?? ctx.nodeSep;
       baseRankSep = (ctx as unknown as { _baseRankSep?: number })._baseRankSep ?? ctx.rankSep;
     }
-    // Count edges that actually affect this level (both endpoints resolve here)
-    let localEdgeCount = 0;
-    const seenPairs = new Set<string>();
+    // Count distinct relationships that affect this level, weighted so support
+    // links do not inflate spacing as much as the main request flow.
+    const pairWeights = new Map<string, number>();
     for (const e of ctx.edges) {
       let cur: string | undefined | null = e.source;
       const seen = new Set<string>();
@@ -353,19 +551,20 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
       const tgtMember = cur && memberSet.has(cur) ? cur : null;
       if (srcMember && tgtMember && srcMember !== tgtMember) {
         const key = `${srcMember}\u0000${tgtMember}`;
-        if (!seenPairs.has(key)) {
-          seenPairs.add(key);
-          localEdgeCount++;
-        }
+        pairWeights.set(key, Math.max(pairWeights.get(key) ?? 0, getLayoutEdgeWeight(e)));
       }
     }
-    // Top level: use global edge count directly (like flat Dagre) so
+    const localEdgeCount = [...pairWeights.values()].reduce(
+      (count, weight) => count + Math.min(1, weight / 3),
+      0,
+    );
+    // Top level: use weighted graph density (like flat Dagre) so
     // cross-group trunks get the same air as flat crowded graphs.
     // Inner levels use local distinct-pair count to stay compact.
     let nodeExtra = 0;
     let rankExtra = 0;
-    if (depth === 0 && ctx.globalEdgeCount !== undefined && ctx.globalEdgeCount > 6) {
-      const extra = ctx.globalEdgeCount - 6;
+    if (depth === 0 && ctx.globalEdgeDensity !== undefined && ctx.globalEdgeDensity > 6) {
+      const extra = ctx.globalEdgeDensity - 6;
       nodeExtra = Math.min(40, extra * 8);
       rankExtra = Math.min(80, extra * 12);
       nodeSep = baseNodeSep + nodeExtra;
@@ -385,6 +584,12 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     }
   
   }
+
+  // Keep the spacing between a group's own ranks compact even when the outer
+  // diagram uses an editorial spacing profile. The group bounds are derived
+  // from these child positions, so this also removes the dead space seen in
+  // small groups without changing the outer flow or the frame padding.
+  if (depth > 0) rankSep = Math.min(rankSep, SUBGRAPH_CONTENT_RANK_SEP);
 
   // Phase 2 — dagre over leaves + group-boxes.
   const g = new dagre.graphlib.Graph();
@@ -442,7 +647,7 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     }
     return false;
   };
-  const pairSize = new Map<string, { source: string; target: string; width: number; height: number }>();
+  const levelEdges: LayoutEdge[] = [];
   for (const edge of ctx.edges) {
     // Deduplicate populated-group edges that duplicate a leaf edge (keep non-duplicate group edges)
     if (isPopulatedGroup(edge.source) || isPopulatedGroup(edge.target)) {
@@ -457,20 +662,21 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     const source = resolveMember(edge.source);
     const target = resolveMember(edge.target);
     if (!source || !target || source === target) continue;
-    const pairKey = `${source}\u0000${target}`;
-    const size = estimateEdgeLabelSize(edge.label);
-    const prev = pairSize.get(pairKey);
-    if (prev) {
-      // Parallel relationships are rendered separately downstream. Reserve
-      // a lane for every label instead of only the widest one.
-      prev.width += size.width + 12;
-      prev.height = Math.max(prev.height, size.height);
-    } else {
-      pairSize.set(pairKey, { source, target, width: size.width, height: size.height });
-    }
+    levelEdges.push({ ...edge, source, target });
   }
-  for (const { source, target, width, height } of pairSize.values()) {
-    g.setEdge(source, target, { width, height, labelpos: 'c', minlen: 1 });
+  const rankEdges = selectAcyclicLayoutEdges(
+    aggregateLayoutEdges(levelEdges),
+    levelDirection,
+    members,
+  );
+  for (const edge of rankEdges) {
+    g.setEdge(edge.source, edge.target, {
+      width: edge.width,
+      height: edge.height,
+      weight: edge.weight,
+      labelpos: 'c',
+      minlen: 1,
+    });
   }
 
   dagre.layout(g);
@@ -489,13 +695,23 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     if (y + h > maxY) maxY = y + h;
   };
 
+  const memberRects = new Map<string, LayoutRect>();
   for (const id of members) {
     const node = g.node(id);
     if (!node) continue;
     const d = dimsOf(id);
     const x = (node.x as number) - d.width / 2;
     const y = (node.y as number) - d.height / 2;
-    place(id, x, y, d.width, d.height);
+    memberRects.set(id, { x, y, width: d.width, height: d.height });
+  }
+  if (depth > 0) {
+    placeInfrastructureMembers(members, memberRects, ctx, resolveMember, Math.max(24, nodeSep / 3));
+  }
+
+  for (const id of members) {
+    const rect = memberRects.get(id);
+    if (!rect) continue;
+    place(id, rect.x, rect.y, rect.width, rect.height);
 
     // Embed the settled interior inside the group box, inset by the same frame
     // padding baked into the box dims (dimsOf) above — this keeps children
@@ -506,8 +722,8 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
       for (const [childId, pos] of inner.positions) {
         if (memberSet.has(childId)) continue;
         positions.set(childId, {
-          x: x + SUBGRAPH_PADDING_X + pos.x,
-          y: y + SUBGRAPH_PADDING_TOP + pos.y,
+          x: rect.x + SUBGRAPH_PADDING_X + pos.x,
+          y: rect.y + SUBGRAPH_PADDING_TOP + pos.y,
         });
       }
     }
@@ -621,13 +837,17 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       childrenByParent,
       parentOf,
       dimsById,
-      edges: params.edges.map(e => ({ source: e.source, target: e.target, label: e.label })),
+      serviceTypeById: new Map(params.nodes.map(node => [node.id, node.serviceType])),
+      edges: params.edges.map(edge => ({ ...edge })),
       direction: params.direction,
       directionByGroup,
       nodeSep: baseNodeSep,
       rankSep: baseRankSep,
       warnings,
-      globalEdgeCount: params.edges.length,
+      globalEdgeDensity: params.edges.reduce(
+        (count, edge) => count + Math.min(1, getLayoutEdgeWeight(edge) / 3),
+        0,
+      ),
     };
     // Store base + explicit flag for per-level calc (attached to ctx via closure)
     // layoutLevel will see ctx and recompute locally if not explicitly overridden.
@@ -649,6 +869,13 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       childrenByParent,
       dimsById,
       ctx.rankSep || defaults.rankSep || 170,
+    );
+    placeRootInfrastructureNodes(
+      result.positions,
+      params,
+      parentOf,
+      dimsById,
+      Math.max(32, Math.min(72, (ctx.nodeSep || defaults.nodeSep || 110) / 2)),
     );
 
     // Root offset: keeps absolute coordinates clear of (0,0) and gives the

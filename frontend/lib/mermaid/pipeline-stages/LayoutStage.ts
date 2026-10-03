@@ -41,7 +41,8 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       // canonical sizing pass before measuring, otherwise parent offsets are
       // counted twice and grouped candidates receive incorrect scores.
       const normalized = applySubgraphBoundsToRf(candidate.nodes);
-      const quality = measureLayoutQuality(normalized, candidate.edges);
+      const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
+      const quality = measureLayoutQuality(normalized, candidate.edges, qualityDirection);
       if (!best || quality.penalty < best.penalty || (quality.penalty === best.penalty && quality.area < best.area)) {
         best = quality;
         // Keep Dagre's absolute coordinates for the next sizing stage; the

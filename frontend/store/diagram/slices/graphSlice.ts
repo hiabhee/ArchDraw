@@ -11,6 +11,7 @@ import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { isTextNode } from '@/lib/mermaid/textNodes';
 import { ensureDiagramHeading } from '@/lib/mermaid/diagramHeading';
 import { placeTextNodes } from '@/lib/mermaid/textPlacement';
+import { ensureSubgraphBoundsContainChildren } from '@/lib/mermaid/recomputeSubgraphBounds';
 import logger from '@/lib/logger';
 import type { RFNode } from '@/lib/mermaid/types';
 import type { DiagramState, NodeData } from '../types';
@@ -329,7 +330,7 @@ export const createGraphSlice: StateCreator<
         const newDimensions = calculateNodeDimensions(label, subtitle, { shape: data.shape });
 
         // Update both data and dimensions
-        const nodes = get().nodes.map((n) =>
+        const nodes = ensureSubgraphBoundsContainChildren(get().nodes.map((n) =>
           n.id === id
             ? {
                 ...n,
@@ -339,7 +340,7 @@ export const createGraphSlice: StateCreator<
                 height: newDimensions.height,
               }
             : n
-        );
+        ), get().diagramRenderStyle, get().iconMode);
         const canvases = get().canvases.map((c) =>
           c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
         );
@@ -379,7 +380,7 @@ export const createGraphSlice: StateCreator<
     ) {
       return;
     }
-    const nextNodes = nodes.map((n) => {
+    const resizedNodes = nodes.map((n) => {
       if (n.id !== id) return n;
       const style = { ...(n.style || {}) };
       if (size.width !== undefined) style.width = size.width;
@@ -396,6 +397,11 @@ export const createGraphSlice: StateCreator<
         },
       };
     });
+    const nextNodes = ensureSubgraphBoundsContainChildren(
+      resizedNodes,
+      get().diagramRenderStyle,
+      get().iconMode,
+    );
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, nodes: nextNodes, updatedAt: Date.now() } : c
     );
@@ -502,7 +508,11 @@ export const createGraphSlice: StateCreator<
 
     const activeCanvas = get().canvases.find((c) => c.id === get().activeCanvasId);
     const withHeading = ensureDiagramHeading(clarityNodes, activeCanvas?.name);
-    const placedNodes = placeTextNodes(withHeading as RFNode[]) as Node[];
+    const placedNodes = ensureSubgraphBoundsContainChildren(
+      placeTextNodes(withHeading as RFNode[]) as Node[],
+      get().diagramRenderStyle,
+      get().iconMode,
+    );
 
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId
@@ -656,7 +666,7 @@ export const createGraphSlice: StateCreator<
       ...(parentId ? { parentId, parentNode: parentId, extent: 'parent' as const } : {}),
     };
 
-    const newNodes = [
+    const groupedNodes = [
       ...nodes.filter((n) => !idsToGroup.includes(n.id)),
       groupNode,
       ...selected.map((n) => ({
@@ -674,6 +684,11 @@ export const createGraphSlice: StateCreator<
         },
       })),
     ];
+    const newNodes = ensureSubgraphBoundsContainChildren(
+      groupedNodes,
+      get().diagramRenderStyle,
+      get().iconMode,
+    );
 
     const newCanvases = canvases.map((c) =>
       c.id === activeCanvasId ? { ...c, nodes: newNodes, updatedAt: Date.now() } : c
@@ -748,7 +763,7 @@ export const createGraphSlice: StateCreator<
       }
     }
 
-    const newNodes = nodes.map((n) =>
+    const movedNodes = nodes.map((n) =>
       n.id === nodeId
         ? {
             ...n,
@@ -758,6 +773,11 @@ export const createGraphSlice: StateCreator<
             position: newPosition,
           }
         : n
+    );
+    const newNodes = ensureSubgraphBoundsContainChildren(
+      movedNodes,
+      get().diagramRenderStyle,
+      get().iconMode,
     );
 
     const newCanvases = canvases.map((c) =>

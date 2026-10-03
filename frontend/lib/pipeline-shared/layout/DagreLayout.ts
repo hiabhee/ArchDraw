@@ -8,7 +8,13 @@ import type {
   LayoutDirection,
   LayoutEdge,
 } from './LayoutEngine';
-import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, estimateEdgeLabelSize } from './LayoutEngine';
+import {
+  aggregateLayoutEdges,
+  defaultCompoundLayoutOptions,
+  DEFAULT_NODE_WIDTH,
+  DEFAULT_NODE_HEIGHT,
+  selectAcyclicLayoutEdges,
+} from './LayoutEngine';
 import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
 import { layoutCompoundTwoPhase } from './CompoundLayout';
 import logger from '@/lib/logger';
@@ -148,7 +154,7 @@ export class DagreLayoutEngine implements LayoutEngine {
       if (subgraphIds.has(parentId)) clusterIds.add(parentId);
     }
 
-    const layoutEdges = params.edges.map(edge => {
+    const layoutEdges: Array<LayoutEdge | null> = params.edges.map(edge => {
       const source = proxyFor.get(edge.source) ?? edge.source;
       const target = proxyFor.get(edge.target) ?? edge.target;
       // If either endpoint still resolves to a real cluster (a subgraph that
@@ -161,15 +167,19 @@ export class DagreLayoutEngine implements LayoutEngine {
       return { ...edge, source, target };
     });
 
-    for (const edge of layoutEdges) {
-      if (!edge) continue;
-      // Reserve space for the label pill between ranks (labelpos 'c' centers
-      // it on the edge); without dims dagre packs ranks as if labels did not
-      // exist and labels end up dropped on top of nodes at render time.
-      const labelSize = estimateEdgeLabelSize(edge.label);
+    const rankEdges = selectAcyclicLayoutEdges(
+      aggregateLayoutEdges(layoutEdges.filter((edge): edge is LayoutEdge => edge !== null)),
+      params.direction,
+      params.nodes.map(node => node.id),
+    );
+    for (const edge of rankEdges) {
+      // Dagre ranks from the highest-value acyclic flow. Feedback/support
+      // links remain in `params.edges` and are still rendered after layout.
       g.setEdge(edge.source, edge.target, {
-        width: labelSize.width,
-        height: labelSize.height,
+        width: edge.width,
+        height: edge.height,
+        weight: edge.weight,
+        minlen: 1,
         labelpos: 'c',
       });
     }
