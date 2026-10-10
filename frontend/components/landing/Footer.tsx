@@ -47,11 +47,11 @@ export function Footer({ tone = 'light' }: FooterProps) {
       <footer className="border-t border-white/[0.1] bg-black px-6 py-7 text-[#a4adbc]">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <Link href="/" className="text-sm font-semibold text-white">ArchDraw</Link>
-          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
-            <a href="/docs" className="transition-colors hover:text-white">Docs</a>
-            <a href="https://github.com/hiabhee/ArchDraw" className="transition-colors hover:text-white">GitHub</a>
-            <a href="/privacy" className="transition-colors hover:text-white">Privacy</a>
-            <a href="/terms" className="transition-colors hover:text-white">Terms</a>
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+            <a href="/docs" className="py-1 transition-colors hover:text-white">Docs</a>
+            <a href="https://github.com/hiabhee/ArchDraw" className="py-1 transition-colors hover:text-white">GitHub</a>
+            <a href="/privacy" className="py-1 transition-colors hover:text-white">Privacy</a>
+            <a href="/terms" className="py-1 transition-colors hover:text-white">Terms</a>
           </nav>
           <span className="text-xs">© 2026 ArchDraw</span>
         </div>

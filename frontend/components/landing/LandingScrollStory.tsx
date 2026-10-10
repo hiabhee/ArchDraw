@@ -47,21 +47,23 @@ export function LandingScrollStory() {
           <p>Follow one diagram from the first signal to a map your team can keep editing.</p>
         </div>
 
-        <div className={styles.storyDiagram}>
-          <LandingCanvasPreview />
-        </div>
         <div className={styles.progressRail} aria-hidden="true"><motion.span style={{ scaleX: reduceMotion ? 1 : easedProgress }} /></div>
 
-        <div ref={trackRef} className={styles.storyTrack}>
-          {STORY_STEPS.map((step, index) => (
-            <article key={step.number} className={styles.storyStep} data-active={activeStep === index || undefined}>
-              <span className={styles.stepIndex}>{step.number}<i /></span>
-              <div className={styles.stepText}>
-                <h3>{step.title}</h3>
-                <p>{step.detail}</p>
-              </div>
-            </article>
-          ))}
+        <div className={styles.storyBody}>
+          <div ref={trackRef} className={styles.storyTrack}>
+            {STORY_STEPS.map((step, index) => (
+              <article key={step.number} className={styles.storyStep} data-active={activeStep === index || undefined}>
+                <span className={styles.stepIndex}>{step.number}<i /></span>
+                <div className={styles.stepText}>
+                  <h3>{step.title}</h3>
+                  <p>{step.detail}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className={styles.storyDiagram}>
+            <LandingCanvasPreview />
+          </div>
         </div>
       </div>
     </section>

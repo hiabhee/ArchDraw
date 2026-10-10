@@ -354,7 +354,7 @@
   .shell { width: calc(100% - 36px); }
   .hero { padding: 90px 0 64px; }
   .heroGrid { grid-template-columns: 1fr; gap: 25px; }
-  .hero h1 { font-size: clamp(2.7rem, 11vw, 3.8rem); line-height: 1.04; }
+  .hero h1 { font-size: clamp(2.35rem, 11vw, 3.8rem); line-height: 1.04; }
   .heroLead { max-width: 38ch; margin: 23px auto 0; font-size: 15px; line-height: 1.7; }
   .heroProduct { left: auto; width: 100%; margin-top: 40px; translate: none; }
   .generateRow { grid-template-columns: 1fr; }

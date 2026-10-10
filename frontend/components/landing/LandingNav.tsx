@@ -103,7 +103,7 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
         </div>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className={`md:hidden p-2 ${isDark ? 'text-[#aeb9c7] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} transition-colors`}
+          className={`md:hidden p-2.5 ${isDark ? 'text-[#aeb9c7] hover:text-white' : 'text-[#575752] hover:text-[#1c1c1a]'} transition-colors`}
           aria-label="Toggle menu"
           aria-expanded={menuOpen}
         >

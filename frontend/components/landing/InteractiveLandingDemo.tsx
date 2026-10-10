@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { DEMO_NODE_TYPES, DEMO_EDGE_TYPES } from './landing-demo/DemoNodes';
 import { PRESETS } from './landing-demo/presets';
 import '@/components/nodes/nodeStyles.css';
+import { CanvasHostProvider, type CanvasHost } from '@/lib/canvas/CanvasHostContext';
 
 export default function InteractiveLandingDemo() {
   return (
@@ -92,6 +93,10 @@ function InteractiveLandingDemoContent() {
       }
     })),
     [nodes, isDemoDark, updateNodeLabel]
+  );
+  const canvasHost = useMemo<CanvasHost>(
+    () => ({ readOnly: true, nodes: displayNodes, edges, planKey: 'landing-demo' }),
+    [displayNodes, edges],
   );
 
   const safeClone = useCallback(<T,>(v: T): T => {
@@ -521,6 +526,7 @@ function InteractiveLandingDemoContent() {
           </div>
         </div>
 
+        <CanvasHostProvider value={canvasHost}>
         <ReactFlow
           nodes={displayNodes}
           edges={edges}
@@ -557,6 +563,7 @@ function InteractiveLandingDemoContent() {
             color={isDemoDark ? '#4b5563' : '#cbd5e1'}
           />
         </ReactFlow>
+        </CanvasHostProvider>
       </div>
 
       {/* Bottom Floating prompt control bar */}

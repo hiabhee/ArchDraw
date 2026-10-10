@@ -39,11 +39,12 @@
 .kicker::before { width: 18px; height: 1px; background: var(--story-blue); content: ''; }
 .storyIntro h2 { max-width: 13ch; margin: 0; font-size: clamp(2.7rem, 5.6vw, 5rem); font-weight: 640; letter-spacing: -.07em; line-height: .98; }
 .storyIntro > p:last-child { max-width: 50ch; margin: 20px 0 0; color: var(--story-muted); font-size: 15px; line-height: 1.7; }
-.storyDiagram { margin-bottom: 24px; }
-.progressRail { height: 2px; overflow: hidden; margin-bottom: 28px; background: rgba(138, 158, 190, .17); }
+.storyDiagram { min-width: 0; flex: 7 1 0; position: sticky; top: 96px; margin: 0; }
+.progressRail { height: 2px; overflow: hidden; margin-bottom: 36px; background: rgba(138, 158, 190, .17); }
 .progressRail span { display: block; width: 100%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); transform-origin: left center; }
-.storyTrack { position: relative; display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(18px, 3vw, 40px); }
-.storyStep { position: relative; display: flex; min-height: 230px; flex-direction: column; justify-content: center; border-top: 1px solid var(--story-line); border-bottom: 1px solid var(--story-line); padding: 30px 12px 38px; opacity: .68; transition: opacity 360ms ease; }
+.storyBody { display: flex; align-items: flex-start; gap: clamp(28px, 4vw, 72px); }
+.storyTrack { position: relative; display: flex; min-width: 0; flex: 5 1 0; flex-direction: column; gap: clamp(18px, 3vw, 40px); }
+.storyStep { position: relative; display: flex; min-height: 300px; flex-direction: column; justify-content: center; border-top: 1px solid var(--story-line); border-bottom: 1px solid var(--story-line); padding: 30px 12px 38px; opacity: .68; transition: opacity 360ms ease; }
 .storyStep[data-active] { opacity: 1; }
 .stepIndex { display: flex; width: fit-content; align-items: center; gap: 12px; margin-bottom: 22px; color: var(--story-blue-bright); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 12px; }
 .stepIndex i { width: 42px; height: 1px; background: currentColor; opacity: .65; }
@@ -52,7 +53,9 @@
 
 @media (max-width: 960px) {
   .storyShell { padding-top: 78px; }
-  .storyTrack { grid-template-columns: 1fr; gap: 0; }
+  .storyBody { flex-direction: column; gap: 0; }
+  .storyDiagram { position: static; order: -1; margin-bottom: 18px; }
+  .storyTrack { gap: 0; }
   .storyStep { min-height: 0; padding: 28px 4px 34px; }
   .stepText h3 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
 }
@@ -60,7 +63,7 @@
 @media (max-width: 680px) {
   .storyShell { width: calc(100% - 36px); padding: 72px 0 52px; }
   .storyIntro { margin-bottom: 34px; }
-  .storyIntro h2 { max-width: 12ch; font-size: clamp(2.55rem, 12vw, 3.6rem); }
+  .storyIntro h2 { max-width: 12ch; font-size: clamp(2.2rem, 12vw, 3.6rem); }
   .storyIntro > p:last-child { font-size: 14px; }
   .storyDiagram { margin-bottom: 18px; }
   .progressRail { margin-bottom: 14px; }

@@ -10,7 +10,10 @@
     rgba(91, 151, 255, .022) 45%,
     transparent 76%
   );
-  mix-blend-mode: screen;
+  /* No mix-blend-mode: blending forces the whole page underneath to
+     re-composite on every cursor frame. The low-alpha gradient alone reads
+     the same on the dark background at a fraction of the cost. */
+  will-change: opacity;
   transition: opacity 180ms ease;
 }
 

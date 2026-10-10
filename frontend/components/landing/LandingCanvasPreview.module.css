@@ -17,7 +17,17 @@
 .canvasName { color: #dce2eb; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
 .canvasStatus { display: inline-flex; align-items: center; gap: 9px; color: #8491a2; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10px; }
 .canvasStatus i { width: 5px; height: 5px; border-radius: 50%; background: #77a9f5; }
+
+/* Very small screens: the status text would overflow the chrome bar next to
+   the canvas name, so keep the name only. */
+@media (max-width: 480px) {
+  .canvasStatus { display: none; }
+}
 .canvas { position: relative; height: 520px; }
+/* Compact instances (e.g. the scroll-story section) show the same diagram in
+   a ~1/3-width frame. Shorter height keeps the footprint small while leaving
+   nodes and labels legible. */
+.previewCompact .canvas { height: 360px; }
 .canvasPlaceholder {
   background-color: #101318;
   background-image:
@@ -38,6 +48,7 @@
   .canvasName { font-size: 10px; }
   .canvasStatus { gap: 6px; font-size: 8px; }
   .canvas { height: 470px; }
+  .previewCompact .canvas { height: 340px; }
   .flow :global(.react-flow__edge-text),
   .flow :global(.react-flow__edge-textbg) { display: none; }
 }

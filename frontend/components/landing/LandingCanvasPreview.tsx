@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -13,9 +13,10 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/components/canvasTypes';
 import { useDiagramStore } from '@/store/diagramStore';
-import { useCanvasTheme } from '@/lib/theme';
+// NOTE: no useCanvasTheme here — the landing preview is always dark (see
+// useForcePreviewDark below), independent of the visitor's global theme.
 import { isStudioRenderStyle, resolveCanvasTokens } from '@/lib/theme/renderStyles';
 import { useEdgeColors } from '@/lib/edgeColors';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/utils/nodeIconVisibility';
@@ -24,6 +25,33 @@ import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { SIZE_M } from '@/lib/theme/stylingConstants';
 import '@/components/nodes/nodeStyles.css';
 import styles from './LandingCanvasPreview.module.css';
+
+// React 18 SSR: useLayoutEffect warns on the server; fall back to useEffect there.
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+/**
+ * The landing hero is dark, so the preview diagram always renders dark —
+ * regardless of the visitor's global theme. Nodes/edges read `darkMode` from
+ * the diagram store directly, so flip it in memory while the preview is
+ * mounted and restore the previous value on unmount. This uses a plain
+ * setState (not toggleDarkMode): it never touches next-themes, the document
+ * class, or localStorage (`darkMode` is not in the persisted slice), so the
+ * editor theme is unaffected. Layout effect runs before paint: no light flash.
+ */
+function useForcePreviewDark() {
+  useIsomorphicLayoutEffect(() => {
+    const prev = useDiagramStore.getState().darkMode;
+    if (!prev) useDiagramStore.setState({ darkMode: true });
+    return () => {
+      if (!prev && useDiagramStore.getState().darkMode) {
+        useDiagramStore.setState({ darkMode: false });
+      }
+    };
+  }, []);
+}
+
+/** The landing preview is always dark — see useForcePreviewDark. */
+const PREVIEW_DARK = true;
 
 function makeNode(
   id: string,
@@ -55,8 +83,8 @@ function makeNode(
     position: { x: 0, y: 0 },
     width: dims.width,
     height: dims.height,
-    draggable: true,
-    selectable: true,
+    // Interactivity (drag/select) comes from the ReactFlow props so the
+    // preview can go fully static on touch devices (see useCoarsePointer).
     data: {
       typeId: serviceType === 'database' ? 'database' : serviceType === 'service' ? 'service' : serviceType,
       label,
@@ -177,6 +205,26 @@ function useNarrowCanvas() {
   return isNarrow;
 }
 
+/**
+ * Touch devices: ReactFlow hijacks single-finger touch for canvas/node
+ * dragging, which traps page scroll over the tall preview. On coarse
+ * pointers the preview renders static (a legible miniature) so the page
+ * scrolls freely underneath it.
+ */
+function useCoarsePointer() {
+  const [isCoarse, setIsCoarse] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsCoarse(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  return isCoarse;
+}
+
 function useLayoutedGraph(isNarrow: boolean, renderStyleId: string, iconMode: NodeIconMode) {
   return useMemo(() => {
     const nodes = makeNodes(renderStyleId, iconMode);
@@ -209,14 +257,15 @@ function useLayoutedGraph(isNarrow: boolean, renderStyleId: string, iconMode: No
   }, [isNarrow, renderStyleId, iconMode]);
 }
 
-function Canvas() {
+function Canvas({ compact = false }: { compact?: boolean }) {
   const isNarrow = useNarrowCanvas();
+  const touchStatic = useCoarsePointer();
   const renderStyleId = useDiagramStore((state) => state.diagramRenderStyle);
   const colorThemeId = useDiagramStore((state) => state.diagramStyleTheme);
   const iconMode = useDiagramStore((state) => state.iconMode);
   const showGrid = useDiagramStore((state) => state.showGrid);
   const canvasBackground = useDiagramStore((state) => state.canvasBackground);
-  const { isDark } = useCanvasTheme();
+  const isDark = PREVIEW_DARK;
   const appearance = useMemo(
     () => resolveCanvasTokens({ renderStyleId, colorThemeId, isDark }),
     [renderStyleId, colorThemeId, isDark],
@@ -230,6 +279,9 @@ function Canvas() {
   const coloredEdges = useEdgeColors(edges);
   const viewport = useViewport();
   const [instance, setInstance] = useState<ReactFlowInstance | null>(null);
+  // Compact instances show the same diagram in a ~1/3-width frame, so allow
+  // zooming out further to fit the full layout without cropping.
+  const minZoomFloor = compact ? 0.15 : 0.25;
 
   const onInit = useCallback((flow: ReactFlowInstance) => setInstance(flow), []);
 
@@ -238,10 +290,10 @@ function Canvas() {
     setNodes(layoutNodes);
     setEdges(layoutEdges);
     const frame = requestAnimationFrame(() => {
-      instance.fitView({ padding: isNarrow ? 0.1 : 0.12, minZoom: 0.25, maxZoom: isNarrow ? 0.72 : 2, duration: 0 });
+      instance.fitView({ padding: isNarrow ? 0.1 : 0.12, minZoom: minZoomFloor, maxZoom: isNarrow ? 0.72 : 2, duration: 0 });
     });
     return () => cancelAnimationFrame(frame);
-  }, [instance, isNarrow, layoutNodes, layoutEdges, setNodes, setEdges]);
+  }, [instance, isNarrow, layoutNodes, layoutEdges, setNodes, setEdges, minZoomFloor]);
 
   return (
     <ReactFlow
@@ -253,21 +305,21 @@ function Canvas() {
       nodeTypes={NODE_TYPES}
       edgeTypes={EDGE_TYPES}
       onInit={onInit}
-      nodesDraggable
+      nodesDraggable={!touchStatic}
       nodesConnectable={false}
-      elementsSelectable
-      panOnDrag
+      elementsSelectable={!touchStatic}
+      panOnDrag={!touchStatic}
       panOnScroll={false}
       zoomOnScroll={false}
-      zoomOnPinch
+      zoomOnPinch={!touchStatic}
       zoomOnDoubleClick={false}
       preventScrolling={false}
-      selectNodesOnDrag
+      selectNodesOnDrag={!touchStatic}
       proOptions={{ hideAttribution: true }}
       fitView
-      minZoom={0.25}
+      minZoom={minZoomFloor}
       maxZoom={isNarrow ? 0.72 : 2}
-      fitViewOptions={{ padding: isNarrow ? 0.1 : 0.12, minZoom: 0.25, maxZoom: isNarrow ? 0.72 : 2, duration: 0 }}
+      fitViewOptions={{ padding: isNarrow ? 0.1 : 0.12, minZoom: minZoomFloor, maxZoom: isNarrow ? 0.72 : 2, duration: 0 }}
     >
       {canvasBackground.variant === 'dots' && showGrid && (
         <Background
@@ -298,11 +350,11 @@ function Canvas() {
   );
 }
 
-function CanvasPreviewContent() {
+function CanvasPreviewContent({ compact = false }: { compact?: boolean }) {
   const renderStyleId = useDiagramStore((state) => state.diagramRenderStyle);
   const colorThemeId = useDiagramStore((state) => state.diagramStyleTheme);
   const canvasBackground = useDiagramStore((state) => state.canvasBackground);
-  const { isDark } = useCanvasTheme();
+  const isDark = PREVIEW_DARK;
   const appearance = useMemo(
     () => resolveCanvasTokens({ renderStyleId, colorThemeId, isDark }),
     [renderStyleId, colorThemeId, isDark],
@@ -310,7 +362,7 @@ function CanvasPreviewContent() {
 
   return (
     <div
-      className={`${styles.preview}${isDark ? ' dark' : ''}`}
+      className={`${styles.preview}${compact ? ` ${styles.previewCompact}` : ''}${isDark ? ' dark' : ''}`}
       aria-label="An ArchDraw canvas preview showing a chat architecture with browser and mobile clients, gateway, authentication, messaging, cache, database, and presence services."
       data-render-style={renderStyleId}
       data-color-theme={colorThemeId}
@@ -330,7 +382,7 @@ function CanvasPreviewContent() {
         <span className={styles.canvasStatus}>11 components <i /> 13 relationships</span>
       </div>
       <div className={styles.canvas}>
-        <ReactFlowProvider><Canvas /></ReactFlowProvider>
+        <ReactFlowProvider><Canvas compact={compact} /></ReactFlowProvider>
       </div>
     </div>
   );
@@ -342,18 +394,19 @@ function CanvasPreviewContent() {
  * and canvas background. Render a stable shell for SSR and the first client
  * render, then mount the interactive canvas after hydration.
  */
-export function LandingCanvasPreview() {
+export function LandingCanvasPreview({ compact = false }: { compact?: boolean }) {
+  useForcePreviewDark();
   const hydrated = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false,
   );
 
-  if (hydrated) return <CanvasPreviewContent />;
+  if (hydrated) return <CanvasPreviewContent compact={compact} />;
 
   return (
     <div
-      className={`${styles.preview} dark`}
+      className={`${styles.preview}${compact ? ` ${styles.previewCompact}` : ''} dark`}
       aria-label="Loading the interactive chat architecture canvas preview"
       data-cursor-shine-exclude
     >
