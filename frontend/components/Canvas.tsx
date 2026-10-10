@@ -48,6 +48,8 @@ import { createNode, createEdge, createBlankShapeNode } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
+import { resolveDiagramPresentation } from '@/lib/utils/diagramPresentation';
 
 // Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
 function CanvasUrlSync() {
@@ -631,6 +633,13 @@ function CanvasInner() {
   }, []);
 
   const coloredEdges = useEdgeColors(edges);
+  const diagramViewMode = useDiagramStore((s) => s.diagramViewMode);
+  const presentation = useMemo(
+    () => resolveDiagramPresentation(nodes, coloredEdges, diagramViewMode),
+    [nodes, coloredEdges, diagramViewMode],
+  );
+  const visibleNodes = useMemo(() => nodes.filter((node) => presentation.visibleNodeIds.has(node.id)), [nodes, presentation]);
+  const visibleEdges = useMemo(() => coloredEdges.filter((edge) => presentation.visibleEdgeIds.has(edge.id)), [coloredEdges, presentation]);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
   const viewport = useViewport();
@@ -680,9 +689,10 @@ function CanvasInner() {
         } : {}),
       }}
     >
+      <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
-        nodes={nodes}
-        edges={coloredEdges}
+        nodes={visibleNodes}
+        edges={visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
@@ -701,7 +711,9 @@ function CanvasInner() {
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
         fitView
-        fitViewOptions={{ padding: isMobile ? 0.15 : 0.0 }}
+        // Reserve room for the floating toolbar and prompt bar so the first
+        // fit never puts edge nodes underneath editor chrome.
+        fitViewOptions={{ padding: isMobile ? 0.15 : 0.16 }}
         selectionMode={isMobile ? SelectionMode.Partial : SelectionMode.Full}
         // Keep canvas panning on middle/right mouse so left-drag can draw selection box.
         // On mobile, allow single-finger pan for better touch handling.
@@ -755,6 +767,7 @@ function CanvasInner() {
         <SVGEdgeMarkerDefs />
         <GuideLines />
       </ReactFlow>
+      </DiagramGeometryProvider>
 
       {/* Comet Trail Pen Overlay */}
       <CometTrailCanvas />

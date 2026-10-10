@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -23,6 +23,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
+import { resolveDiagramPresentation } from '@/lib/utils/diagramPresentation';
 
 export function Toolbar() {
   const router = useRouter();
@@ -30,16 +31,17 @@ export function Toolbar() {
     clearDiagram, nodes, edges, importDiagram,
     undo, redo, past, future,
     canvases, activeCanvasId, removeCanvas,
-    getVisibleCanvases,
     savingState, userProfile, setSidebarOpen, sidebarOpen,
     sequenceDiagrams,
     isPenModeActive, setPenModeActive,
+    diagramViewMode, setDiagramViewMode,
   } = useDiagramStore();
 
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
   const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
+  const hiddenInOverview = resolveDiagramPresentation(nodes, edges, 'overview').hiddenEdgeIds.size;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -60,8 +62,6 @@ export function Toolbar() {
   const openGuide = useOnboardingStore((s) => s.open);
   const darkMode = useDiagramStore((s) => s.darkMode);
   const toggleDarkMode = useDiagramStore((s) => s.toggleDarkMode);
-
-  useCallback(getVisibleCanvases, [getVisibleCanvases])();
 
   // Count nodes/edges in current canvas for delete confirmation
   const currentCanvasForDelete = canvases.find(c => c.id === activeCanvasId);
@@ -97,7 +97,7 @@ export function Toolbar() {
       try {
         const data = JSON.parse(reader.result as string);
         if (Array.isArray(data.nodes) && Array.isArray(data.edges)) {
-          importDiagram(data.nodes, data.edges);
+          importDiagram(data.nodes, data.edges, { preserveTopology: true });
           toast.success('Diagram imported');
         }
       } catch {
@@ -353,6 +353,20 @@ export function Toolbar() {
             </Button>
 
             <LayoutToggleButton />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDiagramViewMode(diagramViewMode === 'overview' ? 'details' : 'overview')}
+              title={diagramViewMode === 'overview' ? 'Show all diagram connections' : 'Show the main flow'}
+              aria-label={diagramViewMode === 'overview' ? 'Show details' : 'Show overview'}
+              aria-pressed={diagramViewMode === 'overview'}
+              className="h-8 px-2 text-xs"
+            >
+              {diagramViewMode === 'overview'
+                ? `Overview${hiddenInOverview ? ` · ${hiddenInOverview} hidden` : ''}`
+                : 'Details'}
+            </Button>
 
             <NodeIconModeToggle />
 

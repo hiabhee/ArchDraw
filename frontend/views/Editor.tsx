@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Node, Edge } from 'reactflow';
@@ -14,6 +14,7 @@ import { FloatingAIBar } from '@/components/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/GenerationProgress';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { createTextLabelNode, createBlankShapeNode } from '@/lib/factory';
 import type { ShapeType } from '@/lib/shapeRegistry';
 import { getViewportCenter } from '@/lib/utils';
@@ -67,16 +68,27 @@ export default function EditorPage() {
   const {
     selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen,
     importDiagram, importSequenceDiagram, fitView, renameCanvas,
-    activeCanvasId, sequenceDiagrams, canvases,
+    activeCanvasId, sequenceDiagrams,
     startGeneration, markPipelineDone, markPipelineError
-  } = useDiagramStore();
+  } = useDiagramStore(useShallow((state) => ({
+    selectedNodeId: state.selectedNodeId, selectedNodeIds: state.selectedNodeIds, selectedEdgeId: state.selectedEdgeId,
+    nodes: state.nodes, sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
+    importDiagram: state.importDiagram, importSequenceDiagram: state.importSequenceDiagram, fitView: state.fitView,
+    renameCanvas: state.renameCanvas, activeCanvasId: state.activeCanvasId, sequenceDiagrams: state.sequenceDiagrams,
+    startGeneration: state.startGeneration, markPipelineDone: state.markPipelineDone,
+    markPipelineError: state.markPipelineError,
+  })));
   const { user } = useAuthStore();
   const _tier = getUserTier(user?.id);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editComponent, setEditComponent] = useState<ComponentToEdit | null>(null);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
-  const guestCanvas = canvases.find(c => c.id === 'guest-canvas');
-  const showExpirationNudge = !user && guestCanvas && guestCanvas.createdAt && (Date.now() - (guestCanvas.createdAt || 0) > 72 * 60 * 60 * 1000);
+  const guestCreatedAt = useDiagramStore((state) => state.canvases.find(c => c.id === 'guest-canvas')?.createdAt);
+  const showExpirationNudge = useSyncExternalStore(
+    () => () => {},
+    () => Boolean(guestCreatedAt && Date.now() - guestCreatedAt > 72 * 60 * 60 * 1000),
+    () => false,
+  ) && !user;
   const [canvasSidebarOpen, setCanvasSidebarOpen] = useState(false);
   const [showRepoIngestModal, setShowRepoIngestModal] = useState(false);
   const [showCodePanel, setShowCodePanel] = useState(false);
@@ -104,28 +116,25 @@ export default function EditorPage() {
 
   // Sync lastPrompt when switching canvases
   useEffect(() => {
+    // localStorage is browser state; sync it when the active canvas changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastPrompt(localStorage.getItem(`archdraw-last-prompt:${activeCanvasId}`));
   }, [activeCanvasId]);
-
-  // Auto-close code panel if entering sequence diagram mode
-  useEffect(() => {
-    if (isSequenceDiagram) {
-      setShowCodePanel(false);
-    }
-  }, [isSequenceDiagram]);
 
   // Refs for useEffect to avoid dependency issues
   const sidebarOpenRef = useRef(sidebarOpen);
   const canvasSidebarOpenRef = useRef(canvasSidebarOpen);
-  sidebarOpenRef.current = sidebarOpen;
-  canvasSidebarOpenRef.current = canvasSidebarOpen;
   // HMR-safe store binding: Fast Refresh may re-evaluate `diagramStore.ts`
   // and create a new store instance without re-creating this effect closure.
   // A render-time ref always points at the current module binding so the
   // global keydown handler never writes to an orphaned store (symptom:
   // node persisted to localStorage but Canvas never re-renders until refresh).
   const storeRef = useRef(useDiagramStore);
-  storeRef.current = useDiagramStore;
+  useEffect(() => {
+    sidebarOpenRef.current = sidebarOpen;
+    canvasSidebarOpenRef.current = canvasSidebarOpen;
+    storeRef.current = useDiagramStore;
+  }, [sidebarOpen, canvasSidebarOpen]);
 
   // Initialize onboarding (auto-open + drag detection)
   useOnboarding();
@@ -331,14 +340,19 @@ export default function EditorPage() {
       const direction = inferDiagramDirection(result);
       const activePresetId = direction ?? 'layered-lr';
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
-      const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
-        title: canvasName,
-        renderStyleId: store.diagramRenderStyle,
-      });
+      const serverLayoutMatches = result.metadata?.layoutEngine === 'mermaid-dagre-v1'
+        && result.metadata?.layoutDirection === mermaidDirection;
+      const relayouted = serverLayoutMatches
+        ? { nodes: processedNodes, edges: processedEdges, success: true, warnings: [] }
+        : await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
+            title: canvasName,
+            renderStyleId: store.diagramRenderStyle,
+          });
       // `store` was a snapshot taken before the await — the user may have
       // edited (or another generation may have landed) meanwhile. Re-read the
       // live state so merges and renames never clobber concurrent changes.
       const liveStore = useDiagramStore.getState();
+      liveStore.setDiagramViewMode('overview');
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
 
@@ -519,7 +533,9 @@ export default function EditorPage() {
   };
 
   const handleGenerateRef = useRef(handleGenerate);
-  handleGenerateRef.current = handleGenerate;
+  useEffect(() => {
+    handleGenerateRef.current = handleGenerate;
+  });
 
   useEffect(() => {
     const raw = searchParams.get('generate');

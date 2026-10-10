@@ -27,8 +27,11 @@ async function initMermaid() {
 
 export function SequenceDiagramViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [svg, setSvg] = useState<string>('');
-  const [error, setError] = useState<string>('');
+  const [rendered, setRendered] = useState<{ syntax: string; svg: string; error: string }>({
+    syntax: '',
+    svg: '',
+    error: '',
+  });
   const prevSyntaxRef = useRef<string | undefined>(undefined);
   const activeCanvasId = useDiagramStore((s) => s.activeCanvasId);
   const sequenceDiagrams = useDiagramStore((s) => s.sequenceDiagrams);
@@ -43,11 +46,7 @@ export function SequenceDiagramViewer() {
   }, []);
 
   useEffect(() => {
-    if (!diagram?.mermaidSyntax) {
-      setSvg('');
-      setError('');
-      return;
-    }
+    if (!diagram?.mermaidSyntax) return;
 
     if (diagram.mermaidSyntax === prevSyntaxRef.current) return;
     prevSyntaxRef.current = diagram.mermaidSyntax;
@@ -66,19 +65,24 @@ export function SequenceDiagramViewer() {
           
           if (!sanitized) {
             logger.error('[SequenceDiagram] SVG sanitization produced empty result');
-            setError('Failed to render sequence diagram: sanitization failed');
-            setSvg('');
+            setRendered({
+              syntax: diagram.mermaidSyntax,
+              error: 'Failed to render sequence diagram: sanitization failed',
+              svg: '',
+            });
             return;
           }
           
-          setSvg(sanitized);
-          setError('');
+          setRendered({ syntax: diagram.mermaidSyntax, svg: sanitized, error: '' });
         }
       } catch (err) {
         logger.error('Mermaid render error:', err);
         if (!cancelled) {
-          setError('Failed to render sequence diagram');
-          setSvg('');
+          setRendered({
+            syntax: diagram.mermaidSyntax,
+            error: 'Failed to render sequence diagram',
+            svg: '',
+          });
         }
       }
     };
@@ -87,7 +91,10 @@ export function SequenceDiagramViewer() {
     return () => { cancelled = true; };
   }, [diagram?.mermaidSyntax]);
 
-  if (!diagram) {
+  const svg = rendered.syntax === diagram?.mermaidSyntax ? rendered.svg : '';
+  const error = rendered.syntax === diagram?.mermaidSyntax ? rendered.error : '';
+
+  if (!diagram?.mermaidSyntax) {
     return (
       <div className="flex-1 flex items-center justify-center bg-canvas-bg">
         <p className="text-muted-foreground text-sm italic">No sequence diagram available for this canvas.</p>
