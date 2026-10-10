@@ -95,8 +95,8 @@ export function CanvasBackgroundControls() {
                     }}
                   />
                   <span
-                    className={`relative text-xs font-medium px-2 py-1 rounded-full ${
-                      active ? 'bg-primary text-primary-foreground' : 'bg-white/90 text-foreground border border-border'
+                    className={`relative text-xs font-semibold px-2 py-1 rounded-full shadow-sm ${
+                      active ? 'bg-primary text-primary-foreground' : 'bg-popover text-popover-foreground border border-border'
                     }`}
                   >
                     {p.label}
@@ -105,7 +105,7 @@ export function CanvasBackgroundControls() {
               );
             })}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-3">Pattern follows theme (light/dark) automatically.</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground dark:text-slate-300 mt-3">Pattern follows theme (light/dark) automatically.</p>
         </div>
       )}
     </div>
