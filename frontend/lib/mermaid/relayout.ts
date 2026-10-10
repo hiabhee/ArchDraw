@@ -5,6 +5,12 @@ import { isDomainSuccess } from '@/lib/pipeline-core';
 import { resolveShapeNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import { ensureDiagramHeading } from './diagramHeading';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import {
+  createSemanticEdgeKey,
+  normalizeSemanticType,
+  semanticEdgeKeyString,
+  type EdgeLayoutSemantics,
+} from './edgeFlowSemantics';
 
 export interface RelayoutCanvasResult {
   nodes: Node[];
@@ -22,6 +28,11 @@ export interface RelayoutOptions {
   renderStyleId?: DiagramRenderStyleId;
 }
 
+// Templates and editor entry points often request layout more than once for
+// the same immutable module-level graph. Keep a small identity cache so those
+// repeated requests share the completed canonical layout pass.
+const relayoutCache = new WeakMap<Node[], WeakMap<Edge[], Map<string, RelayoutCanvasResult>>>();
+
 /** Map toolbar / store preset ids to Mermaid graph direction. */
 export function directionFromPresetId(presetId: string | null | undefined): LayoutDirection {
   return presetId === 'layered-tb' ? 'TD' : 'LR';
@@ -29,6 +40,14 @@ export function directionFromPresetId(presetId: string | null | undefined): Layo
 
 export function presetIdFromDirection(direction: LayoutDirection): 'layered-lr' | 'layered-tb' {
   return direction === 'TD' ? 'layered-tb' : 'layered-lr';
+}
+
+export function encodeTemporaryLayoutId(id: string): string {
+  const bytes = new TextEncoder().encode(id);
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  // A single `0` sentinel represents the empty string; nonempty UTF-8 hex is
+  // always at least two characters, so the encoding remains collision-free.
+  return `layout_${hex || '0'}`;
 }
 
 function isGroupNode(node: Node): boolean {
@@ -80,13 +99,21 @@ export async function layoutDiagramViaMermaid(
     return { nodes, edges, success: true, warnings: [] };
   }
 
+  let byEdges = relayoutCache.get(nodes);
+  if (!byEdges) { byEdges = new WeakMap(); relayoutCache.set(nodes, byEdges); }
+  let byOptions = byEdges.get(edges);
+  if (!byOptions) { byOptions = new Map(); byEdges.set(edges, byOptions); }
+  const cacheKey = JSON.stringify([direction, options.title ?? '', options.renderStyleId ?? '']);
+  const cachedLayout = byOptions.get(cacheKey);
+  if (cachedLayout) return cachedLayout;
+
   const nodesWithHeading = ensureDiagramHeading(nodes, options.title);
 
   try {
     // Mermaid ids are more restrictive than React Flow ids. Use a reversible,
     // collision-free set for this layout pass ("api.prod" and "api_prod" must
     // never become the same vertex).
-    const toLayoutId = new Map(nodesWithHeading.map((node, index) => [node.id, `layout_${index}`]));
+    const toLayoutId = new Map(nodesWithHeading.map((node) => [node.id, encodeTemporaryLayoutId(node.id)]));
     const fromLayoutId = new Map([...toLayoutId].map(([original, layout]) => [layout, original]));
     const mapId = (id: string | undefined) => id ? (toLayoutId.get(id) ?? id) : undefined;
     const restoreId = (id: string | undefined) => id ? (fromLayoutId.get(id) ?? id) : undefined;
@@ -106,9 +133,30 @@ export async function layoutDiagramViaMermaid(
       source: mapId(edge.source)!,
       target: mapId(edge.target)!,
     }));
-    const mermaid = reactFlowToMermaid(layoutNodes, layoutEdges, direction);
+    // Mermaid has no syntax for arbitrary React Flow edge metadata. Carry it
+    // in a typed sidecar, keyed by endpoint/label/type and stable duplicate
+    // ordinal, and serialize duplicate groups in stable edge-ID order.
+    const orderedLayoutEdges = [...layoutEdges].sort((a, b) => a.id.localeCompare(b.id));
+    const edgeSemantics = new Map<string, EdgeLayoutSemantics>();
+    const duplicateOrdinals = new Map<string, number>();
+    for (const edge of orderedLayoutEdges) {
+      const key = createSemanticEdgeKey(edge, edge.source, edge.target, 0);
+      const base = JSON.stringify([key.sourceLayoutId, key.targetLayoutId, key.normalizedLabel, key.normalizedType]);
+      const duplicateOrdinal = duplicateOrdinals.get(base) ?? 0;
+      duplicateOrdinals.set(base, duplicateOrdinal + 1);
+      const data = edge.data as Record<string, unknown> | undefined;
+      edgeSemantics.set(semanticEdgeKeyString({ ...key, duplicateOrdinal }), {
+        importance: typeof data?.importance === 'string' ? data.importance : undefined,
+        importanceSource: (data?.importanceSource as 'explicit' | 'inferred' | undefined) ?? 'inferred',
+        flowRole: data?.flowRole as EdgeLayoutSemantics['flowRole'],
+        flowRoleSource: (data?.flowRoleSource as 'explicit' | 'inferred' | undefined) ?? 'inferred',
+        flowRoleConfidence: typeof data?.flowRoleConfidence === 'number' ? data.flowRoleConfidence : undefined,
+      });
+    }
+    const mermaid = reactFlowToMermaid(layoutNodes, orderedLayoutEdges, direction);
     const result = await runMermaidPipeline(mermaid, {
-      layoutProfile: options.renderStyleId === 'studio-minimal' ? 'studio-minimal' : undefined,
+      layoutProfile: options.renderStyleId === 'studio-minimal' || options.renderStyleId === 'studio-metallic' ? 'studio-minimal' : undefined,
+      edgeSemantics,
     });
 
     if (!isDomainSuccess(result)) {
@@ -200,14 +248,15 @@ export async function layoutDiagramViaMermaid(
     // otherwise discard custom waypoints, style, type, handles, animated, and
     // break undo/selection keyed on stable edge ids.
     const originalEdgeBuckets = new Map<string, Edge[]>();
-    const edgeKey = (source: string, target: string, label: unknown) =>
-      `${source}|${target}|${typeof label === 'string' ? label.trim() : ''}`;
+    const edgeKey = (edge: Edge, source = edge.source, target = edge.target) =>
+      `${source}|${target}|${typeof (edge.label ?? edge.data?.label) === 'string' ? String(edge.label ?? edge.data?.label).trim().toLowerCase() : ''}|${normalizeSemanticType(edge)}`;
     for (const edge of edges) {
-      const key = edgeKey(edge.source, edge.target, edge.label);
+      const key = edgeKey(edge);
       const bucket = originalEdgeBuckets.get(key);
       if (bucket) bucket.push(edge);
       else originalEdgeBuckets.set(key, [edge]);
     }
+    for (const bucket of originalEdgeBuckets.values()) bucket.sort((a, b) => a.id.localeCompare(b.id));
 
     // Preserve original edge identity, but ensure no edges are silently dropped.
     // If the pipeline produces fewer edges than input (e.g. due to duplicate labels or parse loss),
@@ -224,10 +273,10 @@ export async function layoutDiagramViaMermaid(
         source: restoreId(layoutEdge.source)!,
         target: restoreId(layoutEdge.target)!,
       };
-      const bucket = originalEdgeBuckets.get(edgeKey(newEdge.source, newEdge.target, newEdge.label))
-        ?? originalEdgeBuckets.get(`${newEdge.source}|${newEdge.target}|`);
+      const bucket = originalEdgeBuckets.get(edgeKey(newEdge))
+        ?? [...originalEdgeBuckets.entries()].find(([key]) => key.startsWith(`${newEdge.source}|${newEdge.target}|`))?.[1];
       // Also try matching via data.label if label is empty
-      const fallbackBucket = !bucket ? originalEdgeBuckets.get(edgeKey(newEdge.source, newEdge.target, (newEdge.data as Record<string, unknown> | undefined)?.['label'])) : undefined;
+      const fallbackBucket = !bucket ? [...originalEdgeBuckets.entries()].find(([key]) => key.startsWith(`${newEdge.source}|${newEdge.target}|`))?.[1] : undefined;
       const targetBucket = bucket ?? fallbackBucket;
       const original = targetBucket?.shift();
       if (!original) return newEdge;
@@ -242,7 +291,7 @@ export async function layoutDiagramViaMermaid(
         hidden: original.hidden ?? newEdge.hidden,
         markerStart: original.markerStart ?? newEdge.markerStart,
         markerEnd: original.markerEnd ?? newEdge.markerEnd,
-        data: { ...newEdge.data, ...original.data, customWaypoints: undefined },
+        data: { ...newEdge.data, ...original.data },
       } as Edge;
     });
 
@@ -256,17 +305,24 @@ export async function layoutDiagramViaMermaid(
         console.warn(`[Relayout] Restoring ${remaining.length} dropped edges`);
         preservedEdges.push(...remaining.map((edge) => ({
           ...edge,
-          data: { ...edge.data, customWaypoints: undefined },
+          data: { ...edge.data },
         })));
       }
     }
 
-    return {
+    const originalEdgeOrder = new Map(edges.map((edge, index) => [edge.id, index]));
+    preservedEdges.sort((a, b) => (originalEdgeOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER)
+      - (originalEdgeOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+
+    const output = {
       nodes: orphans.length > 0 ? [...preservedNodes, ...orphans] : preservedNodes,
       edges: preservedEdges,
       success: true,
       warnings: result.data.warnings ?? [],
     };
+    if (byOptions.size >= 8) byOptions.delete(byOptions.keys().next().value!);
+    byOptions.set(cacheKey, output);
+    return output;
   } catch (err) {
     return {
       nodes,

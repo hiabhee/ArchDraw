@@ -1,5 +1,5 @@
 import { DagreLayoutEngine } from './DagreLayout';
-import type { LayoutEdgeImportance, LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
+import type { LayoutEdge, LayoutEdgeImportance, LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
 import { isTextNode } from '@/lib/mermaid/textNodes';
 
@@ -95,6 +95,10 @@ export class IntegratedLayoutEngine {
           ?? (edge.data?.label as string | undefined),
         importance: (edge.data?.importance as LayoutEdgeImportance | undefined)
           ?? (edge.data?.isReturn || edge.data?.responseLabel ? 'diagnostic' : undefined),
+        flowRole: edge.data?.flowRole as LayoutEdge['flowRole'],
+        importanceSource: edge.data?.importanceSource as LayoutEdge['importanceSource'],
+        flowRoleSource: edge.data?.flowRoleSource as LayoutEdge['flowRoleSource'],
+        flowRoleConfidence: edge.data?.flowRoleConfidence as number | undefined,
         connectionType: (edge.data?.connectionType as string | undefined)
           ?? (edge.data?.edgeType as string | undefined),
         sourceServiceType: serviceTypeById.get(edge.source),

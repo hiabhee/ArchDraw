@@ -22,6 +22,7 @@ export interface LayoutNode {
 }
 
 export type LayoutEdgeImportance = 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';
+export type LayoutFlowRole = 'main' | 'branch' | 'feedback' | 'supporting';
 
 export interface LayoutEdge {
   id: string;
@@ -31,6 +32,10 @@ export interface LayoutEdge {
   label?: string;
   /** Existing relationship semantics from the Mermaid / React Flow pipeline. */
   importance?: LayoutEdgeImportance;
+  flowRole?: LayoutFlowRole;
+  importanceSource?: 'explicit' | 'inferred';
+  flowRoleSource?: 'explicit' | 'inferred';
+  flowRoleConfidence?: number;
   connectionType?: string;
   sourceServiceType?: string;
   targetServiceType?: string;
@@ -186,6 +191,12 @@ export function isInfrastructureServiceType(serviceType?: string): boolean {
  * and how strongly a candidate layout is judged on crossings.
  */
 export function getLayoutEdgeWeight(edge: LayoutEdge): number {
+  // A primary relationship is semantic backbone intent. Infrastructure and
+  // async metadata describe transport, not a reason to demote that intent.
+  if (edge.importance === 'primary') return IMPORTANCE_WEIGHT.primary;
+  if (edge.flowRole === 'main') return IMPORTANCE_WEIGHT.primary;
+  if (edge.flowRole === 'branch') return IMPORTANCE_WEIGHT.secondary;
+  if (edge.flowRole === 'feedback') return IMPORTANCE_WEIGHT.diagnostic;
   if (RETURN_EDGE_LABEL.test(edge.label ?? '')) return IMPORTANCE_WEIGHT.diagnostic;
 
   let weight = IMPORTANCE_WEIGHT[edge.importance ?? 'secondary'] ?? IMPORTANCE_WEIGHT.secondary;
@@ -242,26 +253,13 @@ export function aggregateLayoutEdges(edges: LayoutEdge[]): AggregatedLayoutEdge[
  */
 export function selectAcyclicLayoutEdges(
   edges: AggregatedLayoutEdge[],
-  direction?: LayoutDirection,
-  nodeOrder: string[] = [],
+  _direction?: LayoutDirection,
+  _nodeOrder: string[] = [],
 ): AggregatedLayoutEdge[] {
-  const orderIndex = new Map(nodeOrder.map((id, index) => [id, index]));
-  const followsRequestedDirection = (edge: AggregatedLayoutEdge) => {
-    if (!direction) return true;
-    const sourceIndex = orderIndex.get(edge.source);
-    const targetIndex = orderIndex.get(edge.target);
-    if (sourceIndex === undefined || targetIndex === undefined || sourceIndex === targetIndex) return true;
-    const forward = direction === 'LR' || direction === 'TB'
-      ? targetIndex > sourceIndex
-      : targetIndex < sourceIndex;
-    return forward;
-  };
   const ordered = [...edges].sort((a, b) => {
     const weightDelta = b.weight - a.weight;
     if (weightDelta !== 0) return weightDelta;
-    const directionDelta = Number(followsRequestedDirection(b)) - Number(followsRequestedDirection(a));
-    if (directionDelta !== 0) return directionDelta;
-    return a.id.localeCompare(b.id);
+    return a.source.localeCompare(b.source) || a.target.localeCompare(b.target) || a.id.localeCompare(b.id);
   });
   const outgoing = new Map<string, Set<string>>();
   const selected: AggregatedLayoutEdge[] = [];

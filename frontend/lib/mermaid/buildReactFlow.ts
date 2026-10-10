@@ -204,7 +204,10 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       data: {
         label: isInvisible ? undefined : (pEdge.label ?? undefined),
         connectionType: pEdge.type === 'dotted' || isInvisible || semantics.syncAsync === 'async' ? 'async' : 'sync',
-        edgeVariant: semantics.syncAsync === 'async' && edgeVariant === 'solid' ? 'dashed' : edgeVariant,
+        // Solid by default: only Mermaid-native dashed variants (dotted/open)
+        // render dashed. Inferred async semantics stay solid; control-plane
+        // dashing is resolved at render time from importance/portType.
+        edgeVariant,
         importance: isInvisible ? 'optional' : semantics.importance,
         syncAsync: semantics.syncAsync,
         portType: semantics.portType,

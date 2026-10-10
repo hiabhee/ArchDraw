@@ -50,7 +50,7 @@ describe('relayout round-trip fixes', () => {
     expect(e.id).toBe('my-stable-id');
     expect(e.animated).toBe(true);
     expect((e.style as { stroke?: string }).stroke).toBe('#ff0000');
-    expect((e.data as { customWaypoints?: unknown[] }).customWaypoints).toBeUndefined();
+    expect((e.data as { customWaypoints?: unknown[] }).customWaypoints).toEqual([{ x: 5, y: 5 }]);
   });
 
   it('C3: async-family edges serialize as dotted', () => {

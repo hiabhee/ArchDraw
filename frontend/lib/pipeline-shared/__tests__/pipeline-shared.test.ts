@@ -1,11 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import { DagreLayoutEngine } from '../layout/DagreLayout';
 import { applyRfLayout, getIntegratedLayoutEngine } from '../layout/IntegratedLayout';
-import { defaultCompoundLayoutOptions } from '../layout/LayoutEngine';
+import { defaultCompoundLayoutOptions, getLayoutEdgeWeight, selectAcyclicLayoutEdges } from '../layout/LayoutEngine';
 import { convertNodes } from '../reactflow/NodeConverter';
 import { convertEdges } from '../reactflow/EdgeConverter';
 import { ReactFlowAdapter } from '../reactflow/ReactFlowAdapter';
 import { ProgressTracker, createProgressEvent } from '../progress';
+
+describe('layout edge priority invariants', () => {
+  it('preserves explicit primary importance on asynchronous infrastructure links', () => {
+    expect(getLayoutEdgeWeight({
+      id: 'publish', source: 'producer', target: 'queue', importance: 'primary',
+      connectionType: 'async', targetServiceType: 'queue',
+    })).toBe(5);
+    expect(getLayoutEdgeWeight({
+      id: 'queue-worker', source: 'queue', target: 'worker', flowRole: 'main',
+      connectionType: 'async', sourceServiceType: 'queue',
+    })).toBe(5);
+  });
+
+  it('selects the same cycle backbone when serialization order changes', () => {
+    const edges = [
+      { id: 'a-b', source: 'a', target: 'b', weight: 3, width: 0, height: 0 },
+      { id: 'b-a', source: 'b', target: 'a', weight: 3, width: 0, height: 0 },
+    ];
+    const forward = selectAcyclicLayoutEdges(edges, 'LR', ['a', 'b']).map(edge => edge.id);
+    const shuffled = selectAcyclicLayoutEdges([...edges].reverse(), 'LR', ['b', 'a']).map(edge => edge.id);
+    expect(shuffled).toEqual(forward);
+  });
+});
 
 describe('DagreLayoutEngine', () => {
   it('lays out nodes in TB direction', async () => {
