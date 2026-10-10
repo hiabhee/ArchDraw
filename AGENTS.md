@@ -76,7 +76,7 @@ Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc
 
 Path: React Flow → Mermaid → Parse → Validate → Build → **Dagre** (`pipeline-shared/layout`) → Size → map positions back.
 
-Do **not** assume the toolbar uses ELK. There is no frontend ELK path — layout is Dagre-only via `pipeline-shared/layout` (ELK lives only in `mcp-server`). See `docs/layout-toggler.md`.
+Do **not** assume the toolbar uses ELK. There is no frontend ELK path — layout is Dagre-only via `pipeline-shared/layout`, and `mcp-server` also lays out through the web pipeline. See `docs/layout-toggler.md`.
 
 ### Node sizing rule
 
@@ -122,7 +122,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 
 | Route | Purpose |
 |-------|---------|
-| `generate-diagram/` (+ `streaming/`) | Prompt → AI Mermaid pipeline → RF graph |
+| `generate-diagram/` (+ `streaming/` alias) | Prompt → AI Mermaid pipeline → RF graph |
 | `repo-diagram/` | GitHub / tarball → repo pipeline |
 | `diagram/` | Load / persist canvases |
 | `share/`, `embed/` | Public sharing |
@@ -139,7 +139,7 @@ Client helper: `frontend/lib/api-client.ts`.
 
 | Store | File | Responsibility |
 |-------|------|----------------|
-| **diagramStore** | `store/diagramStore.ts` | Nodes, edges, tabs, undo/redo, import/loadTemplate, layout presets, persistence debounce, handle recalculation |
+| **diagramStore** | `store/diagramStore.ts` | Nodes, edges, tabs, undo/redo, import/loadTemplate, layout presets, persistence, handle recalculation |
 | authStore | `store/authStore.ts` | Session / user |
 | tutorialStore | `store/tutorialStore.ts` | Tutorial progress |
 | onboardingStore | `store/onboardingStore.ts` | First-run flows |
@@ -154,6 +154,12 @@ Client helper: `frontend/lib/api-client.ts`.
 - `addNode` / `updateNodeData` / `setNodes` / `recalculateHandles`.
 
 Fit-view registration: `registerFitViewCallback` in the same file.
+
+### Persistence (canvases)
+
+- **Auto-save:** `store/diagram/persistence/autoSave.ts` subscribes to the store and calls `saveCanvasToDB(id)` for any canvas whose `nodes` / `edges` / `name` changed (skipping mid-drag frames). Do **not** add manual `saveCanvasToDB` calls to new mutations. Wrap server-originated updates (DB load / reload) in `withAutoSaveSuppressed`.
+- **DB saves** (`persistence/dbSave.ts`) are debounced and serialized **per canvas**, flushed on `pagehide` / hidden visibility (keepalive), and send `baseUpdatedAt` (the server `updatedAt` last seen, tracked as `CanvasTab.serverUpdatedAt`). `PUT /api/user/canvases` rejects stale writes with 409 `CANVAS_CONFLICT`; the client offers "Keep mine" (forced save) / "Load theirs" (`reloadCanvasFromDB`).
+- **Guests:** canvases persist only through zustand `persist` (`archdraw-storage`). The legacy `guestCanvases` / `archdraw-guest-canvas` keys are read once for migration in `rehydrate.ts` and then removed; don't write them.
 
 ---
 
@@ -177,7 +183,13 @@ Editor chrome: `frontend/views/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, 
 
 Shape config / palette: `frontend/constants/nodeShapeConfig.ts`, `PropertiesPanel.tsx`, `ComponentSidebar.tsx`.
 
-Icons: `NodeIcon.tsx`, `components/icons/`, `lib/nodeIconResolver.ts`.
+Icons: `NodeIcon.tsx`, `components/icons/`, `lib/icons/CustomNodeIcon.tsx` (pure; shared by canvas + SVG export), `lib/nodeIconResolver.ts`.
+
+Node-type registry: `components/canvasTypes.ts` (`NODE_TYPES` / `EDGE_TYPES`).
+
+### Canvas hosts (editor vs viewers)
+
+Node/edge components are shared by every React Flow host (editor, share, embed, tutorial, landing demo). Each host wraps its canvas in `CanvasHostProvider` (`lib/canvas/CanvasHostContext.tsx`) to supply its own graph, render style, direction and canvas theme. Only the editor `Canvas.tsx` passes `EDITOR_HOST` (`readOnly: false`); the default is read-only, and node/edge components must never write to `useDiagramStore` when `readOnly`. Read view settings via `useCanvasView()` / `useHostGraph()` / `useCanvasTheme()`, not straight from the store. Viewers must not write persisted preferences (`diagramRenderStyle`, `diagramStyleTheme`) into the store.
 
 ### Shape semantics (visual vocabulary)
 
@@ -264,7 +276,7 @@ Files:
 
 ### Alternate path
 
-- There is no frontend ELK path — the ELK stack was removed; layout is Dagre-only via `pipeline-shared/layout` (ELK lives only in `mcp-server`). Store presets all route through `layoutDiagramViaMermaid`.
+- There is no ELK path anywhere — the ELK stack was removed from the frontend and `mcp-server`; layout is Dagre-only via `pipeline-shared/layout`. Store presets all route through `layoutDiagramViaMermaid`.
 
 ### Landing demo
 
@@ -336,7 +348,7 @@ UI: `components/RepoDiagramGenerator.tsx`.
 | **Mermaid panel** | MermaidCodePanel | Round-trip RF ↔ Mermaid |
 | **LR / TB layout** | Toolbar + `relayout.ts` | Mermaid→Dagre, not ELK |
 | **Command palette** | CommandPalette | Quick-add components (⌘K) |
-| **Multi-canvas tabs** | diagramStore | Undo/redo, debounced DB save |
+| **Multi-canvas tabs** | diagramStore | Undo/redo, auto-saved DB sync with conflict detection |
 | **Auth** | better-auth (`lib/auth.ts`, AuthProvider) | Google / GitHub OAuth (email+password disabled) |
 | **Share / embed** | ShareModal, SharedCanvasViewer, embed routes | Domain allowlist |
 | **Export** | `lib/svgExport.ts`, toolbar actions | PNG/SVG/JSON/Mermaid |
@@ -348,7 +360,7 @@ UI: `components/RepoDiagramGenerator.tsx`.
 
 ## 12. MCP server
 
-Package: `mcp-server/` (self-contained `node_modules`, zod 3 + SDK 1.29 + elkjs). Dev: `npm run dev:mcp` from `frontend/` (runs `tsx src/index.ts`). Tests: `cd mcp-server && npm test` (vitest, colocated `__tests__/`). CI builds + tests it independently of `frontend/`.
+Package: `mcp-server/` (self-contained `node_modules`, zod 3 + SDK 1.29). Dev: `npm run dev:mcp` from `frontend/` (runs `tsx src/index.ts`). Tests: `cd mcp-server && npm test` (vitest, colocated `__tests__/`). CI builds + tests it independently of `frontend/`.
 
 `mcp-server/tsconfig.json` has **no** `paths`/`typeRoots` aliases — imports resolve through real package exports so `tsx` and `node dist/` stay in sync. Do not reintroduce `../frontend/node_modules` path maps (they break `tsx` at runtime by loading `.d.ts` as modules).
 
@@ -358,9 +370,23 @@ Tools (under `mcp-server/src/tools/`):
 
 `generate-diagram`, `update-diagram`, `validate-diagram`, `fix-layout`, `apply-template`, `export-diagram`, `list-nodes`, `save-checkpoint`, `load-checkpoint`, `read-me`.
 
-`generate_diagram` is Mermaid-first: pass `mermaid` (graph LR/TD, subgraphs) to run the web pipeline via `/api/diagram/load`; JSON `nodes`/`edges` is the legacy ELK path. Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
+`generate_diagram` is Mermaid-first: pass `mermaid` (graph LR/TD, subgraphs) to run the web pipeline via `/api/diagram/load`; JSON `nodes`/`edges` is still accepted but is converted to Mermaid (`structuredInputToMermaid`) and runs the same pipeline. `fix_layout` also uses the web pipeline. (The old ELK runner and `elkjs` were removed; `elkPositions` stays in tool outputs for compatibility: `fix_layout` fills it with pipeline positions, `generate_diagram` returns it empty.) Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
+
+**Preview links are on by default.** `generate_diagram`, `apply_template` (and `update_diagram` for already-published diagrams) return `shareUrl` (read-only preview) and `diagramUrl` (editor) in the same response — `publish` defaults to `true`; `publish:false` is the private opt-out. Tool text puts the link block first via `formatPreviewLinks` (`mcp-server/src/lib/preview-links.ts`) with an explicit "show these links to the user" line, because text-only agents can't render the widget. A failed publish returns the diagram plus `linkError`; it must never fail the generation.
+
+Because every MCP generation now creates a `SharedCanvas` row: `POST /api/diagram/load` is throttled per user / client IP (create 30 anon · 60 signed-in, dry-run preview 300, mcp-update 300 per hour) via `checkRateLimitWithFallback` (Redis, in-memory fallback — never use it for AI/billing quotas, those fail closed), and `/api/cron/cleanup-expired-shares` deletes expired shares daily.
 
 ---
+
+## 12a. Claude plugin & marketplace
+
+- Plugin folder: `plugins/archdraw/` — `.claude-plugin/plugin.json` (Claude Code / Anthropic directory), `.mcp.json` (launches `npx -y @hiabhee/archdraw-mcp-server@<exact version>`), `skills/archdraw/SKILL.md`, `README.md` (must disclose everything the plugin runs/sends — the directory's security scan checks this). The root `plugin.json`, `mcp.json` and `.codex-plugin/` in the same folder are the Codex / agent-plugins.org packaging; keep their pinned version in sync.
+- Marketplaces (same repo, one plugin folder for both agents):
+  - Claude Code: `.claude-plugin/marketplace.json` → `/plugin marketplace add hiabhee/ArchDraw`, `/plugin install archdraw@archdraw`.
+  - Codex: `.agents/plugins/marketplace.json` (entries need `policy` + `category`) → `codex plugin marketplace add hiabhee/ArchDraw`, `codex plugin add archdraw@archdraw`. Codex reads the portable root `plugin.json` (settings under `extensions.com.openai`) and `mcp.json`; `.codex-plugin/plugin.json` is its fallback.
+  - Keep `version`, description and the MCP pin identical across `.claude-plugin/plugin.json`, `plugin.json`, `.codex-plugin/plugin.json`, `.mcp.json` and `mcp.json`.
+  - OpenAI's public plugin directory requires a remote HTTPS MCP server, so the npx/stdio server only distributes through the self-hosted Codex marketplace.
+- **Release order:** bump `mcp-server/package.json` + the `version` in `mcp-server/src/index.ts` → `npm publish` → update the exact pin in both MCP configs → bump `plugins/archdraw/.claude-plugin/plugin.json` `version` → `claude plugin validate --strict ./plugins/archdraw` and `claude plugin validate .` → push. Never pin an unpublished version (installs fail) and never use a range or `@latest` (directory validation blocks it).
 
 ## 13. Testing & quality
 
@@ -437,6 +463,7 @@ Copy `frontend/.env.example` → `frontend/.env.local`.
 | `UPSTASH_REDIS_REST_*` | Optional | Rate limits + some caches; guests fall back to DB if Redis down |
 | `GOOGLE_*` / `GITHUB_*` OAuth | Optional | Social login (omit → that provider disabled) |
 | `ADMIN_PASSCODE` / `ADMIN_SESSION_SECRET` / `ALLOWED_ADMIN_EMAIL` | Optional | Admin panel |
+| `CRON_SECRET` | Needed for crons | Bearer secret Vercel Cron sends to `/api/cron/*` (daily expired-share cleanup, `frontend/vercel.json`). Unset → cron routes return 401 and expired shares accumulate. |
 | `ALLOWED_EMBED_DOMAINS` | Optional | Embed CSP `frame-ancestors` (default `*`) |
 | `GITHUB_TOKEN` | Optional | Repo diagram / eval (higher GitHub rate limits) |
 | `REPO_*` model/token knobs | Optional | Repo agent tuning |
@@ -509,6 +536,12 @@ Trusted origins include localhost variants + `NEXT_PUBLIC_APP_URL` / `BETTER_AUT
 
 Source of truth: `frontend/lib/userQuotas.ts`. Enforcement: `lib/middleware/quotaCheck.ts` on generate / repo routes.
 
+Metering invariants (generate route; repo route uses quota only):
+
+- Signed-in daily quota is **claimed atomically** in `checkAIGenerationQuota` (conditional `updateMany`); routes must call `releaseAIGeneration(claimedUserId)` on failure / cache hit so only successful generations count. `incrementAIGeneration` now only bumps `totalGenerations`.
+- Credits are **reserved before** generation with `reserveCredits` (advisory-locked transaction) and refunded with `refundCredits(reservationId)` on failure — never charge after the fact.
+- `acquireAiCapacity` adds a cross-instance TPM/RPM admission via Upstash (`ai-capacity:{tpm,rpm}:<minute>`), falling back to the in-process limiter when Redis is absent.
+
 | | Guest | Authenticated |
 |--|-------|-----------------|
 | AI generations | **3 / hour** (IP) | **10 / day** (`User.dailyGenerations`) |
@@ -576,7 +609,7 @@ When adding a palette item: update JSON or DB template, ports if needed, shape m
 **Routes:**
 
 - `app/api/generate-diagram/route.ts` — primary (supports stream flag).
-- `app/api/generate-diagram/streaming/route.ts` — dedicated streaming path; both run quota checks first.
+- `app/api/generate-diagram/streaming/route.ts` — thin alias that defaults `stream: true` and delegates to the primary handler, so quota, credits, capacity and model validation live in one place. Do not reintroduce a separate generation path there.
 
 **Progress:** `GenerationProgress` in `lib/ai/types` (`phase`, `message`, `progress`, …). UI: `GenerationProgress.tsx` / FloatingAIBar / Editor.
 
