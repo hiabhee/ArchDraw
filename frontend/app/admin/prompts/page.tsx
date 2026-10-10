@@ -37,6 +37,8 @@ export default function PromptsPage() {
   }, [internalParam]);
 
   useEffect(() => {
+    // Initial fetch updates state only after the external request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPrompts();
   }, [fetchPrompts]);
 

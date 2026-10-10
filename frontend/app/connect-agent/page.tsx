@@ -61,6 +61,8 @@ export default function ConnectAgentPage() {
 
   useEffect(() => {
     if (!signedIn) {
+      // Clear project data when authentication is removed.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProjects([]);
       setCredentials([]);
       return;
@@ -93,6 +95,8 @@ export default function ConnectAgentPage() {
 
   useEffect(() => {
     if (!selectedProject) {
+      // Clear project-scoped data when the selection is removed.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedWorkspaceId('');
       setCredentials([]);
       return;
