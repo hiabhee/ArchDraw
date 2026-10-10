@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { cache } from 'react';
 import { getUserTier, getGuestQuotas, getAuthenticatedQuotas, type UserTier } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -7,13 +6,26 @@ import { checkRateLimit, RedisRateLimitError } from '@/lib/redis';
 import { getClientIP } from '@/lib/server/ip';
 import logger from '@/lib/logger';
 
-export const getSessionFromRequest = cache(async (req: NextRequest) => {
+// Per-request memo. React `cache()` only dedupes inside a Server Component
+// render, so in route handlers it re-ran the auth lookup on every call.
+const sessionByRequest = new WeakMap<NextRequest, ReturnType<typeof loadSession>>();
+
+async function loadSession(req: NextRequest) {
   try {
     return await auth.api.getSession({ headers: req.headers });
   } catch {
     return null;
   }
-});
+}
+
+export function getSessionFromRequest(req: NextRequest) {
+  let pending = sessionByRequest.get(req);
+  if (!pending) {
+    pending = loadSession(req);
+    sessionByRequest.set(req, pending);
+  }
+  return pending;
+}
 
 /**
  * DB-based fallback rate limiter for guests when Redis is unavailable.
@@ -42,7 +54,7 @@ const ADMIN_UNLIMITED_REMAINING = 999;
 
 export async function checkAIGenerationQuota(
   req: NextRequest
-): Promise<{ allowed: boolean; error?: string; remaining?: number; tier: UserTier }> {
+): Promise<{ allowed: boolean; error?: string; remaining?: number; tier: UserTier; claimedUserId?: string }> {
   const session = await getSessionFromRequest(req);
   const userId = session?.user?.id;
   const tier = getUserTier(userId);
@@ -116,18 +128,25 @@ export async function checkAIGenerationQuota(
     return { allowed: true, remaining: ADMIN_UNLIMITED_REMAINING, tier };
   }
 
-  const today = new Date().toDateString();
-  const lastReset = new Date(user.dailyGenerationsDate).toDateString();
-
-  if (today !== lastReset) {
-    await prisma.user.update({
-      where: { id: userId! },
-      data: { dailyGenerations: 0, dailyGenerationsDate: new Date() },
-    });
-    return { allowed: true, remaining: quotas.aiGenerationsPerDay - 1, tier };
+  // Claim the slot atomically at check time. A read-then-increment-later
+  // check let N concurrent requests all pass with one slot left. Callers must
+  // `releaseAIGeneration(claimedUserId)` if the generation fails so failures
+  // stay free.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const reset = await prisma.user.updateMany({
+    where: { id: userId!, dailyGenerationsDate: { lt: startOfToday } },
+    data: { dailyGenerations: 1, dailyGenerationsDate: new Date() },
+  });
+  if (reset.count === 1) {
+    return { allowed: true, remaining: quotas.aiGenerationsPerDay - 1, tier, claimedUserId: userId! };
   }
 
-  if (user.dailyGenerations >= quotas.aiGenerationsPerDay) {
+  const claimed = await prisma.user.updateMany({
+    where: { id: userId!, dailyGenerations: { lt: quotas.aiGenerationsPerDay } },
+    data: { dailyGenerations: { increment: 1 } },
+  });
+  if (claimed.count === 0) {
     return {
       allowed: false,
       error: `Daily limit reached (${quotas.aiGenerationsPerDay} generations). Resets at midnight.`,
@@ -138,20 +157,32 @@ export async function checkAIGenerationQuota(
 
   return {
     allowed: true,
-    remaining: quotas.aiGenerationsPerDay - user.dailyGenerations - 1,
+    remaining: Math.max(0, quotas.aiGenerationsPerDay - user.dailyGenerations - 1),
     tier,
+    claimedUserId: userId!,
   };
+}
+
+/** Give back a daily slot claimed by `checkAIGenerationQuota` (generation failed). */
+export async function releaseAIGeneration(claimedUserId: string | undefined) {
+  if (!claimedUserId) return;
+  try {
+    await prisma.user.updateMany({
+      where: { id: claimedUserId, dailyGenerations: { gt: 0 } },
+      data: { dailyGenerations: { decrement: 1 } },
+    });
+  } catch (error) {
+    logger.error('[Quota] Failed to release AI generation slot:', error);
+  }
 }
 
 export async function incrementAIGeneration(userId: string | null) {
   if (!userId || userId === 'guest') return;
   try {
+    // dailyGenerations is claimed atomically in checkAIGenerationQuota.
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        dailyGenerations: { increment: 1 },
-        totalGenerations: { increment: 1 },
-      },
+      data: { totalGenerations: { increment: 1 } },
     });
   } catch (error) {
     logger.error('[Quota] Failed to increment AI generation:', error);

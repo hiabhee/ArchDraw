@@ -8,8 +8,8 @@ import { get as getCachedDiagram, set as setCachedDiagram } from '@/lib/ai/servi
 import logger from '@/lib/logger';
 import { isTokenExhaustedError, SERVER_BUSY_USER_MESSAGE } from '@/lib/ai/utils/apiKeyManager';
 import { z } from 'zod';
-import { checkAIGenerationQuota, getSessionFromRequest, incrementAIGeneration, logUsage, getGuestId } from '@/lib/middleware/quotaCheck';
-import { CREDIT_POLICY, consumeCredits, getCreditSnapshot, type DetailLevel } from '@/lib/credits';
+import { checkAIGenerationQuota, getSessionFromRequest, incrementAIGeneration, logUsage, getGuestId, releaseAIGeneration } from '@/lib/middleware/quotaCheck';
+import { CREDIT_POLICY, reserveCredits, refundCredits, getCreditSnapshot, type DetailLevel } from '@/lib/credits';
 import { acquireAiCapacity, CapacityBusyError, getGenerationBudget } from '@/lib/ai/services/aiCapacity';
 
 export const runtime = 'nodejs';
@@ -19,6 +19,10 @@ export const maxDuration = 300;
 // truth in lib/ai/models.ts (shared by client and server so the offered
 // dropdown and the accepted wire values can never diverge).
 const SUPPORTED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
+
+const MAX_CONTEXT_NODES = 150;
+const MAX_CONTEXT_EDGES = 400;
+const MAX_CONTEXT_BYTES = 200_000;
 
 // Zod validation schema
 const generateDiagramSchema = z.object({
@@ -32,12 +36,25 @@ const generateDiagramSchema = z.object({
   diagramSize: z.enum(['small', 'medium', 'large']).optional(),
   detailLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   stream: z.boolean().optional().default(false),
+  // Edit mode: the current canvas, sent to the planner. Bounded so it can't be
+  // used to push arbitrarily large payloads into the LLM prompt.
+  existingContext: z.object({
+    nodes: z.array(z.record(z.string(), z.unknown())).max(MAX_CONTEXT_NODES),
+    edges: z.array(z.record(z.string(), z.unknown())).max(MAX_CONTEXT_EDGES),
+  }).refine(
+    ctx => JSON.stringify(ctx).length <= MAX_CONTEXT_BYTES,
+    { message: `existingContext must be under ${MAX_CONTEXT_BYTES} bytes` },
+  ).optional(),
 });
 
 type GenerateDiagramInput = z.infer<typeof generateDiagramSchema>;
 
+/**
+ * Shared by `/api/generate-diagram` and its `/streaming` alias so quota,
+ * credits, capacity and model validation can never diverge between them.
+ */
 export async function POST(req: NextRequest) {
-  // Tier-aware quota enforcement
+  // Tier-aware quota enforcement (claims a slot for signed-in users)
   const quotaCheck = await checkAIGenerationQuota(req);
 
   if (!quotaCheck.allowed) {
@@ -58,12 +75,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Set once credits are reserved; any failure before that point only needs
+  // to give the quota slot back.
+  let reservationId: string | undefined;
+  const releaseOnFailure = async () => {
+    if (reservationId) await refundCredits(reservationId);
+    await releaseAIGeneration(quotaCheck.claimedUserId);
+  };
+
   try {
     // Parse and validate request body with Zod
     const body = await req.json();
     const validatedInput = generateDiagramSchema.safeParse(body);
 
     if (!validatedInput.success) {
+      await releaseOnFailure();
       const errorMessage = validatedInput.error.issues
         .map((e) => `${e.path.join('.')}: ${e.message}`)
         .join(', ');
@@ -73,12 +99,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { description, systemType, complexity, model, diagramSize, detailLevel, stream } = validatedInput.data as GenerateDiagramInput;
+    const { description, systemType, complexity, model, diagramSize, detailLevel, stream, existingContext } = validatedInput.data as GenerateDiagramInput;
+    const isEdit = Boolean(existingContext && (existingContext.nodes.length || existingContext.edges.length));
     const effectiveDiagramSize = diagramSize ?? (detailLevel === 1 ? 'small' : detailLevel === 3 ? 'large' : 'medium');
     const requestedDetailLevel = (detailLevel ?? 2) as DetailLevel;
     const creditSnapshot = await getCreditSnapshot(req);
     const creditCost = CREDIT_POLICY.costs[requestedDetailLevel];
     if (creditSnapshot.balance < creditCost) {
+      await releaseOnFailure();
       return NextResponse.json(
         { error: 'Not enough credits for this generation.', code: 'INSUFFICIENT_CREDITS', required: creditCost, ...creditSnapshot },
         { status: 402 },
@@ -88,8 +116,11 @@ export async function POST(req: NextRequest) {
     // Fast path: an identical prompt+model+detail request was generated recently.
     // Regenerate re-submits the same prompt, so this serves it instantly instead
     // of re-running the full LLM pipeline (see lib/ai/services/diagramCache.ts).
-    const cached = getCachedDiagram(description, detailLevel, model);
+    // Edits depend on the canvas, which isn't part of the cache key.
+    const cached = isEdit ? null : getCachedDiagram(description, detailLevel, model);
     if (cached) {
+      // Cache hits are free — give back the claimed quota slot.
+      await releaseAIGeneration(quotaCheck.claimedUserId);
       return NextResponse.json({
         success: true,
         data: cached,
@@ -106,7 +137,22 @@ export async function POST(req: NextRequest) {
       model,
       diagramSize: effectiveDiagramSize,
       detailLevel,
+      ...(isEdit ? { existingContext: existingContext as UserIntent['existingContext'] } : {}),
     };
+
+    // Reserve credits up front (atomic per payer) instead of charging after
+    // generation, which let concurrent requests overspend or go uncharged.
+    const reservation = await reserveCredits(req, requestedDetailLevel, {
+      description: description.substring(0, 100),
+    });
+    if (!reservation.allowed) {
+      await releaseOnFailure();
+      return NextResponse.json(
+        { error: 'Not enough credits for this generation.', code: 'INSUFFICIENT_CREDITS', ...reservation },
+        { status: 402 },
+      );
+    }
+    reservationId = reservation.reservationId;
 
     const generateAndFinalize = async (onProgress?: (progress: GenerationProgress) => void) => {
       const releaseCapacity = await acquireAiCapacity(getGenerationBudget(description, requestedDetailLevel));
@@ -121,15 +167,7 @@ export async function POST(req: NextRequest) {
         releaseCapacity();
       }
 
-      const consumed = await consumeCredits(req, requestedDetailLevel, {
-        description: description.substring(0, 100),
-        nodeCount: result.nodes?.length || 0,
-      });
-      if (!consumed.allowed) {
-        logger.warn('[Credits] Balance changed during generation; result returned without a credit charge');
-      }
-
-      setCachedDiagram(description, detailLevel, model, result);
+      if (!isEdit) setCachedDiagram(description, detailLevel, model, result);
 
       // Non-blocking telemetry — response returns 30–80 ms earlier (server-after-nonblocking)
       const sessionForTelemetry = getSessionFromRequest(req);
@@ -150,7 +188,7 @@ export async function POST(req: NextRequest) {
         data: result,
         progress: progressEvents,
         quotaRemaining: quotaCheck.remaining,
-        credits: consumed.allowed ? { ...creditSnapshot, balance: consumed.balance } : await getCreditSnapshot(req),
+        credits: { ...creditSnapshot, balance: reservation.balance },
       };
     };
 
@@ -183,6 +221,7 @@ export async function POST(req: NextRequest) {
             const payload = await generateAndFinalize((progress) => sendEvent({ type: 'progress', ...progress }));
             sendEvent({ type: 'complete', ...payload });
           } catch (error) {
+            await releaseOnFailure();
             logger.error('[API] Streaming generation failed:', error);
             const message = error instanceof Error ? error.message : 'Unknown error occurred';
             const err = error as Error & { status?: number; code?: string };
@@ -228,6 +267,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(await generateAndFinalize());
 
   } catch (error) {
+    await releaseOnFailure();
     logger.error('[API] Generation failed:', error);
 
     const message = error instanceof Error ? error.message : 'Unknown error occurred';

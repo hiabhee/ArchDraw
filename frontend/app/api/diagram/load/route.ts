@@ -6,6 +6,8 @@ import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 import { isDomainSuccess } from '@/lib/pipeline-core';
 import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { getSessionFromRequest, logUsage } from '@/lib/middleware/quotaCheck';
+import { checkRateLimitWithFallback } from '@/lib/redis';
+import { getClientIP } from '@/lib/server/ip';
 
 export const runtime = 'nodejs';
 
@@ -14,6 +16,28 @@ export interface ShareUser {
   name: string;
   role: 'owner' | 'editor' | 'viewer';
   addedAt: number;
+}
+
+// Abuse throttles for the unauthenticated write path (MCP publishes by
+// default, so every generation can create a row). Per user when signed in,
+// otherwise per trusted-proxy client IP. Hourly windows.
+const LOAD_RATE_LIMITS = {
+  create: { anonymous: 30, user: 60 },
+  preview: { anonymous: 300, user: 300 },
+  update: { anonymous: 300, user: 300 },
+} as const;
+type LoadRequestKind = keyof typeof LOAD_RATE_LIMITS;
+
+async function rateLimitResponse(req: NextRequest, userId: string | undefined, kind: LoadRequestKind) {
+  const limit = userId ? LOAD_RATE_LIMITS[kind].user : LOAD_RATE_LIMITS[kind].anonymous;
+  const who = userId ? `user:${userId}` : `ip:${getClientIP(req)}`;
+  const result = await checkRateLimitWithFallback(`diagram-load:${kind}:${who}`, limit, 3600);
+  if (result.allowed) return null;
+  const retryAfter = Math.max(1, result.resetAt - Math.floor(Date.now() / 1000));
+  return NextResponse.json(
+    { error: 'Too many diagram requests. Please try again later.', code: 'RATE_LIMITED', retryAfter },
+    { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+  );
 }
 
 const PostSchema = z.object({
@@ -65,6 +89,8 @@ export async function POST(req: NextRequest) {
     // below unless the caller supplies publish:true.
     const raw = await req.json();
     if (raw?.action === 'mcp-update') {
+      const limited = await rateLimitResponse(req, userId, 'update');
+      if (limited) return limited;
       const update = McpUpdateSchema.safeParse(raw);
       if (!update.success) return NextResponse.json({ error: 'Invalid MCP update' }, { status: 400 });
       const existing = await prisma.sharedCanvas.findUnique({ where: { id: update.data.sessionId } });
@@ -83,6 +109,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
     }
     const body = parsed.data;
+
+    // Throttle before running the Mermaid pipeline so rejected calls cost nothing.
+    const limited = await rateLimitResponse(req, userId, body.dryRun ? 'preview' : 'create');
+    if (limited) return limited;
 
     let nodes = body.nodes || [];
     let edges = body.edges || [];

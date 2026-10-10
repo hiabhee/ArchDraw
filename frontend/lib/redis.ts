@@ -135,3 +135,41 @@ export async function checkRateLimit(
   logger.debug(`[RateLimit] Check passed - count: ${count}, limit: ${limit}, allowed: ${allowed}`);
   return { allowed, remaining, resetAt };
 }
+
+// ── Rate limit with in-memory fallback ────────────────────────────────────────
+
+const memoryWindows = new Map<string, { count: number; resetAt: number }>();
+const MEMORY_WINDOW_MAX_KEYS = 10_000;
+
+function checkMemoryRateLimit(identifier: string, limit: number, windowSeconds: number) {
+  const now = Math.floor(Date.now() / 1000);
+  if (memoryWindows.size > MEMORY_WINDOW_MAX_KEYS) {
+    for (const [key, entry] of memoryWindows) if (entry.resetAt <= now) memoryWindows.delete(key);
+  }
+  const entry = memoryWindows.get(identifier);
+  if (!entry || entry.resetAt <= now) {
+    memoryWindows.set(identifier, { count: 1, resetAt: now + windowSeconds });
+    return { allowed: true, remaining: limit - 1, resetAt: now + windowSeconds };
+  }
+  entry.count += 1;
+  return { allowed: entry.count <= limit, remaining: Math.max(0, limit - entry.count), resetAt: entry.resetAt };
+}
+
+/**
+ * Abuse throttle for non-billing endpoints: Redis when available (shared
+ * across instances), otherwise a per-instance in-memory window so the limit
+ * degrades instead of disappearing. Do NOT use this for AI/billing quotas —
+ * those must fail closed (see quotaCheck).
+ */
+export async function checkRateLimitWithFallback(
+  identifier: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  try {
+    return await checkRateLimit(identifier, limit, windowSeconds);
+  } catch (error) {
+    logger.debug('[RateLimit] Redis unavailable, using in-memory limiter:', error instanceof Error ? error.message : error);
+    return checkMemoryRateLimit(identifier, limit, windowSeconds);
+  }
+}

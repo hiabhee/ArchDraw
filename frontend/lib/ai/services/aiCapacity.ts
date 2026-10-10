@@ -1,4 +1,5 @@
 import logger from '@/lib/logger';
+import { redis } from '@/lib/redis';
 
 export type CapacityDetailLevel = 1 | 2 | 3;
 
@@ -88,12 +89,60 @@ function drain() {
   }
 }
 
+// Atomically reserve tokens + one request in this minute's global window, or
+// reserve nothing. Returns 1 when admitted, 0 when over budget.
+const GLOBAL_RESERVE_SCRIPT = `
+local tpm = redis.call('INCRBY', KEYS[1], ARGV[1])
+local rpm = redis.call('INCR', KEYS[2])
+redis.call('EXPIRE', KEYS[1], 120)
+redis.call('EXPIRE', KEYS[2], 120)
+if tpm > tonumber(ARGV[2]) or rpm > tonumber(ARGV[3]) then
+  redis.call('DECRBY', KEYS[1], ARGV[1])
+  redis.call('DECR', KEYS[2])
+  return 0
+end
+return 1
+`;
+const GLOBAL_RESERVE_TIMEOUT_MS = 1_000;
+
+/**
+ * Cross-instance TPM/RPM admission. The in-process counters below only see
+ * one serverless instance, so on their own the "global" provider budget was
+ * really per-instance. When Upstash is configured this reserves against a
+ * shared per-minute window first; if Redis is absent or failing we fall back
+ * to the local limiter alone (this protects provider capacity — guest quota
+ * enforcement stays fail-closed in quotaCheck).
+ */
+async function reserveGlobalCapacity(tokens: number): Promise<boolean> {
+  const minute = Math.floor(Date.now() / 60_000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      redis.eval(
+        GLOBAL_RESERVE_SCRIPT,
+        [`ai-capacity:tpm:${minute}`, `ai-capacity:rpm:${minute}`],
+        [String(tokens), String(Math.floor(AI_CAPACITY.tpmLimit * AI_CAPACITY.safetyFactor)), String(AI_CAPACITY.rpmLimit)],
+      ),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), GLOBAL_RESERVE_TIMEOUT_MS); }),
+    ]);
+    return Number(result) === 1;
+  } catch (error) {
+    logger.debug('[AI Capacity] Global admission unavailable, using local limiter only', error instanceof Error ? error.message : error);
+    return true;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function acquireAiCapacity(budget: GenerationBudget): Promise<() => void> {
   const tokens = Math.max(1, budget.estimatedTokens);
   if (tokens > AI_CAPACITY.tpmLimit * AI_CAPACITY.safetyFactor) {
     throw new CapacityBusyError('This prompt is too large for the current AI capacity budget. Please shorten it and try again.');
   }
   if (queued.length >= AI_CAPACITY.maxQueueDepth && !canStart(tokens)) {
+    throw new CapacityBusyError('AI generation capacity is temporarily full. Please try again shortly.');
+  }
+  if (!(await reserveGlobalCapacity(tokens))) {
     throw new CapacityBusyError('AI generation capacity is temporarily full. Please try again shortly.');
   }
   return new Promise<() => void>((resolve, reject) => {

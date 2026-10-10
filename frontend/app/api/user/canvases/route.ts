@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { CanvasOwnershipError, getUserCanvases, upsertUserCanvas } from '@/lib/db';
+import { CanvasConflictError, CanvasOwnershipError, getUserCanvases, upsertUserCanvas } from '@/lib/db';
 import { headers } from 'next/headers';
 import { getUserTier, getUserQuotas } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
@@ -13,6 +13,7 @@ const putSchema = z.object({
   name: z.string(),
   nodes: z.any(),
   edges: z.any(),
+  baseUpdatedAt: z.number().int().nonnegative().optional(),
 });
 
 export async function GET() {
@@ -85,6 +86,16 @@ export async function PUT(req: NextRequest) {
     const result = await upsertUserCanvas(userId, body);
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof CanvasConflictError) {
+      return NextResponse.json(
+        {
+          error: 'This canvas was changed in another tab or device.',
+          code: 'CANVAS_CONFLICT',
+          serverUpdatedAt: error.serverUpdatedAt?.getTime() ?? null,
+        },
+        { status: 409 }
+      );
+    }
     if (error instanceof CanvasOwnershipError) {
       logger.warn('User canvases PUT forbidden (ownership):', { canvasId: error.canvasId });
       return NextResponse.json({ error: 'Forbidden', code: 'FORBIDDEN' }, { status: 403 });

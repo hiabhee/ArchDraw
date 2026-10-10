@@ -4,7 +4,7 @@ import { parseGitHubUrl } from '@/lib/utils/githubUrl';
 import { clear } from '@/lib/ai/services/diagramCache';
 import { clearBlobCaches } from '@/lib/cache/blobCache';
 import logger from '@/lib/logger';
-import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId, getSessionFromRequest } from '@/lib/middleware/quotaCheck';
+import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId, getSessionFromRequest, releaseAIGeneration } from '@/lib/middleware/quotaCheck';
 import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
@@ -29,21 +29,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // The daily slot is claimed at check time; give it back on any failure
+  // (validation, pipeline error, client abort) so only successes count.
+  const releaseQuota = () => releaseAIGeneration(quotaCheck.claimedUserId);
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
+    await releaseQuota();
     return errorResponse('Invalid JSON in request body', 400);
   }
 
   const { repoUrl, detailLevel, userGithubToken } = body;
 
   if (!repoUrl || typeof repoUrl !== 'string') {
+    await releaseQuota();
     return errorResponse('Repository URL is required and must be a string', 400);
   }
 
   const parsed = parseGitHubUrl(repoUrl);
   if (!parsed) {
+    await releaseQuota();
     return errorResponse(
       'Invalid GitHub URL. Must match: https://github.com/{owner}/{repo} (no subdirectories, issues, or pull requests)',
       400
@@ -95,11 +102,13 @@ export async function POST(req: NextRequest) {
       );
 
       if (clientAborted) {
-        logger.info('[API] Client aborted before result — skipping quota increment');
+        logger.info('[API] Client aborted before result — releasing quota slot');
+        await releaseQuota();
         return;
       }
 
       if (!outcome.success) {
+        await releaseQuota();
         await send({
           type: 'error',
           message: outcome.error.message,
@@ -141,6 +150,7 @@ export async function POST(req: NextRequest) {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unexpected error';
+      await releaseQuota();
       if (!clientAborted) {
         await send({ type: 'error', message, code: 'unknown' });
       } else {

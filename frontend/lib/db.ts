@@ -35,29 +35,57 @@ export class CanvasOwnershipError extends Error {
   }
 }
 
+export class CanvasConflictError extends Error {
+  constructor(public canvasId: string, public serverUpdatedAt: Date | null) {
+    super(`Canvas ${canvasId} was changed elsewhere`);
+    this.name = 'CanvasConflictError';
+  }
+}
+
 export async function upsertUserCanvas(userId: string, data: {
   id: string;
   name: string;
   nodes: InputJson;
   edges: InputJson;
+  /**
+   * Server `updatedAt` (ms) the client last saw. When present, the write only
+   * applies if nobody saved since — otherwise CanvasConflictError. Omitted for
+   * brand-new canvases and explicit "keep mine" overwrites.
+   */
+  baseUpdatedAt?: number;
 }) {
+  const { baseUpdatedAt, ...canvas } = data;
   // Defense-in-depth: Prisma's upsert keys only on the globally-unique `id`,
   // so without an ownership check an attacker who knows a canvas id could
   // overwrite a victim's canvas. Verify ownership before upserting; routes
   // are expected to gate too, but a buggy/missing route gate must not turn
   // into a data-loss privilege escalation.
   const existing = await prisma.userCanvas.findUnique({
-    where: { id: data.id },
+    where: { id: canvas.id },
     select: { userId: true },
   });
   if (existing && existing.userId !== userId) {
-    throw new CanvasOwnershipError(data.id);
+    throw new CanvasOwnershipError(canvas.id);
+  }
+
+  if (existing && baseUpdatedAt !== undefined) {
+    // Conditional write: compare-and-set on updatedAt so two tabs/devices
+    // can't silently overwrite each other (last-write-wins).
+    const updated = await prisma.userCanvas.updateMany({
+      where: { id: canvas.id, userId, updatedAt: { lte: new Date(baseUpdatedAt) } },
+      data: { name: canvas.name, nodes: canvas.nodes, edges: canvas.edges },
+    });
+    const row = await prisma.userCanvas.findUnique({ where: { id: canvas.id } });
+    if (updated.count === 0) {
+      throw new CanvasConflictError(canvas.id, row?.updatedAt ?? null);
+    }
+    return row;
   }
 
   return prisma.userCanvas.upsert({
-    where: { id: data.id },
-    create: { ...data, userId },
-    update: { name: data.name, nodes: data.nodes, edges: data.edges },
+    where: { id: canvas.id },
+    create: { ...canvas, userId },
+    update: { name: canvas.name, nodes: canvas.nodes, edges: canvas.edges },
   });
 }
 
