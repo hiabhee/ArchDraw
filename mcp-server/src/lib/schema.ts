@@ -67,7 +67,7 @@ export const GenerateDiagramInputSchema = z.object({
   customFeatures: z.array(z.string()).optional().describe(
     'Custom features or components the user explicitly requested.'
   ),
-  publish: z.boolean().optional().default(false).describe('Create a browser-accessible ArchDraw link. Only set true when the user explicitly wants to publish this diagram; published links are accessible to anyone with the URL.'),
+  publish: z.boolean().optional().default(true).describe('Create a preview link (default). Links are unguessable, view-by-link and expire after 7 days. Set false only when the user asks to keep the diagram private.'),
 });
 
 export const FixLayoutInputSchema = z.object({
@@ -95,7 +95,7 @@ export const ListNodeTypesInputSchema = z.object({
 
 export const ApplyTemplateInputSchema = z.object({
   templateId: z.string().min(1).describe('Template identifier'),
-  publish: z.boolean().optional().default(false).describe('Create a browser-accessible link only when the user explicitly requests publication.'),
+  publish: z.boolean().optional().default(true).describe('Create a preview link (default). Set false only when the user asks to keep the diagram private.'),
   customizations: z.object({
     renameNodes: z.record(z.string(), z.string()).optional().describe('Map of node ID to new label'),
     addNodes: z.array(z.object({

@@ -85,6 +85,7 @@ export async function updateDiagram(input: UpdateDiagramInput, workingSession?: 
   };
   sessionId?: string;
   diagramUrl?: string;
+  shareUrl?: string;
   error?: string;
 }> {
   const state = getDiagramState(workingSession);
@@ -248,15 +249,15 @@ export async function updateDiagram(input: UpdateDiagramInput, workingSession?: 
     changes.edgesRemoved > 0 ? `${changes.edgesRemoved} edge(s) removed` : '',
   ].filter(Boolean).join(', ');
 
-  const urlLine = diagramUrl ? `\n\nView the updated diagram: ${diagramUrl}` : '';
-
+  // Links are rendered first by the tool handler (formatPreviewLinks).
   return {
     success: true,
     nodes,
     edges,
-    message: `Diagram updated. ${changeSummary}.${urlLine}`,
+    message: `Diagram updated. ${changeSummary}.`,
     changes,
     sessionId: sessionId || state.sessionId,
     diagramUrl,
+    shareUrl: sessionId && API_BASE ? `${API_BASE}/share/${sessionId}` : undefined,
   };
 }

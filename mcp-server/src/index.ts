@@ -31,6 +31,7 @@ import {
   ExportDiagramInputSchema,
 } from './lib/schema.js';
 import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI } from './ui/diagram-widget.js';
+import { formatPreviewLinks } from './lib/preview-links.js';
 
 const TOOLS: Tool[] = [
   {
@@ -38,7 +39,7 @@ const TOOLS: Tool[] = [
     title: 'Generate an ArchDraw diagram',
     description: `Generate a rich architecture diagram with groups, labeled edges, and visual hierarchy. Compatible chat clients display the result as an inline interactive preview; text-only clients receive a concise summary and the ArchDraw site link.
 
-Include the ArchDraw site link in your response. When a diagramUrl or shareUrl is returned, include those links too. A browser-accessible editor and share link are created only when publish:true; those links can be opened by anyone who has them.
+**ALWAYS show the returned preview link (shareUrl) and edit link (diagramUrl) to the user in your reply** — the diagram is visual and the link is the only way users of text-only clients can see it. Links are created by default in the same response (no extra call needed); they are unguessable, view-by-link, and expire after 7 days.
 
 **INPUT MODES — choose ONE**:
 
@@ -72,7 +73,7 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
 
 **Architecture guidance, not hard rules:** use groups and concise labels where they help comprehension. Model only the components and flows supported by the user’s context. Gateways, event brokers, direct client streams, and domain-specific services are valid when the architecture calls for them.
 
-**Privacy:** diagrams stay in this MCP session by default. Set \`publish:true\` only after the user explicitly asks for a browser-accessible link. Retain and resend \`workingSessionId\` from the result when working on more than one diagram in parallel.
+**Privacy:** pass \`publish:false\` only if the user asks to keep the diagram private; then no link is created and the diagram stays in this MCP session. Retain and resend \`workingSessionId\` from the result when working on more than one diagram in parallel.
 
 **WORKFLOW**:
 1. Identify the user’s actual domain and constraints
@@ -182,7 +183,7 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
         userPrompt: { type: 'string', description: 'The user\'s original request verbatim. Subtitle content must reflect any tech stack/services the user named.' },
         techStack: { type: 'array', items: { type: 'string' }, description: 'Explicit technologies/services extracted from the prompt (e.g. ["Next.js", "PostgreSQL 15"]).' },
         customFeatures: { type: 'array', items: { type: 'string' }, description: 'Custom features/components the user explicitly requested.' },
-        publish: { type: 'boolean', default: false, description: 'Set true only after the user explicitly asks for a browser-accessible link.' },
+        publish: { type: 'boolean', default: true, description: 'Create a preview link (default true). Set false only when the user asks to keep the diagram private.' },
         workingSessionId: { type: 'string', description: 'Opaque local workspace key. Resend it to keep parallel diagrams isolated.' },
       },
       required: [],
@@ -327,7 +328,7 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
     description: `Apply a pre-built architecture template with pre-defined nodes and edges. Compatible chat clients display the result as an inline preview.
 
 **USE WHEN**: User wants a common architecture pattern (e-commerce, chat app, rideshare, etc.)
-**OUTPUT**: Full diagram with positioned nodes and edges from the template. A browser-accessible link is created only when publish:true.
+**OUTPUT**: Full diagram with positioned nodes and edges, plus a preview link (shareUrl) and edit link (diagramUrl) created by default. ALWAYS show those links to the user. Pass publish:false only if the user asks to keep it private.
 
 **AVAILABLE TEMPLATES**:
 - archflow: ArchDraw's own architecture (modern SaaS)
@@ -371,7 +372,7 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
             },
           },
         },
-        publish: { type: 'boolean', default: false, description: 'Set true only after the user explicitly asks for a browser-accessible link.' },
+        publish: { type: 'boolean', default: true, description: 'Create a preview link (default true). Set false only when the user asks to keep the diagram private.' },
         workingSessionId: { type: 'string', description: 'Opaque local workspace key for isolating parallel diagrams.' },
       },
       required: ['templateId'],
@@ -540,7 +541,7 @@ class ArchDrawMCPServer {
     this.server = new Server(
       {
         name: 'archdraw-mcp-server',
-        version: '1.0.3',
+        version: '1.0.4',
       },
       {
         capabilities: {
@@ -614,17 +615,13 @@ class ArchDrawMCPServer {
               metadata: result.metadata,
               ...(result.errors?.length ? { errors: result.errors } : {}),
             };
-            const message = result.message || (result.success
-              ? `Diagram generated with ${result.metadata.nodeCount} nodes and ${result.metadata.edgeCount} connections.${result.diagramUrl ? ` Open in ArchDraw: ${result.diagramUrl}` : ' The diagram is available in this chat preview; no public link was created.'}`
-              : `Diagram generation failed: ${(result.errors || ['Unknown error']).join('; ')}`);
+            const summary = result.message || `Diagram generated with ${result.metadata.nodeCount} nodes and ${result.metadata.edgeCount} connections.`;
+            const text = result.success
+              ? `${formatPreviewLinks({ ...result, privateByRequest: input.publish === false })}\n\n${summary}`
+              : `Diagram generation failed: ${(result.errors || ['Unknown error']).join('; ')}`;
             return {
-              structuredContent,
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `${message}\n\nArchDraw: https://archdraw.hiabhee.online`,
-                },
-              ],
+              structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
+              content: [{ type: 'text' as const, text }],
             };
           }
 
@@ -678,14 +675,12 @@ class ArchDrawMCPServer {
               },
               ...(result.errors?.length ? { errors: result.errors } : {}),
             };
+            const text = result.success
+              ? `${formatPreviewLinks({ ...result, privateByRequest: input.publish === false })}\n\n${result.message || `${input.templateId} template is ready.`}`
+              : `Template failed: ${(result.errors || ['Unknown error']).join('; ')}`;
             return {
-              structuredContent,
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `${result.message || `${input.templateId} template is ready${result.diagramUrl ? `: ${result.diagramUrl}` : ' in the inline preview'}.`}\n\nArchDraw: https://archdraw.hiabhee.online`,
-                },
-              ],
+              structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
+              content: [{ type: 'text' as const, text }],
             };
           }
 
@@ -759,22 +754,24 @@ class ArchDrawMCPServer {
               const previous = getDiagramState(workingSession);
               setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: previous.updateToken }, workingSession);
             }
+            const details = JSON.stringify({
+              success: result.success,
+              message: result.message,
+              error: result.error,
+              changes: result.changes,
+              diagramUrl: result.diagramUrl,
+              shareUrl: result.shareUrl,
+              sessionId: result.sessionId,
+              workingSessionId: workingSession,
+              note: 'Raw nodes and edges omitted for brevity.',
+            }, null, 2);
+            // The published link is updated in place — resurface it so the
+            // user can see the change without asking for the link again.
+            const linkBlock = result.success && (result.shareUrl || result.diagramUrl)
+              ? `${formatPreviewLinks(result)}\n\n`
+              : '';
             return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    success: result.success,
-                    message: result.message,
-                    error: result.error,
-                    changes: result.changes,
-                    diagramUrl: result.diagramUrl,
-                    sessionId: result.sessionId,
-                    workingSessionId: workingSession,
-                    note: "Raw nodes and edges omitted for brevity."
-                  }, null, 2),
-                },
-              ],
+              content: [{ type: 'text' as const, text: `${linkBlock}${details}` }],
             };
           }
 

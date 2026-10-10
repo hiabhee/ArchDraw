@@ -152,37 +152,6 @@ export interface ComponentDefinition {
   description: string;
 }
 
-export interface ElkNode {
-  id: string;
-  width: number;
-  height: number;
-  x?: number;
-  y?: number;
-  labels?: Array<{ text: string }>;
-  layoutOptions?: Record<string, string>;
-}
-
-export interface ElkEdge {
-  id: string;
-  sources: string[];
-  targets: string[];
-  labels?: Array<{ text: string }>;
-}
-
-export interface ElkGraph {
-  id: string;
-  layoutOptions: Record<string, string>;
-  children: ElkNode[];
-  edges: ElkEdge[];
-}
-
-export interface LayoutConfig {
-  algorithm: 'layered' | 'force';
-  direction: 'RIGHT' | 'DOWN' | 'LEFT' | 'UP';
-  elkOptions: Record<string, string>;
-  tierOrder: TierType[];
-}
-
 export interface UserIntent {
   description: string;
   systemType: string;

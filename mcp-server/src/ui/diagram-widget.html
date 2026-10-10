@@ -64,7 +64,7 @@
       <label for="prompt">Create another diagram in this chat</label>
       <textarea id="prompt" maxlength="2000" placeholder="Describe a system, for example: a video streaming platform with uploads, transcoding, and playback"></textarea>
       <div class="action-row">
-        <label class="publish"><input id="publish" type="checkbox"><span>Create a shareable ArchDraw link. Anyone with the link can view it.</span></label>
+        <label class="publish"><input id="publish" type="checkbox" checked><span>Create a preview link (anyone with the link can view it; expires in 7 days).</span></label>
         <button id="generate" type="submit">Generate</button>
       </div>
       <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -255,7 +255,7 @@
         const publish = $('publish').checked;
         const instruction = [
           'Create an architecture diagram in ArchDraw for the description below. Use the ArchDraw generate_diagram tool with Mermaid input and include the generated inline diagram in the response.',
-          publish ? 'Set publish:true and include both the ArchDraw editor URL and read-only share URL. The user chose to create a link accessible to anyone who has it.' : 'Keep it in the current MCP session; do not publish or create a public link.',
+          publish ? 'Include both the ArchDraw preview (share) URL and editor URL from the result in your reply.' : 'Set publish:false — the user chose to keep it private, so no link is created.',
           `Description: ${description}`,
         ].join('\n\n');
         try {

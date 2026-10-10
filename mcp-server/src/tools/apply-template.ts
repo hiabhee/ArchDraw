@@ -2,6 +2,7 @@ import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { ApplyTemplateInput } from '../lib/schema.js';
 import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
 import { COMM_COLORS } from '../lib/constants.js';
+import { describeSaveFailure } from '../lib/preview-links.js';
 import { fetchWithTimeout } from '../lib/http.js';
 import type { TierType } from '../types/index.js';
 
@@ -245,6 +246,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
   shareUrl?: string;
   embeddedDiagram?: { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] };
   message?: string;
+  linkError?: string;
   errors?: string[];
 }> {
   const errors: string[] = [];
@@ -372,12 +374,16 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     });
 
     let diagramUrl: string | undefined;
-    let message: string | undefined;
     let sessionId: string | undefined;
     const API_BASE = process.env.API_BASE_URL;
     let updateToken: string | undefined;
+    let linkError: string | undefined;
+    // Links are rendered first by the tool handler (formatPreviewLinks).
+    const message = `✅ ${template.name} template ready — ${reactFlowNodes.length} nodes, ${reactFlowEdges.length} edges.`;
 
-    if (input.publish && API_BASE) try {
+    if (input.publish && !API_BASE) {
+      linkError = 'API_BASE_URL is not configured for this MCP server';
+    } else if (input.publish && API_BASE) try {
       const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -395,11 +401,11 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         diagramUrl = `${API_BASE}${urlPath}`;
         sessionId = saveData.sessionId;
         updateToken = saveData.updateToken;
-        const shareUrl = `${API_BASE}/share/${sessionId}`;
-        message = `✅ Template loaded! Open this URL to view and edit the diagram:\n\n${diagramUrl}\n\n🔗 Shareable link:\n${shareUrl}\n\nOr copy and paste this link in your browser. The template has ${reactFlowNodes.length} nodes and ${reactFlowEdges.length} edges.\n\n**To export**: Use the session ID "${sessionId}" with the export_diagram tool (format: json/png/svg).`;
+      } else {
+        linkError = describeSaveFailure(saveResponse.status);
       }
-    } catch {
-      message = `Template applied with ${reactFlowNodes.length} nodes and ${reactFlowEdges.length} edges.`;
+    } catch (error) {
+      linkError = error instanceof Error ? error.message : 'ArchDraw could not save the preview';
     }
 
     return {
@@ -415,6 +421,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       sessionId,
       updateToken,
       shareUrl: sessionId ? `${API_BASE}/share/${sessionId}` : undefined,
+      linkError,
       embeddedDiagram: {
         nodes: reactFlowNodes,
         edges: reactFlowEdges,

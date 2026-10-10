@@ -1,6 +1,6 @@
 {
   "name": "@hiabhee/archdraw-mcp-server",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MCP server for ArchDraw architecture diagramming tool",
   "main": "dist/index.js",
   "type": "module",
@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.8",
-    "elkjs": "^0.11.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
