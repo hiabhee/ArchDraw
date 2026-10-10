@@ -1,4 +1,5 @@
 import type { Edge, Node } from 'reactflow';
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import { Position } from '@/lib/utils/edgePositions';
 import { computeDynamicSlotOffsets, getBidirectionalLaneOffset, inferEdgeSide } from './handleSlotOrder';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
@@ -56,9 +57,10 @@ export function getEdgeShiftOffset(
     excludedNodeIds?: Set<string>,
     resolveSide?: EdgeSideResolver,
     renderStyleId?: string,
+    iconMode?: NodeIconMode,
   ]
 ): number {
-  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide, renderStyleId] = args;
+  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide, renderStyleId, iconMode] = args;
 
   const self = edges.find(
     (e) => e.id === edgeId && (e.source === nodeId || e.target === nodeId),
@@ -70,7 +72,7 @@ export function getEdgeShiftOffset(
     for (const [id, node] of nodeInternals) {
       const x = node.positionAbsolute?.x ?? node.position.x;
       const y = node.positionAbsolute?.y ?? node.position.y;
-      const { width, height } = getEffectiveNodeDimensions(node, renderStyleId);
+      const { width, height } = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
       nodePositions.set(id, {
         x,
         y,

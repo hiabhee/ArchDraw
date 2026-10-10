@@ -109,7 +109,7 @@ describe('bidirectional edge routing', () => {
     expect(Math.abs(forwardX - reverseX)).toBeGreaterThan(20);
   });
 
-  it('ignores custom waypoints with stale diagonal terminal joins', () => {
+  it('reports custom waypoints with stale diagonal terminal joins as invalid', () => {
     const edge = makeEdge('e1', 'web', 'server', undefined, {
       sourceSide: 'bottom',
       targetSide: 'top',
@@ -133,8 +133,8 @@ describe('bidirectional edge routing', () => {
 
     expect(route.sourcePosition).toBe(Position.Bottom);
     expect(route.targetPosition).toBe(Position.Top);
-    const xs = new Set(route.waypoints.map((point) => point.x));
-    expect(xs.size).toBe(1);
+    expect(route.status).toBe('invalid');
+    expect(route.violations).toContainEqual({ code: 'CUSTOM_PATH_INVALID' });
     expect(route.waypoints[0]).toEqual(route.sourcePoint);
     expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });

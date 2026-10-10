@@ -4,6 +4,7 @@ import { resolveCylinderAxis, type CylinderAxisInput } from '@/lib/utils/cylinde
 import { SIZE_M } from '@/lib/theme/stylingConstants';
 import { NODE_CONFIG } from '@/lib/config';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/utils/nodeIconVisibility';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 
 /** Studio Minimal cards are compact; icons sit beside the title so width grows. */
 export const STUDIO_COMPACT_SHAPE_WIDTH = 160;
@@ -54,7 +55,7 @@ export function studioContentNodeSize(
 }
 
 function isStudioCompact(renderStyleId?: string): boolean {
-  return renderStyleId === 'studio-minimal';
+  return isStudioRenderStyle(renderStyleId);
 }
 
 export interface ShapeNodeDimensionInput extends CylinderAxisInput {
@@ -164,11 +165,19 @@ export function getEffectiveNodeDimensions(
     const showIcon = iconMode
       ? resolveNodeIconVisibility(iconMode, data.showIcon as boolean | undefined)
       : Boolean(data.showIcon);
-    const compact = studioContentNodeSize(String(data.label ?? ''), (data.sublabel ?? data.subtitle) as string | undefined, showIcon, Math.max(studioCompactNodeSize(showIcon).width, node.width ?? measured.measured?.width ?? (data.nodeWidth as number | undefined) ?? 0));
-    return {
-      width: compact.width,
-      height: compact.height,
-    };
+    const label = String(data.label ?? '');
+    const subtitle = (data.sublabel ?? data.subtitle) as string | undefined;
+    const compactWidth = studioCompactNodeSize(showIcon).width;
+    const fittedWidth = calculateNodeDimensions(label, subtitle, {
+      shape: 'rounded-rectangle',
+      minWidth: compactWidth,
+      showIcon,
+    }).width;
+    // Studio SystemNode renders from current content fit, not persisted layout
+    // width. Dagre can leave node.width at a wider prior measurement, which
+    // shifts top/bottom route anchors away from the card's actual center.
+    const width = Math.max(compactWidth, fittedWidth);
+    return studioContentNodeSize(label, subtitle, showIcon, width);
   }
   const labelForSizing = String((data.label as string | undefined) ?? '');
   const subtitleForSizing = ((data.sublabel ?? data.subtitle) as string | undefined)?.trim() || undefined;

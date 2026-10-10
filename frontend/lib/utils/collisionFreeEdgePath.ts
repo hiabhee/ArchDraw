@@ -9,4 +9,4 @@ export * from './edgeRouting/svgPathBuilder';
 export * from './edgeRouting/waypoints';
 // astar is an internal dependency of waypoints; re-export so callers that
 // reference findAstFallbackPath directly still compile.
-export { findAstFallbackPath } from './edgeRouting/astar';
+export { findAstFallbackPath, findAstFallbackPathDetailed } from './edgeRouting/astar';

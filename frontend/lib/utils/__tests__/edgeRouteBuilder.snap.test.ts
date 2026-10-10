@@ -69,10 +69,83 @@ describe('computeEdgeRoute routing', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 112)];
     const e1 = makeEdge('e1', 'a', 'b');
     const e2 = makeEdge('e2', 'a', 'b');
-    const route = computeEdgeRoute(e1, nodes, [e1, e2], 'LR');
+    const route1 = computeEdgeRoute(e1, nodes, [e1, e2], 'LR');
+    const route2 = computeEdgeRoute(e2, nodes, [e1, e2], 'LR');
 
-    expect(route.waypoints.length).toBeGreaterThan(2);
+    expect(route1.waypoints.length).toBeGreaterThan(2);
+    expect(route2.waypoints.length).toBeGreaterThan(2);
+    expect(route1.svgPath).not.toBe(route2.svgPath);
+    expect(route1.sourcePoint).toEqual(route2.sourcePoint);
+    expect(route1.targetPoint).toEqual(route2.targetPoint);
   });
+
+  it('keeps a manually pinned direction fixed when a reciprocal edge exists', () => {
+    const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
+    const pinned = {
+      ...makeEdge('a-b', 'a', 'b'),
+      data: { sourceSide: 'top', targetSide: 'top' },
+    } as Edge;
+    const reverse = makeEdge('b-a', 'b', 'a');
+
+    const route = computeEdgeRoute(pinned, nodes, [pinned, reverse], 'LR');
+
+    expect(route.sourcePosition).toBe('top');
+    expect(route.targetPosition).toBe('top');
+  });
+
+  it.each(['top', 'right', 'bottom', 'left'] as const)(
+    'preserves a reciprocal manual %s/%s side pair',
+    (side) => {
+      const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
+      const pinned = {
+        ...makeEdge('a-b', 'a', 'b'),
+        data: { sourceSide: side, targetSide: side },
+      } as Edge;
+      const reverse = makeEdge('b-a', 'b', 'a');
+
+      const route = computeEdgeRoute(pinned, nodes, [pinned, reverse], 'LR');
+
+      expect(route.sourcePosition).toBe(side);
+      expect(route.targetPosition).toBe(side);
+    },
+  );
+
+  it('exposes route validity instead of treating every fallback as successful', () => {
+    const nodes = [
+      makeNode('a', 100, 100),
+      makeNode('b', 500, 100),
+      makeNode('enclosure', 470, 120, 80, 60),
+    ];
+    const edge = {
+      ...makeEdge('a-b', 'a', 'b'),
+      data: { sourceSide: 'right', targetSide: 'left' },
+    } as Edge;
+
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+
+    expect(route).toHaveProperty('status');
+    expect(route).toHaveProperty('violations');
+    expect(route.status).toBe('failed');
+    expect(route.failureReason).toBe('no-path-found');
+    expect(route.violations.length).toBeGreaterThan(0);
+  });
+
+  it('preserves unresolved route status from the detailed obstacle router', () => {
+    const nodes = [
+      makeNode('a', 100, 100),
+      makeNode('b', 500, 100),
+      makeNode('blocker', 330, 70, 100, 160),
+    ];
+    const edge = {
+      ...makeEdge('a-b', 'a', 'b'),
+      data: { sourceSide: 'right', targetSide: 'left' },
+    } as Edge;
+
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+    expect(route.status).toBe('failed');
+    expect(route.failureReason).toBe('no-path-found');
+  });
+
 
   it('ignores stale measured anchors that left the scorer winner', () => {
     // Same-rank nodes: scorer puts terminals at Right (312,150) / Left (488,150).

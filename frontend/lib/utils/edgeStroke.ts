@@ -26,7 +26,14 @@ export function isAsyncEdge(data: Record<string, unknown> | undefined): boolean 
   );
 }
 
-/** Canonical dash pattern shared by canvas edges and SVG/PNG export. */
+/** Canonical dash pattern shared by canvas edges and SVG/PNG export.
+ *
+ * Solid by default: only explicit style overrides, explicit dashed/dotted
+ * variants, control-plane edges (diagnostic/optional importance or
+ * observability ports), and explicitly user-chosen edge types render dashed.
+ * Inferred async signals (connectionType/async labels from pipelines) stay
+ * solid — they are distinguished by color/animation instead.
+ */
 export function resolveEdgeStrokeDasharray(
   data: Record<string, unknown> | undefined,
   edgeStyle?: EdgeStyleInput,
@@ -37,10 +44,8 @@ export function resolveEdgeStrokeDasharray(
   }
 
   const edgeVariant = data?.edgeVariant as string | undefined;
-  const edgeType = (data?.edgeType || data?.connectionType) as EdgeType | undefined;
-  const asyncEdge = isAsyncEdge(data);
 
-  if (edgeVariant === 'dashed' || asyncEdge) {
+  if (edgeVariant === 'dashed') {
     return DIAGRAM_CONSTANTS.edge.dashArray;
   }
   if (edgeVariant === 'dotted') {
@@ -50,8 +55,25 @@ export function resolveEdgeStrokeDasharray(
     return '12,4,4,4';
   }
 
-  const configDash = getEdgeConfig(edgeType).dash;
-  return configDash ? normalizeDash(configDash) : undefined;
+  // Control-plane edges (observability/health/optional) stay dashed so the
+  // primary request path reads as solid by contrast.
+  const importance = data?.importance as string | undefined;
+  if (
+    importance === 'diagnostic' ||
+    importance === 'optional' ||
+    data?.portType === 'observability'
+  ) {
+    return DIAGRAM_CONSTANTS.edge.dashArray;
+  }
+
+  // Explicit user-chosen edge type (Properties panel / templates) keeps its
+  // configured dash. Pipeline-inferred `connectionType` alone stays solid.
+  const edgeType = data?.edgeType as EdgeType | undefined;
+  if (edgeType) {
+    const configDash = getEdgeConfig(edgeType).dash;
+    return configDash ? normalizeDash(configDash) : undefined;
+  }
+  return undefined;
 }
 
 export function resolveEdgeStrokeDasharrayFromEdge(edge: Edge): string | undefined {

@@ -3,9 +3,13 @@ import { Position } from '@/lib/utils/edgePositions'
 import { type ObstacleRect } from './obstacleRect'
 import { getBoundaryAnchor, getEdgeShiftOffset, INCOMING_OUTGOING_GAP } from './simpleFloatingEdge'
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions'
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility'
 import { getBidirectionalLaneOffset, hasReverseEdge, resolveBidirectionalFacingSides } from './handleSlotOrder'
 import logger from '@/lib/logger'
-import { buildSmoothStepSvg, getCollisionFreeWaypoints, segmentIntersectsRect } from './collisionFreeEdgePath'
+import { buildSmoothStepSvg, getCollisionFreeWaypointsDetailed, segmentIntersectsRect } from './collisionFreeEdgePath'
+import type { RoutePathOutcome } from './edgeRouting/waypoints'
+import type { EdgePathInput } from './geometryTypes'
+import { buildEdgePathGeometry, type RenderedEdgePath } from './edgePathGeometry'
 import {
   selectBestHandlerPair,
   scoreAllHandlerPairs,
@@ -29,6 +33,91 @@ export interface EdgeRouteResult {
   targetPoint: { x: number; y: number }
   waypoints: Array<{ x: number; y: number }>
   svgPath: string
+  path: EdgePathInput
+  renderedPath: RenderedEdgePath
+  status: 'ok' | 'invalid' | 'failed'
+  failureReason?: 'no-path-found' | 'search-budget-exceeded' | 'invalid-terminal'
+  expandedStates?: number
+  violations: Array<
+    | { code: 'OBSTACLE_INTERSECTION'; obstacleId: string }
+    | { code: 'TERMINAL_INTERSECTION'; nodeId: string }
+    | { code: 'CUSTOM_PATH_INVALID' }
+  >
+}
+
+function completeRoute<T extends Omit<EdgeRouteResult, 'path' | 'renderedPath' | 'status' | 'failureReason' | 'violations'>>(
+  result: T,
+  nodes: Node[],
+  excludedNodeIds: Set<string>,
+  borderRadius: number,
+  terminals?: { source: ObstacleRect; target: ObstacleRect },
+  routeOutcome?: RoutePathOutcome,
+): EdgeRouteResult {
+  const validation = routeStatus(result.waypoints, nodes, excludedNodeIds, terminals)
+  const obstacleViolations = (routeOutcome?.violatedObstacleIds ?? []).map(obstacleId => ({
+    code: 'OBSTACLE_INTERSECTION' as const,
+    obstacleId,
+  }))
+  const violations = [...validation.violations]
+  for (const violation of obstacleViolations) {
+    if (!violations.some(item => item.code === violation.code && item.obstacleId === violation.obstacleId)) violations.push(violation)
+  }
+  const routeFailed = routeOutcome?.status === 'no-path-found' || routeOutcome?.status === 'search-budget-exceeded' || routeOutcome?.status === 'invalid-terminal'
+  let path: EdgePathInput
+  if (result.svgPath.includes(' C ') && result.waypoints.length === 4) {
+    path = {
+      kind: 'cubic',
+      start: result.waypoints[0],
+      control1: result.waypoints[1],
+      control2: result.waypoints[2],
+      end: result.waypoints[3],
+    }
+  } else {
+    path = { kind: 'orthogonal', waypoints: result.waypoints, cornerRadius: borderRadius }
+  }
+  const renderedPath = buildEdgePathGeometry(path)
+  return {
+    ...result,
+    ...validation,
+    status: routeFailed ? 'failed' : validation.status,
+    failureReason: routeOutcome?.status === 'search-budget-exceeded' || routeOutcome?.status === 'no-path-found' || routeOutcome?.status === 'invalid-terminal'
+      ? routeOutcome.status
+      : validation.failureReason,
+    violations,
+    expandedStates: routeOutcome?.expandedStates ?? 0,
+    path,
+    renderedPath,
+    svgPath: renderedPath.d,
+  }
+}
+
+function routeStatus(
+  waypoints: Array<{ x: number; y: number }>,
+  nodes: Node[],
+  excludedNodeIds: Set<string>,
+  terminals?: { source: ObstacleRect; target: ObstacleRect },
+): Pick<EdgeRouteResult, 'status' | 'failureReason' | 'violations'> {
+  const violations: EdgeRouteResult['violations'] = []
+  for (const node of nodes) {
+    if (excludedNodeIds.has(node.id)) continue
+    const rect = getNodeRect(node, nodes)
+    for (let i = 1; i < waypoints.length; i++) {
+      if (segmentIntersectsRect(
+        waypoints[i - 1].x, waypoints[i - 1].y,
+        waypoints[i].x, waypoints[i].y,
+        rect.x, rect.y, rect.w, rect.h,
+      )) {
+        violations.push({ code: 'OBSTACLE_INTERSECTION', obstacleId: node.id })
+        break
+      }
+    }
+  }
+  if (terminals && pathEntersTerminalInterior(waypoints, terminals.source, terminals.target)) {
+    violations.push({ code: 'TERMINAL_INTERSECTION', nodeId: [...excludedNodeIds][0] ?? '' })
+  }
+  return violations.length
+    ? { status: 'invalid', violations }
+    : { status: 'ok', violations }
 }
 
 function buildCustomWaypointPath(
@@ -141,9 +230,9 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   return { x, y }
 }
 
-function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string): ObstacleRect {
+function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode): ObstacleRect {
   const pos = getAbsolutePosition(node, nodes)
-  const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId)
+  const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId, iconMode)
   return { x: pos.x, y: pos.y, w, h }
 }
 
@@ -194,6 +283,7 @@ function buildBlockingNodeRects(
   excludedIds: Set<string>,
   passableGroupIds: Set<string> = new Set(),
   renderStyleId?: string,
+  iconMode?: NodeIconMode,
 ): Map<string, { id: string; x: number; y: number; w: number; h: number }> {
   const nodeRects = new Map<string, { id: string; x: number; y: number; w: number; h: number }>()
   for (const node of nodes) {
@@ -203,7 +293,7 @@ function buildBlockingNodeRects(
       // that group, but must not slice through any other group's rectangle.
       if (passableGroupIds.has(node.id)) continue
     }
-    const rect = getNodeRect(node, nodes, renderStyleId)
+    const rect = getNodeRect(node, nodes, renderStyleId, iconMode)
     nodeRects.set(node.id, { id: node.id, ...rect })
   }
   return nodeRects
@@ -282,7 +372,8 @@ function computeDirectWaypoints(
   targetRect: ObstacleRect,
   borderRadius: number = 24,
   trustMeasuredTerminals: boolean = false,
-): Array<{ x: number; y: number }> {
+  maxExpandedStates?: number,
+): { waypoints: Array<{ x: number; y: number }>; outcome?: RoutePathOutcome } {
   // A tiny height difference should read as one straight connector. Snap to
   // the midpoint so the wire is pixel-straight instead of a shallow diagonal;
   // moving either endpoint stays inside the handle donut. An orthogonal Z
@@ -303,7 +394,7 @@ function computeDirectWaypoints(
     const straight = [ssh, sth];
     const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
     if (!blocked && (trustMeasuredTerminals || !pathEntersTerminalInterior(straight, sourceRect, targetRect))) {
-      return straight;
+      return { waypoints: straight };
     }
   }
 
@@ -319,7 +410,7 @@ function computeDirectWaypoints(
   const hitsTerminal = !trustMeasuredTerminals && pathEntersTerminalInterior(directWaypoints, sourceRect, targetRect)
 
   if (!hitsObstacle && !hitsTerminal) {
-    return directWaypoints
+    return { waypoints: directWaypoints }
   }
 
   // Include source/target as obstacles so detours cannot tunnel through them.
@@ -328,7 +419,7 @@ function computeDirectWaypoints(
   routingRects.set('__edge_source__', { id: '__edge_source__', ...sourceRect })
   routingRects.set('__edge_target__', { id: '__edge_target__', ...targetRect })
 
-  return getCollisionFreeWaypoints({
+  const outcome = getCollisionFreeWaypointsDetailed({
     sourceX: sh.x, sourceY: sh.y,
     targetX: th.x, targetY: th.y,
     sourcePosition,
@@ -337,7 +428,9 @@ function computeDirectWaypoints(
     edgeOffset,
     nodeRects: routingRects,
     excludedNodeIds: new Set(),
+    maxExpandedStates,
   })
+  return { waypoints: outcome.waypoints, outcome }
 }
 
 function toHandlerRect(r: ObstacleRect): HandlerRect {
@@ -349,6 +442,7 @@ function buildScorerObstacles(
   excludedIds: Set<string>,
   passableGroupIds: Set<string> = new Set(),
   renderStyleId?: string,
+  iconMode?: NodeIconMode,
 ): Map<string, HandlerRect> {
   const map = new Map<string, HandlerRect>()
   for (const node of nodes) {
@@ -356,7 +450,7 @@ function buildScorerObstacles(
     if (isGroupNode(node)) {
       if (passableGroupIds.has(node.id)) continue
     }
-    const rect = getNodeRect(node, nodes, renderStyleId)
+    const rect = getNodeRect(node, nodes, renderStyleId, iconMode)
     map.set(node.id, toHandlerRect(rect))
   }
   return map
@@ -443,6 +537,7 @@ function resolveEdgeSideOnNode(
   direction: 'LR' | 'TD',
   _allObstacles?: Map<string, HandlerRect>,
   renderStyleId?: string,
+  iconMode?: NodeIconMode,
 ): Position {
   // Floating-side behavior: handle ids no longer pin a side. Only explicit
   // user overrides are fixed; lane preferences bias the scorer. Otherwise use live
@@ -457,14 +552,11 @@ function resolveEdgeSideOnNode(
     return Position.Right
   }
 
-  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId)
-  const targetRect = getNodeRect(targetNode, nodes, renderStyleId)
+  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId, iconMode)
+  const targetRect = getNodeRect(targetNode, nodes, renderStyleId, iconMode)
   const sourceHandlerRect = { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h }
   const targetHandlerRect = { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h }
   const bidirectionalSides = resolveBidirectionalFacingSides(e, edges, sourceHandlerRect, targetHandlerRect)
-  if (bidirectionalSides) {
-    return e.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide
-  }
   if (e.source === nodeId) {
     const manual = sideToPosition(data?.sourceSide as string)
     if (manual !== undefined) return manual
@@ -472,13 +564,16 @@ function resolveEdgeSideOnNode(
     const manual = sideToPosition(data?.targetSide as string)
     if (manual !== undefined) return manual
   }
+  if (bidirectionalSides) {
+    return e.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide
+  }
   const excluded = new Set([e.source, e.target])
   // Match useHandleSlotLayout: per-edge obstacles, not the main edge's.
   const passableGroupIds = new Set<string>([
     ...getAncestorGroupIds(e.source, nodes),
     ...getAncestorGroupIds(e.target, nodes),
   ])
-  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId)
+  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId, iconMode)
   let pair = selectBestHandlerPair(
     sourceHandlerRect,
     targetHandlerRect,
@@ -529,6 +624,37 @@ export interface EdgeRouteHandleAnchors {
   targetSide?: Position;
 }
 
+export interface EdgeRouteOptions {
+  /** Override the stable per-pair lane when the graph allocator evaluates alternatives. */
+  laneOffset?: number;
+  /** Bound an individual fallback search; useful to enforce a diagram-wide budget. */
+  searchBudget?: { maxExpandedStates?: number };
+  /** Shared only within one immutable graph pass, never across edits. */
+  context?: EdgeRoutingContext;
+}
+
+export interface EdgeRoutingContext {
+  nodeById: Map<string, Node>;
+  resolveSide: (edge: Edge, nodeId: string) => Position;
+}
+
+export function createEdgeRoutingContext(nodes: Node[], edges: Edge[], direction: EdgeRouteDirection, renderStyleId?: string, iconMode?: NodeIconMode): EdgeRoutingContext {
+  const sides = new Map<string, Map<string, Position>>();
+  return {
+    nodeById: new Map(nodes.map(node => [node.id, node])),
+    resolveSide: (edge, nodeId) => {
+      let endpoints = sides.get(edge.id);
+      if (!endpoints) { endpoints = new Map(); sides.set(edge.id, endpoints); }
+      let side = endpoints.get(nodeId);
+      if (side === undefined) {
+        side = resolveEdgeSideOnNode(edge, nodeId, nodes, edges, direction, new Map(), renderStyleId, iconMode);
+        endpoints.set(nodeId, side);
+      }
+      return side;
+    },
+  };
+}
+
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
@@ -536,17 +662,25 @@ export function computeEdgeRoute(
   direction: EdgeRouteDirection = 'LR',
   renderStyleId?: string,
   handleAnchors?: EdgeRouteHandleAnchors,
+  iconMode?: NodeIconMode,
+  routeOptions: EdgeRouteOptions = {},
 ): EdgeRouteResult {
-  const sourceNode = nodes.find(n => n.id === edge.source)
-  const targetNode = nodes.find(n => n.id === edge.target)
+  const context = routeOptions.context ?? createEdgeRoutingContext(nodes, edges, direction, renderStyleId, iconMode)
+  const sourceNode = context.nodeById.get(edge.source)
+  const targetNode = context.nodeById.get(edge.target)
 
-  const defaultResult = {
+  const defaultResult: EdgeRouteResult = {
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
     sourcePoint: { x: 0, y: 0 },
     targetPoint: { x: 0, y: 0 },
     waypoints: [],
     svgPath: '',
+    path: { kind: 'orthogonal', waypoints: [], cornerRadius: 0 },
+    renderedPath: buildEdgePathGeometry({ kind: 'orthogonal', waypoints: [], cornerRadius: 0 }),
+    status: 'failed',
+    failureReason: 'invalid-terminal',
+    violations: [],
   }
 
   if (!sourceNode || !targetNode) return defaultResult
@@ -555,7 +689,7 @@ export function computeEdgeRoute(
   const curveRadius = brutal ? 10 : 24;
 
   if (edge.source === edge.target) {
-    const sRect = getNodeRect(sourceNode, nodes, renderStyleId)
+    const sRect = getNodeRect(sourceNode, nodes, renderStyleId, iconMode)
     const cy = sRect.y + sRect.h / 2
     const top = sRect.y
     const left = sRect.x
@@ -634,7 +768,7 @@ export function computeEdgeRoute(
         { x: c2x, y: c2y },
         { x: tgtPt.x, y: tgtPt.y },
       ]
-      return {
+      const result = {
         sourcePosition: Position.Top,
         targetPosition: Position.Right,
         sourcePoint: srcPt,
@@ -642,6 +776,7 @@ export function computeEdgeRoute(
         waypoints,
         svgPath: `M ${srcPt.x},${srcPt.y} C ${c1x},${c1y} ${c2x},${c2y} ${tgtPt.x},${tgtPt.y}`,
       }
+      return completeRoute(result, nodes, new Set([edge.source]), curveRadius)
     }
 
     // Default: full wrap (sketch) — Left → Right over the top, rounded
@@ -668,7 +803,7 @@ export function computeEdgeRoute(
       { x: right + out, y: cy },
       { x: tgtPt.x, y: tgtPt.y },
     ]
-    return {
+    const result = {
       sourcePosition: Position.Left,
       targetPosition: Position.Right,
       sourcePoint: srcPt,
@@ -676,10 +811,11 @@ export function computeEdgeRoute(
       waypoints,
       svgPath: buildSmoothStepSvg(waypoints, r),
     }
+    return completeRoute(result, nodes, new Set([edge.source]), r)
   }
 
-  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId)
-  const targetRect = getNodeRect(targetNode, nodes, renderStyleId)
+  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId, iconMode)
+  const targetRect = getNodeRect(targetNode, nodes, renderStyleId, iconMode)
   const edgeData = edge.data as Record<string, unknown> | undefined
 
   // `direction` is now passed in by the caller (the parent component reads
@@ -698,7 +834,7 @@ export function computeEdgeRoute(
     ...getAncestorGroupIds(edge.source, nodes),
     ...getAncestorGroupIds(edge.target, nodes),
   ])
-  const scorerObstacles = buildScorerObstacles(nodes, excludedIds, passableGroupIds, renderStyleId)
+  const scorerObstacles = buildScorerObstacles(nodes, excludedIds, passableGroupIds, renderStyleId, iconMode)
   const srcHandlerRect: HandlerRect = {
     x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h,
   }
@@ -710,8 +846,8 @@ export function computeEdgeRoute(
   let manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
   let manualTargetSide = sideToPosition(edgeData?.targetSide as string)
   if (bidirectionalSides) {
-    manualSourceSide = bidirectionalSides.sourceSide
-    manualTargetSide = bidirectionalSides.targetSide
+    manualSourceSide = manualSourceSide ?? bidirectionalSides.sourceSide
+    manualTargetSide = manualTargetSide ?? bidirectionalSides.targetSide
   }
 
   // Custom waypoints: keep stored sides when present; only score if missing.
@@ -739,18 +875,18 @@ export function computeEdgeRoute(
       targetPosition = handlerPair.targetSide
     }
 
-    const nodeMap = new Map(nodes.map(n => [n.id, n]))
+    const nodeMap = context.nodeById
     const sourceShift = getEdgeShiftOffset(
       edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
       undefined, undefined,
-      (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId),
-      renderStyleId,
+      context.resolveSide,
+      renderStyleId, iconMode,
     )
     const targetShift = getEdgeShiftOffset(
       edge.target, edge.id, targetPosition, edges, nodeMap, 24,
       undefined, undefined,
-      (e, nodeId) => resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId),
-      renderStyleId,
+      context.resolveSide,
+      renderStyleId, iconMode,
     )
     const scoredSh = getBoundaryAnchor(
       sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
@@ -770,24 +906,11 @@ export function computeEdgeRoute(
     const th = handleAnchors?.target && pointsNear(handleAnchors.target, scoredTh)
       ? handleAnchors.target
       : scoredTh
-    if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
-    if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
-
-    if (!hasValidCustomWaypointPath(sh, th, sourcePosition, targetPosition, customWaypoints)) {
-      const { customWaypoints: _staleWaypoints, ...cleanData } = edgeData ?? {}
-      return computeEdgeRoute(
-        { ...edge, data: Object.keys(cleanData).length > 0 ? cleanData : undefined },
-        nodes,
-        edges,
-        direction,
-        renderStyleId,
-        handleAnchors,
-      )
-    }
+    if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+    if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
-
-    return {
+    const result = {
       sourcePosition,
       targetPosition,
       sourcePoint: sh,
@@ -795,6 +918,14 @@ export function computeEdgeRoute(
       waypoints,
       svgPath,
     }
+    const validation = routeStatus(result.waypoints, nodes, new Set([edge.source, edge.target]))
+    const customPathValid = hasValidCustomWaypointPath(sh, th, sourcePosition, targetPosition, customWaypoints);
+    if (!customPathValid) {
+      validation.violations.push({ code: 'CUSTOM_PATH_INVALID' })
+      validation.status = 'invalid'
+    }
+    const completed = completeRoute({ ...result, ...validation }, nodes, new Set([edge.source, edge.target]), curveRadius)
+    return customPathValid ? completed : { ...completed, status: 'invalid', violations: [...completed.violations, { code: 'CUSTOM_PATH_INVALID' }] }
   }
 
   if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
@@ -858,20 +989,19 @@ export function computeEdgeRoute(
     }
   }
 
-  if (handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
-  if (handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+  if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+  if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
-  const nodeMap = new Map(nodes.map(n => [n.id, n]))
-  const resolveSide = (e: Edge, nodeId: string) =>
-    resolveEdgeSideOnNode(e, nodeId, nodes, edges, direction, scorerObstacles, renderStyleId)
+  const nodeMap = context.nodeById
+  const resolveSide = context.resolveSide
 
   const sourceShift = getEdgeShiftOffset(
     edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
-    undefined, undefined, resolveSide, renderStyleId,
+    undefined, undefined, resolveSide, renderStyleId, iconMode,
   )
   const targetShift = getEdgeShiftOffset(
     edge.target, edge.id, targetPosition, edges, nodeMap, 24,
-    undefined, undefined, resolveSide, renderStyleId,
+    undefined, undefined, resolveSide, renderStyleId, iconMode,
   )
   // Scorer-side anchors are perpendicular to the visible handles by
   // construction. Live measured centers belong to the edge's stored handle
@@ -901,7 +1031,7 @@ export function computeEdgeRoute(
 
   // Intermediate nodes only for the obstacle map — source/target are added
   // inside computeDirectWaypoints so detours cannot tunnel through terminals.
-  const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId)
+  const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId, iconMode)
   const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
   // Opposite-direction edges with vertically (or horizontally) staggered
   // endpoints can otherwise share the same middle stem even though their
@@ -929,13 +1059,24 @@ export function computeEdgeRoute(
     ? Math.sign(bidirectionalLane) * BIDIRECTIONAL_ROUTE_LANE_OFFSET
     : 0
 
-  const waypointsRaw = computeDirectWaypoints(
+  const parallelEdges = edges
+    .filter(candidate => candidate.source === edge.source && candidate.target === edge.target)
+    .sort((a, b) => a.id.localeCompare(b.id))
+  const parallelIndex = parallelEdges.findIndex(candidate => candidate.id === edge.id)
+  const parallelLaneOffset = routeOptions.laneOffset ?? (parallelEdges.length > 1
+    ? (parallelIndex - (parallelEdges.length - 1) / 2) * 28
+    : 0)
+  const directRoute = computeDirectWaypoints(
     sh, th, sourcePosition, targetPosition, edgeOffset,
     nodeRectParam, sourceRect, targetRect,
     curveRadius,
-    Boolean(handleAnchors),
+    Boolean(
+      measuredSh && pointsNear(measuredSh, scoredSh) &&
+      measuredTh && pointsNear(measuredTh, scoredTh),
+    ),
+    routeOptions.searchBudget?.maxExpandedStates,
   )
-  let waypoints = waypointsRaw
+  let waypoints = directRoute.waypoints
   let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
 
   // Degenerate case: coincident anchors (overlapping nodes) produce a single
@@ -964,7 +1105,7 @@ export function computeEdgeRoute(
     }
   }
 
-  return {
+  const result = {
     sourcePosition,
     targetPosition,
     sourcePoint: sh,
@@ -972,4 +1113,33 @@ export function computeEdgeRoute(
     waypoints,
     svgPath,
   }
+  let validation = routeStatus(result.waypoints, nodes, excludedIds, { source: sourceRect, target: targetRect })
+  if (parallelLaneOffset !== 0) {
+    const horizontal = sourceIsHorizontal && targetIsHorizontal
+    const stub = Math.max(24, curveRadius + 8)
+    const lane = (sh[horizontal ? 'y' : 'x'] + th[horizontal ? 'y' : 'x']) / 2 + parallelLaneOffset
+    const sourceStub = horizontal
+      ? { x: sh.x + (sourcePosition === Position.Right ? stub : -stub), y: sh.y }
+      : { x: sh.x, y: sh.y + (sourcePosition === Position.Bottom ? stub : -stub) }
+    const targetStub = horizontal
+      ? { x: th.x + (targetPosition === Position.Right ? stub : -stub), y: th.y }
+      : { x: th.x, y: th.y + (targetPosition === Position.Bottom ? stub : -stub) }
+    const lanePath = horizontal
+      ? [sh, sourceStub, { x: sourceStub.x, y: lane }, { x: targetStub.x, y: lane }, targetStub, th]
+      : [sh, sourceStub, { x: lane, y: sourceStub.y }, { x: lane, y: targetStub.y }, targetStub, th]
+    const laneStatus = routeStatus(lanePath, nodes, excludedIds, { source: sourceRect, target: targetRect })
+    if (laneStatus.status === 'ok') {
+      waypoints = lanePath
+      svgPath = buildSmoothStepSvg(waypoints, curveRadius)
+      validation = laneStatus
+    }
+  }
+  if (pathEntersTerminalInterior(waypoints, sourceRect, targetRect)) {
+    // Terminal penetration is a hard geometry violation; keep the route so
+    // the editor can show a diagnostic while the graph remains editable.
+    validation.violations.push({ code: 'TERMINAL_INTERSECTION', nodeId: edge.source })
+    validation.status = 'failed'
+    validation.failureReason = 'no-path-found'
+  }
+  return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, excludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
 }

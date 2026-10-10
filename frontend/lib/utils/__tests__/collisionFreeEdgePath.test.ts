@@ -4,6 +4,8 @@ import {
   buildSmoothStepSvg,
   getCollisionFreeSmoothStepPath,
   getCollisionFreeWaypoints,
+  getCollisionFreeWaypointsDetailed,
+  findAstFallbackPathDetailed,
 } from '../collisionFreeEdgePath';
 import type { NodeRect } from '../collisionFreeEdgePath';
 
@@ -27,6 +29,67 @@ describe('smooth step SVG rounding', () => {
 
     expect(path).toContain(' A 24,24 ');
   });
+});
+
+describe('detailed route outcomes', () => {
+  it('reports a blocked target endpoint instead of returning a successful fallback', () => {
+    const result = getCollisionFreeWaypointsDetailed({
+      sourceX: 200,
+      sourceY: 100,
+      targetX: 800,
+      targetY: 400,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      borderRadius: 0,
+      nodeRects: makeRects([{ id: 'foreign', x: 760, y: 350, w: 100, h: 100 }]),
+      excludedNodeIds: new Set(),
+    });
+
+    expect(result.status).toBe('no-path-found');
+    expect(result.violatedObstacleIds).toContain('foreign');
+  });
+
+  it('reports malformed terminal coordinates explicitly', () => {
+    const result = getCollisionFreeWaypointsDetailed({
+      sourceX: Number.NaN,
+      sourceY: 100,
+      targetX: 800,
+      targetY: 400,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    });
+
+    expect(result.status).toBe('invalid-terminal');
+    expect(result.waypoints).toEqual([]);
+  });
+
+  it('reports A* state usage with every detailed waypoint outcome', () => {
+    const result = getCollisionFreeWaypointsDetailed({
+      sourceX: 0,
+      sourceY: 0,
+      targetX: 400,
+      targetY: 0,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.expandedStates).toBe(0);
+  });
+
+  it('distinguishes A* state-budget exhaustion from an exhausted search', () => {
+    const outcome = findAstFallbackPathDetailed(
+      0, 0, 400, 400,
+      makeRects([{ id: 'wall', x: 150, y: -100, w: 100, h: 500 }]),
+      new Set(),
+      1,
+    );
+
+    expect(outcome.status).toBe('search-budget-exceeded');
+    expect(outcome.path).toBeNull();
+    expect(outcome.expandedStates).toBe(1);
+  });
+
 });
 
 function makeRects(entries: Array<{ id: string; x: number; y: number; w?: number; h?: number }>): Map<string, NodeRect> {

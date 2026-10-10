@@ -7,8 +7,20 @@ describe('resolveEdgeStrokeDasharray', () => {
     expect(resolveEdgeStrokeDasharray({}, { strokeDasharray: '3 3' })).toBe('3,3');
   });
 
-  it('matches canvas async dashed edges', () => {
-    expect(resolveEdgeStrokeDasharray({ connectionType: 'async' })).toBe('5,4');
+  it('stays solid for pipeline-inferred async (connectionType only)', () => {
+    expect(resolveEdgeStrokeDasharray({ connectionType: 'async' })).toBeUndefined();
+  });
+
+  it('dashes explicitly user-chosen async edge types', () => {
+    expect(resolveEdgeStrokeDasharray({ edgeType: 'async' })).toBe('8,6');
+  });
+
+  it('dashes control-plane edges (diagnostic importance)', () => {
+    expect(resolveEdgeStrokeDasharray({ connectionType: 'sync', importance: 'diagnostic' })).toBe('5,4');
+  });
+
+  it('dashes optional edges', () => {
+    expect(resolveEdgeStrokeDasharray({ importance: 'optional' })).toBe('5,4');
   });
 
   it('matches dotted variant', () => {

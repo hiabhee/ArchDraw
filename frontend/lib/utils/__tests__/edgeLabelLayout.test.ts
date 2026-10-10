@@ -9,6 +9,7 @@ import {
   type EdgeLabelAnchor,
 } from '../edgeLabelLayout'
 import { computeEdgeRoute } from '../edgeRouteBuilder'
+import { buildEdgePathGeometry, pointAtRenderedPath } from '../edgePathGeometry'
 
 function makeNode(id: string, x: number, y: number, w = 160, h = 80): Node {
   return { id, type: 'system', position: { x, y }, width: w, height: h, data: {} } as Node
@@ -107,11 +108,37 @@ describe('computeEdgeLabelLayout', () => {
 
     const anchor = computeEdgeLabelLayout([edge], nodeInternals(nodes), 'TD', renderStyle).get('e1')
     const route = computeEdgeRoute(edge, nodes, [edge], 'TD', renderStyle)
-    const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+    const expected = pointAtFraction(buildPathSegments(route.waypoints), anchor?.t ?? 0.5)
 
     expect(anchor).toBeDefined()
     expect(anchor!.x).toBeCloseTo(expected.x, 0)
     expect(anchor!.y).toBeCloseTo(expected.y, 0)
+  })
+
+  it('uses supplied final rendered routes instead of recomputing an edge route', () => {
+    const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)]
+    const edge = makeEdge('pinned', 'a', 'b', { label: 'REQUEST', labelT: 0.5 })
+    const baseRoute = computeEdgeRoute(edge, nodes, [edge], 'LR')
+    const waypoints = [
+      baseRoute.sourcePoint,
+      { x: baseRoute.sourcePoint.x, y: 280 },
+      { x: baseRoute.targetPoint.x, y: 280 },
+      baseRoute.targetPoint,
+    ]
+    const renderedPath = buildEdgePathGeometry({ kind: 'orthogonal', waypoints, cornerRadius: 24 })
+    const finalRoute = {
+      ...baseRoute,
+      waypoints,
+      renderedPath,
+      path: { kind: 'orthogonal' as const, waypoints, cornerRadius: 24 },
+      svgPath: renderedPath.d,
+    }
+    const layout = computeEdgeLabelLayout([edge], nodeInternals(nodes), 'LR', undefined, new Map([['pinned', finalRoute]]))
+    const anchor = layout.get('pinned')!
+    const expected = pointAtRenderedPath(renderedPath, anchor.t)
+
+    expect(Math.abs(anchor.y - expected.y)).toBeLessThan(1)
+    expect(anchor.y).toBeGreaterThan(250)
   })
 
   it('stacks labels of parallel edges perpendicular to the path', () => {
@@ -125,10 +152,15 @@ describe('computeEdgeLabelLayout', () => {
     const b = res.get('e2')!
     expect(a).toBeDefined()
     expect(b).toBeDefined()
-    // Labels sit directly on the edge path — no perpendicular stacking.
-    // Parallel edges share the same line but at different t positions.
-    expect(Math.abs(a.y - b.y)).toBeLessThan(1)
-    expect(a.t).not.toBeCloseTo(b.t, 1)
+    // Separate connections now occupy distinct route lanes; each label must
+    // stay attached to its own rendered route rather than sharing a line.
+    const routeA = computeEdgeRoute(edges[0], nodes, edges, 'LR')
+    const routeB = computeEdgeRoute(edges[1], nodes, edges, 'LR')
+    const expectedA = pointAtFraction(buildPathSegments(routeA.waypoints), a.t)
+    const expectedB = pointAtFraction(buildPathSegments(routeB.waypoints), b.t)
+    expect(Math.hypot(a.x - expectedA.x, a.y - expectedA.y)).toBeLessThan(1)
+    expect(Math.hypot(b.x - expectedB.x, b.y - expectedB.y)).toBeLessThan(1)
+    expect(Math.abs(a.y - b.y)).toBeGreaterThan(1)
   })
 
   it('resolves overlaps across several labeled edges', () => {
@@ -178,7 +210,9 @@ describe('computeEdgeLabelLayout', () => {
     const ra = computeEdgeLabelLayout(edges, niA, 'LR')
     const rb = computeEdgeLabelLayout(edges, niB, 'LR')
     expect(ra.get('e1')!.y).toBeCloseTo(150, 0)
-    expect(rb.get('e1')!.y).toBeCloseTo(250, 0)
+    const routeB = computeEdgeRoute(edges[0], nodesB, edges, 'LR')
+    const expectedB = pointAtRenderedPath(routeB.renderedPath, rb.get('e1')!.t)
+    expect(rb.get('e1')!.y).toBeCloseTo(expectedB.y, 0)
     expect(ra).not.toBe(rb)
   })
 
@@ -297,7 +331,7 @@ describe('computeEdgeLabelLayout', () => {
     // The label stays on the wire midpoint (an L-shaped route: the child's
     // absolute y is offset by the group's position), not pushed off the group.
     const route = computeEdgeRoute(edges[0], [group, a, b], edges, 'LR')
-    const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+    const expected = pointAtFraction(buildPathSegments(route.waypoints), anchor?.t ?? 0.5)
     expect(anchor.x).toBeCloseTo(expected.x, 0)
     expect(anchor.y).toBeCloseTo(expected.y, 0)
 

@@ -6,13 +6,20 @@
 import { type NodeRect } from './waypoints';
 import { orthogonalizeDiagonalSegments } from './waypoints';
 
-export function findAstFallbackPath(
+export interface AstFallbackOutcome {
+  path: Array<{ x: number; y: number }> | null;
+  status: 'ok' | 'no-path-found' | 'search-budget-exceeded';
+  expandedStates: number;
+}
+
+export function findAstFallbackPathDetailed(
   sx: number, sy: number,
   tx: number, ty: number,
   nodeRects: Map<string, NodeRect>,
   excludedIds: Set<string>,
-): Array<{ x: number; y: number }> | null {
-  if (!nodeRects || nodeRects.size === 0) return null;
+  maxExpandedStates = 12_000,
+): AstFallbackOutcome {
+  if (!nodeRects || nodeRects.size === 0) return { path: null, status: 'no-path-found', expandedStates: 0 };
 
   const GRID_SIZE = 40;
   const PADDING = 200;
@@ -54,8 +61,8 @@ export function findAstFallbackPath(
   const sg = { x: toGrid(sx, minX), y: toGrid(sy, minY) };
   const tg = { x: toGrid(tx, minX), y: toGrid(ty, minY) };
 
-  if (sg.x < 0 || sg.x >= cols || sg.y < 0 || sg.y >= rows) return null;
-  if (tg.x < 0 || tg.x >= cols || tg.y < 0 || tg.y >= rows) return null;
+  if (sg.x < 0 || sg.x >= cols || sg.y < 0 || sg.y >= rows) return { path: null, status: 'no-path-found', expandedStates: 0 };
+  if (tg.x < 0 || tg.x >= cols || tg.y < 0 || tg.y >= rows) return { path: null, status: 'no-path-found', expandedStates: 0 };
 
   grid[sg.y][sg.x] = false;
   grid[tg.y][tg.x] = false;
@@ -116,8 +123,14 @@ export function findAstFallbackPath(
   heapPush(sk, fScore.get(sk)!);
 
   let found = false;
+  let expandedStates = 0;
+  let exhausted = false;
 
   while (heap.length > 0) {
+    if (expandedStates >= maxExpandedStates) {
+      exhausted = true;
+      break;
+    }
     const current = heapPop()!;
 
     if (fScore.get(current) === undefined) continue;
@@ -128,6 +141,7 @@ export function findAstFallbackPath(
     }
 
     fScore.delete(current);
+    expandedStates++;
 
     const [cx, cy] = current.split(',').map(Number);
     const g = gScore.get(current) ?? Infinity;
@@ -164,7 +178,13 @@ export function findAstFallbackPath(
     }
   }
 
-  if (!found) return null;
+  if (!found) {
+    return {
+      path: null,
+      status: exhausted ? 'search-budget-exceeded' : 'no-path-found',
+      expandedStates,
+    };
+  }
 
   const pathG: PNode[] = [];
   let ck: string | null = key(tg);
@@ -179,5 +199,18 @@ export function findAstFallbackPath(
   waypoints[0] = { x: sx, y: sy };
   waypoints[waypoints.length - 1] = { x: tx, y: ty };
 
-  return orthogonalizeDiagonalSegments(waypoints, nodeRects, excludedIds);
+  return {
+    path: orthogonalizeDiagonalSegments(waypoints, nodeRects, excludedIds),
+    status: 'ok',
+    expandedStates,
+  };
+}
+
+export function findAstFallbackPath(
+  sx: number, sy: number,
+  tx: number, ty: number,
+  nodeRects: Map<string, NodeRect>,
+  excludedIds: Set<string>,
+): Array<{ x: number; y: number }> | null {
+  return findAstFallbackPathDetailed(sx, sy, tx, ty, nodeRects, excludedIds).path;
 }
