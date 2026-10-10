@@ -60,4 +60,19 @@ describe('importDiagram', () => {
     expect(edge?.sourceHandle).toBeTruthy();
     expect(edge?.targetHandle).toBeTruthy();
   });
+
+  it('preserves authored parallel edges and positions for JSON imports', () => {
+    const nodes: Node[] = [
+      { id: 'a', type: 'systemNode', position: { x: 123, y: 71 }, data: { label: 'A' } },
+      { id: 'b', type: 'systemNode', position: { x: 400, y: 91 }, data: { label: 'B' } },
+    ];
+    const edges = [
+      { id: 'request', source: 'a', target: 'b', label: 'request', data: { label: 'request' } },
+      { id: 'event', source: 'a', target: 'b', label: 'event', data: { label: 'event' } },
+      { id: 'response', source: 'b', target: 'a', label: 'response', data: { label: 'response', isReturn: true } },
+    ];
+    useDiagramStore.getState().importDiagram(nodes, edges as never, { preserveTopology: true });
+    expect(useDiagramStore.getState().nodes.find(n => n.id === 'a')?.position).toEqual({ x: 123, y: 71 });
+    expect(useDiagramStore.getState().edges.map(e => e.id).sort()).toEqual(['event', 'request', 'response']);
+  });
 });

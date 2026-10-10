@@ -426,18 +426,19 @@ export const createGraphSlice: StateCreator<
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
-  importDiagram: (nodes, edges) => {
+  importDiagram: (nodes, edges, options) => {
     get().pushHistory();
 
+    const preserveTopology = options?.preserveTopology === true;
     const normalizedNodes = normalizeNodes(nodes);
-    const cleanedNodes = stripReservedLayerNodes(normalizedNodes);
+    const cleanedNodes = preserveTopology ? normalizedNodes : stripReservedLayerNodes(normalizedNodes);
     const validatedNodes = validateAndFixNodes(cleanedNodes);
-    const normalizedEdges = normalizeEdges(edges);
+    const normalizedEdges = normalizeEdges(edges, { preserveParallel: preserveTopology });
 
-    const { nodes: clarityNodes, edges: clarityEdges, report } = runClarityCompiler(
-      validatedNodes,
-      normalizedEdges
-    );
+    const compiled = preserveTopology ? null : runClarityCompiler(validatedNodes, normalizedEdges);
+    const clarityNodes = compiled?.nodes ?? validatedNodes;
+    const clarityEdges = compiled?.edges ?? normalizedEdges;
+    const report = compiled?.report ?? { artifactsRemoved: 0, requestResponseCollapsed: 0, spineFound: false, spineNodeCount: 0, warnings: [] };
 
     if (report.warnings.length > 0) {
       logger.warn('[ClarityCompiler]', report.warnings.join('; '));
@@ -447,7 +448,7 @@ export const createGraphSlice: StateCreator<
     // nudge shows as a diagonal slit above the grid line and only snaps to
     // 0° after a click/drag (which triggers re-render + autoStraighten). Fix
     // on import so the first render is already straight.
-    {
+    if (!preserveTopology) {
       const STRAIGHT_THRESHOLD = 12;
       const isVerticalLayout = get().activeLayoutPresetId === 'layered-tb';
       const nodeById = new Map(clarityNodes.map((n) => [n.id, n]));
@@ -504,15 +505,17 @@ export const createGraphSlice: StateCreator<
       }
     }
 
-    const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId);
+    const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId, { preserveParallel: preserveTopology });
 
     const activeCanvas = get().canvases.find((c) => c.id === get().activeCanvasId);
-    const withHeading = ensureDiagramHeading(clarityNodes, activeCanvas?.name);
-    const placedNodes = ensureSubgraphBoundsContainChildren(
-      placeTextNodes(withHeading as RFNode[]) as Node[],
-      get().diagramRenderStyle,
-      get().iconMode,
-    );
+    const withHeading = preserveTopology ? clarityNodes : ensureDiagramHeading(clarityNodes, activeCanvas?.name);
+    const placedNodes = preserveTopology
+      ? withHeading
+      : ensureSubgraphBoundsContainChildren(
+          placeTextNodes(withHeading as RFNode[]) as Node[],
+          get().diagramRenderStyle,
+          get().iconMode,
+        );
 
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId

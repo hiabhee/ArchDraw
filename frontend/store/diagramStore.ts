@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { serializedStorage, migrateLegacyStorage } from '@/lib/storage/localStorage';
+import { persist } from 'zustand/middleware';
+import { deferredJSONStorage, migrateLegacyStorage } from '@/lib/storage/localStorage';
 import type { DiagramState } from './diagram/types';
 import { deriveNodesAndEdges, wrapCreator } from './diagram/derive';
 import { diagramPersistPartialize } from './diagram/persistence/partialize';
@@ -58,7 +58,7 @@ const useDiagramStoreRaw = create<DiagramState>()(
       name: 'archdraw-storage',
       version: 1,
       migrate: migrateDiagramState,
-      storage: createJSONStorage(() => serializedStorage),
+      storage: deferredJSONStorage,
       partialize: diagramPersistPartialize,
       onRehydrateStorage: onDiagramRehydrate,
     }

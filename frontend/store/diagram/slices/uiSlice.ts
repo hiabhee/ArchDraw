@@ -10,6 +10,7 @@ export type UiSlice = Pick<
   | 'showGrid'
   | 'iconMode'
   | 'diagramChromeMode'
+  | 'diagramViewMode'
   | 'diagramStyleTheme'
   | 'diagramRenderStyle'
   | 'darkMode'
@@ -25,6 +26,7 @@ export type UiSlice = Pick<
   | 'setIconMode'
   | 'setCloudProvider'
   | 'setDiagramChromeMode'
+  | 'setDiagramViewMode'
   | 'setDiagramStyleTheme'
   | 'setDiagramRenderStyle'
   | 'toggleDarkMode'
@@ -49,6 +51,7 @@ export const createUiSlice: StateCreator<
   showGrid: true,
   iconMode: 'all',
   diagramChromeMode: 'edit',
+  diagramViewMode: 'details',
   diagramStyleTheme: 'studio-minimal',
   diagramRenderStyle: 'studio-minimal',
   darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') === 'dark' : false,
@@ -82,6 +85,7 @@ export const createUiSlice: StateCreator<
     get().saveCanvasToDB(activeCanvasId);
   },
   setDiagramChromeMode: (mode) => set({ diagramChromeMode: mode }),
+  setDiagramViewMode: (mode) => set({ diagramViewMode: mode }),
   setDiagramStyleTheme: (theme) => set({ diagramStyleTheme: theme }),
   setDiagramRenderStyle: (style: DiagramRenderStyleId) => set({ diagramRenderStyle: style }),
   toggleDarkMode: () => {
