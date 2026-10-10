@@ -461,4 +461,5 @@ export type ShapeShellProps = {
   sketch?: boolean;
   brutal?: boolean;
   studio?: boolean;
+  metallic?: boolean;
 };

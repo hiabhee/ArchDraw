@@ -1355,7 +1355,7 @@
 [data-render-style='neubrutalism'] .node-card {
   border: 3px solid var(--arch-node-stroke, #1a1a1a) !important;
   box-shadow: 5px 5px 0px var(--arch-brutal-shadow, var(--arch-node-stroke, #1a1a1a)) !important;
-  background: var(--arch-node-fill, #ffffff) !important;
+  background: var(--node-card-bg, var(--arch-node-fill, #ffffff)) !important;
   border-radius: 6px !important;
 }
 
@@ -1478,4 +1478,18 @@
 [data-render-style='neubrutalism'] .react-flow__node-group,
 [data-render-style='neubrutalism'] .react-flow__node-frameNode {
   z-index: -1 !important;
+}
+
+/* Studio Metallic uses a satin highlight over the active palette's node fill. */
+[data-render-style='studio-metallic'] .node-card {
+  background-image: var(--arch-node-surface-overlay);
+  box-shadow: var(--arch-node-surface-elevation), var(--node-shadow), var(--arch-node-surface-inset);
+}
+
+[data-render-style='studio-metallic'] .node-wrapper.selected .node-card {
+  box-shadow: var(--node-shadow-selected), var(--arch-node-surface-inset);
+}
+
+[data-render-style='studio-metallic'] .node-wrapper:not(.selected) .node-card:hover {
+  background-image: var(--arch-node-surface-overlay);
 }

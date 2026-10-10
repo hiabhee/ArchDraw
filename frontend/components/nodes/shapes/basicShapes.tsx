@@ -15,7 +15,7 @@ import {
   type ShapeShellProps,
 } from './shapeShell';
 
-export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal, studio }: ShapeShellProps & { rounded: boolean }) {
+export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal, studio, metallic }: ShapeShellProps & { rounded: boolean }) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
   const darkStudio = studio && isDark;
@@ -57,8 +57,11 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
           height,
           borderRadius: r,
           border: `${surface.strokeWidth}px solid ${surface.stroke}`,
-          background: surface.fill,
-          boxShadow: surface.boxShadow,
+          backgroundColor: surface.fill,
+          ...(metallic ? {
+            backgroundImage: 'var(--arch-node-surface-overlay)',
+            boxShadow: ['var(--arch-node-surface-elevation)', surface.boxShadow, 'var(--arch-node-surface-inset)'].filter((shadow) => shadow && shadow !== 'none').join(', '),
+          } : { boxShadow: surface.boxShadow }),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

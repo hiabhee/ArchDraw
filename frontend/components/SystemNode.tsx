@@ -16,7 +16,7 @@ import { TechnologyBrandIcon } from '@/components/icons/TechnologyBrandIcon';
 import { getTechnologyBrandSlug } from '@/lib/brandIcons';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
-import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
+import { applyShapeSurface, getBrutalNodeFill, getStrokeRenderer, isStudioRenderStyle, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import { resolveConcern, SIZE_M, STATUS_COLORS } from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
@@ -124,7 +124,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     iconSource: nodeData.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
     color: accentColor,
   });
-  const providerIcon = aesthetics.renderStyleId === 'studio-minimal' || nodeData.iconSource === 'manual' ? null : resolveAutoCloudIcon({
+  const providerIcon = isStudioRenderStyle(aesthetics.renderStyleId) || nodeData.iconSource === 'manual' ? null : resolveAutoCloudIcon({
     label: data.label,
     typeId: nodeData.typeId,
     componentId: (nodeData as { componentId?: string }).componentId,
@@ -146,7 +146,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const sketch = aesthetics.renderStyleId === 'sketch';
   const brutal = aesthetics.renderStyleId === 'neubrutalism';
-  const studio = aesthetics.renderStyleId === 'studio-minimal';
+  const studio = isStudioRenderStyle(aesthetics.renderStyleId);
   const catStyle = getDarkCategoryStyle(accentColor);
   const accentSoft = hexToRgba(accentColor, isDark ? 0.08 : 0.04);
   const accentBg = nodeData.accentColor
@@ -314,16 +314,17 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           ...(studio
             ? {
                 ['--node-card-bg' as string]: studioCardBg,
+                ['--node-title-color' as string]: studioDarkSelected ? '#111827' : aesthetics.colors.title,
+                ['--node-subtitle-color' as string]: studioDarkSelected ? '#526174' : aesthetics.colors.subtitle,
                 ['--arch-node-stroke' as string]: studioBorder,
                 ...(studioDarkSelected
                   ? {
-                      ['--node-title-color' as string]: '#111827',
-                      ['--node-subtitle-color' as string]: '#526174',
                       ['--node-shadow-selected' as string]: studioSelectedShadow,
                     }
                   : {}),
               }
             : {}),
+          ...(brutal ? { ['--node-card-bg' as string]: getBrutalNodeFill(accentColor, isDark) } : {}),
           ['--node-accent-track' as string]: hexToRgba(accentColor, 0.35),
           ['--node-glow' as string]: catStyle.glow,
           ['--node-glow-border' as string]: catStyle.border,

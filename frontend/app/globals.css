@@ -524,6 +524,12 @@ body {
   animation: edgeFlow 1s linear infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.animated .react-flow__edge-path {
+    animation: none;
+  }
+}
+
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {
   opacity: 1;

@@ -16,6 +16,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { type ShapeType } from '@/lib/shapeRegistry';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 import './nodes/nodeStyles.css';
 import type { ShapeNodeData } from './nodes/shapes/types';
 import { resolveShapeLabelLayout, type ShapeLabelLayout } from './nodes/shapes/labelLayout';
@@ -88,7 +89,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const { isDark } = useCanvasTheme();
   const aesthetics = useDiagramAesthetics();
   const { renderStyleId } = aesthetics;
-  const studio = renderStyleId === 'studio-minimal';
+  const studio = isStudioRenderStyle(renderStyleId);
   const studioDarkSelected = studio && isDark && selected;
   const baseStyles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   const styles = {
@@ -198,6 +199,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     sketch: renderStyleId === 'sketch',
     brutal: renderStyleId === 'neubrutalism',
     studio,
+    metallic: aesthetics.render.nodeMaterial === 'metallic',
     ...sized,
   };
 

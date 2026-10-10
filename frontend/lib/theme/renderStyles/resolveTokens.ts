@@ -10,6 +10,7 @@ import {
 import type { DiagramRenderStyleId, ResolvedCanvasTokens } from './types';
 import { getRenderStyle } from './registry';
 import { getStrokeRenderer } from './strokeRenderer';
+import { metallicSurfaceElevation, metallicSurfaceInset, metallicSurfaceOverlayCss } from './studioMetallic';
 import {
   SKETCH_PAPER_TINT,
   SKETCH_PAPER_DARK,
@@ -80,6 +81,7 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
 
   const isSketch = render.strokeEngine === 'rough';
   const isBrutal = render.strokeEngine === 'brutalist';
+  const isMetallic = render.nodeMaterial === 'metallic';
 
   const baseVars = diagramThemeCssVars(opts.colorThemeId ?? DEFAULT_DIAGRAM_THEME_ID, opts.isDark);
   const cssVars: Record<string, string> = {
@@ -91,6 +93,11 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
     '--arch-font-annotation': render.fonts.annotation,
     '--arch-stroke-width': `${strokeWidth}px`,
     '--arch-radius': `${borderRadius}px`,
+    ...(isMetallic ? {
+      '--arch-node-surface-overlay': metallicSurfaceOverlayCss(opts.isDark),
+      '--arch-node-surface-inset': metallicSurfaceInset(opts.isDark),
+      '--arch-node-surface-elevation': metallicSurfaceElevation(opts.isDark),
+    } : {}),
     '--arch-canvas-bg': isSketch
       ? (opts.isDark ? `hsl(${SKETCH_CANVAS_BG_DARK})` : `hsl(${SKETCH_CANVAS_BG_LIGHT})`)
       : isBrutal

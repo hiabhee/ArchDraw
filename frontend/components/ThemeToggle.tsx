@@ -9,6 +9,7 @@ const RENDER_STYLES: { id: DiagramRenderStyleId; label: string }[] = [
   { id: 'sketch', label: 'Sketch' },
   { id: 'neubrutalism', label: 'Neubrutalism' },
   { id: 'studio-minimal', label: 'Studio Minimal' },
+  { id: 'studio-metallic', label: 'Studio Metallic' },
 ] as const;
 
 const selectClassName =

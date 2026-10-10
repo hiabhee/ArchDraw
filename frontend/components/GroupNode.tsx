@@ -7,14 +7,14 @@ import { hexToRgba } from '@/lib/utils';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { getConcernColor, CONCERN_COLORS } from '@/lib/theme/stylingConstants';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
-import { renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
+import { BRUTAL_BORDER, BRUTAL_BORDER_DARK, isStudioRenderStyle, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodes/nodeStyles.css';
 
 function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(() => Boolean(data.autoStartLabelEdit));
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -24,7 +24,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const aesthetics = useDiagramAesthetics();
   const sketch = aesthetics.renderStyleId === 'sketch';
   const brutal = aesthetics.renderStyleId === 'neubrutalism';
-  const studio = aesthetics.renderStyleId === 'studio-minimal';
+  const studio = isStudioRenderStyle(aesthetics.renderStyleId);
 
   useEffect(() => {
     updateNodeInternals(id);
@@ -62,7 +62,6 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   // re-enter edit mode.
   useEffect(() => {
     if (!dataRec.autoStartLabelEdit) return;
-    setIsEditing(true);
     useDiagramStore.getState().updateNodeData(id, { autoStartLabelEdit: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount, on creation only
   }, [id]);
@@ -106,7 +105,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const borderColor = studio
     ? selected ? color : isDark ? hexToRgba(color, 0.46) : hexToRgba(color, 0.34)
     : brutal
-    ? (isDark ? '#e4e4e7' : '#1a1a1a')
+    ? (isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER)
     : selected
       ? isDark
         ? hexToRgba(color, 0.65)

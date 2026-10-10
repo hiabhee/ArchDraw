@@ -22,25 +22,31 @@ export const BRUTAL_EDGE_PRIMARY_LIGHT = '#2563eb';
 export const BRUTAL_EDGE_ASYNC_LIGHT = '#7c3aed';
 
 // ── Dark mode ────────────────────────────────────────────────────────────────
-// Refined 2026-09: previous #1e1e2e fill + 7 % canvas were too muddy and
-// low-contrast; the 5 px offset shadow (black on near-black) vanished, so
-// dark brutal looked flat / “ugly”. Lift canvas to zinc-900, make fills a
-// touch lighter and warmer, and keep the brutal grammar (light border +
-// light offset shadow on dark, per neubrutalism.com dark-section rule).
+// Dark mode keeps the heavy graphic outline, but uses slate ink and a tinted
+// offset plate instead of bright white borders/shadows that glare on canvas.
+export const BRUTAL_FILL_DARK = '#242a34';
+export const BRUTAL_BORDER_DARK = '#aab4c3';
+export const BRUTAL_SHADOW_DARK = '#465367';
+export const BRUTAL_GROUP_FILL_DARK = '#202a3a';
+export const BRUTAL_CANVAS_BG_DARK = '225 12% 10%';
+export const BRUTAL_GRID_DARK = '220 10% 18%';
 
-export const BRUTAL_FILL_DARK = '#27272f';
-export const BRUTAL_BORDER_DARK = '#e4e4e7';
-export const BRUTAL_SHADOW_DARK = '#e4e4e7';
-export const BRUTAL_GROUP_FILL_DARK = '#dbeafe';
-export const BRUTAL_CANVAS_BG_DARK = '240 5% 12%';
-export const BRUTAL_GRID_DARK = '240 5% 20%';
+export const BRUTAL_TITLE_DARK = '#f3f5f8';
+export const BRUTAL_SUBTITLE_DARK = '#bac4d2';
 
-export const BRUTAL_TITLE_DARK = '#fafafa';
-export const BRUTAL_SUBTITLE_DARK = '#cbd5e1';
+export const BRUTAL_EDGE_DEFAULT_DARK = '#aab4c3';
+export const BRUTAL_EDGE_PRIMARY_DARK = '#78b4f8';
+export const BRUTAL_EDGE_ASYNC_DARK = '#b8a0ec';
 
-export const BRUTAL_EDGE_DEFAULT_DARK = '#e4e4e7';
-export const BRUTAL_EDGE_PRIMARY_DARK = '#60a5fa';
-export const BRUTAL_EDGE_ASYNC_DARK = '#a78bfa';
+/** Subtle concern tint while retaining the flat, hard-edged brutal surface. */
+export function getBrutalNodeFill(accentColor: string, isDark: boolean): string {
+  if (!/^#([0-9a-fA-F]{6})$/.test(accentColor)) return isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT;
+  const base = isDark ? [36, 42, 52] : [255, 255, 255];
+  const tint = [1, 3, 5].map((offset) => parseInt(accentColor.slice(offset, offset + 2), 16));
+  const amount = isDark ? 0.38 : 0.14;
+  const mixed = base.map((channel, index) => Math.round(channel * (1 - amount) + tint[index] * amount));
+  return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
 
 /** SVG filter definition for hard drop-shadows. Inject once per SVG root. */
 export const BRUTAL_SHADOW_FILTER_ID = 'brutal-shadow';
