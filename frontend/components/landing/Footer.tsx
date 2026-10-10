@@ -37,16 +37,16 @@ const COLUMNS = [
 
 export function Footer({ tone = 'light' }: FooterProps) {
   const isDark = tone === 'dark';
-  const footerText = isDark ? 'text-[#a3afaa]' : 'text-[#575752]';
-  const footerMuted = isDark ? 'text-[#75817c]' : 'text-[#8a8f98]';
+  const footerText = isDark ? 'text-[#a4adbc]' : 'text-[#575752]';
+  const footerMuted = isDark ? 'text-[#778397]' : 'text-[#8a8f98]';
   const footerBorder = isDark ? 'border-white/[0.09]' : 'border-[#e4e4df]';
-  const footerHover = isDark ? 'hover:text-[#e5efe9]' : 'hover:text-[#1c1c1a]';
+  const footerHover = isDark ? 'hover:text-[#60a5fa]' : 'hover:text-[#1c1c1a]';
 
   if (isDark) {
     return (
-      <footer className="border-t border-white/[0.09] bg-[#080b10] px-6 py-7 text-[#9ca8b7]">
+      <footer className="border-t border-white/[0.1] bg-black px-6 py-7 text-[#a4adbc]">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="text-sm font-semibold text-[#edf3fa]">ArchDraw</Link>
+          <Link href="/" className="text-sm font-semibold text-white">ArchDraw</Link>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
             <a href="/docs" className="transition-colors hover:text-white">Docs</a>
             <a href="https://github.com/hiabhee/ArchDraw" className="transition-colors hover:text-white">GitHub</a>

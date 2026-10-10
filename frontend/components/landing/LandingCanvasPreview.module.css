@@ -1,45 +1,47 @@
 .preview {
   overflow: hidden;
-  border: 1px solid rgba(151, 174, 207, .23);
+  border: 1px solid var(--arch-node-stroke, rgba(185, 198, 217, .19));
   border-radius: 12px;
-  background: var(--arch-canvas-bg, #0b1017);
-  box-shadow: 0 28px 72px rgba(21, 34, 51, .48);
+  background: var(--arch-canvas-bg, #101318);
+  box-shadow: 0 22px 64px rgba(0, 0, 0, .62), 0 1px 2px rgba(255, 255, 255, .025);
 }
 .chrome {
   display: flex;
-  height: 43px;
+  height: 46px;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(151, 174, 207, .16);
-  padding: 0 14px;
-  background: #101722;
+  border-bottom: 1px solid rgba(138, 158, 190, .16);
+  padding: 0 18px;
+  background: #0e1116;
 }
-.canvasName { color: #dbe5f2; font-size: 12px; font-weight: 560; }
-.canvasStatus { display: inline-flex; align-items: center; gap: 7px; color: #b4c7e2; font-size: 10px; }
-.canvasStatus i { width: 6px; height: 6px; border-radius: 50%; background: #91b8ff; }
-.canvas { position: relative; height: 432px; }
-.flow { background: var(--arch-canvas-bg, #0b1017); }
-.flow :global(.node-wrapper) {
-  --node-status-color: #91b8ff !important;
-  --node-card-bg: #191d24 !important;
-  --node-title-color: #f0f2f6 !important;
-  --node-subtitle-color: #aeb8c7 !important;
-  --arch-node-stroke: rgba(185, 198, 217, .28) !important;
+.canvasName { color: #dce2eb; font-size: 12px; font-weight: 560; letter-spacing: .01em; }
+.canvasStatus { display: inline-flex; align-items: center; gap: 9px; color: #8491a2; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10px; }
+.canvasStatus i { width: 5px; height: 5px; border-radius: 50%; background: #77a9f5; }
+.canvas { position: relative; height: 520px; }
+.canvasPlaceholder {
+  background-color: #101318;
+  background-image:
+    linear-gradient(to right, rgba(161, 175, 195, .045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(161, 175, 195, .045) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
+.flow { background: var(--arch-canvas-bg, #101318); }
 .flow :global(.react-flow__attribution) { display: none; }
 .flow :global(.react-flow__edge-path) { stroke-linecap: round; }
-.flow :global(.react-flow__edge-text) {
-  fill: #c2cfdf;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: .04em;
-}
-.flow :global(.react-flow__edge-textbg) { fill: #111722; stroke: rgba(151, 174, 207, .18); stroke-width: 1px; }
-.flow :global(.react-flow__background-pattern) { fill: var(--arch-canvas-grid, #29364a); }
+.flow :global(.react-flow__background-pattern) { stroke: var(--arch-canvas-grid, rgba(161, 175, 195, .09)); }
+.flow :global(.node-card--studio-text-stack .node-title),
+.flow :global(.node-card--studio-text-stack .node-subtitle) { text-align: center; }
 
 @media (max-width: 620px) {
+  .preview { border-radius: 9px; }
   .chrome { height: 40px; padding: 0 11px; }
-  .canvasName { font-size: 11px; }
-  .canvas { height: 410px; }
+  .canvasName { font-size: 10px; }
+  .canvasStatus { gap: 6px; font-size: 8px; }
+  .canvas { height: 470px; }
+  .flow :global(.react-flow__edge-text),
+  .flow :global(.react-flow__edge-textbg) { display: none; }
+}
+
+@media (min-width: 621px) and (max-width: 1040px) {
+  .canvas { height: 480px; }
 }

@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { LandingBootstrap } from '@/components/landing/LandingBootstrap';
 import { LandingCanvasPreview } from './LandingCanvasPreview';
-import { LandingGenerate } from './LandingGenerate';
+import { LandingCursorShine } from './LandingCursorShine';
 import { LandingInstall } from './LandingInstall';
+import { LandingReveal } from './LandingReveal';
+import { LandingScrollStory } from './LandingScrollStory';
 import { LandingNav } from './LandingNav';
 import { Footer } from './Footer';
 import styles from './RevampedLanding.module.css';
@@ -68,59 +70,33 @@ const LANDING_JSON_LD = {
 
 export default function RevampedLanding() {
   return (
-    <div className={styles.landing}>
+    <LandingCursorShine className={styles.landing}>
       <LandingNav tone="dark" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LANDING_JSON_LD) }} />
       <main>
         <section id="generate" className={styles.hero}>
           <div className={styles.shell}>
             <div className={styles.heroGrid}>
-              <div className={styles.heroCopy}>
+              <LandingReveal className={styles.heroCopy} distance={26}>
+                <p className={styles.eyebrow}><span aria-hidden="true" /> Architecture diagrams for the way you build</p>
                 <h1>See the system<br /><span>behind your code.</span></h1>
                 <p className={styles.heroLead}>
                   Map a system idea or public GitHub repo to an editable diagram, in your browser or from your coding agent.
                 </p>
-                <LandingGenerate />
-              </div>
-              <div className={styles.heroProduct}>
-                <LandingCanvasPreview />
-              </div>
+              </LandingReveal>
             </div>
+            <LandingReveal className={styles.heroProduct} delay={0.12} distance={14}>
+              <LandingCanvasPreview />
+            </LandingReveal>
           </div>
         </section>
 
-        <section id="workflow" className={styles.workflow}>
-          <div className={styles.shell}>
-            <h2>From starting point to system map</h2>
-            <ol className={styles.workflowSteps}>
-              <li className={styles.workflowStep}>
-                <span className={styles.stepNumber}>01</span>
-                <div className={styles.stepCopy}>
-                  <h3>Choose what to map</h3>
-                  <p>Describe a new system or paste a public GitHub repository.</p>
-                </div>
-              </li>
-              <li className={styles.workflowStep}>
-                <span className={styles.stepNumber}>02</span>
-                <div className={styles.stepCopy}>
-                  <h3>Review the architecture</h3>
-                  <p>See components, boundaries, and the relationships between them.</p>
-                </div>
-              </li>
-              <li className={styles.workflowStep}>
-                <span className={styles.stepNumber}>03</span>
-                <div className={styles.stepCopy}>
-                  <h3>Refine and share</h3>
-                  <p>Edit the canvas, adjust its layout, and export the view you need.</p>
-                </div>
-              </li>
-            </ol>
-          </div>
-        </section>
+        <LandingScrollStory />
 
         <section id="features" className={styles.sourcesSection} aria-labelledby="sources-title">
-          <div className={styles.shell}>
+          <LandingReveal className={styles.shell}>
             <div className={styles.sourcesIntro}>
+              <p className={styles.sectionEyebrow}>Two ways in</p>
               <h2 id="sources-title">Start with what you already know.</h2>
               <p className={styles.sectionLead}>
                 Map a system you are building or get oriented in an existing codebase.
@@ -146,41 +122,13 @@ export default function RevampedLanding() {
                 </Link>
               </article>
             </div>
-          </div>
-        </section>
-
-        <section className={styles.capabilitySection} aria-labelledby="canvas-section-title">
-          <div className={styles.shell}>
-            <div className={styles.capabilityIntro}>
-              <h2 id="canvas-section-title">A working diagram, not a screenshot.</h2>
-              <p className={styles.sectionLead}>
-                Keep exploring after generation. The graph, source, and layout stay available to edit.
-              </p>
-            </div>
-            <ul className={styles.capabilityList}>
-              <li>
-                <h3>Edit the graph</h3>
-                <p>Move services, reconnect dependencies, and group components by system boundary.</p>
-              </li>
-              <li>
-                <h3>Work with Mermaid</h3>
-                <p>Import or edit Mermaid and see the changes reflected on the visual canvas.</p>
-              </li>
-              <li>
-                <h3>Clarify the layout</h3>
-                <p>Rearrange the graph with horizontal or vertical auto-layout.</p>
-              </li>
-              <li>
-                <h3>Share or export</h3>
-                <p>Export PNG or JSON. Sign in to share diagrams or export SVG, PDF, and HTML embed.</p>
-              </li>
-            </ul>
-          </div>
+          </LandingReveal>
         </section>
 
         <section className={styles.agentSection} aria-labelledby="agent-section-title">
-          <div className={`${styles.shell} ${styles.contentGrid}`}>
+          <LandingReveal className={`${styles.shell} ${styles.contentGrid}`}>
             <div>
+              <p className={styles.sectionEyebrow}>Inside your workflow</p>
               <h2 id="agent-section-title">Ask your coding agent about the system.</h2>
               <p className={styles.sectionLead}>
                 Connect ArchDraw to Codex, Claude Code, Cursor, or another MCP-compatible client. The agent can build and update diagrams on your canvas.
@@ -191,12 +139,13 @@ export default function RevampedLanding() {
               <li>Which services handle sign-in?</li>
               <li>What reads from the database?</li>
             </ul>
-          </div>
+          </LandingReveal>
         </section>
 
-        <section id="install" className={styles.setupSection} aria-labelledby="setup-title">
-          <div className={`${styles.shell} ${styles.setupGrid}`}>
+        <section id="install" className={styles.setupSection} aria-labelledby="setup-title" data-cursor-shine-exclude>
+          <LandingReveal className={`${styles.shell} ${styles.setupGrid}`}>
             <div>
+              <p className={styles.sectionEyebrow}>For your coding agent</p>
               <h2 id="setup-title">Add architecture tools to your workflow.</h2>
               <p className={styles.sectionLead}>
                 The ArchDraw skill helps your agent shape clear diagrams. The MCP server lets it generate, edit, validate, lay out, and export them.
@@ -213,12 +162,13 @@ export default function RevampedLanding() {
                 <Link href="/pricing">See pricing and account limits.</Link>
               </p>
             </div>
-          </div>
+          </LandingReveal>
         </section>
 
         <section id="faq" className={styles.faqSection} aria-labelledby="faq-title">
-          <div className={styles.shell}>
+          <LandingReveal className={styles.shell}>
             <div className={styles.faqIntro}>
+              <p className={styles.sectionEyebrow}>Answers before you begin</p>
               <h2 id="faq-title">Good to know before you start</h2>
             </div>
             <div className={styles.faqList}>
@@ -233,11 +183,11 @@ export default function RevampedLanding() {
                 </details>
               ))}
             </div>
-          </div>
+          </LandingReveal>
         </section>
       </main>
       <Footer tone="dark" />
       <LandingBootstrap />
-    </div>
+    </LandingCursorShine>
   );
 }
