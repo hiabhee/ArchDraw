@@ -1,87 +1,35 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo } from 'react';
-import { X, Type, Database, Server, Zap, Globe, Activity, Shield, Maximize2, Copy, Circle, Square, Diamond, Cylinder as CylinderIcon, Disc, SlidersHorizontal, Inbox, GitBranch, Monitor, Box } from 'lucide-react';
+import { X, Type, Search, Copy, Trash2, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import type { ShapeType } from '@/components/ShapeNode';
+import { CustomNodeIcon, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
+import { ARCH_ICON_CATALOG, ARCH_ICON_CATEGORY_LABELS, type ArchIconCategory } from '@/lib/archIconCatalog';
+import { resolveNodeIcon } from '@/lib/nodeIconResolver';
+import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 
 const GROUP_COLOR_OPTIONS = [
-  '#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6',
-  '#3b82f6', '#06b6d4', '#eab308', '#f43f5e', '#64748b',
+  '#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6',
+  '#06b6d4', '#eab308', '#f43f5e', '#64748b', '#2563eb',
 ];
 
-const SHAPE_OPTIONS: { value: ShapeType; label: string; icon: React.ElementType }[] = [
-  { value: 'rectangle', label: 'Rectangle', icon: Square },
-  { value: 'rounded-rectangle', label: 'Rounded', icon: Square },
-  { value: 'diamond', label: 'Diamond', icon: Diamond },
-  { value: 'cylinder', label: 'Cylinder', icon: CylinderIcon },
-  { value: 'circle', label: 'Circle', icon: Disc },
-  { value: 'parallelogram', label: 'Parallel', icon: SlidersHorizontal },
+const SHAPES: { value: ShapeType; label: string; icon: string }[] = [
+  { value: 'rounded-rectangle', label: 'Rect', icon: '▭' },
+  { value: 'diamond', label: 'Diamond', icon: '◇' },
+  { value: 'circle', label: 'Circle', icon: '○' },
+  { value: 'cylinder', label: 'Cylinder', icon: '⬢' },
+  { value: 'hexagon', label: 'Hex', icon: '⬣' },
+  { value: 'cloud', label: 'Cloud', icon: '☁' },
+  { value: 'monitor', label: 'Monitor', icon: '▣' },
+  { value: 'queue', label: 'Queue', icon: '≡' },
+  { value: 'parallelogram', label: 'Para', icon: '▱' },
+  { value: 'mobile', label: 'Phone', icon: '▯' },
+  { value: 'document', label: 'Doc', icon: '⧉' },
 ];
-
-const TIER_ICONS: Record<string, React.ElementType> = {
-  client: Globe,
-  edge: Shield,
-  compute: Server,
-  async: Zap,
-  data: Database,
-  observe: Activity,
-};
-
-const COMPONENT_TYPE_OPTIONS = [
-  { value: 'service', label: 'Service', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#4F46E5' },
-  { value: 'database', label: 'Database', icon: Database, shape: 'cylinder' as ShapeType, category: 'data', color: '#1e293b' },
-  { value: 'queue', label: 'Message Queue', icon: Inbox, shape: 'circle' as ShapeType, category: 'messaging', color: '#0891b2' },
-  { value: 'load-balancer', label: 'Load Balancer', icon: GitBranch, shape: 'diamond' as ShapeType, category: 'networking', color: '#1E90FF' },
-  { value: 'client', label: 'Client', icon: Monitor, shape: 'rounded-rectangle' as ShapeType, category: 'client', color: '#2563EB' },
-  { value: 'external-service', label: 'External', icon: Globe, shape: 'diamond' as ShapeType, category: 'external', color: '#64748b' },
-  { value: 'observability', label: 'Observability', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#475569' },
-  { value: 'api-gateway', label: 'API Gateway', icon: Shield, shape: 'diamond' as ShapeType, category: 'gateway', color: '#7c3aed' },
-  { value: 'cache', label: 'Cache', icon: Zap, shape: 'cylinder' as ShapeType, category: 'data', color: '#f59e0b' },
-  { value: 'function', label: 'Function', icon: Server, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#ec4899' },
-  { value: 'cdn', label: 'CDN', icon: Globe, shape: 'circle' as ShapeType, category: 'edge', color: '#10b981' },
-  { value: 'auth-service', label: 'Auth Service', icon: Shield, shape: 'rounded-rectangle' as ShapeType, category: 'security', color: '#6366f1' },
-  { value: 'monitoring', label: 'Monitoring', icon: Activity, shape: 'rounded-rectangle' as ShapeType, category: 'observability', color: '#0ea5e9' },
-  { value: 'container', label: 'Container', icon: Box, shape: 'rounded-rectangle' as ShapeType, category: 'compute', color: '#06b6d4' },
-];
-
-const TECH_LABELS: Record<string, string> = {
-  postgres: 'PostgreSQL',
-  mysql: 'MySQL',
-  mongodb: 'MongoDB',
-  redis: 'Redis',
-  elasticsearch: 'Elasticsearch',
-  kafka: 'Kafka',
-  rabbitmq: 'RabbitMQ',
-  sqs: 'Amazon SQS',
-  react: 'React',
-  nextjs: 'Next.js',
-  nodejs: 'Node.js',
-  python: 'Python',
-  golang: 'Go',
-  typescript: 'TypeScript',
-  javascript: 'JavaScript',
-  docker: 'Docker',
-  kubernetes: 'Kubernetes',
-  aws: 'AWS',
-  nginx: 'Nginx',
-  grafana: 'Grafana',
-  prometheus: 'Prometheus',
-  lambda: 'AWS Lambda',
-  service: 'Service',
-  database: 'Database',
-  queue: 'Queue',
-  cache: 'Cache',
-  gateway: 'Gateway',
-  loadbalancer: 'Load Balancer',
-  auth: 'Authentication',
-  firewall: 'Firewall',
-  monitoring: 'Monitoring',
-  external: 'External',
-};
 
 function EdgePropertiesPanel() {
-  const { selectedEdgeId, edges, updateEdgeLabel, setSelectedEdgeId } = useDiagramStore();
+  const { selectedEdgeId, edges, updateEdgeLabel, updateEdgeData, setSelectedEdgeId } = useDiagramStore();
   const edge = edges.find((e) => e.id === selectedEdgeId);
   const [localLabel, setLocalLabel] = useState(edge?.data?.label ?? '');
   const [prevEdge, setPrevEdge] = useState(edge);
@@ -93,43 +41,57 @@ function EdgePropertiesPanel() {
 
   if (!edge) return null;
 
+  const currentEdgeType = (edge.data?.edgeType || edge.data?.connectionType || 'sync') as string;
+
+  const handleEdgeTypeChange = (type: 'sync' | 'async') => {
+    if (!selectedEdgeId) return;
+    updateEdgeData(selectedEdgeId, { 
+      edgeType: type,
+      connectionType: type,
+      async: type === 'async',
+    });
+  };
+
   return (
-    <div className="floating-panel p-4">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-medium">Edge Properties</span>
-        <button 
-          onClick={() => setSelectedEdgeId(null)} 
-          className="floating-icon-btn !w-8 !h-8"
-        >
-          <X className="w-4 h-4" />
+    <div className="floating-panel z-50 overflow-y-auto p-5 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-auto sm:w-[320px] sm:max-h-[calc(100dvh-200px)] max-h-[45dvh] sm:max-h-[calc(100dvh-200px)] rounded-2xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-xl">
+      {/* Mobile drag handle */}
+      <div className="sm:hidden flex justify-center pb-3 -mt-1">
+        <div className="w-10 h-1 rounded-full bg-border" />
+      </div>
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-[13px] font-semibold tracking-tight">Edge</h3>
+        <button onClick={() => setSelectedEdgeId(null)} className="min-w-[44px] min-h-[44px] sm:w-7 sm:h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
+          <X className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
         </button>
       </div>
 
-      <div className="mt-4 space-y-4">
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Double-click the edge on canvas to add a label.
-        </p>
-        
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-2">
+          {(['sync','async'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => handleEdgeTypeChange(t)}
+              className={`py-2.5 rounded-xl text-xs font-medium capitalize transition-all border ${
+                currentEdgeType === t
+                  ? 'bg-foreground text-background border-foreground shadow-sm'
+                  : 'bg-secondary hover:bg-secondary/70 border-transparent text-muted-foreground'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-            Label
-          </label>
+          <label className="text-[11px] font-medium text-muted-foreground mb-2 block">Label</label>
           <input
             type="text"
             value={localLabel}
-            placeholder="e.g. calls API"
+            placeholder="e.g. GET /api"
             onChange={(e) => setLocalLabel(e.target.value)}
-            onBlur={() => {
-              if (selectedEdgeId) updateEdgeLabel(selectedEdgeId, localLabel);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (selectedEdgeId) updateEdgeLabel(selectedEdgeId, localLabel);
-                (e.target as HTMLTextAreaElement).blur();
-              }
-              e.stopPropagation();
-            }}
-            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
+            onBlur={() => { if (selectedEdgeId) updateEdgeLabel(selectedEdgeId, localLabel); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { if (selectedEdgeId) updateEdgeLabel(selectedEdgeId, localLabel); (e.target as HTMLInputElement).blur(); } e.stopPropagation(); }}
+            className="w-full px-3 py-2.5 text-sm bg-secondary/70 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors"
           />
         </div>
       </div>
@@ -140,7 +102,7 @@ function EdgePropertiesPanel() {
 export function PropertiesPanel() {
   const {
     selectedNodeId, selectedNodeIds, nodes, updateNodeSize, setSelectedNodeId, setSelectedNodeIds,
-    selectedEdgeId,
+    selectedEdgeId, iconMode,
   } = useDiagramStore();
 
   const isMulti = selectedNodeIds.length > 1 && !selectedNodeId;
@@ -154,13 +116,15 @@ export function PropertiesPanel() {
   const labelRef = useRef<HTMLInputElement>(null);
   const [localLabel, setLocalLabel] = useState(node?.data?.label ?? '');
   const [prevNode, setPrevNode] = useState(node);
+  const [iconSearch, setIconSearch] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [iconCategory, setIconCategory] = useState<ArchIconCategory | 'all'>('all');
 
   if (node !== prevNode) {
     setPrevNode(node);
     setLocalLabel(node?.data?.label ?? '');
   }
 
-  // For multi-select, use the first node's data as a reference
   const firstData: NodeData | undefined = isMulti && targetIds.length > 0
     ? nodes.find((n) => n.id === targetIds[0])?.data
     : node?.data;
@@ -174,84 +138,9 @@ export function PropertiesPanel() {
     }
   }, [targetIds]);
 
-  const applyTypeChange = useCallback((typeValue: string) => {
-    const option = COMPONENT_TYPE_OPTIONS.find((o) => o.value === typeValue);
-    if (!option) return;
-    useDiagramStore.getState().pushHistory();
-    for (const id of targetIds) {
-      const existing = useDiagramStore.getState().nodes.find((n) => n.id === id);
-      if (!existing) continue;
-      const isSystemNode = existing.type === 'systemNode' || existing.type === 'architectureNode' || existing.type === 'baseNode';
-      if (isSystemNode) {
-        const newNode = {
-          ...existing,
-          type: 'shapeNode' as const,
-          data: {
-            ...existing.data,
-            shape: option.shape,
-            componentType: option.value,
-            category: option.category,
-            icon: option.icon.name,
-            color: option.color,
-            accentColor: option.color,
-          },
-        };
-        useDiagramStore.getState().importDiagram(
-          useDiagramStore.getState().nodes.map((n) => n.id === id ? newNode : n),
-          useDiagramStore.getState().edges
-        );
-      } else {
-        useDiagramStore.getState().updateNodeData(id, {
-          shape: option.shape,
-          componentType: option.value,
-          category: option.category,
-          icon: option.icon.name,
-          color: option.color,
-          accentColor: option.color,
-        });
-      }
-    }
-  }, [targetIds]);
-
-  const TierIcon = TIER_ICONS[data.category?.toLowerCase() ?? ''] || Server;
-  const techLabel = data.tech
-    ? TECH_LABELS[data.tech.toLowerCase()] || data.tech
-    : null;
-
   const commitLabel = () => {
     if (localLabel.trim()) applyToAll({ label: localLabel.trim() });
   };
-
-  const handleDuplicate = () => {
-    if (!node) return;
-    const newId = `${node.id}-copy-${Date.now()}`;
-    useDiagramStore.getState().addNode({
-      ...node,
-      id: newId,
-      position: { x: node.position.x + 30, y: node.position.y + 30 },
-      data: { ...node.data, label: `${node.data.label} (copy)` },
-    });
-    useDiagramStore.getState().setSelectedNodeIds([newId]);
-  };
-
-  const handleStatusChange = () => {
-    const statuses: Array<'healthy' | 'warning' | 'error' | 'unknown'> = ['healthy', 'warning', 'error', 'unknown'];
-    const currentIndex = statuses.indexOf(data.status || 'healthy');
-    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-    applyToAll({ status: nextStatus });
-  };
-
-  const handleColorChange = () => {
-    const colors = [
-      '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316', '#ef4444', '#ec4899', '#6b7280',
-      '#f43f5e', '#a855f7', '#84cc16', '#fb923c', '#0d9488',
-    ];
-    const currentIndex = colors.indexOf(data.accentColor || data.color || '#3b82f6');
-    const nextColor = colors[(currentIndex + 1) % colors.length];
-    applyToAll({ accentColor: nextColor });
-  };
-
-
 
   const handleShapeChange = (newShape: ShapeType) => {
     useDiagramStore.getState().pushHistory();
@@ -282,12 +171,32 @@ export function PropertiesPanel() {
   };
 
   const currentShape = (node?.type === 'shapeNode' ? (node.data as { shape?: ShapeType }).shape : null) || 'rounded-rectangle';
-  const isShapeNode = node?.type === 'shapeNode';
 
   const accent = data.accentColor || data.color || '#3b82f6';
-  const currentType = data.componentType || data.typeId || data.serviceType || 'service';
+  const resolvedIcon = resolveNodeIcon({
+    label: data.label,
+    typeId: data.typeId,
+    componentType: data.componentType,
+    serviceType: data.serviceType,
+    technology: data.technology || data.tech,
+    category: data.category,
+    icon: data.icon,
+    iconSource: data.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
+    color: accent,
+  });
+  const currentIcon = data.iconSource === 'manual' && (data.icon?.startsWith('arch-') || data.icon?.startsWith('aws-'))
+    ? data.icon
+    : resolvedIcon.icon;
+  const iconVisible = resolveNodeIconVisibility(iconMode, data.showIcon);
 
-  const statusColor = data.status === 'warning' ? '#F59E0B' : data.status === 'error' ? '#EF4444' : data.status === 'unknown' ? '#6B7280' : '#10B981';
+  const filteredIcons = useMemo(() => {
+    const q = iconSearch.trim().toLowerCase();
+    return ARCH_ICON_CATALOG.filter((entry) => {
+      if (iconCategory !== 'all' && entry.category !== iconCategory) return false;
+      if (!q) return true;
+      return entry.label.toLowerCase().includes(q) || entry.id.includes(q);
+    }).slice(0, 48);
+  }, [iconSearch, iconCategory]);
 
   if (selectedEdgeId && !node && !isMulti) {
     return <EdgePropertiesPanel />;
@@ -296,51 +205,39 @@ export function PropertiesPanel() {
   if (!node && !isMulti) return null;
 
   return (
-    <div 
-      className="floating-panel p-4 overflow-y-auto"
-      style={{ 
-        minWidth: 260,
-        position: 'fixed',
-        top: 96,
-        right: 20,
-        bottom: 110,
-        maxHeight: 'calc(100vh - 206px)',
-        maxWidth: 'calc(100vw - 32px)',
-      }}
-    >
+    <div className="floating-panel z-50 overflow-y-auto p-0 fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] sm:inset-x-auto sm:right-4 sm:top-[80px] sm:bottom-auto sm:w-[340px] sm:max-h-[calc(100dvh-160px)] max-h-[50dvh] sm:max-h-[calc(100dvh-160px)] rounded-2xl border border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl flex flex-col">
+      {/* Mobile drag handle */}
+      <div className="sm:hidden flex justify-center py-2 shrink-0">
+        <div className="w-10 h-1 rounded-full bg-border" />
+      </div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-medium">
-          {isMulti ? `${targetIds.length} Nodes Selected` : 'Node Info'}
-        </span>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/40 shrink-0">
+        <div>
+          <h3 className="text-[13px] font-semibold tracking-tight">
+            {isMulti ? `${targetIds.length} selected` : data.label || 'Node'}
+          </h3>
+          <p className="text-[11px] text-muted-foreground">
+            {isMulti ? 'Bulk edit' : data.category || data.serviceType || 'Shape node'}
+          </p>
+        </div>
         <div className="flex items-center gap-1">
           {!isMulti && node && (
-            <button onClick={handleDuplicate} title="Duplicate" className="floating-icon-btn !w-8 !h-8">
-              <Copy className="w-4 h-4" />
+            <button onClick={() => useDiagramStore.getState().duplicateNode(node.id)} title="Duplicate" className="min-w-[44px] min-h-[44px] sm:w-7 sm:h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
+              <Copy className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
           )}
-          <button onClick={handleStatusChange} title="Toggle Status" className="floating-icon-btn !w-8 !h-8">
-            <Circle className="w-3 h-3" fill={statusColor} />
-          </button>
-          <button onClick={handleColorChange} title="Change Color" className="floating-icon-btn !w-8 !h-8">
-            <Circle className="w-3 h-3" fill={accent} />
-          </button>
-          <button
-            onClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); }}
-            className="floating-icon-btn !w-8 !h-8"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={() => { setSelectedNodeId(null); setSelectedNodeIds([]); }} className="min-w-[44px] min-h-[44px] sm:w-7 sm:h-7 rounded-full bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="space-y-4 mt-4">
-        {/* Label (single node only) */}
+      <div className="overflow-y-auto flex-1 px-5 py-4 space-y-6">
+        {/* Label */}
         {!isMulti && (
           <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-              <Type className="w-3 h-3" />
-              Label
+            <label className="text-[11px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Type className="w-3 h-3" /> Label
             </label>
             <input
               ref={labelRef}
@@ -348,219 +245,187 @@ export function PropertiesPanel() {
               onChange={(e) => setLocalLabel(e.target.value)}
               onBlur={commitLabel}
               onKeyDown={(e) => { if (e.key === 'Enter') labelRef.current?.blur(); e.stopPropagation(); }}
-              className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
+              placeholder="Service name"
+              className="w-full px-3 py-2.5 text-sm bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors"
             />
           </div>
         )}
 
-        {/* Component Type */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-            <Server className="w-3 h-3" />
-            Component Type
-          </label>
-          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-            {COMPONENT_TYPE_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isSelected = currentType === option.value;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => applyTypeChange(option.value)}
-                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-[10px] transition-all ${
-                    isSelected
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
-                  }`}
-                  title={option.label}
-                  style={isSelected ? { borderColor: option.color, color: option.color } : undefined}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          {isMulti && (
-            <p className="text-[9px] text-muted-foreground/60 mt-1.5">
-              Applies to all {targetIds.length} selected nodes
-            </p>
-          )}
-        </div>
-
-        {/* Shape */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-            <Square className="w-3 h-3" />
-            Shape
-            {isShapeNode && (
-              <span className="text-[9px] text-muted-foreground/60 normal-case">(Shape Node)</span>
-            )}
-          </label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {SHAPE_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isSelected = currentShape === option.value;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => handleShapeChange(option.value)}
-                  className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[10px] transition-all ${
-                    isSelected
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'bg-secondary hover:bg-secondary/80 text-muted-foreground border border-transparent'
-                  }`}
-                  title={option.label}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="truncate w-full text-center">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          {!isShapeNode && !isMulti && (
-            <p className="text-[9px] text-muted-foreground/60 mt-1.5">
-              Changing shape converts to Shape Node
-            </p>
-          )}
-        </div>
-
-        {/* Category / Tier */}
-        {data.category && (
+        {/* Appearance: Shape + Color */}
+        <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-              <TierIcon className="w-3 h-3" />
-              Tier
-            </label>
-            <div className="px-3 py-2 text-xs bg-secondary rounded-xl capitalize">
-              {data.category}
+            <label className="text-[11px] font-medium text-muted-foreground mb-2 block">Shape</label>
+            <div className="grid grid-cols-4 gap-2">
+              {SHAPES.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => handleShapeChange(s.value as ShapeType)}
+                  title={s.label}
+                  className={`h-[56px] rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                    currentShape === s.value
+                      ? 'bg-foreground text-background border-foreground shadow-sm'
+                      : 'bg-secondary/60 hover:bg-secondary border-transparent hover:border-border text-muted-foreground'
+                  }`}
+                >
+                  <span className="text-[18px] leading-none">{s.icon}</span>
+                  <span className="text-[9px] font-medium">{s.label}</span>
+                </button>
+              ))}
             </div>
           </div>
-        )}
 
-        {/* Technology */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-            Technology
-          </label>
-          <input
-            type="text"
-            value={data.tech || data.technology || ''}
-            placeholder="e.g. PostgreSQL, Redis"
-            onChange={(e) => applyToAll({ tech: e.target.value, technology: e.target.value })}
-            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          {isMulti && (
-            <p className="text-[9px] text-muted-foreground/60 mt-1">
-              Applies to all {targetIds.length} selected nodes
-            </p>
-          )}
-        </div>
-
-        {/* Subtitle / Description */}
-        <div>
-          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-            Description
-          </label>
-          <input
-            type="text"
-            value={data.sublabel || data.description || ''}
-            placeholder="Optional description"
-            onChange={(e) => applyToAll({ sublabel: e.target.value, description: e.target.value })}
-            className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          {isMulti && (
-            <p className="text-[9px] text-muted-foreground/60 mt-1">
-              Applies to all {targetIds.length} selected nodes
-            </p>
-          )}
-        </div>
-
-        {/* Dimensions - only for groups */}
-        {(data as { isGroup?: boolean }).isGroup && node && (
-          <div className="space-y-3">
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-              <Maximize2 className="w-3 h-3" />
-              Dimensions
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-[10px] text-muted-foreground">Width</span>
-                <input
-                  type="number"
-                  value={node.width ?? (node.style?.width as number) ?? 180}
-                  onChange={(e) => {
-                    const w = parseInt(e.target.value) || 180;
-                    updateNodeSize(node.id, { width: w });
-                  }}
-                  className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
-                />
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground">Height</span>
-                <input
-                  type="number"
-                  value={node.height ?? (node.style?.height as number) ?? 100}
-                  onChange={(e) => {
-                    const h = parseInt(e.target.value) || 100;
-                    updateNodeSize(node.id, { height: h });
-                  }}
-                  className="w-full px-3 py-2 text-xs bg-secondary rounded-xl outline-none focus:ring-2 focus:ring-[#1E90FF]/30"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Group color - only for groups */}
-        {(data as { isGroup?: boolean }).isGroup && node && (
           <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2 flex items-center gap-1.5">
-              <Circle className="w-3 h-3" />
-              Group Color
+            <label className="text-[11px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Palette className="w-3 h-3" /> Color
             </label>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {GROUP_COLOR_OPTIONS.map((c) => (
                 <button
                   key={c}
-                  onClick={() => applyToAll({ groupColor: c, accentColor: c })}
-                  className="w-6 h-6 rounded-full border border-border/50 transition-transform hover:scale-110"
+                  onClick={() => applyToAll({ accentColor: c, color: c })}
+                  className={`w-7 h-7 rounded-full border-2 transition-all ${accent === c ? 'border-foreground scale-110 shadow-sm' : 'border-white/20 hover:scale-105'}`}
                   style={{ backgroundColor: c }}
                   title={c}
                 />
               ))}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Node ID (for reference, single node only) */}
-        {!isMulti && node && (
-          <div>
-            <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground block mb-2">
-              ID
+        {/* Icon */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+              <Search className="w-3 h-3" /> Icon
             </label>
-            <div className="px-3 py-2 text-xs bg-secondary rounded-xl text-muted-foreground font-mono truncate" title={node.id}>
-              {node.id}
+            <button
+              onClick={() => applyToAll({ showIcon: !iconVisible })}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${iconVisible ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground'}`}
+            >
+              {iconVisible ? 'On' : 'Off'}
+            </button>
+          </div>
+
+          <div className={`flex items-center gap-3 p-2.5 rounded-xl border mb-3 ${iconVisible ? 'bg-secondary/40 border-border/50' : 'bg-secondary/20 border-transparent opacity-60'}`}>
+            <div className="w-9 h-9 rounded-lg bg-card border border-border/50 flex items-center justify-center shrink-0">
+              <CustomNodeIcon name={currentIcon as CustomNodeIconName} color={accent} size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium truncate">{currentIcon.replace('arch-', '').replace(/-/g, ' ')}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{data.serviceType || 'Icon'}</p>
+            </div>
+          </div>
+
+          <div className="relative mb-2">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
+            <input
+              type="text"
+              value={iconSearch}
+              placeholder="Search icons"
+              onChange={(e) => setIconSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-xs bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors"
+            />
+          </div>
+
+          <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1 scrollbar-none">
+            <button onClick={() => setIconCategory('all')} className={`px-2.5 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors ${iconCategory === 'all' ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'}`}>All</button>
+            {(Object.keys(ARCH_ICON_CATEGORY_LABELS) as ArchIconCategory[]).slice(0,5).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setIconCategory(cat)}
+                className={`px-2.5 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors ${iconCategory === cat ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'}`}
+              >
+                {ARCH_ICON_CATEGORY_LABELS[cat]}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-5 gap-1.5 max-h-[140px] overflow-y-auto p-1 -m-1">
+            {filteredIcons.map((entry) => {
+              const isSelected = currentIcon === entry.id;
+              return (
+                <button
+                  key={entry.id}
+                  onClick={() => applyToAll({ icon: entry.id, iconSource: 'manual' })}
+                  title={entry.label}
+                  className={`aspect-square rounded-xl flex items-center justify-center border transition-all ${isSelected ? 'bg-foreground text-background border-foreground shadow-sm scale-[0.98]' : 'bg-card border-border/50 hover:border-border hover:bg-secondary/50'}`}
+                >
+                  <CustomNodeIcon name={entry.id as CustomNodeIconName} color={isSelected ? '#fff' : '#6B7280'} size={16} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Advanced */}
+        <div className="border-t border-border/40 pt-4">
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="w-full flex items-center justify-between py-2 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <span>Advanced</span>
+            {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {showAdvanced && (
+            <div className="space-y-4 mt-3 animate-in fade-in duration-150">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Technology</label>
+                <input
+                  type="text"
+                  value={data.tech || data.technology || ''}
+                  placeholder="PostgreSQL, Redis..."
+                  onChange={(e) => applyToAll({ tech: e.target.value, technology: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Description</label>
+                <input
+                  type="text"
+                  value={data.sublabel || data.description || ''}
+                  placeholder="Optional"
+                  onChange={(e) => applyToAll({ sublabel: e.target.value, description: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Group size */}
+        {(data as { isGroup?: boolean }).isGroup && node && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Width</label>
+              <input
+                type="number"
+                value={node.width ?? (node.style?.width as number) ?? 180}
+                onChange={(e) => updateNodeSize(node.id, { width: parseInt(e.target.value) || 180 })}
+                className="w-full px-3 py-2 text-xs bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Height</label>
+              <input
+                type="number"
+                value={node.height ?? (node.style?.height as number) ?? 100}
+                onChange={(e) => updateNodeSize(node.id, { height: parseInt(e.target.value) || 100 })}
+                className="w-full px-3 py-2 text-xs bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50"
+              />
             </div>
           </div>
         )}
+      </div>
 
-        {/* Delete */}
-        <div className="pt-4 border-t border-border/50">
-          <button
-            onClick={() => {
-              useDiagramStore.getState().pushHistory();
-              for (const id of targetIds) {
-                useDiagramStore.getState().removeNode(id);
-              }
-              setSelectedNodeId(null);
-              setSelectedNodeIds([]);
-            }}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-          >
-            Delete {isMulti ? `${targetIds.length} Nodes` : 'Node'}
-          </button>
-        </div>
+      {/* Footer */}
+      <div className="p-4 border-t border-border/40 bg-secondary/20 shrink-0">
+        <button
+          onClick={() => {
+            useDiagramStore.getState().pushHistory();
+            for (const id of targetIds) useDiagramStore.getState().removeNode(id);
+            setSelectedNodeId(null); setSelectedNodeIds([]);
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Delete {isMulti ? `${targetIds.length} nodes` : 'node'}
+        </button>
       </div>
     </div>
   );

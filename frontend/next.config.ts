@@ -1,38 +1,75 @@
 import type { NextConfig } from 'next';
-import path from 'path';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-XSS-Protection', value: '1; mode=block' },
+  // The legacy XSS auditor is deprecated and can itself introduce
+  // vulnerabilities; OWASP recommends disabling it (0) and relying on CSP.
+  { key: 'X-XSS-Protection', value: '0' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  { 
-    key: 'Content-Security-Policy', 
-    // Add 'unsafe-eval' only in development for React debugging features
-    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self';` 
+  {
+    key: 'Content-Security-Policy',
+    // Add 'unsafe-eval' only in development for React debugging features.
+    // NOTE: a nonce-based script CSP (middleware.ts) was reverted — Next.js
+    // only stamps its bootstrap scripts with the nonce when the root layout
+    // reads it via headers(), which forces every route dynamic and kills
+    // static rendering of landing/blogs/docs. Revisit before re-enabling.
+    value: `default-src 'self'; script-src 'self' blob: 'unsafe-inline' ${isDevelopment ? "'unsafe-eval'" : ''} https://*.vercel-scripts.com https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' https://vercel.live https://accounts.google.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none';`
   },
 ];
 
-// Configure allowed embed domains via environment variable
-// Comma-separated list of domains allowed to embed the diagram viewer
-const allowedEmbedDomains = process.env.ALLOWED_EMBED_DOMAINS 
-  ? process.env.ALLOWED_EMBED_DOMAINS.split(',').map(d => d.trim()) 
-  : ['*']; // Default to allow all if not configured
+// Configure allowed embed domains via environment variable.
+// Comma-separated list of domains allowed to embed the diagram viewer.
+// SECURE DEFAULT: when unset, only same-origin embedding is allowed.
+// Set ALLOWED_EMBED_DOMAINS="*" to explicitly opt into embedding from anywhere.
+// Values are validated so a malformed entry cannot inject extra CSP directives.
+const allowedEmbedDomains = process.env.ALLOWED_EMBED_DOMAINS
+  ? process.env.ALLOWED_EMBED_DOMAINS.split(',')
+      .map((d) => d.trim())
+      .filter((d) => /^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(d))
+  : []; // Default: same-origin only (no third-party embedding)
 
-const embedCSP = allowedEmbedDomains.includes('*') 
-  ? "frame-ancestors *"
-  : `frame-ancestors 'self' ${allowedEmbedDomains.map(d => `https://${d}`).join(' ')}`;
+const allowAllEmbeds = allowedEmbedDomains.includes('*');
+
+const embedCSP = [
+  // /embed/* is excluded from the nonce-based middleware CSP, so it carries its
+  // own full static policy here (scripts stay 'unsafe-inline' for the viewer).
+  `default-src 'self'`,
+  `script-src 'self' blob: 'unsafe-inline'${
+    isDevelopment ? " 'unsafe-eval'" : ''
+  } https://*.vercel-scripts.com https://vercel.live`,
+  `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+  `img-src 'self' data: blob: https:`,
+  `font-src 'self' data: https://fonts.gstatic.com`,
+  `connect-src 'self' https://*.groq.com https://api.groq.com https://*.vercel-scripts.com https://vercel.live wss://vercel.live https://archdraw.hiabhee.online wss://archdraw.hiabhee.online https://fonts.googleapis.com https://fonts.gstatic.com`,
+  `frame-src 'self' https://vercel.live https://accounts.google.com`,
+  allowAllEmbeds ? `frame-ancestors *` : `frame-ancestors 'self'${
+    allowedEmbedDomains.length ? ' ' + allowedEmbedDomains.map((d) => `https://${d}`).join(' ') : ''
+  }`,
+  `base-uri 'self'`,
+  `object-src 'none'`,
+].join('; ');
 
 const embedHeaders = [
-  { key: 'X-Frame-Options', value: allowedEmbedDomains.includes('*') ? 'ALLOWALL' : 'SAMEORIGIN' },
+  // X-Frame-Options cannot express an allowlist, so only emit it for the
+  // same-origin default (SAMEORIGIN). When specific domains or '*' are
+  // configured, rely on the CSP frame-ancestors directive above and omit the
+  // legacy header rather than send an invalid value like "ALLOWALL".
+  ...(allowAllEmbeds || allowedEmbedDomains.length
+    ? []
+    : [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }]),
   { key: 'Content-Security-Policy', value: embedCSP },
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  compress: true,
   transpilePackages: [],
+  // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
+  // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion
   experimental: {
     optimizePackageImports: [
       'lucide-react',
@@ -41,6 +78,21 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-slot',
+      'framer-motion',
+      'reactflow',
+      'mermaid',
+      'html-to-image',
+      'jspdf',
+      'dagre',
+      'next-themes',
+      'sonner',
+    ],
+  },
+  images: {
+    remotePatterns: [
+      { hostname: 'cdn.simpleicons.org' },
+      { hostname: 'lh3.googleusercontent.com' },
+      { hostname: 'avatars.githubusercontent.com' },
     ],
   },
 

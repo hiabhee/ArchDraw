@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Groq from 'groq-sdk';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { getClientIP } from '@/lib/server/ip';
+import { apiKeyManager } from '@/lib/ai/utils/apiKeyManager';
+
+export const runtime = 'nodejs';
 
 const checkRateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const CHECK_RATE_WINDOW_MS = 60 * 1000;
@@ -28,16 +30,16 @@ function checkCheckRateLimit(key: string): boolean {
   if (++checkAccessCount % 10 === 0) cleanupCheckExpired();
 
   const record = checkRateLimitMap.get(key);
-  
+
   if (!record || now > record.resetTime) {
     checkRateLimitMap.set(key, { count: 1, resetTime: now + CHECK_RATE_WINDOW_MS });
     return true;
   }
-  
+
   if (record.count >= MAX_CHECK_REQUESTS) {
     return false;
   }
-  
+
   record.count++;
   return true;
 }
@@ -61,12 +63,6 @@ const tutorialCheckSchema = z.object({
   })).optional(),
 });
 
-let _groq: Groq | null = null;
-function getGroq(): Groq {
-  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  return _groq;
-}
-
 const SYSTEM_PROMPT = `You are an expert system design tutor reviewing a student's Netflix architecture diagram.
 The student has placed nodes (components) and edges (connections) on a canvas.
 Your job is to review their work for the current step and give concise, specific feedback.
@@ -86,7 +82,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const validatedInput = tutorialCheckSchema.safeParse(body);
-    
+
     if (!validatedInput.success) {
       const errorMessage = validatedInput.error.issues
         .map((e) => `${e.path.join('.')}: ${e.message}`)
@@ -98,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const {
-      tutorialId,
+      tutorialId: _tutorialId,
       stepNumber,
       stepTitle,
       stepExplanation,
@@ -128,20 +124,29 @@ Student's canvas connections: ${edgeList}
 
 Review the student's work for this step. Is it correct? What's good? What's missing or needs fixing?`;
 
+    if (!apiKeyManager.hasGroq()) {
+      return NextResponse.json(
+        { error: 'AI tutorial check is not configured on this server.', code: 'SERVICE_UNAVAILABLE' },
+        { status: 503 }
+      );
+    }
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const completion = await getGroq().chat.completions.create({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: userPrompt },
-            ],
-            max_tokens: 200,
-            temperature: 0.5,
-            stream: true,
-          });
+          const completion = await apiKeyManager.executeWithGroq((groq) =>
+            groq.chat.completions.create({
+              model: 'openai/gpt-oss-20b',
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: userPrompt },
+              ],
+              max_tokens: 200,
+              temperature: 0.5,
+              stream: true,
+            })
+          );
 
           for await (const chunk of completion) {
             const delta = chunk.choices[0]?.delta?.content ?? '';

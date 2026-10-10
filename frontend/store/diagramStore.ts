@@ -43,7 +43,6 @@ const useDiagramStoreRaw = create<DiagramState>()(
   )
 );
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zustand store wrapper needs flexible selector/equalityFn types for generic subscriber compatibility
 export const useDiagramStore = Object.assign(
   (selector?: (state: DiagramState) => unknown, equalityFn?: (a: unknown, b: unknown) => boolean) => {
     if (selector) {
@@ -60,8 +59,7 @@ export const useDiagramStore = Object.assign(
     getState: () => deriveNodesAndEdges(useDiagramStoreRaw.getState()),
     setState: useDiagramStoreRaw.setState,
     subscribe: (listener: (state: DiagramState, prevState: DiagramState) => void) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zustand subscribe callback signature is complex
-      return (useDiagramStoreRaw.subscribe as any)((state: any, prevState: any) => {
+      return useDiagramStoreRaw.subscribe((state, prevState) => {
         listener(deriveNodesAndEdges(state), deriveNodesAndEdges(prevState));
       });
     },

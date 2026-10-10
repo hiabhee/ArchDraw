@@ -2,7 +2,7 @@ import type { SaveCheckpointInput } from '../lib/schema.js';
 import { getDiagramState, hasDiagramState } from '../lib/diagram-state.js';
 import { saveCheckpoint as saveCheckpointToStore } from '../lib/checkpoints.js';
 
-export async function saveCheckpoint(input: SaveCheckpointInput): Promise<{
+export async function saveCheckpoint(input: SaveCheckpointInput, workingSession?: string): Promise<{
   success: boolean;
   name: string;
   savedAt: string;
@@ -11,7 +11,7 @@ export async function saveCheckpoint(input: SaveCheckpointInput): Promise<{
   overwritten?: boolean;
   error?: string;
 }> {
-  if (!hasDiagramState()) {
+  if (!hasDiagramState(workingSession)) {
     return {
       success: false,
       name: input.name,
@@ -22,6 +22,6 @@ export async function saveCheckpoint(input: SaveCheckpointInput): Promise<{
     };
   }
 
-  const state = getDiagramState();
-  return saveCheckpointToStore(input.name, input.description, state);
+  const state = getDiagramState(workingSession);
+  return saveCheckpointToStore(input.name, input.description, state, workingSession);
 }

@@ -32,9 +32,9 @@ describe('mergeParallelEdges', () => {
     expect(merged.source).toBe('a');
     expect(merged.target).toBe('b');
     expect(merged.label).toBe('calls / writes');
-    expect((merged.data as any).label).toBe('calls / writes');
-    expect((merged.data as any).isMerged).toBe(true);
-    expect((merged.data as any).mergedEdgeIds).toEqual(['e1', 'e2']);
+    expect(merged.data.label).toBe('calls / writes');
+    expect(merged.data.isMerged).toBe(true);
+    expect(merged.data.mergedEdgeIds).toEqual(['e1', 'e2']);
   });
 
   it('keeps bidirectional edges between the same pair separate', () => {
@@ -55,7 +55,7 @@ describe('mergeParallelEdges', () => {
     ];
     const [merged] = mergeParallelEdges(edges);
     expect(merged.label).toBe('queries');
-    expect((merged.data as any).label).toBe('queries');
+    expect(merged.data.label).toBe('queries');
   });
 
   it('keeps the Connection label when every edge is default', () => {
@@ -88,8 +88,8 @@ describe('mergeParallelEdges', () => {
       }),
     ];
     const [merged] = mergeParallelEdges(edges);
-    expect((merged.data as any).connectionType).toBe('async');
-    expect((merged.data as any).edgeVariant).toBe('dashed');
+    expect(merged.data.connectionType).toBe('async');
+    expect(merged.data.edgeVariant).toBe('dashed');
   });
 
   it('keeps sync variant when all members are sync', () => {
@@ -104,8 +104,8 @@ describe('mergeParallelEdges', () => {
       }),
     ];
     const [merged] = mergeParallelEdges(edges);
-    expect((merged.data as any).connectionType).toBe('sync');
-    expect((merged.data as any).edgeVariant).toBe('solid');
+    expect(merged.data.connectionType).toBe('sync');
+    expect(merged.data.edgeVariant).toBe('solid');
   });
 
   it('keeps the representative styling and handles from the first edge', () => {
@@ -146,6 +146,6 @@ describe('mergeParallelEdges', () => {
     ];
     const [merged] = mergeParallelEdges(edges);
     expect(merged.label).toBeUndefined();
-    expect((merged.data as any).isMerged).toBe(true);
+    expect(merged.data.isMerged).toBe(true);
   });
 });

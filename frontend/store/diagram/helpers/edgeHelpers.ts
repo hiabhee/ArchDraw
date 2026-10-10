@@ -40,6 +40,25 @@ export function positionToSide(pos: Position): string {
   return 'bottom';
 }
 
+/**
+ * Whether a node actually renders a Handle with `${type}-${side}`.
+ * Queue/pipe shapes only mount left/right handles; text labels and
+ * annotations mount none. Assigning ids for unsupported sides makes
+ * React Flow log error #008 ("couldn't create edge").
+ */
+function nodeSupportsHandle(
+  node: Node | undefined,
+  _type: 'source' | 'target',
+  _side: string,
+): boolean {
+  if (!node) return false;
+  if (node.type === 'textLabelNode' || node.type === 'annotationNode') return false;
+  // Queue (horizontal pipe) now supports all 4 sides for layout toggler (LR/TD).
+  // Previously it was left/right only to avoid React Flow #008, but that caused
+  // edges to disappear when toggled to TD (top/bottom handles were null).
+  return true;
+}
+
 export function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number } {
   let x = node.position?.x ?? 0;
   let y = node.position?.y ?? 0;
@@ -96,7 +115,7 @@ export function sanitizeEdges(edges: Edge[]): Edge[] {
 function nodeRectForEdge(node: Node, nodes: Node[]) {
   const pos = getAbsolutePosition(node, nodes);
   const w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-  const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+  const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 100;
   return { x: pos.x, y: pos.y, width: w, height: h };
 }
 
@@ -123,10 +142,17 @@ export function applyBidirectionalEdgeFixes(edges: Edge[], nodes: Node[]): Edge[
     const prior = (edge.data as Record<string, unknown> | undefined) ?? {};
     const { customWaypoints: _removed, ...rest } = prior;
 
+    const sourceSide = positionToSide(facing.sourceSide);
+    const targetSide = positionToSide(facing.targetSide);
+
     return {
       ...edge,
-      sourceHandle: `source-${positionToSide(facing.sourceSide)}`,
-      targetHandle: `target-${positionToSide(facing.targetSide)}`,
+      sourceHandle: nodeSupportsHandle(sourceNode, 'source', sourceSide)
+        ? `source-${sourceSide}`
+        : null,
+      targetHandle: nodeSupportsHandle(targetNode, 'target', targetSide)
+        ? `target-${targetSide}`
+        : null,
       data: Object.keys(rest).length > 0 ? rest : undefined,
       type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
     };
@@ -136,9 +162,10 @@ export function applyBidirectionalEdgeFixes(edges: Edge[], nodes: Node[]): Edge[
 export function distributeTargetHandles(
   nodes: Node[],
   edges: Edge[],
-  activeLayoutPresetId: string = 'layered-lr'
+  activeLayoutPresetId: string = 'layered-lr',
+  options?: { skipBundling?: boolean },
 ): Edge[] {
-  const { edges: managedEdges } = processEdgeManagement(nodes, edges);
+  const { edges: managedEdges } = processEdgeManagement(nodes, edges, options);
   const normalized = normalizeEdges(managedEdges);
   const direction = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
@@ -151,8 +178,8 @@ export function distributeTargetHandles(
     if (edge.source === edge.target) {
       return {
         ...edge,
-        sourceHandle: 'source-top',
-        targetHandle: 'target-right',
+        sourceHandle: nodeSupportsHandle(sourceNode, 'source', 'top') ? 'source-top' : null,
+        targetHandle: nodeSupportsHandle(sourceNode, 'target', 'right') ? 'target-right' : null,
         type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
       };
     }
@@ -171,9 +198,9 @@ export function distributeTargetHandles(
     const tPos = getAbsolutePosition(targetNode, nodes);
 
     const sWidth = sourceNode.width ?? (sourceNode.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-    const sHeight = sourceNode.height ?? (sourceNode.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+    const sHeight = sourceNode.height ?? (sourceNode.data as { nodeHeight?: number })?.nodeHeight ?? 100;
     const tWidth = targetNode.width ?? (targetNode.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-    const tHeight = targetNode.height ?? (targetNode.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+    const tHeight = targetNode.height ?? (targetNode.data as { nodeHeight?: number })?.nodeHeight ?? 100;
 
     const sourceRect = { x: sPos.x, y: sPos.y, width: sWidth, height: sHeight };
     const targetRect = { x: tPos.x, y: tPos.y, width: tWidth, height: tHeight };
@@ -193,7 +220,7 @@ export function distributeTargetHandles(
 
       const pos = getAbsolutePosition(node, nodes);
       const w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180;
-      const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70;
+      const h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 100;
       intermediateNodeRects.set(node.id, { id: node.id, x: pos.x, y: pos.y, w, h });
     }
 
@@ -211,10 +238,17 @@ export function distributeTargetHandles(
       direction
     );
 
+    const sourceSide = positionToSide(handles.sourcePosition);
+    const targetSide = positionToSide(handles.targetPosition);
+
     return {
       ...edge,
-      sourceHandle: `source-${positionToSide(handles.sourcePosition)}`,
-      targetHandle: `target-${positionToSide(handles.targetPosition)}`,
+      sourceHandle: nodeSupportsHandle(sourceNode, 'source', sourceSide)
+        ? `source-${sourceSide}`
+        : null,
+      targetHandle: nodeSupportsHandle(targetNode, 'target', targetSide)
+        ? `target-${targetSide}`
+        : null,
       type: edge.type && KNOWN_EDGE_TYPES.has(edge.type) ? edge.type : DEFAULT_EDGE_TYPE,
     };
   }),

@@ -6,6 +6,7 @@ import { MAX_GUEST_CANVASES } from '../constants';
 import { invokeFitView } from '../fitView';
 import { makeCanvas, INITIAL_CANVAS } from '../helpers/canvasHelpers';
 import { deleteCanvasFromDB } from '../persistence/dbSave';
+import { getUserQuotas, getUserTier } from '@/lib/userQuotas';
 
 export type CanvasSlice = Pick<
   DiagramState,
@@ -104,6 +105,14 @@ export const createCanvasSlice: StateCreator<
       }
     }
 
+    // Enforce canvas limit for authenticated users (guests handled above) — show toast instead of letting DB save fail
+    const tier = getUserTier(userProfile?.id);
+    const quotas = getUserQuotas(tier);
+    if (!isGuest && canvases.length >= quotas.maxCanvases) {
+      toast.error(`Maximum ${quotas.maxCanvases} canvases allowed. Delete one to create a new canvas.`);
+      return get().activeCanvasId;
+    }
+
     const baseName = customName || getRandomAnimalName();
     let newName = baseName;
     const existingNames = new Set(canvases.map((c) => c.name));
@@ -134,6 +143,12 @@ export const createCanvasSlice: StateCreator<
       toast.error('Sign in to duplicate canvases.');
       return;
     }
+    const tier = getUserTier(userProfile?.id);
+    const quotas = getUserQuotas(tier);
+    if (canvases.length >= quotas.maxCanvases) {
+      toast.error(`Maximum ${quotas.maxCanvases} canvases allowed. Delete one to create a new canvas.`);
+      return;
+    }
     const source = canvases.find((c) => c.id === id);
     if (!source) return;
 
@@ -147,22 +162,23 @@ export const createCanvasSlice: StateCreator<
       newName = `${baseName} ${counter}`;
     }
 
-    const numbers = canvases
-      .map((c) => {
-        const match = c.id.match(/^canvas-(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      })
-      .filter((n) => n > 0);
-    const max = numbers.length > 0 ? Math.max(...numbers) : 0;
-    const newId = `canvas-${max + 1}`;
+    const safeClone = <T>(v: T): T => {
+      try {
+        return structuredClone(v);
+      } catch {
+        return JSON.parse(JSON.stringify(v));
+      }
+    };
+
+    const newId = crypto.randomUUID ? crypto.randomUUID() : `canvas-${Date.now()}`;
     const duplicated: CanvasTab = {
       ...source,
       id: newId,
       name: newName,
       isOpen: true,
       lastAccessedAt: Date.now(),
-      nodes: JSON.parse(JSON.stringify(source.nodes)),
-      edges: JSON.parse(JSON.stringify(source.edges)),
+      nodes: safeClone(source.nodes),
+      edges: safeClone(source.edges),
     };
 
     const newOpenIds = [...openCanvasIds, newId];
@@ -409,7 +425,7 @@ export const createCanvasSlice: StateCreator<
   },
 
   getOverflowCanvases: () => {
-    const { canvases, activeCanvasId, openCanvasIds } = get();
+    const { canvases, openCanvasIds } = get();
     const MAX_VISIBLE = 3;
 
     const openCanvases = openCanvasIds

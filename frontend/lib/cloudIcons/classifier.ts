@@ -64,6 +64,7 @@ function hasProviderAffinity(input: CloudNodeInput, provider: CloudProviderId): 
   const prefix = `${provider}-`;
   return (
     input.typeId?.startsWith(prefix) === true ||
+    input.componentId?.startsWith(prefix) === true ||
     input.technology?.startsWith(prefix) === true ||
     input.icon?.startsWith(prefix) === true
   );

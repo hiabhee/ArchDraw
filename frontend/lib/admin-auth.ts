@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
 import { auth } from '@/lib/auth';
 import { getClientIP } from '@/lib/server/ip';
-import { adminSessionTracking, cleanupExpiredSessions } from '@/lib/admin-session-tracking';
+import { adminSessionTracking, cleanupExpiredSessions, getTrackedAdminSession } from '@/lib/admin-session-tracking';
+import logger from '@/lib/logger';
 
 let ALLOWED_ADMIN_EMAIL: string | undefined;
 try {
@@ -50,18 +51,20 @@ export async function verifyAdminSession(req: NextRequest): Promise<boolean> {
     // Additional security: verify IP and user agent match (in production)
     if (process.env.NODE_ENV === 'production') {
       cleanupExpiredSessions();
-      const sessionData = adminSessionTracking.get(sessionCookie);
+      // Memory first, Redis fallback so binding survives restarts / replicas.
+      const sessionData =
+        adminSessionTracking.get(sessionCookie) ?? (await getTrackedAdminSession(sessionCookie));
       if (sessionData) {
-        const currentIP = getClientIP(req);
+        const _currentIP = getClientIP(req);
         const currentUA = req.headers.get('user-agent') || 'unknown';
-        
+
         // Allow some tolerance for IP changes (mobile networks, etc.)
         // but require user agent to match exactly
         if (sessionData.ua !== currentUA) {
-          console.warn('[AdminAuth] User agent mismatch for admin session');
+          logger.warn('[AdminAuth] User agent mismatch for admin session');
           return false;
         }
-        
+
         // Update timestamp for active session
         sessionData.timestamp = Date.now();
       }

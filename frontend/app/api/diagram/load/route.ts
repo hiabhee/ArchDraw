@@ -7,6 +7,7 @@ import { isDomainSuccess } from '@/lib/pipeline-core';
 import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { getSessionFromRequest, logUsage } from '@/lib/middleware/quotaCheck';
 
+export const runtime = 'nodejs';
 
 export interface ShareUser {
   email: string;
@@ -15,19 +16,73 @@ export interface ShareUser {
   addedAt: number;
 }
 
+const PostSchema = z.object({
+  nodes: z.array(z.any()).optional().default([]),
+  edges: z.array(z.any()).optional().default([]),
+  label: z.string().optional(),
+  mermaid: z.string().optional(),
+  dryRun: z.boolean().optional().default(false),
+  publish: z.boolean().optional().default(false),
+  source: z.string().optional(),
+  accessType: z.string().optional(),
+  linkPermission: z.string().optional(),
+  users: z.array(z.any()).optional(),
+});
+
+const McpUpdateSchema = z.object({
+  action: z.literal('mcp-update'),
+  sessionId: z.string().min(1),
+  updateToken: z.string().min(1),
+  expectedRevision: z.number().int().positive(),
+  nodes: z.array(z.any()),
+  edges: z.array(z.any()),
+});
+
+const PatchSchema = z.object({
+  sessionId: z.string().min(1),
+  accessType: z.string().optional(),
+  linkPermission: z.string().optional(),
+});
+
+const PutSchema = z.object({
+  sessionId: z.string().min(1),
+  email: z.string().email(),
+  name: z.string().optional(),
+  role: z.enum(['editor', 'viewer']),
+});
+
+const DeleteSchema = z.object({
+  sessionId: z.string().min(1),
+  email: z.string(),
+});
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSessionFromRequest(req);
     const userId = session?.user?.id;
 
-    // Previously blocked unauthenticated / MCP-originated saves with a
-    // `canAccessFeature(tier, 'share')` check that returned 401 for guests.
-    // The MCP server calls this endpoint to persist a generated diagram and
-    // receive a sessionId — it never sends auth credentials, so the guard
-    // made the tool unusable. POST creates a public sharedCanvas record which
-    // is intentionally world-writable; the sharing admin (PATCH/PUT/DELETE)
-    // below remains guarded by userId/ownerId checks.
-    const body = await req.json();
+    // MCP publication is opt-in: the server rejects accidental hosted saves
+    // below unless the caller supplies publish:true.
+    const raw = await req.json();
+    if (raw?.action === 'mcp-update') {
+      const update = McpUpdateSchema.safeParse(raw);
+      if (!update.success) return NextResponse.json({ error: 'Invalid MCP update' }, { status: 400 });
+      const existing = await prisma.sharedCanvas.findUnique({ where: { id: update.data.sessionId } });
+      if (!existing || existing.mcpUpdateToken !== update.data.updateToken) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      const result = await prisma.sharedCanvas.updateMany({
+        where: { id: update.data.sessionId, revision: update.data.expectedRevision },
+        data: { nodes: update.data.nodes, edges: update.data.edges, revision: { increment: 1 } },
+      });
+      if (result.count !== 1) return NextResponse.json({ error: 'Revision conflict' }, { status: 409 });
+      return NextResponse.json({ sessionId: update.data.sessionId, revision: update.data.expectedRevision + 1 });
+    }
+    const parsed = PostSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const body = parsed.data;
 
     let nodes = body.nodes || [];
     let edges = body.edges || [];
@@ -46,6 +101,16 @@ export async function POST(req: NextRequest) {
       warnings = pipelineResult.data.warnings;
     }
 
+    if (body.dryRun) {
+      return NextResponse.json({ nodes, edges, warnings });
+    }
+
+    if (body.source === 'mcp' && !body.publish) {
+      return NextResponse.json({ error: 'MCP publication requires explicit publish:true' }, { status: 403 });
+    }
+
+    const mcpUpdateToken = body.source === 'mcp' ? crypto.randomUUID() : null;
+
     const shared = await prisma.sharedCanvas.create({
       data: {
         canvasName: body.label || 'Shared Diagram',
@@ -55,6 +120,7 @@ export async function POST(req: NextRequest) {
         linkPermission: body.linkPermission || 'viewer',
         users: body.users || [],
         ownerId: userId || null,
+        mcpUpdateToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
@@ -64,7 +130,7 @@ export async function POST(req: NextRequest) {
       accessType: body.accessType,
     });
 
-    return NextResponse.json({ sessionId: shared.id, nodes, edges, warnings });
+    return NextResponse.json({ sessionId: shared.id, nodes, edges, warnings, ...(mcpUpdateToken ? { updateToken: mcpUpdateToken, revision: 1 } : {}) });
   } catch (error) {
     logger.error('POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -81,8 +147,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, accessType, linkPermission } = body;
+    const raw = await req.json();
+    const parsed = PatchSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { sessionId, accessType, linkPermission } = parsed.data;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
@@ -115,8 +185,12 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, email, name, role } = body;
+    const raw = await req.json();
+    const parsed = PutSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { sessionId, email, name, role } = parsed.data;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {
@@ -130,7 +204,7 @@ export async function PUT(req: NextRequest) {
     const users = (shared.users as unknown as ShareUser[]).filter(u => u.email !== email);
     users.push({
       email,
-      name,
+      name: name || '',
       role: role === 'editor' ? 'editor' : 'viewer',
       addedAt: Date.now(),
     });
@@ -157,8 +231,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Sign in to manage sharing', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, email } = body;
+    const raw = await req.json();
+    const parsed = DeleteSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { sessionId, email } = parsed.data;
 
     const shared = await prisma.sharedCanvas.findUnique({ where: { id: sessionId } });
     if (!shared) {

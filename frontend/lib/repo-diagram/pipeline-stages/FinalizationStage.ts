@@ -1,4 +1,4 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
 import {
   collectGroundedNodeIds, isImportantOrphan,
@@ -11,6 +11,7 @@ import type { CacheWriteShared } from './shared-keys';
 import { REPO_SHARED } from './shared-keys';
 import { setSharedTyped } from '@/lib/pipeline-core';
 import { normalizeId } from './internal-helpers';
+import { detailLevelFromContext } from './context-utils';
 
 export interface FinalizationInput {
   snapshot: RepoSnapshot;
@@ -27,12 +28,52 @@ export interface FinalizationInput {
   preVerifierHighEdgeCount: number;
   detailLevel?: 1 | 2 | 3;
   repoUrl?: string;
+  /** GH2R-024 — docs revalidation (DocsReviewStage) outcome; surfaced in reviewNotes. */
+  docsReviewNotes?: string;
+  docsReviewFailed?: boolean;
 }
 
-function detailLevelFromContext(context: PipelineContext, fallback?: 1 | 2 | 3): 1 | 2 | 3 {
-  const fromMeta = context.metadata.detailLevel;
-  if (fromMeta === 1 || fromMeta === 2 || fromMeta === 3) return fromMeta;
-  return fallback ?? 2;
+/**
+ * Rejects diagrams that would otherwise look successful despite failed LLM
+ * enrichment or missing the minimum structure for the detected repo type.
+ * L1 is an explicitly requested static scan, so it remains available with its
+ * existing degraded review note rather than masquerading as an AI diagram.
+ */
+export function assessRepoDiagramQuality(input: {
+  nodes: ExtractedNode[];
+  edges: RichEdge[];
+  repoProfile: RepoProfile | null;
+  degraded: DegradedFlags;
+  groundedNodeRatio: number;
+  useLlm: boolean;
+}): string | null {
+  if (!input.useLlm) return null;
+
+  if (input.groundedNodeRatio < 0.75) {
+    return 'Diagram generation incomplete: too few components were grounded in repository evidence. Please retry.';
+  }
+
+  const repoType = input.repoProfile?.repoType ?? 'unknown';
+  const minimums: Partial<Record<RepoProfile['repoType'], { nodes: number; edges: number }>> = {
+    fullstack_monolith: { nodes: 4, edges: 3 },
+    fullstack_separated: { nodes: 4, edges: 3 },
+    microservices: { nodes: 4, edges: 3 },
+    monorepo: { nodes: 4, edges: 3 },
+    backend_only: { nodes: 2, edges: 1 },
+    frontend_only: { nodes: 2, edges: 1 },
+    mobile: { nodes: 2, edges: 1 },
+    data_ml: { nodes: 2, edges: 1 },
+    devops_config: { nodes: 2, edges: 1 },
+    unknown: { nodes: 2, edges: 1 },
+  };
+  const minimum = minimums[repoType];
+  if (minimum && (input.nodes.length < minimum.nodes || input.edges.length < minimum.edges)) {
+    return `Diagram generation incomplete: detected ${input.nodes.length} components and ${input.edges.length} relationships; ${repoType.replace(/_/g, ' ')} requires at least ${minimum.nodes} components and ${minimum.edges} relationships. Please retry.`;
+  }
+  // A deterministic fallback is acceptable when it still meets the topology
+  // contract above; reviewNotes already identifies which enrichment stages
+  // degraded so users can retry for richer semantic labels/workflows.
+  return null;
 }
 
 function sanitizeRepoGraph(
@@ -41,8 +82,11 @@ function sanitizeRepoGraph(
   groundedIds?: Set<string>,
   detailLevel?: 1 | 2 | 3
 ): { nodes: ExtractedNode[]; edges: RichEdge[]; truncatedNodes: string[] } {
-  const MAX_NODES = { 1: 50, 2: 80, 3: 150 }[(detailLevel ?? 2) as 1 | 2 | 3] ?? 80;
-  const MAX_EDGES = { 1: 80, 2: 120, 3: 250 }[(detailLevel ?? 2) as 1 | 2 | 3] ?? 120;
+  // GH2R-024: caps scale with the client canvas quota (see userQuotas +
+  // diagramStore constants). L3 tops out AT the auth save cap (150) so detailed
+  // repo diagrams always persist. Edges are unconstrained client-side.
+  const MAX_NODES = { 1: 50, 2: 120, 3: 150 }[(detailLevel ?? 2) as 1 | 2 | 3] ?? 120;
+  const MAX_EDGES = { 1: 80, 2: 200, 3: 300 }[(detailLevel ?? 2) as 1 | 2 | 3] ?? 200;
 
   const idMap = new Map<string, string>();
   const normalizedNodes = nodes.map(n => {
@@ -89,14 +133,13 @@ function sanitizeRepoGraph(
     connected.has(n.id) ||
     isImportantOrphan(n, connected.size)
   );
-  // Sparse-graph safety: when almost nothing is connected, edge detection largely
-  // failed, so don't strip the diagram down to the few connected nodes.
+  // GH2R-017: tighten sparse-graph safety — only keep grounded important types, otherwise verifier prune is undone
+  // (was: kept all importantTypes unconditionally + any file-grounded/high nodes)
   if (connected.size < 3) {
     keptNodes = normalizedNodes.filter(n =>
       connected.has(n.id) ||
-      importantTypes.has(n.type) ||
-      n.sourceFiles.length > 0 ||
-      n.confidence === 'high'
+      (importantTypes.has(n.type) && n.sourceFiles.length > 0 && (groundedIds?.has(n.id) ?? n.sourceFiles.length > 0)) ||
+      (n.confidence === 'high' && n.sourceFiles.length > 0)
     );
   }
   if (keptNodes.length === 0) {
@@ -154,7 +197,10 @@ function buildReviewNotes(
   classifyFailed: boolean,
   edgeFailed: boolean,
   heuristicFallback: boolean,
-  snapshot: RepoSnapshot
+  snapshot: RepoSnapshot,
+  hasToken?: boolean,
+  docsReviewNotes?: string,
+  docsReviewFailed?: boolean
 ): string {
   const notes: string[] = [];
 
@@ -171,7 +217,7 @@ function buildReviewNotes(
     notes.push(`${snapshot.failedPaths.length} selected file${snapshot.failedPaths.length === 1 ? '' : 's'} could not be fetched from GitHub and may be missing from the diagram: ${snapshot.failedPaths.slice(0, 5).join(', ')}${snapshot.failedPaths.length > 5 ? '…' : ''}.`);
   }
   if (finalNodes.length < 4) {
-    notes.push(`Only ${finalNodes.length} architectural component${finalNodes.length === 1 ? '' : 's'} were detected. The repo may be too small, private, or its structure non-standard.`);
+    notes.push(`Only ${finalNodes.length} architectural component${finalNodes.length === 1 ? '' : 's'} were detected. The repo may be too small, private, or its structure non-standard. Try detailLevel=3 or a GITHUB_TOKEN for better coverage.`);
   }
   if (finalEdges.length === 0 && finalNodes.length > 1) {
     notes.push('No relationships could be inferred between components. Try adding a GITHUB_TOKEN for higher API quota and better file coverage.');
@@ -180,8 +226,17 @@ function buildReviewNotes(
   const lowConfidenceRatio = finalNodes.filter(n => n.confidence === 'low').length / Math.max(finalNodes.length, 1);
   if (lowConfidenceRatio > 0.5) notes.push('More than half the detected components are low-confidence. Review the diagram before sharing.');
 
-  if (!process.env.GITHUB_TOKEN) {
+  // GH2R-018: respect per-request github_pat_ / ghu_ token so users who supplied a PAT don't see env-token hint
+  const effectiveHasToken = hasToken ?? Boolean(process.env.GITHUB_TOKEN);
+  if (!effectiveHasToken) {
     notes.push('No GITHUB_TOKEN detected — operating at 60 req/hr GitHub rate limit. Set GITHUB_TOKEN in .env.local for 5,000 req/hr and better file coverage.');
+  }
+
+  // GH2R-024: docs revalidation outcome (DocsReviewStage re-checks against README/docs).
+  if (docsReviewFailed) {
+    notes.push('The diagram could not be re-validated against the repository documentation this run.');
+  } else if (docsReviewNotes) {
+    notes.push(docsReviewNotes.slice(0, 400));
   }
 
   return notes.join(' ');
@@ -213,6 +268,17 @@ export class FinalizationStage extends BaseStage<FinalizationInput, RepoPipeline
     const groundedNodeRatio = finalNodes.filter(n =>
       n.sourceFiles.length > 0 || collectGroundedNodeIds(finalNodes, signals).has(n.id)
     ).length / Math.max(finalNodes.length, 1);
+    const qualityFailure = assessRepoDiagramQuality({
+      nodes: finalNodes,
+      edges: finalEdges,
+      repoProfile,
+      degraded,
+      groundedNodeRatio,
+      useLlm,
+    });
+    if (qualityFailure) {
+      return errorResult(new Error(qualityFailure));
+    }
     const evidencedEdgeRatio = (useLlm ? preVerifierHighEdgeCount : edges.filter(e => e.confidence === 'high').length) / Math.max(edges.length, 1);
     const pipelineConfidence: 'high' | 'medium' | 'low' =
       groundedNodeRatio >= 0.85 && evidencedEdgeRatio >= 0.70 && !degraded.anything
@@ -221,9 +287,15 @@ export class FinalizationStage extends BaseStage<FinalizationInput, RepoPipeline
           ? 'low'
           : 'medium';
 
+    const hasToken =
+      Boolean(process.env.GITHUB_TOKEN) ||
+      Boolean((context.metadata as Record<string, unknown>)?.userGithubTokenPresent);
     const reviewNotes = buildReviewNotes(
       finalNodes, finalEdges, useLlm,
-      degraded.classify, degraded.edges, degraded.extract, snapshot
+      degraded.classify, degraded.edges, degraded.extract, snapshot,
+      hasToken,
+      input.docsReviewNotes,
+      input.docsReviewFailed
     );
 
     const result: RepoPipelineResult = {

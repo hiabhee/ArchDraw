@@ -1,93 +1,44 @@
 'use client';
 
-import {
-  Server, Zap, Boxes, Box, CircleDot, Sprout,
-  HardDrive, Disc, FolderOpen, Archive,
-  Database, Layers, Gauge, Sparkles, BarChart2, FileText,
-  Webhook, RadioTower, Globe, Network, Scale, Shuffle,
-  MessageSquare, Bell, Radio, Activity,
-  Users, KeyRound, Lock, ShieldAlert, Shield,
-  LayoutDashboard, GitBranch, ScrollText,
-  GitPullRequest, Hammer, Package, Settings,
-  Leaf, Bug, Flame, Triangle, Droplets, Code2,
-  ShieldCheck, UserCheck, Search, AlertTriangle,
-  Brain, Cpu, Link, Bot,
-  Train, Cloud, Plane,
-  Monitor, Timer, AppWindow, Key,
-  GitMerge, Mail, CreditCard, Smartphone, Map, Plug,
-  Upload, User, Play, Clock, MessageCircle, ArrowLeftRight, Inbox,
-  LucideIcon,
-} from 'lucide-react';
 import { iconRegistry } from '@/lib/iconRegistry';
-import { AWSIcon, getAWSIcon } from './icons/AWSIcon';
-import { CustomNodeIcon, toCustomNodeIconName, isCustomNodeIcon } from './icons/CustomNodeIcon';
+import { CustomNodeIcon, toCustomNodeIconName } from './icons/CustomNodeIcon';
+import { filterIconForMode, type RenderStyleId } from '@/lib/iconModeFilter';
+import { normalizeColor } from '@/lib/semanticColors';
 
-const LUCIDE_MAP: Record<string, LucideIcon> = {
-  Server, Zap, Boxes, Box, CircleDot, Sprout,
-  HardDrive, Disc, FolderOpen, Archive,
-  Database, Layers, Gauge, Sparkles, BarChart2, FileText,
-  Webhook, RadioTower, Globe, Network, Scale, Shuffle,
-  MessageSquare, Bell, Radio, Activity,
-  Users, KeyRound, Lock, ShieldAlert, Shield,
-  LayoutDashboard, GitBranch, ScrollText,
-  GitPullRequest, Hammer, Package, Settings,
-  Leaf, Bug, Flame, Triangle, Droplets, Code2,
-  ShieldCheck, UserCheck, Search, AlertTriangle,
-  Brain, Cpu, Link, Bot,
-  Train, Cloud, Plane,
-  Monitor, Timer, AppWindow, Key,
-  GitMerge, Mail, CreditCard, Smartphone, Map, Plug,
-  Upload, User, Play, Clock, MessageCircle, ArrowLeftRight, Inbox,
-};
+const GENERIC_ICON_COLOR = '#475569';
 
 interface NodeIconProps {
   technology?: string;
   fallbackIcon?: string;
   fallbackColor?: string;
   size?: number;
+  renderStyle?: RenderStyleId;
 }
 
-export function NodeIcon({ technology, fallbackIcon, fallbackColor, size = 18 }: NodeIconProps) {
+export function NodeIcon({
+  technology,
+  fallbackIcon,
+  fallbackColor,
+  size = 18,
+  renderStyle = 'precision',
+}: NodeIconProps) {
   const entry = technology ? iconRegistry[technology] : undefined;
-  const iconName = entry?.icon ?? fallbackIcon ?? 'Server';
-  const color = entry?.color ?? fallbackColor ?? '#6B7280';
-  
-  if (entry?.kind === 'aws') {
-    const awsIcon = getAWSIcon(entry.icon);
-    if (awsIcon) {
-      return <AWSIcon iconId={entry.icon} size={size} color={color} />;
-    }
-  }
+  const filtered = filterIconForMode(fallbackIcon ?? entry?.icon ?? 'arch-server', technology, renderStyle);
+  const customName = toCustomNodeIconName(filtered) ?? 'arch-server';
+  const color = normalizeColor(entry?.color ?? fallbackColor ?? GENERIC_ICON_COLOR, customName);
 
-  // Handle custom icons (arch-*) from icon registry
-  if (entry?.kind === 'custom' || iconName.startsWith('arch-')) {
-    const customIconName = toCustomNodeIconName(iconName);
-    if (customIconName) {
-      return <CustomNodeIcon name={customIconName} color={color} size={size} />;
-    }
-  }
-
-  // Handle custom icons via aliases (Database -> arch-database, etc.)
-  if (isCustomNodeIcon(iconName)) {
-    const customIconName = toCustomNodeIconName(iconName);
-    if (customIconName) {
-      return <CustomNodeIcon name={customIconName} color={color} size={size} />;
-    }
-  }
-
-  if (!LUCIDE_MAP[iconName] && /[^\w\s-]/.test(iconName)) {
+  if (!toCustomNodeIconName(filtered) && filtered && /[^\w\s-]/.test(filtered)) {
     return (
       <span style={{ color, fontSize: size, lineHeight: 1 }} aria-hidden="true">
-        {iconName}
+        {filtered}
       </span>
     );
   }
 
-  const Icon = LUCIDE_MAP[iconName] ?? Server;
-  return <Icon size={size} style={{ color }} strokeWidth={2} />;
+  return <CustomNodeIcon name={customName} color={color} size={size} />;
 }
 
-export function resolveNodeColor(technology?: string, fallbackColor?: string): string {
+export function resolveNodeColor(technology?: string, fallbackColor?: string, iconName?: string): string {
   if (technology && iconRegistry[technology]) return iconRegistry[technology].color;
-  return fallbackColor ?? '#6B7280';
+  return normalizeColor(fallbackColor, iconName) ?? GENERIC_ICON_COLOR;
 }

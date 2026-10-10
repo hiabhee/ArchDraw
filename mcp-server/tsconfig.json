@@ -17,19 +17,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "typeRoots": [
-      "../frontend/node_modules/@types"
-    ],
-    "paths": {
-      "@modelcontextprotocol/sdk/server/index.js": ["../frontend/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.d.ts"],
-      "@modelcontextprotocol/sdk/server/stdio.js": ["../frontend/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.d.ts"],
-      "@modelcontextprotocol/sdk/types.js": ["../frontend/node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"],
-      "elkjs/lib/elk-api.js": ["../frontend/node_modules/elkjs/lib/elk-api.d.ts"],
-      "elkjs/lib/elk.bundled.js": ["../frontend/node_modules/elkjs/lib/elk.bundled.d.ts"],
-      "zod": ["../frontend/node_modules/zod/index.d.ts"]
-    }
+    "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

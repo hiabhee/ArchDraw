@@ -4,7 +4,9 @@ import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowLeft, PenSquare, RotateCcw, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, PenSquare, RotateCcw, Moon, Sun, X } from 'lucide-react';
+import { AuthModal } from '@/components/AuthModal';
+import { canAccessFeature, getUserTier } from '@/lib/userQuotas';
 import { toast } from 'sonner';
 import { getTutorialById, isLeveledTutorial } from '@/data/tutorials';
 import { useAuthStore } from '@/store/authStore';
@@ -17,6 +19,9 @@ import type { NodeDetailsInfo } from '@/components/tutorial/TutorialCanvas';
 import { analytics } from '@/lib/analytics';
 import logger from '@/lib/logger';
 import type { TutorialLevel, TutorialStep } from '@/lib/tutorial/schema';
+import { getNextTutorial } from '@/lib/tutorial/nextTutorial';
+import { tutorialCanvasToEditorGraph } from '@/lib/tutorial/importToEditor';
+import { useDiagramStore } from '@/store/diagramStore';
 import type { Node, Edge } from 'reactflow';
 
 // Dynamic import to avoid SSR issues with ReactFlow
@@ -117,6 +122,7 @@ export default function TutorialPage() {
     activeTutorialId,
     saveProgress,
     setSwitchingTutorial,
+    exitTutorial,
     loadFromDb, syncToDb,
     hasHydrated,
   } = useTutorialStore();
@@ -135,6 +141,8 @@ export default function TutorialPage() {
   const [showIntro, setShowIntro] = useState(false);
   const [introSkipped, setIntroSkipped] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NodeDetailsInfo | null>(null);
+  const [guestBannerDismissed, setGuestBannerDismissed] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const handleNodeSelect = useCallback((info: NodeDetailsInfo | null) => {
     setSelectedNode(info);
@@ -315,7 +323,17 @@ export default function TutorialPage() {
     headerRestartTimer.current = setTimeout(() => setHeaderRestartConfirm(false), 3000);
   }, []);
 
-  const handleGoToCanvas = useCallback(() => { router.push('/editor'); }, [router]);
+  const handleGoToCanvas = useCallback(() => {
+    if (nodes.length === 0) {
+      toast.error('Add at least one component before opening the editor');
+      return;
+    }
+    const { nodes: editorNodes, edges: editorEdges } = tutorialCanvasToEditorGraph(nodes, edges);
+    useDiagramStore.getState().importDiagram(editorNodes, editorEdges);
+    exitTutorial();
+    router.push('/editor');
+    toast.success('Tutorial diagram opened in the editor');
+  }, [nodes, edges, exitTutorial, router]);
 
   const handleContinueToNextLevel = useCallback(() => {
     if (!tutorial || !levels.length) return;
@@ -332,9 +350,11 @@ export default function TutorialPage() {
   }, [levels, currentLevel, advanceLevel, tutorial, nodes.length, edges.length]);
 
   const handleSaveAndLeave = useCallback(() => {
+    // Persist the current session (canvas + crossed level position) before leaving.
+    exitTutorial();
     dismissLevelComplete();
     router.push('/tutorials');
-  }, [dismissLevelComplete, router]);
+  }, [exitTutorial, dismissLevelComplete, router]);
 
   // Start building from the intro card. The session is already initialized by
   // the bootstrap effect; this only dismisses the overlay. If progress somehow
@@ -362,17 +382,6 @@ export default function TutorialPage() {
     setIntroSkipped(true);
   }, []);
 
-  // Track tutorial completion
-  useEffect(() => {
-    if (isComplete && tutorial) {
-      analytics.track({
-        event_type: 'tutorial_completed',
-        page_path: window.location.pathname,
-        payload: { tutorial_id: tutorial.id, tutorial_title: tutorial.title, total_steps: totalSteps },
-      });
-    }
-  }, [isComplete, tutorial, totalSteps]);
-
   // Calculate component count for intro
   const componentCount = useMemo(() => 
     allSteps.filter((s) => {
@@ -393,19 +402,7 @@ export default function TutorialPage() {
     );
   }
 
-  if (!user || user.id === 'guest') {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4F4F4', color: '#1A1A1A' }}>
-        <div className="text-center max-w-sm">
-          <p className="text-slate-500 mb-2">Sign in to access tutorials</p>
-          <p className="text-xs text-slate-400 mb-4">Tutorial progress tracking is only available for authenticated users.</p>
-          <Link href="/login" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors" style={{ background: '#595959' }}>
-            Sign in
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const canSaveProgress = canAccessFeature(getUserTier(user?.id), 'tutorialProgress');
 
   const step = currentLevelSteps[currentStep - 1];
   const nextLevelData = isLeveled ? (levels[currentLevel] ?? null) : null;
@@ -487,6 +484,35 @@ export default function TutorialPage() {
         </div>
       </header>
 
+      {/* Guest upsell banner — never blocks playing; progress still saves locally */}
+      {!canSaveProgress && !guestBannerDismissed && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 shrink-0 z-10" style={{ background: '#FAFAF7', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+          <p className="text-xs text-slate-600">
+            <span className="font-medium text-[#1A1A1A]">Sign in to save progress across devices.</span>{' '}
+            <span className="hidden sm:inline">Your progress still saves on this browser until you do.</span>
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
+              style={{ background: '#595959' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#434343')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#595959')}
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => setGuestBannerDismissed(true)}
+              aria-label="Dismiss"
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-[#1A1A1A] transition-colors"
+              style={{ border: '1px solid rgba(0,0,0,0.1)' }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Body */}
       <div className="flex flex-1 overflow-hidden relative">
         <div className="shrink-0 overflow-hidden flex flex-col h-full transition-all duration-300" style={{ width: panelRatio === '3:7' ? '30%' : '40%' }}>
@@ -562,6 +588,8 @@ export default function TutorialPage() {
           tutorialColor={tutorial.color}
         />
       )}
+
+      <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
     </div>
   );
 }
@@ -675,49 +703,10 @@ const LEARNED_ITEMS: Record<string, string[]> = {
   ],
 };
 
-const NEXT_TUTORIALS_MAP: Record<string, { id: string; title: string; reason: string }> = {
-  // Beginner path → Intermediate
-  'url-shortener-architecture':   { id: 'rag-application-architecture',    title: 'RAG Application',       reason: 'See how caching principles apply to LLM cost optimization' },
-  'rag-application-architecture': { id: 'ai-agent-system-architecture',    title: 'AI Agent System',       reason: 'Extend RAG with autonomous multi-step agents' },
-  'ai-agent-system-architecture': { id: 'chatgpt-architecture',            title: 'ChatGPT Architecture',  reason: 'See how production AI systems scale beyond a single agent' },
-
-  // Core platforms
-  'chatgpt-architecture':         { id: 'instagram-architecture',          title: 'Instagram Architecture', reason: 'Explore media platforms handling 100M+ uploads daily' },
-  'instagram-architecture':       { id: 'youtube-architecture',            title: 'YouTube Architecture',  reason: 'Scale media pipelines to billions of video streams' },
-  'youtube-architecture':         { id: 'netflix-architecture',            title: 'Netflix Architecture',  reason: 'See CDN-first design that eliminates 94% of origin traffic' },
-  'netflix-architecture':         { id: 'spotify-architecture',            title: 'Spotify Architecture',  reason: 'Explore audio streaming with real-time recommendation' },
-  'spotify-architecture':         { id: 'uber-architecture',               title: 'Uber Architecture',     reason: 'Learn real-time geospatial matching at global scale' },
-
-  // Marketplace and commerce
-  'uber-architecture':            { id: 'airbnb-architecture',             title: 'Airbnb Architecture',   reason: 'Compare two-sided vs three-sided marketplace tradeoffs' },
-  'airbnb-architecture':          { id: 'doordash-architecture',           title: 'DoorDash Architecture', reason: 'See real-time logistics coordination with three parties' },
-  'doordash-architecture':        { id: 'shopify-architecture',            title: 'Shopify Architecture',  reason: 'Understand multi-tenant SaaS at commerce scale' },
-  'shopify-architecture':         { id: 'stripe-architecture',             title: 'Stripe Architecture',   reason: 'Build ACID-safe financial systems with idempotency' },
-
-  // Communication and collaboration
-  'stripe-architecture':          { id: 'whatsapp-architecture',           title: 'WhatsApp Architecture', reason: 'Learn end-to-end encryption and billion-user messaging' },
-  'whatsapp-architecture':        { id: 'discord-architecture',            title: 'Discord Architecture',  reason: 'Add real-time voice to your messaging architecture knowledge' },
-  'discord-architecture':         { id: 'zoom-architecture',               title: 'Zoom Architecture',     reason: 'Understand WebRTC and SFU video routing at scale' },
-  'zoom-architecture':            { id: 'twitter-architecture',            title: 'Twitter Architecture',  reason: 'See how fan-out handles celebrity timelines' },
-
-  // Social and professional
-  'twitter-architecture':         { id: 'linkedin-architecture',           title: 'LinkedIn Architecture', reason: 'Explore graph traversal at social network scale' },
-  'linkedin-architecture':        { id: 'notion-architecture',             title: 'Notion Architecture',   reason: 'See collaborative document editing with CRDTs' },
-  'notion-architecture':          { id: 'figma-architecture',              title: 'Figma Architecture',    reason: 'Understand real-time multiplayer design tools' },
-
-  // Dev tools
-  'figma-architecture':           { id: 'github-architecture',             title: 'GitHub Architecture',   reason: 'See how Git object storage and PR workflows scale globally' },
-  'github-architecture':          { id: 'url-shortener-architecture',      title: 'URL Shortener',         reason: 'Practice classic interview questions with hashing and caching' },
-};
-
 function getLearnedItems(tutorialId: string): string[] {
   return LEARNED_ITEMS[tutorialId] ?? [
     'How this architecture solves its core scaling challenges',
     'Why each component exists and how they work together',
     'The real architectural decisions behind the system',
   ];
-}
-
-function getNextTutorial(tutorialId: string): { id: string; title: string; reason: string } | null {
-  return NEXT_TUTORIALS_MAP[tutorialId] ?? null;
 }

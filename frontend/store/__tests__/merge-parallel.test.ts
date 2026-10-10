@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import type { Connection, Edge } from 'reactflow';
+import type { DiagramState } from '../diagram/types';
 import { useDiagramStore } from '../diagramStore';
 
 function validNode(id: string, label: string) {
@@ -33,7 +35,7 @@ describe('parallel edge merge (store paths)', () => {
           updatedAt: Date.now(),
         },
       ],
-    } as any);
+    } as Partial<DiagramState>);
 
     const edges = [
       {
@@ -56,7 +58,7 @@ describe('parallel edge merge (store paths)', () => {
 
     useDiagramStore.getState().importDiagram(
       [validNode('a', 'A'), validNode('b', 'B')],
-      edges as any
+      edges as Edge[]
     );
 
     const result = useDiagramStore.getState().edges;
@@ -87,7 +89,7 @@ describe('parallel edge merge (store paths)', () => {
           updatedAt: Date.now(),
         },
       ],
-    } as any);
+    } as Partial<DiagramState>);
 
     useDiagramStore.getState().importDiagram(
       [validNode('a', 'A'), validNode('b', 'B')],
@@ -100,7 +102,7 @@ describe('parallel edge merge (store paths)', () => {
           label: 'queries',
           data: { label: 'queries', connectionType: 'sync' },
         },
-      ] as any
+      ] as Edge[]
     );
 
     useDiagramStore.getState().onConnect({
@@ -108,12 +110,12 @@ describe('parallel edge merge (store paths)', () => {
       target: 'b',
       sourceHandle: 'source-bottom',
       targetHandle: 'target-top',
-    } as any);
+    } as Connection);
 
     const result = useDiagramStore.getState().edges;
     expect(result).toHaveLength(1);
     expect(result[0].label).toBe('queries');
-    expect((result[0].data as any).label).toBe('queries');
+    expect(result[0].data.label).toBe('queries');
     expect(useDiagramStore.getState().pendingLabelEdgeId).toBeNull();
   });
 
@@ -133,7 +135,7 @@ describe('parallel edge merge (store paths)', () => {
           updatedAt: Date.now(),
         },
       ],
-    } as any);
+    } as Partial<DiagramState>);
 
     useDiagramStore.getState().importDiagram(
       [validNode('a', 'A'), validNode('b', 'B')],
@@ -146,7 +148,7 @@ describe('parallel edge merge (store paths)', () => {
           label: 'request',
           data: { label: 'request', connectionType: 'sync' },
         },
-      ] as any
+      ] as Edge[]
     );
 
     useDiagramStore.getState().onConnect({
@@ -154,7 +156,7 @@ describe('parallel edge merge (store paths)', () => {
       target: 'a',
       sourceHandle: 'source-left',
       targetHandle: 'target-right',
-    } as any);
+    } as Connection);
 
     const result = useDiagramStore.getState().edges;
     expect(result).toHaveLength(2);

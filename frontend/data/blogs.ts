@@ -18,6 +18,107 @@ export interface BlogPost {
 
 export const blogs: BlogPost[] = [
   {
+    slug: 'archdraw-claude-code-opencode',
+    title: 'Give your coding agent an architecture workspace with ArchDraw',
+    kicker: 'Agent Integrations',
+    category: 'Integrations',
+    readTime: '8 min',
+    date: 'Sep 8, 2026',
+    summary:
+      'Connect ArchDraw to Codex, Claude Code, or OpenCode so an agent can turn repository context into an editable, shared architecture view while implementation work is happening.',
+    sections: [
+      {
+        heading: 'Why a coding agent needs more than a diagram generator',
+        body:
+          'A coding agent can inspect a repository, trace a request path, and suggest a safe implementation plan. But that understanding is usually trapped inside a chat session. ArchDraw gives the agent a durable visual workspace: it can turn codebase knowledge into an editable architecture view that an engineer can inspect, share, correct, and export. The valuable outcome is not a one-off image. It is a shared architecture view created at the moment the agent has the most relevant context.'
+      },
+      {
+        heading: 'How the ArchDraw skill and MCP server work together',
+        body:
+          'The ArchDraw skill provides the agent with architecture-specific guidance: when to model a system, what evidence to inspect, how to distinguish current state from a proposal, and what makes a diagram useful. The MCP server provides the actions. The agent can generate a diagram from Mermaid, validate the active view, fix its layout, make targeted updates, preserve checkpoints, and export the result. Together, they turn an architecture question into an ArchDraw workspace rather than a disconnected text response.'
+      },
+      {
+        heading: 'Set up ArchDraw in Codex',
+        body:
+          'Codex supports local MCP servers and discovers installed skills from its skills directory. Copy the complete archdraw-diagram skill directory to ~/.codex/skills/archdraw-diagram/, then add the ArchDraw MCP server. Restart Codex after installing the skill or changing MCP configuration.',
+        code: `codex mcp add archdraw -- npx -y @hiabhee/archdraw-mcp-server
+codex mcp list`,
+        bullets: [
+          'The ArchDraw skill supplies architecture-specific guidance; the MCP server provides the diagram actions.',
+          'The same setup works in Codex CLI and makes the ArchDraw tools available to the agent working in your repository.',
+          'To use a self-hosted ArchDraw deployment, set API_BASE_URL when adding the MCP server.',
+        ],
+      },
+      {
+        heading: 'Set up ArchDraw in Claude Code',
+        body:
+          'Install the ArchDraw skill first, then connect the local MCP server. Restart Claude Code after the connection is added. The skill tells Claude how to approach architecture work; the MCP server creates and manages the diagram in ArchDraw.',
+        code: `npx skills add hiabhee/archdraw-skill --skill archdraw-diagram -g -a claude-code
+claude mcp add archdraw -- npx -y @hiabhee/archdraw-mcp-server
+claude mcp list`,
+        bullets: [
+          'Node.js 18 or newer is required to run the MCP server.',
+          'The default MCP configuration connects to the hosted ArchDraw application.',
+          'Use API_BASE_URL in the MCP server environment when connecting to a self-hosted ArchDraw deployment.',
+        ],
+      },
+      {
+        heading: 'Set up ArchDraw in OpenCode',
+        body:
+          'OpenCode supports local MCP servers and discovers skills from a project or user-level skills directory. Add ArchDraw to an opencode.json configuration, then copy the complete archdraw-diagram skill directory into .opencode/skills for a project-specific installation. OpenCode automatically connects the local server unless it is disabled.',
+        code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "archdraw": {
+        "type": "local",
+        "command": ["npx", "-y", "@hiabhee/archdraw-mcp-server"]
+      }
+    }
+  }
+}
+
+opencode mcp list`,
+        bullets: [
+          'Install the skill at .opencode/skills/archdraw-diagram/SKILL.md for one repository, or ~/.config/opencode/skills/archdraw-diagram/SKILL.md for personal use.',
+          'OpenCode prefixes MCP tool names with the server name, so ArchDraw actions appear under names such as archdraw_generate_diagram.',
+          'Ask explicitly for the archdraw-diagram skill if you want to guarantee that the agent loads its architecture workflow.',
+        ],
+      },
+      {
+        heading: 'Ask an architecture question, not a drawing question',
+        body:
+          'The strongest prompts connect a diagram to an engineering decision. Ask the agent to inspect the relevant code and documentation before modelling, then request an editable view and a clear account of uncertainty. This prevents a generic boxes-and-arrows diagram from being mistaken for an accurate architecture record.',
+        code: `Use ArchDraw to map the checkout request flow in this repository. Inspect the relevant routes,
+services, data stores, and external integrations first. Create an editable diagram, identify any
+uncertain relationships, and give me the ArchDraw URL.`,
+      },
+      {
+        heading: 'Use a proposed-state view before implementation',
+        body:
+          'Architecture diagrams are most valuable before a risky change—not after the details have been forgotten. Ask the agent to create a proposed-state view for a migration, refactor, or new asynchronous workflow. It should identify changed components, new dependencies, affected data or event paths, and the assumptions that require a human decision. A proposal must be labelled clearly so it is never confused with the repository’s current state.',
+        code: `We are splitting the payment module. Use ArchDraw to create a proposed-state architecture view,
+show the affected dependencies and data flows, and clearly separate facts from assumptions.`,
+      },
+      {
+        heading: 'A practical workflow for engineering teams',
+        body:
+          'Start each significant change with an architecture question. Let the agent inspect the accessible repository and create a current-state view, then review and correct it with the team in ArchDraw. Create a proposed-state view before implementation, and link the finished view in a pull request, design document, or handover note. For a GitHub repository that is not already available in an agent’s workspace, use ArchDraw’s Repo2Diagram workflow where it is available. This keeps diagrams connected to real engineering work instead of treating them as presentation artifacts.',
+        bullets: [
+          'Map the relevant subsystem before changing it.',
+          'Review evidence and correct any uncertain relationships.',
+          'Create a distinct proposed-state view before implementation.',
+          'Share the final ArchDraw URL where the team reviews the change.',
+        ],
+      },
+      {
+        heading: 'The result: shared architectural memory',
+        body:
+          'The purpose of the integration is not to make agents draw prettier diagrams. It is to give agents and humans a shared place to understand a system, reason about change, and preserve the decisions that matter. Install the skill and MCP server, open a repository, and start with one question: before I change this code, what architecture do I need to understand?'
+      },
+    ],
+  },
+  {
     slug: 'canvas-editor-react-flow',
     title: 'How we built an interactive, state-driven diagramming canvas',
     kicker: 'Canvas System',
@@ -144,6 +245,101 @@ export const blogs: BlogPost[] = [
           'Connecting an AI assistant is straightforward. Both Claude Desktop and Antigravity read local configuration files (like `claude_desktop_config.json` or `mcp_config.json`). The config defines a list of server processes, specifying the command (e.g., "node") and the absolute path to the compiled server file. Once loaded, the AI client automatically registers the tools and makes them available within the chat interface, enabling instant system design capabilities.'
       }
     ]
+  },
+  {
+    slug: 'setup-mcp-claude-desktop',
+    title: 'How to set up the ArchDraw MCP server in Claude Desktop',
+    kicker: 'MCP Setup',
+    category: 'Integrations',
+    readTime: '6 min',
+    date: 'Aug 13, 2026',
+    summary:
+      'A step-by-step guide to connecting the ArchDraw MCP server to Claude Desktop so Claude can generate, edit, validate, and export architecture diagrams directly from the chat window.',
+    sections: [
+      {
+        heading: 'What you need before you start',
+        body:
+          'You need three things before connecting the server: a recent Node.js runtime (18 or newer) so the server can run, a local clone of the ArchDraw repository, and Claude Desktop itself. The MCP server lives inside the repository in the `mcp-server/` directory — it is a self-contained Node process, so nothing needs to be hosted or deployed. If you want the server to persist diagram session files, create a folder for them too (for example `~/ArchDraw/diagrams`); you will point `WORKSPACE_PATH` at it in a later step.',
+        bullets: [
+          'Node.js 18+ — check with `node --version`',
+          'A local clone of the ArchDraw repository (the server builds from `mcp-server/`)',
+          'Claude Desktop, installed and signed in',
+        ],
+        code: `node --version`,
+      },
+      {
+        heading: 'Install dependencies and build the server',
+        body:
+          'The server talks to MCP clients over standard input/output (stdio), so it must be compiled before Claude can launch it. Open a terminal, move into the `mcp-server` directory, install its dependencies, and build. TypeScript compiles the source into `dist/index.js`, which is the file you will point Claude at. During development you can also run `npm run dev` to launch the server straight from source with tsx.',
+        code: `cd mcp-server
+npm install
+npm run build`,
+      },
+      {
+        heading: 'Open your Claude Desktop configuration file',
+        body:
+          'Claude Desktop reads its MCP configuration from a local JSON file. The exact path depends on your operating system:',
+        bullets: [
+          'macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`',
+          'Windows: `%APPDATA%\\Claude\\claude_desktop_config.json`',
+          'Linux: `~/.config/Claude/claude_desktop_config.json`',
+        ],
+      },
+      {
+        heading: 'Register the server in the config file',
+        body:
+          'Add an `mcpServers` block to the JSON. Each entry names a server and describes how Claude should launch it: the command to run (`node`), the absolute path to the compiled server (`dist/index.js`), and an optional `WORKSPACE_PATH` environment variable pointing at the folder where diagram session files are written. Replace the two paths below with real ones.',
+        code: `{
+  "mcpServers": {
+    "archdraw-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/to/archdraw/mcp-server/dist/index.js"],
+      "env": {
+        "WORKSPACE_PATH": "/absolute/path/to/diagrams"
+      }
+    }
+  }
+}`,
+        bullets: [
+          '`command` — how to start the process; if `node` is not on Claude\'s PATH, use the full binary path from `which node`',
+          '`args` — the absolute path to `mcp-server/dist/index.js`',
+          '`env.WORKSPACE_PATH` — where diagram session files are saved; create the folder before launching Claude',
+        ],
+      },
+      {
+        heading: 'Restart Claude Desktop and verify the connection',
+        body:
+          'MCP servers are discovered at startup, so fully quit Claude Desktop (Cmd+Q on macOS) and reopen it. Open a chat and click the tools icon to see the connected server, or simply ask Claude what it can do. The `read_me` tool returns the full server reference — asking for it first is a good habit.',
+        code: `"Draw a three-tier architecture: a React frontend, a Node API behind an API gateway, and a PostgreSQL database"`,
+      },
+      {
+        heading: 'What Claude can do once connected',
+        body:
+          'Once the server is registered, Claude can drive the entire diagram workflow from the chat window. The server exposes these tools over stdio:',
+        bullets: [
+          '`read_me` — the full server reference; call it first to learn the rules and domain checklist',
+          '`generate_diagram` — turn a prompt or Mermaid snippet into a laid-out diagram',
+          '`update_diagram` — add nodes, rewire edges, and change tiers on the current canvas',
+          '`validate_diagram` and `fix_layout` — run structural checks and repair the layout',
+          '`apply_template` and `list_templates` — load curated architecture templates',
+          '`save_checkpoint` and `load_checkpoint` — snapshot and restore diagram state',
+          '`export_diagram` — export as JSON, Mermaid, PNG, or SVG',
+          '`list_node_types` — look up available components and icons',
+          '`get_diagram_state` — inspect the current canvas nodes and edges',
+        ],
+      },
+      {
+        heading: 'Troubleshooting',
+        body: 'Most connection issues come from paths, PATH resolution, or forgetting to restart Claude. Walk through these in order:',
+        bullets: [
+          'The server shows as failed to start — make sure `args` points at `mcp-server/dist/index.js` and that you ran `npm run build` after the latest changes.',
+          '`node` is not found — replace `"node"` in the config with the full binary path from `which node`.',
+          'Tools do not appear after editing the config — quit Claude Desktop completely (Cmd+Q), not just the window, and reopen it.',
+          'Config file is invalid — check Claude\'s log file (`claude_mcp_logs.txt`, stored next to the config) for JSON parse errors.',
+          'No session files are written — create the `WORKSPACE_PATH` directory before starting Claude.',
+        ],
+      },
+    ],
   },
   {
     slug: 'templates-authored-layouts',

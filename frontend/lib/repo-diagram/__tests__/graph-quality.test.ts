@@ -4,9 +4,10 @@ import {
   deduplicateNodes,
   pruneNoisyEdges,
   applyReviewCorrections,
+  constrainGraphForRepoType,
   isImportantOrphan,
 } from '../graph-quality';
-import type { ExtractedNode, RichEdge, StaticSignal } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, RichEdge, RepoProfile, StaticSignal } from '@/lib/types/repo-diagram';
 
 describe('expandBaselineFromSignals', () => {
   it('adds grouped API route nodes from route signals', () => {
@@ -35,6 +36,45 @@ describe('expandBaselineFromSignals', () => {
     ];
     const expanded = expandBaselineFromSignals([], signals);
     expect(expanded.some((n) => n.id === 'middleware' && n.type === 'MIDDLEWARE')).toBe(true);
+  });
+
+  it('adds source-backed database and external SDK nodes', () => {
+    const signals: StaticSignal[] = [
+      { type: 'schema', label: 'Subscription', source: 'prisma/schema.prisma', details: { orm: 'prisma' }, confidence: 'high' },
+      { type: 'sdk_usage', label: 'Stripe', source: 'app/api/checkout/route.ts', details: { category: 'payments' }, confidence: 'medium' },
+    ];
+    const expanded = expandBaselineFromSignals([], signals);
+    expect(expanded).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'database', type: 'DATABASE', sourceFiles: ['prisma/schema.prisma'] }),
+      expect.objectContaining({ id: 'external_stripe', label: 'Stripe', type: 'EXTERNAL_SERVICE' }),
+    ]));
+  });
+});
+
+describe('constrainGraphForRepoType', () => {
+  const profile = (repoType: RepoProfile['repoType'], framework: string | null): RepoProfile => ({
+    repoType, architecturePattern: 'unknown', primaryStack: { framework, language: 'TypeScript', runtime: 'Node.js' },
+    applicationDomain: '', coreCapabilities: [], primaryUserFlows: [], confidence: 'high', reasoning: '',
+    extractionStrategy: { keyDirectories: [], entryPoints: [], moduleStructure: '', focusAreas: [] },
+  });
+  const noisyNodes: ExtractedNode[] = [
+    { id: 'express', label: 'Express', type: 'CORE_MODULE', description: '', sourceFiles: ['index.js'], confidence: 'high' },
+    { id: 'redis', label: 'Redis Cache', type: 'CACHE', description: '', sourceFiles: [], confidence: 'low' },
+  ];
+
+  it('reduces framework repositories to their canonical library node', () => {
+    const graph = constrainGraphForRepoType(noisyNodes, [], profile('library', 'Express'), []);
+    expect(graph.nodes).toEqual([expect.objectContaining({ label: 'Express', type: 'CORE_MODULE' })]);
+    expect(graph.edges).toEqual([]);
+  });
+
+  it('represents many config examples as a catalog rather than a deployment', () => {
+    const graph = constrainGraphForRepoType(noisyNodes, [], profile('devops_config', null), [
+      { type: 'docker_service', label: 'api', source: 'examples/a/compose.yml', details: {}, confidence: 'high' },
+      { type: 'docker_service', label: 'web', source: 'examples/b/compose.yml', details: {}, confidence: 'high' },
+    ]);
+    expect(graph.nodes).toEqual([expect.objectContaining({ label: 'Configuration Examples' })]);
+    expect(graph.edges).toEqual([]);
   });
 });
 

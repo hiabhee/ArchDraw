@@ -126,7 +126,7 @@ export default function LiveFeedPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border-default bg-surface-page overflow-hidden">
+      <div className="rounded-xl border border-border-default bg-surface-panel overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 py-2 px-3 border-b border-border-default text-[10px] text-text-muted uppercase tracking-wider">
           <span className="w-16 shrink-0">Time</span>

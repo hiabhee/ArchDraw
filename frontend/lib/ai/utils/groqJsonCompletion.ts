@@ -29,6 +29,8 @@ interface ReasoningModelParams {
    * (the Groq API does not yet support response_format.json_schema natively).
    */
   json_schema?: Record<string, unknown>;
+  /** Cancels the underlying SDK request when the enclosing pipeline aborts. */
+  signal?: AbortSignal;
 }
 
 type CompletionParams = Omit<ChatCompletionCreateParamsNonStreaming, 'response_format'> & ReasoningModelParams;
@@ -63,7 +65,7 @@ export async function groqJsonCompletion(
   client: Groq,
   params: CompletionParams
 ): Promise<string> {
-  const { reasoning_effort, json_schema, ...coreParams } = params;
+  const { reasoning_effort, json_schema, signal, ...coreParams } = params;
   const shouldUseReasoning = reasoning_effort && modelSupportsReasoning(coreParams.model);
 
   const body: ChatCompletionCreateParamsNonStreaming = {
@@ -76,6 +78,7 @@ export async function groqJsonCompletion(
   try {
     const completion = await client.chat.completions.create(
       body,
+      { signal },
     );
 
     const msg = completion.choices[0]?.message as ExtendedChatMessage | undefined;
@@ -91,13 +94,13 @@ export async function groqJsonCompletion(
     // If content is empty, retry without response_format (some models return empty with json_object mode)
     if (!content.trim()) {
       logger.warn(`[groqJsonCompletion] Empty content with response_format (finish_reason=${finishReason}, prompt_tokens=${usage?.prompt_tokens ?? '?'}, completion_tokens=${usage?.completion_tokens ?? '?'}), retrying without...`);
-      const { reasoning_effort: _r2, json_schema: _j2, response_format: _rf2, ...retryParams } = params as CompletionParams & Record<string, unknown>;
+      const { reasoning_effort: _r2, json_schema: _j2, signal: _s2, response_format: _rf2, ...retryParams } = params as CompletionParams & Record<string, unknown>;
       const retryBody: ChatCompletionCreateParamsNonStreaming = {
         ...retryParams,
         ...(shouldUseReasoning ? { reasoning_effort } : {}),
         ...(json_schema ? { json_schema } : {}),
       } as ChatCompletionCreateParamsNonStreaming;
-      const retryCompletion = await client.chat.completions.create(retryBody);
+      const retryCompletion = await client.chat.completions.create(retryBody, { signal });
       const retryMsg = retryCompletion.choices[0]?.message as ExtendedChatMessage | undefined;
       const retryContent = retryMsg?.content ?? '';
       const retryFinishReason = retryCompletion.choices[0]?.finish_reason;
@@ -114,7 +117,7 @@ export async function groqJsonCompletion(
     if (!isResponseFormatError(error)) throw error;
 
     // Retry without response_format if JSON mode is unsupported
-    const { reasoning_effort: _r, json_schema: _j, response_format: _rf, ...fallbackParams } = params as CompletionParams & Record<string, unknown>;
+    const { reasoning_effort: _r, json_schema: _j, signal: _s, response_format: _rf, ...fallbackParams } = params as CompletionParams & Record<string, unknown>;
     const fallbackBody: ChatCompletionCreateParamsNonStreaming = {
       ...fallbackParams,
       ...(shouldUseReasoning ? { reasoning_effort } : {}),
@@ -123,6 +126,7 @@ export async function groqJsonCompletion(
 
     const completion = await client.chat.completions.create(
       fallbackBody,
+      { signal },
     );
 
     const msg = completion.choices[0]?.message as ExtendedChatMessage | undefined;

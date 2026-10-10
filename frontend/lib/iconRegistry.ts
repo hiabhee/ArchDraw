@@ -66,117 +66,117 @@ export const iconRegistry: Record<string, IconEntry> = {
     'aws-cloudformation': { kind: 'aws', icon: 'aws-cloudformation', color: '#3F8624', description: 'Infrastructure as code for AWS' },
 
     // ── Databases ──────────────────────────────────────────────────────────────
-    'mongodb': { kind: 'custom', icon: 'arch-database', color: '#47A248', description: 'Document-oriented NoSQL database' },
+    'mongodb': { kind: 'custom', icon: 'arch-document-db', color: '#47A248', description: 'Document-oriented NoSQL database' },
     'postgresql': { kind: 'custom', icon: 'arch-database', color: '#336791', description: 'Advanced open-source relational database' },
     'mysql': { kind: 'custom', icon: 'arch-database', color: '#4479A1', description: "World's most popular open-source database" },
     'sqlite': { kind: 'custom', icon: 'arch-database', color: '#003B57', description: 'Lightweight embedded relational database' },
     'redis': { kind: 'custom', icon: 'arch-cache', color: '#DC382D', description: 'In-memory data structure store and cache' },
-    'cassandra': { kind: 'custom', icon: 'arch-database', color: '#1287B1', description: 'Distributed wide-column NoSQL database' },
+    'cassandra': { kind: 'custom', icon: 'arch-key-value', color: '#1287B1', description: 'Distributed wide-column NoSQL database' },
     'cockroachdb': { kind: 'custom', icon: 'arch-database', color: '#6933FF', description: 'Distributed SQL database for global apps' },
     'supabase': { kind: 'custom', icon: 'arch-database', color: '#3ECF8E', description: 'Open-source Firebase alternative with Postgres' },
     'planetscale': { kind: 'custom', icon: 'arch-database', color: '#000000', description: 'Serverless MySQL platform with branching' },
-    'fauna': { kind: 'custom', icon: 'arch-database', color: '#3A1AB6', description: 'Distributed document-relational database' },
-    'firestore': { kind: 'custom', icon: 'arch-database', color: '#FFCA28', description: 'Flexible, scalable NoSQL cloud database' },
+    'fauna': { kind: 'custom', icon: 'arch-document-db', color: '#3A1AB6', description: 'Distributed document-relational database' },
+    'firestore': { kind: 'custom', icon: 'arch-document-db', color: '#FFCA28', description: 'Flexible, scalable NoSQL cloud database' },
 
     // ── ORMs & Query Tools ─────────────────────────────────────────────────────
-    'prisma': { kind: 'lucide', icon: 'Triangle', color: '#2D3748', description: 'Next-generation ORM for Node.js and TypeScript' },
-    'drizzle': { kind: 'lucide', icon: 'Droplets', color: '#C5F74F', description: 'Lightweight TypeScript ORM with SQL-like syntax' },
-    'typeorm': { kind: 'lucide', icon: 'Code2', color: '#E83524', description: 'ORM for TypeScript and JavaScript' },
-    'sequelize': { kind: 'lucide', icon: 'Code2', color: '#52B0E7', description: 'Promise-based Node.js ORM for SQL databases' },
+    'prisma': { kind: 'custom', icon: 'arch-database', color: '#2D3748', description: 'Next-generation ORM for Node.js and TypeScript' },
+    'drizzle': { kind: 'custom', icon: 'arch-database', color: '#C5F74F', description: 'Lightweight TypeScript ORM with SQL-like syntax' },
+    'typeorm': { kind: 'custom', icon: 'arch-database', color: '#E83524', description: 'ORM for TypeScript and JavaScript' },
+    'sequelize': { kind: 'custom', icon: 'arch-database', color: '#52B0E7', description: 'Promise-based Node.js ORM for SQL databases' },
 
     // ── Auth ───────────────────────────────────────────────────────────────────
     'auth0': { kind: 'custom', icon: 'arch-auth', color: '#EB5424', description: 'Identity platform for app builders' },
-    'clerk': { kind: 'custom', icon: 'arch-auth', color: '#6C47FF', description: 'Complete user management and authentication' },
+    'clerk': { kind: 'custom', icon: 'arch-users', color: '#6C47FF', description: 'Complete user management and authentication' },
     'nextauth': { kind: 'custom', icon: 'arch-auth', color: '#000000', description: 'Authentication for Next.js applications' },
     'firebase-auth': { kind: 'custom', icon: 'arch-auth', color: '#FFCA28', description: "Google's authentication service" },
     'supabase-auth': { kind: 'custom', icon: 'arch-auth', color: '#3ECF8E', description: 'Row-level security and JWT auth via Supabase' },
 
     // ── Search ─────────────────────────────────────────────────────────────────
-    'elasticsearch': { kind: 'lucide', icon: 'Search', color: '#FEC514', description: 'Distributed search and analytics engine' },
-    'algolia': { kind: 'lucide', icon: 'Search', color: '#003DFF', description: 'Hosted search API for fast results' },
-    'typesense': { kind: 'lucide', icon: 'Search', color: '#E1341E', description: 'Open-source typo-tolerant search engine' },
-    'meilisearch': { kind: 'lucide', icon: 'Search', color: '#FF5CAA', description: 'Lightning-fast open-source search engine' },
+    'elasticsearch': { kind: 'custom', icon: 'arch-search', color: '#FEC514', description: 'Distributed search and analytics engine' },
+    'algolia': { kind: 'custom', icon: 'arch-search', color: '#003DFF', description: 'Hosted search API for fast results' },
+    'typesense': { kind: 'custom', icon: 'arch-search', color: '#E1341E', description: 'Open-source typo-tolerant search engine' },
+    'meilisearch': { kind: 'custom', icon: 'arch-search', color: '#FF5CAA', description: 'Lightning-fast open-source search engine' },
 
     // ── Messaging ──────────────────────────────────────────────────────────────
     'kafka': { kind: 'custom', icon: 'arch-event-stream', color: '#231F20', description: 'Distributed event streaming platform' },
     'rabbitmq': { kind: 'custom', icon: 'arch-message-queue', color: '#FF6600', description: 'Open-source message broker' },
-    'upstash': { kind: 'custom', icon: 'arch-message-queue', color: '#00E9A3', description: 'Serverless Redis and Kafka for the edge' },
+    'upstash': { kind: 'custom', icon: 'arch-cache', color: '#00E9A3', description: 'Serverless Redis and Kafka for the edge' },
 
     // ── Monitoring ─────────────────────────────────────────────────────────────
     'datadog': { kind: 'custom', icon: 'arch-observability', color: '#632CA6', description: 'Cloud monitoring and security platform' },
-    'sentry': { kind: 'custom', icon: 'arch-observability', color: '#362D59', description: 'Application error tracking and performance' },
-    'newrelic': { kind: 'custom', icon: 'arch-observability', color: '#1CE783', description: 'Full-stack observability platform' },
-    'grafana': { kind: 'custom', icon: 'arch-observability', color: '#F46800', description: 'Open-source analytics and monitoring' },
-    'prometheus': { kind: 'custom', icon: 'arch-observability', color: '#E6522C', description: 'Open-source metrics and alerting toolkit' },
+    'sentry': { kind: 'custom', icon: 'arch-logs', color: '#362D59', description: 'Application error tracking and performance' },
+    'newrelic': { kind: 'custom', icon: 'arch-metrics', color: '#1CE783', description: 'Full-stack observability platform' },
+    'grafana': { kind: 'custom', icon: 'arch-metrics', color: '#F46800', description: 'Open-source analytics and monitoring' },
+    'prometheus': { kind: 'custom', icon: 'arch-metrics', color: '#E6522C', description: 'Open-source metrics and alerting toolkit' },
 
     // ── AI ─────────────────────────────────────────────────────────────────────
     'openai': { kind: 'custom', icon: 'arch-ai', color: '#412991', description: 'GPT models and AI APIs' },
     'anthropic': { kind: 'custom', icon: 'arch-ai', color: '#D4A27F', description: 'Claude AI models for safe, helpful AI' },
-    'pinecone': { kind: 'custom', icon: 'arch-storage', color: '#1C17FF', description: 'Vector database for ML applications' },
-    'weaviate': { kind: 'custom', icon: 'arch-storage', color: '#FA0050', description: 'Open-source vector search engine' },
-    'langchain': { kind: 'custom', icon: 'arch-ai', color: '#1C3C3C', description: 'Framework for LLM-powered applications' },
+    'pinecone': { kind: 'custom', icon: 'arch-vector', color: '#1C17FF', description: 'Vector database for ML applications' },
+    'weaviate': { kind: 'custom', icon: 'arch-vector', color: '#FA0050', description: 'Open-source vector search engine' },
+    'langchain': { kind: 'custom', icon: 'arch-agent', color: '#1C3C3C', description: 'Framework for LLM-powered applications' },
     'huggingface': { kind: 'custom', icon: 'arch-ai', color: '#FFD21E', description: 'Open-source ML models and datasets' },
 
     // ── DevOps ─────────────────────────────────────────────────────────────────
     'docker': { kind: 'custom', icon: 'arch-docker', color: '#2496ED', description: 'Build, ship, and run containerized apps' },
-    'kubernetes': { kind: 'custom', icon: 'arch-service', color: '#326CE5', description: 'Container orchestration at scale' },
+    'kubernetes': { kind: 'custom', icon: 'arch-kubernetes', color: '#326CE5', description: 'Container orchestration at scale' },
     'vercel': { kind: 'custom', icon: 'arch-web', color: '#000000', description: 'Frontend cloud for web deployment' },
     'railway': { kind: 'custom', icon: 'arch-server', color: '#0B0D0E', description: 'Infrastructure platform for any language' },
     'render': { kind: 'custom', icon: 'arch-server', color: '#46E3B7', description: 'Unified cloud for apps and databases' },
-    'flyio': { kind: 'custom', icon: 'arch-server', color: '#7B3FE4', description: 'Run full-stack apps close to users' },
-    'github-actions': { kind: 'custom', icon: 'arch-service', color: '#2088FF', description: 'CI/CD automation built into GitHub' },
+    'flyio': { kind: 'custom', icon: 'arch-cdn', color: '#7B3FE4', description: 'Run full-stack apps close to users' },
+    'github-actions': { kind: 'custom', icon: 'arch-cicd', color: '#2088FF', description: 'CI/CD automation built into GitHub' },
 
     // ── Azure Compute ─────────────────────────────────────────────────────────────
-    'azure-vm': { kind: 'lucide', icon: 'Server', color: '#0078D4', description: 'Azure Virtual Machines' },
-    'azure-functions': { kind: 'lucide', icon: 'Zap', color: '#0078D4', description: 'Azure Functions serverless compute' },
-    'azure-appservice': { kind: 'lucide', icon: 'Globe', color: '#0078D4', description: 'Azure App Service web hosting' },
-    'azure-aks': { kind: 'lucide', icon: 'CircleDot', color: '#0078D4', description: 'Azure Kubernetes Service' },
-    'azure-container-instance': { kind: 'lucide', icon: 'Box', color: '#0078D4', description: 'Azure Container Instances' },
+    'azure-vm': { kind: 'custom', icon: 'arch-server', color: '#0078D4', description: 'Azure Virtual Machines' },
+    'azure-functions': { kind: 'custom', icon: 'arch-function', color: '#0078D4', description: 'Azure Functions serverless compute' },
+    'azure-appservice': { kind: 'custom', icon: 'arch-web', color: '#0078D4', description: 'Azure App Service web hosting' },
+    'azure-aks': { kind: 'custom', icon: 'arch-kubernetes', color: '#0078D4', description: 'Azure Kubernetes Service' },
+    'azure-container-instance': { kind: 'custom', icon: 'arch-docker', color: '#0078D4', description: 'Azure Container Instances' },
 
     // ── Azure Storage & Databases ────────────────────────────────────────────────
-    'azure-storage': { kind: 'lucide', icon: 'HardDrive', color: '#0078D4', description: 'Azure Blob Storage' },
-    'azure-sql': { kind: 'lucide', icon: 'Database', color: '#0078D4', description: 'Azure SQL Database' },
-    'azure-cosmosdb': { kind: 'lucide', icon: 'Layers', color: '#0078D4', description: 'Azure Cosmos DB NoSQL database' },
-    'azure-redis': { kind: 'lucide', icon: 'Gauge', color: '#0078D4', description: 'Azure Cache for Redis' },
+    'azure-storage': { kind: 'custom', icon: 'arch-storage', color: '#0078D4', description: 'Azure Blob Storage' },
+    'azure-sql': { kind: 'custom', icon: 'arch-database', color: '#0078D4', description: 'Azure SQL Database' },
+    'azure-cosmosdb': { kind: 'custom', icon: 'arch-document-db', color: '#0078D4', description: 'Azure Cosmos DB NoSQL database' },
+    'azure-redis': { kind: 'custom', icon: 'arch-cache', color: '#0078D4', description: 'Azure Cache for Redis' },
 
     // ── Azure Networking ──────────────────────────────────────────────────────────
-    'azure-api-management': { kind: 'lucide', icon: 'Webhook', color: '#0078D4', description: 'Azure API Management' },
-    'azure-cdn': { kind: 'lucide', icon: 'RadioTower', color: '#0078D4', description: 'Azure Content Delivery Network' },
-    'azure-vnet': { kind: 'lucide', icon: 'Network', color: '#0078D4', description: 'Azure Virtual Network' },
-    'azure-lb': { kind: 'lucide', icon: 'Scale', color: '#0078D4', description: 'Azure Load Balancer' },
-    'azure-app-gateway': { kind: 'lucide', icon: 'Shuffle', color: '#0078D4', description: 'Azure Application Gateway' },
+    'azure-api-management': { kind: 'custom', icon: 'arch-api-gateway', color: '#0078D4', description: 'Azure API Management' },
+    'azure-cdn': { kind: 'custom', icon: 'arch-cdn', color: '#0078D4', description: 'Azure Content Delivery Network' },
+    'azure-vnet': { kind: 'custom', icon: 'arch-dns', color: '#0078D4', description: 'Azure Virtual Network' },
+    'azure-lb': { kind: 'custom', icon: 'arch-load-balancer', color: '#0078D4', description: 'Azure Load Balancer' },
+    'azure-app-gateway': { kind: 'custom', icon: 'arch-proxy', color: '#0078D4', description: 'Azure Application Gateway' },
 
     // ── Azure Messaging ────────────────────────────────────────────────────────────
-    'azure-servicebus': { kind: 'lucide', icon: 'MessageSquare', color: '#0078D4', description: 'Azure Service Bus messaging' },
-    'azure-eventhub': { kind: 'lucide', icon: 'Activity', color: '#0078D4', description: 'Azure Event Hubs' },
-    'azure-event-grid': { kind: 'lucide', icon: 'Radio', color: '#0078D4', description: 'Azure Event Grid' },
+    'azure-servicebus': { kind: 'custom', icon: 'arch-message-queue', color: '#0078D4', description: 'Azure Service Bus messaging' },
+    'azure-eventhub': { kind: 'custom', icon: 'arch-event-stream', color: '#0078D4', description: 'Azure Event Hubs' },
+    'azure-event-grid': { kind: 'custom', icon: 'arch-webhook', color: '#0078D4', description: 'Azure Event Grid' },
 
     // ── Azure Security ─────────────────────────────────────────────────────────────
-    'azure-ad': { kind: 'lucide', icon: 'Users', color: '#0078D4', description: 'Azure Active Directory' },
-    'azure-keyvault': { kind: 'lucide', icon: 'Lock', color: '#0078D4', description: 'Azure Key Vault secrets management' },
+    'azure-ad': { kind: 'custom', icon: 'arch-users', color: '#0078D4', description: 'Azure Active Directory' },
+    'azure-keyvault': { kind: 'custom', icon: 'arch-secrets', color: '#0078D4', description: 'Azure Key Vault secrets management' },
 
     // ── Azure Observability ───────────────────────────────────────────────────────
-    'azure-monitor': { kind: 'lucide', icon: 'LayoutDashboard', color: '#0078D4', description: 'Azure Monitor' },
-    'azure-application-insights': { kind: 'lucide', icon: 'GitBranch', color: '#0078D4', description: 'Azure Application Insights' },
+    'azure-monitor': { kind: 'custom', icon: 'arch-observability', color: '#0078D4', description: 'Azure Monitor' },
+    'azure-application-insights': { kind: 'custom', icon: 'arch-trace', color: '#0078D4', description: 'Azure Application Insights' },
 
     // ── GCP Compute ────────────────────────────────────────────────────────────────
-    'gcp-compute-engine': { kind: 'lucide', icon: 'Server', color: '#4285F4', description: 'GCP Compute Engine VMs' },
-    'gcp-cloud-functions': { kind: 'lucide', icon: 'Zap', color: '#4285F4', description: 'GCP Cloud Functions' },
-    'gcp-run': { kind: 'lucide', icon: 'Plane', color: '#4285F4', description: 'GCP Cloud Run serverless containers' },
-    'gcp-gke': { kind: 'lucide', icon: 'CircleDot', color: '#4285F4', description: 'GCP Kubernetes Engine' },
+    'gcp-compute-engine': { kind: 'custom', icon: 'arch-server', color: '#4285F4', description: 'GCP Compute Engine VMs' },
+    'gcp-cloud-functions': { kind: 'custom', icon: 'arch-function', color: '#4285F4', description: 'GCP Cloud Functions' },
+    'gcp-run': { kind: 'custom', icon: 'arch-docker', color: '#4285F4', description: 'GCP Cloud Run serverless containers' },
+    'gcp-gke': { kind: 'custom', icon: 'arch-kubernetes', color: '#4285F4', description: 'GCP Kubernetes Engine' },
 
     // ── GCP Storage & Databases ───────────────────────────────────────────────────
-    'gcp-storage': { kind: 'lucide', icon: 'HardDrive', color: '#4285F4', description: 'GCP Cloud Storage' },
-    'gcp-sql': { kind: 'lucide', icon: 'Database', color: '#4285F4', description: 'GCP Cloud SQL' },
-    'gcp-firestore': { kind: 'lucide', icon: 'Layers', color: '#4285F4', description: 'GCP Firestore NoSQL database' },
-    'gcp-bigtable': { kind: 'lucide', icon: 'Gauge', color: '#4285F4', description: 'GCP Bigtable wide-column database' },
-    'gcp-spanner': { kind: 'lucide', icon: 'Database', color: '#4285F4', description: 'GCP Cloud Spanner global SQL database' },
+    'gcp-storage': { kind: 'custom', icon: 'arch-storage', color: '#4285F4', description: 'GCP Cloud Storage' },
+    'gcp-sql': { kind: 'custom', icon: 'arch-database', color: '#4285F4', description: 'GCP Cloud SQL' },
+    'gcp-firestore': { kind: 'custom', icon: 'arch-document-db', color: '#4285F4', description: 'GCP Firestore NoSQL database' },
+    'gcp-bigtable': { kind: 'custom', icon: 'arch-key-value', color: '#4285F4', description: 'GCP Bigtable wide-column database' },
+    'gcp-spanner': { kind: 'custom', icon: 'arch-database', color: '#4285F4', description: 'GCP Cloud Spanner global SQL database' },
 
     // ── GCP Networking ─────────────────────────────────────────────────────────────
-    'gcp-api-gateway': { kind: 'lucide', icon: 'Webhook', color: '#4285F4', description: 'GCP API Gateway' },
-    'gcp-cloud-cdn': { kind: 'lucide', icon: 'RadioTower', color: '#4285F4', description: 'GCP Cloud CDN' },
-    'gcp-vpc': { kind: 'lucide', icon: 'Network', color: '#4285F4', description: 'GCP Virtual Private Cloud' },
-    'gcp-lb': { kind: 'lucide', icon: 'Scale', color: '#4285F4', description: 'GCP Cloud Load Balancing' },
+    'gcp-api-gateway': { kind: 'custom', icon: 'arch-api-gateway', color: '#4285F4', description: 'GCP API Gateway' },
+    'gcp-cloud-cdn': { kind: 'custom', icon: 'arch-cdn', color: '#4285F4', description: 'GCP Cloud CDN' },
+    'gcp-vpc': { kind: 'custom', icon: 'arch-dns', color: '#4285F4', description: 'GCP Virtual Private Cloud' },
+    'gcp-lb': { kind: 'custom', icon: 'arch-load-balancer', color: '#4285F4', description: 'GCP Cloud Load Balancing' },
 
     // ── Generic Service Types ──────────────────────────────────────────────────────
     'generic-api': { kind: 'custom', icon: 'arch-api-gateway', color: '#6B7280', description: 'Generic API service' },
@@ -185,13 +185,13 @@ export const iconRegistry: Record<string, IconEntry> = {
     'generic-queue': { kind: 'custom', icon: 'arch-message-queue', color: '#6B7280', description: 'Generic message queue' },
     'generic-cache': { kind: 'custom', icon: 'arch-cache', color: '#6B7280', description: 'Generic cache service' },
     'generic-auth': { kind: 'custom', icon: 'arch-auth', color: '#6B7280', description: 'Generic authentication service' },
-    'generic-search': { kind: 'custom', icon: 'arch-observability', color: '#6B7280', description: 'Generic search service' },
+    'generic-search': { kind: 'custom', icon: 'arch-search', color: '#6B7280', description: 'Generic search service' },
     'generic-compute': { kind: 'custom', icon: 'arch-server', color: '#6B7280', description: 'Generic compute service' },
     'generic-container': { kind: 'custom', icon: 'arch-docker', color: '#6B7280', description: 'Generic container service' },
     'generic-server': { kind: 'custom', icon: 'arch-server', color: '#6B7280', description: 'Generic server/service' },
     'generic-client': { kind: 'custom', icon: 'arch-web', color: '#6B7280', description: 'Generic client/application' },
-    'generic-cdn': { kind: 'custom', icon: 'arch-api-gateway', color: '#6B7280', description: 'Generic CDN service' },
-    'generic-dns': { kind: 'custom', icon: 'arch-external', color: '#6B7280', description: 'Generic DNS service' },
-    'generic-monitoring': { kind: 'custom', icon: 'arch-observability', color: '#6B7280', description: 'Generic monitoring service' },
-    'generic-logging': { kind: 'custom', icon: 'arch-observability', color: '#6B7280', description: 'Generic logging service' },
+    'generic-cdn': { kind: 'custom', icon: 'arch-cdn', color: '#6B7280', description: 'Generic CDN service' },
+    'generic-dns': { kind: 'custom', icon: 'arch-dns', color: '#6B7280', description: 'Generic DNS service' },
+    'generic-monitoring': { kind: 'custom', icon: 'arch-metrics', color: '#6B7280', description: 'Generic monitoring service' },
+    'generic-logging': { kind: 'custom', icon: 'arch-logs', color: '#6B7280', description: 'Generic logging service' },
 };

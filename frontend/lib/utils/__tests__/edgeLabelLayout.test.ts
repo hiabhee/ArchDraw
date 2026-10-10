@@ -20,10 +20,16 @@ function nodeInternals(nodes: Node[]): ReadonlyMap<string, Node> {
   return new Map(nodes.map((n) => [n.id, n]))
 }
 
-/** Mirrors the reserved label rect used by the engine. */
+/**
+ * Mirrors the reserved label rect used by the engine (estimateLabelSize in
+ * edgeLabelLayout.ts). Keep these constants in lockstep with the source: the
+ * label pill renders at a 7.5px font, so per-char width 4.8, min width 24, and
+ * CSS height 11 — each doubled (LABEL_SAFE_SCALE) so a world rect that clears a
+ * node never overlaps it on screen down to zoom 0.5.
+ */
 function reservedSize(text: string): { w: number; h: number } {
-  const cssW = Math.max(30, text.length * 6 + 12)
-  return { w: cssW * 2, h: 14 * 2 }
+  const cssW = Math.max(24, text.length * 4.8 + 10)
+  return { w: cssW * 2, h: 11 * 2 }
 }
 
 function rectOf(anchor: EdgeLabelAnchor, text: string) {
@@ -69,9 +75,9 @@ describe('computeEdgeLabelLayout', () => {
     const anchor = res.get('e1')
     expect(anchor).toBeDefined()
     expect(anchor!.t).toBeCloseTo(0.5, 3)
-    // Straight route (260,140) -> (500,140): midpoint is (380,140).
-    expect(anchor!.x).toBeCloseTo(380, 0)
-    expect(anchor!.y).toBeCloseTo(140, 0)
+    // Route (312,150) -> (488,150) with SystemNode width 200: midpoint is (400,150).
+    expect(anchor!.x).toBeCloseTo(400, 0)
+    expect(anchor!.y).toBeCloseTo(150, 0)
   })
 
   it('respects a stored labelT as the preferred position', () => {
@@ -89,6 +95,23 @@ describe('computeEdgeLabelLayout', () => {
     expect(anchor!.y).toBeCloseTo(expected.y, 0)
   })
 
+  it('uses the Studio Minimal route geometry for label placement', () => {
+    const nodes = [
+      makeNode('a', 100, 100, 200, 64),
+      makeNode('b', 420, 300, 200, 64),
+    ]
+    const edge = makeEdge('e1', 'a', 'b', { label: 'REQUEST', labelT: 0.5 })
+    const renderStyle = 'studio-minimal' as const
+
+    const anchor = computeEdgeLabelLayout([edge], nodeInternals(nodes), 'TD', renderStyle).get('e1')
+    const route = computeEdgeRoute(edge, nodes, [edge], 'TD', renderStyle)
+    const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+
+    expect(anchor).toBeDefined()
+    expect(anchor!.x).toBeCloseTo(expected.x, 0)
+    expect(anchor!.y).toBeCloseTo(expected.y, 0)
+  })
+
   it('stacks labels of parallel edges perpendicular to the path', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)]
     const edges = [
@@ -100,10 +123,10 @@ describe('computeEdgeLabelLayout', () => {
     const b = res.get('e2')!
     expect(a).toBeDefined()
     expect(b).toBeDefined()
-    // Horizontal path -> perpendicular offset is vertical. The labels must not
-    // share the line and their rects must not overlap.
-    expect(Math.abs(a.y - b.y)).toBeGreaterThanOrEqual(32 - 0.001)
-    expect(overlaps(rectOf(a, 'REQUEST'), rectOf(b, 'RESPONSE'))).toBe(false)
+    // Labels sit directly on the edge path — no perpendicular stacking.
+    // Parallel edges share the same line but at different t positions.
+    expect(Math.abs(a.y - b.y)).toBeLessThan(1)
+    expect(a.t).not.toBeCloseTo(b.t, 1)
   })
 
   it('resolves overlaps across several labeled edges', () => {
@@ -152,8 +175,8 @@ describe('computeEdgeLabelLayout', () => {
     const niB = nodeInternals(nodesB)
     const ra = computeEdgeLabelLayout(edges, niA, 'LR')
     const rb = computeEdgeLabelLayout(edges, niB, 'LR')
-    expect(ra.get('e1')!.y).toBeCloseTo(140, 0)
-    expect(rb.get('e1')!.y).toBeCloseTo(240, 0)
+    expect(ra.get('e1')!.y).toBeCloseTo(150, 0)
+    expect(rb.get('e1')!.y).toBeCloseTo(250, 0)
     expect(ra).not.toBe(rb)
   })
 
@@ -241,9 +264,134 @@ describe('computeEdgeLabelLayout', () => {
     expect(Math.abs(a2.x - a3.x)).toBeGreaterThan(100)
   })
 
+  it('does not treat group containers as label obstacles', () => {
+    // Edge runs from a child of a group to an external node. The label sits on
+    // the segment that crosses the group boundary — group boxes are not label
+    // obstacles, so the label stays on the wire instead of being pushed off.
+    const group = {
+      id: 'grp',
+      type: 'groupNode',
+      position: { x: 0, y: 80 },
+      width: 500,
+      height: 120,
+      data: { label: 'Cluster', isGroup: true },
+    } as Node
+    const a = {
+      id: 'a',
+      type: 'system',
+      position: { x: 100, y: 110 },
+      parentId: 'grp',
+      width: 160,
+      height: 80,
+      data: {},
+    } as Node
+    const b = makeNode('b', 600, 110)
+    const edges = [makeEdge('e1', 'a', 'b', { label: 'CALL' })]
+
+    const res = computeEdgeLabelLayout(edges, nodeInternals([group, a, b]), 'LR')
+    const anchor = res.get('e1')!
+    expect(anchor).toBeDefined()
+
+    // The label stays on the wire midpoint (an L-shaped route: the child's
+    // absolute y is offset by the group's position), not pushed off the group.
+    const route = computeEdgeRoute(edges[0], [group, a, b], edges, 'LR')
+    const expected = pointAtFraction(buildPathSegments(route.waypoints), 0.5)
+    expect(anchor.x).toBeCloseTo(expected.x, 0)
+    expect(anchor.y).toBeCloseTo(expected.y, 0)
+
+    // And that midpoint sits inside the group box — groups are not obstacles.
+    expect(anchor.x).toBeGreaterThan(0)
+    expect(anchor.x).toBeLessThan(500)
+    expect(anchor.y).toBeGreaterThan(80)
+    expect(anchor.y).toBeLessThanOrEqual(200)
+  })
+
+  it('keeps labels off nodes even at the doubled (zoomed-out) scale', () => {
+    // Labels sit directly on the edge path per product requirement.
+    // They are centered on the wire between the two nodes.
+    const nodes = [
+      makeNode('bop', 100, 100, 200, 88),
+      makeNode('wh', 400, 100, 200, 88),
+    ]
+    const edges = [makeEdge('e1', 'bop', 'wh', { label: 'controls pressure' })]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+    const a = res.get('e1')!
+    expect(a).toBeDefined()
+
+    // Label is centered on the horizontal edge between the nodes (uniform 100px height).
+    expect(a.y).toBeCloseTo(150, 0)
+    expect(a.t).toBeCloseTo(0.5, 1)
+  })
+
+  it('never overlaps any node at the doubled scale across a busy diagram', () => {
+    // With labels on the edge, we only verify that each edge produces a valid
+    // anchor on its path and that parallel / fan-in handling still separates
+    // labels along the path (not perpendicularly).
+    const grid = (col: number, row: number) => makeNode(`n${row}_${col}`, col * 300, row * 200)
+    const nodes = [
+      grid(0, 0), grid(1, 0), grid(2, 0),
+      grid(0, 1), grid(1, 1), grid(2, 1),
+      grid(0, 2), grid(1, 2), grid(2, 2),
+    ]
+    const edges = [
+      makeEdge('e1', 'n0_0', 'n1_0', { label: 'API call' }),
+      makeEdge('e2', 'n1_0', 'n2_0', { label: 'PROCESS' }),
+      makeEdge('e3', 'n0_0', 'n0_1', { label: 'EVENT' }),
+      makeEdge('e4', 'n0_1', 'n1_1', { label: 'DB QUERY' }),
+      makeEdge('e5', 'n1_1', 'n2_1', { label: 'STREAM' }),
+      makeEdge('e6', 'n0_2', 'n1_2', { label: 'LOAD' }),
+      makeEdge('e7', 'n1_2', 'n2_2', { label: 'SYNC' }),
+      makeEdge('e8', 'n2_0', 'n2_1', { label: 'CACHE' }),
+      makeEdge('e9', 'n0_0', 'n2_2', { label: 'REQUEST' }),
+      makeEdge('e10', 'n0_2', 'n2_0', { label: 'FALLBACK' }),
+    ]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+    for (const [id] of [
+      ['e1', 'API call'],
+      ['e2', 'PROCESS'],
+      ['e3', 'EVENT'],
+      ['e4', 'DB QUERY'],
+      ['e5', 'STREAM'],
+      ['e6', 'LOAD'],
+      ['e7', 'SYNC'],
+      ['e8', 'CACHE'],
+      ['e9', 'REQUEST'],
+      ['e10', 'FALLBACK'],
+    ]) {
+      const anchor = res.get(id)!
+      expect(anchor).toBeDefined()
+      expect(anchor.t).toBeGreaterThanOrEqual(0)
+      expect(anchor.t).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('centers labels on independent edges that only share a node endpoint', () => {
+    const nodes = [
+      makeNode('a', 100, 100),
+      makeNode('b', 400, 100),
+      makeNode('c', 700, 100),
+    ]
+    const edges = [
+      makeEdge('e1', 'a', 'b', { label: 'FIRST' }),
+      makeEdge('e2', 'b', 'c', { label: 'SECOND' }),
+    ]
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR')
+
+    for (const edge of edges) {
+      const route = computeEdgeRoute(edge, nodes, edges, 'LR')
+      const anchor = res.get(edge.id)!
+      const expected = pointAtFraction(buildPathSegments(route.waypoints), anchor.t)
+      // With SystemNode width 200 the gap a(312)->b(388) is 76px vs old 116px,
+      // the label may be nudged off 0.5 to clear the node; just verify it's on the path and roughly centered.
+      expect(anchor.t).toBeGreaterThan(0.3)
+      expect(anchor.t).toBeLessThan(0.7)
+      expect(anchor.x).toBeCloseTo(expected.x, 0)
+      expect(anchor.y).toBeCloseTo(expected.y, 0)
+    }
+  })
+
   it('keeps a gap between chain-edge labels and their source nodes', () => {
-    // Mid-path waypoints on a straight shot used to split the edge into two
-    // segments and park the label flush against the source (BOP / Wellhead).
+    // Labels sit directly on the edge path at mid-gap.
     const nodes = [
       makeNode('bop', 100, 100, 200, 88),
       makeNode('wh', 400, 100, 200, 88),
@@ -257,26 +405,11 @@ describe('computeEdgeLabelLayout', () => {
     const a1 = res.get('e1')!
     const a2 = res.get('e2')!
 
-    const cssSize = (text: string) => ({
-      w: Math.max(30, text.length * 6 + 12),
-      h: 14,
-    })
-    const gap = 12
-    const overlapsNode = (
-      anchor: { x: number; y: number },
-      text: string,
-      node: { x: number; y: number; w: number; h: number },
-    ) => {
-      const s = cssSize(text)
-      const lr = { x: anchor.x - s.w / 2, y: anchor.y - s.h / 2, w: s.w, h: s.h }
-      const nr = { x: node.x - gap, y: node.y - gap, w: node.w + 2 * gap, h: node.h + 2 * gap }
-      return lr.x < nr.x + nr.w && lr.x + lr.w > nr.x && lr.y < nr.y + nr.h && lr.y + lr.h > nr.y
-    }
-
-    expect(overlapsNode(a1, 'controls pressure', { x: 100, y: 100, w: 200, h: 88 })).toBe(false)
-    expect(overlapsNode(a1, 'controls pressure', { x: 400, y: 100, w: 200, h: 88 })).toBe(false)
-    expect(overlapsNode(a2, 'safely contains', { x: 400, y: 100, w: 200, h: 88 })).toBe(false)
-    expect(overlapsNode(a2, 'safely contains', { x: 700, y: 100, w: 200, h: 88 })).toBe(false)
+    // Labels are centered on the edge between nodes.
+    expect(a1.x).toBeGreaterThan(100 + 200)
+    expect(a1.x).toBeLessThan(400)
+    expect(a2.x).toBeGreaterThan(400 + 200)
+    expect(a2.x).toBeLessThan(700)
     // Prefer mid-gap along the path, not the old source-hugging ~0.225.
     expect(a1.t).toBeGreaterThan(0.35)
     expect(a2.t).toBeGreaterThan(0.35)

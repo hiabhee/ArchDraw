@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import { applyThemeChange } from '@/lib/themeBridge';
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { DiagramState } from '../types';
 
 export type UiSlice = Pick<
@@ -7,26 +8,32 @@ export type UiSlice = Pick<
   | 'guideLines'
   | 'edgeAnimations'
   | 'showGrid'
+  | 'iconMode'
   | 'diagramChromeMode'
   | 'diagramStyleTheme'
+  | 'diagramRenderStyle'
   | 'darkMode'
   | 'sidebarOpen'
   | 'canvasMode'
   | 'activeLayoutPresetId'
   | 'detailLevel'
   | 'isPenModeActive'
+  | 'canvasBackground'
   | 'setGuideLines'
   | 'toggleEdgeAnimations'
   | 'toggleGrid'
+  | 'setIconMode'
   | 'setCloudProvider'
   | 'setDiagramChromeMode'
   | 'setDiagramStyleTheme'
+  | 'setDiagramRenderStyle'
   | 'toggleDarkMode'
   | 'setSidebarOpen'
   | 'setCanvasMode'
   | 'setActiveLayoutPresetId'
   | 'setDetailLevel'
   | 'setPenModeActive'
+  | 'setCanvasBackground'
 >;
 
 const isBrowser = typeof window !== 'undefined';
@@ -40,21 +47,32 @@ export const createUiSlice: StateCreator<
   guideLines: [],
   edgeAnimations: true,
   showGrid: true,
+  iconMode: 'all',
   diagramChromeMode: 'edit',
   diagramStyleTheme: 'default',
+  diagramRenderStyle: 'precision',
   darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') === 'dark' : false,
   sidebarOpen: false,
   canvasMode: 'empty',
   activeLayoutPresetId: 'layered-lr',
   detailLevel: 3,
   isPenModeActive: false,
+  canvasBackground: {
+    variant: 'lines',
+    bgColor: null,
+    patternColor: null,
+    gap: 24,
+    size: 1,
+  },
   setGuideLines: (lines) => set({ guideLines: lines }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setCanvasMode: (mode) => set({ canvasMode: mode }),
-  setActiveLayoutPresetId: (id) => set({ activeLayoutPresetId: id }),
-  setDetailLevel: (level) => set({ detailLevel: level }),
-  setPenModeActive: (active) => set({ isPenModeActive: active }),
+  setActiveLayoutPresetId: (id: string) => set({ activeLayoutPresetId: id }),
+  setDetailLevel: (level: 1 | 2 | 3) => set({ detailLevel: level }),
+  setPenModeActive: (active: boolean) => set({ isPenModeActive: active }),
   toggleGrid: () => set({ showGrid: !get().showGrid }),
+  setCanvasBackground: (patch) => set({ canvasBackground: { ...get().canvasBackground, ...patch } }),
+  setIconMode: (mode) => set({ iconMode: mode }),
   setCloudProvider: (toggle) => {
     const { activeCanvasId, canvases } = get();
     const nextCanvases = canvases.map((c) =>
@@ -65,6 +83,7 @@ export const createUiSlice: StateCreator<
   },
   setDiagramChromeMode: (mode) => set({ diagramChromeMode: mode }),
   setDiagramStyleTheme: (theme) => set({ diagramStyleTheme: theme }),
+  setDiagramRenderStyle: (style: DiagramRenderStyleId) => set({ diagramRenderStyle: style }),
   toggleDarkMode: () => {
     applyThemeChange(!get().darkMode);
   },

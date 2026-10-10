@@ -1,9 +1,9 @@
 import { apiKeyManager } from '@/lib/ai/utils/apiKeyManager';
 import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
-import { JSON_OUTPUT_REMINDER, formatSourceFilesForPrompt } from './repo-prompt-utils';
+import { JSON_OUTPUT_REMINDER, formatSourceFilesForPrompt, formatSubsystemSummariesForPrompt } from './repo-prompt-utils';
 import { buildFallbackRepoProfile } from './repo-deep-classifier';
-import { REPO_LLM_MODEL, CLASSIFIER_MAX_TOKENS } from '@/lib/ai/utils/repoModels';
+import { REPO_LLM_MODEL, CLASSIFIER_MAX_TOKENS, CLASSIFIER_PROMPT_CHARS, REPO_LLM_REQUEST_OPTIONS } from '@/lib/ai/utils/repoModels';
 import logger from '@/lib/logger';
 import type { RepoSnapshot, RepoProfile, RepoType, ArchitecturePattern } from '@/lib/types/repo-diagram';
 
@@ -33,46 +33,61 @@ function normalizeProfile(parsed: Record<string, unknown>): RepoProfile {
   };
 }
 
-export async function classifyRepository(
+export function buildClassifierPrompt(
   snapshot: RepoSnapshot,
   staticDetectionReport: string,
-  summaries?: string[]
-): Promise<RepoProfile> {
-  // Phase 4.3: feed the classifier real source-file evidence (file tree up to 500
-  // paths + key source files via formatSourceFilesForPrompt). cheap after Phase 2.
-  // Prompt capped at ~36k chars (~9.5k tokens) so prompt + max_tokens stays under
-  // the 12K TPM ceiling of llama-3.3-70b-versatile on the Groq free tier.
-  const PROMPT_CHAR_CAP = 36_000;
+  summaries?: string[],
+  promptCharCap = CLASSIFIER_PROMPT_CHARS,
+): string {
+  // Keep a reserve for the detailed JSON schema/instructions below. The compact
+  // `templateSuffix` is only used for sizing and is intentionally not repeated.
+  const contentBudget = Math.max(1_000, promptCharCap - 4_000);
+  // Feed the classifier real source-file evidence (file tree + key source files
+  // via formatSourceFilesForPrompt). Budget sized for gpt-oss-120b's context window.
+  // README is primary domain context, but it must share the same hard budget as
+  // every other prompt section. Previously it was omitted from `fixedOverhead`,
+  // allowing large READMEs to turn a nominally capped request into an HTTP 413.
+  const readmeFiles = [...snapshot.phase1Files, ...snapshot.phase2Files]
+    .filter((f) => /README\.md$/i.test(f.path));
+  let readmeBlock = readmeFiles.length
+    ? `README CONTEXT (primary — use to infer purpose, features, and domain workflows):\n${readmeFiles.map((f) => `### ${f.path}\n${f.content.slice(0, 15000)}`).join('\n\n')}\n`
+    : '';
 
   let sourceFilesBlock = formatSourceFilesForPrompt([
     ...snapshot.phase1Files,
     ...snapshot.phase2Files,
   ]);
-  const summariesBlock = summaries?.length
-    ? `\nSUBSYSTEM SUMMARIES:\n${summaries.join('\n\n')}\n`
+  const summaryContext = formatSubsystemSummariesForPrompt(summaries, Math.floor(contentBudget * 0.25));
+  const summariesBlock = summaryContext
+    ? `\nSUBSYSTEM SUMMARIES:\n${summaryContext}\n`
     : '';
 
-  let fileTreeOverview = snapshot.fileTree.slice(0, 500).join('\n');
+  let fileTreeOverview = snapshot.fileTree.slice(0, 1500).join('\n');
 
   // Shrink source files (the bulkiest section) if the full prompt would exceed budget.
-  const templatePrefix = `Classify this repository architecture.\n\nSTATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 500 paths):\n`;
+  const templatePrefix = `Classify this repository architecture.\n\n${readmeBlock}STATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 1500 paths):\n`;
   const templateSuffix = `\n\nSOURCE FILES (architectural evidence):\n\n${JSON_OUTPUT_REMINDER}\nRequired shape: ...}`;
-  const fixedOverhead = templatePrefix.length + templateSuffix.length + summariesBlock.length;
-  while (sourceFilesBlock.length + fileTreeOverview.length + fixedOverhead > PROMPT_CHAR_CAP) {
+  let fixedOverhead = templatePrefix.length + templateSuffix.length + summariesBlock.length;
+  while (sourceFilesBlock.length + fileTreeOverview.length + fixedOverhead > contentBudget) {
     if (sourceFilesBlock.length > 2000) {
       sourceFilesBlock = sourceFilesBlock.slice(0, Math.floor(sourceFilesBlock.length * 0.7)) + '\n... [truncated to fit token budget]';
     } else if (fileTreeOverview.length > 500) {
       const half = Math.floor(fileTreeOverview.length * 0.4);
       fileTreeOverview = fileTreeOverview.slice(0, half) + '\n... (truncated)\n' + fileTreeOverview.slice(-half);
-    } else break;
+    } else if (readmeBlock.length > 1000) {
+      readmeBlock = readmeBlock.slice(0, Math.max(1000, Math.floor(readmeBlock.length * 0.7))) + '\n... [README truncated to fit token budget]';
+      fixedOverhead = (`Classify this repository architecture.\n\n${readmeBlock}STATIC DETECTION:\n${staticDetectionReport}\n\nFILE TREE OVERVIEW (first 1500 paths):\n`).length + templateSuffix.length + summariesBlock.length;
+    } else {
+      break;
+    }
   }
 
-  const prompt = `Classify this repository architecture.
+  return `Classify this repository architecture.
 
-STATIC DETECTION:
+${readmeBlock}STATIC DETECTION:
 ${staticDetectionReport}
 
-FILE TREE OVERVIEW (first 800 paths):
+FILE TREE OVERVIEW (first 1500 paths):
 ${fileTreeOverview}${summariesBlock}
 
 SOURCE FILES (architectural evidence):
@@ -92,11 +107,20 @@ Required shape: {
 }
 
 Be thorough in your analysis. Use the static detection and source files to make an informed classification. The extractionStrategy should guide component extraction to focus on the most architecturally significant parts of the codebase.`;
+}
+
+export async function classifyRepository(
+  snapshot: RepoSnapshot,
+  staticDetectionReport: string,
+  summaries?: string[],
+  signal?: AbortSignal,
+): Promise<RepoProfile> {
+  const prompt = buildClassifierPrompt(snapshot, staticDetectionReport, summaries);
 
   logger.log(`[Classifier] Calling LLM (~${Math.ceil(prompt.length / 4)} est tokens)...`);
 
   try {
-    const result = await apiKeyManager.executeWithRetry(async (client) =>
+    const result = await apiKeyManager.executeWithRetry(async (client, requestSignal) =>
       groqJsonCompletion(client, {
         model: REPO_LLM_MODEL,
         messages: [
@@ -109,7 +133,8 @@ Reply with a single JSON object only. No markdown fences. Keep it concise.`,
         ],
         temperature: 0.1,
         max_tokens: CLASSIFIER_MAX_TOKENS,
-      })
+        signal: requestSignal,
+      }), { ...REPO_LLM_REQUEST_OPTIONS, signal }
     );
 
     try {
@@ -120,7 +145,7 @@ Reply with a single JSON object only. No markdown fences. Keep it concise.`,
       return buildFallbackRepoProfile(snapshot);
     }
   } catch (err) {
-    console.error('[Classifier] LLM call failed:', err);
+    logger.error('[Classifier] LLM call failed:', err);
     return buildFallbackRepoProfile(snapshot);
   }
 }

@@ -20,13 +20,8 @@ export function deriveEvidenceEdges(nodes: ExtractedNode[], graph: ImportGraph):
   const edges: RichEdge[] = [];
   const seen = new Set<string>();
 
-  // Map every source file → owning node id (first owner wins; multiple owners rare).
-  const fileToNode = new Map<string, string>();
-  for (const node of nodes) {
-    for (const sf of node.sourceFiles) {
-      if (!fileToNode.has(sf)) fileToNode.set(sf, node.id);
-    }
-  }
+  // Map every source file → its narrowest owning node.
+  const fileToNode = buildFileOwnerMap(nodes);
 
   // Count A → B import links.
   const pairCount = new Map<string, number>();
@@ -72,10 +67,7 @@ export function topAdjacencies(
   graph: ImportGraph,
   limit = 30
 ): { from: string; to: string; weight: number; fromLabel: string; toLabel: string }[] {
-  const fileToNode = new Map<string, string>();
-  for (const node of nodes) {
-    for (const sf of node.sourceFiles) if (!fileToNode.has(sf)) fileToNode.set(sf, node.id);
-  }
+  const fileToNode = buildFileOwnerMap(nodes);
   const labels = new Map(nodes.map((n) => [n.id, n.label]));
 
   const pairCount = new Map<string, number>();
@@ -106,4 +98,29 @@ export function evidenceEdgeKeySet(nodes: ExtractedNode[], graph: ImportGraph): 
   const set = new Set<string>();
   for (const e of deriveEvidenceEdges(nodes, graph)) set.add(`${e.from}->${e.to}`);
   return set;
+}
+
+/**
+ * Assign files to the most specific evidence-backed node. Root/subsystem nodes
+ * often include the same files as directory or LLM nodes; first-owner mapping
+ * makes every import look like a self-edge on the root and produces sparse
+ * diagrams. Smaller source sets are the narrower ownership claim.
+ */
+function buildFileOwnerMap(nodes: ExtractedNode[]): Map<string, string> {
+  const fileToNode = new Map<string, { id: string; width: number; priority: number }>();
+  const typePriority: Record<string, number> = {
+    API_ROUTE: 0, CONTROLLER: 1, SERVICE: 2, WORKER: 3, DATABASE: 4,
+    CACHE: 5, QUEUE: 6, PAGE: 7, MIDDLEWARE: 8, CORE_MODULE: 9, SERVICE_GROUP: 10,
+  };
+  for (const node of nodes) {
+    const width = node.sourceFiles.length;
+    const priority = typePriority[node.type] ?? 20;
+    for (const sourceFile of node.sourceFiles) {
+      const existing = fileToNode.get(sourceFile);
+      if (!existing || width < existing.width || (width === existing.width && priority < existing.priority)) {
+        fileToNode.set(sourceFile, { id: node.id, width, priority });
+      }
+    }
+  }
+  return new Map(Array.from(fileToNode, ([file, owner]) => [file, owner.id]));
 }

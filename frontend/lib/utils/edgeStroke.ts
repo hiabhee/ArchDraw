@@ -12,6 +12,8 @@ function normalizeDash(value: string): string {
 export function isAsyncEdge(data: Record<string, unknown> | undefined): boolean {
   if (!data) return false;
   if (data.async === true) return true;
+  // Self-loops (retry/feedback) should always be dashed, not solid primary blue
+  if (data.selfLoopStyle || data.loopVariant) return true;
 
   const connectionType = String(data.connectionType || data.edgeType || '').toLowerCase();
   if (connectionType === 'async' || connectionType === 'publish' || connectionType === 'consume') {
@@ -19,7 +21,7 @@ export function isAsyncEdge(data: Record<string, unknown> | undefined): boolean 
   }
 
   const label = String(data.label || '').toLowerCase();
-  return ['amqp', 'kafka', 'queue', 'pub/sub', 'event', 'publish', 'consume', 'nats', 'rabbitmq'].some(
+  return ['amqp', 'kafka', 'queue', 'pub/sub', 'event', 'publish', 'consume', 'nats', 'rabbitmq', 'retry', 'backoff', 'failure', 'dlq', 'feedback', 'loop'].some(
     (token) => label.includes(token),
   );
 }

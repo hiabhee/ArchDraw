@@ -1,6 +1,6 @@
 /**
  * Stage - Single processing unit in a pipeline
- * 
+ *
  * A stage represents a single step in a pipeline that transforms
  * input data to output data, with optional validation and error handling.
  */
@@ -11,22 +11,22 @@ import type { StageResult } from './StageResult';
 export interface Stage<TInput, TOutput> {
   /** Unique identifier for this stage */
   readonly name: string;
-  
+
   /** Human-readable description of what this stage does */
   readonly description?: string;
-  
+
   /** Optional validation function for input data */
   validate?(input: TInput, context: PipelineContext): StageValidationResult;
-  
+
   /** Execute the stage transformation */
   execute(input: TInput, context: PipelineContext): Promise<StageResult<TOutput>>;
-  
+
   /** Whether this stage can be skipped if input is invalid/missing */
   readonly optional?: boolean;
 
   /** Backwards-compatible alias for optional skip behavior. */
   readonly skippable?: boolean;
-  
+
   /** Estimated cost of this stage (for progress calculation) */
   readonly weight?: number;
 }
@@ -34,10 +34,10 @@ export interface Stage<TInput, TOutput> {
 export interface StageValidationResult {
   /** Whether the input is valid for this stage */
   valid: boolean;
-  
+
   /** Errors that would prevent stage execution */
   errors: string[];
-  
+
   /** Warnings that don't prevent execution but should be noted */
   warnings: string[];
 }
@@ -74,7 +74,7 @@ export abstract class BaseStage<TInput, TOutput> implements Stage<TInput, TOutpu
     this.weight = options?.weight;
   }
 
-  validate?(input: TInput, context: PipelineContext): StageValidationResult {
+  validate?(_input: TInput, _context: PipelineContext): StageValidationResult {
     // Default implementation: no validation
     return validStageResult();
   }

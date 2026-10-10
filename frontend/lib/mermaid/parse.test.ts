@@ -55,6 +55,67 @@ describe('Mermaid Parser Subgraphs with Spaces', () => {
   });
 });
 
+describe('Mermaid Parser Semicolon-Delimited Statements', () => {
+  it('should parse semicolon-delimited statements on the header line', () => {
+    const code = `graph TD; A-->B; A-->C; B-->D; C-->D;`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(4);
+      expect(res.ast.edges.length).toBe(4);
+      expect(res.ast.edges.map(e => `${e.source}->${e.target}`).sort()).toEqual(['A->B', 'A->C', 'B->D', 'C->D']);
+    }
+  });
+
+  it('should parse semicolon-delimited statements mixed with newlines', () => {
+    const code = `graph TD;\n  A-->B;\n  B-->C;`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(3);
+      expect(res.ast.edges.length).toBe(2);
+    }
+  });
+
+  it('should preserve semicolons inside quoted labels', () => {
+    const code = `graph LR
+  A["semi;colon"] --> B`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(2);
+      const a = res.ast.nodes.find(n => n.id === 'A');
+      expect(a?.label).toBe('semi;colon');
+    }
+  });
+
+  it('should parse semicolon-delimited subgraph statements', () => {
+    const code = `graph TD
+  subgraph G["Group"]; A; B; end
+  A --> B`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.subgraphs.length).toBe(1);
+      expect(res.ast.nodes.length).toBe(2);
+      expect(res.ast.nodes.every(n => n.subgraphId === 'G')).toBe(true);
+      expect(res.ast.edges.length).toBe(1);
+    }
+  });
+
+  it('should parse edge statements with trailing semicolons on separate lines', () => {
+    const code = `graph TD
+  A-->B;
+  B-->C;`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.nodes.length).toBe(3);
+      expect(res.ast.edges.length).toBe(2);
+    }
+  });
+});
+
 describe('Node Classification Precedence', () => {
   it('should prioritize name-based matching over group name', () => {
     // Database named "postgres_db" inside "Service Layer" group should be a database shape
@@ -64,23 +125,24 @@ describe('Node Classification Precedence', () => {
 
     // Queue named "event_stream" inside "Service Layer" group should be a queue
     const queueRes = classifyNode('event_stream', 'Service Layer');
-    expect(queueRes.shape).toBe('circle');
+    expect(queueRes.shape).toBe('queue');
     expect(queueRes.serviceType).toBe('queue');
 
-    // Load balancer inside "Data Layer" group should be load-balancer shape
+    // Load balancer inside "Data Layer" group should be load-balancer shape (hexagon silhouette)
     const lbRes = classifyNode('api_gateway', 'Data Layer');
-    expect(lbRes.shape).toBe('diamond');
+    expect(lbRes.shape).toBe('hexagon');
     expect(lbRes.serviceType).toBe('load-balancer');
   });
 
   it('should fall back to group name if node name is generic', () => {
-    // Generic name "auth" inside "Client Layer"
+    // Generic name "auth" inside "Client Layer" — auth/authN match the security
+    // concern first (rounded-rectangle silhouette), so group fallback never applies.
     const clientRes = classifyNode('auth', 'Client Layer');
-    expect(clientRes.serviceType).toBe('client');
+    expect(clientRes.serviceType).toBe('security');
 
     // Generic name "auth" inside "Data Layer"
     const dataRes = classifyNode('auth', 'Data Layer');
-    expect(dataRes.serviceType).toBe('database');
+    expect(dataRes.serviceType).toBe('security');
   });
 });
 
@@ -125,5 +187,122 @@ describe('Layout Direction Validation', () => {
     const resTD = validateDiagramOutput(nodes, edges, 'TD');
     expect(resTD.passed).toBe(false);
     expect(resTD.warnings[0].type).toBe('LAYOUT_DIRECTION_FAILURE');
+  });
+
+  it('allows response and event edges to run against the primary layout direction', () => {
+    const nodes = [
+      { id: 'service', position: { x: 50, y: 100 }, data: { label: 'Service' } },
+      { id: 'stripe', position: { x: 50, y: 50 }, data: { label: 'Stripe' } },
+      { id: 'kafka', position: { x: 150, y: 50 }, data: { label: 'Kafka' } },
+    ] as unknown as RFNode[];
+    const edges = [
+      { id: 'stripe-service', source: 'service', target: 'stripe', data: { label: 'returns payment status' } },
+      { id: 'service-kafka', source: 'service', target: 'kafka', data: { label: 'publishes order event', syncAsync: 'async', connectionType: 'async' } },
+    ] as unknown as RFEdge[];
+
+    expect(validateDiagramOutput(nodes, edges, 'TD').warnings).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'LAYOUT_DIRECTION_FAILURE' })]),
+    );
+  });
+
+  it('checks absolute positions for edges that cross group boundaries', () => {
+    const nodes = [
+      { id: 'client-group', position: { x: 0, y: 300 }, data: { label: 'Clients' } },
+      { id: 'service-group', position: { x: 0, y: 0 }, data: { label: 'Services' } },
+      { id: 'client', parentNode: 'client-group', position: { x: 20, y: 20 }, data: { label: 'Client' } },
+      { id: 'service', parentNode: 'service-group', position: { x: 20, y: 20 }, data: { label: 'Service' } },
+    ] as unknown as RFNode[];
+    const edges = [{ id: 'client-service', source: 'client', target: 'service' }] as unknown as RFEdge[];
+
+    expect(validateDiagramOutput(nodes, edges, 'TD').warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'LAYOUT_DIRECTION_FAILURE' })]),
+    );
+  });
+});
+
+describe('Mermaid Parser ArchDraw Text Directives', () => {
+  it('should parse an archdraw-text directive into the AST texts array', () => {
+    const code = `graph LR
+  %% archdraw-text: {"id":"title","text":"System Architecture","size":"heading","anchor":"top"}
+  A[API]-->B[(DB)]`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.texts).toHaveLength(1);
+      expect(res.ast.texts[0]).toMatchObject({
+        id: 'title',
+        kind: 'text',
+        text: 'System Architecture',
+        size: 'heading',
+        anchor: 'top',
+      });
+      // Regular nodes are unaffected
+      expect(res.ast.nodes.map((n) => n.id)).toEqual(['A', 'B']);
+    }
+  });
+
+  it('should parse an archdraw-note directive with title/body and anchorTarget', () => {
+    const code = `graph TD
+  %% archdraw-note: {"id":"n1","title":"Note","body":"async via queue","anchor":"node","anchorTarget":"A"}
+  A[API]`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.texts[0]).toMatchObject({
+        id: 'n1',
+        kind: 'note',
+        title: 'Note',
+        body: 'async via queue',
+        anchor: 'node',
+        anchorTarget: 'A',
+      });
+    }
+  });
+
+  it('should preserve a stored position for anchor none text', () => {
+    const code = `graph LR
+  %% archdraw-text: {"id":"t1","text":"Free text","x":10,"y":20}
+  A[API]`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.texts[0].position).toEqual({ x: 10, y: 20 });
+      expect(res.ast.texts[0].anchor).toBe('none');
+    }
+  });
+
+  it('should default anchor to none and size to undefined when omitted', () => {
+    const code = `graph LR
+  %% archdraw-text: {"id":"t1","text":"Just text"}
+  A[API]`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.texts[0].anchor).toBe('none');
+      expect(res.ast.texts[0].size).toBeUndefined();
+    }
+  });
+
+  it('should not treat trailing comments or malformed directives as text elements', () => {
+    const code = `graph LR
+  A[API] %% archdraw-text: {"id":"x","text":"nope"}
+  %% archdraw-text: {broken json
+  A-->B`;
+    const res = parseMermaid(code);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.texts).toHaveLength(0);
+      expect(res.ast.nodes.map((n) => n.id)).toEqual(['A', 'B']);
+    }
+  });
+
+  it('should accept a text-only diagram and still parse ok', () => {
+    const res = parseMermaid('%% archdraw-text: {"id":"title","text":"Only text"}');
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.ast.texts).toHaveLength(1);
+      expect(res.ast.nodes).toHaveLength(0);
+      expect(res.ast.edges).toHaveLength(0);
+    }
   });
 });

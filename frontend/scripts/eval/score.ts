@@ -389,6 +389,7 @@ export type RepoScore = {
   composite: number;
   forbiddenViolations: number;
   forbiddenLabels: string[];
+  sparseViolations: string[];
   unmatchedGoldenLabels: string[];
   predictedNodeCount: number;
   predictedEdgeCount: number;
@@ -414,6 +415,7 @@ export function scoreRepo(input: ScoreInput): RepoScore {
 
   const composite =
     (nm.recall + nm.precision + em.recall + em.precision + cm.accuracy) / 5;
+  const sparseViolations = sparseGraphViolations(predicted, golden);
 
   return {
     repoId: input.repoId,
@@ -426,12 +428,27 @@ export function scoreRepo(input: ScoreInput): RepoScore {
     composite,
     forbiddenViolations: nm.forbiddenViolations.length,
     forbiddenLabels: nm.forbiddenViolations.map((n) => n.label),
+    sparseViolations,
     unmatchedGoldenLabels: nm.unmatchedGolden.map((n) => n.label),
     predictedNodeCount: predicted.nodes.length,
     predictedEdgeCount: predicted.edges.length,
     goldenNodeCount: golden.nodes.length,
     goldenEdgeCount: golden.edges.length,
   };
+}
+
+export function sparseGraphViolations(predicted: PredictedGraph, golden: GoldenGraph): string[] {
+  const violations: string[] = [];
+  if (golden.nodes.length >= 2 && predicted.nodes.length < 2) {
+    violations.push(`only ${predicted.nodes.length} node(s); reference has ${golden.nodes.length}`);
+  }
+  if (golden.nodes.length >= 4 && predicted.nodes.length < 3) {
+    violations.push(`only ${predicted.nodes.length} nodes for a multi-component reference`);
+  }
+  if (golden.edges.length > 0 && predicted.edges.length === 0) {
+    violations.push(`no edges; reference has ${golden.edges.length}`);
+  }
+  return violations;
 }
 
 // ─── Aggregate across corpus ─────────────────────────────────
@@ -444,6 +461,7 @@ export type AggregateScore = {
   edgePrecision: number;
   classificationAccuracy: number;
   totalForbiddenViolations: number;
+  totalSparseViolations: number;
   repoCount: number;
   perRepo: RepoScore[];
 };
@@ -452,7 +470,7 @@ export function aggregateScores(scores: RepoScore[]): AggregateScore {
   if (scores.length === 0) {
     return {
       composite: 0, nodeRecall: 0, nodePrecision: 0, edgeRecall: 0, edgePrecision: 0,
-      classificationAccuracy: 0, totalForbiddenViolations: 0, repoCount: 0, perRepo: [],
+      classificationAccuracy: 0, totalForbiddenViolations: 0, totalSparseViolations: 0, repoCount: 0, perRepo: [],
     };
   }
   const mean = (f: (s: RepoScore) => number) => scores.reduce((a, s) => a + f(s), 0) / scores.length;
@@ -464,6 +482,7 @@ export function aggregateScores(scores: RepoScore[]): AggregateScore {
     edgePrecision: mean((s) => s.edgePrecision),
     classificationAccuracy: mean((s) => s.classificationAccuracy),
     totalForbiddenViolations: scores.reduce((a, s) => a + s.forbiddenViolations, 0),
+    totalSparseViolations: scores.reduce((a, s) => a + s.sparseViolations.length, 0),
     repoCount: scores.length,
     perRepo: scores,
   };

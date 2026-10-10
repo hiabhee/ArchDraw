@@ -1,72 +1,39 @@
 /**
  * SVG Sanitization Utility
- * 
+ *
  * Sanitizes SVG content to prevent XSS attacks while preserving
  * valid SVG markup for diagram rendering.
- * 
- * NOTE: This is a basic sanitizer focused on removing script tags
- * and dangerous event handlers. For production systems with untrusted
- * SVG content, consider using a library like DOMPurify.
+ *
+ * Uses DOMPurify (allow-list based) rather than block-list regexes,
+ * which are notoriously bypassable.
  */
 
+import DOMPurify from 'dompurify';
+import type { Config } from 'dompurify';
 import logger from '@/lib/logger';
 
-/**
- * List of dangerous SVG elements that can execute scripts
- */
-const DANGEROUS_ELEMENTS = [
-  'script',
-  'iframe',
-  'object',
-  'embed',
-  'link',
-  'style', // style can contain CSS expressions in older browsers
-];
-
-/**
- * Event handler attributes that can execute JavaScript
- */
-const DANGEROUS_ATTRIBUTES = [
-  'onload',
-  'onerror',
-  'onclick',
-  'onmouseover',
-  'onmouseout',
-  'onmousemove',
-  'onmousedown',
-  'onmouseup',
-  'onfocus',
-  'onblur',
-  'onchange',
-  'onsubmit',
-  'onkeydown',
-  'onkeyup',
-  'onkeypress',
-  'onanimationstart',
-  'onanimationend',
-  'ontransitionend',
-  'onbegin',
-  'onend',
-  'onrepeat',
-];
-
-/**
- * Patterns that might indicate JavaScript execution attempts
- */
-const DANGEROUS_PATTERNS = [
-  /javascript:/gi,
-  /data:text\/html/gi,
-  /vbscript:/gi,
-  /<script/gi,
-  /expression\(/gi, // CSS expressions
-  /import\s+/gi, // CSS @import
-];
+const SANITIZE_CONFIG: Config = {
+  // Allow only SVG + filter profiles; drops all HTML elements (foreignObject etc.)
+  USE_PROFILES: { svg: true, svgFilters: true },
+  FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'foreignObject'],
+  FORBID_ATTR: [
+    // Event handlers (DOMPurify strips these by default too, but be explicit)
+    'onload',
+    'onerror',
+    'onclick',
+    'onmouseover',
+    'onfocus',
+    'onbegin',
+    'onend',
+    'onrepeat',
+  ],
+};
 
 /**
  * Sanitizes SVG content by removing potentially dangerous elements and attributes.
- * 
+ *
  * @param svg - The SVG string to sanitize
- * @returns Sanitized SVG string
+ * @returns Sanitized SVG string ('' on failure)
  */
 export function sanitizeSVG(svg: string): string {
   if (!svg || typeof svg !== 'string') {
@@ -74,52 +41,23 @@ export function sanitizeSVG(svg: string): string {
   }
 
   try {
-    let sanitized = svg;
+    // DOMPurify may return a TrustedHTML wrapper in hardened runtimes —
+    // coerce to a plain string before string ops.
+    const clean = DOMPurify.sanitize(svg, SANITIZE_CONFIG);
+    const sanitized = typeof clean === 'string' ? clean : String(clean);
 
-    // First, remove dangerous elements (including their content)
-    // This must happen before pattern removal to avoid leaving content behind
-    for (const element of DANGEROUS_ELEMENTS) {
-      // Match opening tag to closing tag with content
-      const fullElementPattern = new RegExp(`<${element}[^>]*>.*?</${element}>`, 'gis');
-      const selfClosingPattern = new RegExp(`<${element}[^>]*/>`, 'gi');
-      
-      if (fullElementPattern.test(sanitized) || selfClosingPattern.test(sanitized)) {
-        logger.warn(`[SVG Sanitizer] Removed dangerous element: ${element}`);
-        sanitized = sanitized.replace(fullElementPattern, '');
-        sanitized = sanitized.replace(selfClosingPattern, '');
-      }
+    if (!sanitized) {
+      logger.warn('[SVG Sanitizer] DOMPurify produced empty result');
+      return '';
     }
 
-    // Then check for dangerous patterns in remaining content
-    for (const pattern of DANGEROUS_PATTERNS) {
-      if (pattern.test(sanitized)) {
-        logger.warn('[SVG Sanitizer] Detected dangerous pattern:', pattern.source);
-        sanitized = sanitized.replace(pattern, '');
-      }
+    // Ensure SVG has proper namespace
+    let withNs = sanitized;
+    if (withNs.includes('<svg') && !withNs.includes('xmlns=')) {
+      withNs = withNs.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
     }
 
-    // Remove dangerous attributes
-    for (const attr of DANGEROUS_ATTRIBUTES) {
-      const attrPattern = new RegExp(`\\s${attr}\\s*=\\s*["'][^"']*["']`, 'gi');
-      if (attrPattern.test(sanitized)) {
-        logger.warn(`[SVG Sanitizer] Removed dangerous attribute: ${attr}`);
-        sanitized = sanitized.replace(attrPattern, '');
-      }
-    }
-
-    // Remove any remaining suspicious event handlers (catch-all)
-    const eventHandlerPattern = /\son\w+\s*=\s*["'][^"']*["']/gi;
-    sanitized = sanitized.replace(eventHandlerPattern, '');
-
-    // Ensure SVG has proper namespace (helps prevent some attacks)
-    if (sanitized.includes('<svg') && !sanitized.includes('xmlns=')) {
-      sanitized = sanitized.replace(
-        /<svg/,
-        '<svg xmlns="http://www.w3.org/2000/svg"'
-      );
-    }
-
-    return sanitized;
+    return withNs;
   } catch (error) {
     logger.error('[SVG Sanitizer] Sanitization failed:', error);
     // On error, return empty string to be safe
@@ -147,7 +85,7 @@ export function isValidSVG(content: string): boolean {
  */
 export function sanitizeAndValidateSVG(svg: string): string | null {
   const sanitized = sanitizeSVG(svg);
-  
+
   if (!sanitized) {
     logger.warn('[SVG Sanitizer] Sanitization produced empty result');
     return null;

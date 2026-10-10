@@ -1,423 +1,227 @@
 'use client';
 
-import { memo, useEffect, useRef } from 'react';
+import { memo, useLayoutEffect, useRef } from 'react';
 import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasTheme } from '@/lib/theme';
 import {
   LIGHT_NODE_STYLES,
   DARK_NODE_STYLES,
-  ICON_SIZE,
-  type NodeStyleConfig,
+  getConcernColor,
 } from '@/lib/theme/stylingConstants';
-import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
-import { NodeHandles } from '@/components/nodes/NodeHandles';
-import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
+import {
+  resolveShapeNodeDimensions,
+} from '@/lib/utils/shapeNodeDimensions';
+import { getShapeLabelMaxWidth } from '@/lib/utils/shapeTextLayout';
 import { useDiagramStore } from '@/store/diagramStore';
-import { NodeIcon } from '@/components/NodeIcon';
-import { resolveNodeIcon } from '@/lib/nodeIconResolver';
-import { resolveCloudIcon } from '@/lib/cloudIcons/resolution';
-import { CloudProviderIcon, GenericCloudIcon } from '@/components/icons/CloudProviderIcon';
+import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
+import { type ShapeType } from '@/lib/shapeRegistry';
+import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import './nodes/nodeStyles.css';
+import type { ShapeNodeData } from './nodes/shapes/types';
+import { resolveShapeLabelLayout, type ShapeLabelLayout } from './nodes/shapes/labelLayout';
+import { Rectangle, Diamond, Circle, Parallelogram } from './nodes/shapes/basicShapes';
+import { Cylinder, HorizontalPipeCylinder } from './nodes/shapes/cylinders';
+import {
+  Hexagon,
+  Cloud,
+  Actor,
+  Monitor,
+  Mobile,
+  DashedRectangle,
+  Document,
+  Documents,
+  Queue,
+  Cache,
+  FunctionShape,
+  Container,
+  Bucket,
+} from './nodes/shapes/silhouettes';
 
-export type ShapeType =
-  | 'rectangle'
-  | 'rounded-rectangle'
-  | 'diamond'
-  | 'cylinder'
-  | 'circle'
-  | 'parallelogram';
-
-export interface ShapeNodeData {
-  label: string;
-  sublabel?: string;
-  shape: ShapeType;
-  color?: string;
-  accentColor?: string;
-  category?: string;
-  componentType?: string;
-  typeId?: string;
-  icon?: string;
-  iconSource?: string;
-  technology?: string;
-  serviceType?: string;
-  nodeWidth?: number;
-  nodeHeight?: number;
-}
+export type { ShapeType };
+export type { ShapeNodeData, ShapeLabelLayout };
+export { resolveShapeLabelLayout };
 
 /** Fit to optical grid; wrap long labels inside the silhouette mid-band. */
-function resolveShapeSize(data: ShapeNodeData): { width: number; height: number; labelMaxWidth: number } {
-  const fitted = calculateNodeDimensions(data.label || '', data.sublabel, { shape: data.shape });
-  const width = Math.max(data.nodeWidth ?? 0, fitted.width);
-  const height = Math.max(data.nodeHeight ?? 0, fitted.height);
-  // Keep text inside silhouette: diamonds/circles use a narrower mid-band.
-  // Band fractions must stay aligned with SHAPE_TEXT_BAND in nodeSizing.ts.
-  const band =
-    data.shape === 'diamond' || data.shape === 'circle'
-      ? 0.48
-      : data.shape === 'parallelogram'
-        ? 0.72
-        : 0.88;
-  return { width, height, labelMaxWidth: Math.max(72, Math.round(width * band)) };
+function resolveShapeSize(data: ShapeNodeData, showIcon?: boolean, compact = false): { width: number; height: number; labelMaxWidth: number } {
+  const { width: resolvedWidth, height: resolvedHeight } = resolveShapeNodeDimensions(
+    { ...data, showIcon }, compact ? 'studio-minimal' : undefined,
+  );
+  return {
+    width: resolvedWidth,
+    height: resolvedHeight,
+    labelMaxWidth: getShapeLabelMaxWidth(data.shape, resolvedWidth, 'title'),
+  };
 }
 
-const HANDLE_STYLE = (color: string) => ({
-  width: 12,
-  height: 12,
-  background: 'var(--node-card-bg, #ffffff)',
-  border: `2px solid ${color}`,
-  borderRadius: '50%',
-  transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
-});
-
-/** Renders exactly 2 handles per side (one source, one target). */
-function Handles({ color, nodeId }: { color: string; nodeId: string }) {
-  const updateNodeInternals = useUpdateNodeInternals();
-  const s = HANDLE_STYLE(color);
-
-  useEffect(() => {
-    updateNodeInternals(nodeId);
-  }, [nodeId, updateNodeInternals]);
-
-  return <NodeHandles handleStyle={s} nodeId={nodeId} />;
+function concernHintForShape(data: ShapeNodeData): string {
+  if (data.category || data.serviceType) return data.category || data.serviceType || '';
+  switch (data.shape) {
+    case 'actor':
+    case 'monitor':
+    case 'mobile':
+      return 'client';
+    case 'cylinder':
+    case 'cache':
+    case 'bucket':
+      return 'data';
+    case 'queue':
+      return 'async';
+    case 'cloud':
+    case 'dashed-rectangle':
+      return 'external';
+    default:
+      return 'compute';
+  }
 }
 
-function Label({
-  data,
-  color,
-  nodeId,
-  width,
-  height,
-  maxWidth,
-}: {
-  data: ShapeNodeData;
-  color: string;
-  nodeId: string;
-  width: number;
-  height: number;
-  maxWidth?: number;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cloudProvider = useDiagramStore((s) => s.cloudProvider);
-  const labelEdit = useInlineLabelEdit({
-    nodeId,
-    currentLabel: data.label || '',
-    containerRef,
-  });
-  const resolvedIcon = resolveNodeIcon({
-    label: data.label,
-    typeId: data.typeId,
-    componentType: data.componentType,
-    serviceType: data.serviceType,
-    technology: data.technology,
-    category: data.category,
-    icon: data.icon,
-    color,
-  });
-  const cloudIcon =
-    cloudProvider !== 'off'
-      ? resolveCloudIcon(
-          {
-            label: data.label,
-            typeId: data.typeId,
-            technology: data.technology,
-            serviceType: data.serviceType,
-            icon: data.icon,
-          },
-          cloudProvider,
-        )
-      : null;
-  const cloudIconSize = Math.max(
-    16,
-    Math.round(Math.min(width * 0.2, height - 28)),
-  );
-
-  return (
-    <div
-      ref={containerRef}
-      className="flex flex-col items-center justify-center text-center px-1 select-none"
-      style={{ width: '100%', maxWidth: maxWidth ?? '100%' }}
-    >
-      <div
-        className="node-icon-box mb-1"
-        aria-hidden="true"
-        style={
-          cloudIcon
-            ? {
-                width: cloudIconSize,
-                height: cloudIconSize,
-                borderRadius: Math.round(cloudIconSize * 0.27),
-              }
-            : undefined
-        }
-      >
-        {cloudIcon ? (
-          cloudIcon.kind === 'generic' ? (
-            <GenericCloudIcon size={Math.round(cloudIconSize * 0.72)} color={cloudIcon.color} />
-          ) : (
-            <CloudProviderIcon
-              provider={cloudIcon.kind}
-              serviceKey={cloudIcon.serviceKey}
-              size={Math.round(cloudIconSize * 0.72)}
-              color={cloudIcon.color}
-            />
-          )
-        ) : (
-          <NodeIcon
-            technology={resolvedIcon.technology}
-            fallbackIcon={resolvedIcon.icon}
-            fallbackColor={resolvedIcon.color}
-            size={ICON_SIZE.node}
-          />
-        )}
-      </div>
-      {labelEdit.isEditing ? (
-        <input
-          {...labelEdit.inputProps}
-          style={{
-            fontSize: 13.5,
-            fontWeight: 600,
-            color: 'var(--node-title-color, hsl(var(--foreground)))',
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            padding: 0,
-            margin: 0,
-            lineHeight: 1.25,
-            letterSpacing: '-0.015em',
-            width: '100%',
-            textAlign: 'center',
-            boxSizing: 'border-box',
-            borderRadius: 3,
-            boxShadow: `0 0 0 2px ${color}`,
-            cursor: 'text',
-          }}
-        />
-      ) : (
-        <span
-          className="node-title"
-          onDoubleClick={labelEdit.startEdit}
-          style={{
-            cursor: 'text',
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word',
-            whiteSpace: 'normal',
-            maxWidth: '100%',
-            textAlign: 'center',
-            flex: 'none',
-          }}
-        >
-          {data.label}
-        </span>
-      )}
-      {data.sublabel && (
-        <span
-          className="node-subtitle"
-          style={{
-            maxWidth: '100%',
-            overflowWrap: 'anywhere',
-            marginTop: 2,
-            textAlign: 'center',
-          }}
-        >
-          {data.sublabel}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Backplates({ layers, borderRadius }: { layers: { offset: number; color: string }[], borderRadius: number | string }) {
-  return (
-    <>
-      {layers.map((layer, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            borderRadius: borderRadius,
-            transform: `translate(${layer.offset}px, ${layer.offset}px)`,
-            background: layer.color,
-            zIndex: -1,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
-    </>
-  );
-}
-
-// ── Individual shape renderers ────────────────────────────────────────────────
-
-function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth }: { id: string; data: ShapeNodeData; selected: boolean; rounded: boolean; backplates: { offset: number; color: string }[]; isDark: boolean; styles: NodeStyleConfig; width: number; height: number; labelMaxWidth: number }) {
-  const color = data.accentColor ?? data.color ?? '#0f766e';
-  const r = rounded ? 10 : 6;
-  return (
-    <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
-      {backplates.length > 0 && <Backplates layers={backplates} borderRadius={r} />}
-      <div
-        style={{
-          width,
-          height,
-          borderRadius: r,
-          border: selected
-            ? `2px solid ${color}`
-            : isDark
-              ? '1.25px solid rgba(255, 255, 255, 0.12)'
-              : '1.25px solid rgba(15, 23, 42, 0.14)',
-          background: isDark ? styles.background : '#ffffff',
-          boxShadow: selected
-            ? styles.shadowSelected
-            : styles.shadow,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          overflow: 'hidden',
-          transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
-        }}
-      >
-        <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} />
-      </div>
-      <Handles color={color} nodeId={id} />
-    </div>
-  );
-}
-
-function Diamond({ id, data, selected, backplates, isDark, width: W, height: H, labelMaxWidth }: { id: string; data: ShapeNodeData; selected: boolean; backplates: { offset: number; color: string }[]; isDark: boolean; width: number; height: number; labelMaxWidth: number }) {
-  const color = data.accentColor ?? data.color ?? '#0f766e';
-  return (
-    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-      {backplates.map((layer, i) => (
-        <svg key={i} width={W} height={H} style={{ position: 'absolute', transform: `translate(${layer.offset}px, ${layer.offset}px)`, zIndex: -1, overflow: 'visible' }}>
-          <polygon points={`${W / 2},4 ${W - 4},${H / 2} ${W / 2},${H - 4} 4,${H / 2}`} fill={layer.color} />
-        </svg>
-      ))}
-      <svg width={W} height={H} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-        <defs>
-          <linearGradient id={`diamond-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={`${color}12`} />
-            <stop offset="100%" stopColor={`${color}05`} />
-          </linearGradient>
-        </defs>
-        <polygon
-          points={`${W / 2},4 ${W - 4},${H / 2} ${W / 2},${H - 4} 4,${H / 2}`}
-          fill={`url(#diamond-grad-${id})`}
-          stroke={selected ? color : isDark ? 'rgba(255,255,255,0.16)' : 'rgba(15,23,42,0.16)'}
-          strokeWidth={selected ? 2 : 1.25}
-        />
-      </svg>
-      <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
-      </div>
-    </div>
-  );
-}
-
-function Cylinder({ id, data, selected, backplates, isDark, width: W, height: H, labelMaxWidth }: { id: string; data: ShapeNodeData; selected: boolean; backplates: { offset: number; color: string }[]; isDark: boolean; width: number; height: number; labelMaxWidth: number }) {
-  const color = data.accentColor ?? data.color ?? '#0f766e';
-  const RY = Math.max(10, Math.round(H * 0.12));
-  const stroke = selected ? color : isDark ? 'rgba(255,255,255,0.16)' : 'rgba(15,23,42,0.16)';
-  const strokeW = selected ? 2 : 1.25;
-  return (
-    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-      {backplates.map((layer, i) => (
-        <div key={i} style={{ position: 'absolute', inset: 0, borderRadius: '50% / 15%', transform: `translate(${layer.offset}px, ${layer.offset}px)`, background: layer.color, zIndex: -1 }} />
-      ))}
-      <svg width={W} height={H} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-        <defs>
-          <linearGradient id={`cyl-body-${id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={isDark ? `${color}18` : `${color}10`} />
-            <stop offset="100%" stopColor={isDark ? `${color}08` : `${color}04`} />
-          </linearGradient>
-          <linearGradient id={`cyl-top-${id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={isDark ? `${color}22` : `${color}14`} />
-            <stop offset="100%" stopColor={isDark ? `${color}10` : `${color}06`} />
-          </linearGradient>
-        </defs>
-        <rect x={2} y={RY} width={W - 4} height={H - RY * 2} fill={`url(#cyl-body-${id})`} stroke={stroke} strokeWidth={strokeW} />
-        <ellipse cx={W / 2} cy={H - RY} rx={(W - 4) / 2} ry={RY} fill={isDark ? `${color}12` : `${color}08`} stroke={stroke} strokeWidth={strokeW} />
-        <ellipse cx={W / 2} cy={RY} rx={(W - 4) / 2} ry={RY} fill={`url(#cyl-top-${id})`} stroke={stroke} strokeWidth={strokeW} />
-      </svg>
-      <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: RY }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
-      </div>
-    </div>
-  );
-}
-
-function Circle({ id, data, selected, backplates, isDark, width: W, height: H, labelMaxWidth }: { id: string; data: ShapeNodeData; selected: boolean; backplates: { offset: number; color: string }[]; isDark: boolean; width: number; height: number; labelMaxWidth: number }) {
-  const color = data.accentColor ?? data.color ?? '#0f766e';
-  return (
-    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-      {backplates.length > 0 && <Backplates layers={backplates} borderRadius="50%" />}
-      <svg width={W} height={H} style={{ position: 'absolute', inset: 0 }}>
-        <ellipse
-          cx={W / 2} cy={H / 2} rx={W / 2 - 2} ry={H / 2 - 2}
-          fill={isDark ? `${color}14` : `${color}08`}
-          stroke={selected ? color : isDark ? 'rgba(255,255,255,0.16)' : 'rgba(15,23,42,0.16)'}
-          strokeWidth={selected ? 2 : 1.25}
-        />
-      </svg>
-      <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
-      </div>
-    </div>
-  );
-}
-
-function Parallelogram({ id, data, selected, backplates, isDark, width: W, height: H, labelMaxWidth }: { id: string; data: ShapeNodeData; selected: boolean; backplates: { offset: number; color: string }[]; isDark: boolean; width: number; height: number; labelMaxWidth: number }) {
-  const color = data.accentColor ?? data.color ?? '#0f766e';
-  const SKEW = Math.min(20, Math.round(W * 0.08));
-  const pts = `${SKEW},2 ${W - 2},2 ${W - SKEW - 2},${H - 2} 2,${H - 2}`;
-  return (
-    <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
-       {backplates.map((layer, i) => (
-        <svg key={i} width={W} height={H} style={{ position: 'absolute', transform: `translate(${layer.offset}px, ${layer.offset}px)`, zIndex: -1, overflow: 'visible' }}>
-          <polygon points={pts} fill={layer.color} />
-        </svg>
-      ))}
-      <svg width={W} height={H} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
-        <polygon
-          points={pts}
-          fill={isDark ? `${color}14` : `${color}08`}
-          stroke={selected ? color : isDark ? 'rgba(255,255,255,0.16)' : 'rgba(15,23,42,0.16)'}
-          strokeWidth={selected ? 2 : 1.25}
-        />
-      </svg>
-      <Handles color={color} nodeId={id} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} />
-      </div>
-    </div>
-  );
+function colorWash(color: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const { isDark } = useCanvasTheme();
-  const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
+  const aesthetics = useDiagramAesthetics();
+  const { renderStyleId } = aesthetics;
+  const studio = renderStyleId === 'studio-minimal';
+  const baseStyles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
+  const styles = {
+    ...baseStyles,
+    background: aesthetics.colors.nodeFill,
+    border: aesthetics.colors.nodeStroke,
+    titleColor: aesthetics.colors.title,
+    subtitleColor: aesthetics.colors.subtitle,
+    shadow: aesthetics.colors.shadow,
+  };
   const backplates = styles.backplates;
-  const { width, height, labelMaxWidth } = resolveShapeSize(data);
+  const iconMode = useDiagramStore((s) => s.iconMode);
+  // Resolve icon visibility for dynamic sizing — nodes shrink when icons are off.
+  const nodeShowIcon = resolveNodeIconVisibility(iconMode, data.showIcon, false);
+  // Studio uses one compact card vocabulary instead of the normal semantic
+  // silhouettes. The node's persisted shape remains untouched; this is visual only.
+  const studioData = studio ? { ...data, shape: 'rounded-rectangle' as const } : data;
+  const studioAccent = data.accentColor || getConcernColor(concernHintForShape(data), aesthetics.concerns);
+  const themedData: ShapeNodeData = studio
+    ? {
+        ...studioData,
+        accentColor: studioAccent,
+        fillColor: aesthetics.colors.nodeFill,
+        strokeColor: selected ? studioAccent : colorWash(studioAccent, isDark ? 0.5 : 0.36),
+      }
+    : studioData;
+  const { width, height, labelMaxWidth } = resolveShapeSize(themedData, nodeShowIcon, studio);
   const sized = { width, height, labelMaxWidth };
   const updateNodeInternals = useUpdateNodeInternals();
+  const updateNodeSize = useDiagramStore((s) => s.updateNodeSize);
+  // Guard against React Flow's measured node.width/node.height (floats from
+  // getBoundingClientRect / subpixel + border box-sizing) never exactly
+  // equaling our integer-computed width/height. Comparing stored node.width
+  // vs the computed width ping-pongs forever (RF re-measures, reports a float
+  // dimension change, applyNodeChanges overwrites node.width, effect refires →
+  // "Maximum update depth exceeded"). Compare against our OWN persisted
+  // data.nodeWidth/nodeHeight integers instead, which settle exactly once we
+  // write them.
+  const storedNodeWidth = useDiagramStore((s) => {
+    const n = s.nodes.find((nd) => nd.id === id);
+    return (n?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
+  });
+  const storedNodeHeight = useDiagramStore((s) => {
+    const n = s.nodes.find((nd) => nd.id === id);
+    return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
+  });
 
-  useEffect(() => {
-    updateNodeInternals(id);
+  // Guard against synchronous update loops: width/height are derived from data,
+  // and updateNodeSize writes back to data. Without a ref guard, a float vs int
+  // mismatch (React Flow measured vs grid-snapped) or a stale closure can cause
+  // useLayoutEffect to fire every commit and hit "Maximum update depth exceeded".
+  // Track the last size we pushed to the store and only push when it truly changes.
+  const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (storedNodeWidth === width && storedNodeHeight === height) {
+      lastPushedSizeRef.current = { w: width, h: height };
+      return;
+    }
+    if (
+      lastPushedSizeRef.current &&
+      lastPushedSizeRef.current.w === width &&
+      lastPushedSizeRef.current.h === height
+    ) {
+      return;
+    }
+    lastPushedSizeRef.current = { w: width, h: height };
+    // Defer store write to next microtask so React Flow's internal
+    // commit finishes before we trigger a Zustand set(). This breaks the
+    // synchronous loop: effect -> set -> render -> effect -> set ...
+    queueMicrotask(() => {
+      // Re-check after defer — another effect may have already synced.
+      const cur = useDiagramStore.getState().nodes.find((nd) => nd.id === id);
+      const curW = (cur?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
+      const curH = (cur?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
+      if (curW === width && curH === height) return;
+      updateNodeSize(id, { width, height });
+    });
+  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize]);
+
+  // updateNodeInternals is a React Flow imperative handle; calling it
+  // synchronously on every size change can trigger onNodesChange -> set
+  // -> effect loop. Defer and coalesce.
+  const pendingInternalsRef = useRef(false);
+  useLayoutEffect(() => {
+    if (pendingInternalsRef.current) return;
+    pendingInternalsRef.current = true;
+    queueMicrotask(() => {
+      pendingInternalsRef.current = false;
+      updateNodeInternals(id);
+    });
   }, [id, width, height, updateNodeInternals]);
 
+  const shellProps = {
+    id,
+    data: themedData,
+    selected: !!selected,
+    backplates,
+    isDark,
+    styles,
+    sketch: renderStyleId === 'sketch',
+    brutal: renderStyleId === 'neubrutalism',
+    studio,
+    ...sized,
+  };
+
   const renderShape = () => {
+    if (studio) return <Rectangle {...shellProps} rounded />;
     switch (data.shape) {
-      case 'diamond':          return <Diamond id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} {...sized} />;
-      case 'cylinder':         return <Cylinder id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} {...sized} />;
-      case 'circle':           return <Circle id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} {...sized} />;
-      case 'parallelogram':    return <Parallelogram id={id} data={data} selected={!!selected} backplates={backplates} isDark={isDark} {...sized} />;
-      case 'rounded-rectangle': return <Rectangle id={id} data={data} selected={!!selected} rounded backplates={backplates} isDark={isDark} styles={styles} {...sized} />;
-      default:                 return <Rectangle id={id} data={data} selected={!!selected} rounded={false} backplates={backplates} isDark={isDark} styles={styles} {...sized} />;
+      case 'diamond':          return <Diamond {...shellProps} />;
+      case 'cylinder': {
+        // Legacy horizontal cylinder (pipe) vs vertical drum — check axis
+        const axis = (data as { cylinderAxis?: string }).cylinderAxis;
+        if (axis === 'horizontal') return <HorizontalPipeCylinder {...shellProps} />;
+        return <Cylinder {...shellProps} />;
+      }
+      case 'queue':            return <Queue {...shellProps} />;
+      case 'cache':            return <Cache {...shellProps} />;
+      case 'function':         return <FunctionShape {...shellProps} />;
+      case 'container':        return <Container {...shellProps} />;
+      case 'bucket':           return <Bucket {...shellProps} />;
+      case 'circle':           return <Circle {...shellProps} />;
+      case 'parallelogram':    return <Parallelogram {...shellProps} />;
+      case 'hexagon':          return <Hexagon {...shellProps} />;
+      case 'cloud':            return <Cloud {...shellProps} />;
+      case 'actor':            return <Actor {...shellProps} />;
+      case 'monitor':          return <Monitor {...shellProps} />;
+      case 'mobile':           return <Mobile {...shellProps} />;
+      case 'dashed-rectangle': return <DashedRectangle {...shellProps} />;
+      case 'document':         return <Document {...shellProps} />;
+      case 'documents':        return <Documents {...shellProps} />;
+      case 'rounded-rectangle':
+      case 'rectangle':         return <Rectangle {...shellProps} rounded />;
+      default:                 return <Rectangle {...shellProps} rounded />;
     }
   };
 

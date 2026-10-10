@@ -15,48 +15,17 @@ const shopifyTutorial = defineTutorial({
       title: 'E-Commerce Platform',
       steps: [
         step({
-          component: 'Web Client',
-          nodeType: 'client_web',
+          component: 'CDN',
+          nodeType: 'cdn',
+          noConnect: true,
           phases: {
             context: {
               heading: 'Welcome to Shopify Architecture',
-              body: "Let's build Shopify from scratch. 2 million merchants, $235 billion in annual sales, and a Black Friday peak of 4.2 million orders per hour.",
-            },
-            intro: {
-              heading: 'Do you know about Web Clients?',
-              body: "Shopify's web client is the storefront \u2014 the customer-facing shop handling product browsing, cart management, and checkout.",
-            },
-            teaching: {
-              heading: 'Deep dive: Web Client',
-              body: "Shopify powers 2 million storefronts, each with a unique domain and theme. A 1-second delay in page load reduces conversions by 7%.",
-            },
-            action: {
-              heading: 'Your turn!',
-              body: "Press \u2318K, search for 'Web Client', and add the client to the canvas.",
-            },
-            connecting: {
-              heading: 'Connect it up',
-              body: 'This is the first step, so no connections needed yet.',
-            },
-            celebration: {
-              heading: 'Great job!',
-              body: 'Web Client added. Now the CDN.',
-            },
-          },
-          hints: ['Press \u2318K to open component search', 'Search for "Web Client"'],
-        }),
-        step({
-          component: 'CDN',
-          nodeType: 'cdn',
-          parent: 'Web Client',
-          phases: {
-            context: {
-              heading: 'Level 1: Step 2',
-              body: 'Adding the CDN \u2014 serves storefront assets from edge locations.',
+              body: "Shopify storefronts load product images and JavaScript from a global CDN — speed at the edge drives conversion before checkout even starts.",
             },
             intro: {
               heading: 'Do you know about CDNs?',
-              body: "Shopify's CDN serves storefront assets \u2014 product images, CSS, JavaScript \u2014 from edge locations worldwide.",
+              body: "Shopify's CDN serves storefront assets — product images, CSS, JavaScript — from edge locations worldwide.",
             },
             teaching: {
               heading: 'Deep dive: CDN',
@@ -68,14 +37,46 @@ const shopifyTutorial = defineTutorial({
             },
             connecting: {
               heading: 'Connect it up',
-              body: 'Connect Web Client \u2192 CDN.',
+              body: 'This is the first step, so no connections needed yet.',
             },
             celebration: {
               heading: 'Great job!',
-              body: 'CDN added. Now the API Gateway.',
+              body: 'CDN added. Now the Web Client.',
             },
           },
-          hints: ['Search for "CDN"', 'Connect Web Client to it'],
+          hints: ['Press \u2318K to open component search', 'Search for "CDN"'],
+        }),
+        step({
+          component: 'Web Client',
+          nodeType: 'client_web',
+          parent: 'CDN',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 2',
+              body: 'The storefront web client renders themes, cart UI, and checkout on top of CDN-delivered assets.',
+            },
+            intro: {
+              heading: 'Do you know about Web Clients?',
+              body: "Shopify's web client is the storefront — the customer-facing shop handling product browsing, cart management, and checkout.",
+            },
+            teaching: {
+              heading: 'Deep dive: Web Client',
+              body: "Shopify powers 2 million storefronts, each with a unique domain and theme. A 1-second delay in page load reduces conversions by 7%.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Web Client', and add the client to the canvas.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect CDN \u2192 Web Client.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Web Client added. Now the API Gateway.',
+            },
+          },
+          hints: ['Search for "Web Client"', 'Connect CDN to it'],
         }),
         step({
           component: 'API Gateway',
@@ -84,7 +85,7 @@ const shopifyTutorial = defineTutorial({
           phases: {
             context: {
               heading: 'Level 1: Step 3',
-              body: 'Adding the API Gateway \u2014 handles storefront API requests with per-merchant rate limiting.',
+              body: 'Adding the API Gateway — handles storefront API requests with per-merchant rate limiting.',
             },
             intro: {
               heading: 'Do you know about API Gateways?',
@@ -168,10 +169,106 @@ const shopifyTutorial = defineTutorial({
             },
             celebration: {
               heading: 'Great job!',
-              body: 'Cart Service added. Tutorial complete! You have built Shopify.',
+              body: 'Cart Service added. Now the Payment Service.',
             },
           },
           hints: ['Search for "Cart Service"', 'Connect Load Balancer to it'],
+        }),
+        step({
+          component: 'Payment Service',
+          nodeType: 'payment_service',
+          parent: 'Cart Service',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 6',
+              body: 'Adding the Payment Service — authorizes cards and routes funds to merchant accounts.',
+            },
+            intro: {
+              heading: 'Do you know about Payment Services?',
+              body: 'Payment services tokenize cards, run fraud checks, and settle transactions with processors.',
+            },
+            teaching: {
+              heading: 'Deep dive: Payment Service',
+              body: "Checkout must be idempotent — refreshing the page cannot double-charge. Shopify routes each attempt through Stripe-compatible APIs with retry-safe idempotency keys.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Payment Service', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect Cart Service \u2192 Payment Service.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Payment Service added. Now the Database.',
+            },
+          },
+          hints: ['Search for "Payment Service"', 'Connect Cart Service to it'],
+        }),
+        step({
+          component: 'Database',
+          nodeType: 'sql_db',
+          parent: 'Payment Service',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 7',
+              body: 'Adding the Database — stores orders, inventory, and merchant configuration.',
+            },
+            intro: {
+              heading: 'Do you know about Databases?',
+              body: 'Relational databases back transactional commerce with strong consistency.',
+            },
+            teaching: {
+              heading: 'Deep dive: Database',
+              body: "Inventory decrements and order creation happen in one transaction. Overselling during flash sales is prevented with row-level locks on SKU counts.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Database', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect Payment Service \u2192 Database.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Database added. Now inventory locking.',
+            },
+          },
+          hints: ['Search for "Database"', 'Connect Payment Service to it'],
+        }),
+        step({
+          component: 'Inventory Service',
+          nodeType: 'microservice',
+          parent: 'Cart Service',
+          phases: {
+            context: {
+              heading: 'Level 1: Step 8',
+              body: 'Adding the Inventory Service — reserves stock when items enter the cart and releases on timeout.',
+            },
+            intro: {
+              heading: 'Do you know about Inventory Services?',
+              body: 'Inventory services track SKU counts and soft-reserve units during checkout.',
+            },
+            teaching: {
+              heading: 'Deep dive: Inventory Service',
+              body: "During Black Friday, soft reservations prevent two shoppers from buying the last unit. Expired carts release holds automatically so shelves stay accurate.",
+            },
+            action: {
+              heading: 'Your turn!',
+              body: "Press \u2318K, search for 'Inventory Service' or 'Microservice', and add it.",
+            },
+            connecting: {
+              heading: 'Connect it up',
+              body: 'Connect Cart Service \u2192 Inventory Service.',
+            },
+            celebration: {
+              heading: 'Great job!',
+              body: 'Inventory Service added. Your Shopify architecture is complete!',
+            },
+          },
+          hints: ['Search for "Microservice"', 'Connect Cart Service to it'],
         }),
       ],
     }),

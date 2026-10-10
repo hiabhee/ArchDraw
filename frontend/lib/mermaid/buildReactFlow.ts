@@ -2,6 +2,8 @@ import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor
 import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
 import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../utils/nodeSizing'
+import { resolveCylinderAxis } from '../utils/cylinderAxis'
+import { estimateTextNodeSize, estimateAnnotationNodeSize } from '../utils/textSizing'
 import { classifyEdge } from './edgeClassifier'
 import { resolveNodeIcon } from '@/lib/nodeIconResolver'
 const ARROW_MARKER = 'arrowclosed'
@@ -13,6 +15,7 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
 
   // Create subgraph nodes first (parents must exist before children)
   for (const sub of ast.subgraphs) {
+    const isLoop = /repeat|loop|for each|each customer/i.test(sub.label);
     const rfNode: RFNode = {
       id: sub.id,
       type: 'groupNode',
@@ -22,6 +25,8 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         groupLabel: sub.label,
         isGroup: true,
         color: getDeterministicColor(sub.id),
+        ...(sub.direction ? { direction: sub.direction, groupDirection: sub.direction } : {}),
+        ...(isLoop ? { isLoop: true, variant: 'dashed', loopLabel: sub.label } : {}),
       },
       style: {
         width: NODE_WIDTH + 40,
@@ -39,6 +44,52 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     nodes.push(rfNode)
   }
 
+  // Create free-text / annotation nodes from `%% archdraw-text|note` directives
+  for (const text of ast.texts) {
+    const anchoredToSubgraph = text.anchor === 'subgraph' && !!text.anchorTarget && subgraphNodes.has(text.anchorTarget)
+    const baseData: Record<string, unknown> = {
+      anchor: text.anchor,
+      ...(text.anchorTarget ? { anchorTarget: text.anchorTarget } : {}),
+    }
+    let rfNode: RFNode
+    if (text.kind === 'note') {
+      const dims = estimateAnnotationNodeSize(text.title, text.body)
+      rfNode = {
+        id: text.id,
+        type: 'annotationNode',
+        position: text.anchor === 'none' && text.position ? { ...text.position } : { x: 0, y: 0 },
+        data: {
+          ...baseData,
+          title: text.title ?? 'Note',
+          body: text.body ?? '',
+          titleSize: text.size ?? 'heading',
+          bodySize: 'medium',
+        },
+        width: dims.width,
+        height: dims.height,
+      }
+    } else {
+      const dims = estimateTextNodeSize(text.text ?? '', text.size)
+      rfNode = {
+        id: text.id,
+        type: 'textLabelNode',
+        position: text.anchor === 'none' && text.position ? { ...text.position } : { x: 0, y: 0 },
+        data: {
+          ...baseData,
+          text: text.text ?? '',
+          fontSize: text.size ?? 'medium',
+        },
+        width: dims.width,
+        height: dims.height,
+      }
+    }
+    if (anchoredToSubgraph) {
+      rfNode.parentNode = text.anchorTarget
+      rfNode.extent = 'parent'
+    }
+    nodes.push(rfNode)
+  }
+
   // Create leaf nodes
   for (const pNode of ast.nodes) {
     let label = pNode.label
@@ -50,8 +101,6 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       subtitle = parts.slice(1).join(' \u00B7 ').trim()
     }
 
-    const { width, height } = calculateNodeDimensions(label, subtitle)
-    
     // Find parent group name for classification
     let parentGroupName: string | undefined
     if (pNode.subgraphId) {
@@ -62,10 +111,17 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     }
 
     const { shape: classifiedShape, serviceType } = classifyNode(label, parentGroupName)
-    const finalShape = pNode.shape !== 'rectangle' ? pNode.shape : classifiedShape
+    const finalShape = pNode.shapeOverride ?? (pNode.shape !== 'rectangle' ? pNode.shape : classifiedShape)
+    const rfShapeRaw = finalShape === 'rounded' ? 'rounded-rectangle' : finalShape
+    const rfShape = rfShapeRaw === 'rectangle' ? 'rounded-rectangle' : rfShapeRaw
+    const cylinderAxis = rfShape === 'cylinder' ? resolveCylinderAxis({ serviceType, label }) : undefined
+    const { width, height } = calculateNodeDimensions(label, subtitle, {
+      shape: rfShape,
+      cylinderAxis,
+    })
 
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service']
-    const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1'
+    const categoryColor = CATEGORY_COLORS[meta.category] || '#3b82f6'
     const resolvedIcon = resolveNodeIcon({
       label,
       typeId: meta.typeId,
@@ -83,13 +139,21 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
         label,
         subtitle,
         sublabel: subtitle,
-        shape: finalShape === 'rounded' ? 'rounded-rectangle' : finalShape,
+        shape: rfShape,
         nodeWidth: width,
         nodeHeight: height,
+        ...(cylinderAxis ? { cylinderAxis } : {}),
         serviceType,
         componentType: meta.typeId,
         typeId: meta.typeId,
         color: categoryColor,
+        // Preserve Mermaid `style` / `classDef` colors. `fill` controls the
+        // surface while `stroke` controls the outline and accent details.
+        ...(pNode.style?.fill ? { fillColor: pNode.style.fill } : {}),
+        ...(pNode.style?.stroke ? {
+          strokeColor: pNode.style.stroke,
+          accentColor: pNode.style.stroke,
+        } : {}),
         category: meta.category,
         icon: resolvedIcon.icon,
         iconSource: resolvedIcon.source,
@@ -139,8 +203,8 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
       markerEnd: isInvisible ? undefined : { type: ARROW_MARKER },
       data: {
         label: isInvisible ? undefined : (pEdge.label ?? undefined),
-        connectionType: pEdge.type === 'dotted' || isInvisible ? 'async' : 'sync',
-        edgeVariant,
+        connectionType: pEdge.type === 'dotted' || isInvisible || semantics.syncAsync === 'async' ? 'async' : 'sync',
+        edgeVariant: semantics.syncAsync === 'async' && edgeVariant === 'solid' ? 'dashed' : edgeVariant,
         importance: isInvisible ? 'optional' : semantics.importance,
         syncAsync: semantics.syncAsync,
         portType: semantics.portType,

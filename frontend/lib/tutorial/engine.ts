@@ -1,6 +1,6 @@
 import type { Node, Edge } from 'reactflow';
-import type { TutorialDefinition, TutorialSession, PhaseName, ValidationRule, TutorialStep, PhaseContent } from './schema';
-import { PHASE_ORDER, getNextPhase } from './schema';
+import type { TutorialDefinition, TutorialSession, ValidationRule, TutorialStep, PhaseContent } from './schema';
+import { getNextPhase } from './schema';
 import { validateRules } from './detection';
 
 export function initSession(tutorial: TutorialDefinition): TutorialSession {
@@ -35,6 +35,45 @@ export function getCurrentPhase(
   return step.phases[session.phase] ?? null;
 }
 
+export function getTotalStepCount(tutorial: TutorialDefinition): number {
+  return tutorial.levels.reduce((acc, level) => acc + level.steps.length, 0);
+}
+
+export interface TutorialStatus {
+  isComplete: boolean;
+  /** Percentage of total steps completed, 0–100. */
+  progressPercent: number;
+  completedStepIds: string[];
+  completedLevelIds: string[];
+  /** 1-indexed */
+  currentLevel: number;
+  /** 1-indexed */
+  currentStep: number;
+}
+
+/**
+ * Single source of truth for tutorial completion + progress.
+ * Derived purely from the session + definition so every consumer
+ * (player, catalog cards, LearnClient) agrees on the same numbers.
+ */
+export function deriveTutorialStatus(
+  session: TutorialSession,
+  tutorial: TutorialDefinition
+): TutorialStatus {
+  const totalSteps = getTotalStepCount(tutorial);
+  const isComplete = isTutorialComplete(session, tutorial);
+  const progressPercent =
+    totalSteps > 0 ? Math.round((session.completedStepIds.length / totalSteps) * 100) : 0;
+  return {
+    isComplete,
+    progressPercent,
+    completedStepIds: session.completedStepIds,
+    completedLevelIds: session.completedLevelIds,
+    currentLevel: session.levelIndex + 1,
+    currentStep: session.stepIndex + 1,
+  };
+}
+
 export function getProgress(
   session: TutorialSession,
   tutorial: TutorialDefinition
@@ -42,10 +81,10 @@ export function getProgress(
   const totalSteps = tutorial.levels.reduce((acc, level) => acc + level.steps.length, 0);
   const completedSteps = session.completedStepIds.length;
   const percent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-  
+
   const currentStep = getCurrentStep(session, tutorial);
   const currentLevel = tutorial.levels[session.levelIndex];
-  
+
   return {
     percent,
     stepLabel: currentStep?.title ?? '',
@@ -110,7 +149,7 @@ function moveToNextStep(session: TutorialSession, tutorial: TutorialDefinition):
   if (!currentStep) return session;
 
   const newCompletedSteps = [...session.completedStepIds, currentStep.id];
-  
+
   let newLevelIndex = session.levelIndex;
   let newStepIndex = session.stepIndex + 1;
   let newCompletedLevels = session.completedLevelIds;
@@ -120,7 +159,7 @@ function moveToNextStep(session: TutorialSession, tutorial: TutorialDefinition):
     newCompletedLevels = [...newCompletedLevels, currentLevel.id];
     newStepIndex = 0;
     newLevelIndex = newLevelIndex + 1;
-    
+
     if (newLevelIndex >= tutorial.levels.length) {
       return {
         ...session,
@@ -159,24 +198,39 @@ export function checkValidation(
   }
 
   const result = validateRules(step.validation, nodes, edges);
-  
+
   if (result.passed) {
-    return { 
-      passed: true, 
-      unmetRules: [], 
-      shouldAdvance: true 
+    return {
+      passed: true,
+      unmetRules: [],
+      shouldAdvance: true
     };
   }
 
-  return { 
-    passed: false, 
-    unmetRules: result.unmetRules, 
-    shouldAdvance: false 
+  return {
+    passed: false,
+    unmetRules: result.unmetRules,
+    shouldAdvance: false
   };
 }
 
 export function forceAdvance(session: TutorialSession, tutorial: TutorialDefinition): TutorialSession {
   return advancePhase(session, tutorial);
+}
+
+export interface AdvanceResult {
+  session: TutorialSession;
+  /** True when the advance moved into a new level (not the final completion). */
+  crossedLevel: boolean;
+}
+
+export function advanceWithResult(
+  session: TutorialSession,
+  tutorial: TutorialDefinition
+): AdvanceResult {
+  const prevLevelIndex = session.levelIndex;
+  const newSession = advancePhase(session, tutorial);
+  return { session: newSession, crossedLevel: newSession.levelIndex > prevLevelIndex };
 }
 
 export function resetSession(tutorial: TutorialDefinition): TutorialSession {

@@ -36,3 +36,12 @@ export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
 export function isGitHubRepoUrl(value: string): boolean {
   return parseGitHubUrl(value) !== null;
 }
+
+/** Accepts a full GitHub URL or `owner/repo` shorthand. Prompts pass through unchanged. */
+export function coerceGitHubRepoInput(value: string): string {
+  const trimmed = value.trim();
+  if (/^[a-zA-Z0-9-._]+\/[a-zA-Z0-9-._]+$/.test(trimmed)) {
+    return `https://github.com/${trimmed}`;
+  }
+  return trimmed;
+}

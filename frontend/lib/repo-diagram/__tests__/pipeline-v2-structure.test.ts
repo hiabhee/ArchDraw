@@ -19,6 +19,7 @@ describe('repo-pipeline-v2 structure', () => {
       'extracting_components',
       'analyzing_relationships',
       'verifying',
+      'docs_review',
       'finalization',
       'cache-write',
     ]);

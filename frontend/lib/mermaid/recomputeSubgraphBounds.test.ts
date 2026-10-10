@@ -77,9 +77,9 @@ describe('recomputeSubgraphBounds', () => {
     const b = nodes.find(n => n.id === 'B')!;
     expect(contains(g, a)).toBe(true);
     expect(contains(g, b)).toBe(true);
-    expect(g.width).toBe(500);
-    expect(g.height).toBe(214);
-    expect(a.position.x).toBeCloseTo(40, 5);
+    expect(g.width).toBe(476);
+    expect(g.height).toBe(186);
+    expect(a.position.x).toBeCloseTo(28, 5);
   });
 
   it('leaves groups without children untouched', () => {

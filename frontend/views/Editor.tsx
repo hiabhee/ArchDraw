@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Node, Edge } from 'reactflow';
 import dynamic from 'next/dynamic';
@@ -13,7 +14,8 @@ import { FloatingAIBar } from '@/components/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/GenerationProgress';
 import { useDiagramStore } from '@/store/diagramStore';
-import { createNode } from '@/lib/factory';
+import { createTextLabelNode, createBlankShapeNode } from '@/lib/factory';
+import type { ShapeType } from '@/lib/shapeRegistry';
 import { getViewportCenter } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/lib/ai/utils/modelStore';
@@ -23,16 +25,9 @@ import { componentRegistry } from '@/lib/componentRegistry';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import type { GenerationProgress } from '@/lib/ai/types';
-import { ContextualSidebar } from '@/components/editor/ContextualSidebar';
-import { isGitHubRepoUrl } from '@/lib/utils/githubUrl';
-import {
-  generateDiagramFromPrompt,
-  generateDiagramFromRepo,
-  mergeGeneratedNodes,
-  inferDiagramDirection,
-  extractRepoName,
-  GenerationServiceError,
-} from '@/lib/ai/generationService';
+
+import { isGitHubRepoUrl, coerceGitHubRepoInput } from '@/lib/utils/githubUrl';
+import { generateDiagramFromPrompt, generateDiagramFromRepo, mergeGeneratedNodes, inferDiagramDirection, extractRepoName, GenerationServiceError } from '@/lib/ai/generationService';
 import { COMPONENT_TYPES } from '@/components/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/CreateComponentModal';
 import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
@@ -50,25 +45,33 @@ const Canvas = dynamic(() => import('@/components/Canvas').then(m => ({ default:
   loading: () => <CanvasSkeleton />,
 });
 
+// Quick-add shape shortcuts (plain key, no modifiers) — blank node + inline rename.
+const QUICK_SHAPE_KEYS: Record<string, ShapeType> = {
+  n: 'rounded-rectangle',
+  d: 'diamond',
+  c: 'circle',
+  y: 'cylinder',
+};
+
 function generateCanvasName(prompt: string): string {
   const words = prompt.trim().split(/\s+/);
-  const filtered = words.filter(w => 
+  const filtered = words.filter(w =>
     !['a', 'an', 'the', 'for', 'with', 'and', 'or', 'to', 'of', 'in', 'on', 'at', 'by', 'is', 'are', 'was', 'were', 'be', 'build', 'design', 'create', 'make', 'generate', 'architecture', 'diagram', 'system'].includes(w.toLowerCase())
   );
-  
+
   const topic = filtered.slice(0, 3).join(' ');
   return topic ? `${topic.charAt(0).toUpperCase() + topic.slice(1)} diagram` : 'AI Diagram';
 }
 
 export default function EditorPage() {
-  const { 
-    selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen, 
-    importDiagram, importSequenceDiagram, fitView, renameCanvas, 
+  const {
+    selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen,
+    importDiagram, importSequenceDiagram, fitView, renameCanvas,
     activeCanvasId, sequenceDiagrams, canvases,
     startGeneration, markPipelineDone, markPipelineError
   } = useDiagramStore();
   const { user } = useAuthStore();
-  const tier = getUserTier(user?.id);
+  const _tier = getUserTier(user?.id);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editComponent, setEditComponent] = useState<ComponentToEdit | null>(null);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
@@ -83,10 +86,21 @@ export default function EditorPage() {
     }
     return null;
   });
-  const [lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [_lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
   const isMobile = useIsMobile();
+  const searchParams = useSearchParams();
+  const landingGenerateStarted = useRef(false);
+
+  // Mobile: close sidebars by default and auto-close on canvas interaction
+  useEffect(() => {
+    if (isMobile && sidebarOpen) {
+      // On mobile, start with sidebar closed for more canvas space
+      setSidebarOpen(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   // Sync lastPrompt when switching canvases
   useEffect(() => {
@@ -99,21 +113,28 @@ export default function EditorPage() {
       setShowCodePanel(false);
     }
   }, [isSequenceDiagram]);
-  
+
   // Refs for useEffect to avoid dependency issues
   const sidebarOpenRef = useRef(sidebarOpen);
   const canvasSidebarOpenRef = useRef(canvasSidebarOpen);
   sidebarOpenRef.current = sidebarOpen;
   canvasSidebarOpenRef.current = canvasSidebarOpen;
+  // HMR-safe store binding: Fast Refresh may re-evaluate `diagramStore.ts`
+  // and create a new store instance without re-creating this effect closure.
+  // A render-time ref always points at the current module binding so the
+  // global keydown handler never writes to an orphaned store (symptom:
+  // node persisted to localStorage but Canvas never re-renders until refresh).
+  const storeRef = useRef(useDiagramStore);
+  storeRef.current = useDiagramStore;
 
   // Initialize onboarding (auto-open + drag detection)
   useOnboarding();
 
-
-
-
   // Keyboard shortcuts
   useEffect(() => {
+    // Access the store through the render-time ref so HMR never leaves this
+    // captured handler talking to an orphaned instance (see `storeRef` above).
+    const getStore = () => storeRef.current.getState();
     const handler = (e: KeyboardEvent) => {
       // Prevent all global shortcuts if user is typing in an input or contentEditable
       const active = document.activeElement as HTMLElement;
@@ -125,7 +146,25 @@ export default function EditorPage() {
         // Let inputs/editors keep their native select-all; everywhere else select the canvas elements.
         if (!isEditingText) {
           e.preventDefault();
-          useDiagramStore.getState().selectAll();
+          getStore().selectAll();
+        }
+        return;
+      }
+
+      // Cmd/Ctrl + D — duplicate selected nodes. Always swallow the browser's
+      // bookmark shortcut, even while typing; duplication itself only runs on canvas.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (!isEditingText) {
+          const { selectedNodeIds, selectedNodeId, duplicateNode } = getStore();
+          const ids = selectedNodeIds.length > 0
+            ? selectedNodeIds
+            : selectedNodeId
+              ? [selectedNodeId]
+              : [];
+          ids.forEach((id, i) => duplicateNode(id, {
+            offset: { x: 30 * (i + 1), y: 30 * (i + 1) },
+          }));
         }
         return;
       }
@@ -134,6 +173,7 @@ export default function EditorPage() {
 
       // f key — fit view
       if (e.key === 'f') {
+        (e as unknown as Record<string, unknown>).__archdrawFitView = true;
         e.preventDefault();
         if (reactFlowRef.instance?.fitView) {
           reactFlowRef.instance.fitView({ padding: 0.0, duration: 200 });
@@ -141,17 +181,37 @@ export default function EditorPage() {
         return;
       }
 
-      // t key — add text label at viewport center
-      if (e.key === 't') {
+      // ? (Shift+/) — toggle keyboard shortcuts modal
+      // Canvas owns the modal state; reach it via the same custom-event
+      // pattern used for edit-edge-label.
+      if (e.key === '?') {
         e.preventDefault();
-        const { pushHistory, appendNode } = useDiagramStore.getState();
-        const pos = getViewportCenter();
-        pushHistory();
-        appendNode(createNode('textLabelNode', 'Label', pos, { type: 'textLabelNode', data: { text: 'Label', fontSize: 'medium' } }));
+        document.dispatchEvent(new CustomEvent('toggle-shortcuts-modal'));
         return;
       }
 
-      const { undo, redo, deleteSelected } = useDiagramStore.getState();
+      // t key — add text label at viewport center
+      if (e.key === 't') {
+        e.preventDefault();
+        const { pushHistory, appendNode } = getStore();
+        const pos = getViewportCenter();
+        pushHistory();
+        appendNode(createTextLabelNode(pos, { autoStartEdit: true }));
+        return;
+      }
+
+      // n / d / c / y — quick-add a blank shape at viewport center (inline rename starts)
+      const quickShape = QUICK_SHAPE_KEYS[e.key.toLowerCase()];
+      if (quickShape && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const { pushHistory, appendNode } = getStore();
+        const pos = getViewportCenter();
+        pushHistory();
+        appendNode(createBlankShapeNode(quickShape, pos));
+        return;
+      }
+
+      const { undo, redo, deleteSelected } = getStore();
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -170,8 +230,10 @@ export default function EditorPage() {
         // Command palette handles its own Cmd+K, don't open canvas sidebar
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    // Capture phase so component-level stopPropagation (inline editors, panels)
+    // can never swallow global shortcuts. Text-editing guards live in the handler.
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, []);
 
   // Unsaved changes warning for guests
@@ -223,12 +285,12 @@ export default function EditorPage() {
     if (result.type === 'sequence') {
       const mermaidSyntax = result.metadata?.mermaidSyntax as string;
       const title = (result.metadata?.title as string) || canvasName;
-      
+
       importSequenceDiagram(mermaidSyntax, title);
-      
+
       const { activeCanvasId } = useDiagramStore.getState();
       renameCanvas(activeCanvasId, title);
-      
+
       setProgress({
         phase: 'complete',
         iteration: 0,
@@ -269,40 +331,62 @@ export default function EditorPage() {
       const direction = inferDiagramDirection(result);
       const activePresetId = direction ?? 'layered-lr';
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
-      const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection);
+      const relayouted = await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
+        title: canvasName,
+        renderStyleId: store.diagramRenderStyle,
+      });
+      // `store` was a snapshot taken before the await — the user may have
+      // edited (or another generation may have landed) meanwhile. Re-read the
+      // live state so merges and renames never clobber concurrent changes.
+      const liveStore = useDiagramStore.getState();
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
+
+      // A failed auto-layout silently degrading to the raw pipeline layout
+      // looks like a "messy diagram" with no explanation — surface it.
+      if (!relayouted.success && relayouted.warnings.length > 0) {
+        toast.warning('Diagram placed without auto-layout', {
+          description: relayouted.warnings[0],
+        });
+      }
 
       // Regenerate replaces the canvas with the fresh diagram; a new prompt on
       // a non-empty canvas is appended beside the existing diagram so both stay
       // visible (see mergeGeneratedNodes).
+      let usedImportDiagram = false;
       if (replace) {
         importDiagram(finalNodes, finalEdges);
+        usedImportDiagram = true;
       } else {
         const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
-          store.nodes,
-          store.edges,
+          liveStore.nodes,
+          liveStore.edges,
           finalNodes,
           finalEdges,
         );
 
-        if (store.nodes.length > 0) {
-          store.pushHistory();
-          store.setNodes(mergedNodes);
-          store.setEdges(mergedEdges);
+        if (liveStore.nodes.length > 0) {
+          liveStore.pushHistory();
+          liveStore.setNodes(mergedNodes);
+          liveStore.setEdges(mergedEdges);
         } else {
           importDiagram(finalNodes, finalEdges);
+          usedImportDiagram = true;
         }
       }
 
       if (direction) {
-        store.setActiveLayoutPresetId(direction);
+        useDiagramStore.getState().setActiveLayoutPresetId(direction);
       }
 
-      renameCanvas(store.activeCanvasId, canvasName);
-      
-      setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
-      
+      renameCanvas(useDiagramStore.getState().activeCanvasId, canvasName);
+
+      // importDiagram already triggers a fit-view animation; firing another
+      // here double-animates. Only merge paths (setNodes) need their own.
+      if (!usedImportDiagram) {
+        setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
+      }
+
       if (cached) {
         toast.success(`Loaded cached diagram: ${result.nodes.length} nodes`);
       } else {
@@ -319,7 +403,6 @@ export default function EditorPage() {
       progress: 100,
     });
   }, [fitView, importDiagram, importSequenceDiagram, renameCanvas]);
-
 
   const handleGenerate = async (description: string, detailLevelOrSize?: 1 | 2 | 3 | 'small' | 'medium' | 'large', options?: { replace?: boolean }) => {
     const { replace = false } = options ?? {};
@@ -384,9 +467,10 @@ export default function EditorPage() {
         { description, detailLevel, model: selectedModel },
         (p) => setProgress(p),
       );
-      
+
       markPipelineDone();
       handleGenerationComplete(responseData.data, canvasName, !!responseData.cached, replace);
+      window.dispatchEvent(new CustomEvent('archdraw:credits-updated'));
 
       analytics.track({
         event_type: 'diagram_generated',
@@ -434,16 +518,45 @@ export default function EditorPage() {
     }
   };
 
+  const handleGenerateRef = useRef(handleGenerate);
+  handleGenerateRef.current = handleGenerate;
+
+  useEffect(() => {
+    const raw = searchParams.get('generate');
+    if (!raw?.trim() || landingGenerateStarted.current) return;
+    landingGenerateStarted.current = true;
+    const description = coerceGitHubRepoInput(raw);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('generate');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+    void handleGenerateRef.current(description, 2, { replace: true });
+  }, [searchParams]);
+
+  // Mobile: close properties when tapping canvas on mobile
+  useEffect(() => {
+    if (!isMobile) return;
+    const handlePaneClick = () => {
+      // On mobile, tapping canvas closes sidebars to give more space
+      if (sidebarOpen) setSidebarOpen(false);
+      if (canvasSidebarOpen) setCanvasSidebarOpen(false);
+    };
+    // Listen for custom pane click from Canvas
+    window.addEventListener('pane-click-mobile-close', handlePaneClick);
+    return () => window.removeEventListener('pane-click-mobile-close', handlePaneClick);
+  }, [isMobile, sidebarOpen, canvasSidebarOpen, setSidebarOpen]);
+
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))]" style={{ touchAction: 'manipulation' }}>
+      <div className="fixed inset-0 overflow-hidden editor-chrome bg-[hsl(var(--canvas-bg))] supports-[height:100dvh]:h-[100dvh] h-[100vh]" style={{ touchAction: 'manipulation', overscrollBehaviorX: 'contain' }} data-mobile={isMobile ? 'true' : 'false'}>
 
         {sequenceDiagrams[activeCanvasId] ? (
           <SequenceDiagramViewer />
         ) : (
           <Canvas />
         )}
-        
+
         <Toolbar />
 
         {showExpirationNudge && (
@@ -455,7 +568,7 @@ export default function EditorPage() {
                   Guest work expires soon. <strong>Sign in</strong> to save.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('trigger-share'));
                 }}
@@ -466,11 +579,11 @@ export default function EditorPage() {
             </div>
           </div>
         )}
-        
+
         {canvasSidebarOpen && (
           <CanvasSidebar onClose={() => setCanvasSidebarOpen(false)} />
         )}
-        
+
         {sidebarOpen && (
           <ComponentSidebar
             onOpenCreateModal={() => setShowCreateModal(true)}
@@ -478,14 +591,13 @@ export default function EditorPage() {
         )}
 
         {(selectedNodeId || selectedNodeIds.length > 0 || selectedEdgeId) && <PropertiesPanel />}
-        
+
         <CommandPalette />
         <OnboardingOverlay />
-          <FloatingAIBar 
-          onGenerate={handleGenerate} 
+          <FloatingAIBar
+          onGenerate={handleGenerate}
           onToggleCode={() => setShowCodePanel(prev => !prev)}
-          showCode={showCodePanel}
-          hideCodeButton={isSequenceDiagram}
+          codeAction={isSequenceDiagram ? 'hidden' : showCodePanel ? 'hide' : 'show'}
           isCanvasEmpty={nodes.length === 0}
           onRegenerate={lastPrompt ? (level) => handleGenerate(lastPrompt, level, { replace: true }) : undefined}
           hasLastPrompt={!!lastPrompt}
@@ -495,8 +607,8 @@ export default function EditorPage() {
             <MermaidCodePanel onClose={() => setShowCodePanel(false)} />
           )}
         </AnimatePresence>
-        <GenerationProgressDisplay 
-          progress={progress} 
+        <GenerationProgressDisplay
+          progress={progress}
           onCancel={() => {
             setProgress(null);
           }}

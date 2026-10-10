@@ -19,9 +19,11 @@ interface FloatingHandleProps {
   type: 'source' | 'target';
   slotOffset: number;
   handleTransition: string;
+  hidden?: boolean;
+  emptySource?: boolean;
 }
 
-function SingleFloatingHandle({ side, type, slotOffset, handleTransition }: FloatingHandleProps) {
+function SingleFloatingHandle({ side, type, slotOffset, handleTransition, hidden, emptySource }: FloatingHandleProps) {
   const id = `${type}-${side}`;
   const pos = sideToPosition(side);
 
@@ -30,10 +32,11 @@ function SingleFloatingHandle({ side, type, slotOffset, handleTransition }: Floa
       type={type}
       position={pos}
       id={id}
-      className={`rh rh--${side} rh--${type}`}
+      className={`rh rh--${side} rh--${type}${emptySource ? ' handle--empty-source' : ''}`}
       style={{
         ['--rh-slot' as string]: `${slotOffset}px`,
         transition: handleTransition,
+        ...(hidden ? { visibility: 'hidden', pointerEvents: 'none' as const } : {}),
       }}
     />
   );
@@ -44,25 +47,33 @@ interface FloatingHandlesProps {
 }
 
 /**
- * Floating handles for SystemNode. Slot offsets follow per-side
- * edge direction so incoming-from-above uses a centered top target handle.
+ * Floating handles for SystemNode. Strict per-side visibility:
+ * - only outgoing on side → only source handle centered
+ * - only incoming on side → only target handle centered
+ * - both → two handles offset ±16 (aligned with edge anchors)
+ * - empty side → source appears on hover/selection; target stays mounted for drops
  */
 export function FloatingHandles({ nodeId }: FloatingHandlesProps) {
-  const { getSlotOffset, handleTransition } = useHandleSlotLayout(nodeId);
+  const { getSlotOffset, shouldRenderHandle, isEmptySide, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
       {SIDES.map((side) => {
         const pos = sideToPosition(side);
-        return TYPES.map((type) => (
-          <SingleFloatingHandle
-            key={`${type}-${side}`}
-            side={side}
-            type={type}
-            slotOffset={getSlotOffset(pos, type)}
-            handleTransition={handleTransition}
-          />
-        ));
+        return TYPES.map((type) => {
+          const active = shouldRenderHandle(pos, type);
+          return (
+            <SingleFloatingHandle
+              key={`${type}-${side}`}
+              side={side}
+              type={type}
+              slotOffset={getSlotOffset(pos, type)}
+              handleTransition={handleTransition}
+              hidden={!active}
+              emptySource={type === 'source' && isEmptySide(pos)}
+            />
+          );
+        });
       })}
     </>
   );

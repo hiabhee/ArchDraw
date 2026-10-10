@@ -9,28 +9,32 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const tutorial = getTutorialById(id);
-  if (!tutorial) return { title: 'Tutorial Not Found | ArchFlow' };
+  if (!tutorial) return { title: 'Tutorial Not Found | ArchDraw' };
 
   const keywords = [
     ...(tutorial.tags ?? []),
     'system design',
     'architecture diagram',
-    'ArchFlow',
+    'ArchDraw',
   ].join(', ');
 
+  const ogImage = `/api/og/tutorial/${id}`;
+
   return {
-    title: `How to Design ${tutorial.title} | ArchFlow`,
+    title: `${tutorial.title} | ArchDraw Tutorials`,
     description: tutorial.description,
     keywords,
     openGraph: {
-      title: `How to Design ${tutorial.title} | ArchFlow`,
+      title: `${tutorial.title} | ArchDraw Tutorials`,
       description: tutorial.description,
       type: 'article',
+      images: [{ url: ogImage, width: 1200, height: 630, alt: tutorial.title }],
     },
     twitter: {
       card: 'summary_large_image',
-      title: `How to Design ${tutorial.title} | ArchFlow`,
+      title: `${tutorial.title} | ArchDraw Tutorials`,
       description: tutorial.description,
+      images: [ogImage],
     },
   };
 }

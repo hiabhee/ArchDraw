@@ -30,6 +30,9 @@ export interface RepoEnrichmentState {
   /** Cached for downstream LLM calls; not required by Finalization. */
   detectionReportText?: string;
   summaries?: string[];
+  /** GH2R-024 — docs revalidation (DocsReviewStage) outcome; surfaced in reviewNotes. */
+  docsReviewNotes?: string;
+  docsReviewFailed?: boolean;
 }
 
 /** Baseline stage output is the entry point for enrichment. */

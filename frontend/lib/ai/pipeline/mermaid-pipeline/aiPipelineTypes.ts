@@ -7,6 +7,8 @@ import type { ValidationOutput } from './stages/ValidationStage';
 
 /** Accumulated state flowing through the AI Mermaid pipeline stages. */
 export interface AiPipelineData {
+  repairAttempted?: boolean;
+  repairAccepted?: boolean;
   userIntent: UserIntent;
   prompt: string;
   diagramSize: 'small' | 'medium' | 'large';

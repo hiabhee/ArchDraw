@@ -8,8 +8,10 @@ export const CANVAS_CONFIG = {
   minZoom:           0.1,
   maxZoom:           3,
   connectionMode:    'loose' as ConnectionMode,
-  /** Snap to nearest handle when dropping within this radius (px). */
-  connectionRadius:  120,
+  /** Snap to nearest handle when dropping within this radius (px). 32 keeps
+   * empty-pane drops easy (edge-drop new node) while still snapping when
+   * you intentionally hover a handle. */
+  connectionRadius:  32,
   background: {
     variant:         'dots' as BackgroundVariant,
     gap:             20,
@@ -60,7 +62,7 @@ export const DEFAULT_EDGE_OPTIONS = {
 
 export const NODE_CONFIG = {
   defaultWidth:      200,
-  defaultHeight:     88,
+  defaultHeight:     100,
   duplicateOffset:   40,
   defaultType:       'custom',
   fallback: {
@@ -71,28 +73,10 @@ export const NODE_CONFIG = {
   },
 } as const;
 
-// ─── LAYOUT (ELK) ────────────────────────────────────────────
-
-export const ELK_CONFIG = {
-  'elk.algorithm':                                    'layered',
-  'elk.direction':                                    'RIGHT',
-  'elk.spacing.nodeNode':                             '80',
-  'elk.layered.spacing.nodeNodeBetweenLayers':        '120',
-  'elk.spacing.edgeNode':                             '50',
-  'elk.spacing.edgeEdge':                             '30',
-  'elk.padding':                                      '[top=60, left=60, bottom=60, right=60]',
-  'elk.layered.nodePlacement.strategy':               'BRANDES_KOEPF',
-  'elk.layered.crossingMinimization.strategy':        'LAYER_SWEEP',
-  'elk.layered.compaction.postCompaction.strategy':   'EDGE_LENGTH',
-  'elk.portConstraints':                              'FREE',
-  'elk.layered.mergeEdges':                           'true',
-  'elk.spacing.componentComponent':                   '30',
-} as const;
-
-export const ELK_DIRECTION_OVERRIDE: Record<string, string> = {
-  mvc:           'DOWN',
-  flow_diagram:  'DOWN',
-};
+// ─── LAYOUT ──────────────────────────────────────────────────
+// Frontend layout is Dagre-only via `lib/pipeline-shared/layout` (the ELK
+// stack was removed; ELK now lives only in mcp-server). Spacing defaults:
+// `defaultCompoundLayoutOptions` in lib/pipeline-shared/layout/LayoutEngine.ts.
 
 // ─── NODE SPACING (global minimums) ───────────────────────────
 
@@ -118,7 +102,7 @@ export const STORAGE_KEY = STORAGE_KEYS.state; // Backwards compatibility for ex
 // ─── THEME ───────────────────────────────────────────────────
 
 export const THEME = {
-  accent:          '#6366f1',
+  accent:          '#3b82f6',
   mutedText:       '#94a3b8',
   border:          'rgba(255,255,255,0.08)',
   cardBg:          '#1e293b',

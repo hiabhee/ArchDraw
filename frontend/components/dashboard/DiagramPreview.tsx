@@ -2,15 +2,7 @@
 
 import { useMemo } from 'react';
 import type { Node, Edge } from 'reactflow';
-import {
-  getBezierPath,
-  getSmoothStepPath,
-  getStraightPath,
-  Position,
-} from 'reactflow';
-import {
-  getNodeCenter,
-} from '@/lib/utils/simpleFloatingEdge';
+import { getBezierPath, getStraightPath } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
 import { EDGE_TYPE_CONFIGS, getEdgeConfig, type EdgeType } from '@/data/edgeTypes';
@@ -39,23 +31,39 @@ function getTierColor(layer?: string): string {
   const tier = (layer || 'compute').toLowerCase();
   const colorMap: Record<string, string> = {
     client: '#64748b',
-    edge: '#6366f1',
-    gateway: '#6366f1',
+    edge: '#3b82f6',
+    gateway: '#3b82f6',
     compute: '#0d9488',
     service: '#0d9488',
     async: '#d97706',
     queue: '#d97706',
     data: '#3b82f6',
     database: '#3b82f6',
-    observe: '#8b5cf6',
+    observe: '#1E90FF',
     external: '#ec4899',
     devops: '#f97316',
   };
   return colorMap[tier] || colorMap.compute;
 }
 
+const PASTEL_TO_SATURATED: Record<string, string> = {
+  '#eff6ff': '#3b82f6',
+  '#f0fdf4': '#22c55e',
+  '#fefce8': '#f59e0b',
+  '#fdf2f8': '#ec4899',
+  '#eef2ff': '#2563eb',
+  '#fff7ed': '#f97316',
+  '#faf5ff': '#a855f7',
+  '#f0fdfa': '#14b8a6',
+};
+
+function normalizeGroupColor(c?: string): string | undefined {
+  if (!c) return c;
+  return PASTEL_TO_SATURATED[c.toLowerCase()] ?? c;
+}
+
 function getDeterministicColor(str: string): string {
-  const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+  const colors = ['#2563eb', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -289,7 +297,8 @@ export function DiagramPreview({ nodes, edges, width = 280, height = 160 }: Diag
           const isGroup = node.type === 'group' || node.data?.isGroup;
 
           if (isGroup) {
-            const groupColor = node.data?.accentColor || node.data?.groupColor || getDeterministicColor(node.id);
+            const rawGroupColor = (node.data?.accentColor as string | undefined) || (node.data?.groupColor as string | undefined) || getDeterministicColor(node.id);
+            const groupColor = normalizeGroupColor(rawGroupColor) ?? rawGroupColor;
             return (
               <g key={node.id}>
                 <rect
@@ -299,7 +308,7 @@ export function DiagramPreview({ nodes, edges, width = 280, height = 160 }: Diag
                   height={h}
                   rx={8 * scale}
                   fill={groupColor}
-                  fillOpacity={0.06}
+                  fillOpacity={0.12}
                   stroke={groupColor}
                   strokeWidth={2 * scale}
                   strokeDasharray="5,3"

@@ -14,16 +14,13 @@ describe('buildSubsystemGraph', () => {
     expect(graph.nodes.some((n) => n.id === 'web' && n.type === 'PAGE')).toBe(true);
   });
 
-  it('creates inter-subsystem edges from frontend to backend', () => {
+  it('does not assume inter-package calls in a monorepo', () => {
     const subsystems: Subsystem[] = [
       { name: 'api', path: 'services/api', type: 'backend', fileCount: 3, files: [], language: 'TypeScript', detectedFramework: null, entryPoints: [] },
       { name: 'web', path: 'apps/web', type: 'frontend', fileCount: 5, files: [], language: 'TypeScript', detectedFramework: null, entryPoints: [] },
     ];
     const graph = buildSubsystemGraph(subsystems, []);
-    const calls = graph.edges.filter((e) => e.type === 'http_call');
-    expect(calls).toHaveLength(1);
-    expect(calls[0].from).toBe('web');
-    expect(calls[0].to).toBe('api');
+    expect(graph.edges.filter((e) => e.type === 'http_call')).toHaveLength(0);
   });
 
   it('creates external service nodes from SDK signals', () => {
@@ -83,7 +80,7 @@ describe('intermediateToArchitecture', () => {
       nodes: [{ id: 'api', label: 'api', type: 'API_ROUTE' }],
       edges: [],
     };
-    const { nodes, edges } = intermediateToArchitecture(graph, subsystems);
+    const { nodes } = intermediateToArchitecture(graph, subsystems);
     expect(nodes).toHaveLength(1);
     expect(nodes[0].id).toBe('api');
     expect(nodes[0].description).toContain('5 files');

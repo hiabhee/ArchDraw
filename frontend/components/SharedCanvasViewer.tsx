@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -14,12 +14,14 @@ import ReactFlow, {
   type Node,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Download, Sun, Moon } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { Download, Sun, Moon, MoveHorizontal, MoveVertical, Loader2, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { useDiagramStore } from '@/store/diagramStore';
 import { assignEdgeColors } from '@/lib/edgeColors';
+import { layoutDiagramViaMermaid, type LayoutDirection } from '@/lib/mermaid/relayout';
+import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme';
@@ -35,10 +37,16 @@ interface SharedCanvas {
 function normalizeNodes(raw: unknown[]): Node[] {
   return (raw || []).map((n) => {
     const node = n as Node;
+    const isGroup =
+      node.type === 'groupNode' ||
+      node.type === 'frameNode' ||
+      node.type === 'group' ||
+      (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
     return {
       ...node,
       selected: false,
       dragging: false,
+      ...(isGroup ? { zIndex: -1 } : {}),
     };
   });
 }
@@ -56,6 +64,29 @@ function normalizeEdges(raw: unknown[]): Edge[] {
 
 const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
   return new Promise((resolve, reject) => {
+    if (typeof fetch !== 'undefined') {
+      fetch(dataUrl)
+        .then((r) => r.blob())
+        .then(resolve)
+        .catch(() => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob((blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Failed to convert to blob'));
+            }, 'image/png');
+          };
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = dataUrl;
+        });
+      return;
+    }
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -86,6 +117,36 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   const { isDark, setTheme } = useTheme();
   const { fitView } = useReactFlow();
 
+  // Preserve the creator's render style (if any) from the share URL.
+  // Read in an effect (not a state initializer) so SSR/hydration always
+  // agree on the first render.
+  const [renderStyle, setRenderStyle] = useState<DiagramRenderStyleId>('precision');
+
+  useEffect(() => {
+    const style = new URLSearchParams(window.location.search).get('style');
+    if (style === 'sketch') setRenderStyle('sketch');
+    else if (style === 'neubrutalism') setRenderStyle('neubrutalism');
+    else if (style === 'studio-minimal') setRenderStyle('studio-minimal');
+  }, []);
+
+  useEffect(() => {
+    useDiagramStore.setState({ diagramRenderStyle: renderStyle });
+    if (renderStyle === 'sketch') {
+      ensureSketchFontLoaded();
+    } else {
+      ensureRenderStyleFontLoaded(renderStyle);
+    }
+  }, [renderStyle]);
+
+  const themeVars = useMemo(
+    () => resolveCanvasTokens({
+      renderStyleId: renderStyle,
+      colorThemeId: renderStyle === 'studio-minimal' ? 'studio-minimal' : 'slate',
+      isDark,
+    }).cssVars,
+    [renderStyle, isDark],
+  );
+
   const nodes = useMemo(
     () => normalizeNodes((canvas?.nodes as unknown[]) || []),
     [canvas]
@@ -94,7 +155,65 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     () => normalizeEdges((canvas?.edges as unknown[]) || []),
     [canvas]
   );
-  const coloredEdges = useMemo(() => assignEdgeColors(edges, isDark), [edges, isDark]);
+
+  // View-only layout direction (LR/TB) via the canonical Mermaid→Dagre
+  // path. Always re-layouts from the shared base graph (never compounds),
+  // caches per canvas + direction, and never writes back to the store.
+  const canvasId = canvas?.id;
+  const canvasName = canvas?.canvas_name ?? 'Shared diagram';
+  const [layoutDir, setLayoutDir] = useState<LayoutDirection>('LR');
+  const [isRelayouting, setIsRelayouting] = useState(false);
+  const layoutCache = useRef(new Map<string, { nodes: Node[]; edges: Edge[] }>());
+  const [laidOut, setLaidOut] = useState<{
+    canvasId: string | undefined; nodes: Node[]; edges: Edge[];
+  } | null>(null);
+
+  // A different shared canvas means a different base graph — only honor a
+  // cached layout for the canvas it was computed from (no reset effect).
+  const laidOutForCanvas = laidOut && laidOut.canvasId === canvasId ? laidOut : null;
+
+  const handleLayoutChange = useCallback(async (dir: LayoutDirection) => {
+    if (dir === layoutDir || isRelayouting) return;
+    const cacheKey = `${canvasId ?? 'none'}:${dir}`;
+    const cached = layoutCache.current.get(cacheKey);
+    if (cached) {
+      setLaidOut({ canvasId, ...cached });
+      setLayoutDir(dir);
+      setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
+      return;
+    }
+    setIsRelayouting(true);
+    try {
+      const result = await layoutDiagramViaMermaid(nodes, edges, dir, {
+        title: canvasName,
+      });
+      if (!result.success) {
+        toast.error('Could not re-layout diagram', {
+          description: result.warnings[0] ?? 'Showing the original layout.',
+        });
+        return;
+      }
+      const placed = {
+        nodes: normalizeNodes(result.nodes as unknown[]),
+        edges: normalizeEdges(result.edges as unknown[]),
+      };
+      layoutCache.current.set(cacheKey, placed);
+      setLaidOut({ canvasId, ...placed });
+      setLayoutDir(dir);
+      setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
+    } catch {
+      toast.error('Could not re-layout diagram');
+    } finally {
+      setIsRelayouting(false);
+    }
+  }, [layoutDir, isRelayouting, nodes, edges, canvasId, canvasName, fitView]);
+
+  const displayedNodes = laidOutForCanvas?.nodes ?? nodes;
+  const laidOutEdges = laidOutForCanvas?.edges;
+  const displayedEdges = useMemo(
+    () => assignEdgeColors(laidOutEdges ?? edges, isDark),
+    [laidOutEdges, edges, isDark],
+  );
 
   // Sync darkMode in diagram store so node CSS picks up the theme
   useEffect(() => {
@@ -122,28 +241,69 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
         return;
       }
 
-      const dataUrl = await toPng(el, {
-        backgroundColor: isDark ? '#0f172a' : '#ffffff',
-        pixelRatio: 3,
-        cacheBust: true,
-        filter: (node) => {
-          const cls = (node as HTMLElement).classList;
-          if (!cls) return true;
-          return (
-            !cls.contains('react-flow__minimap') &&
-            !cls.contains('react-flow__controls') &&
-            !cls.contains('react-flow__panel') &&
-            !cls.contains('react-flow__background')
-          );
-        },
-      });
-      const blob = await dataUrlToBlob(dataUrl);
+      const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
+      // Adaptive ratio to avoid OOM on large shared canvases
+      const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      let pixelRatio = Math.min(3, Math.max(2, Math.ceil(baseRatio * 1.5)));
+      const elW = el.clientWidth || el.offsetWidth || 1200;
+      const elH = el.clientHeight || el.offsetHeight || 800;
+      const maxPixels = 16_000_000;
+      while (pixelRatio > 1 && elW * pixelRatio * elH * pixelRatio > maxPixels) pixelRatio -= 0.5;
+      pixelRatio = Math.max(1, pixelRatio);
+
+      let dataUrl: string | null = null;
+      for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 1) {
+        try {
+          dataUrl = await safeToPng(el, {
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            pixelRatio: attemptRatio,
+            cacheBust: true,
+            filter: (node) => {
+              const cls = (node as HTMLElement).classList;
+              if (!cls) return true;
+              return (
+                !cls.contains('react-flow__minimap') &&
+                !cls.contains('react-flow__controls') &&
+                !cls.contains('react-flow__panel') &&
+                !cls.contains('react-flow__background')
+              );
+            },
+          });
+          pixelRatio = attemptRatio;
+          break;
+        } catch (e) {
+          if (attemptRatio <= 1) throw e;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      if (!dataUrl) throw new Error('Failed to generate PNG');
+      let blob: Blob | null = null;
+      try {
+        blob = await dataUrlToBlob(dataUrl);
+      } catch {
+        // Fallback to direct data URL download
+        const a2 = document.createElement('a');
+        a2.href = dataUrl;
+        a2.download = `${canvas.canvas_name || 'diagram'}-${Date.now()}.png`;
+        a2.style.display = 'none';
+        document.body.appendChild(a2);
+        a2.click();
+        setTimeout(() => a2.remove(), 1000);
+        toast.success('Downloaded!');
+        setDownloaded(true);
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${canvas.canvas_name || 'diagram'}-${Date.now()}.png`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 1000);
       toast.success('Downloaded!');
       setDownloaded(true);
     } catch {
@@ -158,7 +318,11 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   };
 
   return (
-    <div className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground`}>
+    <div
+      className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground ${renderStyle === 'sketch' ? sketchHandwritingFont.className : ''}`}
+      style={themeVars as React.CSSProperties}
+      data-render-style={renderStyle}
+    >
       {/* Top banner */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[hsl(var(--canvas-bg))]/95 backdrop-blur-sm border-b border-border/40">
         <div className="flex items-center gap-2">
@@ -172,17 +336,64 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">View only</span>
+          <span className="text-muted-foreground text-xs hidden sm:inline">View only</span>
+          <span className="hidden md:inline text-xs text-muted-foreground tabular-nums">
+            {nodes.length} nodes · {edges.length} edges
+          </span>
+          {/* Layout direction toggle (view-only, never persisted) */}
+          <div
+            className="flex items-center rounded-lg border border-border/40 bg-secondary p-0.5"
+            role="group"
+            aria-label="Layout direction"
+          >
+            {(['LR', 'TD'] as const).map((dir) => {
+              const active = layoutDir === dir;
+              const Icon = dir === 'LR' ? MoveHorizontal : MoveVertical;
+              const label = dir === 'LR' ? 'Horizontal' : 'Vertical';
+              return (
+                <button
+                  key={dir}
+                  onClick={() => void handleLayoutChange(dir)}
+                  disabled={isRelayouting}
+                  aria-pressed={active}
+                  title={`${label} layout`}
+                  aria-label={`${label} layout`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all disabled:opacity-60 ${
+                    active
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {isRelayouting && active ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Icon className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden lg:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            aria-pressed={isDark}
             className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {isDark ? (
               <Sun className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
             ) : (
               <Moon className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
             )}
+          </button>
+          <button
+            onClick={() => fitView({ padding: 0.15, duration: 300 })}
+            className="w-8 h-8 rounded-lg hidden sm:flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
+            title="Fit diagram to screen"
+            aria-label="Fit diagram to screen"
+          >
+            <Maximize className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
           </button>
           <button
             onClick={handleDownloadClick}
@@ -215,13 +426,15 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
 
       <div className="w-full h-full pt-12">
         <ReactFlow
-          nodes={nodes}
-          edges={coloredEdges}
+          nodes={displayedNodes}
+          edges={displayedEdges}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={true}
+          elevateNodesOnSelect={false}
+          elevateEdgesOnSelect={false}
           panOnDrag
           panOnScroll
           zoomOnScroll={false}

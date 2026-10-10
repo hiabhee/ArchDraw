@@ -13,6 +13,9 @@ export interface ScoreInput {
   detailLevel: 1 | 2 | 3;
   styleTheme: string;
   prompt: string;
+  nodesRemoved?: number;
+  edgesRemoved?: number;
+  groupsRemoved?: number;
   stylePlan: {
     style: ArchitectureStyle;
     strictness: 'explicit' | 'inferred';
@@ -35,8 +38,9 @@ export class ScoreStage extends BaseStage<ScoreInput, ScoreOutput> {
       input.nodes as unknown as RFNodeType[],
       input.edges as unknown as RFEdgeType[],
       {
-        nodesRemoved: 0,
-        edgesRemoved: 0,
+        nodesRemoved: input.nodesRemoved ?? 0,
+        edgesRemoved: input.edgesRemoved ?? 0,
+        groupsRemoved: input.groupsRemoved ?? 0,
         diagramSize: input.diagramSize,
         detailLevel: input.detailLevel,
         stylePlan: input.stylePlan,

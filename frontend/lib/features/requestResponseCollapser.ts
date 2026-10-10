@@ -69,6 +69,13 @@ export function collapseRequestResponse(edges: Edge[]): Edge[] {
     if (reverseEdge) {
       const pairKey = `${edge.source}::${edge.target}`
       if (!edgePairs.has(pairKey) && !edgePairs.has(`${edge.target}::${edge.source}`)) {
+        const fwdLabel = edgeLabelString(edge).toLowerCase()
+        const revLabel = edgeLabelString(reverseEdge).toLowerCase()
+        const allKeywords = [...RESPONSE_LABEL_KEYWORDS, ...REQUEST_LABEL_KEYWORDS]
+        const hasKeyword = allKeywords.some(k => fwdLabel.includes(k) || revLabel.includes(k))
+        // Only collapse true request/response pairs (e.g. "request" ↔ "response/return").
+        // Loop constructs like L1→L2 / L2→L1 "Yes, re-run" must stay as 2 separate edges.
+        if (!hasKeyword) continue
         const { forward, reverse } = detectDirection(edge, reverseEdge)
         edgePairs.set(`${forward.source}::${forward.target}`, { forward, reverse })
       }

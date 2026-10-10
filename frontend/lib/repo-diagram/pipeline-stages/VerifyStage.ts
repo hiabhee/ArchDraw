@@ -1,6 +1,6 @@
 import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
 import type { PipelineContext } from '@/lib/pipeline-core';
-import { deduplicateNodes, pruneNoisyEdges } from '@/lib/repo-diagram/graph-quality';
+import { constrainGraphForRepoType, deduplicateNodes, pruneNoisyEdges } from '@/lib/repo-diagram/graph-quality';
 import { verifyGraph } from '@/lib/agents/repo-verifier';
 import { inferRelationshipsHeuristic } from '@/lib/agents/repo-heuristic-extractor';
 import { normalizeId } from './internal-helpers';
@@ -17,7 +17,17 @@ export class VerifyStage extends BaseStage<RepoEnrichmentState, RepoEnrichmentSt
 
   async execute(input: RepoEnrichmentState, _context: PipelineContext): Promise<StageResult<RepoEnrichmentState>> {
     if (!input.useLlm) {
-      return successResult(input);
+      const constrained = constrainGraphForRepoType(
+        input.workingNodes,
+        input.edges,
+        input.repoProfile,
+        input.signals,
+      );
+      return successResult({
+        ...input,
+        workingNodes: constrained.nodes,
+        edges: constrained.edges,
+      });
     }
 
     let workingNodes = input.workingNodes;
@@ -50,6 +60,12 @@ export class VerifyStage extends BaseStage<RepoEnrichmentState, RepoEnrichmentSt
     const deduped = deduplicateNodes(workingNodes, currentEdges);
     workingNodes = deduped.nodes;
     currentEdges = pruneNoisyEdges(deduped.nodes, deduped.edges);
+    ({ nodes: workingNodes, edges: currentEdges } = constrainGraphForRepoType(
+      workingNodes,
+      currentEdges,
+      input.repoProfile,
+      input.signals,
+    ));
 
     return successResult({
       ...input,

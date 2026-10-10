@@ -1,6 +1,8 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { ApplyTemplateInput } from '../lib/schema.js';
 import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
+import { COMM_COLORS } from '../lib/constants.js';
+import { fetchWithTimeout } from '../lib/http.js';
 import type { TierType } from '../types/index.js';
 
 interface TemplateNode {
@@ -239,6 +241,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
   };
   diagramUrl?: string;
   sessionId?: string;
+  updateToken?: string;
   shareUrl?: string;
   embeddedDiagram?: { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] };
   message?: string;
@@ -263,8 +266,8 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       };
     }
 
-    let templateNodes = template.nodes;
-    const templateEdges = template.edges;
+    let templateNodes = template.nodes.map(node => ({ ...node }));
+    const templateEdges = template.edges.map(edge => ({ ...edge }));
 
     if (input.customizations) {
       if (input.customizations.renameNodes) {
@@ -321,6 +324,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         position: { x: TIER_X[tier] || 650, y },
         data: {
           label: node.label,
+          subtitle: node.label,
           icon: node.icon,
           layer: normalizedTier,
           tier: normalizedTier,
@@ -334,14 +338,12 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     });
 
     const reactFlowEdges: ReactFlowEdge[] = templateEdges.map((edge, idx) => {
-      const commColors: Record<string, { color: string; dash: string; animated: boolean }> = {
-        sync: { color: '#94a3b8', dash: '', animated: false },
-        async: { color: '#f59e0b', dash: '8,4', animated: true },
-        stream: { color: '#10b981', dash: '4,2', animated: true },
-        event: { color: '#ec4899', dash: '2,3', animated: true },
-        dep: { color: '#94a3b8', dash: '6,6', animated: true },
-      };
-      const commStyle = commColors[edge.communicationType] || commColors.sync;
+      const commType = (edge.communicationType || 'sync') as keyof typeof COMM_COLORS;
+      const commStyle = COMM_COLORS[commType] || COMM_COLORS.sync;
+      const edgeLabel = commType === 'async' ? 'async message'
+        : commType === 'stream' ? 'stream'
+        : commType === 'event' ? 'event'
+        : '';
 
       return {
         id: `edge-${idx}`,
@@ -349,7 +351,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         target: edge.target,
         type: 'smooth',
         animated: commStyle.animated,
-        label: '',
+        label: edgeLabel,
         labelShowBg: true,
         labelBgPadding: [8, 4] as [number, number],
         labelBgBorderRadius: 4,
@@ -362,9 +364,9 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         },
         markerEnd: { type: 'arrowclosed', color: commStyle.color },
         data: {
-          communicationType: edge.communicationType as 'sync' | 'async' | 'stream' | 'event' | 'dep',
+          communicationType: commType as 'sync' | 'async' | 'stream' | 'event' | 'dep',
           pathType: 'smooth',
-          label: '',
+          label: edgeLabel,
         },
       };
     });
@@ -372,25 +374,27 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     let diagramUrl: string | undefined;
     let message: string | undefined;
     let sessionId: string | undefined;
-    const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000';
+    const API_BASE = process.env.API_BASE_URL;
+    let updateToken: string | undefined;
 
-    try {
-      const saveResponse = await fetch(`${API_BASE}/api/diagram/load`, {
+    if (input.publish && API_BASE) try {
+      const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
           label: template.name,
-          source: 'mcp',
+          source: 'mcp', publish: true,
         }),
       });
 
       if (saveResponse.ok) {
-        const saveData = await saveResponse.json() as { sessionId: string; url?: string };
+        const saveData = await saveResponse.json() as { sessionId: string; url?: string; updateToken: string };
         const urlPath = saveData.url || `/editor?session=${saveData.sessionId}`;
         diagramUrl = `${API_BASE}${urlPath}`;
         sessionId = saveData.sessionId;
+        updateToken = saveData.updateToken;
         const shareUrl = `${API_BASE}/share/${sessionId}`;
         message = `✅ Template loaded! Open this URL to view and edit the diagram:\n\n${diagramUrl}\n\n🔗 Shareable link:\n${shareUrl}\n\nOr copy and paste this link in your browser. The template has ${reactFlowNodes.length} nodes and ${reactFlowEdges.length} edges.\n\n**To export**: Use the session ID "${sessionId}" with the export_diagram tool (format: json/png/svg).`;
       }
@@ -409,6 +413,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       },
       diagramUrl,
       sessionId,
+      updateToken,
       shareUrl: sessionId ? `${API_BASE}/share/${sessionId}` : undefined,
       embeddedDiagram: {
         nodes: reactFlowNodes,

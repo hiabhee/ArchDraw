@@ -38,6 +38,7 @@ export interface CloudNodeClassification {
 export interface CloudNodeInput {
   label?: string;
   typeId?: string;
+  componentId?: string;
   technology?: string;
   serviceType?: string;
   icon?: string;

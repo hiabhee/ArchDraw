@@ -34,7 +34,7 @@ export function detectMainSpine(nodes: Node[], edges: Edge[]): SpineResult {
   }
 
   const inDegree = new Map<string, number>()
-  for (const [src, targets] of adjacency) {
+  for (const [_src, targets] of adjacency) {
     for (const tgt of targets) {
       inDegree.set(tgt, (inDegree.get(tgt) || 0) + 1)
     }
@@ -148,7 +148,7 @@ export function detectMainSpine(nodes: Node[], edges: Edge[]): SpineResult {
     if (longest.length > bestPath.length) bestPath = longest
   }
 
-  const spineNodeSet = new Set(bestPath)
+  const _spineNodeSet = new Set(bestPath)
   const spineEdgeIds: string[] = []
 
   for (let i = 0; i < bestPath.length - 1; i++) {

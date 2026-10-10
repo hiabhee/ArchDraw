@@ -37,6 +37,10 @@ export interface NodeData {
   labelManuallyEdited?: boolean;
   /** Enter inline label edit when the node mounts (edge-drop create). */
   autoStartLabelEdit?: boolean;
+  /** When set, overrides the global show-node-icons preference for this node. */
+  showIcon?: boolean;
+  /** true = icon only, false = always show label, undefined = auto (brand logos hide label). */
+  iconOnly?: boolean;
 }
 
 export interface CanvasTab {
@@ -60,6 +64,11 @@ export interface UserProfile {
   email?: string;
   name?: string;
   avatar_url?: string;
+}
+
+export interface SetUserProfileOptions {
+  /** Keep in-memory / persisted canvases (e.g. session expired while editing). */
+  preserveCanvases?: boolean;
 }
 
 export interface HistoryEntry {
@@ -98,7 +107,7 @@ export interface DiagramState {
 
   // ── User / Auth ───────────────────────────────────────────────────────────
   userProfile: UserProfile | null;
-  setUserProfile: (profile: UserProfile | null) => void;
+  setUserProfile: (profile: UserProfile | null, options?: SetUserProfileOptions) => void;
   loadCanvasesFromDB: () => Promise<void>;
   saveCanvasToDB: (canvasId: string) => void;
   savingState: 'idle' | 'saving' | 'saved';
@@ -116,28 +125,34 @@ export interface DiagramState {
   guideLines: GuideLine[];
   edgeAnimations: boolean;
   showGrid: boolean;
+  iconMode: import('@/lib/utils/nodeIconVisibility').NodeIconMode;
   diagramChromeMode: 'edit' | 'present';
   diagramStyleTheme: string;
+  diagramRenderStyle: import('@/lib/theme/renderStyles').DiagramRenderStyleId;
   darkMode: boolean;
   sidebarOpen: boolean;
   canvasMode: 'empty' | 'editing' | 'template';
   activeLayoutPresetId: string;
   detailLevel: 1 | 2 | 3;
+  isPenModeActive: boolean;
+  setPenModeActive: (active: boolean) => void;
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
+  setIconMode: (mode: import('@/lib/utils/nodeIconVisibility').NodeIconMode) => void;
   cloudProvider: CloudProviderToggle;
   setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;
   setDiagramStyleTheme: (theme: string) => void;
+  setDiagramRenderStyle: (style: import('@/lib/theme/renderStyles').DiagramRenderStyleId) => void;
   toggleDarkMode: () => void;
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
   setActiveLayoutPresetId: (id: string) => void;
   setDetailLevel: (level: 1 | 2 | 3) => void;
-  isPenModeActive: boolean;
-  setPenModeActive: (active: boolean) => void;
   clarityReport?: import('@/lib/features/clarityCompiler').ClarityReport;
+  canvasBackground: CanvasBackgroundConfig;
+  setCanvasBackground: (patch: Partial<CanvasBackgroundConfig>) => void;
 
   // ── History ───────────────────────────────────────────────────────────────
   past: HistoryEntry[];
@@ -160,6 +175,10 @@ export interface DiagramState {
     position?: { x: number; y: number }
   ) => void;
   removeNode: (id: string) => void;
+  duplicateNode: (nodeId: string, options?: {
+    offset?: { x: number; y: number };
+    labelSuffix?: string;
+  }) => string | undefined;
   updateNodeData: (id: string, data: Partial<NodeData>) => void;
   updateNodeSize: (id: string, size: { width?: number; height?: number }) => void;
   updateEdgeData: (id: string, data: Record<string, unknown>) => void;
@@ -181,6 +200,7 @@ export interface DiagramState {
   loadDefaultArchitecture: () => void;
   alignConnectedNodes: () => void;
   recalculateHandles: (nodesOverride?: Node[]) => void;
+  fixMissingLabels: () => void;
 
   // ── Fit view ──────────────────────────────────────────────────────────────
   fitView: (options?: FitViewOptions) => void;
@@ -207,4 +227,13 @@ export interface DiagramState {
   markPipelineDone: () => void;
   markPipelineError: (message: string) => void;
   clearPipelineStatus: () => void;
+}
+
+export type CanvasBackgroundVariant = 'dots' | 'lines';
+export interface CanvasBackgroundConfig {
+  variant: CanvasBackgroundVariant;
+  bgColor: string | null;
+  patternColor: string | null;
+  gap: number;
+  size: number;
 }

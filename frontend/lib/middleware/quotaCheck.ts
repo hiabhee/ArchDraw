@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { cache } from 'react';
 import { getUserTier, getGuestQuotas, getAuthenticatedQuotas, type UserTier } from '@/lib/userQuotas';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
@@ -6,13 +7,13 @@ import { checkRateLimit, RedisRateLimitError } from '@/lib/redis';
 import { getClientIP } from '@/lib/server/ip';
 import logger from '@/lib/logger';
 
-export async function getSessionFromRequest(req: NextRequest) {
+export const getSessionFromRequest = cache(async (req: NextRequest) => {
   try {
     return await auth.api.getSession({ headers: req.headers });
   } catch {
     return null;
   }
-}
+});
 
 /**
  * DB-based fallback rate limiter for guests when Redis is unavailable.

@@ -45,9 +45,7 @@ const baseURL = process.env.BETTER_AUTH_URL
 // Build trusted origins list - include both production and development
 const trustedOrigins = new Set<string>([
   'http://localhost:3000',
-  'http://localhost:3001',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
 ]);
 if (process.env.NEXT_PUBLIC_APP_URL) {
   trustedOrigins.add(process.env.NEXT_PUBLIC_APP_URL);
@@ -76,6 +74,14 @@ export const auth = betterAuth({
   },
   trustedOrigins: Array.from(trustedOrigins),
   baseURL,
+  // better-auth enables its default limiter in production (100 req/min, memory
+  // storage). Pin it explicitly so sign-in retries from one IP don't trip a
+  // surprise 429, while still blocking brute-force abuse.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 20,
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;

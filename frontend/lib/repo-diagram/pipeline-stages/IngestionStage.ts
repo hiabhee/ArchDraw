@@ -3,6 +3,7 @@ import type { PipelineContext } from '@/lib/pipeline-core';
 import { ingestRepo } from '@/lib/github-ingestion';
 import type { RepoSnapshot } from '@/lib/types/repo-diagram';
 import logger from '@/lib/logger';
+import { DEFAULT_FILE_BUDGET, DEFAULT_CONTENT_BUDGET_KB } from '@/lib/repo-diagram/skip-rules';
 
 export interface IngestionInput {
   repoUrl: string;
@@ -21,10 +22,12 @@ export class IngestStage extends BaseStage<IngestionInput, IngestionOutput> {
   }
 
   async execute(input: IngestionInput, context: PipelineContext): Promise<StageResult<IngestionOutput>> {
-    const FILE_BUDGETS: Record<number, number> = { 1: 500, 2: 1000, 3: 2000 };
+    // GH2R-006: level-aware budgets single-sourced from skip-rules.ts (was 500/1000/2000 + 10000 regardless of level)
+    const FILE_BUDGETS: Record<number, number> = DEFAULT_FILE_BUDGET;
+    const detail = input.detailLevel ?? 2;
     const ingestOpts = {
-      fileBudget: FILE_BUDGETS[input.detailLevel ?? 2] ?? 1000,
-      contentBudgetKB: 10000,
+      fileBudget: FILE_BUDGETS[detail] ?? 900,
+      contentBudgetKB: DEFAULT_CONTENT_BUDGET_KB[detail] ?? 8000,
     };
 
     try {

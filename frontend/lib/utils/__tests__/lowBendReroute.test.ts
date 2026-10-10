@@ -36,6 +36,24 @@ function hasTerminalSPattern(pts: Array<{ x: number; y: number }>): boolean {
 }
 
 describe('low-bend collision reroutes', () => {
+  it('keeps a clear corridor straight when another node is only nearby', () => {
+    const source = makeNode('source', 0, 100, 160, 64)
+    const target = makeNode('target', 500, 100, 160, 64)
+    // Its bottom edge is 48px above the edge: close enough for the previous
+    // 50px buffer to create a U-turn, but not an obstruction.
+    const nearby = makeNode('nearby', 260, 20, 100, 64)
+    const edge = { id: 'e', source: 'source', target: 'target', data: {} } as Edge
+
+    const route = computeEdgeRoute(edge, [source, target, nearby], [edge], 'LR', 'studio-minimal')
+
+    expect(route.waypoints).toEqual([
+      { x: 172, y: 132 },
+      { x: 330, y: 132 },
+      { x: 330, y: 132 },
+      { x: 488, y: 132 },
+    ])
+  })
+
   it('wraps a mid-corridor blocker with a clean U (≤4 bends, no terminal S)', () => {
     const source = makeNode('source', 0, 100)
     const target = makeNode('target', 500, 100)

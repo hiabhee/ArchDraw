@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Connection, Edge } from 'reactflow';
+
 import type { DiagramState } from '../types';
 import { distributeTargetHandles } from '../helpers/edgeHelpers';
 
@@ -12,6 +12,7 @@ export type EdgeEditSlice = Pick<
   | 'pendingLabelEdgeId'
   | 'setPendingLabelEdgeId'
   | 'updateEdgeLabel'
+  | 'updateEdgeData'
   | 'deleteEdge'
   | 'onReconnect'
 >;
@@ -40,9 +41,21 @@ export const createEdgeEditSlice: StateCreator<
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
+  updateEdgeData: (edgeId, dataUpdates) => {
+    const edges = get().edges.map((e) =>
+      e.id === edgeId ? { ...e, data: { ...e.data, ...dataUpdates } } : e
+    );
+    const canvases = get().canvases.map((c) =>
+      c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
+    );
+    set({ canvases });
+    get().saveCanvasToDB(get().activeCanvasId);
+  },
+
   deleteEdge: (edgeId) => {
     get().pushHistory();
-    const edges = get().edges.filter((e) => e.id !== edgeId);
+    const rawEdges = get().edges.filter((e) => e.id !== edgeId);
+    const edges = distributeTargetHandles(get().nodes, rawEdges, get().activeLayoutPresetId);
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );

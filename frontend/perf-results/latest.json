@@ -1,0 +1,1222 @@
+{
+  "date": "2026-09-02",
+  "timeId": "2026-09-02T03-27-09",
+  "gitSha": "24bed0bd9bd598853447c33b7c22cb17d7b899bc",
+  "baseUrl": "http://localhost:4317",
+  "runs": 10,
+  "concurrency": 5,
+  "timeoutMs": 15000,
+  "build": null,
+  "bundle": {
+    "totalStaticRaw": 10470684,
+    "totalStaticGzip": 2944333,
+    "totalServerRaw": 51912010,
+    "chunkCount": 169,
+    "largestChunks": [
+      {
+        "path": ".next/static/chunks/0vltwiozwy1gy.js",
+        "rawBytes": 929638,
+        "gzipBytes": 266297
+      },
+      {
+        "path": ".next/static/chunks/11ipkovaizlyc.js",
+        "rawBytes": 661428,
+        "gzipBytes": 165406
+      },
+      {
+        "path": ".next/static/chunks/1cvi45rnqa5h5.js",
+        "rawBytes": 661428,
+        "gzipBytes": 165408
+      },
+      {
+        "path": ".next/static/chunks/2i7w9e3mi3fui.js",
+        "rawBytes": 655716,
+        "gzipBytes": 141995
+      },
+      {
+        "path": ".next/static/chunks/3tss0335grz_m.js",
+        "rawBytes": 429871,
+        "gzipBytes": 134716
+      },
+      {
+        "path": ".next/static/chunks/292q28nhev3kw.js",
+        "rawBytes": 418389,
+        "gzipBytes": 133580
+      },
+      {
+        "path": ".next/static/chunks/1a5cytikry7_7.js",
+        "rawBytes": 304836,
+        "gzipBytes": 84974
+      },
+      {
+        "path": ".next/static/chunks/1480g2l5-vr3t.js",
+        "rawBytes": 292103,
+        "gzipBytes": 68895
+      },
+      {
+        "path": ".next/static/chunks/1diy94jfbhnr5.js",
+        "rawBytes": 263870,
+        "gzipBytes": 76883
+      },
+      {
+        "path": ".next/static/chunks/0fns5u7wsv25x.js",
+        "rawBytes": 227429,
+        "gzipBytes": 71045
+      }
+    ],
+    "firstLoadApproxRaw": 3756470,
+    "firstLoadApproxGzip": 1007402,
+    "nextDirBytes": 2533104904,
+    "staticDirBytes": 12600762,
+    "serverDirBytes": 51912010
+  },
+  "staticLint": {
+    "outlineNoneWithoutReplacement": 27,
+    "transitionAll": 50,
+    "hardcodedHexTokens": 895,
+    "imgWithoutDimensions": 1,
+    "iconButtonMissingAriaLabelEstimate": 67
+  },
+  "pages": [
+    {
+      "name": "landing",
+      "path": "/",
+      "status": 200,
+      "ttfbMs": 5,
+      "totalMs": 6,
+      "htmlBytes": 121723,
+      "gzipBytes": 20280,
+      "scriptTagCount": 44,
+      "linkTagCount": 17,
+      "hasNextFont": false
+    },
+    {
+      "name": "blogs",
+      "path": "/blogs",
+      "status": 200,
+      "ttfbMs": 5,
+      "totalMs": 5,
+      "htmlBytes": 103100,
+      "gzipBytes": 12565,
+      "scriptTagCount": 47,
+      "linkTagCount": 14,
+      "hasNextFont": false
+    },
+    {
+      "name": "dashboard",
+      "path": "/dashboard",
+      "status": 200,
+      "ttfbMs": 5,
+      "totalMs": 6,
+      "htmlBytes": 159754,
+      "gzipBytes": 16214,
+      "scriptTagCount": 38,
+      "linkTagCount": 14,
+      "hasNextFont": false
+    },
+    {
+      "name": "editor",
+      "path": "/editor",
+      "status": 200,
+      "ttfbMs": 5,
+      "totalMs": 5,
+      "htmlBytes": 30484,
+      "gzipBytes": 5549,
+      "scriptTagCount": 34,
+      "linkTagCount": 15,
+      "hasNextFont": false
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "landing",
+      "path": "/",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 4,
+        "p95": 8,
+        "avg": 5,
+        "min": 3,
+        "max": 8
+      },
+      "total": {
+        "p50": 5,
+        "p95": 9,
+        "avg": 6,
+        "min": 4,
+        "max": 9
+      },
+      "bytes": {
+        "avg": 121723
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 6,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 5,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 6,
+          "totalMs": 7,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 5,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 5,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 5,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 8,
+          "totalMs": 9,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 121723
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 7,
+          "bytes": 121723
+        }
+      ]
+    },
+    {
+      "name": "sitemap",
+      "path": "/sitemap.xml",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 1,
+        "p95": 4,
+        "avg": 2,
+        "min": 1,
+        "max": 4
+      },
+      "total": {
+        "p50": 2,
+        "p95": 4,
+        "avg": 2,
+        "min": 1,
+        "max": 4
+      },
+      "bytes": {
+        "avg": 7785
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 2,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 2,
+          "bytes": 7785
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 7785
+        }
+      ]
+    },
+    {
+      "name": "robots",
+      "path": "/robots.txt",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 2,
+        "p95": 5,
+        "avg": 2,
+        "min": 1,
+        "max": 5
+      },
+      "total": {
+        "p50": 2,
+        "p95": 5,
+        "avg": 2,
+        "min": 1,
+        "max": 5
+      },
+      "bytes": {
+        "avg": 6179
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 5,
+          "totalMs": 5,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 6179
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 6179
+        }
+      ]
+    },
+    {
+      "name": "blogs_index",
+      "path": "/blogs",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 3,
+        "p95": 8,
+        "avg": 4,
+        "min": 3,
+        "max": 8
+      },
+      "total": {
+        "p50": 4,
+        "p95": 9,
+        "avg": 5,
+        "min": 4,
+        "max": 9
+      },
+      "bytes": {
+        "avg": 103100
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 6,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 5,
+          "totalMs": 6,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 6,
+          "totalMs": 7,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 5,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 8,
+          "totalMs": 9,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 103100
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 103100
+        }
+      ]
+    },
+    {
+      "name": "docs",
+      "path": "/docs",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 3,
+        "p95": 6,
+        "avg": 3,
+        "min": 2,
+        "max": 6
+      },
+      "total": {
+        "p50": 4,
+        "p95": 9,
+        "avg": 5,
+        "min": 2,
+        "max": 9
+      },
+      "bytes": {
+        "avg": 42736
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 6,
+          "totalMs": 6,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 4,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 9,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 42736
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 42736
+        }
+      ]
+    },
+    {
+      "name": "dashboard",
+      "path": "/dashboard",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 3,
+        "p95": 10,
+        "avg": 4,
+        "min": 2,
+        "max": 10
+      },
+      "total": {
+        "p50": 4,
+        "p95": 10,
+        "avg": 5,
+        "min": 3,
+        "max": 10
+      },
+      "bytes": {
+        "avg": 159754
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 10,
+          "totalMs": 10,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 5,
+          "totalMs": 5,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 4,
+          "bytes": 159754
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 5,
+          "bytes": 159754
+        }
+      ]
+    },
+    {
+      "name": "editor",
+      "path": "/editor",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 2,
+        "p95": 4,
+        "avg": 2,
+        "min": 1,
+        "max": 4
+      },
+      "total": {
+        "p50": 2,
+        "p95": 9,
+        "avg": 3,
+        "min": 1,
+        "max": 9
+      },
+      "bytes": {
+        "avg": 30484
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 9,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 2,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 2,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 5,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 30484
+        },
+        {
+          "status": 200,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 30484
+        }
+      ]
+    },
+    {
+      "name": "tutorials_index",
+      "path": "/tutorials",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 3,
+        "p95": 42,
+        "avg": 7,
+        "min": 2,
+        "max": 42
+      },
+      "total": {
+        "p50": 3,
+        "p95": 43,
+        "avg": 8,
+        "min": 3,
+        "max": 43
+      },
+      "bytes": {
+        "avg": 169953
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 5,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 4,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 4,
+          "totalMs": 6,
+          "bytes": 169953
+        },
+        {
+          "status": 200,
+          "ttfbMs": 42,
+          "totalMs": 43,
+          "bytes": 169953
+        }
+      ]
+    },
+    {
+      "name": "track_page_view",
+      "path": "/api/track",
+      "method": "POST",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "400": 10
+      },
+      "ttfb": {
+        "p50": 2,
+        "p95": 2,
+        "avg": 2,
+        "min": 1,
+        "max": 2
+      },
+      "total": {
+        "p50": 2,
+        "p95": 3,
+        "avg": 2,
+        "min": 1,
+        "max": 3
+      },
+      "bytes": {
+        "avg": 34
+      },
+      "samples": [
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 1,
+          "totalMs": 2,
+          "bytes": 34
+        },
+        {
+          "status": 400,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 34
+        }
+      ]
+    },
+    {
+      "name": "admin_stats_unauth",
+      "path": "/api/admin/stats",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "401": 10
+      },
+      "ttfb": {
+        "p50": 2,
+        "p95": 3,
+        "avg": 2,
+        "min": 1,
+        "max": 3
+      },
+      "total": {
+        "p50": 2,
+        "p95": 3,
+        "avg": 2,
+        "min": 1,
+        "max": 3
+      },
+      "bytes": {
+        "avg": 24
+      },
+      "samples": [
+        {
+          "status": 401,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 1,
+          "totalMs": 2,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 2,
+          "totalMs": 2,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 2,
+          "totalMs": 3,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 3,
+          "totalMs": 3,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 24
+        },
+        {
+          "status": 401,
+          "ttfbMs": 1,
+          "totalMs": 1,
+          "bytes": 24
+        }
+      ]
+    },
+    {
+      "name": "user_quota_unauth",
+      "path": "/api/user/quota",
+      "method": "GET",
+      "runs": 10,
+      "ok": 10,
+      "fail": 0,
+      "statusHistogram": {
+        "200": 10
+      },
+      "ttfb": {
+        "p50": 3175,
+        "p95": 4356,
+        "avg": 3292,
+        "min": 3164,
+        "max": 4356
+      },
+      "total": {
+        "p50": 3175,
+        "p95": 4356,
+        "avg": 3293,
+        "min": 3164,
+        "max": 4356
+      },
+      "bytes": {
+        "avg": 104
+      },
+      "samples": [
+        {
+          "status": 200,
+          "ttfbMs": 4356,
+          "totalMs": 4356,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3175,
+          "totalMs": 3175,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3177,
+          "totalMs": 3177,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3170,
+          "totalMs": 3170,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3178,
+          "totalMs": 3178,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3164,
+          "totalMs": 3164,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3179,
+          "totalMs": 3179,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3170,
+          "totalMs": 3171,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3171,
+          "totalMs": 3172,
+          "bytes": 104
+        },
+        {
+          "status": 200,
+          "ttfbMs": 3183,
+          "totalMs": 3184,
+          "bytes": 104
+        }
+      ]
+    },
+    {
+      "name": "share_404",
+      "path": "/api/share/does-not-exist",
+      "method": "GET",
+      "runs": 10,
+      "ok": 0,
+      "fail": 10,
+      "statusHistogram": {
+        "500": 10
+      },
+      "ttfb": {
+        "p50": 1279,
+        "p95": 1456,
+        "avg": 1087,
+        "min": 164,
+        "max": 1456
+      },
+      "total": {
+        "p50": 1279,
+        "p95": 1457,
+        "avg": 1087,
+        "min": 164,
+        "max": 1457
+      },
+      "bytes": {
+        "avg": 33
+      },
+      "samples": [
+        {
+          "status": 500,
+          "ttfbMs": 1328,
+          "totalMs": 1328,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1252,
+          "totalMs": 1252,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 164,
+          "totalMs": 164,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1279,
+          "totalMs": 1279,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1456,
+          "totalMs": 1457,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1348,
+          "totalMs": 1348,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 173,
+          "totalMs": 173,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1305,
+          "totalMs": 1305,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1272,
+          "totalMs": 1272,
+          "bytes": 33
+        },
+        {
+          "status": 500,
+          "ttfbMs": 1288,
+          "totalMs": 1288,
+          "bytes": 33
+        }
+      ]
+    }
+  ],
+  "cli": {
+    "runs": 10,
+    "concurrency": 5,
+    "timeoutMs": 15000,
+    "skipBuild": true,
+    "skipEndpoints": false,
+    "spawn": true,
+    "port": 4317,
+    "baseline": false
+  }
+}

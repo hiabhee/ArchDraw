@@ -2,17 +2,30 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Mic, Send, Loader2, Code, RotateCw
+  Mic, Send, Loader2, Code, RotateCw, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import { usePromptHistory } from '@/store/promptHistory';
 
+const STARTER_PROMPTS = [
+  'E-commerce checkout flow',
+  'Real-time chat app',
+  'Video streaming platform',
+  'URL shortener system',
+  'Ride-sharing app',
+] as const;
+
+type CodeAction = 'show' | 'hide' | 'hidden';
 interface FloatingAIBarProps {
   onGenerate: (description: string, detailLevel: 1 | 2 | 3) => Promise<void>;
   onToggleCode: () => void;
-  showCode: boolean;
+  /** Preferred: enum controls code button (avoids 2 bools with 4 states). */
+  codeAction?: CodeAction;
+  /** @deprecated use codeAction */
+  showCode?: boolean;
+  /** @deprecated use codeAction='hidden' */
   hideCodeButton?: boolean;
   isCanvasEmpty?: boolean;
   onRegenerate?: (detailLevel: 1 | 2 | 3) => Promise<void>;
@@ -22,12 +35,17 @@ interface FloatingAIBarProps {
 export function FloatingAIBar({ 
   onGenerate, 
   onToggleCode, 
+  codeAction,
   showCode, 
   hideCodeButton, 
   isCanvasEmpty = false,
   onRegenerate,
   hasLastPrompt = false
 }: FloatingAIBarProps) {
+  // Derive enum from deprecated bools when codeAction not provided — incremental migration.
+  const derivedCodeAction: CodeAction = codeAction ?? (hideCodeButton ? 'hidden' : showCode ? 'hide' : 'show');
+  const showCodeDerived = derivedCodeAction === 'hide';
+  const hideCodeButtonDerived = derivedCodeAction === 'hidden';
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [, setError] = useState<string | null>(null);
@@ -66,7 +84,7 @@ export function FloatingAIBar({
           active.tagName === 'TEXTAREA' || 
           active.getAttribute('contenteditable') === 'true'
         );
-        if (!isInput) {
+        if (!isInput && !(e as unknown as Record<string, unknown>).__archdrawFitView) {
           e.preventDefault();
           textareaRef.current?.focus();
         }
@@ -196,13 +214,48 @@ export function FloatingAIBar({
     }
   };
 
+  const handlePromptClick = useCallback((prompt: string) => {
+    // Pill shows short label (e.g. "Real-time chat app") but the actual
+    // prompt sent to AI should be the full architecture request.
+    const fullPrompt = `describe ${prompt} architecture`;
+    setInput(fullPrompt);
+    // Focus the textarea so user can immediately press Enter
+    requestAnimationFrame(() => textareaRef.current?.focus());
+
+    if (typeof window !== 'undefined') {
+      analytics.track({
+        event_type: 'ui_interaction',
+        event_name: 'starter_prompt_clicked',
+        page_path: window.location.pathname,
+        payload: { prompt: fullPrompt, pill_label: prompt },
+      });
+    }
+  }, []);
+
+  // Mobile keyboard handling: adjust bottom when visual viewport shrinks (iOS keyboard)
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const onResize = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardOffset(offset);
+    };
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="fixed left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-3 sm:px-6 flex items-center gap-2"
-      style={{ bottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+      style={{ bottom: `max(12px, env(safe-area-inset-bottom, 12px))`, marginBottom: keyboardOffset ? `${keyboardOffset}px` : undefined, transition: 'margin-bottom 0.2s ease' }}
     >
       <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
         {/* Detail Level Toggle + Code — above the input, horizontally scrollable on mobile */}
@@ -255,7 +308,7 @@ export function FloatingAIBar({
             ))}
           </div>
 
-          {!hideCodeButton && (
+          {!hideCodeButtonDerived && (
             <button
               type="button"
               onClick={() => {
@@ -264,13 +317,13 @@ export function FloatingAIBar({
                     event_type: 'ui_interaction',
                     event_name: 'code_view_toggled',
                     page_path: window.location.pathname,
-                    payload: { show_code: !showCode }
+                    payload: { show_code: !showCodeDerived }
                   });
                 }
                 onToggleCode();
               }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition-all text-[10px] font-semibold cursor-pointer active:scale-95 ${
-                showCode 
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition-[background,border-color,color] text-[10px] font-semibold cursor-pointer active:scale-95 ${
+                showCodeDerived 
                   ? 'bg-[#1E90FF]/15 text-[#1E90FF] border-[#1E90FF]/30' 
                   : 'bg-muted/20 border-border/10 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
               }`}
@@ -281,17 +334,44 @@ export function FloatingAIBar({
           )}
         </div>
 
+        {/* Starter prompt pills — only on empty canvas with no input, directly above the input */}
+        <AnimatePresence>
+          {isCanvasEmpty && !input.trim() && !isGenerating && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="flex flex-wrap justify-center gap-1.5 max-w-full px-1"
+              aria-label="Starter prompts"
+            >
+              {STARTER_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handlePromptClick(prompt)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-card border border-border/40 shadow-sm text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-accent/50 transition-colors cursor-pointer active:scale-[0.98] whitespace-nowrap"
+                  title={`Use prompt: ${prompt}`}
+                >
+                  <Sparkles className="w-3 h-3 opacity-60" />
+                  {prompt}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence mode="wait">
           <motion.div
             key="input"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-          className={`flex items-center gap-2 w-full rounded-[16px] border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
-            isFirstTime && isCanvasEmpty 
-              ? 'shiny-input-glow border-[#1E90FF]/70 focus-within:border-primary/50' 
-              : 'border-border/40 focus-within:border-primary/50'
-          }`}
+              className={`flex items-center gap-2 w-full rounded-[16px] border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
+                isFirstTime && isCanvasEmpty 
+                  ? 'shiny-input-glow border-[#1E90FF]/70 focus-within:border-primary/50' 
+                  : 'border-border/40 focus-within:border-primary/50'
+              } ${isCanvasEmpty ? 'py-3' : ''}`}
         >
           {/* Input Text Area */}
           <div className="flex-1 min-w-0 flex items-center">
@@ -302,17 +382,21 @@ export function FloatingAIBar({
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Describe your architecture, or paste a GitHub repo link…"
-              className="w-full bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-transparent resize-none text-xs text-foreground placeholder:text-muted-foreground/60 py-0.5 px-1 max-h-24 shadow-none focus:shadow-none focus-visible:!outline-none focus:!outline-none"
+              className="w-full bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-transparent resize-none text-[16px] sm:text-xs text-foreground placeholder:text-muted-foreground/60 py-1 sm:py-0.5 px-1 max-h-24 shadow-none focus:shadow-none focus-visible:!outline-none focus:!outline-none"
               disabled={isGenerating}
-              style={{ height: 'auto', minHeight: '20px' }}
+              style={{ height: 'auto', minHeight: isCanvasEmpty ? '48px' : '24px' }}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="send"
             />
           </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* Mic Button */}
+            {/* Mic Button - larger touch target on mobile */}
             <button
-              className="w-9 h-9 sm:w-6 sm:h-6 rounded-full flex items-center justify-center bg-transparent text-muted-foreground/35 cursor-not-allowed"
+              className="w-10 h-10 sm:w-6 sm:h-6 rounded-full flex items-center justify-center bg-transparent text-muted-foreground/35 cursor-not-allowed shrink-0"
               disabled
               title="Voice coming soon"
               aria-label="Voice input (coming soon)"

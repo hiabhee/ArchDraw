@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Connection, Edge, Node } from 'reactflow';
+import type { Edge, Node } from 'reactflow';
 import { addEdge, applyNodeChanges, applyEdgeChanges } from 'reactflow';
 import { toast } from 'sonner';
 import { runClarityCompiler } from '@/lib/features/clarityCompiler';
@@ -7,6 +7,12 @@ import { getNodeShape } from '@/lib/nodeShapes';
 import { getStrictPortConfig } from '@/lib/componentPorts';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import { createNode, createEdge } from '@/lib/factory';
+import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { isTextNode } from '@/lib/mermaid/textNodes';
+import { ensureDiagramHeading } from '@/lib/mermaid/diagramHeading';
+import { placeTextNodes } from '@/lib/mermaid/textPlacement';
+import logger from '@/lib/logger';
+import type { RFNode } from '@/lib/mermaid/types';
 import type { DiagramState, NodeData } from '../types';
 import { MAX_GUEST_NODES, MAX_AUTH_NODES } from '../constants';
 import { stripReservedLayerNodes, normalizeNodes } from '../helpers/nodeHelpers';
@@ -20,6 +26,7 @@ export type GraphSlice = Pick<
   | 'addNodeOnEdgeDrop'
   | 'addNode'
   | 'removeNode'
+  | 'duplicateNode'
   | 'updateNodeData'
   | 'updateNodeSize'
   | 'updateEdgeData'
@@ -34,6 +41,7 @@ export type GraphSlice = Pick<
   | 'loadDefaultArchitecture'
   | 'alignConnectedNodes'
   | 'recalculateHandles'
+  | 'fixMissingLabels'
 >;
 
 export const createGraphSlice: StateCreator<
@@ -70,7 +78,10 @@ export const createGraphSlice: StateCreator<
 
     if (isStructural) get().pushHistory();
 
-    const edges = applyEdgeChanges(changes, get().edges);
+    const rawEdges = applyEdgeChanges(changes, get().edges);
+    const edges = isStructural
+      ? distributeTargetHandles(get().nodes, rawEdges, get().activeLayoutPresetId)
+      : rawEdges;
     const activeId = get().activeCanvasId;
     const canvases = get().canvases.map((c) =>
       c.id === activeId ? { ...c, edges, ...(isStructural ? { updatedAt: Date.now() } : {}) } : c
@@ -106,7 +117,8 @@ export const createGraphSlice: StateCreator<
     const state = get();
     const isGuest = !state.userProfile || state.userProfile.id === 'guest';
     const nodeLimit = isGuest ? MAX_GUEST_NODES : MAX_AUTH_NODES;
-    if (state.nodes.length >= nodeLimit) {
+    // Node caps count shape/leaf nodes only — text title/note elements are excluded.
+    if (state.nodes.filter((n) => !isTextNode(n)).length >= nodeLimit) {
       toast.error(
         isGuest
           ? `Guest limit: ${nodeLimit} nodes per canvas. Sign in for ${MAX_AUTH_NODES}.`
@@ -122,11 +134,13 @@ export const createGraphSlice: StateCreator<
         type: 'systemNode',
         data: {
           category: 'Compute',
-          color: '#6366f1',
+          color: '#3b82f6',
           icon: 'Box',
           shape: getNodeShape('Compute'),
           label: '',
           autoStartLabelEdit: true,
+          addedVia: 'edge-drop',
+          addedViaAt: Date.now(),
         },
       }),
       selected: true,
@@ -166,7 +180,8 @@ export const createGraphSlice: StateCreator<
     const state = get();
     const isGuest = !state.userProfile || state.userProfile.id === 'guest';
     const nodeLimit = isGuest ? MAX_GUEST_NODES : MAX_AUTH_NODES;
-    if (state.nodes.length >= nodeLimit) {
+    // Node caps count shape/leaf nodes only — text title/note elements are excluded.
+    if (state.nodes.filter((n) => !isTextNode(n)).length >= nodeLimit) {
       toast.error(
         isGuest
           ? `Guest limit: ${nodeLimit} nodes per canvas. Sign in for ${MAX_AUTH_NODES}.`
@@ -241,7 +256,8 @@ export const createGraphSlice: StateCreator<
 
     const validatedNodes = validateAndFixNodes(updatedNodes);
 
-    const edges = get().edges.filter((e) => e.source !== id && e.target !== id);
+    const rawEdges = get().edges.filter((e) => e.source !== id && e.target !== id);
+    const edges = distributeTargetHandles(validatedNodes, rawEdges, get().activeLayoutPresetId);
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, nodes: validatedNodes, edges, updatedAt: Date.now() } : c
     );
@@ -249,7 +265,91 @@ export const createGraphSlice: StateCreator<
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
+  /**
+   * Single duplicate-node path shared by every UI entry point (node toolbar,
+   * properties panel, context menu) so copies are always identical.
+   *
+   * Transient React Flow / UI-only fields are dropped; structural metadata
+   * (shape, typeId, serviceType, size, group membership) is preserved.
+   */
+  duplicateNode: (nodeId, options) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    if (!node) return undefined;
+
+    const offset = options?.offset ?? { x: 30, y: 30 };
+    const labelSuffix = options?.labelSuffix ?? '';
+
+    get().pushHistory();
+
+    const TRANSIENT_FIELDS = new Set([
+      'selected',
+      'dragging',
+      'resizing',
+      'measured',
+      'internals',
+      'dragHandle',
+      'positionAbsolute',
+    ]);
+
+    const newId = `${nodeId}-copy-${Date.now()}`;
+    const clone: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (!TRANSIENT_FIELDS.has(key)) clone[key] = value;
+    }
+    const newNode: Node = {
+      ...(clone as Node),
+      id: newId,
+      selected: true,
+      position: {
+        x: node.position.x + offset.x,
+        y: node.position.y + offset.y,
+      },
+      data: {
+        ...node.data,
+        label: `${node.data?.label ?? ''}${labelSuffix}`,
+      },
+    };
+
+    const nodes = [...get().nodes.map((n) => ({ ...n, selected: false })), newNode];
+    const canvases = get().canvases.map((c) =>
+      c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
+    );
+    set({ canvases, selectedNodeId: newId, selectedNodeIds: [newId] });
+    get().saveCanvasToDB(get().activeCanvasId);
+    return newId;
+  },
+
   updateNodeData: (id, data) => {
+    // If shape is being changed, recalculate dimensions
+    if (data.shape) {
+      const node = get().nodes.find((n) => n.id === id);
+      if (node) {
+        const label = node.data?.label || '';
+        const subtitle = node.data?.subtitle || '';
+        const newDimensions = calculateNodeDimensions(label, subtitle, { shape: data.shape });
+
+        // Update both data and dimensions
+        const nodes = get().nodes.map((n) =>
+          n.id === id
+            ? {
+                ...n,
+                data: { ...n.data, ...data },
+                style: { ...n.style, width: newDimensions.width, height: newDimensions.height },
+                width: newDimensions.width,
+                height: newDimensions.height,
+              }
+            : n
+        );
+        const canvases = get().canvases.map((c) =>
+          c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
+        );
+        set({ canvases });
+        get().saveCanvasToDB(get().activeCanvasId);
+        return;
+      }
+    }
+
+    // Normal path for non-shape updates
     const nodes = get().nodes.map((n) =>
       n.id === id ? { ...n, data: { ...n.data, ...data } } : n
     );
@@ -261,7 +361,25 @@ export const createGraphSlice: StateCreator<
   },
 
   updateNodeSize: (id, size) => {
-    const nodes = get().nodes.map((n) => {
+    const nodes = get().nodes;
+    const target = nodes.find((n) => n.id === id);
+    if (!target) return;
+    const curW = target.width ?? (target.data as { nodeWidth?: number })?.nodeWidth;
+    const curH = target.height ?? (target.data as { nodeHeight?: number })?.nodeHeight;
+    const nextW = size.width ?? curW;
+    const nextH = size.height ?? curH;
+    // Idempotent guard: avoid set() when size hasn't changed (tolerance 0.5)
+    // Prevents useLayoutEffect loop where React Flow measured floats differ
+    // from integer grid sizes and would otherwise ping-pong forever.
+    if (
+      (nextW === undefined || Math.abs((curW ?? 0) - nextW) < 0.5) &&
+      (nextH === undefined || Math.abs((curH ?? 0) - nextH) < 0.5) &&
+      (target.data as { nodeWidth?: number })?.nodeWidth === nextW &&
+      (target.data as { nodeHeight?: number })?.nodeHeight === nextH
+    ) {
+      return;
+    }
+    const nextNodes = nodes.map((n) => {
       if (n.id !== id) return n;
       const style = { ...(n.style || {}) };
       if (size.width !== undefined) style.width = size.width;
@@ -271,10 +389,15 @@ export const createGraphSlice: StateCreator<
         style,
         ...(size.width !== undefined && { width: size.width }),
         ...(size.height !== undefined && { height: size.height }),
+        data: {
+          ...n.data,
+          ...(size.width !== undefined && { nodeWidth: size.width }),
+          ...(size.height !== undefined && { nodeHeight: size.height }),
+        },
       };
     });
     const canvases = get().canvases.map((c) =>
-      c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
+      c.id === get().activeCanvasId ? { ...c, nodes: nextNodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
     get().saveCanvasToDB(get().activeCanvasId);
@@ -311,14 +434,79 @@ export const createGraphSlice: StateCreator<
     );
 
     if (report.warnings.length > 0) {
-      console.log('[ClarityCompiler]', report.warnings.join('; '));
+      logger.warn('[ClarityCompiler]', report.warnings.join('; '));
+    }
+
+    // Auto-straighten persisted diagrams: a 1-12px delta from Dagre or manual
+    // nudge shows as a diagonal slit above the grid line and only snaps to
+    // 0° after a click/drag (which triggers re-render + autoStraighten). Fix
+    // on import so the first render is already straight.
+    {
+      const STRAIGHT_THRESHOLD = 12;
+      const isVerticalLayout = get().activeLayoutPresetId === 'layered-tb';
+      const nodeById = new Map(clarityNodes.map((n) => [n.id, n]));
+      const getWH = (n: Node) => {
+        const w = (n.width as number | undefined) ?? (n.data as { nodeWidth?: number })?.nodeWidth ?? 200;
+        const h = (n.height as number | undefined) ?? (n.data as { nodeHeight?: number })?.nodeHeight ?? 100;
+        return { w, h };
+      };
+      // Sort by smallest delta first so the most aligned edge wins when a node is target of multiple edges
+      const edgesByDelta = [...clarityEdges]
+        .map((e) => {
+          const src = nodeById.get(e.source);
+          const tgt = nodeById.get(e.target);
+          if (!src || !tgt) return null;
+          const srcParent = (src as unknown as { parentId?: string }).parentId ?? (src as unknown as { parentNode?: string }).parentNode;
+          const tgtParent = (tgt as unknown as { parentId?: string }).parentId ?? (tgt as unknown as { parentNode?: string }).parentNode;
+          // Only straighten nodes that share the same parent (both top-level or same group) — cross-group side-lane edges stay as Dagre placed them
+          if (srcParent !== tgtParent) return null;
+          const { w: sw, h: sh } = getWH(src);
+          const { w: tw, h: th } = getWH(tgt);
+          const srcCX = src.position.x + sw / 2;
+          const srcCY = src.position.y + sh / 2;
+          const tgtCX = tgt.position.x + tw / 2;
+          const tgtCY = tgt.position.y + th / 2;
+          const dx = tgtCX - srcCX;
+          const dy = tgtCY - srcCY;
+          const d = isVerticalLayout ? Math.abs(dx) : Math.abs(dy);
+          return { e, d, dx, dy, src, tgt };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null && x.d < STRAIGHT_THRESHOLD && x.d > 0.01)
+        .sort((a, b) => a.d - b.d);
+
+      const moved = new Set<string>();
+      for (const { dx, dy, src, tgt } of edgesByDelta) {
+        const isHorizontalEdge = Math.abs(dx) > Math.abs(dy);
+        if (isVerticalLayout && isHorizontalEdge) continue;
+        if (!isVerticalLayout && !isHorizontalEdge) continue;
+        if (moved.has(tgt.id)) continue;
+        const { w: sw, h: sh } = getWH(src);
+        const { w: tw, h: th } = getWH(tgt);
+        if (!isVerticalLayout) {
+          const desiredTgtY = src.position.y + sh / 2 - th / 2;
+          if (Math.abs(desiredTgtY - tgt.position.y) < STRAIGHT_THRESHOLD) {
+            tgt.position = { ...tgt.position, y: desiredTgtY };
+            moved.add(tgt.id);
+          }
+        } else {
+          const desiredTgtX = src.position.x + sw / 2 - tw / 2;
+          if (Math.abs(desiredTgtX - tgt.position.x) < STRAIGHT_THRESHOLD) {
+            tgt.position = { ...tgt.position, x: desiredTgtX };
+            moved.add(tgt.id);
+          }
+        }
+      }
     }
 
     const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId);
 
+    const activeCanvas = get().canvases.find((c) => c.id === get().activeCanvasId);
+    const withHeading = ensureDiagramHeading(clarityNodes, activeCanvas?.name);
+    const placedNodes = placeTextNodes(withHeading as RFNode[]) as Node[];
+
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId
-        ? { ...c, nodes: clarityNodes, edges: edgesWithHandles, updatedAt: Date.now() }
+        ? { ...c, nodes: placedNodes, edges: edgesWithHandles, updatedAt: Date.now() }
         : c
     );
     set({ canvases, clarityReport: report });
@@ -378,10 +566,11 @@ export const createGraphSlice: StateCreator<
     let finalNodes = currentNodes.filter((n) => !allIdsToDelete.has(n.id));
     finalNodes = validateAndFixNodes(finalNodes);
 
-    const newEdges = currentEdges.filter((e) => {
+    const rawEdges = currentEdges.filter((e) => {
       if (allIdsToDelete.has(e.source) || allIdsToDelete.has(e.target)) return false;
       return true;
     });
+    const newEdges = distributeTargetHandles(finalNodes, rawEdges, get().activeLayoutPresetId);
 
     const syncedCanvases = currentCanvases.map((c) =>
       c.id === activeCanvasId ? { ...c, nodes: finalNodes, edges: newEdges, updatedAt: Date.now() } : c
@@ -421,9 +610,11 @@ export const createGraphSlice: StateCreator<
     const selected = nodes.filter((n) => idsToGroup.includes(n.id));
     const isNested = !!parentId;
 
-    const PAD_SIDE = isNested ? 30 : 60;
-    const PAD_TOP = isNested ? 40 : 72;
-    const PAD_BOT = isNested ? 30 : 60;
+    // Top pad clears the group's caption label (top:16 + ~14px text) plus
+    // breathing room so title never crowds node — increased for air.
+    const PAD_SIDE = isNested ? 10 : 14;
+    const PAD_TOP = isNested ? 48 : 56;
+    const PAD_BOT = isNested ? 8 : 10;
 
     const rawMinX = Math.min(...selected.map((n) => n.position.x));
     const rawMinY = Math.min(...selected.map((n) => n.position.y));
@@ -444,7 +635,7 @@ export const createGraphSlice: StateCreator<
     const maxY = rawMaxY + PAD_BOT;
 
     const existingGroupCount = nodes.filter((n) => n.type === 'groupNode' || n.data?.isGroup).length;
-    const colors = ['#a855f7', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#3b82f6', '#06b6d4'];
+    const colors = ['#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6', '#2563eb', '#06b6d4'];
     const groupColor = colors[existingGroupCount % colors.length];
 
     const groupId = `group-${Date.now()}`;
@@ -458,7 +649,7 @@ export const createGraphSlice: StateCreator<
       style: { width: maxX - minX, height: maxY - minY },
       width: maxX - minX,
       height: maxY - minY,
-      data: { label: 'Group', groupLabel: 'Group', groupColor },
+      data: { label: 'Group', groupLabel: 'Group', groupColor, autoStartLabelEdit: true },
       zIndex: -1,
       draggable: true,
       selectable: true,
@@ -671,11 +862,67 @@ export const createGraphSlice: StateCreator<
   recalculateHandles: (nodesOverride?: Node[]) => {
     const { edges, activeCanvasId, canvases, activeLayoutPresetId } = get();
     const nodes = nodesOverride ?? get().nodes;
-    const edgesWithHandles = distributeTargetHandles(nodes, edges, activeLayoutPresetId);
+    // Skip bundling during handle recalculation: bundling replaces N edges
+    // with 1 bundle edge (new ID), which causes React Flow to unmount old
+    // edge components and lose track of them (edges "disappear" during drag).
+    // Lane-side assignments are still recalculated so handles stay aligned.
+    const edgesWithHandles = distributeTargetHandles(nodes, edges, activeLayoutPresetId, { skipBundling: true });
+
+    // Avoid unnecessary store updates when edge data is structurally identical.
+    // distributeTargetHandles always creates new objects (spread operators),
+    // but the actual handle values may be the same — skip the set() if so.
+    const edgesChanged = edgesWithHandles.length !== edges.length ||
+      edgesWithHandles.some((e, i) => {
+        const old = edges[i];
+        return e.id !== old.id ||
+          e.sourceHandle !== old.sourceHandle ||
+          e.targetHandle !== old.targetHandle;
+      });
+
+    if (!edgesChanged) return;
+
     const nextCanvases = canvases.map((c) =>
       c.id === activeCanvasId ? { ...c, edges: edgesWithHandles, updatedAt: Date.now() } : c
     );
     set({ canvases: nextCanvases });
     get().saveCanvasToDB(activeCanvasId);
+  },
+
+  /**
+   * Utility to fix nodes with missing labels or iconOnly=true.
+   * Ensures all nodes have visible labels.
+   */
+  fixMissingLabels: () => {
+    const { nodes, activeCanvasId, canvases } = get();
+    let fixed = false;
+
+    const updatedNodes = nodes.map((node) => {
+      const hasNoLabel = !node.data?.label || node.data.label.trim() === '';
+      const hasIconOnly = node.data?.iconOnly === true;
+
+      if (hasNoLabel || hasIconOnly) {
+        fixed = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            label: node.data?.label || 'Service',
+            iconOnly: false,
+          },
+        };
+      }
+      return node;
+    });
+
+    if (fixed) {
+      const newCanvases = canvases.map((c) =>
+        c.id === activeCanvasId ? { ...c, nodes: updatedNodes, updatedAt: Date.now() } : c
+      );
+      set({ canvases: newCanvases });
+      get().saveCanvasToDB(activeCanvasId);
+      toast.success('Fixed nodes with missing labels');
+    } else {
+      toast.info('No nodes need fixing - all labels are visible');
+    }
   },
 });

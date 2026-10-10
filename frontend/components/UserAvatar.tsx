@@ -33,8 +33,15 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useModalStore } from '@/store/modalStore';
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 
 type SettingsTab = 'general' | 'profile' | 'editor' | 'ai' | 'security' | 'notifications' | 'billing';
+
+const ICON_MODES: { value: NodeIconMode; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'off', label: 'Off' },
+];
 
 interface SettingsPanelProps {
   open: boolean;
@@ -85,7 +92,7 @@ function SettingRow({ icon: Icon, title, desc, children }: { icon?: React.Elemen
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const { user, signOut } = useAuthStore();
-  const { showGrid, toggleGrid, edgeAnimations, userProfile, canvases } = useDiagramStore();
+  const { showGrid, toggleGrid, iconMode, setIconMode, edgeAnimations, userProfile, canvases } = useDiagramStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const ref = useRef<HTMLDivElement>(null);
   
@@ -108,7 +115,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const [portfolio, setPortfolio] = useState('');
   const [language, setLanguage] = useState('en');
 
-  const trackToggle = (setting: string, value: boolean) => {
+  const trackToggle = (setting: string, value: boolean | string) => {
     if (typeof window !== 'undefined') {
       analytics.track({
         event_type: 'settings_interaction',
@@ -407,6 +414,24 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SettingRow icon={Eye} title="Show node labels" desc="Display component labels">
                   <Toggle enabled={showLabels} onChange={(val) => { setShowLabels(val); trackToggle('show_labels', val); }} />
                 </SettingRow>
+
+                <SettingRow icon={LayoutGrid} title="Show node icons" desc="All/Normal: show all icons (manual & auto) · Off: hide all icons">
+                  <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
+                    {ICON_MODES.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => { setIconMode(m.value); trackToggle('icon_mode', m.value); }}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                          iconMode === m.value
+                            ? 'bg-primary/15 text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </SettingRow>
                 
                 <SettingRow icon={Keyboard} title="Keyboard shortcuts hints" desc="Show shortcut tooltips">
                   <Toggle enabled={shortcutHints} onChange={(val) => { setShortcutHints(val); trackToggle('shortcut_hints', val); }} />
@@ -660,7 +685,10 @@ export function UserAvatar() {
         className="flex items-center gap-2 p-1.5 rounded-[12px] transition-colors hover:bg-gray-100"
       >
         {profile && 'avatar_url' in profile && profile.avatar_url ? (
-          <img src={profile.avatar_url} alt={initials} className="w-7 h-7 rounded-full object-cover shrink-0" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={profile.avatar_url} alt={initials} width={28} height={28} loading="lazy" decoding="async" className="w-7 h-7 rounded-full object-cover shrink-0" />
+          </>
         ) : (
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold" style={{ background: '#1A1A1A' }}>
             {initials}

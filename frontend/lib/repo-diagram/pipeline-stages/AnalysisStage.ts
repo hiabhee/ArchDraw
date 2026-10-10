@@ -28,7 +28,12 @@ export class AnalysisStage extends BaseStage<IngestionOutput, AnalysisOutput> {
     logger.info(`  Found ${subsystems.length} subsystems`);
 
     context.onProgress?.('extracting_signals', 35, 'Extracting static signals...');
-    const signals = extractStaticSignals(snapshot.selectedFiles, subsystems);
+    // Architecture manifests are captured outside the source-file budget. Feed
+    // them into static analysis too; otherwise a Compose-only repository loses
+    // its service graph before baseline construction.
+    const filesByPath = new Map(snapshot.selectedFiles.map(file => [file.path, file]));
+    for (const file of snapshot.metaFiles ?? []) filesByPath.set(file.path, file);
+    const signals = extractStaticSignals(Array.from(filesByPath.values()), subsystems);
     logger.info(`  Extracted ${signals.length} signals (${new Set(signals.map(s => s.type)).size} types)`);
 
     const importGraph: ImportGraph = buildEvidenceGraph(snapshot.selectedFiles, snapshot.fileTree);

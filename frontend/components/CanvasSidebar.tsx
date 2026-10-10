@@ -5,12 +5,7 @@ import { toast } from 'sonner';
 import { X, Pin, Plus, MoreVertical, Trash2, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CanvasSidebarProps {
@@ -22,7 +17,6 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
     canvases,
     activeCanvasId,
     openCanvas,
-    closeCanvas,
     togglePinCanvas,
     removeCanvas,
     renameCanvas,

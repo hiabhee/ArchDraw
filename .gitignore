@@ -18,12 +18,34 @@ frontend/.next
 
 # Environment
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+
+# Test coverage
+coverage/
+frontend/coverage/
+
+# Dependency lockfiles for scratch/tooling dirs
+.pnp/
+.pnp.js
+
+# OS extras
+Thumbs.db
+*.swp
+
+# Playwright / browser artifacts
+playwright-report/
+blob-report/
 
 # IDE
 .vscode/
 .idea/
+
+# AI assistant / tool scratch dirs
+.conductor/
+.devin/
+.qoder/
+.kiro/
 
 # Logs
 logs/
@@ -32,8 +54,29 @@ logs/
 # Test results
 test-results/
 frontend/test-results/
-.qoder/
-.kiro/
 
 # Eval harness output
 frontend/eval-results/
+
+# Handbook — in-depth codebase guides (generated, not tracked)
+docs/handbook/
+
+# Generated outputs / local skill mirrors (not part of Vercel build)
+frontend/outputs/
+frontend/agent/
+frontend/data/skills/
+frontend/.claude/
+.claude/
+.agent/
+frontend/.agent/
+frontend/.agents/skills/brandkit/
+frontend/.agents/skills/design-taste-frontend*/
+frontend/.agents/skills/full-output-enforcement/
+frontend/.agents/skills/gpt-taste/
+frontend/.agents/skills/high-end-visual-design/
+frontend/.agents/skills/image-to-code/
+frontend/.agents/skills/imagegen-frontend*/
+frontend/.agents/skills/industrial-brutalist-ui/
+frontend/.agents/skills/minimalist-ui/
+frontend/.agents/skills/redesign-existing-projects/
+frontend/.agents/skills/stitch-design-taste/

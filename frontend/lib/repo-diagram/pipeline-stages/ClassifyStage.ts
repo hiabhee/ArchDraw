@@ -4,15 +4,10 @@ import { buildStaticDetectionReport, formatDetectionReport } from '@/lib/repo-di
 import { classifyRepository } from '@/lib/agents/repo-classifier';
 import { buildFallbackRepoProfile } from '@/lib/agents/repo-deep-classifier';
 import { buildDependencyIntelligence, buildSummariesForLLM, gatherPass2Files } from './internal-helpers';
+import { detailLevelFromContext } from './context-utils';
 import type { EnrichmentInput, RepoEnrichmentState } from './enrichment-types';
 import { emptyDegraded } from './enrichment-types';
 import logger from '@/lib/logger';
-
-function detailLevelFromContext(context: PipelineContext, fallback?: 1 | 2 | 3): 1 | 2 | 3 {
-  const fromMeta = context.metadata.detailLevel;
-  if (fromMeta === 1 || fromMeta === 2 || fromMeta === 3) return fromMeta;
-  return fallback ?? 2;
-}
 
 export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentState> {
   constructor() {
@@ -26,10 +21,12 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
     const { snapshot, subsystems, signals, importGraph, baselineNodes, baselineEdges, workflows } = input;
     const detailLevel = detailLevelFromContext(context, input.detailLevel);
 
-    const hasAnySourceFiles = snapshot.phase2Files.length >= 1 || snapshot.selectedFiles.length >= 4;
-    const hasAnySignals = signals.length >= 3;
+    // GH2R-014: lower thresholds so 3-file repos still attempt LLM (was 4 files / 3 signals)
+    const hasAnySourceFiles = snapshot.phase2Files.length >= 1 || snapshot.selectedFiles.length >= 3;
+    const hasAnySignals = signals.length >= 2;
     const useLlm = detailLevel !== 1 && (hasAnySourceFiles || hasAnySignals);
 
+    const fallbackProfile = buildFallbackRepoProfile(snapshot);
     const baseState: RepoEnrichmentState = {
       snapshot,
       subsystems,
@@ -40,7 +37,11 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
       workflows,
       workingNodes: baselineNodes,
       edges: baselineEdges,
-      repoProfile: null,
+      // A deterministic profile is useful even for an explicitly static L1
+      // scan: it prevents the UI from presenting every repository as
+      // "unknown" and gives subsequent category-specific baseline work a
+      // stable starting point.
+      repoProfile: fallbackProfile,
       useLlm,
       degraded: emptyDegraded(snapshot),
       dependencyMapDeps: buildDependencyIntelligence(signals),
@@ -55,6 +56,11 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
             : `repo appears empty (files=${snapshot.selectedFiles.length}, signals=${signals.length})`
         }`
       );
+      if (snapshot.selectedFiles.length < 2 && signals.length < 2) {
+        logger.warn(
+          `[Pipeline] Repo too small for meaningful diagram (files=${snapshot.selectedFiles.length}, signals=${signals.length}) — try detailLevel=3 or check .gitignore / ingest budgets`
+        );
+      }
       return successResult(baseState);
     }
 
@@ -67,7 +73,20 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
     let classifyFailed = false;
 
     try {
-      repoProfile = await classifyRepository(snapshot, detectionReportText, summaries);
+      repoProfile = await classifyRepository(snapshot, detectionReportText, summaries, context.signal);
+      // Repository identity is stronger evidence than an LLM's interpretation:
+      // a framework's own source or a configuration-only repository must not be
+      // rendered as a deployed application.
+      if (['library', 'devops_config'].includes(fallbackProfile.repoType)) {
+        repoProfile = {
+          ...repoProfile,
+          repoType: fallbackProfile.repoType,
+          primaryStack: {
+            ...repoProfile.primaryStack,
+            framework: fallbackProfile.primaryStack.framework ?? repoProfile.primaryStack.framework,
+          },
+        };
+      }
       classifyFailed = repoProfile.confidence === 'low';
       logger.log(`  Type: ${repoProfile.repoType}, pattern: ${repoProfile.architecturePattern}`);
     } catch (err) {
@@ -79,7 +98,7 @@ export class ClassifyStage extends BaseStage<EnrichmentInput, RepoEnrichmentStat
     // Immutable snapshot update for pass-2 files (no in-place mutation)
     let nextSnapshot = snapshot;
     if (repoProfile) {
-      const pass2 = gatherPass2Files(snapshot, repoProfile, detailLevel === 3 ? 40 : 25);
+      const pass2 = await gatherPass2Files(snapshot, repoProfile, detailLevel === 3 ? 40 : 25, context.signal);
       if (pass2.length > 0) {
         logger.info(`[Pipeline] Pass 2: +${pass2.length} files`);
         nextSnapshot = {

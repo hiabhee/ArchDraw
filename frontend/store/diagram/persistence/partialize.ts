@@ -7,8 +7,11 @@ export function diagramPersistPartialize(s: DiagramState) {
     activeCanvasId: s.activeCanvasId,
     edgeAnimations: s.edgeAnimations,
     showGrid: s.showGrid,
+    iconMode: s.iconMode,
     diagramChromeMode: s.diagramChromeMode,
     diagramStyleTheme: s.diagramStyleTheme,
+    diagramRenderStyle: s.diagramRenderStyle,
+    canvasBackground: s.canvasBackground,
     userProfile: s.userProfile,
   };
 }

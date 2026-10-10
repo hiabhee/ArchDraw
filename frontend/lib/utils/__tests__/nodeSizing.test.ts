@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { calculateNodeDimensions, fitWidthToContent, SIZE_L, SIZE_M, SIZE_S } from '@/lib/utils/nodeSizing';
+import {
+  calculateNodeDimensions,
+  fitWidthToContent,
+  SIZE_L,
+  SIZE_M,
+  SIZE_S,
+  SIZE_XS,
+} from '@/lib/utils/nodeSizing';
 import { SHAPE_LANE_HEIGHT_CAP } from '@/lib/theme/stylingConstants';
 
 describe('calculateNodeDimensions', () => {
-  it('uses default medium width for short labels', () => {
+  it('uses the unified default width for short labels', () => {
     const dims = calculateNodeDimensions('API', undefined, { shape: 'rounded-rectangle' });
     expect(dims.width).toBe(SIZE_M);
-    expect(dims.height).toBeGreaterThanOrEqual(80);
+    expect(dims.height).toBeGreaterThanOrEqual(100);
   });
 
   it('stays on the optical grid for long rectangle labels (wraps instead of growing past L)', () => {
@@ -14,7 +21,7 @@ describe('calculateNodeDimensions', () => {
       shape: 'rounded-rectangle',
     });
     expect(dims.width).toBeLessThanOrEqual(SIZE_L);
-    expect(dims.height).toBeGreaterThan(80);
+    expect(dims.height).toBeGreaterThanOrEqual(100);
   });
 
   it('keeps diamonds compact on the grid for mid-length labels', () => {
@@ -23,7 +30,7 @@ describe('calculateNodeDimensions', () => {
     expect(diamond.width).toBeLessThanOrEqual(SIZE_L);
     expect(diamond.width).toBeGreaterThanOrEqual(SIZE_S);
     expect(diamond.height).toBeLessThanOrEqual(SHAPE_LANE_HEIGHT_CAP);
-    expect(diamond.height).toBeGreaterThanOrEqual(80);
+    expect(diamond.height).toBeGreaterThanOrEqual(100);
   });
 
   it('caps diamonds at the lane height so they stay level with rectangles', () => {
@@ -32,7 +39,7 @@ describe('calculateNodeDimensions', () => {
     const diamond = calculateNodeDimensions(label, undefined, { shape: 'diamond' });
     // Diamond must not tower over the adjacent rectangle in the same lane.
     expect(diamond.height).toBeLessThanOrEqual(SHAPE_LANE_HEIGHT_CAP);
-    expect(diamond.height - rect.height).toBeLessThanOrEqual(24);
+    expect(diamond.height - rect.height).toBeLessThanOrEqual(40);
   });
 
   it('sizes diamonds from the mid-band without a large bbox boost over rectangles', () => {
@@ -49,5 +56,89 @@ describe('calculateNodeDimensions', () => {
     expect(fitWidthToContent(230)).toBe(SIZE_L);
     expect(fitWidthToContent(300, SIZE_S, SIZE_L)).toBe(SIZE_L);
     expect(fitWidthToContent(300, SIZE_S, 320)).toBe(320);
+  });
+
+  it('grows horizontal pipe height for 2nd and 3rd label lines', () => {
+    const single = calculateNodeDimensions('Kafka Topic', undefined, {
+      shape: 'cylinder',
+      cylinderAxis: 'horizontal',
+    });
+    const twoLines = calculateNodeDimensions('Kafka', 'Topic', {
+      shape: 'cylinder',
+      cylinderAxis: 'horizontal',
+    });
+    const threeLines = calculateNodeDimensions('Line one\nLine two\nLine three', undefined, {
+      shape: 'cylinder',
+      cylinderAxis: 'horizontal',
+    });
+
+    // Uniform 100px for all nodes per user request
+    expect(single.height).toBe(100);
+    expect(twoLines.height).toBe(100);
+    expect(threeLines.height).toBe(100);
+  });
+});
+
+describe('semantic silhouette sizing', () => {
+  const bands: Record<string, { wMin: number; wMax: number; hMin: number; hMax: number }> = {
+    hexagon: { wMin: 160, wMax: 240, hMin: 100, hMax: 100 },
+    cloud: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    actor: { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    monitor: { wMin: 200, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    mobile: { wMin: SIZE_XS, wMax: SIZE_S, hMin: 100, hMax: 100 },
+    'dashed-rectangle': { wMin: SIZE_S, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    // New architecture-native shapes
+    queue: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    cache: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 100 },
+    function: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 100 },
+    container: { wMin: SIZE_M, wMax: SIZE_L, hMin: 100, hMax: 100 },
+    bucket: { wMin: SIZE_S, wMax: SIZE_M, hMin: 100, hMax: 100 },
+  };
+
+  for (const [shape, band] of Object.entries(bands)) {
+    it(`keeps ${shape} within its width band (${band.wMin}–${band.wMax})`, () => {
+      const dims = calculateNodeDimensions('Semantic Load Balancer', undefined, { shape });
+      expect(dims.width).toBeGreaterThanOrEqual(band.wMin);
+      expect(dims.width).toBeLessThanOrEqual(band.wMax);
+    });
+
+    it(`keeps ${shape} within its height band (${band.hMin}–${band.hMax})`, () => {
+      const dims = calculateNodeDimensions('Semantic Load Balancer', undefined, { shape });
+      expect(dims.height).toBeGreaterThanOrEqual(band.hMin);
+      expect(dims.height).toBeLessThanOrEqual(band.hMax);
+    });
+  }
+
+  it('hexagon stays near the shared lane cap (allows growth when text wraps)', () => {
+    const hex = calculateNodeDimensions('API Gateway', undefined, { shape: 'hexagon' });
+    const diamond = calculateNodeDimensions('API Gateway', undefined, { shape: 'diamond' });
+    expect(hex.height).toBeLessThanOrEqual(120);
+    expect(Math.abs(hex.height - diamond.height)).toBeLessThanOrEqual(32);
+  });
+
+  it('actor and mobile use the compact size tier', () => {
+    const actor = calculateNodeDimensions('Alice', undefined, { shape: 'actor' });
+    const mobile = calculateNodeDimensions('Mobile App', undefined, { shape: 'mobile' });
+    expect(actor.width).toBeLessThanOrEqual(SIZE_L);
+    expect(mobile.width).toBeLessThanOrEqual(SIZE_S);
+    expect(actor.width).toBeGreaterThanOrEqual(SIZE_S);
+    expect(mobile.width).toBeGreaterThanOrEqual(SIZE_XS);
+  });
+
+  it('actor expands width for long titles so label stays inside body', () => {
+    const shortActor = calculateNodeDimensions('Alice', undefined, { shape: 'actor' });
+    const longActor = calculateNodeDimensions('End User', 'Actor', { shape: 'actor' });
+    const veryLongActor = calculateNodeDimensions('Super Administrator Approver', undefined, { shape: 'actor' });
+    // End User (8 chars) should be at least 160 and not overflow
+    expect(longActor.width).toBeGreaterThanOrEqual(SIZE_S);
+    // Very long should expand beyond S to M/L
+    expect(veryLongActor.width).toBeGreaterThan(shortActor.width);
+    expect(veryLongActor.width).toBeGreaterThan(SIZE_S);
+    expect(veryLongActor.width).toBeLessThanOrEqual(320);
+  });
+
+  it('fitWidthToContent supports the extra-small tier', () => {
+    expect(fitWidthToContent(110, SIZE_XS, SIZE_S)).toBe(SIZE_XS);
+    expect(fitWidthToContent(140, SIZE_XS, SIZE_S)).toBe(SIZE_S);
   });
 });

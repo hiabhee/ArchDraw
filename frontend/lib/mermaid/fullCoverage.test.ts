@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseMermaid } from './parse';
+import { buildReactFlowObjects } from './buildReactFlow';
 
 function p(code: string) {
   const r = parseMermaid(code);
@@ -443,6 +444,66 @@ Line2\`"]
     }
   });
 
+  it('inline HTML formatting tags are stripped from labels', () => {
+    const r = p(`graph LR
+      API{"<b>API Gateway</b>"}
+      EVENT{"<b>Event</b>"}
+      REG("<b>User</b>")
+      KAFKA["<b>Kafka</b> <i>Topic</i>"]
+      A[["<b>bold</b> & <u>under</u>"]]
+      B["<code>code</code> text"]
+      subgraph G["<b>Group</b>"]
+        API
+      end`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const byId = new Map(r.ast.nodes.map(n => [n.id, n]));
+      expect(byId.get('API')?.label).toBe('API Gateway');
+      expect(byId.get('EVENT')?.label).toBe('Event');
+      expect(byId.get('REG')?.label).toBe('User');
+      expect(byId.get('KAFKA')?.label).toBe('Kafka Topic');
+      expect(byId.get('A')?.label).toBe('bold & under');
+      expect(byId.get('B')?.label).toBe('code text');
+      expect(r.ast.subgraphs.find(s => s.id === 'G')?.label).toBe('Group');
+    }
+  });
+
+  it('decodes HTML entities in labels', () => {
+    const r = p(`graph LR
+      A["Tom &amp; Jerry"]
+      B["Keep simple&nbsp;&nbsp;Don't reinvent"]
+      C["&bull; item &middot; second"]
+      D["&#39;quoted&#39;"]
+      E["&lt;code&gt; &gt; &quot;x&quot;"]`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const byId = new Map(r.ast.nodes.map(n => [n.id, n]));
+      expect(byId.get('A')?.label).toBe('Tom & Jerry');
+      expect(byId.get('B')?.label).toBe("Keep simple  Don't reinvent");
+      expect(byId.get('C')?.label).toBe('• item · second');
+      expect(byId.get('D')?.label).toBe("'quoted'");
+      expect(byId.get('E')?.label).toBe('<code> > "x"');
+    }
+  });
+
+  it('strips tags and decodes entities together in the same label', () => {
+    const r = p(`graph LR
+      P("<b>Three principles:</b>&nbsp;&nbsp;&nbsp; Keep simple &nbsp; &bull; &nbsp; Don't reinvent")`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.find(n => n.id === 'P')?.label).toBe("Three principles:    Keep simple   •   Don't reinvent");
+    }
+  });
+
+  it('keeps <br> for label/subtitle split while stripping other HTML tags', () => {
+    const r = p(`graph LR
+      A["<b>Title</b><br><i>Sub</i>"]`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.ast.nodes.find(n => n.id === 'A')?.label).toBe('Title<br>Sub');
+    }
+  });
+
   it('YAML frontmatter and accTitle/accDescr are ignored', () => {
     const r = p(`---
 title: Demo
@@ -474,6 +535,20 @@ flowchart LR
       expect(r.ast.nodes.find(n => n.id === 'A')?.style?.fill).toBe('#ff0000');
       expect(r.ast.nodes.find(n => n.id === 'B')?.style?.fill).toBe('#00ff00');
       expect(r.ast.nodes.find(n => n.id === 'B')?.style?.stroke).toBe('#222');
+    }
+  });
+
+  it('carries Mermaid node colors into React Flow rendering data', () => {
+    const r = p(`graph LR
+      classDef hot fill:#ff0000,stroke:#111
+      A["Hot"]
+      class A hot`);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const node = buildReactFlowObjects(r.ast).nodes.find(n => n.id === 'A');
+      expect(node?.data.fillColor).toBe('#ff0000');
+      expect(node?.data.strokeColor).toBe('#111');
+      expect(node?.data.accentColor).toBe('#111');
     }
   });
 

@@ -6,6 +6,8 @@ import type {
   PhaseContent,
   PhaseName,
 } from './schema';
+import { resolveComponentTooltip } from './componentTooltipResolver';
+import logger from '@/lib/logger';
 
 // ── Validation Rule Shortcuts ──────────────────────────────────────────────
 
@@ -93,6 +95,20 @@ function connectorWord(parents: string[]): string {
   return parents.slice(0, -1).join(', ') + ', and ' + parents[parents.length - 1];
 }
 
+/**
+ * Auto-populate teaching `whyItMatters` / `tradeoff` from the shared component
+ * tooltips when the author didn't write their own. Keeps the pedagogy floor
+ * high without forcing authors to duplicate tooltip content.
+ */
+function enrichTeaching(component: string, base: PhaseContent): PhaseContent {
+  const enriched = resolveComponentTooltip(component);
+  return {
+    ...base,
+    whyItMatters: base.whyItMatters ?? enriched.whyItMatters,
+    tradeoff: base.tradeoff ?? enriched.tradeoff,
+  };
+}
+
 export function step(config: StepConfig): TutorialStep {
   const component = config.component;
   const nodeType = config.nodeType ?? toSnakeCase(component);
@@ -116,9 +132,9 @@ export function step(config: StepConfig): TutorialStep {
   };
 
   // ── Teaching ───────────────────────────────────────────────────────────
-  const teaching = config.phases?.teaching ?? (() => {
+  const teaching = enrichTeaching(component, config.phases?.teaching ?? (() => {
     if (process.env.NODE_ENV === 'development') {
-      console.warn(
+      logger.warn(
         `[Tutorial builder] step "${component}" has no teaching content. ` +
         `Add phases.teaching with body, whyItMatters, and tradeoff. ` +
         `Empty teaching defeats the purpose of the tutorial.`
@@ -128,7 +144,7 @@ export function step(config: StepConfig): TutorialStep {
       heading: `About ${component}`,
       body: `${component} is part of this architecture. Add teaching content to explain why.`,
     };
-  })();
+  })());
 
   // ── Action ─────────────────────────────────────────────────────────────
   const action = config.phases?.action ?? {
@@ -187,6 +203,11 @@ export function step(config: StepConfig): TutorialStep {
     skipPhases.push('connecting');
   }
 
+  // Longer patience for connection steps (user has to draw an edge), shorter
+  // for simple add-a-node steps. Authors can still override per step.
+  const continueAfterMs =
+    config.continueAfterMs ?? (autoConnect ? 45000 : 15000);
+
   return {
     id: config.id ?? `step-${nodeType}`,
     title: stepTitle,
@@ -194,7 +215,7 @@ export function step(config: StepConfig): TutorialStep {
     validation,
     hints,
     skipPhases,
-    continueAfterMs: config.continueAfterMs,
+    continueAfterMs,
   };
 }
 
@@ -259,6 +280,9 @@ interface TutorialConfig {
 
   /** Optional category */
   category?: string;
+
+  /** Funnel position for the catalog "Start here" section (1, 2, 3, …). */
+  recommendedOrder?: number;
 }
 
 export function defineTutorial(config: TutorialConfig): TutorialDefinition {
@@ -273,5 +297,6 @@ export function defineTutorial(config: TutorialConfig): TutorialDefinition {
     icon: config.icon,
     color: config.color,
     category: config.category,
+    recommendedOrder: config.recommendedOrder,
   };
 }

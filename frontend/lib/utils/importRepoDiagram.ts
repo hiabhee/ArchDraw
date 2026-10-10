@@ -5,7 +5,8 @@
  */
 
 import { parseRepoNdjsonToReactFlow } from '@/lib/utils/parseRepoNdjson';
-import { getLayoutedElements } from '@/lib/layoutUtils';
+import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
+import { applySubgraphBoundsToRf } from '@/lib/mermaid/recomputeSubgraphBounds';
 import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor } from '@/lib/mermaid/planTranslator';
 import { classifyEdge } from '@/lib/mermaid/edgeClassifier';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
@@ -47,8 +48,8 @@ function enrichRepoNodes(nodes: Node[]): Node[] {
 
     const { shape, serviceType } = classifyNode(label, parentGroupName);
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service'];
-    const categoryColor = CATEGORY_COLORS[meta.category] || '#6366f1';
-    const finalShape = shape === 'rounded' ? 'rounded-rectangle' : shape;
+    const categoryColor = CATEGORY_COLORS[meta.category] || '#3b82f6';
+    const finalShape = shape === 'rounded' ? 'rounded-rectangle' : shape === 'rectangle' ? 'rounded-rectangle' : shape;
 
     const { width, height } = calculateNodeDimensions(label, subtitle);
 
@@ -126,20 +127,25 @@ export function parseAndValidateRepoDiagram(
   // 2. Enrich edges with semantic classification and strip static styling
   const enrichedEdges = enrichRepoEdges(rfEdges, enrichedNodes);
 
-  // Zero out positions so getLayoutedElements runs dagre (it skips if any
-  // node already has authored positions). We preserve group structures
-  // (parentId, isGroup) for dagre's compound graph support.
+  // Use the canonical applyRfLayout (pipeline-shared Dagre) so repo diagrams
+  // are laid out by the same engine as AI-generated and template diagrams.
   const zeroedNodes = enrichedNodes.map((n) => ({
     ...n,
     position: { x: 0, y: 0 } as { x: number; y: number },
   }));
 
-  const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-    zeroedNodes,
-    enrichedEdges,
-    direction,
-    { ranksep: 260, nodesep: 150 }
+  const layouted = applyRfLayout(
+    { nodes: zeroedNodes as Parameters<typeof applyRfLayout>[0]['nodes'], edges: enrichedEdges },
+    direction === 'LR' ? 'LR' : 'TD',
+    { rankSep: 160, nodeSep: 100 },
   );
+  // Dagre compound output places children at ABSOLUTE positions and relies on
+  // a follow-up sizing pass. Without it React Flow reads child positions as
+  // parent-relative (grouped nodes render offset outside their box) and
+  // groups are never sized to their contents.
+  const sizedNodes = applySubgraphBoundsToRf(layouted.nodes as typeof enrichedNodes);
+  const layoutedNodes = sizedNodes;
+  const layoutedEdges = layouted.edges as typeof enrichedEdges;
 
   return {
     nodes: layoutedNodes,

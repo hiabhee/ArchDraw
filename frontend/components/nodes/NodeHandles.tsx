@@ -20,35 +20,41 @@ interface NodeHandleProps {
   slotOffset: number;
   handleTransition: string;
   style?: React.CSSProperties;
+  emptySource?: boolean;
 }
 
-function SingleHandle({ side, type, slotOffset, handleTransition, style }: NodeHandleProps) {
+function SingleHandle({ side, type, slotOffset, handleTransition, style, emptySource }: NodeHandleProps) {
   const id = `${type}-${side}`;
   const isHorizontal = side === 'left' || side === 'right';
   const pos = sideToPosition(side);
 
-  // Pin to side midpoint (translate both axes) so diamond/circle tips stay centered.
+  const axisOffset = slotOffset;
+  const crossOffset = slotOffset;
+
+  // Stick out from the node — handle center sits 12px outside the border
+  // (edge tip also 12px, so arrow feels connected to handle).
+  const OUTSIDE = 12;
   const base: React.CSSProperties = {
     position: 'absolute',
     zIndex: 10,
     transition: handleTransition,
     ...(isHorizontal
       ? {
-          left: side === 'left' ? 0 : 'auto',
-          right: side === 'right' ? 0 : 'auto',
-          top: `calc(50% + ${slotOffset}px)`,
-          transform: 'translate(-50%, -50%)',
+          left: side === 'left' ? -OUTSIDE : 'auto',
+          right: side === 'right' ? -OUTSIDE : 'auto',
+          top: `calc(50% + ${axisOffset}px)`,
+          transform: side === 'left' ? 'translate(-50%, -50%)' : 'translate(50%, -50%)',
         }
       : {
-          top: side === 'top' ? 0 : 'auto',
-          bottom: side === 'bottom' ? 0 : 'auto',
-          left: `calc(50% + ${slotOffset}px)`,
-          transform: 'translate(-50%, -50%)',
+          top: side === 'top' ? -OUTSIDE : 'auto',
+          bottom: side === 'bottom' ? -OUTSIDE : 'auto',
+          left: `calc(50% + ${crossOffset}px)`,
+          transform: side === 'top' ? 'translate(-50%, -50%)' : 'translate(-50%, 50%)',
         }),
     ...style,
   };
 
-  return <Handle type={type} position={pos} id={id} style={base} />;
+  return <Handle type={type} position={pos} id={id} className={emptySource ? 'handle--empty-source' : undefined} style={base} />;
 }
 
 interface NodeHandlesProps {
@@ -58,27 +64,38 @@ interface NodeHandlesProps {
 }
 
 /**
- * Two handles per side (source / target). Slots center dynamically per side:
- * when only incoming or only outgoing edges use a side, the active handle
- * moves to the midpoint for a straight attachment.
+ * Strict per-side handle visibility:
+ * - side with only outgoing → only source handle (centered)
+ * - side with only incoming → only target handle (centered)
+ * - side with both → two handles offset ±16
+ * - empty side → source appears on hover/selection; target stays mounted for drops
+ * Slots center dynamically per side when only one direction exists.
  */
 export function NodeHandles({ handleStyle, sides = SIDES, nodeId }: NodeHandlesProps) {
-  const { getSlotOffset, handleTransition } = useHandleSlotLayout(nodeId);
+  const { getSlotOffset, shouldRenderHandle, isEmptySide, handleTransition } = useHandleSlotLayout(nodeId);
 
   return (
     <>
       {sides.map((side) => {
         const pos = sideToPosition(side);
-        return TYPES.map((type) => (
-          <SingleHandle
-            key={`${type}-${side}`}
-            side={side}
-            type={type}
-            slotOffset={getSlotOffset(pos, type)}
-            handleTransition={handleTransition}
-            style={handleStyle}
-          />
-        ));
+        return TYPES.map((type) => {
+          const active = shouldRenderHandle(pos, type);
+          return (
+            <SingleHandle
+              key={`${type}-${side}`}
+              side={side}
+              type={type}
+              slotOffset={getSlotOffset(pos, type)}
+              handleTransition={handleTransition}
+              emptySource={type === 'source' && isEmptySide(pos)}
+              style={{
+                ...handleStyle,
+                visibility: active ? 'visible' : 'hidden',
+                pointerEvents: active ? 'all' : 'none',
+              }}
+            />
+          );
+        });
       })}
     </>
   );

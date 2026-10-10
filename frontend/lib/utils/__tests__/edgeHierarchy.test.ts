@@ -25,21 +25,21 @@ describe('resolveEdgeVisual', () => {
     const v = resolveEdgeVisual({ importance: 'primary', isSpine: true }, false);
     expect(v.isPrimary).toBe(true);
     expect(v.opacity).toBe(1);
-    expect(v.strokeWidth).toBeGreaterThanOrEqual(1.75);
-    expect(v.stroke).toBe('#0f172a');
+    expect(v.strokeWidth).toBeGreaterThanOrEqual(1.5);
+    expect(v.stroke).toBe('#000000');
   });
 
   it('mutes secondary sync edges', () => {
     const v = resolveEdgeVisual({ importance: 'secondary' }, false);
     expect(v.isPrimary).toBe(false);
-    expect(v.opacity).toBeGreaterThanOrEqual(0.85);
-    expect(v.stroke).toBe('#64748b');
+    expect(v.opacity).toBe(1);
+    expect(v.stroke).toBe('#000000');
   });
 
   it('styles async edges with amber', () => {
     const v = resolveEdgeVisual({ connectionType: 'async' }, false);
     expect(v.isPrimary).toBe(false);
-    expect(v.stroke.toLowerCase()).toMatch(/#c2410c|#b45309/);
+    expect(v.stroke.toLowerCase()).toBe('#000000');
   });
 
   it('keeps diagnostic edges quieter but visible', () => {

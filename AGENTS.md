@@ -14,7 +14,7 @@ ArchDraw is an **AI-assisted system architecture diagramming** product:
 
 Primary app lives in `frontend/` (Next.js App Router). Companion package: `mcp-server/`.
 
-**Stack (verify in `frontend/package.json`):** Next.js · React · TypeScript · React Flow v11 · Zustand · Dagre (+ ELK for some canvas presets) · Groq · Prisma + Neon · better-auth · Tailwind · Mermaid · Vitest.
+**Stack (verify in `frontend/package.json`):** Next.js · React · TypeScript · React Flow v11 · Zustand · Dagre · Groq · Prisma + Supabase · better-auth · Tailwind · Mermaid · Vitest.
 
 ---
 
@@ -60,6 +60,14 @@ Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc
 - Canvas + SVG export truth: `frontend/lib/theme/stylingConstants.ts` (optical size grid, concerns, themes).
 - Chrome / dashboard: use semantic Tailwind tokens from `CONTRIBUTING.md` (`bg-surface-page`, `text-text-primary`, `bg-accent`, …). Avoid ad-hoc purple/indigo landing tropes when building branded UI from scratch; preserve existing product look when editing existing surfaces.
 
+### Render style vs color theme
+
+- **`diagramRenderStyle`** (`precision` | `sketch`, store `uiSlice.ts`) controls **how** shapes/edges/groups are drawn — stroke engine, fonts, shadows. **`diagramStyleTheme`** (default/slate/…, `stylingConstants.ts`) controls **colors**. They are orthogonal: sketch uses the same concern colors as precision. Do not overload `diagramStyleTheme` with render-engine metadata (AI planner + persisted canvases depend on it).
+- Canvas geometry truth: `frontend/lib/theme/shapeGeometry/index.ts` → `getShapePrimitives(shape, W, H, axis?)`. Both `ShapeNode.tsx` (canvas) and `svgExport.ts` render the same primitives through a `StrokeRenderer` (`getStrokeRenderer('crisp'|'rough')` in `renderStyles/strokeRenderer/`). Never hand-roll divergent shape paths in one renderer.
+- Sketch specifics: rough.js + deterministic `seedFor(id)`; **board-like shape bodies** (rectangle/rounded-rect/parallelogram/hexagon/cloud/monitor/mobile) use **cross-hatch** fills on warm paper (`SKETCH_PAPER_TINT` / `SKETCH_PAPER_DARK` in `sketch.ts`) — the darker paper keeps the hatch visible instead of transparent; small silhouettes + cylinders stay **solid** (sketch SystemNode cards are transparent so their rough body shows through); hachure is reserved for group zones; Patrick Hand + Caveat loaded lazily via `<link>` only when sketch is active; CSS scoping lives in `components/nodes/nodeStyles.css` under `[data-render-style='sketch']` (descendant selectors — the attribute is on the canvas wrapper, not `.react-flow` itself).
+- `setDiagramRenderStyle` is a **view preference** — never push it onto the diagram undo stack (same rule as `diagramStyleTheme` / grid toggles).
+- See `docs/diagram-aesthetic-themes-plan.md` for the full contract.
+
 ### Layout rule (critical)
 
 **Canonical canvas layout** for templates, AI generation, repo diagrams, and the toolbar LR/TB toggler is:
@@ -68,7 +76,7 @@ Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc
 
 Path: React Flow → Mermaid → Parse → Validate → Build → **Dagre** (`pipeline-shared/layout`) → Size → map positions back.
 
-Do **not** assume the toolbar uses ELK. ELK lives in `frontend/lib/canvas/applyLayout.ts` / `layoutPresets.ts` for alternate presets (e.g. force). See `docs/layout-toggler.md`.
+Do **not** assume the toolbar uses ELK. There is no frontend ELK path — layout is Dagre-only via `pipeline-shared/layout` (ELK lives only in `mcp-server`). See `docs/layout-toggler.md`.
 
 ### Node sizing rule
 
@@ -162,7 +170,7 @@ Editor chrome: `frontend/views/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, 
 | Component | Type id (typical) | Behavior |
 |-----------|-------------------|----------|
 | **SystemNode** | `systemNode` | Card UI (header/footer, accent, status). Uses `FloatingHandles`. Sized via `calculateNodeDimensions` (grid-capped). |
-| **ShapeNode** | `shapeNode` | Silhouette shapes: rectangle, rounded-rectangle, **diamond**, cylinder, circle, parallelogram. Uses `NodeHandles`. Dynamic fit + mid-band label clamp. |
+| **ShapeNode** | `shapeNode` | Silhouette shapes: rectangle, rounded-rectangle, **diamond**, cylinder, circle, parallelogram, **hexagon, cloud, shield, actor, monitor, mobile, dashed-rectangle**. Uses `NodeHandles`. Dynamic fit + mid-band label clamp. |
 | **GroupNode** | `groupNode` | Subgraph / container; resizable; hosts children with parent ids. |
 | **AnnotationNode** | annotation | Callouts / notes |
 | **TextLabelNode** | text label | Free text on canvas |
@@ -171,11 +179,28 @@ Shape config / palette: `frontend/constants/nodeShapeConfig.ts`, `PropertiesPane
 
 Icons: `NodeIcon.tsx`, `components/icons/`, `lib/nodeIconResolver.ts`.
 
+### Shape semantics (visual vocabulary)
+
+Single source of truth: `frontend/lib/shapeRegistry.ts` (`ShapeType`, `VARIANT_TO_SHAPE`, `shapeForServiceType`). Editor, AI pipeline (`classifyNode` in `planTranslator.ts`), and Mermaid round-trip all resolve through it.
+
+| Silhouette | Role | Mermaid token |
+|------------|------|---------------|
+| `hexagon` | Load balancer / ingress / gateway / proxy | native `id{{"Label"}}` |
+| `cloud` | External / SaaS / third-party (Stripe, CDN, providers) | `%% archdraw-shape` directive |
+| `shield` | Auth / WAF / Vault / secrets / TLS | `%% archdraw-shape` directive |
+| `monitor` | Web / desktop client, browser, frontend | `%% archdraw-shape` directive |
+| `mobile` | iOS / Android client | `%% archdraw-shape` directive |
+| `actor` | End user / person / customer / admin | `%% archdraw-shape` directive |
+| `dashed-rectangle` | Out-of-system / optional / future scope | `%% archdraw-shape` directive |
+
+Non-native shapes round-trip via `%% archdraw-shape: {"id":"<id>","shape":"<shape>"}` (parse in `lib/mermaid/parse.ts`, emit in `mermaidTranslator.ts`). `buildReactFlow.ts` precedence: directive override → native Mermaid token → `classifyNode`. Mermaid native hexagon is `id{{"label"}}` (no directive).
+
 ### Node sizing
 
 `frontend/lib/utils/nodeSizing.ts`:
 
-- Snaps to 160/200/240; optional soft XL/XXL constants for callers that pass `maxWidth`.
+- Snaps to 160/200/240 (plus `SIZE_XS = 120` for compact shapes like `actor`/`mobile`); optional soft XL/XXL constants for callers that pass `maxWidth`.
+- Per-shape width/height bands: hexagon 160–200 / 88–96, cloud 200–240 / 96–112, shield 160–200 / 96–112, actor 120–160 / 88–100, monitor 200–240 / 100–120, mobile 120–160 / 100–130, dashed-rectangle 160–240 / 88–112.
 - Shape text bands must stay aligned with `ShapeNode.resolveShapeSize` (`diamond`/`circle` → `0.48`).
 - Used by ShapeNode, SystemNode, Mermaid build, layout utils, repo import.
 
@@ -233,13 +258,13 @@ Files:
 
 **Default Dagre compound spacing (current):**
 
-- TB: `nodeSep` 140, `rankSep` 200  
-- LR: `nodeSep` 180, `rankSep` 200  
-- Subgraph padding ~48–72  
+- TB: `nodeSep` 140, `rankSep` 220  
+- LR: `nodeSep` 160, `rankSep` 220  
+- Subgraph padding: 28 sides / 48 top (label) / 28 bottom — shared via `lib/pipeline-shared/layout/layoutConstants.ts`; the engine and the subgraph sizer (`recomputeSubgraphBounds.ts`) must never diverge.
 
 ### Alternate path
 
-- ELK presets: `lib/canvas/layoutPresets.ts`, `lib/canvas/applyLayout.ts` — used for some store presets / freeform / force, **not** the Mermaid toggler.
+- There is no frontend ELK path — the ELK stack was removed; layout is Dagre-only via `pipeline-shared/layout` (ELK lives only in `mcp-server`). Store presets all route through `layoutDiagramViaMermaid`.
 
 ### Landing demo
 
@@ -281,13 +306,20 @@ Entry: `lib/repo-diagram/pipeline-v2.ts`, API `app/api/repo-diagram/`.
 
 Stages under `lib/repo-diagram/pipeline-stages/`:
 
-Ingestion → Cache check → Analysis / Baseline → Classify → Extract → Relationships → Verify → Finalization → Cache write.
+Ingestion → Cache check → Analysis / Baseline → Classify → Extract → Relationships → Verify → **DocsReview** → Finalization → Cache write.
+
+- **DocsReviewStage** (GH2R-024) runs after the deterministic VerifyStage and BEFORE Finalization: it re-checks the surviving graph against the repo's own README/docs (phase 1.5 `snapshot.metaFiles`) via one LLM pass (`lib/agents/repo-docs-validator.ts`), applying the dormant `ReviewResult`/`ReviewCorrection` shapes through `applyReviewCorrections` (`graph-quality.ts`). It adds doc-described components/edges, drops doc-empty low-confidence hallucinations, and renames nodes to the docs' canonical naming. Best-effort: on LLM failure it passes the verified graph through and flags `docsReviewFailed` into `reviewNotes`. Budget toggles: `REPO_DOCS_MAX_TOKENS` / `REPO_DOCS_PROMPT_CHARS` in `repoModels.ts`.
+
+Ingestion is **meta-first** (GH2R-024): a phase-1.5 "architecture-meta read" captures ALL architecture-signaling files across the tree — every README, every `package.json`, docker-compose, terraform, CI workflows, prisma schema, docs — REGARDLESS of the source file/content budget, then de-prioritizes raw source-code sampling. Meta files imply the architecture directly; the extractor derives services/infra/workers from them (component cap is level-scaled, not capped at 25). Budgets live in `skip-rules.ts` (`MAX_META_FILES`/`MAX_META_CONTENT_BYTES`/`MAX_README_FILES`).
 
 Supporting:
 
 - `tarball-ingestion.ts` — fetch/unpack GitHub tarball  
-- `import-graph.ts`, `import-resolvers.ts`, `graph-quality.ts`, `evidence-from-graph.ts`  
-- Agents in `lib/agents/`: classifier, component extractor, relationship analyst, schema compiler, verifier, prompt utils  
+- `skip-rules.ts` — **single source** for `MAX_FILE_SIZE/BINARY_RE/SKIPPED_DIRECTORIES` + `DEFAULT_FILE_BUDGET {400,900,1800}` + `DEFAULT_CONTENT_BUDGET_KB {1500,8000,12000}` (GH2R-007,006; do not re-introduce duplicate skip logic in `github-ingestion.ts`/`tarball-ingestion.ts`)
+- `import-graph.ts`, `import-resolvers.ts` (Python roots `app/backend/server/api/services`, TS alias `baseUrl="."`, Go fallback, Spring `value=/path`) , `graph-quality.ts`, `evidence-from-graph.ts`  
+- Agents in `lib/agents/`: classifier, component extractor, relationship analyst, schema compiler, verifier (sparse keep), prompt utils  
+
+Ingestion budgets are **level-aware** (`IngestionStage` maps `detailLevel` → `DEFAULT_*` from `skip-rules.ts`; `github-ingestion.ts` fallback also level-aware). Cache keys are **level-scoped** `PIPELINE_VERSION(v8)::url::sha::L{level}` (see §19). Archive 404/403 logs `x-ratelimit-remaining` (tarball fallback is honest).
 
 UI: `components/RepoDiagramGenerator.tsx`.
 
@@ -316,13 +348,17 @@ UI: `components/RepoDiagramGenerator.tsx`.
 
 ## 12. MCP server
 
-Package: `mcp-server/`. Dev: `npm run dev:mcp` from `frontend/`.
+Package: `mcp-server/` (self-contained `node_modules`, zod 3 + SDK 1.29 + elkjs). Dev: `npm run dev:mcp` from `frontend/` (runs `tsx src/index.ts`). Tests: `cd mcp-server && npm test` (vitest, colocated `__tests__/`). CI builds + tests it independently of `frontend/`.
+
+`mcp-server/tsconfig.json` has **no** `paths`/`typeRoots` aliases — imports resolve through real package exports so `tsx` and `node dist/` stay in sync. Do not reintroduce `../frontend/node_modules` path maps (they break `tsx` at runtime by loading `.d.ts` as modules).
+
+Canonical MCP constants (tier colors/order, comm styles, fallback positions): `mcp-server/src/lib/constants.ts`. Session-aware working state + `sessionId` fallback: `mcp-server/src/lib/diagram-state.ts` (syncs via `/api/diagram/session/[sessionId]`). HTTP calls use `fetchWithTimeout` (`mcp-server/src/lib/http.ts`).
 
 Tools (under `mcp-server/src/tools/`):
 
 `generate-diagram`, `update-diagram`, `validate-diagram`, `fix-layout`, `apply-template`, `export-diagram`, `list-nodes`, `save-checkpoint`, `load-checkpoint`, `read-me`.
 
-Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
+`generate_diagram` is Mermaid-first: pass `mermaid` (graph LR/TD, subgraphs) to run the web pipeline via `/api/diagram/load`; JSON `nodes`/`edges` is the legacy ELK path. Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
 
 ---
 
@@ -365,6 +401,7 @@ When changing sizing, update `lib/utils/__tests__/nodeSizing.test.ts`.
 |------|------------|
 | Node look / shape | `ShapeNode.tsx`, `SystemNode.tsx`, `nodeStyles.css`, `stylingConstants.ts` |
 | Node size | `nodeSizing.ts` |
+| Render style (precision/sketch) | `shapeGeometry/index.ts`, `renderStyles/*`, `ShapeNode.tsx`, `nodeStyles.css`, `Toolbar.tsx` |
 | Handles | `NodeHandles.tsx`, `FloatingHandles.tsx`, `useHandleSlotLayout.ts` |
 | Edge path | `edgeRouteBuilder.ts`, `SimpleFloatingEdge.tsx` |
 | Auto layout | `relayout.ts`, `DagreLayout.ts`, `LayoutEngine.ts` |
@@ -394,7 +431,7 @@ Copy `frontend/.env.example` → `frontend/.env.local`.
 |----------|-----------|------|
 | `GROQ_API_KEY` (or `GROQ_API_KEY_FOR_DESC_*`) | **Yes for AI** | LLM generations; multi-key load balancing supported |
 | `OPENROUTER_API_KEY*` | Optional | Fallback LLM provider |
-| `DATABASE_URL` / `DIRECT_URL` | Needed for auth, save, quotas | Prisma → Neon/Postgres |
+| `DATABASE_URL` | Needed for auth, save, quotas | Prisma → Supabase Postgres |
 | `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` | Needed for auth | Session crypto + canonical URL |
 | `NEXT_PUBLIC_APP_URL` | Recommended | Public origin / trusted origins |
 | `UPSTASH_REDIS_REST_*` | Optional | Rate limits + some caches; guests fall back to DB if Redis down |
@@ -444,9 +481,9 @@ Do not hand-edit production DB; use Prisma migrations under `frontend/prisma/mig
 
 | Cache | File | Behavior |
 |-------|------|----------|
-| In-memory diagram / repo | `lib/ai/services/diagramCache.ts` | Prompt/repo+sha keyed; TTL 5m dev / 30m prod; `PIPELINE_VERSION` busts entries |
-| Repo Redis (optional) | `lib/ai/services/repoDiagramRedisCache.ts` | Cross-instance repo results when Upstash configured |
-| Blob SHA cache | `lib/cache/blobCache.ts` | Per-file parse/summary reuse for repo re-diagram |
+| In-memory diagram / repo | `lib/ai/services/diagramCache.ts` | Prompt/repo+sha keyed; TTL 5m dev / 30m prod; `PIPELINE_VERSION(v8)` busts entries; repo keys are `::L{1,2,3}` level-scoped (GH2R-003) with legacy fallback for rolling deploy |
+| Repo Redis (optional) | `lib/ai/services/repoDiagramRedisCache.ts` | Cross-instance repo results when Upstash configured; same level-scoped keys (`repo-diagram:v8:url:sha:Lx`) |
+| Blob SHA cache | `lib/cache/blobCache.ts` | Per-file parse/summary reuse for repo re-diagram — **reserved / not wired** (GH2R-019) |
 | Tutorial responses | DB `TutorialResponseCache` | Hash → answer |
 | Rate limit counters | `lib/redis.ts` + Upstash | Guest hourly AI quota |
 
@@ -476,7 +513,7 @@ Source of truth: `frontend/lib/userQuotas.ts`. Enforcement: `lib/middleware/quot
 |--|-------|-----------------|
 | AI generations | **3 / hour** (IP) | **10 / day** (`User.dailyGenerations`) |
 | Canvases | 1 | 5 |
-| Nodes / canvas | 25 | 50 |
+| Nodes / canvas | 50 | 150 |
 | Export | json, png (watermarked PNG) | json, png, svg, pdf, html-embed |
 | Share / SVG / dashboard / tutorials progress | No | Yes |
 | Templates | Basic allowlist only | All advanced |
@@ -601,7 +638,7 @@ See `docs/pipeline-refactor-plan.md` and `docs/layout-toggler-learnings.md`.
 
 Still be aware of:
 
-- Historical “multiple layout owners” — **canonical** is Mermaid→Dagre via `relayout.ts` + `pipeline-shared/layout`; ELK remains for some presets.
+- Historical “multiple layout owners” — **canonical** is Mermaid→Dagre via `relayout.ts` + `pipeline-shared/layout`; there is no frontend ELK path.
 - AI pipeline stage classes vs thin adapters in `pipeline-v2.ts` — prefer typed stages + `pipeline-core`.
 - Some docs/README stage counts lag code — trust `pipeline-v2.ts` and `lib/mermaid/pipeline.ts`.
 - Lint is non-blocking in CI today.

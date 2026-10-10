@@ -167,8 +167,18 @@ export function isDatabaseConfigured(): boolean {
 /**
  * Validates authentication configuration for production.
  * Throws if critical auth config is missing in production.
+ *
+ * Skipped during `next build` page-data collection (NEXT_PHASE ===
+ * 'phase-production-build'): the build machine often lacks runtime secrets,
+ * and failing collection fails the whole deployment. Runtime behavior is
+ * unchanged — a misconfigured server still throws fail-closed on first
+ * request that imports auth.
  */
 export function validateAuthConfig(): void {
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    logger.warn('[EnvValidation] Skipping auth config validation during production build');
+    return;
+  }
   if (process.env.NODE_ENV === 'production') {
     const errors: string[] = [];
     

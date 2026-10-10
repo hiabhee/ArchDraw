@@ -1,12 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import ReactFlow, {
   Background,
-  Controls,
   useNodesState,
   useEdgesState,
-  Handle,
-  Position,
-  MarkerType,
   Node,
   Edge,
   type Connection,
@@ -17,412 +13,15 @@ import ReactFlow, {
   addEdge,
   ConnectionLineType,
   useReactFlow,
+  MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { NodeResizer } from '@reactflow/node-resizer';
-import '@reactflow/node-resizer/dist/style.css';
-import {
-  Undo2, Redo2, LayoutGrid, Sun, Moon, Share2, Download,
-  Sparkles, Database, Server, Globe, Activity,
-  Send, ChevronDown, Plus, Folder, Trash2, MoreHorizontal,
-  Layers, MessageSquare, BookOpen, Square, HelpCircle, Code, Mic,
-  PanelLeftClose, FolderOpen, LayoutDashboard, ChevronLeft, Slash, MousePointer2
-} from 'lucide-react';
+import { Undo2, Redo2, LayoutGrid, Sun, Moon, Share2, Download, Send, ChevronDown, Plus, Trash2, MoreHorizontal, Layers, Square, Code, Mic, PanelLeftClose, FolderOpen, LayoutDashboard, ChevronLeft, Slash } from 'lucide-react';
 import dagre from 'dagre';
 import { toast } from 'sonner';
-import SimpleFloatingEdge from '@/components/edges/SimpleFloatingEdge';
-import { NodeIcon } from '@/components/NodeIcon';
+import { DEMO_NODE_TYPES, DEMO_EDGE_TYPES } from './landing-demo/DemoNodes';
+import { PRESETS } from './landing-demo/presets';
 import '@/components/nodes/nodeStyles.css';
-
-const STATUS_COLORS = {
-  healthy: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  unknown: '#6B7280',
-};
-
-function getTierColorNormalized(layer?: string): string {
-  const tier = (layer || 'compute').toLowerCase();
-  const colorMap: Record<string, string> = {
-    client:   '#64748b',
-    edge:     '#0f766e',
-    compute:  '#0f766e',
-    async:    '#b45309',
-    data:     '#475569',
-    observe:  '#0f766e',
-    external: '#6b7280',
-  };
-  return colorMap[tier] || colorMap.compute;
-}
-
-function getDarkCategoryStyle(layer?: string): { border: string; glow: string } {
-  const color = getTierColorNormalized(layer);
-  return { border: color, glow: hexToRgba(color, 0.12) };
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-interface DemoNodeData {
-  isDemoDark?: boolean;
-  label?: string;
-  onRename?: (id: string, newName: string) => void;
-  hasHeader?: boolean;
-  height?: number;
-  style?: Record<string, string>;
-  headerColor?: string;
-  subtitle?: string;
-  comment?: string;
-  layer?: string;
-  accentColor?: string;
-  color?: string;
-  status?: string;
-  nodeWidth?: number;
-  nodeHeight?: number;
-}
-
-// Custom Dotted Node Component
-function DemoNode({ id, data, selected }: { id: string; data: DemoNodeData; selected: boolean }) {
-  const isDark = data.isDemoDark !== false;
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(data.label || '');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleSave = () => {
-    if (editValue.trim() && data.onRename) {
-      data.onRename(id, editValue.trim());
-    }
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      setIsEditing(false);
-    }
-  };
-  
-  const tierColor = getTierColorNormalized(data.layer);
-  const accentColor = data.accentColor || data.color || tierColor || '#0f766e';
-  const statusColor = STATUS_COLORS[(data.status || 'healthy') as keyof typeof STATUS_COLORS];
-  const showStatus = data.status && data.status !== 'healthy';
-
-  const catStyle = getDarkCategoryStyle(data.layer);
-
-  return (
-    <div
-      className={`node-wrapper${selected ? ' selected' : ''}`}
-      style={{
-        ['--node-accent' as string]: accentColor,
-        ['--node-accent-soft' as string]: hexToRgba(accentColor, 0.04),
-        ['--node-accent-bg' as string]: `${accentColor}12`,
-        ['--node-glow' as string]: catStyle.glow,
-        ['--node-glow-border' as string]: catStyle.border,
-        ['--node-status-color' as string]: statusColor,
-      }}
-    >
-      <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-[#1E90FF] !border-0" style={{ zIndex: 10 }} />
-      <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-[#1E90FF] !border-0" style={{ zIndex: 10 }} />
-
-      <div
-        className="group node-card"
-        style={{
-          width: data.nodeWidth || 200,
-          minWidth: data.nodeWidth || 200,
-          minHeight: data.nodeHeight || 72,
-        }}
-      >
-        <div className="node-header">
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={handleKeyDown}
-              className="bg-transparent border-none outline-none text-[13px] font-bold text-slate-800 dark:text-slate-100 w-full p-0 m-0"
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <p 
-              className="node-title select-none cursor-pointer" 
-              title="Double-click to rename" 
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(true);
-                setEditValue(data.label || '');
-              }}
-            >
-              {data.label}
-            </p>
-          )}
-        </div>
-        <div className="node-footer">
-          {data.subtitle && (
-            <p className="node-subtitle" title={data.subtitle}>
-              {data.subtitle}
-            </p>
-          )}
-          {showStatus && (
-            <div className="node-status-dot" />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface DemoGroupData extends DemoNodeData {
-  groupLabel?: string;
-  groupColor?: string;
-}
-
-// Custom Dotted Group Component
-function DemoGroup({ id, data, selected }: { id: string; data: DemoGroupData; selected: boolean }) {
-  const isDark = data.isDemoDark !== false;
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(data.groupLabel || data.label || '');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleSave = () => {
-    if (editValue.trim() && data.onRename) {
-      data.onRename(id, editValue.trim());
-    }
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      setIsEditing(false);
-    }
-  };
-
-  const color =
-    data.accentColor ||
-    data.groupColor ||
-    data.color ||
-    getTierColorNormalized(data.layer || data.groupLabel || data.label);
-
-  const bg = isDark ? hexToRgba(color, 0.04) : hexToRgba(color, 0.035);
-  const borderColor = isDark
-    ? selected
-      ? hexToRgba(color, 0.55)
-      : 'rgba(255, 255, 255, 0.12)'
-    : selected
-      ? hexToRgba(color, 0.55)
-      : 'rgba(15, 23, 42, 0.12)';
-
-  const borderWidth = selected ? 1.5 : 1;
-  const tagText = isDark ? '#94a3b8' : '#64748b';
-
-  const label = data.groupLabel || data.label || '';
-
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        backgroundColor: bg,
-        border: `${borderWidth}px solid ${borderColor}`,
-        borderRadius: 12,
-        position: 'relative',
-        boxSizing: 'border-box',
-      }}
-    >
-      <NodeResizer 
-        color={color} 
-        isVisible={selected} 
-        minWidth={100} 
-        minHeight={100}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          top: 8,
-          left: 12,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: 0,
-          fontSize: 11,
-          fontWeight: 500,
-          letterSpacing: '0.04em',
-          textTransform: 'none',
-          color: tagText,
-          background: 'transparent',
-          border: 'none',
-          borderRadius: 0,
-          lineHeight: 1.3,
-          whiteSpace: 'nowrap',
-          boxShadow: 'none',
-          zIndex: 10,
-          cursor: 'pointer',
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsEditing(true);
-          setEditValue(label || '');
-        }}
-      >
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleSave}
-            onKeyDown={handleKeyDown}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              fontSize: 11,
-              fontWeight: 500,
-              letterSpacing: '0.04em',
-              textTransform: 'none',
-              color: tagText,
-              width: '100%',
-              cursor: 'text',
-              padding: 0,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span>{label || 'Group'}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Preset Diagram Definitions
-interface PresetData {
-  title: string;
-  nodes: Node[];
-  edges: Edge[];
-}
-
-const PRESETS: Record<'loadBalancer', PresetData> = {
-  loadBalancer: {
-    title: 'Describe simple load balancer...',
-    nodes: [
-      // Containers — generous vertical gaps so groups / edges do not feel packed
-      { id: 'CLIENT_GROUP', type: 'demoGroup', position: { x: 460, y: 40 }, style: { width: 360, height: 160 }, data: { label: 'CLIENT CONTAINER', color: '#6366f1' }, draggable: true },
-      { id: 'LB_GROUP', type: 'demoGroup', position: { x: 460, y: 280 }, style: { width: 360, height: 160 }, data: { label: 'LOAD BALANCER', color: '#22c55e' }, draggable: true },
-      { id: 'SERVER_GROUP', type: 'demoGroup', position: { x: 40, y: 520 }, style: { width: 1200, height: 160 }, data: { label: 'SERVER POOL', color: '#a855f7' }, draggable: true },
-      // Nodes
-      { id: 'client-node', type: 'demoNode', parentId: 'CLIENT_GROUP', position: { x: 80, y: 44 }, data: { label: 'Client', subtitle: 'Web Browser / iOS', layer: 'client', icon: '🌐' }, draggable: true },
-      { id: 'lb-node', type: 'demoNode', parentId: 'LB_GROUP', position: { x: 80, y: 44 }, data: { label: 'Load Balancer', subtitle: 'Nginx Proxy', layer: 'edge', icon: '⚡' }, draggable: true },
-      { id: 'server1', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 80, y: 44 }, data: { label: 'Server 1', subtitle: 'Node.js App', layer: 'compute', icon: '💻' }, draggable: true },
-      { id: 'server2', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 500, y: 44 }, data: { label: 'Server 2', subtitle: 'Go Microservice', layer: 'compute', icon: '💻' }, draggable: true },
-      { id: 'server3', type: 'demoNode', parentId: 'SERVER_GROUP', position: { x: 920, y: 44 }, data: { label: 'Monitoring Service', subtitle: 'Prometheus', layer: 'observe', icon: '📊' }, draggable: true },
-      // Invisible spacer node to push content up so the floating AI bar has background
-      { 
-        id: 'dummy-spacer', 
-        type: 'spacerNode', 
-        position: { x: 500, y: 780 }, 
-        data: {}, 
-        draggable: false, 
-        selectable: false,
-        deletable: false,
-      },
-      // Invisible spacer node to push content down so the top bar has background
-      { 
-        id: 'dummy-spacer-top', 
-        type: 'spacerNode', 
-        position: { x: 500, y: -80 }, 
-        data: {}, 
-        draggable: false, 
-        selectable: false,
-        deletable: false,
-      },
-    ],
-    edges: [
-      { 
-        id: 'e1', 
-        source: 'client-node', 
-        target: 'lb-node', 
-        label: 'HTTPS REQUEST', 
-        type: 'straight',
-        className: 'flow-dotted-edge',
-        style: { stroke: '#475569', strokeWidth: 1.5 }, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
-      },
-      { 
-        id: 'e2', 
-        source: 'lb-node', 
-        target: 'server1', 
-        label: 'ROUTE REQUEST', 
-        type: 'straight',
-        className: 'flow-dotted-edge',
-        style: { stroke: '#475569', strokeWidth: 1.5 }, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
-      },
-      { 
-        id: 'e3', 
-        source: 'lb-node', 
-        target: 'server2', 
-        label: 'ROUTE REQUEST', 
-        type: 'straight',
-        className: 'flow-dotted-edge',
-        style: { stroke: '#475569', strokeWidth: 1.5 }, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
-      },
-      { 
-        id: 'e4', 
-        source: 'lb-node', 
-        target: 'server3', 
-        label: 'HEALTH METRICS', 
-        type: 'straight',
-        className: 'flow-dotted-edge',
-        style: { stroke: '#475569', strokeWidth: 1.5 }, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' } 
-      },
-    ],
-  },
-};
-
-function SpacerNode() {
-  return <div style={{ width: 1, height: 1 }} />;
-}
-
-// Custom NodeTypes registration
-const DEMO_NODE_TYPES = {
-  demoNode: DemoNode,
-  demoGroup: DemoGroup,
-  spacerNode: SpacerNode,
-};
-
-// Custom EdgeTypes registration
-const DEMO_EDGE_TYPES = {
-  custom: SimpleFloatingEdge,
-  simpleFloating: SimpleFloatingEdge,
-  floating: SimpleFloatingEdge,
-  default: SimpleFloatingEdge,
-  straight: SimpleFloatingEdge,
-};
 
 export default function InteractiveLandingDemo() {
   return (
@@ -433,9 +32,9 @@ export default function InteractiveLandingDemo() {
 }
 
 function InteractiveLandingDemoContent() {
-  const [activeChip, setActiveChip] = useState<'loadBalancer'>('loadBalancer');
-  const [nodes, setNodes, onNodesChange] = useNodesState(PRESETS.loadBalancer.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(PRESETS.loadBalancer.edges);
+  const [_activeChip, setActiveChip] = useState<'loadBalancer'>('loadBalancer');
+  const [nodes, setNodes, _onNodesChange] = useNodesState(PRESETS.loadBalancer.nodes);
+  const [edges, setEdges, _onEdgesChange] = useEdgesState(PRESETS.loadBalancer.edges);
   const [title, setTitle] = useState(PRESETS.loadBalancer.title);
   const [inputText, setInputText] = useState('');
   const [isDemoDark, setIsDemoDark] = useState(false);
@@ -483,27 +82,35 @@ function InteractiveLandingDemoContent() {
     );
   }, [setNodes]);
 
-  const displayNodes = useMemo(() => 
-    nodes.map(n => ({ 
-      ...n, 
-      data: { 
-        ...n.data, 
+  const displayNodes = useMemo(() =>
+    nodes.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
         isDemoDark,
         onRename: updateNodeLabel,
-      } 
-    })), 
+      }
+    })),
     [nodes, isDemoDark, updateNodeLabel]
   );
+
+  const safeClone = useCallback(<T,>(v: T): T => {
+    try {
+      return structuredClone(v);
+    } catch {
+      return JSON.parse(JSON.stringify(v));
+    }
+  }, []);
 
   // Sync state whenever a chip is clicked
   const handleChipSelect = (chipId: 'loadBalancer') => {
     setActiveChip(chipId);
     const data = PRESETS[chipId];
     setTitle(data.title);
-    setNodes(JSON.parse(JSON.stringify(data.nodes)));
-    setEdges(JSON.parse(JSON.stringify(data.edges)));
+    setNodes(safeClone(data.nodes));
+    setEdges(safeClone(data.edges));
 
-    const nextHistory = [{ nodes: JSON.parse(JSON.stringify(data.nodes)), edges: JSON.parse(JSON.stringify(data.edges)) }];
+    const nextHistory = [{ nodes: safeClone(data.nodes), edges: safeClone(data.edges) }];
     setHistory(nextHistory);
     setHistoryIndex(0);
   };
@@ -512,12 +119,12 @@ function InteractiveLandingDemoContent() {
   const pushState = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     const nextHistory = history.slice(0, historyIndex + 1);
     nextHistory.push({
-      nodes: JSON.parse(JSON.stringify(newNodes)),
-      edges: JSON.parse(JSON.stringify(newEdges)),
+      nodes: safeClone(newNodes),
+      edges: safeClone(newEdges),
     });
     setHistory(nextHistory);
     setHistoryIndex(nextHistory.length - 1);
-  }, [history, historyIndex]);
+  }, [history, historyIndex, safeClone]);
 
   // Node Drag Ending pushes to history
   const onNodeDragStop = useCallback(() => {
@@ -529,8 +136,8 @@ function InteractiveLandingDemoContent() {
     if (historyIndex > 0) {
       const nextIdx = historyIndex - 1;
       setHistoryIndex(nextIdx);
-      setNodes(JSON.parse(JSON.stringify(history[nextIdx].nodes)));
-      setEdges(JSON.parse(JSON.stringify(history[nextIdx].edges)));
+      setNodes(safeClone(history[nextIdx].nodes));
+      setEdges(safeClone(history[nextIdx].edges));
     } else {
       toast.info('Nothing to undo');
     }
@@ -541,15 +148,15 @@ function InteractiveLandingDemoContent() {
     if (historyIndex < history.length - 1) {
       const nextIdx = historyIndex + 1;
       setHistoryIndex(nextIdx);
-      setNodes(JSON.parse(JSON.stringify(history[nextIdx].nodes)));
-      setEdges(JSON.parse(JSON.stringify(history[nextIdx].edges)));
+      setNodes(safeClone(history[nextIdx].nodes));
+      setEdges(safeClone(history[nextIdx].edges));
     } else {
       toast.info('Nothing to redo');
     }
   };
 
   // Dagre Layout Rearranging
-  const handleLayoutArrange = () => {
+  const _handleLayoutArrange = () => {
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setDefaultEdgeLabel(() => ({}));
     g.setGraph({ rankdir: 'TB', nodesep: 160, ranksep: 200 });
@@ -605,7 +212,7 @@ function InteractiveLandingDemoContent() {
       setNodes(nextNodes);
       pushState(nextNodes, edges);
       toast.success('Rearranged diagram layout');
-    } catch (e) {
+    } catch {
       toast.error('Could not layout diagram');
     }
   };
@@ -650,11 +257,11 @@ function InteractiveLandingDemoContent() {
       id: newId,
       type: 'demoNode',
       position: { x: 280, y: 120 },
-      data: { 
-        label: `Compute Service`, 
-        subtitle: 'Node.js App', 
-        layer: 'compute', 
-        icon: '💻' 
+      data: {
+        label: `Compute Service`,
+        subtitle: 'Node.js App',
+        layer: 'compute',
+        icon: '💻'
       },
       draggable: true,
     };
@@ -685,113 +292,27 @@ function InteractiveLandingDemoContent() {
 
   return (
     <div className={`w-full h-[400px] sm:h-[560px] lg:h-[740px] rounded-2xl overflow-hidden shadow-2xl relative border transition-colors duration-300 demo-theme-container ${
-      isDemoDark 
-        ? 'dark dark-theme-forced bg-[#090b0d] text-[#f7f8f8] border-[#202327]' 
-        : 'light-theme-forced bg-white text-[#0f172a] border-[#cbd5e1]'
+      isDemoDark
+        ? 'dark bg-[#090b0d] text-[#f7f8f8] border-[#202327]'
+        : 'bg-surface-panel text-text-primary border-border-default'
     }`}>
-      {/* Global CSS Style tag for dotted flowing edges and theme variables isolation */}
       <style jsx global>{`
         @keyframes flowDash {
-          from {
-            stroke-dashoffset: 24;
-          }
-          to {
-            stroke-dashoffset: 0;
-          }
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
         }
-
-        /* ── Theme variables isolation to prevent global parent .dark class leak ── */
-        .demo-theme-container.light-theme-forced {
-          --background: 45 20% 96.5% !important;
-          --foreground: 40 8% 32% !important;
-          --canvas-bg: 45 20% 96.5% !important;
-          --grid-color: 40 8% 82% !important;
-        }
-        .demo-theme-container.light-theme-forced .node-wrapper {
-          --node-card-bg: #ffffff !important;
-          --node-title-color: #1a2744 !important;
-          --node-subtitle-color: #8b95a5 !important;
-          --node-shadow: 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.85) !important;
-          --node-shadow-selected: 0 0 0 2px var(--node-accent), 0 4px 14px rgba(0,0,0,0.1) !important;
-          --node-glow: rgba(0,0,0,0) !important;
-          --node-glow-border: transparent !important;
-        }
-        .demo-theme-container.light-theme-forced .node-card {
-          border-color: rgba(0, 0, 0, 0.06) !important;
-          background: #ffffff !important;
-          box-shadow: var(--node-shadow) !important;
-        }
-        .demo-theme-container.light-theme-forced .react-flow__background {
-          background-color: hsl(45 20% 96.5%) !important;
-        }
-        .demo-theme-container.light-theme-forced .react-flow__background pattern circle {
-          fill: hsl(40 8% 82%) !important;
-        }
-
-        .demo-theme-container.dark-theme-forced {
-          --background: 222 30% 8% !important;
-          --foreground: 0 0% 89% !important;
-          --canvas-bg: 222 30% 8% !important;
-          --grid-color: 217 20% 28% !important;
-        }
-        .demo-theme-container.dark-theme-forced .node-wrapper {
-          --node-card-bg: #1e2235 !important;
-          --node-title-color: #ffffff !important;
-          --node-subtitle-color: #94a3b8 !important;
-          --node-shadow: 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 1px 3px rgba(0,0,0,0.3) !important;
-          --node-shadow-selected: 0 0 0 2px var(--node-glow-border, #34D399), 5px 5px 0 #0d0f1b, 10px 10px 0 #151828, 0 2px 6px rgba(0,0,0,0.4) !important;
-        }
-        .demo-theme-container.dark-theme-forced .node-card {
-          border-color: rgba(255, 255, 255, 0.12) !important;
-          background: #1e2235 !important;
-          box-shadow: var(--node-shadow), inset 0 0 12px var(--node-glow, rgba(52,211,153,0.15)) !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__background {
-          background: radial-gradient(ellipse at center, hsl(217 30% 10% / 1) 0%, hsl(222 30% 8% / 1) 70%, hsl(220 25% 5% / 1) 100%) !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__background pattern circle {
-          fill: hsl(217 20% 28%) !important;
-        }
-
-        /* ── Edges & Texts ── */
         .flow-dotted-edge path.react-flow__edge-path {
-          stroke: #475569 !important;
-          stroke-dasharray: 4 4 !important;
-          animation: flowDash 0.8s linear infinite !important;
-        }
-        .demo-theme-container.dark-theme-forced .flow-dotted-edge path.react-flow__edge-path {
-          stroke: #94a3b8 !important;
+          stroke-dasharray: 4 4;
+          animation: flowDash 0.8s linear infinite;
         }
         .react-flow__edge-text {
-          font-family: monospace !important;
-          font-size: 9px !important;
-          font-weight: 600 !important;
-          fill: #475569 !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__edge-text {
-          fill: #94a3b8 !important;
+          font-family: monospace;
+          font-size: 9px;
+          font-weight: 600;
         }
         .react-flow__edge-textbg {
-          fill: #ffffff !important;
-          stroke: #cbd5e1 !important;
           rx: 6px;
           ry: 6px;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__edge-textbg {
-          fill: #0c0d10 !important;
-          stroke: #202327 !important;
-        }
-
-        /* ── Controls ── */
-        .react-flow__controls-button {
-          background-color: #ffffff !important;
-          border-bottom: 1px solid #cbd5e1 !important;
-          fill: #475569 !important;
-        }
-        .demo-theme-container.dark-theme-forced .react-flow__controls-button {
-          background-color: #0c0d10 !important;
-          border-bottom: 1px solid #202327 !important;
-          fill: #94a3b8 !important;
         }
       `}</style>
 
@@ -819,7 +340,7 @@ function InteractiveLandingDemoContent() {
               <span>Dashboard</span>
             </div>
             <ChevronLeft className={`w-3.5 h-3.5 ${isDemoDark ? 'text-[#3f444e]' : 'text-[#cbd5e1]'}`} />
-            
+
             {/* Title display */}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer transition-all ${
               isDemoDark ? 'bg-[#121316] border-[#23252a] text-[#f7f8f8]' : 'bg-[#f1f5f9] border-[#cbd5e1] text-[#0f172a]'
@@ -828,11 +349,11 @@ function InteractiveLandingDemoContent() {
               <ChevronDown className="w-3 h-3 text-[#8a8f98]" />
             </div>
 
-            <button 
+            <button
               onClick={handleAddNode}
               className={`p-1.5 rounded-lg transition-all ${
                 isDemoDark ? 'text-[#8a8f98] hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
-              }`} 
+              }`}
               title="Add node"
             >
               <Plus className="w-4 h-4" />
@@ -875,7 +396,7 @@ function InteractiveLandingDemoContent() {
           {/* Right panel items */}
           <div className="flex items-center gap-1.5">
             <div className="relative">
-              <div 
+              <div
                 onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
                 className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold transition-all ${
                   isDemoDark ? 'bg-[#121316] border-[#23252a] text-[#f7f8f8]' : 'bg-[#f1f5f9] border-[#cbd5e1] text-[#0f172a]'
@@ -918,8 +439,8 @@ function InteractiveLandingDemoContent() {
             >
               {isDemoDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
-            
-            <button 
+
+            <button
               onClick={handleDeleteSelected}
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
@@ -928,8 +449,8 @@ function InteractiveLandingDemoContent() {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-            
-            <button 
+
+            <button
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
               }`}
@@ -937,7 +458,7 @@ function InteractiveLandingDemoContent() {
             >
               <Share2 className="w-3.5 h-3.5" />
             </button>
-            <button 
+            <button
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
               }`}
@@ -945,7 +466,7 @@ function InteractiveLandingDemoContent() {
             >
               <Download className="w-3.5 h-3.5" />
             </button>
-            <button 
+            <button
               className={`p-1.5 rounded-lg border transition-all ${
                 isDemoDark ? 'border-[#23252a] text-[#8a8f98] hover:text-white hover:bg-[#15171a]' : 'border-[#cbd5e1] text-[#64748b] hover:text-[#0f172a] hover:bg-[#f1f5f9]'
               }`}
@@ -985,14 +506,14 @@ function InteractiveLandingDemoContent() {
             }`} title="Line">
               <Slash className="w-4 h-4 -rotate-45" />
             </button>
-            
+
             <span className={`w-6 h-px self-center ${isDemoDark ? 'bg-[#202327]' : 'bg-[#e2e8f0]'}`} />
 
-            <button 
+            <button
               onClick={handleAddNode}
               className={`p-2 rounded-xl transition-all ${
                 isDemoDark ? 'hover:text-[#f7f8f8] hover:bg-[#15171a]' : 'hover:text-[#0f172a] hover:bg-[#f1f5f9]'
-              }`} 
+              }`}
               title="Add Connection"
             >
               <Plus className="w-4 h-4" />
@@ -1029,11 +550,11 @@ function InteractiveLandingDemoContent() {
           edgesUpdatable={false}
           proOptions={{ hideAttribution: true }}
         >
-          <Background 
-            variant={BackgroundVariant.Dots} 
-            gap={24} 
-            size={2} 
-            color={isDemoDark ? '#4b5563' : '#cbd5e1'} 
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={24}
+            size={2}
+            color={isDemoDark ? '#4b5563' : '#cbd5e1'}
           />
         </ReactFlow>
       </div>
@@ -1046,8 +567,8 @@ function InteractiveLandingDemoContent() {
         }`}>
           <div className="flex items-center gap-1.5 flex-1 min-w-0 pl-0.5">
             {/* Plus Button */}
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={handleAddNode}
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all shrink-0 ${
                 isDemoDark ? 'bg-[#202327] text-[#8a8f98] hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900'
@@ -1056,7 +577,7 @@ function InteractiveLandingDemoContent() {
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
-            
+
             <input
               type="text"
               value={inputText}

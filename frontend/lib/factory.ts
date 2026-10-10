@@ -3,7 +3,8 @@ import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry, type ComponentDefinition } from '@/lib/componentRegistry';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
-import type { ShapeType } from '@/components/ShapeNode';
+import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT, type TextSize } from '@/lib/utils/textSizing';
+import { shapeForServiceType, type ShapeType } from '@/lib/shapeRegistry';
 
 /** Palette id for a blank node that opens inline rename on place. */
 export const BLANK_INIT_COMPONENT_ID = 'research';
@@ -12,22 +13,7 @@ export function isBlankInitComponent(id: string | undefined | null): boolean {
   return id === BLANK_INIT_COMPONENT_ID;
 }
 
-/** Map serviceType → canvas silhouette (matches AI / Mermaid build). */
-export function shapeForServiceType(serviceType?: string): ShapeType {
-  switch (serviceType) {
-    case 'database':
-      return 'cylinder';
-    case 'cache':
-      return 'cylinder';
-    case 'load-balancer':
-    case 'external-service':
-      return 'diamond';
-    case 'queue':
-      return 'circle';
-    default:
-      return 'rounded-rectangle';
-  }
-}
+export { shapeForServiceType };
 
 /**
  * Create a palette/⌘K node as a shapeNode so it matches AI-generated canvas nodes
@@ -55,6 +41,8 @@ export function createPaletteNode(
     height,
     data: {
       componentId: comp.id,
+      typeId: comp.id,
+      componentType: comp.id,
       category: comp.category,
       color: comp.color,
       accentColor: comp.color,
@@ -65,6 +53,30 @@ export function createPaletteNode(
       nodeWidth: width,
       nodeHeight: height,
       ...(blank ? { label: '', autoStartLabelEdit: true } : {}),
+    },
+  });
+}
+
+/** Blank draft shape node (N/D/C/Y keys, canvas double-click) — opens inline rename on place.
+ *  Uses the same unified sizing as palette/AI/Mermaid nodes so the canvas stays consistent. */
+export function createBlankShapeNode(
+  shape: ShapeType = 'rounded-rectangle',
+  position: { x: number; y: number },
+): Node {
+  const normalizedShape = shape === 'rectangle' ? 'rounded-rectangle' : shape;
+  const { width, height } = calculateNodeDimensions('', undefined, { shape: normalizedShape });
+
+  return createNode('shapeNode', '', position, {
+    type: 'shapeNode',
+    width,
+    height,
+    data: {
+      label: '',
+      category: 'Compute',
+      shape: normalizedShape,
+      nodeWidth: width,
+      nodeHeight: height,
+      autoStartLabelEdit: true,
     },
   });
 }
@@ -128,7 +140,7 @@ export function createNode(
       typeId,
       componentType: typeId,
       label:    label ?? def?.label ?? 'Unnamed',
-      color:    def?.color    ?? '#6366f1',
+      color:    def?.color    ?? '#3b82f6',
       category: def?.category ?? 'default',
       ...rawData,
       icon:     resolvedIcon.icon,
@@ -136,6 +148,29 @@ export function createNode(
       technology: resolvedIcon.technology ?? def?.technology,
     },
   };
+}
+
+/** Free-text label node — used by T key, context menu, and Mermaid text directives. */
+export function createTextLabelNode(
+  position: { x: number; y: number },
+  options?: { fontSize?: TextSize; text?: string; autoStartEdit?: boolean },
+): Node {
+  const fontSize = options?.fontSize ?? 'medium';
+  const autoStartEdit = options?.autoStartEdit ?? false;
+  const text = options?.text ?? (autoStartEdit ? '' : 'Label');
+  const dims = estimateTextNodeSize(text || 'Text', fontSize);
+
+  return createNode('textLabelNode', text || 'Label', position, {
+    type: 'textLabelNode',
+    width: dims.width,
+    height: dims.height,
+    data: {
+      text,
+      fontSize,
+      autoStartTextEdit: autoStartEdit,
+      color: TEXT_LABEL_COLOR_LIGHT,
+    },
+  });
 }
 
 // ─── EDGE FACTORY ────────────────────────────────────────────

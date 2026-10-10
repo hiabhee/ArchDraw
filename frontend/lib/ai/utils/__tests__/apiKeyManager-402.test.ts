@@ -20,20 +20,12 @@ describe('OpenRouter 402 propagation', () => {
       { status: 402 }
     );
 
-    const groqError = new Error('Groq rate limit exceeded');
-
-    // Simulate the fixed logic
-    let lastError: Error | null = groqError;
     let thrownError: Error | null = null;
 
     try {
-      // Early fallback path — the fixed code
       const orErr = openrouterError as { status?: number; message?: string };
       if (orErr.status === 401 || orErr.status === 402 || orErr.status === 403) {
         thrownError = openrouterError;
-      } else {
-        // Non-recoverable — swallowed, continue with Groq
-        lastError = groqError;
       }
     } catch {
       // should not reach here
@@ -83,8 +75,6 @@ describe('OpenRouter 402 propagation', () => {
       new Error('OpenRouter API error: 429 - Rate limit exceeded'),
       { status: 429 }
     );
-
-    const groqError = new Error('Groq rate limit exceeded');
 
     // Server error — should NOT throw, should continue retrying
     let thrownError: Error | null = null;

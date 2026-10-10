@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Edge, Node } from 'reactflow';
+import { Position, type Edge, type Node } from 'reactflow';
 import { computeEdgeRoute } from '../edgeRouteBuilder';
 import { applyBidirectionalEdgeFixes } from '@/store/diagram/helpers/edgeHelpers';
 
@@ -107,5 +107,45 @@ describe('bidirectional edge routing', () => {
     const forwardX = forward.sourcePoint.x;
     const reverseX = reverse.sourcePoint.x;
     expect(Math.abs(forwardX - reverseX)).toBeGreaterThan(20);
+  });
+
+  it('ignores custom waypoints with stale diagonal terminal joins', () => {
+    const edge = makeEdge('e1', 'web', 'server', undefined, {
+      sourceSide: 'bottom',
+      targetSide: 'top',
+      customWaypoints: [{ x: 180, y: 180 }],
+    });
+    const route = computeEdgeRoute(
+      edge,
+      [makeNode('web', 0, 0), makeNode('server', 0, 300)],
+      [edge],
+      'TD',
+      undefined,
+      {
+        source: { x: 80, y: 80 },
+        target: { x: 80, y: 300 },
+        sourceSide: Position.Bottom,
+        targetSide: Position.Top,
+      },
+    );
+
+    expect(route.waypoints.every((point) => point.x === 80)).toBe(true);
+  });
+
+  it('uses measured horizontal handle coordinates for route orientation', () => {
+    const nodes = [makeNode('left', 0, 0, 160, 80), makeNode('right', 400, 0, 160, 80)];
+    const edge = makeEdge('left-right', 'left', 'right');
+    const route = computeEdgeRoute(
+      edge,
+      nodes,
+      [edge],
+      'LR',
+      undefined,
+      { source: { x: 172, y: 40 }, target: { x: 388, y: 40 } },
+    );
+
+    expect(route.sourcePosition).toBe(Position.Right);
+    expect(route.targetPosition).toBe(Position.Left);
+    expect(route.waypoints.every((point) => point.y === 40)).toBe(true);
   });
 });

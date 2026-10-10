@@ -4,25 +4,21 @@ import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 const PLACEHOLDER_NODES = [
-  { x: 40, y: 160, w: 160, h: 72 },
-  { x: 40, y: 280, w: 160, h: 64 },
-  { x: 300, y: 60, w: 200, h: 90 },
-  { x: 300, y: 200, w: 200, h: 72 },
-  { x: 300, y: 320, w: 200, h: 56 },
-  { x: 600, y: 130, w: 140, h: 64 },
-  { x: 600, y: 250, w: 140, h: 72 },
-  { x: 830, y: 170, w: 120, h: 56 },
+  { x: 65, y: 174, w: 160, h: 72 },
+  { x: 270, y: 52, w: 160, h: 72 },
+  { x: 570, y: 52, w: 160, h: 72 },
+  { x: 775, y: 174, w: 160, h: 72 },
+  { x: 270, y: 296, w: 160, h: 72 },
+  { x: 570, y: 296, w: 160, h: 72 },
 ];
 
 const PLACEHOLDER_EDGES = [
-  { x1: 200, y1: 180, x2: 300, y2: 105 },
-  { x1: 200, y1: 200, x2: 300, y2: 236 },
-  { x1: 200, y1: 312, x2: 300, y2: 348 },
-  { x1: 500, y1: 105, x2: 600, y2: 162 },
-  { x1: 500, y1: 236, x2: 600, y2: 286 },
-  { x1: 500, y1: 348, x2: 600, y2: 286 },
-  { x1: 740, y1: 162, x2: 830, y2: 198 },
-  { x1: 740, y1: 286, x2: 830, y2: 198 },
+  { x1: 225, y1: 196, x2: 270, y2: 88 },
+  { x1: 225, y1: 224, x2: 270, y2: 332 },
+  { x1: 430, y1: 88, x2: 570, y2: 88 },
+  { x1: 430, y1: 332, x2: 570, y2: 332 },
+  { x1: 730, y1: 88, x2: 775, y2: 196 },
+  { x1: 730, y1: 332, x2: 775, y2: 224 },
 ];
 
 const LOADING_MESSAGES = [
@@ -116,18 +112,19 @@ export function CanvasSkeleton() {
           ))}
         </svg>
 
-        {/* Bottom status bar */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-8 flex items-center gap-3 px-5 py-3 rounded-2xl bg-card/90 backdrop-blur-sm border border-border/50 shadow-lg">
-          <Loader2 className="w-4 h-4 animate-spin text-primary" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-foreground/80">
-              {LOADING_MESSAGES[messageIndex]}
-            </span>
-            <span className="flex gap-0.5">
-              <span className="w-1 h-1 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-1 h-1 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-1 h-1 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '300ms' }} />
-            </span>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-card/95 backdrop-blur-md border border-border/60 shadow-xl shadow-foreground/10" role="status" aria-live="polite">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" aria-hidden="true" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium text-foreground/80">
+                {LOADING_MESSAGES[messageIndex]}
+              </span>
+              <span className="flex gap-0.5" aria-hidden="true">
+                <span className="w-1 h-1 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1 h-1 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
+            </div>
           </div>
         </div>
       </div>

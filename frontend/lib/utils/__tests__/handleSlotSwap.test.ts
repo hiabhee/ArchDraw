@@ -1,13 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Position, type Node, type Edge } from 'reactflow';
-import {
-  getHandleSlotLayout,
-  getEdgeShiftOffset,
-  getCenteredSides,
-  INCOMING_OUTGOING_GAP,
-  sideFromHandleId,
-  resolveSideFromEdgeHandles,
-} from '../simpleFloatingEdge';
+import { getHandleSlotLayout, getEdgeShiftOffset, getCenteredSides, INCOMING_OUTGOING_GAP, sideFromHandleId, resolveSideFromEdgeHandles } from '../simpleFloatingEdge';
 import type { EdgeSideResolver } from '../simpleFloatingEdge';
 
 function node(id: string, x: number, y: number): Node {
@@ -63,45 +56,46 @@ describe('getEdgeShiftOffset role → dedicated tip', () => {
     ['f', node('f', 400, 280)],
   ]);
 
-  it('keeps GAP when only incoming edges exist but no resolver is provided', () => {
+  it('centers incoming edges when no resolver is provided (geometry resolves the side)', () => {
     const edges: Edge[] = [
       { id: 'i1', source: 'a', target: 'hub' },
       { id: 'i2', source: 'b', target: 'hub' },
       { id: 'i3', source: 'c', target: 'hub' },
-      { id: 'i4', source: 'd', target: 'hub' },
     ];
     for (const e of edges) {
-      // Without resolver, conservatively keeps GAP (can't determine side assignments)
+      // All sources sit horizontally left of hub, so geometry places them on
+      // hub's Left; with only one direction on the side, the tip centers.
       expect(
         getEdgeShiftOffset('hub', e.id, Position.Left, edges, internals),
-      ).toBe(INCOMING_OUTGOING_GAP);
+      ).toBe(0);
     }
   });
 
-  it('keeps GAP when only outgoing edges exist but no resolver is provided', () => {
+  it('centers outgoing edges when no resolver is provided (geometry resolves the side)', () => {
     const edges: Edge[] = [
       { id: 'o1', source: 'hub', target: 'e' },
       { id: 'o2', source: 'hub', target: 'f' },
     ];
     for (const e of edges) {
-      // Without resolver, conservatively keeps GAP
       expect(
         getEdgeShiftOffset('hub', e.id, Position.Right, edges, internals),
-      ).toBe(-INCOMING_OUTGOING_GAP);
+      ).toBe(0);
     }
   });
 
-  it('never places incoming and outgoing on the same tip', () => {
+  it('never places incoming and outgoing on the same tip when both share a side via data overrides', () => {
     const edges: Edge[] = [
-      { id: 'i1', source: 'a', target: 'hub' },
-      { id: 'i2', source: 'b', target: 'hub' },
-      { id: 'o1', source: 'hub', target: 'e' },
-      { id: 'o2', source: 'hub', target: 'f' },
+      { id: 'i1', source: 'a', target: 'hub', data: { targetSide: 'right' } },
+      { id: 'i2', source: 'b', target: 'hub', data: { targetSide: 'right' } },
+      { id: 'o1', source: 'hub', target: 'e', data: { sourceSide: 'right' } },
+      { id: 'o2', source: 'hub', target: 'f', data: { sourceSide: 'right' } },
     ];
     const inOnRight = getEdgeShiftOffset('hub', 'i1', Position.Right, edges, internals);
     const outOnRight = getEdgeShiftOffset('hub', 'o1', Position.Right, edges, internals);
-    expect(inOnRight).toBe(INCOMING_OUTGOING_GAP);
-    expect(outOnRight).toBe(-INCOMING_OUTGOING_GAP);
+    // Ordering is dynamic (derived from connected-node positions) — the
+    // contract is that the two roles land on opposite dedicated tips.
+    expect(Math.abs(inOnRight)).toBe(INCOMING_OUTGOING_GAP);
+    expect(Math.abs(outOnRight)).toBe(INCOMING_OUTGOING_GAP);
     expect(inOnRight).not.toBe(outOnRight);
     expect(Math.abs(inOnRight - outOnRight)).toBe(INCOMING_OUTGOING_GAP * 2);
   });
@@ -170,13 +164,16 @@ describe('getEdgeShiftOffset with resolveSide — centers when only one directio
     ];
     const inOffset = getEdgeShiftOffset('hub', 'i1', Position.Left, edges, internals, 24, undefined, undefined, bothSides);
     const outOffset = getEdgeShiftOffset('hub', 'o1', Position.Left, edges, internals, 24, undefined, undefined, bothSides);
-    expect(inOffset).toBe(INCOMING_OUTGOING_GAP);
-    expect(outOffset).toBe(-INCOMING_OUTGOING_GAP);
+    // Ordering is dynamic (derived from connected-node positions) — the
+    // contract is that the two roles land on opposite dedicated tips.
+    expect(Math.abs(inOffset)).toBe(INCOMING_OUTGOING_GAP);
+    expect(Math.abs(outOffset)).toBe(INCOMING_OUTGOING_GAP);
+    expect(inOffset).not.toBe(outOffset);
   });
 });
 
 describe('getCenteredSides', () => {
-  const internals = new Map<string, Node>([
+  const _internals = new Map<string, Node>([
     ['hub', node('hub', 200, 200)],
     ['a', node('a', 50, 80)],
     ['b', node('b', 50, 200)],

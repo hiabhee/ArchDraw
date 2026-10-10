@@ -18,14 +18,39 @@ function makeEdge(id: string, source: string, target: string): Edge {
 }
 
 describe('computeEdgeRoute routing', () => {
+  it('keeps both endpoints on their handles when centers differ by less than 8px', () => {
+    const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 106)];
+    const edge = makeEdge('e1', 'a', 'b');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+
+    expect(route.sourcePoint).toEqual({ x: 312, y: 150 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 156 });
+    expect(route.waypoints).toEqual([route.sourcePoint, route.targetPoint]);
+    expect(route.svgPath).toBe('M 312,150 L 488,156');
+  });
+
+  it('does not straighten a near-aligned link through another node', () => {
+    const nodes = [
+      makeNode('a', 100, 100),
+      makeNode('b', 500, 106),
+      makeNode('blocker', 355, 120, 80, 60),
+    ];
+    const edge = makeEdge('e1', 'a', 'b');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+
+    expect(route.waypoints.length).toBeGreaterThan(2);
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
+  });
+
   it('keeps a tiny off-axis jog as a routed path (no straight-snap)', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 112)];
     const edge = makeEdge('e1', 'a', 'b');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
     expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints[0]).toEqual({ x: 272, y: 140 });
-    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 152 });
+    expect(route.waypoints[0]).toEqual({ x: 312, y: 150 });
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 162 });
   });
 
   it('keeps the routed Z path for a large vertical offset', () => {
@@ -34,8 +59,8 @@ describe('computeEdgeRoute routing', () => {
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
     expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints[0]).toEqual({ x: 272, y: 140 });
-    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 340 });
+    expect(route.waypoints[0]).toEqual({ x: 312, y: 150 });
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 350 });
   });
 
   it('keeps parallel-edge separation (does not snap overlapping straights)', () => {

@@ -1,8 +1,10 @@
 export { ParseStage, ParseWithDirectionStage } from './ParseStage';
 export { ValidateStage } from './ValidateStage';
+export { SanitizeStage } from './SanitizeStage';
 export { BuildStage } from './BuildStage';
 export { LayoutStage } from './LayoutStage';
 export type { LayoutStageInput } from './LayoutStage';
 export { SizeStage } from './SizeStage';
+export { TextPlacementStage } from './TextPlacementStage';
 export { FinalValidationStage } from './ValidationStage';
 export type { ValidationStageInput, ValidationStageOutput } from './ValidationStage';

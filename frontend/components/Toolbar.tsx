@@ -1,228 +1,29 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
-import {
-  Download, Trash2, Upload,
-  Undo2, Redo2, Share2, Loader2, Check,
-  GraduationCap, MoreHorizontal, HelpCircle,
-  PanelLeftClose, LayoutTemplate, FolderOpen,
-  LayoutDashboard,
-  Github,
-  ArrowDownToLine, ArrowRightToLine,
-  PenTool,
-} from 'lucide-react';
+import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import { ShareModal } from '@/components/ShareModal';
-import { useModelStore, AVAILABLE_MODELS } from '@/lib/ai/utils/modelStore';
 import { TemplateModal } from '@/components/TemplateModal';
 import { EmailCaptureModal, type EmailCaptureReason } from '@/components/EmailCaptureModal';
 import logger from '@/lib/logger';
-import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
+import { analytics } from '@/lib/analytics';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
-import { getUserTier, canAccessFeature, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
-
+import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { CloudProviderIconToggle } from '@/components/CloudProviderIconToggle';
+import { NodeIconModeToggle } from '@/components/NodeIconModeToggle';
+import { CanvasBackgroundControls } from '@/components/toolbar/CanvasBackgroundControls';
 import { DiagramPagination } from '@/components/editor/DiagramPagination';
-import { analytics } from '@/lib/analytics';
-import { prepareReactFlowForImageExport } from '@/lib/utils/prepareReactFlowForImageExport';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
 
-type ExportFormat = 'png-dark' | 'png-light' | 'png-transparent' | 'svg-dark' | 'svg-light' | 'svg-transparent' | 'json' | 'pdf' | 'html-embed';
-
-interface EmbedNode {
-  id: string;
-  width?: number | null;
-  height?: number | null;
-  position: { x: number; y: number };
-  data?: Record<string, unknown>;
-}
-
-interface EmbedEdge {
-  source: string;
-  target: string;
-  data?: Record<string, unknown>;
-  style?: React.CSSProperties;
-}
-
-function escapeXml(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-async function addWatermark(dataUrl: string): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(dataUrl); return; }
-      ctx.drawImage(img, 0, 0);
-      const fontSize = Math.max(16, Math.floor(img.width / 50));
-      ctx.font = `${fontSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
-      ctx.textAlign = 'right';
-      ctx.fillText('Made with ArchDraw — Sign in to remove', img.width - fontSize, img.height - fontSize);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
-
-function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
-  const svgWidth = 1200;
-  const svgHeight = 800;
-  
-  const nodeMap = new Map<string, { x: number; y: number; width: number; height: number }>();
-  const renderedNodes = nodes.map(node => {
-    const width = node.width || 140;
-    const height = node.height || 72;
-    nodeMap.set(node.id, { x: node.position.x, y: node.position.y, width, height });
-    return {
-      ...node,
-      width,
-      height,
-      color: (node.data?.color as string) || '#6B7280',
-      label: (node.data?.label as string) || node.id,
-    };
-  });
-  
-  const renderedEdges = edges.map(edge => ({
-    source: edge.source,
-    target: edge.target,
-    label: (edge.data?.label as string) || '',
-    color: edge.style?.stroke || '#64748b',
-  }));
-  
-  const nodesSVG = renderedNodes.map(node => {
-    const { position: { x, y }, width, height, color, label } = node;
-    return `
-    <g transform="translate(${x}, ${y})" class="node">
-      <rect width="${width}" height="${height}" rx="8" fill="#1e293b" stroke="${color}" stroke-width="2"/>
-      <rect width="${width}" height="4" rx="2" fill="${color}"/>
-      <text x="${width/2}" y="${height/2 + 5}" text-anchor="middle" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="12" font-weight="500">${escapeXml(label)}</text>
-    </g>`;
-  }).join('');
-  
-  const edgesSVG = renderedEdges.map(edge => {
-    const source = nodeMap.get(edge.source);
-    const target = nodeMap.get(edge.target);
-    if (!source || !target) return '';
-    
-    const sx = source.x + source.width;
-    const sy = source.y + source.height / 2;
-    const tx = target.x;
-    const ty = target.y + target.height / 2;
-    const mx = (sx + tx) / 2;
-    
-    const path = `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
-    const labelX = (sx + tx) / 2;
-    const labelY = (sy + ty) / 2 - 8;
-    
-    return `
-    <g class="edge">
-      <path d="${path}" fill="none" stroke="${edge.color}" stroke-width="2" marker-end="url(#arrowhead)"/>
-      ${edge.label ? `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="10">${escapeXml(edge.label)}</text>` : ''}
-    </g>`;
-  }).join('');
-  
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ArchFlow Diagram</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      background: #0f172a; 
-      min-height: 100vh; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center;
-      padding: 20px;
-    }
-    .container {
-      background: #1e293b;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 20px;
-      max-width: 100%;
-      overflow: auto;
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .title {
-      color: #f1f5f9;
-      font-family: system-ui, sans-serif;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .badge {
-      background: linear-gradient(135deg, #595959, #8A8A8A);
-      color: white;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      font-size: 10px;
-      font-weight: 500;
-    }
-    svg { display: block; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <span class="title">Architecture Diagram</span>
-      <span class="badge">Created with ArchFlow</span>
-    </div>
-    <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
-      <defs>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
-        </marker>
-      </defs>
-      <!-- Grid pattern -->
-      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.5"/>
-      </pattern>
-      <rect width="100%" height="100%" fill="url(#grid)"/>
-      <!-- Edges -->
-      ${edgesSVG}
-      <!-- Nodes -->
-      ${nodesSVG}
-    </svg>
-  </div>
-</body>
-</html>`;
-}
+import { ExportControls, type ExportControlsHandle } from '@/components/toolbar/ExportControls';
+import { LayoutToggleButton } from '@/components/toolbar/LayoutControls';
+import { CreditsPill } from '@/components/toolbar/CreditsPill';
 
 export function Toolbar() {
   const router = useRouter();
@@ -232,19 +33,16 @@ export function Toolbar() {
     canvases, activeCanvasId, removeCanvas,
     getVisibleCanvases,
     savingState, userProfile, setSidebarOpen, sidebarOpen,
-    activeLayoutPresetId, sequenceDiagrams,
+    sequenceDiagrams,
     isPenModeActive, setPenModeActive,
   } = useDiagramStore();
 
-  const selectedModel = useModelStore((s) => s.selectedModel);
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
-  const isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
+  const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -258,7 +56,11 @@ export function Toolbar() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [upgradeModal, setUpgradeModal] = useState<{ feature: string; message: string; benefits: string[] } | null>(null);
 
+  const exportControlsRef = useRef<ExportControlsHandle>(null);
+
   const openGuide = useOnboardingStore((s) => s.open);
+  const darkMode = useDiagramStore((s) => s.darkMode);
+  const toggleDarkMode = useDiagramStore((s) => s.toggleDarkMode);
 
   useCallback(getVisibleCanvases, [getVisibleCanvases])();
 
@@ -270,10 +72,6 @@ export function Toolbar() {
   const handleDeleteCanvas = () => {
     setConfirmDeleteId(activeCanvasId);
   };
-
-
-
-
 
   const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
@@ -290,204 +88,6 @@ export function Toolbar() {
     const canvasName = activeCanvas?.name;
     if (!canvasName) return `archdraw-export.${extension}`;
     return `${sanitizeFilename(canvasName)}.${extension}`;
-  };
-
-  const downloadFile = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
-          return;
-        }
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error('Failed to convert to blob'));
-          }
-        }, 'image/png');
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = dataUrl;
-    });
-  };
-
-  const doExport = async (format: ExportFormat) => {
-    setExportOpen(false);
-    if (format === 'json') {
-      const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: 'application/json' });
-      downloadFile(blob, getExportFilename('json'));
-      toast.success('Exported as JSON');
-      return;
-    }
-    if (format === 'html-embed') {
-      const htmlContent = generateEmbedHTML(nodes as EmbedNode[], edges as EmbedEdge[]);
-      const iframeCode = `<iframe 
-  src="data:text/html,${encodeURIComponent(htmlContent)}" 
-  width="100%" 
-  height="600" 
-  style="border:none;border-radius:12px;"
-  title="ArchFlow Diagram"
-></iframe>`;
-      await navigator.clipboard.writeText(iframeCode);
-      toast.success('Embed code (iframe) copied to clipboard');
-      return;
-    }
-    
-    const isSvg = format.startsWith('svg-');
-    const bgType = format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
-    const bgColor = bgType === 'dark' ? '#000000' : bgType === 'light' ? '#ffffff' : undefined;
-    
-    const { fitView } = useDiagramStore.getState();
-    
-    // We strictly use the user's current canvas node style (darkMode).
-    // Exporting with a different background should NOT change the nodes' styling
-    // to prevent the "Nodes losing plates" issue.
-    const originalCanvasDarkMode = useDiagramStore.getState().darkMode;
-
-    setIsExporting(true);
-    
-    try {
-
-      if (isSvg) {
-        const { toPng } = await import('html-to-image');
-        const element = document.querySelector('.react-flow') as HTMLElement | null;
-        if (!element) return;
-        try {
-          prepareReactFlowForImageExport(element);
-          const pngDataUrl = await toPng(element, {
-            backgroundColor: bgColor,
-            pixelRatio: 2,
-            cacheBust: true,
-            filter: (node: HTMLElement) => {
-              const cls = node.classList;
-              if (!cls) return true;
-              return (
-                !cls.contains('react-flow__minimap') &&
-                !cls.contains('react-flow__controls') &&
-                !cls.contains('react-flow__panel') &&
-                !cls.contains('react-flow__background')
-              );
-            },
-          });
-          const pngBlob = await dataUrlToBlob(
-            shouldWatermark(tier, 'png') ? await addWatermark(pngDataUrl) : pngDataUrl
-          );
-          downloadFile(pngBlob, getExportFilename('png'));
-          toast.success('Exported as PNG (SVG export temporarily disabled)');
-          analytics.track({
-            event_type: 'export',
-            event_name: 'png_fallback',
-            page_path: window.location.pathname,
-            payload: { format: 'png-fallback', success: true },
-          });
-        } catch (error) {
-          logger.error('PNG export failed:', error);
-          toast.error('Export failed');
-        }
-        return;
-      }
-      
-      const { toPng } = await import('html-to-image');
-      
-      const pixelRatio = 5;
-      
-      const element = document.querySelector('.react-flow') as HTMLElement | null;
-      if (!element) return;
-      
-      fitView({ padding: 0.1, duration: 300 });
-      await new Promise((r) => setTimeout(r, 350));
-
-      prepareReactFlowForImageExport(element);
-
-      const dataUrl = await toPng(element, {
-        backgroundColor: bgColor,
-        pixelRatio,
-        cacheBust: true,
-        filter: (node: HTMLElement) => {
-          const cls = node.classList;
-          if (!cls) return true;
-          return (
-            !cls.contains('react-flow__minimap') &&
-            !cls.contains('react-flow__controls') &&
-            !cls.contains('react-flow__panel') &&
-            !cls.contains('react-flow__background')
-          );
-        },
-      });
-
-      let finalDataUrl = dataUrl;
-      if (shouldWatermark(tier, 'png')) {
-        finalDataUrl = await addWatermark(dataUrl);
-      }
-      
-      if (format.includes('pdf')) {
-        const { jsPDF } = await import('jspdf');
-        const img = new window.Image();
-        img.src = finalDataUrl;
-        await new Promise<void>((r) => { img.onload = () => r(); });
-        const pdf = new jsPDF({
-          orientation: img.width > img.height ? 'landscape' : 'portrait',
-          unit: 'px',
-          format: [img.width, img.height],
-        });
-        pdf.addImage(finalDataUrl, 'PNG', 0, 0, img.width, img.height);
-        pdf.save(getExportFilename('pdf'));
-        toast.success('Exported as PDF');
-        analytics.track({
-          event_type: 'export',
-          event_name: 'pdf',
-          page_path: window.location.pathname,
-          payload: { format: 'pdf', success: true },
-        });
-      } else {
-        downloadFile(await dataUrlToBlob(finalDataUrl), getExportFilename('png'));
-        toast.success(`Exported as PNG`);
-        analytics.track({
-          event_type: 'export',
-          event_name: 'png',
-          page_path: window.location.pathname,
-          payload: { format: format, pixel_ratio: pixelRatio, success: true },
-        });
-      }
-    } catch (err) {
-      toast.error('Export failed. Please try again.');
-      logger.error(err);
-      analytics.track({
-        event_type: 'export',
-        page_path: window.location.pathname,
-        payload: { format: 'unknown', success: false, error: String(err) },
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleExport = (format: ExportFormat) => {
-    if (!isExportFormatAllowed(tier, format)) {
-      setUpgradeModal({
-        feature: 'export',
-        message: `${format.toUpperCase().replace(/-\d+x$/, '')} export is available for signed-in users.`,
-        benefits: UPGRADE_BENEFITS.export,
-      });
-      return;
-    }
-    doExport(format);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -513,7 +113,7 @@ export function Toolbar() {
     const currentUser = useAuthStore.getState().user;
     const userEmail = currentUser?.email || 'owner@local';
     const userName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Owner';
-    
+
     setIsSharing(true);
     try {
       const response = await fetch('/api/diagram/load', {
@@ -545,11 +145,12 @@ export function Toolbar() {
         });
         return;
       }
-      
+
       if (response.ok && data.sessionId) {
         // Prefer the current origin so local/staging links stay on the same host.
         const baseUrl = window.location.origin;
-        const shareUrl = `${baseUrl}/share/${data.sessionId}`;
+        const currentStyle = useDiagramStore.getState().diagramRenderStyle;
+        const shareUrl = `${baseUrl}/share/${data.sessionId}${currentStyle && currentStyle !== 'precision' ? `?style=${currentStyle}` : ''}`;
         setShareUrl(shareUrl);
         setShareSessionId(data.sessionId);
         setShareAccessType('anyone');
@@ -592,7 +193,7 @@ export function Toolbar() {
     };
     const handleTriggerDownload = () => {
       const currentIsDark = useDiagramStore.getState().darkMode;
-      doExport(currentIsDark ? 'png-dark' : 'png-light');
+      exportControlsRef.current?.handleExport(currentIsDark ? 'png-dark' : 'png-light');
     };
 
     window.addEventListener('trigger-share', handleTriggerShare);
@@ -636,30 +237,32 @@ export function Toolbar() {
                 window.dispatchEvent(new CustomEvent('close-canvas-sidebar'));
               }
             }}
-            className="!hidden sm:!flex !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex !w-9 !h-9"
             title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
-            <PanelLeftClose className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            <PanelLeftClose className="w-4 h-4" aria-hidden="true" />
           </Button>
 
           <Button
             variant="ghost"
             size="icon"
             onClick={() => window.dispatchEvent(new CustomEvent('toggle-canvas-sidebar'))}
-            className="!hidden sm:!flex !w-8 sm:!w-9 !h-8 sm:!h-9"
+            className="!hidden sm:!flex !w-9 !h-9"
             title="Toggle canvases"
+            aria-label="Toggle canvases"
           >
-            <FolderOpen className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+            <FolderOpen className="w-4 h-4" aria-hidden="true" />
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push('/dashboard')}
-            className="gap-1.5"
+            className="gap-1.5 min-h-[44px] sm:min-h-0 px-3 sm:px-3"
             title="Go to Dashboard"
           >
-            <LayoutDashboard className="w-3.5 h-3.5" />
+            <LayoutDashboard className="w-4 h-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </Button>
 
@@ -677,7 +280,6 @@ export function Toolbar() {
             <span>{edges.length}</span>
             <span className="hidden sm:inline">edges</span>
           </span>
-
 
           {userProfile && savingState !== 'idle' && (
             <>
@@ -703,8 +305,9 @@ export function Toolbar() {
               disabled={!past.length}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Undo (Cmd+Z)"
+              aria-label="Undo"
             >
-              <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <Undo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
             <Button
               variant="ghost"
@@ -713,49 +316,27 @@ export function Toolbar() {
               disabled={!future.length}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Redo (Cmd+Shift+Z)"
+              aria-label="Redo"
             >
-              <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <Redo2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="max-w-[130px] truncate px-1.5 py-1 text-[11px] rounded-md bg-transparent text-muted-foreground hover:text-foreground hover:bg-brand/40 transition-all border-0 cursor-pointer focus:outline-none"
-                  title="Select AI model"
-                >
-                  {AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.name || 'Select model'}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {(['groq', 'openrouter'] as const).map((provider, idx) => {
-                  const models = AVAILABLE_MODELS.filter((m) => m.provider === provider);
-                  if (models.length === 0) return null;
-                  return (
-                    <div key={provider}>
-                      {idx > 0 && <DropdownMenuSeparator />}
-                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">
-                        {provider === 'groq' ? 'Groq (Fast)' : 'OpenRouter'}
-                      </DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={selectedModel}
-                        onValueChange={(value) => useModelStore.getState().setSelectedModel(value)}
-                      >
-                        {models.map((m) => (
-                          <DropdownMenuRadioItem key={m.id} value={m.id} className="text-xs">
-                            {m.name}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </div>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
           </span>
 
           <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleDarkMode}
+            className="!w-8 sm:!w-9 !h-8 sm:!h-9"
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <Sun className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Moon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+          </Button>
+          <CanvasBackgroundControls />
+          <CreditsPill />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
             <Button
@@ -768,13 +349,14 @@ export function Toolbar() {
                   : ''
               }`}
               title={isPenModeActive ? "Deactivate Comet Trail Pen" : "Activate Comet Trail Pen"}
+              aria-label={isPenModeActive ? "Deactivate pen" : "Activate pen"}
             >
-              <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
 
             <LayoutToggleButton />
 
-            <CloudProviderIconToggle />
+            <NodeIconModeToggle />
 
             <span className="w-px h-4 bg-border/50 mx-0.5 sm:mx-1" />
 
@@ -784,8 +366,9 @@ export function Toolbar() {
               onClick={handleDeleteCanvas}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 hover:!text-destructive hover:!bg-destructive/10"
               title="Delete canvas"
+              aria-label="Delete canvas"
             >
-              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
 
             <Button
@@ -794,87 +377,14 @@ export function Toolbar() {
               onClick={handleShare}
               disabled={isSharing || nodes.length === 0}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
+              aria-label="Share diagram"
+              title="Share diagram"
             >
-              {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+              {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" aria-hidden="true" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />}
             </Button>
           </span>
 
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setExportOpen(!exportOpen)}
-              disabled={isExporting}
-              className="!w-8 sm:!w-9 !h-8 sm:!h-9"
-            >
-              {isExporting ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
-            </Button>
-
-            {exportOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setExportOpen(false)} />
-                <div
-                  className="absolute right-0 top-full mt-3 w-56 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
-                  style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
-                >
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Image</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isDark = useDiagramStore.getState().darkMode;
-                      handleExport(isDark ? 'png-dark' : 'png-light');
-                    }}
-                    className="w-full justify-start rounded-none"
-                  >
-                    PNG
-                  </Button>
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleExport('svg-transparent')}
-                    className="w-full justify-start rounded-none"
-                  >
-                    SVG (No Background)
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const isDark = useDiagramStore.getState().darkMode;
-                      handleExport(isDark ? 'svg-dark' : 'svg-light');
-                    }}
-                    className="w-full justify-start rounded-none"
-                  >
-                    SVG (With Background)
-                  </Button>
-                  <div className="px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Other</p>
-                  </div>
-                  {([
-                    { label: 'JSON', format: 'json' },
-                    { label: 'PDF', format: 'pdf' },
-                    { label: 'HTML Embed', format: 'html-embed' },
-                  ] as { label: string; format: ExportFormat }[]).map(({ label, format }) => (
-                    <Button
-                      key={format}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleExport(format)}
-                      className="w-full justify-start rounded-none"
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <ExportControls ref={exportControlsRef} getExportFilename={getExportFilename} />
 
           <div className="relative">
             <Button
@@ -882,8 +392,10 @@ export function Toolbar() {
               size="icon"
               onClick={() => setMoreOpen(!moreOpen)}
               className="!w-9 !h-9"
+              aria-label="More options"
+              title="More options"
             >
-              <MoreHorizontal className="w-4 h-4" />
+              <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
             </Button>
 
             {moreOpen && (
@@ -1040,7 +552,7 @@ export function Toolbar() {
           onAccessChange={(accessType, linkPermission) => {
             setShareAccessType(accessType);
             setShareLinkPermission(linkPermission);
-            
+
             // Persist to backend
             fetch('/api/diagram/load', {
               method: 'PATCH',
@@ -1055,7 +567,7 @@ export function Toolbar() {
           onInvite={(email, role) => {
             const userName = email.split('@')[0];
             setSharePeople(prev => [...prev, { email, name: userName, role }]);
-            
+
             fetch('/api/diagram/load', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -1069,7 +581,7 @@ export function Toolbar() {
           }}
           onRemove={(userId) => {
             setSharePeople(prev => prev.filter(p => p.email !== userId));
-            
+
             fetch('/api/diagram/load', {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
@@ -1080,10 +592,10 @@ export function Toolbar() {
             }).catch((err) => logger.error('Remove user error:', err));
           }}
           onRoleChange={(userId, newRole) => {
-            setSharePeople(prev => prev.map(p => 
+            setSharePeople(prev => prev.map(p =>
               p.email === userId ? { ...p, role: newRole === 'can edit' ? 'editor' : 'viewer' } : p
             ));
-            
+
             fetch('/api/diagram/load', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -1134,48 +646,5 @@ export function Toolbar() {
         }}
       />
     </>
-  );
-}
-
-function LayoutToggleButton() {
-  const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
-
-  const isVertical = activeLayoutPresetId === 'layered-tb';
-  const nextLabel = isVertical ? 'Left → Right' : 'Top → Bottom';
-  const nextDirection = isVertical ? 'LR' : 'TD';
-
-  const handleToggle = async () => {
-    const store = useDiagramStore.getState();
-    const { nodes, edges } = store;
-
-    try {
-      const { nodes: layoutedNodes, edges: layoutedEdges, success, warnings } =
-        await layoutDiagramViaMermaid(nodes, edges, nextDirection);
-      if (!success) {
-        toast.error(`Layout toggle failed: ${warnings.join('; ') || 'unknown error'}`);
-        return;
-      }
-
-      store.importDiagram(layoutedNodes, layoutedEdges);
-      store.setActiveLayoutPresetId(nextDirection === 'LR' ? 'layered-lr' : 'layered-tb');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Layout toggle failed');
-    }
-  };
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleToggle}
-      className="!w-8 sm:!w-9 !h-8 sm:!h-9"
-      title={`Layout: ${isVertical ? 'Top → Bottom' : 'Left → Right'} (click for ${nextLabel})`}
-    >
-      {isVertical ? (
-        <ArrowDownToLine className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-      ) : (
-        <ArrowRightToLine className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-      )}
-    </Button>
   );
 }

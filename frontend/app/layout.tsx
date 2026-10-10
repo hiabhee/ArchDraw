@@ -1,5 +1,4 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/components/AuthProvider';
 import { AnalyticsProvider } from '@/components/AnalyticsProvider';
@@ -7,34 +6,36 @@ import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
-
-const instrumentSerif = Instrument_Serif({
-  variable: '--font-instrument-serif',
-  weight: '400',
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
-});
-
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f7f7f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#090b0d' },
+  ],
+};
 export const metadata: Metadata = {
-  metadataBase: new URL('https://archdraw.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://archdraw.hiabhee.online'),
   title: {
-    default: 'ArchDraw — Visual System Architecture Design Tool',
+    default: 'ArchDraw — System Architecture Diagram & Design Tool',
     template: '%s | ArchDraw',
   },
   icons: {
     icon: '/favicon.ico',
     apple: '/favicon.ico',
   },
-  description: 'Design production-ready system architecture diagrams visually. Drag, connect, and think in systems. Used by engineers to design scalable backends.',
+  description: 'Design and map production system architecture with drag-and-drop diagrams. Share, export, and embed instantly.',
+  alternates: {
+    canonical: 'https://archdraw.hiabhee.online',
+    languages: {
+      en: 'https://archdraw.hiabhee.online',
+      'x-default': 'https://archdraw.hiabhee.online',
+    },
+  },
   keywords: [
     'system design tool', 'architecture diagram', 'system architecture',
     'software architecture diagram', 'system design diagram maker',
@@ -46,17 +47,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://archdraw.app',
-    title: 'ArchDraw — Visual System Architecture Design Tool',
+    url: 'https://archdraw.hiabhee.online',
+    title: 'ArchDraw — System Architecture Diagram & Design Tool',
     description: 'Design production-ready system architecture diagrams visually.',
     siteName: 'ArchDraw',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'ArchDraw System Architecture Design Tool' }],
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw System Architecture Design Tool' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ArchDraw — Visual System Architecture Design Tool',
+    title: 'ArchDraw — System Architecture Diagram & Design Tool',
     description: 'Design production-ready system architecture diagrams visually.',
-    images: ['/og-image.png'],
+    images: ['/api/og/home'],
   },
   robots: {
     index: true,
@@ -79,6 +80,52 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'Organization',
+                  '@id': 'https://archdraw.hiabhee.online/#organization',
+                  name: 'ArchDraw',
+                  url: 'https://archdraw.hiabhee.online',
+                  logo: 'https://archdraw.hiabhee.online/api/og/home',
+                  description:
+                    'AI-assisted system architecture diagramming tool that turns plain English, Mermaid, or a GitHub repo URL into styled, auto-laid-out architecture diagrams.',
+                  sameAs: ['https://github.com/hiabhee/ArchDraw'],
+                },
+                {
+                  '@type': 'WebSite',
+                  '@id': 'https://archdraw.hiabhee.online/#website',
+                  url: 'https://archdraw.hiabhee.online',
+                  name: 'ArchDraw',
+                  publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
+                  inLanguage: 'en-US',
+                },
+                {
+                  '@type': 'SoftwareApplication',
+                  '@id': 'https://archdraw.hiabhee.online/#software',
+                  name: 'ArchDraw',
+                  url: 'https://archdraw.hiabhee.online',
+                  description: 'AI-assisted system architecture diagramming tool that turns plain English, Mermaid, or a GitHub repo URL into styled, auto-laid-out architecture diagrams.',
+                  applicationCategory: 'DeveloperApplication',
+                  operatingSystem: 'Web',
+                  inLanguage: 'en-US',
+                  offers: {
+                    '@type': 'Offer',
+                    price: '0',
+                    priceCurrency: 'USD',
+                    description: 'Free during beta',
+                  },
+                  publisher: { '@id': 'https://archdraw.hiabhee.online/#organization' },
+                },
+              ],
+            }),
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -118,7 +165,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased`} suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="archdraw-theme" themes={['dark', 'light']}>
           <AuthProvider>
             <AnalyticsProvider>

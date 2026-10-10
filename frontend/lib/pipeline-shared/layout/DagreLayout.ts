@@ -6,8 +6,12 @@ import type {
   PositionedNode,
   PositionedEdge,
   LayoutDirection,
+  LayoutEdge,
 } from './LayoutEngine';
-import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
+import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT, estimateEdgeLabelSize } from './LayoutEngine';
+import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
+import { layoutCompoundTwoPhase } from './CompoundLayout';
+import logger from '@/lib/logger';
 
 function toDagreRankDir(direction: LayoutDirection): string {
   const map: Record<LayoutDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
@@ -37,8 +41,27 @@ export class DagreLayoutEngine implements LayoutEngine {
   /** Sync entry point — dagre is synchronous; prefer this from sync call sites. */
   layoutSync(params: LayoutParams): LayoutResult {
     const warnings: string[] = [];
-    const defaults = defaultCompoundLayoutOptions(params.direction);
+
+    // Preferred path for graphs with populated groups (audit A4): each cluster
+    // is laid out independently and embedded as one box, so a group's width is
+    // driven by its own children instead of the whole graph's edge ranks.
+    // Returns null for flat graphs / on any anomaly → flat compound dagre.
+    const compound = layoutCompoundTwoPhase(params);
+    if (compound) {
+      logger.debug('[dagre] layout path: two-phase compound', { nodes: params.nodes.length });
+      return compound;
+    }
+    logger.debug('[dagre] layout path: flat compound', { nodes: params.nodes.length });
+
+    const defaults = defaultCompoundLayoutOptions(params.direction, {
+      edgeCount: params.edges.length,
+      nodeCount: params.nodes.length,
+    });
     const opts = { ...defaults, ...params.options };
+    // Ensure adaptive bump applies even when caller pre-merged defaults (via IntegratedLayout)
+    // – reuse density helper if edgeCount > 6 and caller didn't supply a custom sep explicitly via raw params
+    // The defaults already include the bump, so merging as {defaults,...options} preserves caller overrides.
+    // If the caller passed no custom sep, opts already equals density-aware defaults.
 
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setDefaultEdgeLabel(() => ({}));
@@ -49,6 +72,8 @@ export class DagreLayoutEngine implements LayoutEngine {
       ranksep: opts.rankSep,
       marginx: opts.marginX,
       marginy: opts.marginY,
+      // Symmetry-first: network-simplex gives minimal edge length + balanced ranks
+      ranker: 'network-simplex',
     });
 
     const subgraphIds = new Set(params.nodes.filter(n => n.isGroup).map(n => n.id));
@@ -82,8 +107,8 @@ export class DagreLayoutEngine implements LayoutEngine {
           });
         } else {
           g.setNode(node.id, {
-            width: width + (opts.paddingLeft ?? 40) * 2,
-            height: height + (opts.paddingTop ?? 64) + (opts.paddingBottom ?? 40),
+            width: width + SUBGRAPH_PADDING_X * 2,
+            height: height + SUBGRAPH_PADDING_TOP + SUBGRAPH_PADDING_BOTTOM,
           });
         }
       } else {
@@ -96,8 +121,57 @@ export class DagreLayoutEngine implements LayoutEngine {
       }
     }
 
-    for (const edge of params.edges) {
-      g.setEdge(edge.source, edge.target);
+    // dagre compound layout does not support edges whose source or target is a
+    // cluster (subgraph) node — it crashes with `Cannot set properties of
+    // undefined (setting 'rank')`. Reroute such edges onto a representative
+    // descendant leaf node so the graph lays out, then restore the original
+    // endpoints when mapping points back. A leaf that is reachable through the
+    // nearest subgraph ancestor acts as its proxy; deeper leaves are preferred.
+    const subgraphIdSet = new Set(subgraphIds);
+    const proxyFor = new Map<string, string>();
+    for (const node of params.nodes) {
+      if (subgraphIdSet.has(node.id)) continue;
+      let current = parentMap.get(node.id);
+      while (current && subgraphIdSet.has(current)) {
+        if (!proxyFor.has(current)) proxyFor.set(current, node.id);
+        current = parentMap.get(current);
+      }
+    }
+
+    // A subgraph only becomes a real dagre cluster once a node is nested in it
+    // via `g.setParent`. An empty subgraph has no children, so dagre treats it
+    // as an ordinary node and its edges lay out normally — only clusters with
+    // members need the proxy reroute above.
+    const clusterIds = new Set<string>();
+    for (const childId of parentMap.keys()) {
+      const parentId = parentMap.get(childId)!;
+      if (subgraphIds.has(parentId)) clusterIds.add(parentId);
+    }
+
+    const layoutEdges = params.edges.map(edge => {
+      const source = proxyFor.get(edge.source) ?? edge.source;
+      const target = proxyFor.get(edge.target) ?? edge.target;
+      // If either endpoint still resolves to a real cluster (a subgraph that
+      // actually contains children), drop the edge from the layout pass — it
+      // cannot be placed by dagre. Edges to empty subgraphs are kept so the
+      // group is laid out inside the flow rather than stranded at rank 0.
+      if (clusterIds.has(source) || clusterIds.has(target)) {
+        return null;
+      }
+      return { ...edge, source, target };
+    });
+
+    for (const edge of layoutEdges) {
+      if (!edge) continue;
+      // Reserve space for the label pill between ranks (labelpos 'c' centers
+      // it on the edge); without dims dagre packs ranks as if labels did not
+      // exist and labels end up dropped on top of nodes at render time.
+      const labelSize = estimateEdgeLabelSize(edge.label);
+      g.setEdge(edge.source, edge.target, {
+        width: labelSize.width,
+        height: labelSize.height,
+        labelpos: 'c',
+      });
     }
 
     dagre.layout(g);
@@ -123,43 +197,86 @@ export class DagreLayoutEngine implements LayoutEngine {
       };
     });
 
-    const minSpacing = 30;
-    const connectedNodeSpacing = 50;
-    const connectedPairs = new Set<string>();
-    params.edges.forEach(edge => {
-      connectedPairs.add([edge.source, edge.target].sort().join('-'));
-    });
+    // Overlap-nudge pass removed: it pushed overlapping nodes on both axes at
+    // once (shoving perfectly rank-aligned pairs sideways), was single-pass,
+    // and could move a group frame without its children. Real overlaps came
+    // from under-reserved node dimensions, which the shared layoutConstants
+    // now prevent. Dagre's own spacing is trusted here; group bounds are
+    // recomputed afterwards by the SizeStage / recomputeSubgraphBounds pass.
 
-    for (let i = 0; i < positionedNodes.length; i++) {
-      for (let j = i + 1; j < positionedNodes.length; j++) {
-        const nodeA = positionedNodes[i];
-        const nodeB = positionedNodes[j];
-        if (nodeA.parentId !== nodeB.parentId) continue;
+    // Auto-straighten: Dagre can leave 1-7px deltas between horizontally
+    // adjacent nodes (e.g. y=100 vs 102.3). That shows as a diagonal slit
+    // above the grid line and only snaps to 0° after a click/drag re-render.
+    // Snap near-horizontal / near-vertical edges to perfect straight so the
+    // initial load is already 0°/90° without user interaction.
+    {
+      const STRAIGHT_THRESHOLD = 12;
+      const isHorizontalLayout = params.direction === 'LR' || params.direction === 'RL';
+      // Sort edges by smallest delta first so the most aligned pair wins when
+      // a node is target of multiple edges.
+      const edgesByDelta = [...params.edges]
+        .map((e) => {
+          const src = positionedNodes.find((n) => n.id === e.source);
+          const tgt = positionedNodes.find((n) => n.id === e.target);
+          if (!src || !tgt) return { e, d: Infinity };
+          const srcCX = src.x + (src.width || DEFAULT_NODE_WIDTH) / 2;
+          const srcCY = src.y + (src.height || DEFAULT_NODE_HEIGHT) / 2;
+          const tgtCX = tgt.x + (tgt.width || DEFAULT_NODE_WIDTH) / 2;
+          const tgtCY = tgt.y + (tgt.height || DEFAULT_NODE_HEIGHT) / 2;
+          const dx = tgtCX - srcCX;
+          const dy = tgtCY - srcCY;
+          const d = isHorizontalLayout ? Math.abs(dy) : Math.abs(dx);
+          return { e, d, dx, dy, src, tgt };
+        })
+        .filter((x) => x.d < STRAIGHT_THRESHOLD && x.d > 0.01)
+        .sort((a, b) => a.d - b.d);
 
-        const dx = nodeB.x - nodeA.x;
-        const dy = nodeB.y - nodeA.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const pairKey = [nodeA.id, nodeB.id].sort().join('-');
-        const spacing = connectedPairs.has(pairKey) ? connectedNodeSpacing : minSpacing;
-        const minDistance = (nodeA.width + nodeB.width) / 2 + spacing;
+      const moved = new Set<string>();
+      for (const { dx, dy, src, tgt } of edgesByDelta as Array<{ e: LayoutEdge; d: number; dx: number; dy: number; src: PositionedNode; tgt: PositionedNode }>) {
+        if (!src || !tgt) continue;
+        if (src.isGroup || tgt.isGroup) continue;
+        // Keep group-contained nodes inside their own lane — don't straighten
+        // cross-group edges (e.g. Core -> Support side-lane) or top-level vs
+        // grouped mixes, otherwise the side-lane test breaks.
+        if (src.parentId !== tgt.parentId) continue;
+        // Only straighten edges that are primarily along the layout axis
+        const isHorizontalEdge = Math.abs(dx!) > Math.abs(dy!);
+        if (isHorizontalLayout && !isHorizontalEdge) continue;
+        if (!isHorizontalLayout && isHorizontalEdge) continue;
 
-        if (distance < minDistance && distance > 0) {
-          const overlap = minDistance - distance;
-          const pushX = (dx / distance) * overlap * 0.5;
-          const pushY = (dy / distance) * overlap * 0.5;
-          positionedNodes[j] = { ...nodeB, x: nodeB.x + pushX, y: nodeB.y + pushY };
-          positionedNodes[i] = { ...nodeA, x: nodeA.x - pushX, y: nodeA.y - pushY };
+        // For LR/RL, align target's centerY to source's centerY; for TB/BT align centerX
+        if (isHorizontalLayout) {
+          if (moved.has(tgt.id)) continue; // keep first (smallest delta) winner
+          const desiredTgtY = (src.y + (src.height || DEFAULT_NODE_HEIGHT) / 2) - (tgt.height || DEFAULT_NODE_HEIGHT) / 2;
+          // Avoid creating overlap with existing nodes at that Y - only move small delta
+          if (Math.abs(desiredTgtY - tgt.y) < STRAIGHT_THRESHOLD) {
+            tgt.y = desiredTgtY;
+            moved.add(tgt.id);
+          }
+        } else {
+          if (moved.has(tgt.id)) continue;
+          const desiredTgtX = (src.x + (src.width || DEFAULT_NODE_WIDTH) / 2) - (tgt.width || DEFAULT_NODE_WIDTH) / 2;
+          if (Math.abs(desiredTgtX - tgt.x) < STRAIGHT_THRESHOLD) {
+            tgt.x = desiredTgtX;
+            moved.add(tgt.id);
+          }
         }
       }
     }
 
-    const positionedEdges: PositionedEdge[] = params.edges.map(edge => {
-      const dagreEdge = g.edge(edge.source, edge.target);
-      return {
-        ...edge,
-        points: dagreEdge?.points?.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
-      };
-    });
+    const positionedEdges: PositionedEdge[] = params.edges
+      .map((edge, index) => {
+        const layoutEdge = layoutEdges[index];
+        if (!layoutEdge) {
+          return { ...edge, points: undefined };
+        }
+        const dagreEdge = g.edge(layoutEdge.source, layoutEdge.target);
+        return {
+          ...edge,
+          points: dagreEdge?.points?.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
+        };
+      })
+      .filter((e): e is PositionedEdge => e !== null);
 
     return { nodes: positionedNodes, edges: positionedEdges, warnings };
   }

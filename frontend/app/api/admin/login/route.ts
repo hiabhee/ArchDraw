@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAdminConfig } from '@/lib/env-validation';
 import { getClientIP } from '@/lib/server/ip';
-import { trackAdminSession, cleanupExpiredSessions } from '@/lib/admin-session-tracking';
+import { trackAdminSession } from '@/lib/admin-session-tracking';
+import { checkRateLimit } from '@/lib/redis';
+import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -23,14 +25,22 @@ async function hmacSign(data: string, secret: string): Promise<string> {
 
 const loginRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-let loginAccessCount = 0;
-function cleanupLoginExpired(): void {
-  const now = Date.now();
-  for (const [key, entry] of loginRateLimitMap) {
-    if (now > entry.resetAt) loginRateLimitMap.delete(key);
+// Fallback limiter used only when Redis is unavailable — per-instance.
+function memoryRateLimit(ip: string, now: number): void {
+  const rl = loginRateLimitMap.get(ip);
+  if (rl && now < rl.resetAt) {
+    if (rl.count >= 5) {
+      return;
+    }
+    rl.count++;
+  } else {
+    loginRateLimitMap.set(ip, { count: 1, resetAt: now + 15 * 60_000 });
   }
-  // Clean up expired admin sessions
-  cleanupExpiredSessions();
+}
+
+function memoryRateLimited(ip: string, now: number): boolean {
+  const rl = loginRateLimitMap.get(ip);
+  return Boolean(rl && now < rl.resetAt && rl.count >= 5);
 }
 
 export async function POST(req: NextRequest) {
@@ -52,16 +62,20 @@ export async function POST(req: NextRequest) {
   const ip = getClientIP(req);
   const now = Date.now();
 
-  if (++loginAccessCount % 10 === 0) cleanupLoginExpired();
+  // Prefer Redis so the limit holds across restarts and replicas; fall back to
+  // the in-memory limiter only when Redis is unavailable.
+  let rateLimited: boolean;
+  try {
+    const rl = await checkRateLimit(`admin-login:${ip}`, 5, 15 * 60);
+    rateLimited = !rl.allowed;
+  } catch (error) {
+    logger.warn('[AdminLogin] Redis rate limit unavailable, using in-memory limiter:', error);
+    memoryRateLimit(ip, now);
+    rateLimited = memoryRateLimited(ip, now);
+  }
 
-  const rl = loginRateLimitMap.get(ip);
-  if (rl && now < rl.resetAt) {
-    if (rl.count >= 5) {
-      return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
-    }
-    rl.count++;
-  } else {
-    loginRateLimitMap.set(ip, { count: 1, resetAt: now + 15 * 60_000 });
+  if (rateLimited) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
   }
 
   let body: { passcode?: string };
@@ -105,9 +119,9 @@ export async function POST(req: NextRequest) {
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
   });
   
-  // Track session IP and user agent for additional security
+  // Track session IP and user agent for additional security (Redis-backed)
   const userAgent = req.headers.get('user-agent') || 'unknown';
-  trackAdminSession(sessionValue, ip, userAgent);
+  await trackAdminSession(sessionValue, ip, userAgent);
   
   return response;
 }

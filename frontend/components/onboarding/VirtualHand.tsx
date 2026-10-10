@@ -41,7 +41,7 @@ function TapBeacon() {
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          border: '1px solid rgba(99,102,241,0.6)',
+          border: '1px solid rgba(30, 144, 255, 0.6)',
         }}
         animate={{ scale: [1, 1.7, 1], opacity: [0.7, 0, 0.7] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
@@ -52,7 +52,7 @@ function TapBeacon() {
           position: 'absolute',
           inset: 6,
           borderRadius: '50%',
-          border: '1px solid rgba(129,140,248,0.7)',
+          border: '1px solid rgba(77, 171, 247, 0.7)',
         }}
         animate={{ scale: [1, 1.5, 1], opacity: [0.8, 0, 0.8] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}
@@ -63,8 +63,8 @@ function TapBeacon() {
           position: 'absolute',
           inset: 14,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, #8A8A8A, #6B7280)',
-          boxShadow: '0 0 12px rgba(99,102,241,0.9), 0 0 4px rgba(129,140,248,0.6)',
+          background: 'radial-gradient(circle, #4dabf7, #1E90FF)',
+          boxShadow: '0 0 12px rgba(30, 144, 255, 0.9), 0 0 4px rgba(77, 171, 247, 0.6)',
         }}
         animate={{ scale: [1, 1.2, 1] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.1 }}
@@ -100,7 +100,7 @@ function DragBeacon() {
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          border: '1px solid rgba(99,102,241,0.5)',
+          border: '1px solid rgba(30, 144, 255, 0.5)',
         }}
         animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
         transition={{ duration: 0.9, repeat: Infinity, ease: 'easeOut' }}
@@ -111,8 +111,8 @@ function DragBeacon() {
           width: 18,
           height: 18,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, #8A8A8A, #6B7280)',
-          boxShadow: '0 0 14px rgba(99,102,241,0.95), 0 0 6px rgba(129,140,248,0.7)',
+          background: 'radial-gradient(circle, #4dabf7, #1E90FF)',
+          boxShadow: '0 0 14px rgba(30, 144, 255, 0.95), 0 0 6px rgba(77, 171, 247, 0.7)',
         }}
       />
       {/* Drag trail arrow */}
@@ -123,7 +123,7 @@ function DragBeacon() {
           top: '50%',
           transform: 'translateY(-50%)',
           fontSize: 16,
-          color: 'rgba(129,140,248,0.8)',
+          color: 'rgba(30, 144, 255, 0.85)',
           fontWeight: 700,
         }}
         animate={{ x: [0, 6, 0], opacity: [0.5, 1, 0.5] }}

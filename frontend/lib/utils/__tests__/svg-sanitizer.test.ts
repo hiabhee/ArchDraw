@@ -80,8 +80,8 @@ describe('svg-sanitizer', () => {
     });
 
     it('should handle null/undefined safely', () => {
-      expect(sanitizeSVG(null as any)).toBe('');
-      expect(sanitizeSVG(undefined as any)).toBe('');
+      expect(sanitizeSVG(null as unknown as string)).toBe('');
+      expect(sanitizeSVG(undefined as unknown as string)).toBe('');
     });
 
     it('should remove multiple event handlers', () => {
@@ -136,8 +136,8 @@ describe('svg-sanitizer', () => {
     });
 
     it('should handle null/undefined', () => {
-      expect(isValidSVG(null as any)).toBe(false);
-      expect(isValidSVG(undefined as any)).toBe(false);
+      expect(isValidSVG(null as unknown as string)).toBe(false);
+      expect(isValidSVG(undefined as unknown as string)).toBe(false);
     });
   });
 

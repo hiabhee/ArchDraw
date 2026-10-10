@@ -3,6 +3,7 @@ import { ClassifyStage } from '../ClassifyStage';
 import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
 import type { EnrichmentInput } from '../enrichment-types';
 import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/types/repo-diagram';
+import { buildFallbackRepoProfile } from '@/lib/agents/repo-deep-classifier';
 
 function minimalSnapshot(overrides: Partial<RepoSnapshot> = {}): RepoSnapshot {
   return {
@@ -41,6 +42,34 @@ function baseInput(overrides: Partial<EnrichmentInput> = {}): EnrichmentInput {
 }
 
 describe('ClassifyStage', () => {
+  it('classifies configuration-only Compose repositories as devops', () => {
+    const profile = buildFallbackRepoProfile(minimalSnapshot({
+      fileTree: ['docker-compose.yml', 'infra/main.tf', 'README.md'],
+      surfaceClassification: { primaryLanguage: 'Unknown', detectedFrameworks: [], hasDocker: true, hasMultipleServices: true, isMonorepo: false, projectType: 'unknown' },
+    }));
+    expect(profile.repoType).toBe('devops_config');
+    expect(profile.architecturePattern).toBe('pipeline');
+  });
+
+  it('classifies a package-named Express framework as a library', () => {
+    const profile = buildFallbackRepoProfile(minimalSnapshot({
+      fileTree: ['index.js', 'lib/express.js', 'package.json'],
+      repoMeta: { hasAppDir: false, hasPagesDir: false, hasPrisma: false, hasMiddleware: false, hasEnvExample: false, packageJson: { name: 'express' } },
+      surfaceClassification: { primaryLanguage: 'JavaScript/TypeScript', detectedFrameworks: ['Express'], hasDocker: false, hasMultipleServices: false, isMonorepo: false, projectType: 'unknown' },
+    }));
+    expect(profile.repoType).toBe('library');
+  });
+
+  it('classifies a repository named after its Python framework as a library', () => {
+    const profile = buildFallbackRepoProfile(minimalSnapshot({
+      repo: 'fastapi',
+      fileTree: ['fastapi/applications.py', 'pyproject.toml'],
+      phase1Files: [{ path: 'pyproject.toml', content: '[project]\nname = "fastapi"\ndependencies = ["fastapi"]' }],
+      surfaceClassification: { primaryLanguage: 'Python', detectedFrameworks: ['FastAPI'], hasDocker: false, hasMultipleServices: false, isMonorepo: false, projectType: 'unknown' },
+    }));
+    expect(profile.repoType).toBe('library');
+  });
+
   it('skips LLM enrichment for detailLevel=1 (static-only)', async () => {
     const stage = new ClassifyStage();
     const ctx = new DefaultPipelineContext('test', { detailLevel: 1 });
@@ -48,7 +77,7 @@ describe('ClassifyStage', () => {
 
     expect(result.success).toBe(true);
     expect(result.data!.useLlm).toBe(false);
-    expect(result.data!.repoProfile).toBeNull();
+    expect(result.data!.repoProfile?.repoType).toBe('unknown');
     expect(result.data!.workingNodes).toEqual([]);
   });
 

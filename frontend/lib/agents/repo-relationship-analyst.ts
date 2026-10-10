@@ -3,12 +3,14 @@ import { groqJsonCompletion } from '@/lib/ai/utils/groqJsonCompletion';
 import { parseLlmJson } from '@/lib/ai/utils/parseLlmJson';
 import { inferRelationshipsHeuristic } from './repo-heuristic-extractor';
 import { JSON_OUTPUT_REMINDER } from './repo-prompt-utils';
-import { REPO_LLM_MODEL, RELATIONSHIP_MAX_TOKENS } from '@/lib/ai/utils/repoModels';
+import { REPO_LLM_MODEL, RELATIONSHIP_MAX_TOKENS, REPO_LLM_MAX_OUTPUT_TOKENS, REPO_LLM_REQUEST_OPTIONS } from '@/lib/ai/utils/repoModels';
 import logger from '@/lib/logger';
 import type { RepoSnapshot, RepoProfile, DependencyMap, ExtractedNode } from '@/lib/types/repo-diagram';
 import type { RichEdge, StaticSignal } from '@/lib/types/repo-diagram';
 import { topAdjacencies } from '@/lib/repo-diagram/evidence-from-graph';
 import type { ImportGraph } from '@/lib/repo-diagram/import-graph';
+
+const MAX_EDGES_BY_LEVEL: Record<number, number> = { 1: 30, 2: 60, 3: 100 };
 
 function compactNodesForRel(nodes: ExtractedNode[]): string {
   return JSON.stringify(nodes.map(n => ({
@@ -35,10 +37,10 @@ function trimDetectionReport(report: string, maxLines = 25): string {
 /**
  * Phase 6.2 — Build a compact evidence pack for the relationship analyst.
  *
- * - Top 30 import-graph adjacencies between node file-sets.
- * - Detected route signals (path → source file), capped at 30.
+ * - Top 120 import-graph adjacencies between node file-sets.
+ * - Detected route signals (path → source file), capped at 100.
  * - docker-compose depends_on edges, queue topics, prisma models.
- * - Keeps the prompt ≤ ~6k tokens; truncated deterministically (by weight).
+ * - Hard-capped at ~50k chars; truncated deterministically (by weight).
  */
 function buildEvidencePack(
   nodes: ExtractedNode[],
@@ -49,7 +51,7 @@ function buildEvidencePack(
 
   // Top import-graph adjacencies.
   if (importGraph) {
-    const adj = topAdjacencies(nodes, importGraph, 50);
+    const adj = topAdjacencies(nodes, importGraph, 120);
     if (adj.length > 0) {
       lines.push('IMPORT GRAPH EVIDENCE (highest-weight file-level links):');
       for (const a of adj) {
@@ -59,7 +61,7 @@ function buildEvidencePack(
   }
 
   // Route signals.
-  const routeSigs = signals.filter((s) => s.type === 'route').slice(0, 50);
+  const routeSigs = signals.filter((s) => s.type === 'route').slice(0, 100);
   if (routeSigs.length > 0) {
     lines.push('\nDETECTED ROUTES:');
     for (const r of routeSigs) lines.push(`  ${r.label}  ←  ${r.source}`);
@@ -88,10 +90,10 @@ function buildEvidencePack(
   }
 
   const out = lines.join('\n');
-  // Hard cap ~5k tokens (~20k chars) so prompt + max output tokens stays under
-  // the 12K TPM ceiling of llama-3.3-70b-versatile. Deterministic — we already
-  // rank by weight upstream.
-  return out.length > 20_000 ? out.slice(0, 20_000) + '\n…[truncated]' : out;
+  // Hard cap ~12k tokens (~50k chars) — sized for gpt-oss-120b's context window
+  // (the old 20k-char cap was sized for the retired llama-3.3-70b 12K TPM
+  // ceiling). Deterministic — we already rank by weight upstream.
+  return out.length > 50_000 ? out.slice(0, 50_000) + '\n…[truncated]' : out;
 }
 
 export async function analyzeRelationships(
@@ -101,8 +103,11 @@ export async function analyzeRelationships(
   dependencyMap?: DependencyMap,
   summaries?: string[],
   staticDetectionReport?: string,
-  evidence?: { importGraph?: ImportGraph; signals?: StaticSignal[] }
+  evidence?: { importGraph?: ImportGraph; signals?: StaticSignal[] },
+  opts?: { detailLevel?: 1 | 2 | 3; signal?: AbortSignal }
 ): Promise<{ edges: RichEdge[]; workflows: { name: string; description: string; steps: string[] }[] }> {
+  const detail = opts?.detailLevel ?? 2;
+  const maxEdges = MAX_EDGES_BY_LEVEL[detail] ?? 60;
   const nodesCompact = compactNodesForRel(nodes);
   const summariesCompact = summaries && summaries.length > 0 ? compactSummaries(summaries) : '';
   const profileCompact = repoProfile ? JSON.stringify({
@@ -112,6 +117,10 @@ export async function analyzeRelationships(
     capabilities: repoProfile.coreCapabilities.length > 0 ? repoProfile.coreCapabilities : undefined,
     flows: repoProfile.primaryUserFlows.length > 0 ? repoProfile.primaryUserFlows : undefined,
   }) : '';
+  const readmeFiles = snapshot.selectedFiles.filter((f) => /README\.md$/i.test(f.path));
+  const readmeSlice = readmeFiles.length
+    ? readmeFiles.map((f) => f.content.slice(0, 8000)).join('\n\n').slice(0, 10000)
+    : '';
 
   // Phase 6.2 — evidence pack replaces injected workflow examples.
   const evidencePack = buildEvidencePack(nodes, evidence?.importGraph, evidence?.signals ?? []);
@@ -124,20 +133,21 @@ ${nodesCompact}
 APPLICATION PROFILE:
 ${profileCompact || 'Not classified'}
 
+ ${readmeSlice ? `README CONTEXT (primary — derive workflows from features described here, not generic e-commerce):\n${readmeSlice}\n` : ''}
 ${summariesCompact ? `STRUCTURAL OVERVIEW:\n${summariesCompact}\n` : ''}
 ${staticDetectionReport ? `STATIC DETECTION:\n${trimDetectionReport(staticDetectionReport)}\n` : ''}
 ${dependencyMap?.dependencies?.length ? `EXTERNAL DEPS:\n${JSON.stringify(dependencyMap.dependencies.map(d => ({ name: d.name, category: d.category })))}\n` : ''}
 ${evidencePack ? `EVIDENCE:\n${evidencePack}\n` : '(no direct evidence — derive edges from component names only)'}
 
-TASK 1 — IDENTIFY 3 PRIMARY USER JOURNEYS:
-Think about what this application does. What are the 3 most important end-to-end flows a developer should understand first?
+TASK 1 — IDENTIFY 3 PRIMARY USER JOURNEYS (README-driven):
+Think about what this application does per README + APPLICATION PROFILE. What are the 3 most important end-to-end flows a developer should understand first? Each workflow MUST trace a feature named in README (or a detected route group) — not a generic e-commerce/chat/auth template.
 For each workflow provide:
-- name: short human-readable name (e.g. "Expense Submission")
-- description: what happens end-to-end (1-2 sentences)
+- name: short human-readable name derived from README feature (e.g. "Expense Submission" if README says expense tracker, not "User Login" if README is about expense)
+- description: what happens end-to-end (1-2 sentences) referencing actual components and README domain
 - steps: ordered array of node IDs (or role labels like "Employee", "Manager" for actors not in the component list)
 - Each step should tell the story: the path a user action traces through the system
 
-Derive workflows from the detected routes and EVIDENCE above — do NOT invent generic e-commerce/chat/auth journeys when the evidence doesn't support them.
+Derive workflows from README + detected routes + EVIDENCE above — do NOT invent generic e-commerce/chat/auth journeys when the evidence/README doesn't support them. If README lists features, each workflow should map to one feature.
 
 TASK 2 — MAP SEMANTIC EDGES:
 For each workflow, create edges that tell the story. Use labels that describe WHAT action is happening:
@@ -180,7 +190,7 @@ Required output shape:
   logger.log(`[RelationshipAnalyst] Calling LLM (${nodes.length} nodes, ~${Math.ceil(prompt.length / 4)} est tokens)...`);
 
   try {
-    const result = await apiKeyManager.executeWithRetry(async (client) =>
+    const result = await apiKeyManager.executeWithRetry(async (client, signal) =>
       groqJsonCompletion(client, {
         model: REPO_LLM_MODEL,
         messages: [
@@ -202,7 +212,7 @@ Up to 3 workflows. Each workflow should have 3-10 steps. Steps can include actor
 RULES:
 - Only use node IDs from the provided component list for edge connections
 - Workflow steps can include actor labels not in the component list
-- Max 30 edges total across all workflows
+- Max ${maxEdges} edges total across all workflows
 - At least 1 workflow if the project has user-facing functionality
 - Prefer edges corroborated by the EVIDENCE block — these have ground-truth source-file or docker-compose support.
 - Mark edges NOT in evidence as confidence 'low'.
@@ -215,7 +225,8 @@ RULES:
         ],
         temperature: 0.1,
         max_tokens: RELATIONSHIP_MAX_TOKENS,
-      })
+        signal,
+      }), { ...REPO_LLM_REQUEST_OPTIONS, signal: opts?.signal }
     );
 
     try {
@@ -224,8 +235,32 @@ RULES:
         workflows?: { name: string; description: string; steps: string[] }[];
       }>(result, 'RelationshipAnalyst');
 
-      const edges = Array.isArray(parsed.edges) ? parsed.edges : [];
-      const workflows = Array.isArray(parsed.workflows) ? parsed.workflows : [];
+      let edges = Array.isArray(parsed.edges) ? parsed.edges : [];
+      let workflows = Array.isArray(parsed.workflows) ? parsed.workflows : [];
+      // Deduplicate workflows by case-insensitive name and steps (LLM sometimes repeats same journey with slight rewording)
+      {
+        const seen = new Set<string>();
+        const uniq: typeof workflows = [];
+        for (const w of workflows) {
+          const key = (w.name || '').trim().toLowerCase();
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          uniq.push(w);
+        }
+        workflows = uniq.slice(0, 3);
+      }
+      // Deduplicate edges by from->to->type->label lower
+      {
+        const seen = new Set<string>();
+        const uniq: typeof edges = [];
+        for (const e of edges) {
+          const key = `${e.from}->${e.to}->${e.type}->${(e.label || '').trim().toLowerCase()}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          uniq.push(e);
+        }
+        edges = uniq;
+      }
 
       if (edges.length > 0 || nodes.length < 2) {
         return { edges, workflows };
@@ -237,7 +272,7 @@ RULES:
       );
       // Phase 6.5 — one retry with explicit JSON-only reminder appended and larger max_tokens.
       try {
-        const retryResult = await apiKeyManager.executeWithRetry(async (client) =>
+        const retryResult = await apiKeyManager.executeWithRetry(async (client, signal) =>
           groqJsonCompletion(client, {
             model: REPO_LLM_MODEL,
             messages: [
@@ -245,13 +280,36 @@ RULES:
               { role: 'user', content: prompt + '\n\nReturn ONLY the JSON object. No prose, no fences.' },
             ],
             temperature: 0.1,
-            max_tokens: Math.round(RELATIONSHIP_MAX_TOKENS * 1.5),
-          })
+            max_tokens: Math.min(REPO_LLM_MAX_OUTPUT_TOKENS, Math.round(RELATIONSHIP_MAX_TOKENS * 1.5)),
+            signal,
+          }), { ...REPO_LLM_REQUEST_OPTIONS, signal: opts?.signal }
         );
         const parsed2 = parseLlmJson<{ edges?: RichEdge[]; workflows?: { name: string; description: string; steps: string[] }[] }>(retryResult, 'RelationshipAnalyst[retry]');
-        const edges = Array.isArray(parsed2.edges) ? parsed2.edges : [];
-        const workflows = Array.isArray(parsed2.workflows) ? parsed2.workflows : [];
-        if (edges.length > 0 || nodes.length < 2) return { edges, workflows };
+        let edges2 = Array.isArray(parsed2.edges) ? parsed2.edges : [];
+        let workflows2 = Array.isArray(parsed2.workflows) ? parsed2.workflows : [];
+        {
+          const seen = new Set<string>();
+          const uniq: typeof workflows2 = [];
+          for (const w of workflows2) {
+            const k = (w.name || '').trim().toLowerCase();
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            uniq.push(w);
+          }
+          workflows2 = uniq.slice(0, 3);
+        }
+        {
+          const seen = new Set<string>();
+          const uniq: typeof edges2 = [];
+          for (const e of edges2) {
+            const k = `${e.from}->${e.to}->${e.type}->${(e.label || '').trim().toLowerCase()}`;
+            if (seen.has(k)) continue;
+            seen.add(k);
+            uniq.push(e);
+          }
+          edges2 = uniq;
+        }
+        if (edges2.length > 0 || nodes.length < 2) return { edges: edges2, workflows: workflows2 };
       } catch (retryErr) {
         logger.warn('[RelationshipAnalyst] retry also failed:', retryErr instanceof Error ? retryErr.message : retryErr);
       }
@@ -260,7 +318,7 @@ RULES:
     logger.warn('[RelationshipAnalyst] Using heuristic relationship fallback');
     return inferRelationshipsHeuristic(nodes);
   } catch (err) {
-    console.error('[RelationshipAnalyst] LLM call failed:', err);
+    logger.error('[RelationshipAnalyst] LLM call failed:', err);
     if (nodes.length >= 2) {
       return inferRelationshipsHeuristic(nodes);
     }

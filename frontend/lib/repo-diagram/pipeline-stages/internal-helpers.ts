@@ -1,5 +1,6 @@
-import type { ExtractedNode, RichEdge, StaticSignal, Subsystem, DependencyIntelligence, RepoSnapshot, RepoProfile, FileEntry } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, StaticSignal, Subsystem, DependencyIntelligence, RepoSnapshot, RepoProfile, FileEntry } from '@/lib/types/repo-diagram';
 import { summarizeSubsystem } from '@/lib/repo-diagram/subsystem-detector';
+import { fetchFileContentsByPaths } from '@/lib/github-ingestion';
 import logger from '@/lib/logger';
 
 export function normalizeId(id: string): string {
@@ -18,12 +19,12 @@ function confidenceRankForMerge(c: string | undefined): number {
 }
 
 function normalizeLabelKey(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/\s*\([^)]*\)/g, '')
-    .replace(/\b(api|service|database|db|cache|worker|module)\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+  // GH2R-016: avoid collapsing generic names like "API"/"Service" to "" which causes collisions
+  const stripped = label.toLowerCase().replace(/\s*\([^)]*\)/g, '');
+  const withoutGeneric = stripped.replace(/\b(api|service|database|db|cache|worker|module)\b/g, '').trim();
+  const alnum = withoutGeneric.replace(/[^a-z0-9]/g, '').trim();
+  if (!alnum) return label.toLowerCase().replace(/[^a-z0-9]/g, '').trim() || normalizeId(label);
+  return alnum;
 }
 
 export function mergeLlmIntoBaseline(
@@ -52,7 +53,6 @@ export function mergeLlmIntoBaseline(
     merged.set(id, { ...llm, id });
   }
 
-  const llmSourceFiles = new Set(llmNodes.flatMap(n => n.sourceFiles));
   const llmNormLabels = new Map(llmNodes.map(n => [normalizeLabelKey(n.label), n]));
 
   for (const base of baseline) {
@@ -68,13 +68,16 @@ export function mergeLlmIntoBaseline(
     }
 
     const baseNormKey = normalizeLabelKey(base.label);
-    const overlapsSource = base.sourceFiles.some(sf => llmSourceFiles.has(sf));
+    const sourceMatch = [...merged.values()].find(n =>
+      n.type === base.type && n.sourceFiles.some(sf => base.sourceFiles.includes(sf))
+    );
+    const overlapsSource = Boolean(sourceMatch);
     const overlapsLabel = baseNormKey && llmNormLabels.has(baseNormKey);
 
     if (overlapsSource || overlapsLabel) {
       const llmNode = overlapsLabel
         ? llmNormLabels.get(baseNormKey)
-        : [...merged.values()].find(n => n.sourceFiles.some(sf => base.sourceFiles.includes(sf)));
+        : sourceMatch;
       if (llmNode) {
         const llmId = normalizeId(llmNode.id);
         const mergedNode = { ...llmNode, id: llmId };
@@ -142,7 +145,12 @@ export function buildSummariesForLLM(subsystems: Subsystem[], signals: StaticSig
   });
 }
 
-export function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProfile, cap: number): FileEntry[] {
+export async function gatherPass2Files(
+  snapshot: RepoSnapshot,
+  profile: RepoProfile,
+  cap: number,
+  signal?: AbortSignal,
+): Promise<FileEntry[]> {
   const selected = new Set(snapshot.selectedFiles.map(f => f.path));
   const candidates: string[] = [];
   const allPaths = [
@@ -161,15 +169,20 @@ export function gatherPass2Files(snapshot: RepoSnapshot, profile: RepoProfile, c
   }
 
   const map = snapshot.archiveMap;
-  if (!map) {
-    if (candidates.length > 0) {
-      logger.warn(`[gatherPass2Files] archiveMap unavailable (Contents-API fallback) — Pass 2 no-op; ${candidates.length} candidate file(s) would have been fetched`);
-    }
-    return [];
+  if (map) {
+    return candidates.flatMap(path => {
+      const content = map.get(path);
+      return content == null ? [] : [{ path, content }];
+    });
   }
 
-  return candidates.flatMap(path => {
-    const content = map.get(path);
-    return content == null ? [] : [{ path, content }];
-  });
+  // Contents-API fallback: classification-guided pass-2 used to no-op here,
+  // silently degrading every non-tarball run. Fetch the candidates directly
+  // (bounded by `cap`). Uses env GITHUB_TOKEN — private repos authorized only
+  // by a per-request user token degrade to today's behavior for these files.
+  const fetched = await fetchFileContentsByPaths(snapshot.owner, snapshot.repo, candidates, { signal });
+  if (fetched.length < candidates.length) {
+    logger.warn(`[gatherPass2Files] Contents-API fallback fetched ${fetched.length}/${candidates.length} pass-2 file(s)`);
+  }
+  return fetched;
 }

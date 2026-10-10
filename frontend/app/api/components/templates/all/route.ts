@@ -3,6 +3,8 @@ import { getAllComponentTemplates } from '@/lib/db';
 import { getUserTier } from '@/lib/userQuotas';
 import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
 
+export const runtime = 'nodejs';
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getSessionFromRequest(req);

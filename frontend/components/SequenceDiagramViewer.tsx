@@ -13,7 +13,7 @@ async function initMermaid() {
   mermaid.default.initialize({
     startOnLoad: false,
     theme: 'neutral',
-    securityLevel: 'loose',
+    securityLevel: 'strict',
     sequence: {
       actorMargin: 50,
       boxMargin: 10,

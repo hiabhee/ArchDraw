@@ -43,6 +43,13 @@ export type RepoSnapshot = {
   phase1Files: FileEntry[];
   phase2Files: FileEntry[];
   /**
+   * GH2R-024 — architecture-signaling files (READMEs, package.json,
+   * docker-compose, terraform, CI workflows, manifests, docs) read FULLY in
+   * Phase 1.5, regardless of the source file/content budget. Primary evidence
+   * for component extraction; implies the architecture without reading code.
+   */
+  metaFiles?: FileEntry[];
+  /**
    * Phase 2/6: in-memory archive map (when tarball ingestion succeeded).
    * Pass-2 fetch reads paths NOT originally selected from here → 0 API calls.
    * Null on the Contents-API fallback path.
@@ -248,6 +255,7 @@ export type PipelineStage =
   | 'classifying'
   | 'extracting_components'
   | 'analyzing_relationships'
+  | 'verifying'
   | 'compiling'
   | 'done';
 

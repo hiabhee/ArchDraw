@@ -1,0 +1,43 @@
+.reveal {
+  display: inline-block;
+  will-change: filter, opacity, transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal[data-ready='true'][data-revealed='false'] {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translate3d(0, 14px, 0);
+  }
+
+  .reveal[data-revealed='true'] {
+    animation: textReveal 680ms cubic-bezier(.16, 1, .3, 1) both;
+  }
+}
+
+@keyframes textReveal {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translate3d(0, 14px, 0);
+  }
+
+  72% {
+    opacity: 1;
+    filter: blur(.5px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    filter: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

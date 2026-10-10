@@ -1,4 +1,5 @@
 import logger from '@/lib/logger';
+import { analytics } from '@/lib/analytics';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { serializedStorage } from '@/lib/storage/localStorage';
@@ -7,6 +8,7 @@ import type { TutorialDefinition, TutorialSession, PhaseName } from '@/lib/tutor
 import type { AnyTutorial } from '@/data/tutorials';
 import * as engine from '@/lib/tutorial/engine';
 import { deleteTutorialProgressApi as apiDeleteTutorialProgress, saveTutorialProgress as apiSaveTutorialProgress, fetchTutorialProgress as apiGetTutorialProgress } from '@/lib/api-client';
+import { explainOverrideKey } from '@/lib/tutorial/explainQuota';
 import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
 
 export interface TutorialMessage {
@@ -43,6 +45,8 @@ export interface TutorialProgressEntry {
   canvasNodes: SanitizedNode[];
   canvasEdges: SanitizedEdge[];
   explainCount: number;
+  stepExplainCounts?: Record<string, number>;
+  explainOverrides?: Record<string, { heading: string; body: string }>;
   updatedAt: string;
 }
 
@@ -87,6 +91,12 @@ export function sanitizeEdge(edge: Edge): SanitizedEdge {
   };
 }
 
+function normalizeProgressUpdatedAt(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string' && value.length > 0) return value;
+  return new Date().toISOString();
+}
+
 const STORAGE_KEY = 'archdraw_tutorial_v2';
 
 interface TutorialStoreState {
@@ -126,6 +136,8 @@ interface TutorialStoreState {
   tutorialEdges: Edge[];
   isSwitchingTutorial: boolean;
   completedTutorials: string[];
+  tutorialLayoutEnabled: boolean;
+  setTutorialLayoutEnabled: (v: boolean) => void;
 
   // Actions
   startTutorial: (id: string, totalSteps: number) => void;
@@ -159,11 +171,38 @@ interface TutorialStoreState {
   syncToDb: (tutorialId: string) => Promise<void>;
   loadFromDb: (tutorialId: string) => Promise<TutorialProgressEntry | null>;
   setSwitchingTutorial: (v: boolean) => void;
+  recordExplainUsage: (
+    tutorialId: string,
+    stepId: string,
+    phase: string,
+    override: { heading: string; body: string }
+  ) => void;
 }
 
 export const useTutorialStore = create<TutorialStoreState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      /**
+       * Shared session-advance path used by advancePhase / advanceManually /
+       * advanceStep / skipStep. Detects level boundary crossings (fires the
+       * LevelCompleteScreen) and tutorial completion (fires completeTutorial).
+       */
+      const advanceSession = (session: TutorialSession, tutorial: TutorialDefinition) => {
+        const { session: newSession, crossedLevel } = engine.advanceWithResult(session, tutorial);
+        const complete = engine.isTutorialComplete(newSession, tutorial);
+        set({
+          session: newSession,
+          currentStep: newSession.stepIndex + 1,
+          currentLevel: newSession.levelIndex + 1,
+          isLevelComplete: crossedLevel && !complete,
+          isComplete: complete,
+        });
+        if (complete) {
+          get().completeTutorial();
+        }
+      };
+
+      return {
       hasHydrated: false,
       setHasHydrated: (v) => set({ hasHydrated: v }),
 
@@ -198,6 +237,8 @@ export const useTutorialStore = create<TutorialStoreState>()(
       tutorialEdges: [],
       isSwitchingTutorial: false,
       completedTutorials: [],
+      tutorialLayoutEnabled: true,
+      setTutorialLayoutEnabled: (v) => set({ tutorialLayoutEnabled: v }),
 
       startTutorialByDef: (tutorialInput) => {
         // All tutorials in the TUTORIALS array are TutorialDefinition instances
@@ -244,6 +285,12 @@ export const useTutorialStore = create<TutorialStoreState>()(
           isComplete: false,
           isLevelComplete: false,
         });
+
+        // Restored session may already be on the final celebration phase —
+        // surface completion state + fire analytics once (deduped in store).
+        if (engine.isTutorialComplete(session, tutorial)) {
+          get().completeTutorial();
+        }
       },
 
       startTutorial: (id, totalStepsCount) => {
@@ -258,22 +305,14 @@ export const useTutorialStore = create<TutorialStoreState>()(
       advancePhase: () => {
         const { session, activeTutorial } = get();
         if (session && activeTutorial) {
-          const newSession = engine.advancePhase(session, activeTutorial);
-          set({ 
-            session: newSession,
-            currentStep: newSession.stepIndex + 1,
-          });
+          advanceSession(session, activeTutorial);
         }
       },
 
       advanceManually: () => {
         const { session, activeTutorial } = get();
         if (session && activeTutorial) {
-          const newSession = engine.forceAdvance(session, activeTutorial);
-          set({ 
-            session: newSession,
-            currentStep: newSession.stepIndex + 1,
-          });
+          advanceSession(session, activeTutorial);
         }
       },
 
@@ -303,32 +342,70 @@ export const useTutorialStore = create<TutorialStoreState>()(
       clearMessages: () => set({ messages: [] }),
 
       advanceStep: () => {
-        const { currentStep, totalSteps, session, activeTutorial } = get();
+        const { session, activeTutorial } = get();
         if (session && activeTutorial) {
-          const newSession = engine.advancePhase(session, activeTutorial);
-          set({ 
-            session: newSession,
-            currentStep: newSession.stepIndex + 1,
-            isLevelComplete: newSession.stepIndex >= totalSteps - 1,
-          });
+          advanceSession(session, activeTutorial);
         } else {
+          const { currentStep, totalSteps } = get();
           set({ currentStep: Math.min(currentStep + 1, totalSteps) });
         }
       },
 
       skipStep: () => {
-        const { currentStep, totalSteps } = get();
-        set({ currentStep: Math.min(currentStep + 1, totalSteps) });
+        const { session, activeTutorial } = get();
+        if (session && activeTutorial) {
+          advanceSession(session, activeTutorial);
+        } else {
+          const { currentStep, totalSteps } = get();
+          set({ currentStep: Math.min(currentStep + 1, totalSteps) });
+        }
       },
 
       completeTutorial: () => {
-        const { activeTutorial } = get();
+        const { activeTutorial, session } = get();
+        if (!activeTutorial) return;
+
+        const currentStep = session ? engine.getCurrentStep(session, activeTutorial) : null;
+        const completedStepIds = session?.completedStepIds ?? [];
+        const finalStepIds =
+          currentStep && !completedStepIds.includes(currentStep.id)
+            ? [...completedStepIds, currentStep.id]
+            : completedStepIds;
+
+        const isNewCompletion = !get().completedTutorials.includes(activeTutorial.id);
+
         set((s) => ({
           isComplete: true,
-          completedTutorials: activeTutorial
-            ? [...new Set([...s.completedTutorials, activeTutorial.id])]
-            : s.completedTutorials,
+          session: session ? { ...session, completedStepIds: finalStepIds } : session,
+          completedTutorials: [...new Set([...s.completedTutorials, activeTutorial.id])],
         }));
+
+        if (session) {
+          get().saveProgress(activeTutorial.id, {
+            currentLevel: session.levelIndex + 1,
+            currentStep: session.stepIndex + 1,
+            currentPhase: session.phase,
+            completedLevels: session.completedLevelIds.map(Number),
+            completedStepIds: finalStepIds,
+            canvasNodes: get().nodes.map(sanitizeNode),
+            canvasEdges: get().edges.map(sanitizeEdge),
+            explainCount: 0,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        if (isNewCompletion) {
+          analytics.track({
+            event_type: 'tutorial_completed',
+            page_path: typeof window !== 'undefined' ? window.location.pathname : '/tutorials',
+            payload: {
+              tutorial_id: activeTutorial.id,
+              tutorial_title: activeTutorial.title,
+              total_steps: engine.getTotalStepCount(activeTutorial),
+            },
+          });
+          get().syncToDb(activeTutorial.id).catch(() => {});
+        }
       },
 
       resetTutorial: () => { 
@@ -430,14 +507,17 @@ export const useTutorialStore = create<TutorialStoreState>()(
         return get().tutorialPhase[`${tutorialId}-${step}`] ?? null;
       },
 
-      advanceLevel: (nextLevelStepCount) => {
-        const { currentLevel, completedLevels } = get();
+      advanceLevel: (_nextLevelStepCount) => {
+        const { session, activeTutorial } = get();
+        const totalStepsCount = activeTutorial
+          ? engine.getTotalStepCount(activeTutorial)
+          : get().totalSteps;
         set({
-          currentLevel: currentLevel + 1,
-          currentStep: 1,
-          completedLevels: [...completedLevels, currentLevel],
+          currentLevel: session ? session.levelIndex + 1 : get().currentLevel + 1,
+          currentStep: session ? session.stepIndex + 1 : 1,
+          completedLevels: session ? session.completedLevelIds.map(Number) : get().completedLevels,
           isLevelComplete: false,
-          totalSteps: nextLevelStepCount,
+          totalSteps: totalStepsCount,
         });
       },
 
@@ -482,11 +562,14 @@ export const useTutorialStore = create<TutorialStoreState>()(
         set((state) => {
           const newRichProgress = { ...state.richProgress };
           delete newRichProgress[tutorialId];
-          return { richProgress: newRichProgress };
+          return {
+            richProgress: newRichProgress,
+            completedTutorials: state.completedTutorials.filter((id) => id !== tutorialId),
+          };
         });
       },
 
-      clearAllProgress: () => set({ richProgress: {} }),
+      clearAllProgress: () => set({ richProgress: {}, completedTutorials: [] }),
 
       syncToDb: async (tutorialId) => {
         const progress = get().richProgress[tutorialId];
@@ -535,7 +618,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
             canvasNodes: (data.canvasNodes as unknown as SanitizedNode[]) ?? [],
             canvasEdges: migrateEdgesToSmoothstep(data.canvasEdges as unknown as Edge[]) as unknown as SanitizedEdge[],
             explainCount: data.explainCount,
-            updatedAt: data.updatedAt?.toISOString() ?? new Date().toISOString(),
+            updatedAt: normalizeProgressUpdatedAt(data.updatedAt),
           };
 
           get().saveProgress(tutorialId, progress);
@@ -548,9 +631,25 @@ export const useTutorialStore = create<TutorialStoreState>()(
 
       setSwitchingTutorial: (v) => set({ isSwitchingTutorial: v }),
 
+      recordExplainUsage: (tutorialId, stepId, phase, override) => {
+        const existing = get().richProgress[tutorialId];
+        const stepExplainCounts = { ...(existing?.stepExplainCounts ?? {}) };
+        stepExplainCounts[stepId] = (stepExplainCounts[stepId] ?? 0) + 1;
+        const explainOverrides = { ...(existing?.explainOverrides ?? {}) };
+        explainOverrides[explainOverrideKey(stepId, phase as 'intro' | 'teaching')] = override;
+
+        get().saveProgress(tutorialId, {
+          explainCount: (existing?.explainCount ?? 0) + 1,
+          stepExplainCounts,
+          explainOverrides,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+
       exitTutorial: () => {
         const { activeTutorial, session, nodes, edges } = get();
         if (activeTutorial && session) {
+          const existing = get().richProgress[activeTutorial.id];
           get().saveProgress(activeTutorial.id, {
             currentLevel: session.levelIndex + 1,
             currentStep: session.stepIndex + 1,
@@ -559,7 +658,9 @@ export const useTutorialStore = create<TutorialStoreState>()(
             completedStepIds: session.completedStepIds,
             canvasNodes: nodes.map(sanitizeNode),
             canvasEdges: edges.map(sanitizeEdge),
-            explainCount: 0,
+            explainCount: existing?.explainCount ?? 0,
+            stepExplainCounts: existing?.stepExplainCounts,
+            explainOverrides: existing?.explainOverrides,
             updatedAt: new Date().toISOString(),
           });
         }
@@ -577,7 +678,8 @@ export const useTutorialStore = create<TutorialStoreState>()(
           completedLevels: [],
         });
       },
-    }),
+      };
+    },
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => serializedStorage),
@@ -585,6 +687,7 @@ export const useTutorialStore = create<TutorialStoreState>()(
         richProgress: state.richProgress,
         tutorialProgress: state.tutorialProgress,
         tutorialPhase: state.tutorialPhase,
+        completedTutorials: state.completedTutorials,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

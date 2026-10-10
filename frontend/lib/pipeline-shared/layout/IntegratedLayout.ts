@@ -1,6 +1,7 @@
 import { DagreLayoutEngine } from './DagreLayout';
 import type { LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
+import { isTextNode } from '@/lib/mermaid/textNodes';
 
 /** Minimal ReactFlow-shaped graph used by pipeline layout. */
 export interface RFNode {
@@ -15,7 +16,6 @@ export interface RFNode {
   extent?: 'parent' | [[number, number], [number, number]];
   [key: string]: unknown;
 }
-
 export interface RFEdge {
   id: string;
   source: string;
@@ -60,21 +60,33 @@ export class IntegratedLayoutEngine {
 
   private toLayoutParams(objects: RFObjects, options: IntegratedLayoutOptions): LayoutParams {
     const direction = this.mapDirection(options.direction ?? 'LR');
-    const defaults = defaultCompoundLayoutOptions(direction);
+    // Density-aware spacing: pass edgeCount so crowded graphs (e.g. 10+ edges) get extra rank/node air
+    const defaults = defaultCompoundLayoutOptions(direction, {
+      edgeCount: objects.edges.length,
+      nodeCount: objects.nodes.length,
+    });
     return {
-      nodes: objects.nodes.map(node => ({
-        id: node.id,
-        width: node.width || DEFAULT_NODE_WIDTH,
-        height: node.height || DEFAULT_NODE_HEIGHT,
-        parentId: node.parentNode
-        || (node as { parentId?: string }).parentId
-        || (node.data as { parentId?: string })?.parentId,
-        isGroup: node.type === 'groupNode' || (node.data as { isGroup?: boolean })?.isGroup === true,
-      })),
+      nodes: objects.nodes.map(node => {
+        const rawDir = (node.data as { direction?: string; groupDirection?: string })?.direction
+          ?? (node.data as { groupDirection?: string })?.groupDirection;
+        const mappedDir = rawDir ? this.mapDirection(rawDir as Direction) : undefined;
+        return {
+          id: node.id,
+          width: node.width || DEFAULT_NODE_WIDTH,
+          height: node.height || DEFAULT_NODE_HEIGHT,
+          parentId: node.parentNode
+          || (node as { parentId?: string }).parentId
+          || (node.data as { parentId?: string })?.parentId,
+          isGroup: node.type === 'groupNode' || (node.data as { isGroup?: boolean })?.isGroup === true,
+          ...(mappedDir ? { direction: mappedDir } : {}),
+        };
+      }),
       edges: objects.edges.map(edge => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
+        label: (edge.label as string | undefined)
+          ?? (edge.data?.label as string | undefined),
       })),
       direction,
       options: { ...defaults, ...options.options },
@@ -111,9 +123,26 @@ export class IntegratedLayoutEngine {
 
   /** Sync compound layout via Dagre (canonical for Mermaid pipeline). */
   layoutSync(objects: RFObjects, options: IntegratedLayoutOptions = {}): RFObjects {
-    const params = this.toLayoutParams(objects, options);
+    const textNodes = objects.nodes.filter(node => isTextNode(node));
+    if (textNodes.length === 0) {
+      const params = this.toLayoutParams(objects, options);
+      const result = this.dagreEngine.layoutSync(params);
+      return this.fromLayoutResult(objects, result);
+    }
+
+    // Free-text / annotation nodes never participate in Dagre ranking — they
+    // are placed after layout by `placeTextNodes`.
+    const shapeObjects: RFObjects = {
+      nodes: objects.nodes.filter(node => !isTextNode(node)),
+      edges: objects.edges,
+    };
+    const params = this.toLayoutParams(shapeObjects, options);
     const result = this.dagreEngine.layoutSync(params);
-    return this.fromLayoutResult(objects, result);
+    const layouted = this.fromLayoutResult(shapeObjects, result);
+    return {
+      nodes: [...layouted.nodes, ...textNodes],
+      edges: layouted.edges,
+    };
   }
 
   private mapDirection(direction: Direction): LayoutDirection {

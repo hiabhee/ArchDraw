@@ -13,9 +13,9 @@ export const SIZE_M = 200;
 export const SIZE_L = 240;
 
 export const NODE_WIDTH = SIZE_M;
-export const NODE_HEIGHT = 88;
+export const NODE_HEIGHT = 100;
 /** Max layout height for diamond/circle so ELK lanes stay aligned with rects. */
-export const SHAPE_LANE_HEIGHT_CAP = 96;
+export const SHAPE_LANE_HEIGHT_CAP = 100;
 export const BORDER_RADIUS = 10;
 export const STROKE_WIDTH = 1.25;
 export const STROKE_EMPHASIS = 2;
@@ -37,6 +37,15 @@ export function clampToSizeGrid(width: number): number {
   if (width <= SIZE_S + 20) return SIZE_S;
   if (width <= SIZE_M + 20) return SIZE_M;
   return SIZE_L;
+}
+
+/** Uniform icon slot for brand / prominent icons inside cylinders and rounded rects. */
+export const PROMINENT_ICON_SLOT_PX = 48;
+/** Glyph fills ~88% of slot so logos with different SVG padding look equal. */
+export const PROMINENT_ICON_GLYPH_RATIO = 0.88;
+
+export function prominentIconGlyphSize(): number {
+  return Math.round(PROMINENT_ICON_SLOT_PX * PROMINENT_ICON_GLYPH_RATIO);
 }
 
 // ── Semantic concerns (color = meaning) ─────────────────────────────────────
@@ -122,23 +131,30 @@ export const STATUS_COLORS = {
 };
 
 export const EDGE_STYLES = {
-  sync:    { color: '#94a3b8', width: 1.25, dash: '',    animated: false },
-  primary: { color: FLOW_ACCENT, width: 2, dash: '',     animated: false },
-  async:   { color: '#c2410c', width: 1.25, dash: '6,5', animated: true },
+  sync:    { color: '#000000', width: 1.5, dash: '',    animated: false },
+  primary: { color: '#000000', width: 1.5, dash: '',     animated: false },
+  async:   { color: '#000000', width: 1.5, dash: '6,5', animated: true },
 } as const;
 
 export const EDGE_MARKER_SIZE = { width: 22, height: 22 } as const;
 
 /** Icon slot sizes — recognition first, quiet chip second. */
 export const ICON_SIZE = {
-  node: 18,
-  cloudMin: 20,
-  box: 28,
+  node: 30,
+  cloudMin: 35,
+  box: 45,
+  boxLarge: 53,
+  /** Diamonds stay compact — excluded from the enlarged icon treatment. */
+  diamond: {
+    node: 18,
+    cloudMin: 20,
+    box: 28,
+  },
 } as const;
 
 export const FONTS = {
-  body: '"Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif',
-  display: '"Inter", "IBM Plex Sans", system-ui, sans-serif',
+  body: 'var(--font-geist-sans), system-ui, -apple-system, sans-serif',
+  display: 'var(--font-instrument-serif), Georgia, serif',
   titleSize: 13.5,
   titleWeight: 600,
   subtitleSize: 10.5,
@@ -164,26 +180,26 @@ export const LIGHT_NODE_STYLES: NodeStyleConfig = {
   border: 'rgba(15, 23, 42, 0.16)',
   borderHover: 'rgba(15, 23, 42, 0.28)',
   shadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-  shadowSelected: `0 0 0 2px ${FLOW_ACCENT}99, 0 2px 8px rgba(15, 23, 42, 0.06)`,
+  shadowSelected: '0 2px 8px rgba(15, 23, 42, 0.06)',
   titleColor: '#0f172a',
   subtitleColor: '#64748b',
   backplates: [],
 };
 
 export const DARK_NODE_STYLES: NodeStyleConfig = {
-  background: '#1a1d27',
-  border: 'rgba(255, 255, 255, 0.18)',
-  borderHover: 'rgba(255, 255, 255, 0.28)',
-  shadow: '0 1px 3px rgba(0, 0, 0, 0.35)',
-  shadowSelected: `0 0 0 2px ${FLOW_ACCENT}aa, 0 2px 8px rgba(0, 0, 0, 0.4)`,
-  titleColor: '#f8fafc',
-  subtitleColor: '#94a3b8',
+  background: '#1e293b',
+  border: 'rgba(148, 163, 184, 0.18)',
+  borderHover: 'rgba(148, 163, 184, 0.32)',
+  shadow: '0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3)',
+  shadowSelected: '0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(59, 130, 246, 0.15)',
+  titleColor: '#f1f5f9',
+  subtitleColor: '#cbd5e1',
   backplates: [],
 };
 
 // ── Diagram theme packs ─────────────────────────────────────────────────────
 
-export type DiagramThemeId = 'default' | 'slate' | 'forest-green' | 'dark-minimal' | 'luxury';
+export type DiagramThemeId = 'default' | 'slate' | 'forest-green' | 'dark-minimal' | 'studio-minimal' | 'luxury';
 
 export interface DiagramThemePack {
   id: DiagramThemeId;
@@ -233,23 +249,23 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       subtitle: '#64748b',
       groupFill: 'rgba(15, 23, 42, 0.02)',
       groupStroke: 'rgba(15, 23, 42, 0.16)',
-      edgeDefault: '#64748b',
+      edgeDefault: '#000000',
       edgePrimary: '#000000',
-      edgeAsync: '#b45309',
+      edgeAsync: '#000000',
       shadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
     },
     dark: {
-      canvasHint: '#0f1117',
-      nodeFill: '#1a1d27',
-      nodeStroke: 'rgba(255, 255, 255, 0.18)',
-      title: '#f8fafc',
-      subtitle: '#94a3b8',
-      groupFill: 'rgba(255, 255, 255, 0.03)',
-      groupStroke: 'rgba(255, 255, 255, 0.16)',
-      edgeDefault: '#94a3b8',
-      edgePrimary: '#ffffff',
-      edgeAsync: '#d97706',
-      shadow: '0 1px 3px rgba(0, 0, 0, 0.35)',
+      canvasHint: '#0f172a',
+      nodeFill: '#1e293b',
+      nodeStroke: 'rgba(148, 163, 184, 0.18)',
+      title: '#f1f5f9',
+      subtitle: '#cbd5e1',
+      groupFill: 'rgba(30, 41, 59, 0.5)',
+      groupStroke: 'rgba(148, 163, 184, 0.2)',
+      edgeDefault: '#f1f5f9',
+      edgePrimary: '#f8fafc',
+      edgeAsync: '#f8fafc',
+      shadow: '0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.3)',
     },
     concerns: { ...CONCERN_COLORS },
   },
@@ -264,23 +280,23 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       subtitle: '#64748b',
       groupFill: 'rgba(30, 41, 59, 0.03)',
       groupStroke: 'rgba(30, 41, 59, 0.14)',
-      edgeDefault: '#94a3b8',
-      edgePrimary: '#475569',
-      edgeAsync: '#92400e',
-      shadow: 'none',
+      edgeDefault: '#000000',
+      edgePrimary: '#000000',
+      edgeAsync: '#000000',
+      shadow: '0 1px 3px rgba(15, 23, 42, 0.06)',
     },
     dark: {
-      canvasHint: '#0b1220',
-      nodeFill: '#151b28',
-      nodeStroke: 'rgba(148, 163, 184, 0.22)',
-      title: '#e2e8f0',
-      subtitle: '#94a3b8',
-      groupFill: 'rgba(148, 163, 184, 0.04)',
+      canvasHint: '#0f172a',
+      nodeFill: '#1e293b',
+      nodeStroke: 'rgba(148, 163, 184, 0.2)',
+      title: '#f1f5f9',
+      subtitle: '#cbd5e1',
+      groupFill: 'rgba(30, 41, 59, 0.4)',
       groupStroke: 'rgba(148, 163, 184, 0.18)',
-      edgeDefault: '#64748b',
-      edgePrimary: '#94a3b8',
-      edgeAsync: '#d97706',
-      shadow: 'none',
+      edgeDefault: '#f1f5f9',
+      edgePrimary: '#f8fafc',
+      edgeAsync: '#f8fafc',
+      shadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
     },
     concerns: {
       client:   concern('#64748b', 'rgba(100,116,139,0.06)', 'Client'),
@@ -301,23 +317,23 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       subtitle: '#6b7c70',
       groupFill: 'rgba(22, 61, 40, 0.03)',
       groupStroke: 'rgba(22, 61, 40, 0.14)',
-      edgeDefault: '#8fa094',
-      edgePrimary: '#3d5a45',
-      edgeAsync: '#a16207',
+      edgeDefault: '#000000',
+      edgePrimary: '#000000',
+      edgeAsync: '#000000',
       shadow: '0 1px 2px rgba(22, 61, 40, 0.05)',
     },
     dark: {
-      canvasHint: '#0c1410',
-      nodeFill: '#141c17',
-      nodeStroke: 'rgba(134, 179, 149, 0.2)',
-      title: '#e8f0ea',
-      subtitle: '#8fa094',
-      groupFill: 'rgba(134, 179, 149, 0.04)',
-      groupStroke: 'rgba(134, 179, 149, 0.16)',
-      edgeDefault: '#5c7364',
-      edgePrimary: '#a3bfad',
-      edgeAsync: '#ca8a04',
-      shadow: '0 1px 3px rgba(0, 0, 0, 0.4)',
+      canvasHint: '#0f1f15',
+      nodeFill: '#1a2e22',
+      nodeStroke: 'rgba(134, 179, 149, 0.22)',
+      title: '#ecfdf5',
+      subtitle: '#a7f3d0',
+      groupFill: 'rgba(16, 185, 129, 0.08)',
+      groupStroke: 'rgba(134, 179, 149, 0.22)',
+      edgeDefault: '#ecfdf5',
+      edgePrimary: '#f0fdf4',
+      edgeAsync: '#f0fdf4',
+      shadow: '0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(16, 185, 129, 0.1)',
     },
     concerns: {
       client:   concern('#5c7364', 'rgba(92,115,100,0.07)', 'Client'),
@@ -338,23 +354,23 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       subtitle: '#a3a3a3',
       groupFill: 'rgba(0, 0, 0, 0.02)',
       groupStroke: 'rgba(0, 0, 0, 0.1)',
-      edgeDefault: '#a3a3a3',
-      edgePrimary: '#525252',
-      edgeAsync: '#a16207',
-      shadow: 'none',
+      edgeDefault: '#000000',
+      edgePrimary: '#000000',
+      edgeAsync: '#000000',
+      shadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
     },
     dark: {
-      canvasHint: '#09090b',
-      nodeFill: '#121214',
-      nodeStroke: 'rgba(255, 255, 255, 0.1)',
+      canvasHint: '#18181b',
+      nodeFill: '#27272a',
+      nodeStroke: 'rgba(161, 161, 170, 0.18)',
       title: '#fafafa',
-      subtitle: '#737373',
-      groupFill: 'rgba(255, 255, 255, 0.02)',
-      groupStroke: 'rgba(255, 255, 255, 0.1)',
-      edgeDefault: '#525252',
-      edgePrimary: '#a3a3a3',
-      edgeAsync: '#ca8a04',
-      shadow: 'none',
+      subtitle: '#a1a1aa',
+      groupFill: 'rgba(63, 63, 70, 0.4)',
+      groupStroke: 'rgba(161, 161, 170, 0.2)',
+      edgeDefault: '#fafafa',
+      edgePrimary: '#ffffff',
+      edgeAsync: '#ffffff',
+      shadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
     },
     concerns: {
       client:   concern('#737373', 'rgba(115,115,115,0.08)', 'Client'),
@@ -362,6 +378,46 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       data:     concern('#404040', 'rgba(64,64,64,0.1)', 'Data'),
       async:    concern('#a16207', 'rgba(161,98,7,0.08)', 'Async'),
       external: concern('#78716c', 'rgba(120,113,108,0.07)', 'External'),
+    },
+  },
+  'studio-minimal': {
+    id: 'studio-minimal',
+    label: 'Studio Minimal',
+    light: {
+      // A quiet editorial surface: warm white, hairline blue-gray structure,
+      // and just enough lift to separate cards from the canvas.
+      canvasHint: '#fdfdfc',
+      nodeFill: '#ffffff',
+      nodeStroke: 'rgba(148, 163, 184, 0.30)',
+      title: '#172033',
+      subtitle: '#71809a',
+      groupFill: 'rgba(255, 255, 255, 0.42)',
+      groupStroke: 'rgba(148, 163, 184, 0.38)',
+      edgeDefault: '#71809a',
+      edgePrimary: '#356ad2',
+      edgeAsync: '#dc6537',
+      shadow: '0 2px 5px rgba(15, 23, 42, 0.045), 0 10px 28px rgba(15, 23, 42, 0.025)',
+    },
+    dark: {
+      // Studio Minimal Dark keeps compact cards and bright semantic connectors on black.
+      canvasHint: '#000000',
+      nodeFill: '#15171b',
+      nodeStroke: 'rgba(255, 255, 255, 0.14)',
+      title: '#f5f7fb',
+      subtitle: '#929db0',
+      groupFill: 'rgba(255, 255, 255, 0.04)',
+      groupStroke: 'rgba(255, 255, 255, 0.14)',
+      edgeDefault: '#a7b2c4',
+      edgePrimary: '#82aaff',
+      edgeAsync: '#ff9a70',
+      shadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.5)',
+    },
+    concerns: {
+      client:   concern('#2864d8', 'rgba(40,100,216,0.14)', 'Client'),
+      compute:  concern('#008f6b', 'rgba(0,143,107,0.14)', 'Compute'),
+      data:     concern('#7558d8', 'rgba(117,88,216,0.14)', 'Data'),
+      async:    concern('#e05a33', 'rgba(224,90,51,0.14)', 'Async'),
+      external: concern('#c63d88', 'rgba(198,61,136,0.14)', 'External'),
     },
   },
   luxury: {
@@ -375,23 +431,23 @@ export const DIAGRAM_THEMES: Record<DiagramThemeId, DiagramThemePack> = {
       subtitle: '#8a7f72',
       groupFill: 'rgba(55, 42, 30, 0.03)',
       groupStroke: 'rgba(55, 42, 30, 0.12)',
-      edgeDefault: '#b0a69a',
-      edgePrimary: '#5c4d3d',
-      edgeAsync: '#9a3412',
+      edgeDefault: '#000000',
+      edgePrimary: '#000000',
+      edgeAsync: '#000000',
       shadow: '0 2px 6px rgba(55, 42, 30, 0.05)',
     },
     dark: {
-      canvasHint: '#12100e',
-      nodeFill: '#1a1714',
-      nodeStroke: 'rgba(214, 201, 186, 0.16)',
-      title: '#f5efe6',
-      subtitle: '#a89f93',
-      groupFill: 'rgba(214, 201, 186, 0.03)',
-      groupStroke: 'rgba(214, 201, 186, 0.12)',
-      edgeDefault: '#6e655a',
-      edgePrimary: '#d6c9ba',
-      edgeAsync: '#c2410c',
-      shadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
+      canvasHint: '#1c1917',
+      nodeFill: '#292524',
+      nodeStroke: 'rgba(214, 201, 186, 0.2)',
+      title: '#fafaf9',
+      subtitle: '#d6d3d1',
+      groupFill: 'rgba(120, 113, 108, 0.15)',
+      groupStroke: 'rgba(214, 201, 186, 0.22)',
+      edgeDefault: '#fafaf9',
+      edgePrimary: '#ffffff',
+      edgeAsync: '#ffffff',
+      shadow: '0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(120, 113, 108, 0.15)',
     },
     concerns: {
       client:   concern('#8a7f72', 'rgba(138,127,114,0.07)', 'Client'),

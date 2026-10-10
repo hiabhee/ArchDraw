@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import type { GenerationProgress } from '@/lib/ai/types';
 
 interface GenerationProgressProps {
@@ -45,7 +44,7 @@ export function GenerationProgressDisplay({ progress, onCancel }: GenerationProg
       <div className="flex items-center gap-4 px-5 py-4 rounded-2xl bg-card border border-border pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-300 max-w-[calc(100vw-32px)]"
         style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
         {getIcon()}
-        
+
         <div className="flex flex-col gap-2 min-w-[280px]">
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm font-semibold text-foreground">
@@ -55,14 +54,14 @@ export function GenerationProgressDisplay({ progress, onCancel }: GenerationProg
               {progress.progress}%
             </span>
           </div>
-          
+
           <div className="h-2 rounded-full bg-muted/80 overflow-hidden">
             <div
               className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
               style={{ width: `${progress.progress}%` }}
             />
           </div>
-          
+
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1 min-w-0 flex-1">
               <span className="font-medium text-muted-foreground/80 truncate" title={progress.message}>
@@ -94,11 +93,11 @@ export function GenerationProgressDisplay({ progress, onCancel }: GenerationProg
   );
 }
 
-export function GenerationStatusBadge({ 
-  isGenerating, 
-  progress 
-}: { 
-  isGenerating: boolean; 
+export function GenerationStatusBadge({
+  isGenerating,
+  progress
+}: {
+  isGenerating: boolean;
   progress: GenerationProgress | null;
 }) {
   if (!isGenerating || !progress) return null;

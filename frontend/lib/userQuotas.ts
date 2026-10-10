@@ -44,9 +44,11 @@ export type UserQuotas = GuestQuotas | AuthenticatedQuotas;
 export const USER_QUOTAS: Record<string, UserQuotas> = {
   guest: {
     tier: 'guest',
-    aiGenerationsPerHour: 3,
+    // Credit balance is the product limit; this remains a generous abuse
+    // backstop for bursts while credits are being spent per generation.
+    aiGenerationsPerHour: 10,
     maxCanvases: 1,
-    maxNodesPerCanvas: 25,
+    maxNodesPerCanvas: 50,
     allowedExportFormats: ['json', 'png'],
     svgExport: false,
     allowSharing: false,
@@ -55,7 +57,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     allowTutorialProgress: false,
     autoSave: false,
     canDuplicateCanvas: false,
-    watermarkExports: true,
+    watermarkExports: false,
     maxVersions: 0,
     allowEditShare: false,
     allowDashboard: false,
@@ -63,9 +65,11 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
   },
   authenticated: {
     tier: 'authenticated',
-    aiGenerationsPerDay: 10,
+    // Credit balance is the product limit; keep a separate request-rate
+    // backstop so a compromised account cannot make unlimited calls.
+    aiGenerationsPerDay: 30,
     maxCanvases: 5,
-    maxNodesPerCanvas: 50,
+    maxNodesPerCanvas: 150,
     allowedExportFormats: ['json', 'png', 'svg', 'pdf', 'html-embed'],
     svgExport: true,
     allowSharing: true,
@@ -141,6 +145,11 @@ export function isExportFormatAllowed(userTier: UserTier, format: string): boole
   return quotas.allowedExportFormats.includes(base);
 }
 
-export function shouldWatermark(userTier: UserTier, format: string): boolean {
-  return userTier === 'guest' && format.startsWith('png');
+/**
+ * Determines whether the export format should include a watermark for the given user tier.
+ * Currently disabled across all tiers via USER_QUOTAS watermarkExports setting.
+ */
+export function shouldWatermark(userTier: UserTier, _format?: string): boolean {
+  const quotas = getUserQuotas(userTier);
+  return Boolean(quotas.watermarkExports);
 }

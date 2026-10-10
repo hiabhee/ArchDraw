@@ -1,4 +1,4 @@
-import type { RFNode, RFEdge, RFObjects } from '@/lib/mermaid/types';
+import type { RFNode, RFEdge } from '@/lib/mermaid/types';
 import { convertNodes, type NodeInput, type NodeConverterOptions } from './NodeConverter';
 import { convertEdges, type EdgeInput, type EdgeConverterOptions } from './EdgeConverter';
 

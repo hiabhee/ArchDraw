@@ -55,7 +55,27 @@ describe('rehydrateDiagramState', () => {
     expect(state.canvases[0].nodes[0].type).toBe('systemNode');
   });
 
-  it('resets guest canvases on a new browser session', () => {
+  it('resets empty guest canvases on a new browser session', () => {
+    const state = baseState({
+      canvases: [
+        {
+          id: 'old',
+          name: 'Old',
+          nodes: [],
+          edges: [],
+        },
+      ],
+      activeCanvasId: 'old',
+      openCanvasIds: ['old'],
+    });
+    rehydrateDiagramState(state);
+    expect(state.canvases).toHaveLength(1);
+    expect(state.canvases[0].id).toBe('guest-canvas');
+    expect(state.canvases[0].nodes).toHaveLength(0);
+    expect(state.activeCanvasId).toBe('guest-canvas');
+  });
+
+  it('preserves guest canvases with content on a new browser session', () => {
     const state = baseState({
       canvases: [
         {
@@ -70,8 +90,8 @@ describe('rehydrateDiagramState', () => {
     });
     rehydrateDiagramState(state);
     expect(state.canvases).toHaveLength(1);
-    expect(state.canvases[0].id).toBe('guest-canvas');
-    expect(state.canvases[0].nodes).toHaveLength(0);
-    expect(state.activeCanvasId).toBe('guest-canvas');
+    expect(state.canvases[0].id).toBe('old');
+    expect(state.canvases[0].nodes).toHaveLength(1);
+    expect(state.activeCanvasId).toBe('old');
   });
 });

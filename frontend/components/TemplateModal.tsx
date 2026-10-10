@@ -32,7 +32,10 @@ export function TemplateModal({ onClose }: Props) {
 
   /** Same Mermaid → Dagre path as the toolbar layout toggler. */
   const layoutTemplate = async (t: Template): Promise<{ nodes: Node[]; edges: Edge[] }> => {
-    const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR');
+    const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR', {
+      title: t.name,
+      renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+    });
     if (!result.success) {
       toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
       return { nodes: t.nodes, edges: t.edges };
@@ -175,7 +178,11 @@ function TemplateRow({
 }) {
   const handleClick = () => {
     if (disabled) return;
-    isLocked ? onUpgrade?.() : onLoad();
+    if (isLocked) {
+      onUpgrade?.();
+      return;
+    }
+    onLoad();
   };
 
   return (

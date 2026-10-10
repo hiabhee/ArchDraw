@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Pipeline } from '../Pipeline';
 import { BaseStage } from '../Stage';
 import { successResult, errorResult, skipResult } from '../StageResult';
@@ -127,7 +127,7 @@ describe('Pipeline Integration', () => {
         name: 'slow',
         description: 'slow stage',
         weight: 1,
-        async execute(_input: any, ctx: PipelineContext): Promise<StageResult<any>> {
+        async execute(_input: unknown, ctx: PipelineContext): Promise<StageResult<unknown>> {
           if (ctx.signal?.aborted) return errorResult(new Error('ABORTED'));
           return successResult({ aborted: false });
         },
@@ -148,7 +148,7 @@ describe('Pipeline Integration', () => {
         name: 'warn-stage',
         description: 'produces warning',
         weight: 1,
-        async execute(input: any): Promise<StageResult<any>> {
+        async execute(input: Record<string, unknown>): Promise<StageResult<Record<string, unknown>>> {
           return successResult({ ...input, warned: true }, ['This is a warning']);
         },
       },

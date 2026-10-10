@@ -76,13 +76,13 @@ describe('getSharedTerminalEdges (marker merge grouping)', () => {
     expect(shared.map((e) => e.id)).toEqual(['e-a', 'e-b']);
   });
 
-  it('keeps the arrowhead when a sibling renders on a different side even if geometry says otherwise', () => {
-    // e-1 renders on db's TOP (routed around an obstacle) but sits
-    // geometrically to the LEFT of db. The old center-to-center grouping
-    // treated it as a left-side merge and suppressed e-2's arrowhead.
+  it('keeps the arrowhead when a sibling overrides its side via data', () => {
+    // e-1 is pinned to db's TOP via an explicit data side override, while
+    // e-2 renders geometrically on the LEFT. The merge must not suppress
+    // e-2's arrowhead just because both edges share geometry otherwise.
     const edges: Edge[] = [
-      { id: 'e-1', source: 'b', target: 'db', targetHandle: 'target-top' },
-      { id: 'e-2', source: 'a', target: 'db', targetHandle: 'target-left' },
+      { id: 'e-1', source: 'b', target: 'db', data: { targetSide: 'top' } },
+      { id: 'e-2', source: 'a', target: 'db' },
     ] as Edge[];
     const shared = getSharedTerminalEdges('e-2', 'db', Position.Left, edges, internals, 'target');
     expect(shared.map((e) => e.id)).toEqual(['e-2']);

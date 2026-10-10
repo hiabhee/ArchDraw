@@ -1,4 +1,5 @@
 import { describe, it, expect, afterAll, vi, beforeEach } from 'vitest';
+import type Groq from 'groq-sdk';
 import { runAiMermaidPipelineV2 } from './pipeline-v2';
 import type { UserIntent } from '../../types';
 
@@ -9,7 +10,7 @@ vi.mock('../../utils/apiKeyManager', () => ({
     getCurrentKey: vi.fn(() => 'mock-api-key'),
     executeWithRetry: vi.fn(async (fn) => {
       // Mock Groq client
-      const mockGroq = {} as any;
+      const mockGroq = {} as unknown as Groq;
       const result = await fn(mockGroq);
       return result;
     }),

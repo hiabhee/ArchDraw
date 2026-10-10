@@ -32,8 +32,14 @@ interface MappedNode {
 
 function hashNodesEdges(nodes: Record<string, unknown>[], edges: Record<string, unknown>[]): string {
   let h = `${nodes.length}:${edges.length}`;
-  for (const n of nodes) h += `|${n.id}:${n.type}:${(n as { parentNode?: string }).parentNode || ''}`;
-  for (const e of edges) h += `|${e.id}:${e.source}-${e.target}`;
+  for (const n of nodes) {
+    const data = n.data as Record<string, unknown> | undefined;
+    h += `|${n.id}:${n.type}:${(n as { parentNode?: string }).parentNode || ''}:${data?.label ?? ''}:${data?.shape ?? ''}:${data?.direction ?? ''}`;
+  }
+  for (const e of edges) {
+    const data = e.data as Record<string, unknown> | undefined;
+    h += `|${e.id}:${e.source}-${e.target}:${e.label ?? data?.label ?? ''}:${data?.edgeVariant ?? ''}:${data?.connectionType ?? ''}:${data?.edgeType ?? ''}`;
+  }
   return h;
 }
 
@@ -45,7 +51,6 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
   const isFocusedRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProcessedRef = useRef<string>('');
-
 
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
   const mermaidDirection = activeLayoutPresetId === 'layered-lr' ? 'LR' : 'TD';
@@ -66,7 +71,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       setCopied(true);
       toast.success('Mermaid code copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Failed to copy code');
     }
   };
@@ -91,7 +96,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const result = await runMermaidPipeline(newCode);
 
         if (!result.success) {
-          setError(result.warnings.join('; '));
+          setError((result.error?.message ?? result.warnings.join('; ')) || 'Failed to render Mermaid diagram.');
           return;
         }
 
@@ -104,30 +109,44 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const currentDirection = currentPresetId === 'layered-lr' ? 'LR' : 'TD';
         const directionChanged = newDirection && newDirection !== currentDirection;
 
-        // Helper to resolve absolute position of an existing node in the store
+        // Helper to resolve absolute position of an existing node in the store.
+        // Walks the FULL parent chain — summing only the direct parent misses
+        // grandparent offsets on 2+-level nested groups.
         const getExistingAbsPos = (nodeId: string) => {
           const node = existingNodes.find(n => n.id === nodeId);
           if (!node) return null;
-          if (node.parentNode) {
-            const parent = existingNodes.find(p => p.id === node.parentNode);
-            if (parent) {
-              return { x: node.position.x + parent.position.x, y: node.position.y + parent.position.y };
-            }
+          let x = node.position.x;
+          let y = node.position.y;
+          let currentParent = node.parentNode;
+          const seen = new Set<string>([node.id]);
+          while (currentParent && !seen.has(currentParent)) {
+            seen.add(currentParent);
+            const parent = existingNodes.find(p => p.id === currentParent);
+            if (!parent) break;
+            x += parent.position.x;
+            y += parent.position.y;
+            currentParent = parent.parentNode;
           }
-          return { x: node.position.x, y: node.position.y };
+          return { x, y };
         };
 
         // Helper to resolve absolute position of a parsed node in the pipeline's layout
         const getParsedAbsPos = (nodeId: string) => {
           const node = result.data.nodes.find(n => n.id === nodeId);
           if (!node) return null;
-          if (node.parentNode) {
-            const parent = result.data.nodes.find(p => p.id === node.parentNode);
-            if (parent) {
-              return { x: node.position.x + parent.position.x, y: node.position.y + parent.position.y };
-            }
+          let x = node.position.x;
+          let y = node.position.y;
+          let currentParent = node.parentNode;
+          const seen = new Set<string>([nodeId]);
+          while (currentParent && !seen.has(currentParent)) {
+            seen.add(currentParent);
+            const parent = result.data.nodes.find(p => p.id === currentParent);
+            if (!parent) break;
+            x += parent.position.x;
+            y += parent.position.y;
+            currentParent = parent.parentNode;
           }
-          return { x: node.position.x, y: node.position.y };
+          return { x, y };
         };
 
         // Calculate layout delta shift (average distance offset of matching existing leaf nodes)
@@ -184,13 +203,13 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
 
           // Check if label or subtitle changed in editor
           const labelChanged = existingNode && (
-            node.data?.label !== existingNode.data?.label || 
+            node.data?.label !== existingNode.data?.label ||
             node.data?.subtitle !== existingNode.data?.subtitle
           );
 
           const width = (preserveNode && !labelChanged) ? (existingNode.width ?? node.width ?? 100) : (node.width ?? 100);
           const height = (preserveNode && !labelChanged) ? (existingNode.height ?? node.height ?? 60) : (node.height ?? 60);
-          const nodeStyle = (preserveNode && !labelChanged) 
+          const nodeStyle = (preserveNode && !labelChanged)
             ? (existingNode.style ? { ...existingNode.style } : (node.style ? { ...node.style } : undefined))
             : (node.style ? { ...node.style } : undefined);
 
@@ -198,9 +217,12 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
             id: node.id,
             type: isGroup ? 'groupNode' : (existingNode?.type || 'shapeNode'),
             position: directionChanged ? { ...node.position } : { x: absX, y: absY },
-            data: { 
+            data: {
               ...(existingNode?.data || {}),
-              ...node.data
+              ...node.data,
+              ...(existingNode?.data?.iconSource === 'manual' && existingNode.data.icon
+                ? { icon: existingNode.data.icon, iconSource: 'manual' }
+                : {}),
             },
             width,
             height,
@@ -261,7 +283,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
               node.position = { x: node.absX, y: node.absY };
             }
           });
-          
+
           subgraphs.forEach(subgraph => {
             const childIds = childIdsByParent.get(subgraph.id) || [];
             if (childIds.length === 0) {
@@ -294,6 +316,11 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
           data: edge.data,
           animated: edge.animated,
         }));
+
+        if (processedNodes.length === 0 && processedEdges.length === 0) {
+          setError('No nodes or edges were parsed from this Mermaid code. Check that it contains at least one node and try again.');
+          return;
+        }
 
         importDiagram(processedNodes, processedEdges);
 
@@ -361,7 +388,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
           onFocus={() => { isFocusedRef.current = true; }}
           onBlur={() => { isFocusedRef.current = false; }}
           spellCheck={false}
-          className="flex-1 w-full p-3 sm:p-4 font-mono text-sm sm:text-xs text-foreground bg-muted/20 border border-border/40 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 outline-none rounded-xl resize-none leading-relaxed transition-all"
+          className="flex-1 w-full p-3 sm:p-4 font-mono text-sm sm:text-xs text-foreground bg-muted/20 border border-border/40 focus:border-border focus:ring-0 focus-visible:outline-none focus-visible:ring-0 outline-none rounded-xl resize-none leading-relaxed transition-colors [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full"
           placeholder="graph TD&#10;  subgraph CLIENT[&quot;Client Tier&quot;]&#10;    CV[&quot;Customer View&quot;]&#10;  end"
         />
 

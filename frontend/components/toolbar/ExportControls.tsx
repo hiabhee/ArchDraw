@@ -1,0 +1,710 @@
+'use client';
+
+import { useState, forwardRef, useImperativeHandle, useCallback, useRef } from 'react';
+import { Download, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useDiagramStore } from '@/store/diagramStore';
+import { useAuthStore } from '@/store/authStore';
+import { analytics } from '@/lib/analytics';
+import logger from '@/lib/logger';
+import { getUserTier, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
+import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/UpgradeModal';
+import { Button } from '@/components/ui/button';
+import {
+  prepareReactFlowForImageExport,
+  reactFlowExportFilter,
+  resolveExportBackgroundColor,
+  restoreReactFlowAfterImageExport,
+  waitForReactFlowFrame,
+} from '@/lib/utils/prepareReactFlowForImageExport';
+import { computeDiagramCropRect, cropRasterDataUrl } from '@/lib/utils/exportCrop';
+import { reactFlowRef } from '@/lib/reactFlowRef';
+
+export type ExportFormat =
+  | 'png-dark'
+  | 'png-light'
+  | 'png-transparent'
+  | 'svg-dark'
+  | 'svg-light'
+  | 'svg-transparent'
+  | 'json'
+  | 'pdf'
+  | 'html-embed';
+
+interface EmbedNode {
+  id: string;
+  width?: number | null;
+  height?: number | null;
+  position: { x: number; y: number };
+  data?: Record<string, unknown>;
+}
+
+interface EmbedEdge {
+  source: string;
+  target: string;
+  data?: Record<string, unknown>;
+  style?: React.CSSProperties;
+}
+
+function escapeXml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function svgToDataUri(svg: string): string {
+  // Blob URLs are intermittently rejected by Safari/Firefox when the SVG
+  // contains filters, embedded glyphs, or large path data. An encoded data URI
+  // stays same-origin and gives the image decoder the complete XML document.
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+async function loadSvgImage(svg: string, width: number, height: number): Promise<CanvasImageSource> {
+  const image = new window.Image();
+  image.decoding = 'async';
+  const source = svgToDataUri(svg);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error('SVG image load timeout')), 15000);
+      image.onload = () => { window.clearTimeout(timeout); resolve(); };
+      image.onerror = () => { window.clearTimeout(timeout); reject(new Error('Failed to decode generated SVG')); };
+      image.src = source;
+    });
+    // decode() waits for the raster decoder, not merely the load event. This
+    // avoids drawing a partially decoded image on high-DPI canvases.
+    if (typeof image.decode === 'function') await image.decode();
+    if (!image.naturalWidth || !image.naturalHeight) {
+      throw new Error(`Decoded SVG has invalid dimensions (${width}x${height})`);
+    }
+    return image;
+  } catch (imageError) {
+    // Some WebKit builds reject both blob URLs and data-URI <img> decoding for
+    // SVGs containing filters. createImageBitmap uses the browser's image
+    // decoder directly and avoids the DOM image security path.
+    if (typeof window.createImageBitmap === 'function') {
+      try {
+        const bitmap = await window.createImageBitmap(
+          new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }),
+        );
+        if (!bitmap.width || !bitmap.height) bitmap.close();
+        else return bitmap;
+      } catch {
+        // Preserve the original error below so diagnostics identify the SVG
+        // decode failure rather than the optional bitmap fallback.
+      }
+    }
+    throw imageError;
+  }
+}
+
+async function addWatermark(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0);
+      const fontSize = Math.max(16, Math.floor(img.width / 50));
+      ctx.font = `${fontSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+      ctx.textAlign = 'right';
+      ctx.fillText('Made with ArchDraw — Sign in to remove', img.width - fontSize, img.height - fontSize);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
+  const svgWidth = 1200;
+  const svgHeight = 800;
+
+  const nodeMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+  const renderedNodes = nodes.map(node => {
+    const width = node.width || 140;
+    const height = node.height || 72;
+    nodeMap.set(node.id, { x: node.position.x, y: node.position.y, width, height });
+    return {
+      ...node,
+      width,
+      height,
+      color: (node.data?.color as string) || '#6B7280',
+      label: (node.data?.label as string) || node.id,
+    };
+  });
+
+  const renderedEdges = edges.map(edge => ({
+    source: edge.source,
+    target: edge.target,
+    label: (edge.data?.label as string) || '',
+    color: edge.style?.stroke || '#64748b',
+  }));
+
+  const nodesSVG = renderedNodes.map(node => {
+    const { position: { x, y }, width, height, color, label } = node;
+    return `
+    <g transform="translate(${x}, ${y})" class="node">
+      <rect width="${width}" height="${height}" rx="8" fill="#1e293b" stroke="${color}" stroke-width="2"/>
+      <rect width="${width}" height="4" rx="2" fill="${color}"/>
+      <text x="${width/2}" y="${height/2 + 5}" text-anchor="middle" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="12" font-weight="500">${escapeXml(label)}</text>
+    </g>`;
+  }).join('');
+
+  const edgesSVG = renderedEdges.map(edge => {
+    const source = nodeMap.get(edge.source);
+    const target = nodeMap.get(edge.target);
+    if (!source || !target) return '';
+
+    const sx = source.x + source.width;
+    const sy = source.y + source.height / 2;
+    const tx = target.x;
+    const ty = target.y + target.height / 2;
+    const mx = (sx + tx) / 2;
+
+    const path = `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
+    const labelX = (sx + tx) / 2;
+    const labelY = (sy + ty) / 2 - 8;
+
+    return `
+    <g class="edge">
+      <path d="${path}" fill="none" stroke="${edge.color}" stroke-width="2" marker-end="url(#arrowhead)"/>
+      ${edge.label ? `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="10">${escapeXml(edge.label)}</text>` : ''}
+    </g>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArchDraw Diagram</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .container { background: #1e293b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); padding: 20px; max-width: 100%; overflow: auto; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .title { color: #f1f5f9; font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; }
+    .badge { background: linear-gradient(135deg, #595959, #8A8A8A); color: white; padding: 4px 10px; border-radius: 9999px; font-size: 10px; font-weight: 500; }
+    svg { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="title">Architecture Diagram</span>
+      <span class="badge">Created with ArchDraw</span>
+    </div>
+    <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+        </marker>
+      </defs>
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.5"/>
+      </pattern>
+      <rect width="100%" height="100%" fill="url(#grid)"/>
+      ${edgesSVG}
+      ${nodesSVG}
+    </svg>
+  </div>
+</body>
+</html>`;
+}
+
+interface ExportControlsProps {
+  /** Sanitized filename base (no extension) for the active canvas */
+  getExportFilename: (ext: string) => string;
+}
+
+export interface ExportControlsHandle {
+  handleExport: (format: ExportFormat) => void;
+}
+
+export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsProps>(function ExportControls({ getExportFilename }, ref) {
+  const { nodes, edges } = useDiagramStore();
+  const { user } = useAuthStore();
+  const tier = getUserTier(user?.id);
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [upgradeModal, setUpgradeModal] = useState<{ feature: string; message: string; benefits: string[] } | null>(null);
+
+  const downloadFile = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    // Firefox/Safari require the anchor to be in the DOM and revoke must be delayed
+    // until after the browser has started the download.
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    // Use timeout so Safari doesn't abort the download when revoking immediately.
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1000);
+  };
+
+  const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      // Fast path: decode dataURL directly without re-rendering via canvas when possible.
+      // Fallback to canvas path only if fetch is unavailable.
+      if (typeof fetch !== 'undefined') {
+        fetch(dataUrl)
+          .then((r) => r.blob())
+          .then(resolve)
+          .catch(() => {
+            // Fallback to canvas decode
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Failed to convert to blob'));
+              }, 'image/png');
+            };
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = dataUrl;
+          });
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to convert to blob'));
+        }, 'image/png');
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = dataUrl;
+    });
+  };
+
+  const doExport = async (format: ExportFormat) => {
+    setExportOpen(false);
+
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: 'application/json' });
+      downloadFile(blob, getExportFilename('json'));
+      toast.success('Exported as JSON');
+      return;
+    }
+
+    if (format === 'html-embed') {
+      const htmlContent = generateEmbedHTML(nodes as EmbedNode[], edges as EmbedEdge[]);
+      const iframeCode = `<iframe \n  src="data:text/html,${encodeURIComponent(htmlContent)}" \n  width="100%" \n  height="600" \n  style="border:none;border-radius:12px;"\n  title="ArchDraw Diagram"\n></iframe>`;
+      await navigator.clipboard.writeText(iframeCode);
+      toast.success('Embed code (iframe) copied to clipboard');
+      return;
+    }
+
+    const isSvg = format.startsWith('svg-');
+    const bgType = format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
+
+    const { fitView } = useDiagramStore.getState();
+    setIsExporting(true);
+
+    let edgeSnapshots: ReturnType<typeof prepareReactFlowForImageExport> = [];
+
+    try {
+      const element = document.querySelector('.react-flow') as HTMLElement | null;
+      const isTransparent = bgType === 'transparent';
+
+      if (isSvg) {
+        const state = useDiagramStore.getState();
+        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+        const exportNodes = reactFlowRef.instance?.getNodes() ?? state.nodes;
+
+        let svgBg = 'none';
+        if (!isTransparent) {
+          if (bgType === 'dark') {
+            const { getDiagramTheme } = await import('@/lib/theme/stylingConstants');
+            svgBg = getDiagramTheme(state.diagramStyleTheme).dark.canvasHint;
+          } else if (element) {
+            svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
+          } else {
+            svgBg = '#ffffff';
+          }
+        }
+
+        const { generatePureSVG } = await import('@/lib/svgExport');
+        const isDarkForSvg = isTransparent ? !!state.darkMode : bgType === 'dark';
+        const svgContent = generatePureSVG(
+          exportNodes,
+          state.edges,
+          isDarkForSvg,
+          svgBg,
+          layoutDirection,
+          state.diagramRenderStyle,
+          state.diagramStyleTheme,
+          state.iconMode,
+        );
+        downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
+        toast.success(isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG');
+        analytics.track({
+          event_type: 'export',
+          event_name: 'svg',
+          page_path: window.location.pathname,
+          payload: { format, vector: true, success: true },
+        });
+        return;
+      }
+
+      if (!element) {
+        toast.error('Canvas not ready. Please try again.');
+        return;
+      }
+
+      // For PNG we now rasterize the *vector* SVG (generatePureSVG) rather than
+      // screenshotting the DOM via html-to-image. The DOM path captures the
+      // viewport at its current zoom (often 0.5-0.7 after fitView) and then
+      // upscales – text was rastered at small size then stretched, looking
+      // blurry in Canva/print. Vector -> canvas at 3-4× is sharp at any size.
+      // We keep html-to-image as a fallback if SVG rasterization fails.
+      let dataUrl: string | null = null;
+      let pixelRatio = 3.5;
+      let lastErr: unknown = null;
+
+      try {
+        // Ensure fonts are ready so <text> in SVG uses Inter/Geist not fallback
+        if (typeof document !== 'undefined' && document.fonts?.ready) {
+          try { await document.fonts.ready; } catch {}
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        }
+
+        const state = useDiagramStore.getState();
+        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+        const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
+
+        let svgBg: string = 'none';
+        if (bgType !== 'transparent') {
+          if (bgType === 'dark') {
+            const { getDiagramTheme } = await import('@/lib/theme/stylingConstants');
+            svgBg = getDiagramTheme(state.diagramStyleTheme).dark.canvasHint;
+          } else if (element) svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
+          else svgBg = '#ffffff';
+        }
+
+        const { generatePureSVG } = await import('@/lib/svgExport');
+        const isDarkForSvg = bgType === 'transparent' ? !!state.darkMode : bgType === 'dark';
+        const svgContent = generatePureSVG(
+          exportNodes,
+          state.edges,
+          isDarkForSvg,
+          svgBg,
+          layoutDirection,
+          state.diagramRenderStyle,
+          state.diagramStyleTheme,
+          state.iconMode,
+        );
+
+        // Parse SVG dimensions from the generated markup (width/height in viewBox)
+        const widthMatch = svgContent.match(/width="(\d+(?:\.\d+)?)"/);
+        const heightMatch = svgContent.match(/height="(\d+(?:\.\d+)?)"/);
+        const svgW = widthMatch ? parseFloat(widthMatch[1]) : 1200;
+        const svgH = heightMatch ? parseFloat(heightMatch[1]) : 800;
+
+        const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
+        const maxPixels = 48_000_000; // allow ~6000×8000 @4× for large Canva prints
+        // Adaptive hires: cap to feasible ratio for very large diagrams (e.g. 8590×1780 → 1.5× = 34M <48M)
+        const maxFeasibleRatio = Math.sqrt(maxPixels / (svgW * svgH));
+        const feasibleSteps = Math.floor(Math.min(desiredRatio, maxFeasibleRatio) * 2) / 2;
+        pixelRatio = Math.max(1, feasibleSteps);
+        // Keep at least 2× when feasible to preserve hires, otherwise use max feasible (1-1.5) for huge canvases
+        if (feasibleSteps >= 2 && pixelRatio < 2) pixelRatio = 2;
+
+        // Rasterize SVG -> PNG at high DPI with retry on OOM / taint
+        let svgDataUrl: string | null = null;
+          // Try from high to low DPI; large canvases can OOM on low-memory devices — allow down to 1× for huge diagrams (still hires vs viewport)
+          let lastRasterErr: unknown = null;
+          for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
+            try {
+              const attemptW = Math.round(svgW * attemptRatio);
+              const attemptH = Math.round(svgH * attemptRatio);
+              if (attemptW <= 0 || attemptH <= 0) throw new Error(`Invalid SVG size ${svgW}x${svgH}`);
+              if (attemptW * attemptH > 64_000_000) continue; // skip absurd sizes before even trying
+
+              const img = await loadSvgImage(svgContent, svgW, svgH);
+
+              const canvas = document.createElement('canvas');
+              canvas.width = attemptW;
+              canvas.height = attemptH;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) throw new Error('Failed to get canvas context');
+              ctx.imageSmoothingEnabled = true;
+              (ctx as unknown as { imageSmoothingQuality?: string }).imageSmoothingQuality = 'high';
+              if (svgBg === 'none') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+              } else if (svgBg && svgBg !== 'none') {
+                // Ensure background even if SVG rect fails to paint at edge
+                ctx.fillStyle = svgBg;
+                ctx.fillRect(0, 0, attemptW, attemptH);
+              }
+              ctx.scale(attemptRatio, attemptRatio);
+              ctx.drawImage(img, 0, 0, svgW, svgH);
+              if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) img.close();
+              svgDataUrl = canvas.toDataURL('image/png');
+              pixelRatio = attemptRatio;
+              lastRasterErr = null;
+              break;
+            } catch (e) {
+              lastRasterErr = e;
+              logger.warn(`SVG raster at ${attemptRatio}x failed, retrying lower`, e);
+              await new Promise((r) => setTimeout(r, 100));
+            }
+          }
+          if (!svgDataUrl) throw lastRasterErr ?? new Error('All SVG raster attempts failed');
+          dataUrl = svgDataUrl;
+        // Skip DOM-screenshot path entirely on success
+      } catch (svgErr) {
+        lastErr = svgErr;
+        logger.warn('SVG->PNG rasterization failed, falling back to DOM screenshot', String(svgErr));
+        // Fallback: original html-to-image path (viewport screenshot + crop)
+        const bgColor = resolveExportBackgroundColor(bgType, element);
+        fitView({ padding: 0.1, duration: 300 });
+        await waitForReactFlowFrame(400);
+        if (typeof document !== 'undefined' && document.fonts?.ready) {
+          try { await document.fonts.ready; } catch {}
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        }
+        edgeSnapshots = prepareReactFlowForImageExport(element);
+        const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
+        const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
+        const shouldCrop = !!reactFlowRef.instance && exportNodes.length > 0;
+        // Unified framing with SVG path: SVG uses 50px fixed padding (nodeLayout.ts:57).
+        // Fallback previously used 0.12 ratio -> larger padding on large diagrams and mismatched crop.
+        // Use same 50px in flow space so PNG/SVG framing is identical even when SVG raster fails.
+        let cropRect: ReturnType<typeof computeDiagramCropRect> = null;
+        if (shouldCrop) {
+          try {
+            const { getNodesBounds } = await import('reactflow');
+            const bounds = getNodesBounds(exportNodes);
+            if (bounds.width && bounds.height) {
+              const FIXED_PAD = 50;
+              const flowX = bounds.x - FIXED_PAD;
+              const flowY = bounds.y - FIXED_PAD;
+              const flowW = bounds.width + FIXED_PAD * 2;
+              const flowH = bounds.height + FIXED_PAD * 2;
+              const { x, y, zoom } = reactFlowRef.instance!.getViewport();
+              cropRect = {
+                x: flowX * zoom + x,
+                y: flowY * zoom + y,
+                width: flowW * zoom,
+                height: flowH * zoom,
+              };
+            } else {
+              cropRect = computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12);
+            }
+          } catch {
+            cropRect = computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12);
+          }
+        }
+        const { safeToPng } = await import('@/lib/utils/safeHtmlToImage');
+        const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        // Unified hires with SVG path: SVG uses 3-4x, 48M cap, 0.5 steps. Fallback previously 2.5-3.5, 32M, 1x steps -> blurrier.
+        const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
+        const elW = element.clientWidth || element.offsetWidth || 1200;
+        const elH = element.clientHeight || element.offsetHeight || 800;
+        let fallbackRatio = desiredRatio;
+        const maxPixels = 48_000_000;
+        while (fallbackRatio > 1 && elW * fallbackRatio * elH * fallbackRatio > maxPixels) {
+          fallbackRatio -= 0.5;
+        }
+        fallbackRatio = Math.max(1, fallbackRatio);
+        let fallbackDataUrl: string | null = null;
+        let fallbackErr: unknown = null;
+        for (let attemptRatio = fallbackRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
+          try {
+            fallbackDataUrl = await safeToPng(element, {
+              backgroundColor: bgColor,
+              pixelRatio: attemptRatio,
+              cacheBust: true,
+              filter: exportFilter,
+            });
+            pixelRatio = attemptRatio;
+            break;
+          } catch (e) {
+            fallbackErr = e;
+            logger.error(`PNG fallback failed at pixelRatio ${attemptRatio}`, e);
+            if (attemptRatio <= 1) throw e;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+        if (!fallbackDataUrl) throw fallbackErr ?? new Error('Failed to generate PNG via fallback');
+        dataUrl = fallbackDataUrl;
+        if (cropRect) {
+          const cropped = await cropRasterDataUrl(fallbackDataUrl, cropRect, pixelRatio, 'image/png');
+          dataUrl = cropped.dataUrl;
+        }
+      }
+      if (!dataUrl) throw lastErr ?? new Error('Failed to generate PNG');
+
+      let finalDataUrl = dataUrl;
+      if (shouldWatermark(tier, 'png')) {
+        finalDataUrl = await addWatermark(dataUrl);
+      }
+
+      if (format.includes('pdf')) {
+        const { jsPDF } = await import('jspdf');
+        const img = new window.Image();
+        img.src = finalDataUrl;
+        await new Promise<void>((r) => { img.onload = () => r(); });
+        const pdf = new jsPDF({
+          orientation: img.width > img.height ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [img.width, img.height],
+        });
+        pdf.addImage(finalDataUrl, 'PNG', 0, 0, img.width, img.height);
+        pdf.save(getExportFilename('pdf'));
+        toast.success('Exported as PDF');
+        analytics.track({
+          event_type: 'export',
+          event_name: 'pdf',
+          page_path: window.location.pathname,
+          payload: { format: 'pdf', success: true },
+        });
+      } else {
+        try {
+          const blob = await dataUrlToBlob(finalDataUrl);
+          downloadFile(blob, getExportFilename('png'));
+        } catch (blobErr) {
+          // Fallback: download the data URL directly (avoids canvas re-render).
+          logger.error('dataUrlToBlob failed, falling back to direct download', blobErr);
+          const a = document.createElement('a');
+          a.href = finalDataUrl;
+          a.download = getExportFilename('png');
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 1000);
+        }
+        toast.success(isTransparent ? 'Exported as PNG (no background)' : 'Exported as PNG');
+        analytics.track({
+          event_type: 'export',
+          event_name: 'png',
+          page_path: window.location.pathname,
+          payload: { format, pixel_ratio: pixelRatio, success: true },
+        });
+      }
+    } catch (err) {
+      toast.error('Export failed. Please try again.');
+      logger.error(err);
+      analytics.track({
+        event_type: 'export',
+        page_path: window.location.pathname,
+        payload: { format: 'unknown', success: false, error: String(err) },
+      });
+    } finally {
+      if (edgeSnapshots.length > 0) {
+        restoreReactFlowAfterImageExport(edgeSnapshots);
+      }
+      setIsExporting(false);
+    }
+  };
+
+  const doExportRef = useRef(doExport);
+  doExportRef.current = doExport;
+
+  const handleExport = useCallback((format: ExportFormat) => {
+    if (!isExportFormatAllowed(tier, format)) {
+      setUpgradeModal({
+        feature: 'export',
+        message: `${format.toUpperCase().replace(/-\d+x$/, '')} export is available for signed-in users.`,
+        benefits: UPGRADE_BENEFITS.export,
+      });
+      return;
+    }
+    void doExportRef.current(format);
+  }, [tier]);
+
+  useImperativeHandle(ref, () => ({ handleExport }), [handleExport]);
+
+  return (
+    <>
+      <div className="relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setExportOpen(!exportOpen)}
+          disabled={isExporting}
+          className="!w-8 sm:!w-9 !h-8 sm:!h-9"
+        >
+          {isExporting ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" /> : <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+        </Button>
+
+        {exportOpen && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => setExportOpen(false)} />
+            <div
+              className="absolute right-0 top-full mt-3 w-44 rounded-2xl overflow-hidden z-30 bg-popover border border-border text-popover-foreground"
+              style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
+            >
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Image</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => { const isDark = useDiagramStore.getState().darkMode; handleExport(isDark ? 'png-dark' : 'png-light'); }} className="w-full justify-start rounded-none">
+                PNG
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => handleExport('png-transparent')} className="w-full justify-start rounded-none">
+                PNG (No Background)
+              </Button>
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SVG (Vector)</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => handleExport('svg-transparent')} className="w-full justify-start rounded-none">
+                SVG (No Background)
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { const isDark = useDiagramStore.getState().darkMode; handleExport(isDark ? 'svg-dark' : 'svg-light'); }} className="w-full justify-start rounded-none">
+                SVG (With Background)
+              </Button>
+              <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Other</p>
+              </div>
+              {([
+                { label: 'JSON', format: 'json' },
+                { label: 'PDF', format: 'pdf' },
+                { label: 'HTML Embed', format: 'html-embed' },
+              ] as { label: string; format: ExportFormat }[]).map(({ label, format }) => (
+                <Button key={format} variant="ghost" size="sm" onClick={() => handleExport(format)} className="w-full justify-start rounded-none">
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {upgradeModal && (
+        <UpgradeModal
+          isOpen={!!upgradeModal}
+          onClose={() => setUpgradeModal(null)}
+          feature={upgradeModal.feature}
+          message={upgradeModal.message}
+          benefits={upgradeModal.benefits}
+        />
+      )}
+    </>
+  );
+})

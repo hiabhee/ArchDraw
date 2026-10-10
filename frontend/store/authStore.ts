@@ -73,12 +73,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const prev = get().user;
       if (prev && prev.id !== 'guest') {
         logger.warn('[Auth] Session expired — user was:', prev.email);
-        set({ user: GUEST_USER, sessionExpired: true });
+        try {
+          const { useDiagramStore } = await import('@/store/diagramStore');
+          const { flushCanvasSaveToDB } = await import('@/store/diagram/persistence/dbSave');
+          const diagramState = useDiagramStore.getState();
+          for (const canvas of diagramState.canvases) {
+            if ((canvas.nodes?.length ?? 0) > 0 || (canvas.edges?.length ?? 0) > 0) {
+              await flushCanvasSaveToDB(canvas.id, () => useDiagramStore.getState());
+            }
+          }
+        } catch {
+          // best-effort flush before clearing session
+        }
+        set({ user: null, sessionExpired: true });
         return false;
       }
       return false;
     } catch (err) {
-      logger.error('[Auth] Session refresh failed:', err);
+      // A visibility-triggered refresh can race a local dev-server restart.
+      // The caller treats this as a best-effort check, so don't surface a
+      // caught network interruption as a blocking Next.js error overlay.
+      logger.warn('[Auth] Session refresh unavailable:', err);
       return false;
     }
   },

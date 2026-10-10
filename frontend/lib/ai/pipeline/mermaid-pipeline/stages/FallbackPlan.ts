@@ -1,6 +1,7 @@
 import { themePrimaryColor, themeToNodeTypeStyles, getDiagramTheme } from '@/lib/theme/stylingConstants';
 
 export function generateFallbackPlan(prompt: string) {
+  void prompt;
   const mermaidCode = `graph LR
   subgraph CLIENT["Client Layer"]
     user["User"]

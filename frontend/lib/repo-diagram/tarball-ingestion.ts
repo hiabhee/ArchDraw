@@ -1,12 +1,7 @@
 import { Unzip, UnzipInflate } from 'fflate';
-import { isSkipped } from '../github-ingestion';
+import { isSkipped, MAX_ARCHIVE_CONTENT_LENGTH_BYTES, MAX_TOTAL_EXTRACTED_BYTES, MAX_PER_FILE_BYTES } from './skip-rules';
 import logger from '@/lib/logger';
 import type { FileEntry } from '@/lib/types/repo-diagram';
-
-// Guard rails — the zipball is fully in memory, so cap generously for accuracy.
-const MAX_ARCHIVE_CONTENT_LENGTH_BYTES = 500 * 1024 * 1024; // 500MB → reject only truly enormous repos
-const MAX_TOTAL_EXTRACTED_BYTES = 200 * 1024 * 1024;         // 200MB of text → abort cleanly
-const MAX_PER_FILE_BYTES = 500 * 1024;                        // 500KB per file — large route files still captured
 
 export type ArchiveResult = {
   /** path (prefix-stripped) → content (utf-8 string) for files that passed skip rules. */
@@ -32,21 +27,43 @@ export async function fetchRepoArchive(
   signal?: AbortSignal
 ): Promise<ArchiveResult | null> {
   const url = `https://api.github.com/repos/${owner}/${repo}/zipball/${ref}`;
+  const controller = new AbortController();
+  const abortFromPipeline = () => controller.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) abortFromPipeline();
+    else signal.addEventListener('abort', abortFromPipeline, { once: true });
+  }
+  const timeoutMs = Number(process.env.REPO_GITHUB_REQUEST_TIMEOUT_MS) || 12_000;
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`GitHub archive request timed out after ${timeoutMs}ms`)),
+    timeoutMs,
+  );
   let res: Response;
   try {
     res = await fetch(url, {
       headers,
-      signal,
+      signal: controller.signal,
       redirect: 'follow',
     });
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') throw err;
     logger.warn(`[Tarball] network error fetching ${url}:`, err instanceof Error ? err.message : err);
     return null;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortFromPipeline);
   }
 
   if (!res.ok) {
-    logger.warn(`[Tarball] archive fetch returned status ${res.status} for ${owner}/${repo}`);
+    const remaining = res.headers.get('x-ratelimit-remaining');
+    const reset = res.headers.get('x-ratelimit-reset');
+    if (res.status === 404) {
+      logger.warn(`[Tarball] archive 404 for ${owner}/${repo} — likely private, not found, or rate-limited (remaining=${remaining ?? '?'}, reset=${reset ?? '?'})`);
+    } else if (res.status === 401 || res.status === 403) {
+      logger.warn(`[Tarball] archive ${res.status} for ${owner}/${repo} (remaining=${remaining ?? '?'}, reset=${reset ?? '?'}) — falling back to Contents-API`);
+    } else {
+      logger.warn(`[Tarball] archive fetch returned status ${res.status} for ${owner}/${repo} (remaining=${remaining ?? '?'})`);
+    }
     return null;
   }
 
@@ -75,8 +92,6 @@ export async function fetchRepoArchive(
   const unzip = new Unzip();
   unzip.register(UnzipInflate);
 
-  const BINARY_RE = /\.(png|jpe?g|gif|ico|svg|woff2?|eot|ttf|otf|pdf|zip|tar|gz|br|webp|mp[34]|wav|ogg)$/i;
-
   unzip.onfile = (file) => {
     if (aborted) return;
 
@@ -94,9 +109,9 @@ export async function fetchRepoArchive(
     const sz = file.originalSize ?? file.size ?? 0;
 
     // Per-file cap + skip rules (decided BEFORE decompressing — streaming win).
+    // isSkipped already covers binary extensions via BINARY_RE in skip-rules.ts (GH2R-007 unified)
     if (sz > MAX_PER_FILE_BYTES) return;
     if (isSkipped(path, sz)) return;
-    if (BINARY_RE.test(path)) return;
     if (totalBytes + sz > MAX_TOTAL_EXTRACTED_BYTES) {
       aborted = true;
       return;
@@ -118,6 +133,11 @@ export async function fetchRepoArchive(
 
   // Stream the response body into the unzip decoder.
   const reader = res.body.getReader();
+  const cancelReader = () => {
+    aborted = true;
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener('abort', cancelReader, { once: true });
   try {
     for (;;) {
       if (aborted) {
@@ -135,6 +155,8 @@ export async function fetchRepoArchive(
     if (err instanceof Error && err.name === 'AbortError') throw err;
     logger.warn('[Tarball] error while streaming archive:', err instanceof Error ? err.message : err);
     return null;
+  } finally {
+    signal?.removeEventListener('abort', cancelReader);
   }
 
   if (files.size === 0) {

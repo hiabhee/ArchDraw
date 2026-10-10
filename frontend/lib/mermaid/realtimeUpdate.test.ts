@@ -29,12 +29,16 @@ describe('Mermaid Editor Real-time Updates', () => {
     const updatedNodes = useDiagramStore.getState().nodes;
     const updatedEdges = useDiagramStore.getState().edges;
 
+    // importDiagram no longer auto-adds a heading (opt-in only)
     expect(updatedNodes.length).toBe(3);
     expect(updatedEdges.length).toBe(2);
 
     const wbNode = updatedNodes.find(n => n.id === 'web_browser');
     expect(wbNode).toBeDefined();
     expect(wbNode?.data?.label).toBe('Web Browser');
+
+    const titleNode = updatedNodes.find(n => n.id === 'title');
+    expect(titleNode).toBeUndefined();
   });
 
   it('should correctly classify shapes and colors based on node name and parent group, and respect explicit shape brackets', async () => {

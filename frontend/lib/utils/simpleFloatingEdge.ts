@@ -1,5 +1,7 @@
-import { Edge, Node, Position } from 'reactflow';
-import { computeDynamicSlotOffsets, getBidirectionalLaneOffset } from './handleSlotOrder';
+import type { Edge, Node } from 'reactflow';
+import { Position } from '@/lib/utils/edgePositions';
+import { computeDynamicSlotOffsets, getBidirectionalLaneOffset, inferEdgeSide } from './handleSlotOrder';
+import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 
 export interface EdgePositions {
   sourcePos: Position;
@@ -13,8 +15,7 @@ const EDGE_ENDPOINT_GAP = 12;
 export function getNodeCenter(node: Node) {
   const x = node.positionAbsolute?.x ?? node.position.x;
   const y = node.positionAbsolute?.y ?? node.position.y;
-  const width = node.width ?? 160;
-  const height = node.height ?? 80;
+  const { width, height } = getEffectiveNodeDimensions(node);
   return { cx: x + width / 2, cy: y + height / 2, x, y, width, height };
 }
 
@@ -90,10 +91,11 @@ export function sideFromDataString(value: unknown): Position | undefined {
 
 /**
  * Resolve which side of `nodeId` an edge actually renders on. Mirrors the
- * route builder (`edgeRouteBuilder`): stored side override, then stored
- * handle id, then a geometric center-to-center inference as a last resort.
- * The geometric heuristic alone is not reliable — obstacle detours, lane
- * preferences and semantic ports can move an edge onto a different side.
+ * route builder (`edgeRouteBuilder`): stored side override first, then lane
+ * override, then live geometry. Handle ids do NOT pin sides — plain edges
+ * re-float to the natural side as nodes move (only explicit
+ * `data.sourceSide/targetSide` or `data.laneSourceSide/laneTargetSide`
+ * overrides are sticky).
  */
 export function resolveEdgeTerminalSide(
   edge: Edge,
@@ -107,9 +109,11 @@ export function resolveEdgeTerminalSide(
       ? sideFromDataString(data?.targetSide)
       : sideFromDataString(data?.sourceSide);
   if (manual !== undefined) return manual;
-
-  const fromHandle = resolveSideFromEdgeHandles(edge, nodeId);
-  if (fromHandle !== undefined) return fromHandle;
+  const lane =
+    terminal === 'target'
+      ? sideFromDataString((data as Record<string, unknown> | undefined)?.laneTargetSide)
+      : sideFromDataString((data as Record<string, unknown> | undefined)?.laneSourceSide);
+  if (lane !== undefined) return lane;
 
   if (!nodeById) return undefined;
   const src = nodeById.get(edge.source);
@@ -172,7 +176,7 @@ function hasBothDirectionsOnSide(
   edges: Edge[],
   resolveSide?: EdgeSideResolver,
 ): boolean {
-  if (!resolveSide) return true;
+  if (!resolveSide) return false;
   if (!edges) return false;
 
   let hasIncoming = false;
@@ -206,9 +210,10 @@ export function getEdgeShiftOffset(
     allNodeRects?: Map<string, { id: string; x: number; y: number; w: number; h: number }>,
     excludedNodeIds?: Set<string>,
     resolveSide?: EdgeSideResolver,
+    renderStyleId?: string,
   ]
 ): number {
-  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide] = args;
+  const [nodeId, edgeId, side, edges, nodeInternals, , , , resolveSide, renderStyleId] = args;
 
   const self = edges.find(
     (e) => e.id === edgeId && (e.source === nodeId || e.target === nodeId),
@@ -220,22 +225,41 @@ export function getEdgeShiftOffset(
     for (const [id, node] of nodeInternals) {
       const x = node.positionAbsolute?.x ?? node.position.x;
       const y = node.positionAbsolute?.y ?? node.position.y;
+      const { width, height } = getEffectiveNodeDimensions(node, renderStyleId);
       nodePositions.set(id, {
         x,
         y,
-        width: node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 180,
-        height: node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 70,
+        width,
+        height,
       });
     }
   }
+  const effectiveResolveSide = resolveSide ?? ((edge: Edge, id: string) => inferEdgeSide(edge, id, nodePositions));
 
+  // Only use per-edge bidirectional lane when the side contains *only* that
+  // pair. If the side also has other edges (e.g. Client right has 2 outgoing
+  // + 1 incoming), the handle can only render one offset per type, so the
+  // edge must use the side's averaged slot to stay aligned with the handle.
   const bidirectionalLane = getBidirectionalLaneOffset(self, nodeId, edges, nodePositions);
-  if (bidirectionalLane !== null) return bidirectionalLane;
+  if (bidirectionalLane !== null) {
+    let countOnSide = 0;
+    let hasOther = false;
+    const otherId = self.source === nodeId ? self.target : self.source;
+    for (const e of edges) {
+      if (e.source !== nodeId && e.target !== nodeId) continue;
+      const s = effectiveResolveSide(e, nodeId);
+      if (s !== side) continue;
+      countOnSide++;
+      const o = e.source === nodeId ? e.target : e.source;
+      if (o !== otherId) hasOther = true;
+    }
+    if (countOnSide === 2 && !hasOther) return bidirectionalLane;
+  }
 
-  if (!hasBothDirectionsOnSide(nodeId, side, edges, resolveSide)) return 0;
+  if (!hasBothDirectionsOnSide(nodeId, side, edges, effectiveResolveSide as EdgeSideResolver)) return 0;
 
   const { incomingOffset, outgoingOffset } = computeDynamicSlotOffsets(
-    nodeId, side, edges, nodePositions,
+    nodeId, side, edges, nodePositions, effectiveResolveSide,
   );
 
   const isIncoming = self.target === nodeId;
@@ -263,8 +287,9 @@ export function getCenteredSides(
 
 
 /**
- * Computes an anchor point 24px outside the node boundary for a given side.
- * The edge terminates with a gap between the node and the endpoint.
+ * Computes an anchor point 12px outside the node boundary for a given side.
+ * The edge terminates at the handle center (handle sticks out 12px) so the
+ * arrow tip feels connected to the handle donut.
  * The shiftOffset distributes parallel edges along the side.
  */
 export function getBoundaryAnchor(
@@ -274,16 +299,19 @@ export function getBoundaryAnchor(
   height: number,
   position: Position,
   shiftOffset: number = 0,
+  contentBiasY: number = 0,
 ): { x: number; y: number } {
   switch (position) {
     case Position.Left:
-      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset };
+      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset + contentBiasY };
     case Position.Right:
-      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset };
+      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset + contentBiasY };
     case Position.Top:
       return { x: nodeX + width / 2 + shiftOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:
       return { x: nodeX + width / 2 + shiftOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
+    default:
+      return { x: nodeX + width / 2, y: nodeY + height / 2 };
   }
 }
 
@@ -294,19 +322,22 @@ export function getSimpleHandlePosition(
   height: number,
   position: Position,
   shiftOffset: number = 0,
-  handleType: HandleType = 'source'
+  handleType: HandleType = 'source',
+  contentBiasY: number = 0,
 ): { x: number; y: number } {
   void handleType;
   const axisOffset = shiftOffset;
 
   switch (position) {
     case Position.Left:
-      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset };
+      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset + contentBiasY };
     case Position.Right:
-      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset };
+      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + axisOffset + contentBiasY };
     case Position.Top:
       return { x: nodeX + width / 2 + axisOffset, y: nodeY - EDGE_ENDPOINT_GAP };
     case Position.Bottom:
       return { x: nodeX + width / 2 + axisOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
+    default:
+      return { x: nodeX + width / 2, y: nodeY + height / 2 };
   }
 }

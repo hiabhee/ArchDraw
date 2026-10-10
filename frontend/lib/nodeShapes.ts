@@ -1,3 +1,10 @@
+/**
+ * @deprecated Legacy shape vocabulary (pill/stack/queue/dashed-rect …).
+ * The canonical silhouette set + variant/service-type mapping now lives in
+ * `frontend/lib/shapeRegistry.ts` (`VARIANT_TO_SHAPE`, `shapeForServiceType`).
+ * Kept for call sites that still read `getShapeConfig` / `getNodeShape`; do not
+ * extend this module — add new shapes to `shapeRegistry` instead.
+ */
 export type NodeShape = 
   | 'rounded-square'
   | 'pill'
@@ -5,7 +12,6 @@ export type NodeShape =
   | 'stack'
   | 'queue'
   | 'dashed-rect'
-  | 'shield'
   | 'minimal'
   | 'gradient-glow'
   | 'worker';
@@ -56,8 +62,8 @@ export const SHAPE_CONFIGS: Record<string, ShapeConfig> = {
   // Tier 3: Services
   'Compute': { shape: 'rounded-square', size: 'normal', visualWeight: 'normal', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#2563EB' },
   'Serverless': { shape: 'rounded-square', size: 'normal', visualWeight: 'normal', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#2563EB' },
-  'Auth & Security': { shape: 'shield', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
-  'Authentication': { shape: 'shield', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
+  'Auth & Security': { shape: 'rounded-square', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
+  'Authentication': { shape: 'rounded-square', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#7C3AED' },
   'AI / ML': { shape: 'gradient-glow', size: 'normal', visualWeight: 'high', minWidth: 180, minHeight: 120, maxHeight: 150, tier: 3, color: '#2563EB' },
   'Worker': { shape: 'worker', size: 'normal', visualWeight: 'normal', minWidth: 180, minHeight: 110, maxHeight: 140, tier: 3, color: '#2563EB' },
   'Messaging & Events': { shape: 'queue', size: 'medium', visualWeight: 'normal', minWidth: 200, minHeight: 130, maxHeight: 160, tier: 3, color: '#D97706' },

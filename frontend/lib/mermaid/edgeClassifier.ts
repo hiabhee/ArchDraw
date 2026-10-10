@@ -18,6 +18,10 @@ const ASYNC_KEYWORDS = [
   'notify', 'stream',
 ];
 
+function hasAsyncSignal(...values: string[]): boolean {
+  return values.some(value => ASYNC_KEYWORDS.some(keyword => value.includes(keyword)));
+}
+
 const PROTOCOL_MAP_SYNC: Record<string, string> = {
   grpc: 'gRPC',
   rpc: 'RPC',
@@ -62,17 +66,15 @@ export function classifyEdge(
   const targetService = (targetNode.data?.serviceType as string) || 'service';
 
   let syncAsync: 'sync' | 'async' = 'sync';
-  if (
-    arrowType === 'dotted' ||
-    ASYNC_KEYWORDS.some(k => cleanLabel.includes(k))
-  ) {
+  if (arrowType === 'dotted' || hasAsyncSignal(cleanLabel, sourceLabel, targetLabel, sourceService, targetService)) {
     syncAsync = 'async';
   }
 
   let protocol = 'HTTP';
   const protoMap = syncAsync === 'async' ? PROTOCOL_MAP_ASYNC : PROTOCOL_MAP_SYNC;
+  const protocolContext = `${cleanLabel} ${sourceLabel} ${targetLabel}`;
   for (const [key, value] of Object.entries(protoMap)) {
-    if (cleanLabel.includes(key)) {
+    if (protocolContext.includes(key)) {
       protocol = value;
       break;
     }
