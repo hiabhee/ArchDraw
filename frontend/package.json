@@ -25,6 +25,7 @@
     "lint:tutorials": "tsx scripts/lint-tutorials.ts",
     "lint:tutorials:strict": "tsx scripts/lint-tutorials.ts --strict",
     "perf:quick": "tsx scripts/perf/benchmark.ts --skip-build --runs 15",
+    "perf:diagram-geometry": "tsx scripts/perf/diagram-geometry.ts",
     "perf:benchmark": "tsx scripts/perf/benchmark.ts --runs 20",
     "perf:benchmark:spawn": "tsx scripts/perf/benchmark.ts --runs 20 --spawn --port 4317",
     "perf:baseline": "tsx scripts/perf/benchmark.ts --skip-build --runs 20 --baseline",
@@ -92,5 +93,10 @@
     "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^4.1.7"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2",
+    "katex": "^0.18.2",
+    "mysql2": "^3.24.5"
   }
 }
