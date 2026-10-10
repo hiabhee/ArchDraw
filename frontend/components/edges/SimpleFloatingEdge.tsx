@@ -183,7 +183,8 @@ export default function SimpleFloatingEdge({
   }, [
     id, source, target, sourceHandleId, targetHandleId, data,
     nodeInternals, edges, activeLayoutPresetId, renderStyleId, iconMode,
-    _sourceX, _sourceY, _targetX, _targetY, geometry.route, geometry.provisional,
+    _sourceX, _sourceY, _targetX, _targetY, _sourcePosition, _targetPosition,
+    geometry.route, geometry.provisional,
   ]);
 
   const {
@@ -486,7 +487,7 @@ export default function SimpleFloatingEdge({
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayout, id, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
+  }, [labelLayout, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill
