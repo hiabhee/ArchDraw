@@ -11,6 +11,7 @@
   "homepage": "https://archdraw.hiabhee.online",
   "repository": "https://github.com/hiabhee/ArchDraw",
   "license": "MIT",
+  "privacyPolicyUrl": "https://archdraw.hiabhee.online/privacy",
   "keywords": [
     "architecture",
     "diagram",
