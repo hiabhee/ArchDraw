@@ -1,9 +1,9 @@
-import { SITE_URL, LAST_UPDATED } from '@/lib/discovery';
+import { SITE_URL, LAST_UPDATED } from '@/lib/site/discovery';
 
 export const runtime = 'nodejs';
 
 // Canonical naming — source of truth to prevent agents hallucinating product names
-// or using deprecated ones. Keep in sync with lib/shapeRegistry.ts, componentRegistry, etc.
+// or using deprecated ones. Keep in sync with lib/diagram/nodes/shapeRegistry.ts, componentRegistry, etc.
 
 const TAXONOMY = {
   $schema: 'https://archdraw.hiabhee.online/docs/taxonomy.json',
@@ -43,7 +43,7 @@ const TAXONOMY = {
     },
   ],
   components: [
-    // shapeRegistry canonical shapes — keep aligned with lib/shapeRegistry.ts
+    // shapeRegistry canonical shapes — keep aligned with lib/diagram/nodes/shapeRegistry.ts
     { canonical_name: 'hexagon', aliases: ['load balancer', 'ingress', 'gateway'], deprecated_names: [], status: 'active', mermaid_token: 'id{{"Label"}}' },
     { canonical_name: 'cloud', aliases: ['external', 'SaaS', 'third-party'], deprecated_names: [], status: 'active', mermaid_directive: '%% archdraw-shape: {"shape":"cloud"}' },
     { canonical_name: 'shield', aliases: ['auth', 'WAF', 'Vault'], deprecated_names: [], status: 'active', mermaid_directive: '%% archdraw-shape: {"shape":"shield"}' },

@@ -35,7 +35,7 @@ NEXT_PUBLIC_ADMIN_EMAIL=admin@yourdomain.com
 The application uses a strict Content Security Policy (CSP) in `frontend/next.config.ts`:
 
 - `script-src 'self' 'unsafe-inline' blob:` + `https://*.vercel-scripts.com` — `unsafe-eval` only in `development` for React devtools; never in production
-- A nonce-based `'strict-dynamic'` policy was reverted (see `docs/csp-nonce-client-js-outage.md`) because Next.js only stamps nonces when the root layout opts into dynamic rendering via `headers()`, which broke static pages
+- A nonce-based `'strict-dynamic'` policy was reverted (see `docs/incidents/csp-nonce-client-js-outage.md`) because Next.js only stamps nonces when the root layout opts into dynamic rendering via `headers()`, which broke static pages
 - `/embed/:path*` carries its own `frame-ancestors` policy derived from `ALLOWED_EMBED_DOMAINS`
 
 ### Embed Security

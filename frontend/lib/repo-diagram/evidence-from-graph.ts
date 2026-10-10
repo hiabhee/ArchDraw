@@ -1,4 +1,4 @@
-import type { ExtractedNode, RichEdge, FileEntry } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, RichEdge, FileEntry } from '@/lib/repo-diagram/types';
 import type { ImportGraph } from './import-graph';
 import { buildImportGraph } from './import-graph';
 import { buildTsAliasConfig } from './import-resolvers';

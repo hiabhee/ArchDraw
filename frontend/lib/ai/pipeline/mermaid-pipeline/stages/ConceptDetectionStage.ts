@@ -1,5 +1,5 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { detectImplicitConceptPrompt } from '../conceptTemplates';
 
 export interface ConceptDetectionOutput {

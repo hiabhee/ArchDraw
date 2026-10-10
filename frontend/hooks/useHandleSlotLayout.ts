@@ -2,24 +2,24 @@
 
 import { useMemo } from 'react';
 import { Position, type Node, type Edge } from 'reactflow';
-import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
-import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
+import { getEffectiveNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import {
   computeDynamicSlotOffsets,
   INCOMING_OUTGOING_GAP,
   resolveBidirectionalFacingSides,
   type DynamicSlotOffsets,
-} from '@/lib/utils/handleSlotOrder';
+} from '@/lib/diagram/edges/handleSlotOrder';
 import {
   selectBestHandlerPair,
   scoreAllHandlerPairs,
   buildDefaultOrthogonalWaypoints,
   anchorOutsideBoundary,
   type HandlerRect,
-} from '@/lib/utils/handlerPairScorer';
-import { segmentIntersectsRect } from '@/lib/utils/collisionFreeEdgePath';
-import { useDiagramGeometryPlan } from '@/components/edges/DiagramGeometryProvider';
-import { useCanvasView, useHostGraph } from '@/lib/canvas/CanvasHostContext';
+} from '@/lib/diagram/edges/handlerPairScorer';
+import { segmentIntersectsRect } from '@/lib/diagram/edges/collisionFreeEdgePath';
+import { useDiagramGeometryPlan } from '@/components/canvas/edges/DiagramGeometryProvider';
+import { useCanvasView, useHostGraph } from '@/lib/diagram/canvas/CanvasHostContext';
 
 const HANDLE_TRANSITION =
   'top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease';

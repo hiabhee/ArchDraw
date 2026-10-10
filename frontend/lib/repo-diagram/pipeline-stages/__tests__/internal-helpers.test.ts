@@ -5,7 +5,7 @@ import {
   buildDependencyIntelligence,
   buildSummariesForLLM,
 } from '../internal-helpers';
-import type { ExtractedNode, StaticSignal, Subsystem } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, StaticSignal, Subsystem } from '@/lib/repo-diagram/types';
 
 const sampleNode = (overrides: Partial<ExtractedNode> = {}): ExtractedNode => ({
   id: 'svc-1',

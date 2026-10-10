@@ -21,7 +21,7 @@ vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>();
   return { ...actual, after: vi.fn() };
 });
-vi.mock('@/lib/middleware/quotaCheck', () => ({
+vi.mock('@/lib/server/quotaCheck', () => ({
   checkAIGenerationQuota: m.checkAIGenerationQuota,
   releaseAIGeneration: m.releaseAIGeneration,
   incrementAIGeneration: m.incrementAIGeneration,
@@ -29,8 +29,8 @@ vi.mock('@/lib/middleware/quotaCheck', () => ({
   getSessionFromRequest: m.getSessionFromRequest,
   getGuestId: m.getGuestId,
 }));
-vi.mock('@/lib/credits', async () => ({
-  CREDIT_POLICY: (await import('@/lib/creditPolicy')).CREDIT_POLICY,
+vi.mock('@/lib/server/credits', async () => ({
+  CREDIT_POLICY: (await import('@/lib/quotas/creditPolicy')).CREDIT_POLICY,
   getCreditSnapshot: m.getCreditSnapshot,
   reserveCredits: m.reserveCredits,
   refundCredits: m.refundCredits,

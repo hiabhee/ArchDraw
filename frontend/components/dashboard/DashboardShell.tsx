@@ -6,7 +6,7 @@ import { Search, Bell, LayoutDashboard, FolderOpen, Sparkles, ChevronDown, Chevr
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
-import { UserAvatar, SettingsPanel } from '@/components/UserAvatar';
+import { UserAvatar, SettingsPanel } from '@/components/auth/UserAvatar';
 import { RecentCanvases } from './RecentCanvases';
 
 interface SidebarItemProps {

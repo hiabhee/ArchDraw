@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { Pipeline } from '@/lib/pipeline-core/Pipeline';
-import { successResult, errorResult } from '@/lib/pipeline-core/StageResult';
-import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
-import type { Stage } from '@/lib/pipeline-core/Stage';
+import { Pipeline } from '@/lib/diagram/pipeline-core/Pipeline';
+import { successResult, errorResult } from '@/lib/diagram/pipeline-core/StageResult';
+import { DefaultPipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext';
+import type { Stage } from '@/lib/diagram/pipeline-core/Stage';
 
 interface MockPipelineOutput {
   conceptDetection?: {

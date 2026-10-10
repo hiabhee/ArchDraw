@@ -7,10 +7,10 @@ const m = vi.hoisted(() => ({
   runMermaidPipeline: vi.fn(),
   getSession: vi.fn(),
 }));
-vi.mock('@/lib/redis', () => ({ checkRateLimitWithFallback: m.rateLimit }));
-vi.mock('@/lib/prisma', () => ({ default: { sharedCanvas: { create: m.create } } }));
-vi.mock('@/lib/mermaid/pipeline', () => ({ runMermaidPipeline: m.runMermaidPipeline }));
-vi.mock('@/lib/middleware/quotaCheck', () => ({ getSessionFromRequest: m.getSession, logUsage: vi.fn() }));
+vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rateLimit }));
+vi.mock('@/lib/server/prisma', () => ({ default: { sharedCanvas: { create: m.create } } }));
+vi.mock('@/lib/diagram/mermaid/pipeline', () => ({ runMermaidPipeline: m.runMermaidPipeline }));
+vi.mock('@/lib/server/quotaCheck', () => ({ getSessionFromRequest: m.getSession, logUsage: vi.fn() }));
 vi.mock('@/lib/server/ip', () => ({ getClientIP: () => '203.0.113.7' }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn(), debug: vi.fn() } }));
 

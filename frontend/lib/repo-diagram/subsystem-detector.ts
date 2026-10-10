@@ -1,4 +1,4 @@
-import type { RepoSnapshot, Subsystem } from '@/lib/types/repo-diagram';
+import type { RepoSnapshot, Subsystem } from '@/lib/repo-diagram/types';
 
 const IGNORED_DIRS = new Set([
   'node_modules', '.git', '__pycache__', 'dist', 'build', '.next',

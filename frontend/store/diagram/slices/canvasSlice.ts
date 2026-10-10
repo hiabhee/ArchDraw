@@ -1,12 +1,12 @@
 import type { StateCreator } from 'zustand';
 import { toast } from 'sonner';
-import { componentRegistry } from '@/lib/componentRegistry';
+import { componentRegistry } from '@/lib/component-library/componentRegistry';
 import type { DiagramState, CanvasTab } from '../types';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { invokeFitView } from '../fitView';
 import { makeCanvas, INITIAL_CANVAS } from '../helpers/canvasHelpers';
 import { deleteCanvasFromDB } from '../persistence/dbSave';
-import { getUserQuotas, getUserTier } from '@/lib/userQuotas';
+import { getUserQuotas, getUserTier } from '@/lib/quotas/userQuotas';
 
 export type CanvasSlice = Pick<
   DiagramState,

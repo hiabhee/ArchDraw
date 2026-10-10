@@ -1,6 +1,6 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import type { PipelineResult as RepoPipelineResult } from '@/lib/repo-diagram/types';
 import type { ResolvedRepoInput } from './IngestionStage';
 import { getRepoDiagram, setRepoDiagram } from '@/lib/ai/services/diagramCache';
 import { getRepoDiagramFromRedis } from '@/lib/ai/services/repoDiagramRedisCache';

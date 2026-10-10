@@ -1,5 +1,5 @@
 import type { ReactFlowNode, ReactFlowEdge, LayerType, ServiceType } from '../../types';
-import type { RFNode, RFEdge } from '@/lib/mermaid/types';
+import type { RFNode, RFEdge } from '@/lib/diagram/mermaid/types';
 
 /**
  * Map Mermaid-pipeline RF nodes into the AI pipeline's React Flow shape.

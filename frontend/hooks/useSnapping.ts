@@ -3,7 +3,7 @@
 import { useCallback, useRef } from 'react';
 import { Node, NodeDragHandler } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
-import { computeAlignmentGuides } from '@/lib/utils/alignmentGuides';
+import { computeAlignmentGuides } from '@/lib/diagram/geometry/alignmentGuides';
 
 const ALIGN_THRESHOLD = 8;
 

@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
-import { useCanvasTheme } from '@/lib/theme';
+import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
+import { useCanvasTheme } from '@/lib/theme/appTheme';
 import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
 
 /**

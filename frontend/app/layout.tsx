@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { AuthProvider } from '@/components/AuthProvider';
-import { AnalyticsProvider } from '@/components/AnalyticsProvider';
+import { AuthProvider } from '@/components/providers/AuthProvider';
+import { AnalyticsProvider } from '@/components/providers/AnalyticsProvider';
 import { Toaster } from 'sonner';
-import { ThemeProvider } from '@/components/ThemeProvider';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 

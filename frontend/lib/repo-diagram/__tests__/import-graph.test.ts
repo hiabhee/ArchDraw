@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { FileEntry } from '@/lib/types/repo-diagram';
+import type { FileEntry } from '@/lib/repo-diagram/types';
 import { buildImportGraph, extractJsImports, extractPythonImports, extractGoImports } from '../import-graph';
 import { buildTsAliasConfig } from '../import-resolvers';
 import { deriveEvidenceEdges } from '../evidence-from-graph';
-import type { ExtractedNode } from '@/lib/types/repo-diagram';
+import type { ExtractedNode } from '@/lib/repo-diagram/types';
 
 // ─── Per-language import extraction ─────────────────────────
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Pipeline } from '@/lib/pipeline-core/Pipeline';
-import { successResult } from '@/lib/pipeline-core/StageResult';
+import { Pipeline } from '@/lib/diagram/pipeline-core/Pipeline';
+import { successResult } from '@/lib/diagram/pipeline-core/StageResult';
 import { createRepoDiagramStages } from '../pipeline-v2';
-import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
+import type { PipelineResult as RepoPipelineResult } from '@/lib/repo-diagram/types';
 import type { IngestionOutput } from '../pipeline-stages/IngestionStage';
 
 describe('repo-pipeline-v2 structure', () => {

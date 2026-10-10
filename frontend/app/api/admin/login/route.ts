@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateAdminConfig } from '@/lib/env-validation';
+import { validateAdminConfig } from '@/lib/server/env-validation';
 import { getClientIP } from '@/lib/server/ip';
-import { trackAdminSession } from '@/lib/admin-session-tracking';
-import { checkRateLimit } from '@/lib/redis';
+import { trackAdminSession } from '@/lib/server/admin-session-tracking';
+import { checkRateLimit } from '@/lib/server/redis';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';

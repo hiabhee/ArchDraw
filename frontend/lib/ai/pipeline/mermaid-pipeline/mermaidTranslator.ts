@@ -1,6 +1,6 @@
 import type { Node, Edge } from 'reactflow';
-import { isTextNode } from '@/lib/mermaid/textNodes';
-import { isDirectiveOnlyShape } from '@/lib/shapeRegistry';
+import { isTextNode } from '@/lib/diagram/mermaid/textNodes';
+import { isDirectiveOnlyShape } from '@/lib/diagram/nodes/shapeRegistry';
 
 function sanitizeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_\-]/g, '_');

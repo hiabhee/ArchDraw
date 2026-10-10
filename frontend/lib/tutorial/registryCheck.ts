@@ -3,7 +3,7 @@ import logger from '@/lib/logger';
 
 export function warnMissingNodeTypes(tutorials: TutorialDefinition[]): void {
   if (process.env.NODE_ENV !== 'development') return;
-  import('@/lib/componentRegistry').then(({ CORE_COMPONENTS }) => {
+  import('@/lib/component-library/componentRegistry').then(({ CORE_COMPONENTS }) => {
     const ids = new Set((CORE_COMPONENTS as { id: string }[]).map(c => c.id));
     for (const t of tutorials)
       for (const lv of t.levels)

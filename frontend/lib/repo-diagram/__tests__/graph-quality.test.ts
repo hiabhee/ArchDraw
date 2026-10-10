@@ -7,7 +7,7 @@ import {
   constrainGraphForRepoType,
   isImportantOrphan,
 } from '../graph-quality';
-import type { ExtractedNode, RichEdge, RepoProfile, StaticSignal } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, RichEdge, RepoProfile, StaticSignal } from '@/lib/repo-diagram/types';
 
 describe('expandBaselineFromSignals', () => {
   it('adds grouped API route nodes from route signals', () => {

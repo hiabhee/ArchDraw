@@ -1,11 +1,11 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { scoreDiagram } from '../../scoreDiagram';
-import type { RFNode, RFEdge } from '@/lib/mermaid/types';
+import type { RFNode, RFEdge } from '@/lib/diagram/mermaid/types';
 import type { Node as RFNodeType, Edge as RFEdgeType } from 'reactflow';
 import type { ArchitectureStyle } from '../../types';
 import type { DiagramScore } from '../../types';
-import type { GeometrySummary } from '@/lib/mermaid/pipeline';
+import type { GeometrySummary } from '@/lib/diagram/mermaid/pipeline';
 
 export interface ScoreInput {
   nodes: RFNode[];

@@ -1,6 +1,6 @@
-import type { ExtractedNode, StaticSignal, Subsystem, DependencyIntelligence, RepoSnapshot, RepoProfile, FileEntry } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, StaticSignal, Subsystem, DependencyIntelligence, RepoSnapshot, RepoProfile, FileEntry } from '@/lib/repo-diagram/types';
 import { summarizeSubsystem } from '@/lib/repo-diagram/subsystem-detector';
-import { fetchFileContentsByPaths } from '@/lib/github-ingestion';
+import { fetchFileContentsByPaths } from '@/lib/repo-diagram/github-ingestion';
 import logger from '@/lib/logger';
 
 export function normalizeId(id: string): string {

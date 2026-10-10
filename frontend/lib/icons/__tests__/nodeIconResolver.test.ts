@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest';
+import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
+import { normalizeArchIconName } from '@/lib/icons/iconAliases';
+
+describe('normalizeArchIconName', () => {
+  it('maps lucide names to distinctive arch icons', () => {
+    expect(normalizeArchIconName('RadioTower')).toBe('arch-cdn');
+    expect(normalizeArchIconName('Search')).toBe('arch-search');
+    expect(normalizeArchIconName('Zap')).toBe('arch-function');
+    expect(normalizeArchIconName('Network')).toBe('arch-dns');
+  });
+
+  it('preserves explicit arch and aws icons', () => {
+    expect(normalizeArchIconName('arch-vector')).toBe('arch-vector');
+    expect(normalizeArchIconName('aws-lambda')).toBe('aws-lambda');
+  });
+});
+
+describe('resolveNodeIcon', () => {
+  it('uses unique icons for common palette components', () => {
+    expect(resolveNodeIcon({ typeId: 'dns' }).icon).toBe('arch-dns');
+    expect(resolveNodeIcon({ typeId: 'cdn' }).icon).toBe('arch-cdn');
+    expect(resolveNodeIcon({ typeId: 'search_engine' }).icon).toBe('arch-search');
+    expect(resolveNodeIcon({ typeId: 'serverless_fn' }).icon).toBe('arch-function');
+    expect(resolveNodeIcon({ typeId: 'worker_job' }).icon).toBe('arch-worker');
+    expect(resolveNodeIcon({ typeId: 'vector_db' }).icon).toBe('arch-vector');
+    expect(resolveNodeIcon({ typeId: 'firewall_waf' }).icon).toBe('arch-firewall');
+    expect(resolveNodeIcon({ typeId: 'payment_gateway' }).icon).toBe('arch-payment');
+    expect(resolveNodeIcon({ typeId: 'email_service' }).icon).toBe('arch-email');
+    expect(resolveNodeIcon({ typeId: 'nosql_db' }).icon).toBe('arch-document-db');
+    expect(resolveNodeIcon({ typeId: 'cicd_pipeline' }).icon).toBe('arch-cicd');
+    expect(resolveNodeIcon({ typeId: 'ai_agent' }).icon).toBe('arch-agent');
+  });
+
+  it('maps labels to distinctive icons', () => {
+    expect(resolveNodeIcon({ label: 'Elasticsearch' }).icon).toBe('arch-search');
+    expect(resolveNodeIcon({ label: 'CDN Edge' }).icon).toBe('arch-cdn');
+    expect(resolveNodeIcon({ label: 'Vector Store' }).icon).toBe('arch-vector');
+    expect(resolveNodeIcon({ label: 'Lambda Function' }).icon).toBe('aws-lambda');
+    expect(resolveNodeIcon({ label: 'EC2 Instance' }).icon).toBe('aws-ec2');
+    expect(resolveNodeIcon({ label: 'WAF Firewall' }).icon).toBe('arch-firewall');
+  });
+
+  it('prefers component mapping over lucide palette icons', () => {
+    expect(resolveNodeIcon({ typeId: 'cdn', icon: 'Globe' }).icon).toBe('arch-cdn');
+    expect(resolveNodeIcon({ componentType: 'function', icon: 'Server' }).icon).toBe('arch-function');
+  });
+
+  it('uses the node meaning before a generic service icon', () => {
+    expect(resolveNodeIcon({ typeId: 'service', label: 'Email Service' }).icon).toBe('arch-email');
+    expect(resolveNodeIcon({ typeId: 'service', label: 'Mobile Client' }).icon).toBe('arch-mobile');
+    expect(resolveNodeIcon({ typeId: 'dns', label: 'Email Service' }).icon).toBe('arch-dns');
+    expect(resolveNodeIcon({ category: 'Data', label: 'Store' }).icon).toBe('arch-database');
+  });
+
+  it('refreshes inferred icons while preserving a user-selected icon', () => {
+    expect(resolveNodeIcon({
+      typeId: 'service', label: 'Payment Service', icon: 'arch-service', iconSource: 'component',
+    }).icon).toBe('arch-payment');
+    expect(resolveNodeIcon({
+      label: 'Payment Service', technology: 'postgresql', icon: 'arch-logs', iconSource: 'manual',
+    })).toMatchObject({ icon: 'arch-logs', source: 'manual' });
+    expect(resolveNodeIcon({
+      label: 'Payment Service', technology: 'postgresql', icon: 'Search', iconSource: 'manual',
+    })).toMatchObject({ icon: 'arch-search', source: 'manual' });
+    expect(resolveNodeIcon({
+      label: 'Payment Service', icon: 'arch-kubernetes', iconSource: 'technology',
+    })).toMatchObject({ icon: 'arch-payment', source: 'label' });
+  });
+
+  it('uses technology-specific icons from the registry', () => {
+    expect(resolveNodeIcon({ technology: 'mongodb' }).icon).toBe('arch-document-db');
+    expect(resolveNodeIcon({ technology: 'pinecone' }).icon).toBe('arch-vector');
+    expect(resolveNodeIcon({ technology: 'kubernetes' }).icon).toBe('arch-kubernetes');
+    expect(resolveNodeIcon({ technology: 'elasticsearch' }).icon).toBe('arch-search');
+  });
+
+  it('uses technology branding before manual arch icon coloring', () => {
+    expect(resolveNodeIcon({
+      label: 'Kubernetes',
+      technology: 'kubernetes',
+      icon: 'arch-kubernetes',
+      color: '#6366f1',
+    })).toMatchObject({
+      icon: 'arch-kubernetes',
+      color: '#326CE5',
+      technology: 'kubernetes',
+      source: 'technology',
+    });
+  });
+
+  it('infers technology branding from a specific technology icon', () => {
+    expect(resolveNodeIcon({
+      label: 'Cluster',
+      icon: 'arch-kubernetes',
+      color: '#6366f1',
+    })).toMatchObject({
+      color: '#326CE5',
+      technology: 'kubernetes',
+      source: 'technology',
+    });
+  });
+
+  it('keeps the compute-category color for a generic manual service icon', () => {
+    // arch-service is bucketed as `compute` (cyan), a deliberate accent kept
+    // distinct from the blue orchestration/networking/ai categories. A legacy
+    // purple input color normalizes to that category color, not brand blue.
+    expect(resolveNodeIcon({
+      label: 'General Service',
+      icon: 'arch-service',
+      color: '#6366f1',
+    })).toMatchObject({
+      icon: 'arch-service',
+      color: '#0891B2',
+      technology: undefined,
+      source: 'manual',
+    });
+  });
+});

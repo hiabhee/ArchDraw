@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import { applyThemeChange } from '@/lib/themeBridge';
+import { applyThemeChange } from '@/lib/theme/themeBridge';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { DiagramState } from '../types';
 

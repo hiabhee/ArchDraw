@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
+import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';

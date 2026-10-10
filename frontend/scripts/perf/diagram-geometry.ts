@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import type { Edge, Node } from 'reactflow';
-import { computeDiagramGeometryPlan, computeDiagramGeometryPreview } from '@/lib/utils/diagramGeometry';
-import { optimizeEdgeRoutes } from '@/lib/utils/edgeRouteOptimizer';
+import { computeDiagramGeometryPlan, computeDiagramGeometryPreview } from '@/lib/diagram/geometry/diagramGeometry';
+import { optimizeEdgeRoutes } from '@/lib/diagram/edges/edgeRouteOptimizer';
 
 interface Measurement {
   optimizerMs: number;

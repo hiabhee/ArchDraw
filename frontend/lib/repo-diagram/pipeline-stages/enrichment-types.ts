@@ -8,7 +8,7 @@ import type {
   RepoProfile,
   DependencyIntelligence,
   DegradedFlags,
-} from '@/lib/types/repo-diagram';
+} from '@/lib/repo-diagram/types';
 import type { ImportGraph } from '@/lib/repo-diagram/import-graph';
 
 /** Accumulating state through Classify → Extract → Relationships → Verify. */

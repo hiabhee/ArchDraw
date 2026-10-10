@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { ClassifyStage } from '../ClassifyStage';
-import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
+import { DefaultPipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext';
 import type { EnrichmentInput } from '../enrichment-types';
-import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/types/repo-diagram';
-import { buildFallbackRepoProfile } from '@/lib/agents/repo-deep-classifier';
+import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/repo-diagram/types';
+import { buildFallbackRepoProfile } from '@/lib/repo-diagram/agents/repo-deep-classifier';
 
 function minimalSnapshot(overrides: Partial<RepoSnapshot> = {}): RepoSnapshot {
   return {

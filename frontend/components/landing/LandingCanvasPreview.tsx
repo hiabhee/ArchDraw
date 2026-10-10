@@ -13,17 +13,17 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { NODE_TYPES, EDGE_TYPES } from '@/components/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { useDiagramStore } from '@/store/diagramStore';
 // NOTE: no useCanvasTheme here — the landing preview is always dark (see
 // useForcePreviewDark below), independent of the visitor's global theme.
 import { isStudioRenderStyle, resolveCanvasTokens } from '@/lib/theme/renderStyles';
-import { useEdgeColors } from '@/lib/edgeColors';
-import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/utils/nodeIconVisibility';
-import { studioContentNodeSize, studioCompactNodeSize } from '@/lib/utils/shapeNodeDimensions';
-import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { useEdgeColors } from '@/lib/theme/edgeColors';
+import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
+import { studioContentNodeSize, studioCompactNodeSize } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
 import { SIZE_M } from '@/lib/theme/stylingConstants';
-import '@/components/nodes/nodeStyles.css';
+import '@/components/canvas/nodes/nodeStyles.css';
 import styles from './LandingCanvasPreview.module.css';
 
 // React 18 SSR: useLayoutEffect warns on the server; fall back to useEffect there.

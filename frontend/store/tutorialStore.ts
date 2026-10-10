@@ -1,15 +1,15 @@
 import logger from '@/lib/logger';
-import { analytics } from '@/lib/analytics';
+import { analytics } from '@/lib/client/analytics';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { serializedStorage } from '@/lib/storage/localStorage';
+import { serializedStorage } from '@/lib/client/localStorage';
 import type { Node, Edge } from 'reactflow';
 import type { TutorialDefinition, TutorialSession, PhaseName } from '@/lib/tutorial/schema';
 import type { AnyTutorial } from '@/data/tutorials';
 import * as engine from '@/lib/tutorial/engine';
-import { deleteTutorialProgressApi as apiDeleteTutorialProgress, saveTutorialProgress as apiSaveTutorialProgress, fetchTutorialProgress as apiGetTutorialProgress } from '@/lib/api-client';
+import { deleteTutorialProgressApi as apiDeleteTutorialProgress, saveTutorialProgress as apiSaveTutorialProgress, fetchTutorialProgress as apiGetTutorialProgress } from '@/lib/client/api-client';
 import { explainOverrideKey } from '@/lib/tutorial/explainQuota';
-import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
+import { migrateEdgesToSmoothstep } from '@/lib/diagram/edges/edgeMigration';
 
 export interface TutorialMessage {
   type: 'guide' | 'user' | 'success' | 'error';

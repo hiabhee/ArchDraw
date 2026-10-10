@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin } from '@/lib/server/admin-auth';
 import logger from '@/lib/logger';
 import { assessArchitectureBaseline } from '@/lib/jev/architectureBaseline';
 import { callJev, classificationQuestions, reviewQuestions, type JevConfig } from '@/lib/jev/jevApi';

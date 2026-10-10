@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronRight, ChevronLeft, Zap, BookOpen, Target, Lightbulb, Play } from 'lucide-react';
-import { analytics } from '@/lib/analytics';
+import { analytics } from '@/lib/client/analytics';
 import { STORAGE_KEYS } from '@/lib/config';
 
 interface IntroCard {

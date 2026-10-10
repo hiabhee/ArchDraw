@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { reactFlowRef } from "@/lib/reactFlowRef";
+import { reactFlowRef } from "@/lib/client/reactFlowRef";
 
 export function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);

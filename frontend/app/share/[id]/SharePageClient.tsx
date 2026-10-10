@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { SharedCanvasViewer } from '@/components/SharedCanvasViewer';
-import { analytics } from '@/lib/analytics';
+import { SharedCanvasViewer } from '@/components/viewers/SharedCanvasViewer';
+import { analytics } from '@/lib/client/analytics';
 
 export interface SharedCanvas {
   id: string;

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { repairDiagramQuality } from '../QualityRepairStage';
 import { runArchitecturePlanner } from '../../architecturePlanner';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { ScoreStage } from '../ScoreStage';
 import { ValidationStage } from '../ValidationStage';
-import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
+import { DefaultPipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext';
 import type { AiPipelineData } from '../../aiPipelineTypes';
 vi.mock('../../architecturePlanner', () => ({ runArchitecturePlanner: vi.fn() }));
 const context = new DefaultPipelineContext('repair');

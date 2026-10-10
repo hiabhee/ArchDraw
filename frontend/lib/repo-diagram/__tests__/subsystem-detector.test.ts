@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { detectSubsystems, summarizeSubsystem } from '../subsystem-detector';
-import type { RepoSnapshot } from '@/lib/types/repo-diagram';
+import type { RepoSnapshot } from '@/lib/repo-diagram/types';
 
 function makeSnapshot(overrides: Partial<RepoSnapshot> = {}): RepoSnapshot {
   return {

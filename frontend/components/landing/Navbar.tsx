@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { AuthModal } from '@/components/AuthModal';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 const NAV_LINKS = ['Features', 'Templates', 'Tutorials', 'Use Cases'];
 

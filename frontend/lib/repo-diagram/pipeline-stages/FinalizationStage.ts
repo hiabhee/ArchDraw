@@ -1,15 +1,15 @@
-import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import {
   collectGroundedNodeIds, isImportantOrphan,
 } from '@/lib/repo-diagram/graph-quality';
-import { compileToDiagram } from '@/lib/agents/repo-schema-compiler';
-import type { RepoSnapshot, Subsystem, StaticSignal, ExtractedNode, RichEdge, Workflow, RepoProfile, DependencyIntelligence, DegradedFlags } from '@/lib/types/repo-diagram';
-import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
+import { compileToDiagram } from '@/lib/repo-diagram/agents/repo-schema-compiler';
+import type { RepoSnapshot, Subsystem, StaticSignal, ExtractedNode, RichEdge, Workflow, RepoProfile, DependencyIntelligence, DegradedFlags } from '@/lib/repo-diagram/types';
+import type { PipelineResult as RepoPipelineResult } from '@/lib/repo-diagram/types';
 import type { ImportGraph } from '@/lib/repo-diagram/import-graph';
 import type { CacheWriteShared } from './shared-keys';
 import { REPO_SHARED } from './shared-keys';
-import { setSharedTyped } from '@/lib/pipeline-core';
+import { setSharedTyped } from '@/lib/diagram/pipeline-core';
 import { normalizeId } from './internal-helpers';
 import { detailLevelFromContext } from './context-utils';
 

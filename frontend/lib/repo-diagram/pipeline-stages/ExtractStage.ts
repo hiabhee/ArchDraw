@@ -1,7 +1,7 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import { extractComponents } from '@/lib/agents/repo-component-extractor';
-import { extractComponentsHeuristic } from '@/lib/agents/repo-heuristic-extractor';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import { extractComponents } from '@/lib/repo-diagram/agents/repo-component-extractor';
+import { extractComponentsHeuristic } from '@/lib/repo-diagram/agents/repo-heuristic-extractor';
 import { mergeLlmIntoBaseline } from './internal-helpers';
 import { detailLevelFromContext } from './context-utils';
 import type { RepoEnrichmentState } from './enrichment-types';

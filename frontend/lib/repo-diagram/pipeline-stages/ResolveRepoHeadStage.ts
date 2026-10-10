@@ -1,6 +1,6 @@
-import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import { resolveRepoHead } from '@/lib/github-ingestion';
+import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import { resolveRepoHead } from '@/lib/repo-diagram/github-ingestion';
 import type { IngestionInput, ResolvedRepoInput } from './IngestionStage';
 
 export class ResolveRepoHeadStage extends BaseStage<IngestionInput, ResolvedRepoInput> {

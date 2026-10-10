@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { redis, redisKeys } from '@/lib/redis';
-import prisma from '@/lib/prisma';
+import { redis, redisKeys } from '@/lib/server/redis';
+import prisma from '@/lib/server/prisma';
 import { getClientIP } from '@/lib/server/ip';
 import logger from '@/lib/logger';
 

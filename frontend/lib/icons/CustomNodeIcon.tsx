@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { LUCIDE_TO_ARCH_ICON, toCanvasArchIcon } from '@/lib/iconAliases';
-import { CUSTOM_ICON_SET, type CustomNodeIconName } from '@/lib/archIconCatalog';
+import { LUCIDE_TO_ARCH_ICON, toCanvasArchIcon } from '@/lib/icons/iconAliases';
+import { CUSTOM_ICON_SET, type CustomNodeIconName } from '@/lib/icons/archIconCatalog';
 
 export type { CustomNodeIconName };
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { requireAdmin } from '@/lib/admin-auth';
+import prisma from '@/lib/server/prisma';
+import { requireAdmin } from '@/lib/server/admin-auth';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';

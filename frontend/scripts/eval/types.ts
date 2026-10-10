@@ -3,7 +3,7 @@ import type {
   RichEdge,
   RepoProfile,
   DependencyIntelligence,
-} from '@/lib/types/repo-diagram';
+} from '@/lib/repo-diagram/types';
 
 // ─── Golden graph (human-labeled ground truth) ───────────────
 

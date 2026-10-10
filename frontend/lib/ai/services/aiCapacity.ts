@@ -1,5 +1,5 @@
 import logger from '@/lib/logger';
-import { redis } from '@/lib/redis';
+import { redis } from '@/lib/server/redis';
 
 export type CapacityDetailLevel = 1 | 2 | 3;
 

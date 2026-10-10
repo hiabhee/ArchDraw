@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js, TypeScript, React Flow v11, Dagre, Zustand, Vitest.
 
-**Spec:** `docs/edge-routing-layout-audit-2026-10-04.md` and the user's implementation request in this conversation.
+**Spec:** `docs/plans/edge-routing-layout-audit-2026-10-04.md` and the user's implementation request in this conversation.
 
 ## Global Constraints
 
@@ -363,7 +363,7 @@ Expected: new generated views default to a legible summary; every original relat
 - Create: deterministic/property tests under `frontend/lib/pipeline-shared/layout/__tests__/`.
 - Create: `frontend/scripts/perf/diagram-geometry.ts` to report warm-run p50/p95 settled layout, route state expansions, preview-route time, and memory for fixed 20/50/150-node fixtures.
 - Add/update screenshot or SVG golden harness only where an existing project test pattern supports deterministic rendering; avoid adding a new browser dependency solely for this work.
-- Update `docs/edge-routing-layout-audit-2026-10-04.md` with final behavior and known limits after implementation.
+- Update `docs/plans/edge-routing-layout-audit-2026-10-04.md` with final behavior and known limits after implementation.
 
 - [ ] For every fixture, assert stable normalized geometry over repeated runs and shuffled serialization order; assert node/edge/group IDs, membership, and original payload survive.
 - [ ] Assert all `ok` routes clear foreign obstacles and terminals, all `ok` labels clear nodes/other routes/group titles, and all declared bundles have explicit membership.

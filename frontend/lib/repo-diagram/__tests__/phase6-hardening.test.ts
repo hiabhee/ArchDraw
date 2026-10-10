@@ -5,7 +5,7 @@ import { resolveImportSpec, buildTsAliasConfig } from '../import-resolvers';
 import { buildImportGraph } from '../import-graph';
 import { extractStaticSignals } from '../static-analyzer';
 import { deduplicateNodes } from '../graph-quality';
-import type { FileEntry, PipelineResult } from '@/lib/types/repo-diagram';
+import type { FileEntry, PipelineResult } from '@/lib/repo-diagram/types';
 
 // ─── GH2R-007 unified skip rules ────────────────────────────────
 describe('skip-rules (GH2R-007)', () => {

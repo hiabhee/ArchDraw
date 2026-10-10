@@ -1,5 +1,5 @@
 import type { Connection, Edge, Node, NodeChange, EdgeChange } from 'reactflow';
-import type { CloudProviderToggle } from '@/lib/cloudIcons/types';
+import type { CloudProviderToggle } from '@/lib/icons/cloud/types';
 
 export type FitViewOptions = { padding?: number; duration?: number; maxZoom?: number };
 
@@ -131,7 +131,7 @@ export interface DiagramState {
   guideLines: GuideLine[];
   edgeAnimations: boolean;
   showGrid: boolean;
-  iconMode: import('@/lib/utils/nodeIconVisibility').NodeIconMode;
+  iconMode: import('@/lib/diagram/nodes/nodeIconVisibility').NodeIconMode;
   diagramChromeMode: 'edit' | 'present';
   diagramViewMode: 'overview' | 'details';
   diagramStyleTheme: string;
@@ -146,7 +146,7 @@ export interface DiagramState {
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
-  setIconMode: (mode: import('@/lib/utils/nodeIconVisibility').NodeIconMode) => void;
+  setIconMode: (mode: import('@/lib/diagram/nodes/nodeIconVisibility').NodeIconMode) => void;
   cloudProvider: CloudProviderToggle;
   setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;
@@ -158,7 +158,7 @@ export interface DiagramState {
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
   setActiveLayoutPresetId: (id: string) => void;
   setDetailLevel: (level: 1 | 2 | 3) => void;
-  clarityReport?: import('@/lib/features/clarityCompiler').ClarityReport;
+  clarityReport?: import('@/lib/diagram/features/clarityCompiler').ClarityReport;
   canvasBackground: CanvasBackgroundConfig;
   setCanvasBackground: (patch: Partial<CanvasBackgroundConfig>) => void;
 

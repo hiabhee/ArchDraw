@@ -1,0 +1,196 @@
+import logger from '@/lib/logger';
+import type { Node, Edge, MarkerType } from 'reactflow';
+import { componentRegistry, type ComponentDefinition } from '@/lib/component-library/componentRegistry';
+import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
+import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
+import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT, type TextSize } from '@/lib/diagram/nodes/textSizing';
+import { shapeForServiceType, type ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
+
+/** Palette id for a blank node that opens inline rename on place. */
+export const BLANK_INIT_COMPONENT_ID = 'research';
+
+export function isBlankInitComponent(id: string | undefined | null): boolean {
+  return id === BLANK_INIT_COMPONENT_ID;
+}
+
+export { shapeForServiceType };
+
+/**
+ * Create a palette/⌘K node as a shapeNode so it matches AI-generated canvas nodes
+ * (not the older systemNode card chrome).
+ */
+export function createPaletteNode(
+  comp: Pick<ComponentDefinition, 'id' | 'label' | 'category' | 'color' | 'icon' | 'technology'>,
+  position: { x: number; y: number },
+  options?: {
+    serviceType?: string;
+    blankInit?: boolean;
+  },
+): Node {
+  const blank = options?.blankInit ?? isBlankInitComponent(comp.id);
+  const serviceType = options?.serviceType;
+  const shape = shapeForServiceType(serviceType);
+  const label = blank ? '' : comp.label;
+  const { width, height } = calculateNodeDimensions(label || comp.label || 'Node', undefined, {
+    shape,
+  });
+
+  return createNode(comp.id, label, position, {
+    type: 'shapeNode',
+    width,
+    height,
+    data: {
+      componentId: comp.id,
+      typeId: comp.id,
+      componentType: comp.id,
+      category: comp.category,
+      color: comp.color,
+      accentColor: comp.color,
+      icon: comp.icon,
+      technology: comp.technology,
+      serviceType,
+      shape,
+      nodeWidth: width,
+      nodeHeight: height,
+      ...(blank ? { label: '', autoStartLabelEdit: true } : {}),
+    },
+  });
+}
+
+/** Blank draft shape node (N/D/C/Y keys, canvas double-click) — opens inline rename on place.
+ *  Uses the same unified sizing as palette/AI/Mermaid nodes so the canvas stays consistent. */
+export function createBlankShapeNode(
+  shape: ShapeType = 'rounded-rectangle',
+  position: { x: number; y: number },
+): Node {
+  const normalizedShape = shape === 'rectangle' ? 'rounded-rectangle' : shape;
+  const { width, height } = calculateNodeDimensions('', undefined, { shape: normalizedShape });
+
+  return createNode('shapeNode', '', position, {
+    type: 'shapeNode',
+    width,
+    height,
+    data: {
+      label: '',
+      category: 'Compute',
+      shape: normalizedShape,
+      nodeWidth: width,
+      nodeHeight: height,
+      autoStartLabelEdit: true,
+    },
+  });
+}
+
+// ─── NODE FACTORY ────────────────────────────────────────────
+
+export function createNode(
+  typeId: string,
+  label: string,
+  position = { x: 0, y: 0 },
+  extra: Record<string, unknown> = {}
+): Node {
+  const def = componentRegistry.get(typeId);
+
+  const isBuiltInNode = [
+    'textLabelNode',
+    'groupNode',
+    'annotationNode',
+    'heroNode',
+    'systemNode',
+    'baseNode',
+    'architectureNode',
+    'databaseNode',
+    'cacheNode',
+    'shapeNode',
+    'messageBrokerNode',
+    'customNode',
+    'service',
+    'database',
+    'client',
+    'load-balancer',
+    'queue',
+    'external-service',
+    'observability',
+  ].includes(typeId);
+
+  if (!def && !isBuiltInNode) {
+    logger.warn(`[createNode] Unknown typeId: "${typeId}". 
+                  Check components.json.`);
+  }
+
+  const { type, data: extraData, ...restExtra } = extra;
+  const rawData = (extraData || {}) as Record<string, unknown>;
+  const resolvedIcon = resolveNodeIcon({
+    label: label ?? def?.label,
+    typeId,
+    componentType: typeId,
+    serviceType: rawData.serviceType as string | undefined,
+    technology: (rawData.technology as string | undefined) ?? def?.technology,
+    category: (rawData.category as string | undefined) ?? def?.category,
+    icon: (rawData.icon as string | undefined) ?? def?.icon,
+    color: (rawData.color as string | undefined) ?? def?.color,
+  });
+
+  return {
+    id: crypto.randomUUID(),
+    type: (type as string | undefined) || 'custom',
+    position,
+    ...restExtra,
+    data: {
+      typeId,
+      componentType: typeId,
+      label:    label ?? def?.label ?? 'Unnamed',
+      color:    def?.color    ?? '#3b82f6',
+      category: def?.category ?? 'default',
+      ...rawData,
+      icon:     resolvedIcon.icon,
+      iconSource: resolvedIcon.source,
+      technology: resolvedIcon.technology ?? def?.technology,
+    },
+  };
+}
+
+/** Free-text label node — used by T key, context menu, and Mermaid text directives. */
+export function createTextLabelNode(
+  position: { x: number; y: number },
+  options?: { fontSize?: TextSize; text?: string; autoStartEdit?: boolean },
+): Node {
+  const fontSize = options?.fontSize ?? 'medium';
+  const autoStartEdit = options?.autoStartEdit ?? false;
+  const text = options?.text ?? (autoStartEdit ? '' : 'Label');
+  const dims = estimateTextNodeSize(text || 'Text', fontSize);
+
+  return createNode('textLabelNode', text || 'Label', position, {
+    type: 'textLabelNode',
+    width: dims.width,
+    height: dims.height,
+    data: {
+      text,
+      fontSize,
+      autoStartTextEdit: autoStartEdit,
+      color: TEXT_LABEL_COLOR_LIGHT,
+    },
+  });
+}
+
+// ─── EDGE FACTORY ────────────────────────────────────────────
+
+export function createEdge(
+  source: string,
+  target: string,
+  label = 'Connection',
+  extra: Record<string, unknown> = {}
+): Edge {
+  return {
+    id: `${source}-${target}-${crypto.randomUUID()}`,
+    source,
+    target,
+    type: 'smoothstep',
+    animated: true,
+    label,
+    style: { strokeWidth: 1.5, stroke: '#94a3b8' },
+    markerEnd: { type: 'arrowclosed' as MarkerType, color: '#94a3b8' },
+    data: { pathType: 'Smoothstep' },
+    ...extra,
+  };
+}

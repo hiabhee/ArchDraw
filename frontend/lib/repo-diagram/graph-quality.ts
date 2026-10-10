@@ -7,7 +7,7 @@ import type {
   Workflow,
   NodeType,
   RepoProfile,
-} from '@/lib/types/repo-diagram';
+} from '@/lib/repo-diagram/types';
 
 function slugId(input: string): string {
   return input

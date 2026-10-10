@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-vi.mock('@/lib/api-client', () => ({
+vi.mock('@/lib/client/api-client', () => ({
   saveUserCanvas: m.saveUserCanvas,
   deleteUserCanvasApi: vi.fn(),
 }));

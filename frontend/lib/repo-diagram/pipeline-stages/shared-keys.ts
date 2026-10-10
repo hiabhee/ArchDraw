@@ -1,4 +1,4 @@
-import { sharedKey } from '@/lib/pipeline-core';
+import { sharedKey } from '@/lib/diagram/pipeline-core';
 
 export type CacheWriteShared = {
   headSha?: string;

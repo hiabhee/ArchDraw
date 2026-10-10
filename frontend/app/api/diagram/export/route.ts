@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Node, Edge } from 'reactflow';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
-import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } from '@/lib/userQuotas';
-import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
-import { generatePureSVG } from '@/lib/svgExport';
+import prisma from '@/lib/server/prisma';
+import { getUserTier, getUserQuotas, isExportFormatAllowed, shouldWatermark } from '@/lib/quotas/userQuotas';
+import { getSessionFromRequest } from '@/lib/server/quotaCheck';
+import { generatePureSVG } from '@/lib/diagram/export/svgExport';
 
 export const runtime = 'nodejs';
 

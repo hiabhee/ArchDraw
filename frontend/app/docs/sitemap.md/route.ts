@@ -1,6 +1,6 @@
 import { blogs } from '@/data/blogs';
 import { TUTORIALS } from '@/data/tutorials';
-import { DOC_SECTIONS, SITE_URL, LAST_UPDATED } from '@/lib/discovery';
+import { DOC_SECTIONS, SITE_URL, LAST_UPDATED } from '@/lib/site/discovery';
 
 export const runtime = 'nodejs';
 

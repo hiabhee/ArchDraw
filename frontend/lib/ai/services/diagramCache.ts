@@ -1,5 +1,5 @@
 import type { GenerationResult } from '../types';
-import type { PipelineResult } from '@/lib/types/repo-diagram';
+import type { PipelineResult } from '@/lib/repo-diagram/types';
 import { PIPELINE_VERSION } from './pipelineVersion';
 
 const CACHE_TTL_MS = process.env.NODE_ENV === 'development'

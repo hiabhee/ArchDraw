@@ -3,7 +3,7 @@ import { cleanup, renderHook } from '@testing-library/react';
 import { Position, type Edge, type Node } from 'reactflow';
 import { useHandleSlotLayout } from '../useHandleSlotLayout';
 import { useDiagramStore } from '@/store/diagramStore';
-import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
+import { computeEdgeRoute } from '@/lib/diagram/edges/edgeRouteBuilder';
 
 const node = (id: string, x: number, y = 0): Node => ({
   id, type: 'systemNode', position: { x, y }, width: 200, height: 100, data: { label: id },

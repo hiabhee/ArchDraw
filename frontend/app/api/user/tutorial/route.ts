@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
-import { upsertTutorialProgress, deleteTutorialProgress } from '@/lib/db';
+import { auth } from '@/lib/server/auth';
+import { upsertTutorialProgress, deleteTutorialProgress } from '@/lib/server/db';
 import { headers } from 'next/headers';
 import logger from '@/lib/logger';
 

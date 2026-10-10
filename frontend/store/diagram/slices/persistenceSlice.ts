@@ -1,8 +1,8 @@
 import type { StateCreator } from 'zustand';
 import type { Edge, Node } from 'reactflow';
 import { toast } from 'sonner';
-import { fetchUserCanvases as apiGetUserCanvases } from '@/lib/api-client';
-import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
+import { fetchUserCanvases as apiGetUserCanvases } from '@/lib/client/api-client';
+import { validateAndFixNodes } from '@/lib/diagram/nodes/nodeValidation';
 import type { DiagramState, CanvasTab, SetUserProfileOptions } from '../types';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { mergeCanvases } from '../helpers/canvasHelpers';

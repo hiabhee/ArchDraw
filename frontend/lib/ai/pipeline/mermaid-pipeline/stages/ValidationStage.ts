@@ -1,12 +1,12 @@
 import { inferDiagramKind, isReturnInteraction } from '../diagramIntent';
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import type { RFNode, RFEdge } from '@/lib/mermaid/types';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import type { RFNode, RFEdge } from '@/lib/diagram/mermaid/types';
 import type { ArchitectureEdge } from '../../../types';
 import type { ValidationIssue } from '../../types';
-import { classifyNode } from '@/lib/mermaid/planTranslator';
-import { isTextNode } from '@/lib/mermaid/textNodes';
-import { isVerbNodeLabel } from '@/lib/mermaid/sanitize';
+import { classifyNode } from '@/lib/diagram/mermaid/planTranslator';
+import { isTextNode } from '@/lib/diagram/mermaid/textNodes';
+import { isVerbNodeLabel } from '@/lib/diagram/mermaid/sanitize';
 
 function validateReasoningField(reasoning?: string, nodesCount?: number): ValidationIssue[] {
   const issues: ValidationIssue[] = [];

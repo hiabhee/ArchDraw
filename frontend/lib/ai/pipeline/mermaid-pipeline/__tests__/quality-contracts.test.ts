@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { describeExistingContext } from '../architecturePlanner';
 import { PLANNER_EXAMPLES } from '../plannerPrompts';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { LayoutOverrideStage } from '../stages/LayoutOverrideStage';
 import { ValidationStage } from '../stages/ValidationStage';
-import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
+import { DefaultPipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext';
 import { scoreDiagram } from '../../scoreDiagram';
-import { measureLayoutQuality } from '@/lib/pipeline-shared/layout/layoutQuality';
+import { measureLayoutQuality } from '@/lib/diagram/pipeline-shared/layout/layoutQuality';
 import { ArchitecturePlanningStage } from '../stages/ArchitecturePlanningStage';
 import { runArchitecturePlanner } from '../architecturePlanner';
 vi.mock('../architecturePlanner', async importOriginal => ({

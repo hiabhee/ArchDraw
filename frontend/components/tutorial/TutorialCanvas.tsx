@@ -16,19 +16,19 @@ import 'reactflow/dist/style.css';
 import { addEdge, applyNodeChanges, applyEdgeChanges } from 'reactflow';
 import { Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { SystemNode } from '@/components/SystemNode';
+import { SystemNode } from '@/components/canvas/nodes/SystemNode';
 import type { NodeData } from '@/store/diagramStore';
-import { ShapeNode } from '@/components/ShapeNode';
-import { GroupNode } from '@/components/GroupNode';
-import { TextLabelNode } from '@/components/TextLabelNode';
-import { AnnotationNode } from '@/components/AnnotationNode';
-import SimpleFloatingEdge from '@/components/edges/SimpleFloatingEdge';
+import { ShapeNode } from '@/components/canvas/nodes/ShapeNode';
+import { GroupNode } from '@/components/canvas/nodes/GroupNode';
+import { TextLabelNode } from '@/components/canvas/nodes/TextLabelNode';
+import { AnnotationNode } from '@/components/canvas/nodes/AnnotationNode';
+import SimpleFloatingEdge from '@/components/canvas/edges/SimpleFloatingEdge';
 import { useTutorialStore, useTutorialHelpers, sanitizeNode, sanitizeEdge } from '@/store/tutorialStore';
-import { createNode, isBlankInitComponent } from '@/lib/factory';
-import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
-import { DIAGRAM_CONSTANTS, EDGE_MARKER } from '@/constants/diagram';
-import { assignEdgeColors } from '@/lib/edgeColors';
-import { getStepRequirements, isNodeTypeMet, isEdgeMet } from '@/lib/tutorialValidation';
+import { createNode, isBlankInitComponent } from '@/lib/component-library/factory';
+import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
+import { DIAGRAM_CONSTANTS, EDGE_MARKER } from '@/lib/diagram/constants/diagram';
+import { assignEdgeColors } from '@/lib/theme/edgeColors';
+import { getStepRequirements, isNodeTypeMet, isEdgeMet } from '@/lib/tutorial/tutorialValidation';
 const EDGE_TYPES = {
   custom: SimpleFloatingEdge,
   simpleFloating: SimpleFloatingEdge,
@@ -44,9 +44,9 @@ const EDGE_TYPES = {
   dotted: SimpleFloatingEdge,
 };
 import { ComponentPalette } from '@/components/tutorial/ComponentPalette';
-import { CORE_COMPONENTS as components } from '@/lib/componentRegistry';
+import { CORE_COMPONENTS as components } from '@/lib/component-library/componentRegistry';
 import { COMPONENT_TOOLTIPS, type RichTooltipData } from '@/data/componentTooltips';
-import { CanvasHostProvider, type CanvasHost } from '@/lib/canvas/CanvasHostContext';
+import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 
 export interface NodeDetailsInfo {
   label: string;

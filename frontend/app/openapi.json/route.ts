@@ -1,4 +1,4 @@
-import { OPENAPI_SPEC } from '@/lib/openapiSpec';
+import { OPENAPI_SPEC } from '@/lib/site/openapiSpec';
 
 export const runtime = 'nodejs';
 

@@ -8,8 +8,8 @@ import { get as getCachedDiagram, set as setCachedDiagram } from '@/lib/ai/servi
 import logger from '@/lib/logger';
 import { isTokenExhaustedError, SERVER_BUSY_USER_MESSAGE } from '@/lib/ai/utils/apiKeyManager';
 import { z } from 'zod';
-import { checkAIGenerationQuota, getSessionFromRequest, incrementAIGeneration, logUsage, getGuestId, releaseAIGeneration } from '@/lib/middleware/quotaCheck';
-import { CREDIT_POLICY, reserveCredits, refundCredits, getCreditSnapshot, type DetailLevel } from '@/lib/credits';
+import { checkAIGenerationQuota, getSessionFromRequest, incrementAIGeneration, logUsage, getGuestId, releaseAIGeneration } from '@/lib/server/quotaCheck';
+import { CREDIT_POLICY, reserveCredits, refundCredits, getCreditSnapshot, type DetailLevel } from '@/lib/server/credits';
 import { acquireAiCapacity, CapacityBusyError, getGenerationBudget } from '@/lib/ai/services/aiCapacity';
 
 export const runtime = 'nodejs';

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { deferredJSONStorage, migrateLegacyStorage } from '@/lib/storage/localStorage';
+import { deferredJSONStorage, migrateLegacyStorage } from '@/lib/client/localStorage';
 import type { DiagramState } from './diagram/types';
 import { deriveNodesAndEdges, wrapCreator } from './diagram/derive';
 import { diagramPersistPartialize } from './diagram/persistence/partialize';

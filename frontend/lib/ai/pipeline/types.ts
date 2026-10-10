@@ -89,7 +89,7 @@ export interface ReasoningResult {
 }
 
 export interface DiagramScore {
-  geometry?: ReturnType<typeof import('@/lib/pipeline-shared/layout/layoutQuality').measureLayoutQuality>;
+  geometry?: ReturnType<typeof import('@/lib/diagram/pipeline-shared/layout/layoutQuality').measureLayoutQuality>;
   grade: 'A' | 'B' | 'C' | 'F';
   nodeCount: number;
   edgeCount: number;
@@ -161,7 +161,7 @@ export interface PipelineDiagnostics {
   removedInvalidEdgeIds: string[];
   /** True when semantic auto-injection was intentionally skipped */
   rejectedAutoInjection: boolean;
-  geometrySummary?: import('@/lib/mermaid/pipeline').GeometrySummary;
+  geometrySummary?: import('@/lib/diagram/mermaid/pipeline').GeometrySummary;
   /** Existing diagram node IDs dropped by the model (not re-injected during validation) */
   removedExistingNodeIds?: string[];
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCloudIconSet } from './useCloudIconSet';
-import type { CloudProviderId } from '@/lib/cloudIcons/types';
+import type { CloudProviderId } from '@/lib/icons/cloud/types';
 
 interface CloudProviderIconProps {
   provider: CloudProviderId;

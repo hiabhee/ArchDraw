@@ -1,5 +1,5 @@
-import { Pipeline, pipelineStages, toDomainResult } from '@/lib/pipeline-core';
-import type { DomainPipelineResult, Stage } from '@/lib/pipeline-core';
+import { Pipeline, pipelineStages, toDomainResult } from '@/lib/diagram/pipeline-core';
+import type { DomainPipelineResult, Stage } from '@/lib/diagram/pipeline-core';
 import { IngestStage } from './pipeline-stages/IngestionStage';
 import { ResolveRepoHeadStage } from './pipeline-stages/ResolveRepoHeadStage';
 import type { IngestionInput } from './pipeline-stages/IngestionStage';
@@ -13,8 +13,8 @@ import { VerifyStage } from './pipeline-stages/VerifyStage';
 import { DocsReviewStage } from './pipeline-stages/DocsReviewStage';
 import { FinalizationStage } from './pipeline-stages/FinalizationStage';
 import { CacheWriteStage } from './pipeline-stages/CacheWriteStage';
-import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
-import type { PipelineProgressEvent } from '@/lib/types/repo-diagram';
+import type { PipelineResult as RepoPipelineResult } from '@/lib/repo-diagram/types';
+import type { PipelineProgressEvent } from '@/lib/repo-diagram/types';
 import logger from '@/lib/logger';
 
 const PROGRESS_STAGE_MAP: Record<string, PipelineProgressEvent['stage']> = {

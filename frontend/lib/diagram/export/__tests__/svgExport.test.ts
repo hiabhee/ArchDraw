@@ -1,0 +1,198 @@
+import { describe, expect, it } from 'vitest';
+import type { Edge, Node } from 'reactflow';
+import { generatePureSVG } from '@/lib/diagram/export/svgExport';
+
+function fixture(): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = [
+    {
+      id: 'a',
+      type: 'shapeNode',
+      position: { x: 0, y: 0 },
+      width: 200,
+      height: 200,
+      selected: false,
+      data: { label: 'API Gateway', shape: 'diamond', accentColor: '#0f766e' },
+    },
+    {
+      id: 'b',
+      type: 'shapeNode',
+      position: { x: 320, y: 50 },
+      width: 200,
+      height: 100,
+      selected: false,
+      data: { label: 'Orders Service', shape: 'rounded-rectangle', accentColor: '#7c3aed' },
+    },
+  ];
+  const edges: Edge[] = [
+    {
+      id: 'e1',
+      source: 'a',
+      target: 'b',
+      type: 'simpleFloating',
+      sourceHandle: 'source-right',
+      targetHandle: 'target-left',
+      data: { label: 'routes' },
+    },
+  ];
+  return { nodes, edges };
+}
+
+describe('generatePureSVG render styles', () => {
+  it('precision keeps the legacy crisp markup for shapes and edges', () => {
+    const { nodes, edges } = fixture();
+    const svg = generatePureSVG(nodes, edges, true, '#0f172a', 'LR', 'precision');
+
+    expect(svg).toMatch(/^<svg[^>]*xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink"/);
+    expect(svg).toContain('shape-rendering="geometricPrecision"');
+    expect(svg).toContain('text-rendering="geometricPrecision"');
+    expect(svg).toContain('<polygon points="80,4 156,50 80,96 4,50" fill=');
+    expect(svg).toContain('<rect x="1" y="1" width="198" height="98" rx="10" ry="10" fill=');
+    expect(svg).toContain('stroke-width="1.25"');
+    expect(svg).toContain('data-edge-marker="solid-arrowhead"');
+    expect(svg).not.toContain('marker-end="url(#arrow-e1)"');
+    expect(svg).toMatch(/<path[\s\S]*?d="M [\d.]+ [\d.]+ /);
+    expect(svg).not.toContain('rough');
+  });
+
+  it('sketch routes shapes and edges through the rough stroke renderer', () => {
+    const { nodes, edges } = fixture();
+    const svg = generatePureSVG(nodes, edges, true, '#0f172a', 'LR', 'sketch');
+
+    expect(svg).not.toContain('marker-end="url(#arrow-e1)"');
+    expect(svg).not.toMatch(/<polygon points="80,4 156,50 80,96 4,50" fill=/);
+    expect(svg).not.toMatch(/<rect x="1" y="1" width="198" height="98" rx="10" ry="10" fill=/);
+    // Sketch uses handwritten fonts (Patrick Hand / Caveat) not Inter
+    expect(svg).toContain('Patrick Hand');
+  });
+
+  it('sketch export keeps dashes on dashed edges (async / dotted stay semantic)', () => {
+    const { nodes } = fixture();
+    const edges: Edge[] = [
+      {
+        id: 'e1',
+        source: 'a',
+        target: 'b',
+        type: 'simpleFloating',
+        sourceHandle: 'source-right',
+        targetHandle: 'target-left',
+        data: { label: 'events', edgeVariant: 'dashed' },
+      },
+    ];
+    const svg = generatePureSVG(nodes, edges, true, '#0f172a', 'LR', 'sketch');
+    expect(svg).toMatch(/stroke-dasharray="[^"]*[0-9]/);
+    expect(svg).toContain('stroke-dasharray="5,4"');
+  });
+
+  it('preserves Studio Minimal white cards with semantic accents and colored edges in SVG', () => {
+    const nodes: Node[] = [
+      { id: 'service', type: 'shapeNode', position: { x: 0, y: 0 }, width: 200, height: 100, data: { label: 'Service' } },
+      { id: 'browser', type: 'shapeNode', position: { x: 320, y: 0 }, width: 200, height: 100, data: { label: 'Browser', shape: 'monitor' } },
+    ];
+    const edges: Edge[] = [{ id: 'request', source: 'service', target: 'browser', type: 'simpleFloating', data: { importance: 'primary' } }];
+    const svg = generatePureSVG(
+      nodes,
+      edges,
+      false,
+      '#fdfdfc',
+      'LR',
+      'studio-minimal',
+      'studio-minimal',
+    );
+
+    // PNG rasterizes this SVG, so its colors must match the canvas theme.
+    expect(svg).toContain('#fcfcfd');
+    expect(svg).toContain('stroke="rgba(0,143,107,0.36)"');
+    expect(svg).toContain('stroke="rgba(40,100,216,0.36)"');
+    expect(svg).toContain('stroke="#356ad2"');
+    expect(svg).toContain('data-semantic-icon="arch-service"');
+    expect(svg).toContain('data-semantic-icon="arch-web"');
+    expect(svg).toContain('viewBox="0 0 24 24"');
+
+    const asyncSvg = generatePureSVG(nodes, [{ ...edges[0], data: { connectionType: 'async' } }], false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal');
+    expect(asyncSvg).toContain('stroke="#d45f3b"');
+
+    const darkSvg = generatePureSVG(nodes, edges, true, '#000000', 'LR', 'studio-minimal', 'studio-minimal');
+    expect(darkSvg).toContain('stroke="#82aaff"');
+
+    const systemSvg = generatePureSVG([
+      { id: 'database', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Database', category: 'Data' } },
+    ], [], false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal');
+    expect(systemSvg).toContain('fill="#fcfcfd"');
+    expect(systemSvg).toContain('stroke="#7558d8"');
+    expect(systemSvg).toContain('data-semantic-icon="arch-database"');
+
+    const withoutIcons = generatePureSVG(nodes, edges, false, '#fdfdfc', 'LR', 'studio-minimal', 'studio-minimal', 'off');
+    expect(withoutIcons).not.toContain('data-semantic-icon=');
+  });
+
+  it('correctly exports the five new architecture-native shapes to precision and sketch SVG', () => {
+    const nodes: Node[] = [
+      {
+        id: 'q',
+        type: 'shapeNode',
+        position: { x: 0, y: 0 },
+        width: 240,
+        height: 64,
+        selected: false,
+        data: { label: 'Queue', shape: 'queue' },
+      },
+      {
+        id: 'c',
+        type: 'shapeNode',
+        position: { x: 250, y: 0 },
+        width: 180,
+        height: 96,
+        selected: false,
+        data: { label: 'Cache', shape: 'cache' },
+      },
+      {
+        id: 'f',
+        type: 'shapeNode',
+        position: { x: 440, y: 0 },
+        width: 180,
+        height: 96,
+        selected: false,
+        data: { label: 'Function', shape: 'function' },
+      },
+      {
+        id: 'cnt',
+        type: 'shapeNode',
+        position: { x: 630, y: 0 },
+        width: 220,
+        height: 104,
+        selected: false,
+        data: { label: 'Container', shape: 'container' },
+      },
+      {
+        id: 'b',
+        type: 'shapeNode',
+        position: { x: 860, y: 0 },
+        width: 180,
+        height: 104,
+        selected: false,
+        data: { label: 'Bucket', shape: 'bucket' },
+      },
+    ];
+
+    const precisionSvg = generatePureSVG(nodes, [], true, '#0f172a', 'LR', 'precision');
+    expect(precisionSvg).toContain('Queue');
+    expect(precisionSvg).toContain('Cache');
+    expect(precisionSvg).toContain('Function');
+    expect(precisionSvg).toContain('Container');
+    expect(precisionSvg).toContain('Bucket');
+
+    // Queue has lane lines
+    expect(precisionSvg).toContain('x1=');
+    // Function has polygon
+    expect(precisionSvg).toContain('<polygon');
+    // Cache has shadow layers
+    expect(precisionSvg).toContain('<rect');
+
+    const sketchSvg = generatePureSVG(nodes, [], true, '#0f172a', 'LR', 'sketch');
+    expect(sketchSvg).toContain('Queue');
+    expect(sketchSvg).toContain('Cache');
+    expect(sketchSvg).toContain('Function');
+    expect(sketchSvg).toContain('Container');
+    expect(sketchSvg).toContain('Bucket');
+  });
+});

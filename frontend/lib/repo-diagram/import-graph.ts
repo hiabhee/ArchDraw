@@ -1,4 +1,4 @@
-import type { FileEntry } from '@/lib/types/repo-diagram';
+import type { FileEntry } from '@/lib/repo-diagram/types';
 import { resolveImportSpec } from './import-resolvers';
 
 /**

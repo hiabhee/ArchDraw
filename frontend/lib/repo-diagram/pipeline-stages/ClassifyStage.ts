@@ -1,8 +1,8 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { buildStaticDetectionReport, formatDetectionReport } from '@/lib/repo-diagram/static-detector';
-import { classifyRepository } from '@/lib/agents/repo-classifier';
-import { buildFallbackRepoProfile } from '@/lib/agents/repo-deep-classifier';
+import { classifyRepository } from '@/lib/repo-diagram/agents/repo-classifier';
+import { buildFallbackRepoProfile } from '@/lib/repo-diagram/agents/repo-deep-classifier';
 import { buildDependencyIntelligence, buildSummariesForLLM, gatherPass2Files } from './internal-helpers';
 import { detailLevelFromContext } from './context-utils';
 import type { EnrichmentInput, RepoEnrichmentState } from './enrichment-types';

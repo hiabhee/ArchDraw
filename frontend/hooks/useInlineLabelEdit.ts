@@ -2,7 +2,7 @@
 
 import { useState, useRef, useLayoutEffect, useCallback, useEffect } from 'react';
 import { useDiagramStore } from '@/store/diagramStore';
-import { useCanvasHost } from '@/lib/canvas/CanvasHostContext';
+import { useCanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 
 interface UseInlineLabelEditOptions {
   nodeId: string;

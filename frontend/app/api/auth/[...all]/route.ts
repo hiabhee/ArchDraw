@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth';
+import { auth } from '@/lib/server/auth';
 import logger from '@/lib/logger';
 
 export async function GET(request: Request) {

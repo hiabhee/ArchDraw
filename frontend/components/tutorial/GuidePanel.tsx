@@ -14,9 +14,9 @@ import {
   isExplainPhase,
   nextExplainVariantIndex,
 } from '@/lib/tutorial/explainQuota';
-import { validateStep, getStepRequirements, isNodeTypeMet, isEdgeMet, type StepRequirements } from '@/lib/tutorialValidation';
-import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
-import { analytics } from '@/lib/analytics';
+import { validateStep, getStepRequirements, isNodeTypeMet, isEdgeMet, type StepRequirements } from '@/lib/tutorial/tutorialValidation';
+import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
+import { analytics } from '@/lib/client/analytics';
 
 const PHASE_BUTTONS: Record<PhaseName, { label: string; action: PhaseName | 'next_step' }> = {
   context: { label: 'Got it', action: 'intro' },

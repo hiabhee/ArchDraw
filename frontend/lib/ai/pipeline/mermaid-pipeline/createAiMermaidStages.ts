@@ -1,9 +1,9 @@
 import { repairDiagramQuality } from './stages/QualityRepairStage';
-import { pipelineStages } from '@/lib/pipeline-core';
-import type { Stage } from '@/lib/pipeline-core/Stage';
-import type { StageResult } from '@/lib/pipeline-core/StageResult';
-import { successResult, errorResult } from '@/lib/pipeline-core/StageResult';
-import type { PipelineContext } from '@/lib/pipeline-core/PipelineContext';
+import { pipelineStages } from '@/lib/diagram/pipeline-core';
+import type { Stage } from '@/lib/diagram/pipeline-core/Stage';
+import type { StageResult } from '@/lib/diagram/pipeline-core/StageResult';
+import { successResult, errorResult } from '@/lib/diagram/pipeline-core/StageResult';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext';
 import type { UserIntent } from '../../types';
 import type { AiPipelineData } from './aiPipelineTypes';
 import { createInitialAiPipelineData } from './aiPipelineTypes';

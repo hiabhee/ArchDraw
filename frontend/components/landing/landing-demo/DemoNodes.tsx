@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position } from 'reactflow';
 import { NodeResizer } from '@reactflow/node-resizer';
-import SimpleFloatingEdge from '@/components/edges/SimpleFloatingEdge';
+import SimpleFloatingEdge from '@/components/canvas/edges/SimpleFloatingEdge';
 import { getTierColorNormalized, getDarkCategoryStyle, hexToRgba, STATUS_COLORS } from './demoColors';
 import type { DemoNodeData, DemoGroupData } from './demoTypes';
 

@@ -1,4 +1,4 @@
-import type { ShapeType } from '@/lib/shapeRegistry';
+import type { ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
 import type { ShapePrimitive } from '@/lib/theme/renderStyles/types';
 
 export type { ShapePrimitive };

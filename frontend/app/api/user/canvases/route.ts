@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
-import { CanvasConflictError, CanvasOwnershipError, getUserCanvases, upsertUserCanvas } from '@/lib/db';
+import { auth } from '@/lib/server/auth';
+import { CanvasConflictError, CanvasOwnershipError, getUserCanvases, upsertUserCanvas } from '@/lib/server/db';
 import { headers } from 'next/headers';
-import { getUserTier, getUserQuotas } from '@/lib/userQuotas';
-import prisma from '@/lib/prisma';
-import { isTextNode } from '@/lib/mermaid/textNodes';
+import { getUserTier, getUserQuotas } from '@/lib/quotas/userQuotas';
+import prisma from '@/lib/server/prisma';
+import { isTextNode } from '@/lib/diagram/mermaid/textNodes';
 import logger from '@/lib/logger';
 
 const putSchema = z.object({

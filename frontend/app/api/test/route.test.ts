@@ -7,7 +7,7 @@ const { requireAdmin, loggerError } = vi.hoisted(() => ({
   loggerError: vi.fn(),
 }));
 
-vi.mock('@/lib/admin-auth', () => ({ requireAdmin }));
+vi.mock('@/lib/server/admin-auth', () => ({ requireAdmin }));
 vi.mock('@/lib/logger', () => ({
   default: { error: loggerError, log: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSubsystemGraph, intermediateToArchitecture } from '../intermediate-graphs';
-import type { Subsystem, FileEntry, StaticSignal } from '@/lib/types/repo-diagram';
+import type { Subsystem, FileEntry, StaticSignal } from '@/lib/repo-diagram/types';
 
 describe('buildSubsystemGraph', () => {
   it('creates nodes for each subsystem', () => {

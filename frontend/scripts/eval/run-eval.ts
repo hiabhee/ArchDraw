@@ -70,7 +70,7 @@ async function runOne(repo: CorpusRepo, detailLevelOverride?: 1 | 2 | 3): Promis
     const { clear } = await import('@/lib/ai/services/diagramCache');
     clear();
     try {
-      const { clearBlobCaches } = await import('@/lib/cache/blobCache');
+      const { clearBlobCaches } = await import('@/lib/repo-diagram/blobCache');
       clearBlobCaches();
     } catch { /* blob cache clear is best-effort */ }
 

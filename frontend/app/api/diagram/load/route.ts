@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
+import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
-import { isDomainSuccess } from '@/lib/pipeline-core';
-import { getUserTier, canAccessFeature } from '@/lib/userQuotas';
-import { getSessionFromRequest, logUsage } from '@/lib/middleware/quotaCheck';
-import { checkRateLimitWithFallback } from '@/lib/redis';
+import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
+import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
+import { getUserTier, canAccessFeature } from '@/lib/quotas/userQuotas';
+import { getSessionFromRequest, logUsage } from '@/lib/server/quotaCheck';
+import { checkRateLimitWithFallback } from '@/lib/server/redis';
 import { getClientIP } from '@/lib/server/ip';
 
 export const runtime = 'nodejs';

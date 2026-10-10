@@ -1,11 +1,11 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { constrainGraphForRepoType, deduplicateNodes, pruneNoisyEdges } from '@/lib/repo-diagram/graph-quality';
-import { verifyGraph } from '@/lib/agents/repo-verifier';
-import { inferRelationshipsHeuristic } from '@/lib/agents/repo-heuristic-extractor';
+import { verifyGraph } from '@/lib/repo-diagram/agents/repo-verifier';
+import { inferRelationshipsHeuristic } from '@/lib/repo-diagram/agents/repo-heuristic-extractor';
 import { normalizeId } from './internal-helpers';
 import type { RepoEnrichmentState } from './enrichment-types';
-import type { RichEdge } from '@/lib/types/repo-diagram';
+import type { RichEdge } from '@/lib/repo-diagram/types';
 
 export class VerifyStage extends BaseStage<RepoEnrichmentState, RepoEnrichmentState> {
   constructor() {

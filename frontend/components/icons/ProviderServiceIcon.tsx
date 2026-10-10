@@ -1,8 +1,8 @@
 'use client';
 
-import { AWS_BRAND_ICON_MAP } from '@/lib/cloudIcons/awsBrandIconMap';
+import { AWS_BRAND_ICON_MAP } from '@/lib/icons/cloud/awsBrandIconMap';
 import { CloudProviderIcon } from '@/components/icons/CloudProviderIcon';
-import type { CloudProviderId } from '@/lib/cloudIcons/types';
+import type { CloudProviderId } from '@/lib/icons/cloud/types';
 
 interface ProviderServiceIconProps {
   provider: CloudProviderId;

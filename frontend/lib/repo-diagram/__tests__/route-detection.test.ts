@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { FileEntry } from '@/lib/types/repo-diagram';
+import type { FileEntry } from '@/lib/repo-diagram/types';
 import { extractStaticSignals } from '../static-analyzer';
 
 // Phase 5: broadened route-pattern detection across Flask / Django / FastAPI / Redis

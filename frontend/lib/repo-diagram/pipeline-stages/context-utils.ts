@@ -1,4 +1,4 @@
-import type { PipelineContext } from '@/lib/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 
 /**
  * Shared detail-level resolution for repo pipeline stages. Prefer this over

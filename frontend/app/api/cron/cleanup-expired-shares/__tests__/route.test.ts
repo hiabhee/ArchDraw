@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({ findMany: vi.fn(), deleteMany: vi.fn() }));
-vi.mock('@/lib/prisma', () => ({ default: { sharedCanvas: { findMany: m.findMany, deleteMany: m.deleteMany } } }));
+vi.mock('@/lib/server/prisma', () => ({ default: { sharedCanvas: { findMany: m.findMany, deleteMany: m.deleteMany } } }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn(), debug: vi.fn() } }));
 
 import { GET } from '../route';

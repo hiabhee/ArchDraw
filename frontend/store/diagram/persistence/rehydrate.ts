@@ -1,7 +1,7 @@
 import { STORAGE_KEYS } from '@/lib/config';
-import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
-import { resolveNodeCollisions } from '@/src/utils/resolveNodeCollisions';
-import { ensureSubgraphBoundsContainChildren } from '@/lib/mermaid/recomputeSubgraphBounds';
+import { validateAndFixNodes } from '@/lib/diagram/nodes/nodeValidation';
+import { resolveNodeCollisions } from '@/lib/diagram/geometry/resolveNodeCollisions';
+import { ensureSubgraphBoundsContainChildren } from '@/lib/diagram/mermaid/recomputeSubgraphBounds';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { normalizeNodes, sanitizeNodes, stripReservedLayerNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges, sanitizeEdges, applyBidirectionalEdgeFixes } from '../helpers/edgeHelpers';

@@ -1,6 +1,6 @@
 'use client';
 
-import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/brandIcons';
+import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/icons/brandIcons';
 
 interface TechnologyBrandIconProps {
   technology: string;

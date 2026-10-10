@@ -1,11 +1,11 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { buildSubsystemGraph, intermediateToArchitecture } from '@/lib/repo-diagram/intermediate-graphs';
 import { expandBaselineFromSignals } from '@/lib/repo-diagram/graph-quality';
 import { deriveEvidenceEdges } from '@/lib/repo-diagram/evidence-from-graph';
-import type { RepoSnapshot, Subsystem, StaticSignal, ExtractedNode, RichEdge, Workflow } from '@/lib/types/repo-diagram';
+import type { RepoSnapshot, Subsystem, StaticSignal, ExtractedNode, RichEdge, Workflow } from '@/lib/repo-diagram/types';
 import type { ImportGraph } from '@/lib/repo-diagram/import-graph';
-import { buildEvidenceEdgeSet } from '@/lib/agents/repo-verifier';
+import { buildEvidenceEdgeSet } from '@/lib/repo-diagram/agents/repo-verifier';
 
 function demoteGuessedEdges(edges: RichEdge[], nodes: ExtractedNode[], importGraph?: ImportGraph): RichEdge[] {
   const evidenceEdgeSet = buildEvidenceEdgeSet(nodes, importGraph);

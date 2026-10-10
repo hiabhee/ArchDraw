@@ -1,11 +1,11 @@
 import { inferDiagramKind, isReturnInteraction } from './mermaid-pipeline/diagramIntent';
-import { measureLayoutQuality } from '@/lib/pipeline-shared/layout/layoutQuality';
+import { measureLayoutQuality } from '@/lib/diagram/pipeline-shared/layout/layoutQuality';
 import logger from '@/lib/logger';
 import { Node, Edge } from 'reactflow';
 import type { DiagramScore, ArchitectureStylePlan, ArchitectureStyle } from './types';
-import { isTextNode } from '@/lib/mermaid/textNodes';
-import { classifyNode } from '@/lib/mermaid/planTranslator';
-import { isVerbNodeLabel } from '@/lib/mermaid/sanitize';
+import { isTextNode } from '@/lib/diagram/mermaid/textNodes';
+import { classifyNode } from '@/lib/diagram/mermaid/planTranslator';
+import { isVerbNodeLabel } from '@/lib/diagram/mermaid/sanitize';
 
 const GENERIC_TEMPLATE_LABELS = [
   'api gateway',

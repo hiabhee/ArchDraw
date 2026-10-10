@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand';
 
-import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
+import { validateAndFixNodes } from '@/lib/diagram/nodes/nodeValidation';
 import type { DiagramState } from '../types';
 import { normalizeNodes, normalizeNodeType } from '../helpers/nodeHelpers';
 import { normalizeEdges, normalizeEdge } from '../helpers/edgeHelpers';

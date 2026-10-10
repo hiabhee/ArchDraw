@@ -3,8 +3,8 @@
 import { useMemo } from 'react';
 import type { Node, Edge } from 'reactflow';
 import { getBezierPath, getStraightPath } from 'reactflow';
-import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
-import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
+import { computeEdgeRoute } from '@/lib/diagram/edges/edgeRouteBuilder';
+import { buildSmoothStepSvg } from '@/lib/diagram/edges/collisionFreeEdgePath';
 import { EDGE_TYPE_CONFIGS, getEdgeConfig, type EdgeType } from '@/data/edgeTypes';
 
 interface DiagramPreviewProps {

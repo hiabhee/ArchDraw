@@ -6,7 +6,7 @@ import {
   getStepRequirements,
   isNodeTypeMet,
   isEdgeMet,
-} from '@/lib/tutorialValidation';
+} from '@/lib/tutorial/tutorialValidation';
 
 function node(
   id: string,

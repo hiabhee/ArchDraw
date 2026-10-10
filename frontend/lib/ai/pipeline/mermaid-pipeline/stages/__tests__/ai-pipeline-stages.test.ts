@@ -6,7 +6,7 @@ import { themePrimaryColor } from '@/lib/theme/stylingConstants';
 import { ValidationStage } from '../ValidationStage';
 import type { ConceptDetectionOutput } from '../ConceptDetectionStage';
 import type { ArchitecturePlan } from '../ArchitecturePlanningStage';
-import { DefaultPipelineContext } from '@/lib/pipeline-core/PipelineContext';
+import { DefaultPipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext';
 
 function createContext() {
   return new DefaultPipelineContext('test-exec');

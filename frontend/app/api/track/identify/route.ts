@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { auth } from '@/lib/server/auth';
+import prisma from '@/lib/server/prisma';
 import { headers } from 'next/headers';
 import logger from '@/lib/logger';
 

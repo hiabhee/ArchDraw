@@ -1,8 +1,8 @@
 import type { Node, Edge } from 'reactflow';
 import type { GenerationProgress } from '@/lib/ai/types';
-import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
-import { parseGitHubUrl } from '@/lib/utils/githubUrl';
-import type { RepoDiagramApiResponse } from '@/lib/types/repo-diagram';
+import { parseAndValidateRepoDiagram } from '@/lib/repo-diagram/importRepoDiagram';
+import { parseGitHubUrl } from '@/lib/repo-diagram/githubUrl';
+import type { RepoDiagramApiResponse } from '@/lib/repo-diagram/types';
 
 export interface AIGenerationOptions {
   description: string;
@@ -39,7 +39,7 @@ export class GenerationServiceError extends Error {
 /**
  * Generate a diagram from a natural-language prompt by calling the backend API.
  *
- * Extracted from views/Editor.tsx:298-460 so the component only handles UI side
+ * Extracted from components/editor/Editor.tsx:298-460 so the component only handles UI side
  * effects (progress display, toast, analytics) while the network/data logic
  * lives here.
  */

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import prisma from '@/lib/prisma';
+import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
 import SharePageClient from './SharePageClient';
 

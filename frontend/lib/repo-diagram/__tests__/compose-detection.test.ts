@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { FileEntry } from '@/lib/types/repo-diagram';
+import type { FileEntry } from '@/lib/repo-diagram/types';
 import { extractStaticSignals } from '../static-analyzer';
 
 // Compose-files with depends_on parsed via real YAML (Phase 3 fix).

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-import { coerceGitHubRepoInput } from '@/lib/utils/githubUrl';
+import { coerceGitHubRepoInput } from '@/lib/repo-diagram/githubUrl';
 import { editorGenerateHref, FEATURED_REPO_URL, START_CTA_LABEL } from './cta';
 import styles from './RevampedLanding.module.css';
 

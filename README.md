@@ -20,7 +20,7 @@ AI-assisted system architecture diagramming tool. Describe a system in plain Eng
 
 ## Tech Stack
 
-Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · Dagre (frontend) / ELK (mcp-server only) · Groq · Prisma + Supabase · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
+Next.js 16 / React 19 / TypeScript · React Flow v11 · Zustand v5 · Dagre (layout for the app and MCP server) · Groq · Prisma + Supabase · Upstash Redis · Tailwind CSS v4 · Framer Motion · Radix UI / shadcn/ui · Mermaid.js v11 · better-auth
 
 ## Getting Started
 
@@ -99,32 +99,34 @@ npm run start
 ## Project Layout
 
 ```
-frontend/
-├── app/                  # Next.js App Router pages & API routes
-├── components/           # React components (Canvas, nodes, edges, panels)
-├── store/                # Zustand stores (diagram, auth, tutorial, etc.)
-├── lib/
-│   ├── ai/pipeline/mermaid-pipeline/  # 6-stage AI → Mermaid pipeline
-│   ├── repo-diagram/      # 10-stage Repo → Diagram pipeline
-│   ├── mermaid/           # Mermaid parse / validate / relayout (canonical)
-│   ├── pipeline-shared/layout/  # Dagre layout engine (single owner)
-│   ├── pipeline-core/     # Typed Pipeline / Stage primitives
-│   └── types/             # TypeScript definitions
-├── data/                 # Templates, tutorials, component registry
-└── prisma/               # Schema & migrations (client → src/generated/prisma)
-
-mcp-server/               # Standalone MCP server (10 tools, ELK layout only here)
+ArchDraw/
+├── frontend/              # Next.js app — the product (see frontend/lib/README.md, frontend/components/README.md)
+│   ├── app/               # Routes and API route handlers (App Router)
+│   ├── components/        # UI by area: canvas/, editor/, viewers/, landing/, dashboard/, tutorial/, ui/ …
+│   ├── lib/               # Logic by domain: diagram/, ai/, repo-diagram/, server/, client/, theme/, icons/ …
+│   ├── store/             # Zustand stores (diagram store is split into store/diagram/slices)
+│   ├── hooks/             # Shared React hooks
+│   ├── data/              # Templates, tutorials, component catalog (JSON/TS data)
+│   ├── prisma/            # Database schema + migrations
+│   └── scripts/           # Eval, perf, and maintenance scripts
+├── mcp-server/            # MCP server published as @hiabhee/archdraw-mcp-server
+├── plugins/archdraw/      # Claude Code + Codex plugin (skill + MCP config)
+├── docs/                  # Architecture notes, guides, plans (start at docs/README.md)
+├── .claude-plugin/        # Claude Code marketplace manifest  ┐ fixed locations the
+└── .agents/plugins/       # Codex marketplace manifest         ┘ agents look for
 ```
+
+New here? Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## AI Pipeline
 
-6-stage pipeline in `lib/ai/pipeline/mermaid-pipeline/createAiMermaidStages.ts`: Concept Detection → Architecture Planning (LLM or canned `conceptTemplates.ts` for ≤12-word prompts) → Layout Override → Mermaid Materialize (parse → build → Dagre layout → size) → Score → Validate. Canonical relayout is `layoutDiagramViaMermaid` in `lib/mermaid/relayout.ts` (React Flow → Mermaid → Dagre → React Flow).
+6-stage pipeline in `lib/ai/pipeline/mermaid-pipeline/createAiMermaidStages.ts`: Concept Detection → Architecture Planning (LLM or canned `conceptTemplates.ts` for ≤12-word prompts) → Layout Override → Mermaid Materialize (parse → build → Dagre layout → size) → Score → Validate. Canonical relayout is `layoutDiagramViaMermaid` in `lib/diagram/mermaid/relayout.ts` (React Flow → Mermaid → Dagre → React Flow).
 
 Repo pipeline in `lib/repo-diagram/pipeline-v2.ts`: Ingest → Cache Check → Analysis → Baseline → Classify → Extract → Relationships → Verify → Finalization → Cache Write.
 
 ## MCP Server
 
-Standalone server at `mcp-server/` (self-contained `node_modules`, SDK 1.29). Dev: `npm run dev:mcp` from `frontend/`. Tools: `generate_diagram` (Mermaid-first), `update_diagram`, `validate_diagram`, `fix_layout`, `apply_template`, `export_diagram`, `list_nodes`, `save_checkpoint`, `load_checkpoint`, `read_me`. ELK lives only here — frontend layout is Dagre-only.
+Standalone server at `mcp-server/` (self-contained `node_modules`), published to npm as `@hiabhee/archdraw-mcp-server`. Dev: `npm run dev:mcp` from `frontend/`. Tools: `generate_diagram` (Mermaid-first), `update_diagram`, `validate_diagram`, `fix_layout`, `apply_template`, `list_templates`, `list_node_types`, `get_diagram_state`, `export_diagram`, `save_checkpoint`, `load_checkpoint`, `read_me`. Layout runs through the web app's Mermaid → Dagre pipeline; diagrams come back with a preview link by default. Install it as a plugin from `plugins/archdraw/`.
 
 ## License
 

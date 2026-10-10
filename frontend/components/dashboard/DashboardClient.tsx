@@ -6,10 +6,10 @@ import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen, Arro
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
-import { analytics } from '@/lib/analytics';
+import { analytics } from '@/lib/client/analytics';
 import type { Template } from '@/data/templates';
-import { getUserTier, getGuestQuotas, getAuthenticatedQuotas } from '@/lib/userQuotas';
-import { SignInButtons } from '@/components/SignInButtons';
+import { getUserTier, getGuestQuotas, getAuthenticatedQuotas } from '@/lib/quotas/userQuotas';
+import { SignInButtons } from '@/components/auth/SignInButtons';
 
 interface DashboardClientProps {
   templates: Template[];

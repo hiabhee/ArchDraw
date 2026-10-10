@@ -24,24 +24,25 @@ Primary app lives in `frontend/` (Next.js App Router). Companion package: `mcp-s
 ArchDraw/
 ├── frontend/                 # Next.js app (product + most logic)
 │   ├── app/                  # Routes & API handlers
-│   ├── components/           # Canvas UI, nodes, edges, landing, dashboard
-│   ├── views/                # Editor shell
+│   ├── components/           # UI by area — canvas/, editor/, viewers/, auth/, providers/, landing/, dashboard/, tutorial/, icons/, ui/, jev/
+│   ├── lib/                  # Logic by domain — diagram/, ai/, repo-diagram/, server/, client/, quotas/, theme/, icons/, component-library/, tutorial/, site/, jev/
 │   ├── store/                # Zustand stores
-│   ├── lib/                  # Pipelines, layout, auth, utils
-│   ├── data/                 # Templates + tutorials
 │   ├── hooks/                # React hooks (handles, label edit, …)
-│   ├── constants/            # Shape configs, diagram constants
+│   ├── data/                 # Templates + tutorials + component catalog
+│   ├── scripts/              # eval/, perf/, maintenance scripts
 │   └── prisma/               # Schema & migrations
-├── mcp-server/               # Standalone MCP protocol server
-├── docs/                     # Design / refactor notes (not always current)
+├── mcp-server/               # Standalone MCP protocol server (npm: @hiabhee/archdraw-mcp-server)
+├── plugins/archdraw/         # Claude Code + Codex plugin
+├── docs/                     # architecture/, guides/, plans/ (historical), archive/ — index at docs/README.md
+├── .claude-plugin/  .agents/plugins/   # marketplace manifests (fixed paths)
 ├── SECURITY.md
-├── CONTRIBUTING.md           # Design-system color tokens
+├── CONTRIBUTING.md           # Contributor map + design-system color tokens
 └── AGENTS.md                 # This file
 ```
 
-Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc --noEmit`).
+Folder maps: `frontend/lib/README.md`, `frontend/components/README.md`, `docs/README.md`. **Placement rules:** new logic goes in the `lib/` domain folder that owns it (never loose at the top of `lib/` or `components/`); `lib/server/` is server-only and must not be imported from `'use client'` modules; `lib/client/` is browser-only.
 
----
+Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc --noEmit`).
 
 ## 3. Agent rules (must follow)
 
@@ -64,24 +65,24 @@ Work from `frontend/` for almost everything (`npm run dev`, `npm test`, `npx tsc
 
 - **`diagramRenderStyle`** (`precision` | `sketch`, store `uiSlice.ts`) controls **how** shapes/edges/groups are drawn — stroke engine, fonts, shadows. **`diagramStyleTheme`** (default/slate/…, `stylingConstants.ts`) controls **colors**. They are orthogonal: sketch uses the same concern colors as precision. Do not overload `diagramStyleTheme` with render-engine metadata (AI planner + persisted canvases depend on it).
 - Canvas geometry truth: `frontend/lib/theme/shapeGeometry/index.ts` → `getShapePrimitives(shape, W, H, axis?)`. Both `ShapeNode.tsx` (canvas) and `svgExport.ts` render the same primitives through a `StrokeRenderer` (`getStrokeRenderer('crisp'|'rough')` in `renderStyles/strokeRenderer/`). Never hand-roll divergent shape paths in one renderer.
-- Sketch specifics: rough.js + deterministic `seedFor(id)`; **board-like shape bodies** (rectangle/rounded-rect/parallelogram/hexagon/cloud/monitor/mobile) use **cross-hatch** fills on warm paper (`SKETCH_PAPER_TINT` / `SKETCH_PAPER_DARK` in `sketch.ts`) — the darker paper keeps the hatch visible instead of transparent; small silhouettes + cylinders stay **solid** (sketch SystemNode cards are transparent so their rough body shows through); hachure is reserved for group zones; Patrick Hand + Caveat loaded lazily via `<link>` only when sketch is active; CSS scoping lives in `components/nodes/nodeStyles.css` under `[data-render-style='sketch']` (descendant selectors — the attribute is on the canvas wrapper, not `.react-flow` itself).
+- Sketch specifics: rough.js + deterministic `seedFor(id)`; **board-like shape bodies** (rectangle/rounded-rect/parallelogram/hexagon/cloud/monitor/mobile) use **cross-hatch** fills on warm paper (`SKETCH_PAPER_TINT` / `SKETCH_PAPER_DARK` in `sketch.ts`) — the darker paper keeps the hatch visible instead of transparent; small silhouettes + cylinders stay **solid** (sketch SystemNode cards are transparent so their rough body shows through); hachure is reserved for group zones; Patrick Hand + Caveat loaded lazily via `<link>` only when sketch is active; CSS scoping lives in `components/canvas/nodes/nodeStyles.css` under `[data-render-style='sketch']` (descendant selectors — the attribute is on the canvas wrapper, not `.react-flow` itself).
 - `setDiagramRenderStyle` is a **view preference** — never push it onto the diagram undo stack (same rule as `diagramStyleTheme` / grid toggles).
-- See `docs/diagram-aesthetic-themes-plan.md` for the full contract.
+- See `docs/plans/diagram-aesthetic-themes-plan.md` for the full contract.
 
 ### Layout rule (critical)
 
 **Canonical canvas layout** for templates, AI generation, repo diagrams, and the toolbar LR/TB toggler is:
 
-`layoutDiagramViaMermaid` → `frontend/lib/mermaid/relayout.ts`
+`layoutDiagramViaMermaid` → `frontend/lib/diagram/mermaid/relayout.ts`
 
 Path: React Flow → Mermaid → Parse → Validate → Build → **Dagre** (`pipeline-shared/layout`) → Size → map positions back.
 
-Do **not** assume the toolbar uses ELK. There is no frontend ELK path — layout is Dagre-only via `pipeline-shared/layout`, and `mcp-server` also lays out through the web pipeline. See `docs/layout-toggler.md`.
+Do **not** assume the toolbar uses ELK. There is no frontend ELK path — layout is Dagre-only via `pipeline-shared/layout`, and `mcp-server` also lays out through the web pipeline. See `docs/architecture/layout-toggler.md`.
 
 ### Node sizing rule
 
 - Optical grid: **160 / 200 / 240** (`SIZE_S` / `SIZE_M` / `SIZE_L`). Default max is **SIZE_L (240)**.
-- Compute sizes with `calculateNodeDimensions` in `frontend/lib/utils/nodeSizing.ts`.
+- Compute sizes with `calculateNodeDimensions` in `frontend/lib/diagram/nodes/nodeSizing.ts`.
 - Prefer **wrapping labels** over growing past the grid. Diamonds/circles size from mid-band fractions aligned with `ShapeNode` (`0.48` band).
 
 ### Handle behavior rule
@@ -98,7 +99,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 ### Security
 
 - Never weaken CSP, admin rate limits, or auth checks casually.
-- Admin routes use passcode + session secrets (`frontend/lib/admin-auth.ts`).
+- Admin routes use passcode + session secrets (`frontend/lib/server/admin-auth.ts`).
 - Embed domains are allowlisted via env.
 
 ---
@@ -110,7 +111,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 | Area | Path | Role |
 |------|------|------|
 | Landing | `page.tsx` | Marketing + interactive demo |
-| Editor | `editor/` | Main diagramming UI (`views/Editor.tsx`) |
+| Editor | `editor/` | Main diagramming UI (`components/editor/Editor.tsx`) |
 | Dashboard | `dashboard/` | User canvases / learn |
 | Tutorials | `tutorials/` | Guided architecture lessons |
 | Share / Embed | `share/`, `embed/` | Public / iframe viewers |
@@ -131,7 +132,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 | `components/` | Component library / templates |
 | `user/`, `track/` | Profile & analytics |
 
-Client helper: `frontend/lib/api-client.ts`.
+Client helper: `frontend/lib/client/api-client.ts`.
 
 ---
 
@@ -167,9 +168,9 @@ Fit-view registration: `registerFitViewCallback` in the same file.
 
 ### Canvas
 
-`frontend/components/Canvas.tsx` — React Flow host: node/edge types, selection, connection drawing, template query params, fit view, collision helpers.
+`frontend/components/canvas/Canvas.tsx` — React Flow host: node/edge types, selection, connection drawing, template query params, fit view, collision helpers.
 
-Editor chrome: `frontend/views/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, `CommandPalette.tsx`, `ComponentSidebar.tsx`, `PropertiesPanel.tsx`, `MermaidCodePanel.tsx`.
+Editor chrome: `frontend/components/editor/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, `CommandPalette.tsx`, `ComponentSidebar.tsx`, `PropertiesPanel.tsx`, `MermaidCodePanel.tsx`.
 
 ### Node types
 
@@ -181,19 +182,19 @@ Editor chrome: `frontend/views/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, 
 | **AnnotationNode** | annotation | Callouts / notes |
 | **TextLabelNode** | text label | Free text on canvas |
 
-Shape config / palette: `frontend/constants/nodeShapeConfig.ts`, `PropertiesPanel.tsx`, `ComponentSidebar.tsx`.
+Shape config / palette: `frontend/lib/diagram/constants/nodeShapeConfig.ts`, `PropertiesPanel.tsx`, `ComponentSidebar.tsx`.
 
-Icons: `NodeIcon.tsx`, `components/icons/`, `lib/icons/CustomNodeIcon.tsx` (pure; shared by canvas + SVG export), `lib/nodeIconResolver.ts`.
+Icons: `NodeIcon.tsx`, `components/icons/`, `lib/icons/CustomNodeIcon.tsx` (pure; shared by canvas + SVG export), `lib/icons/nodeIconResolver.ts`.
 
-Node-type registry: `components/canvasTypes.ts` (`NODE_TYPES` / `EDGE_TYPES`).
+Node-type registry: `components/canvas/canvasTypes.ts` (`NODE_TYPES` / `EDGE_TYPES`).
 
 ### Canvas hosts (editor vs viewers)
 
-Node/edge components are shared by every React Flow host (editor, share, embed, tutorial, landing demo). Each host wraps its canvas in `CanvasHostProvider` (`lib/canvas/CanvasHostContext.tsx`) to supply its own graph, render style, direction and canvas theme. Only the editor `Canvas.tsx` passes `EDITOR_HOST` (`readOnly: false`); the default is read-only, and node/edge components must never write to `useDiagramStore` when `readOnly`. Read view settings via `useCanvasView()` / `useHostGraph()` / `useCanvasTheme()`, not straight from the store. Viewers must not write persisted preferences (`diagramRenderStyle`, `diagramStyleTheme`) into the store.
+Node/edge components are shared by every React Flow host (editor, share, embed, tutorial, landing demo). Each host wraps its canvas in `CanvasHostProvider` (`lib/diagram/canvas/CanvasHostContext.tsx`) to supply its own graph, render style, direction and canvas theme. Only the editor `Canvas.tsx` passes `EDITOR_HOST` (`readOnly: false`); the default is read-only, and node/edge components must never write to `useDiagramStore` when `readOnly`. Read view settings via `useCanvasView()` / `useHostGraph()` / `useCanvasTheme()`, not straight from the store. Viewers must not write persisted preferences (`diagramRenderStyle`, `diagramStyleTheme`) into the store.
 
 ### Shape semantics (visual vocabulary)
 
-Single source of truth: `frontend/lib/shapeRegistry.ts` (`ShapeType`, `VARIANT_TO_SHAPE`, `shapeForServiceType`). Editor, AI pipeline (`classifyNode` in `planTranslator.ts`), and Mermaid round-trip all resolve through it.
+Single source of truth: `frontend/lib/diagram/nodes/shapeRegistry.ts` (`ShapeType`, `VARIANT_TO_SHAPE`, `shapeForServiceType`). Editor, AI pipeline (`classifyNode` in `planTranslator.ts`), and Mermaid round-trip all resolve through it.
 
 | Silhouette | Role | Mermaid token |
 |------------|------|---------------|
@@ -205,11 +206,11 @@ Single source of truth: `frontend/lib/shapeRegistry.ts` (`ShapeType`, `VARIANT_T
 | `actor` | End user / person / customer / admin | `%% archdraw-shape` directive |
 | `dashed-rectangle` | Out-of-system / optional / future scope | `%% archdraw-shape` directive |
 
-Non-native shapes round-trip via `%% archdraw-shape: {"id":"<id>","shape":"<shape>"}` (parse in `lib/mermaid/parse.ts`, emit in `mermaidTranslator.ts`). `buildReactFlow.ts` precedence: directive override → native Mermaid token → `classifyNode`. Mermaid native hexagon is `id{{"label"}}` (no directive).
+Non-native shapes round-trip via `%% archdraw-shape: {"id":"<id>","shape":"<shape>"}` (parse in `lib/diagram/mermaid/parse/`, emit in `mermaidTranslator.ts`). `buildReactFlow.ts` precedence: directive override → native Mermaid token → `classifyNode`. Mermaid native hexagon is `id{{"label"}}` (no directive).
 
 ### Node sizing
 
-`frontend/lib/utils/nodeSizing.ts`:
+`frontend/lib/diagram/nodes/nodeSizing.ts`:
 
 - Snaps to 160/200/240 (plus `SIZE_XS = 120` for compact shapes like `actor`/`mobile`); optional soft XL/XXL constants for callers that pass `maxWidth`.
 - Per-shape width/height bands: hexagon 160–200 / 88–96, cloud 200–240 / 96–112, shield 160–200 / 96–112, actor 120–160 / 88–100, monitor 200–240 / 100–120, mobile 120–160 / 100–130, dashed-rectangle 160–240 / 88–112.
@@ -226,11 +227,11 @@ Visual system comments in `stylingConstants.ts`: thin strokes, muted neutrals, f
 
 | Module | Role |
 |--------|------|
-| `components/nodes/NodeHandles.tsx` | ShapeNode / Group / annotations — 2 handles per side (source + target) |
-| `components/nodes/FloatingHandles.tsx` | SystemNode — invisible floating handles (`rh` CSS classes) |
+| `components/canvas/nodes/NodeHandles.tsx` | ShapeNode / Group / annotations — 2 handles per side (source + target) |
+| `components/canvas/nodes/FloatingHandles.tsx` | SystemNode — invisible floating handles (`rh` CSS classes) |
 | `hooks/useHandleSlotLayout.ts` | Per-side center vs ±GAP from edges + neighbor positions |
-| `lib/utils/handleSlotOrder.ts` | `computeDynamicSlotOffsets` |
-| `lib/utils/simpleFloatingEdge.ts` | Side resolution, `getEdgeShiftOffset`, `getBoundaryAnchor`, `INCOMING_OUTGOING_GAP = 16` |
+| `lib/diagram/edges/handleSlotOrder.ts` | `computeDynamicSlotOffsets` |
+| `lib/diagram/edges/simpleFloatingEdge.ts` | Side resolution, `getEdgeShiftOffset`, `getBoundaryAnchor`, `INCOMING_OUTGOING_GAP = 16` |
 
 **Behavior (all shapes, including diamond):**
 
@@ -239,12 +240,12 @@ Visual system comments in `stylingConstants.ts`: thin strokes, muted neutrals, f
 3. If both in + out → dynamic ordering (±16) so attachments don’t share one tip.
 4. Edge routing uses the same shift via `getEdgeShiftOffset` in `edgeRouteBuilder.ts`.
 
-Styles: `components/nodes/nodeStyles.css` (handles often opacity 0 until connection drawing).
+Styles: `components/canvas/nodes/nodeStyles.css` (handles often opacity 0 until connection drawing).
 
 ### Edges
 
-- Primary renderer: `components/edges/SimpleFloatingEdge.tsx`.
-- Path building: `lib/utils/edgeRouteBuilder.ts` (orthogonal / collision-aware waypoints, handler pair scoring).
+- Primary renderer: `components/canvas/edges/SimpleFloatingEdge.tsx`.
+- Path building: `lib/diagram/edges/edgeRouteBuilder.ts` (orthogonal / collision-aware waypoints, handler pair scoring).
 - Labels / toolbar: `EdgeLabel.tsx`, `EdgeToolbar`, edge type data under `data/edgeTypes` (if present).
 
 ---
@@ -262,17 +263,17 @@ layoutDiagramViaMermaid(nodes, edges, 'LR' | 'TD')
 
 Files:
 
-- `lib/mermaid/relayout.ts`
-- `lib/mermaid/pipeline.ts` + `lib/mermaid/pipeline-stages/*`
-- `lib/pipeline-shared/layout/IntegratedLayout.ts` (`applyRfLayout`)
-- `lib/pipeline-shared/layout/DagreLayout.ts`
-- `lib/pipeline-shared/layout/LayoutEngine.ts` — `defaultCompoundLayoutOptions`
+- `lib/diagram/mermaid/relayout.ts`
+- `lib/diagram/mermaid/pipeline.ts` + `lib/diagram/mermaid/pipeline-stages/*`
+- `lib/diagram/pipeline-shared/layout/IntegratedLayout.ts` (`applyRfLayout`)
+- `lib/diagram/pipeline-shared/layout/DagreLayout.ts`
+- `lib/diagram/pipeline-shared/layout/LayoutEngine.ts` — `defaultCompoundLayoutOptions`
 
 **Default Dagre compound spacing (current):**
 
 - TB: `nodeSep` 140, `rankSep` 220  
 - LR: `nodeSep` 160, `rankSep` 220  
-- Subgraph padding: 28 sides / 48 top (label) / 28 bottom — shared via `lib/pipeline-shared/layout/layoutConstants.ts`; the engine and the subgraph sizer (`recomputeSubgraphBounds.ts`) must never diverge.
+- Subgraph padding: 28 sides / 48 top (label) / 28 bottom — shared via `lib/diagram/pipeline-shared/layout/layoutConstants.ts`; the engine and the subgraph sizer (`recomputeSubgraphBounds.ts`) must never diverge.
 
 ### Alternate path
 
@@ -297,7 +298,7 @@ Entry: `lib/ai/pipeline/mermaid-pipeline/pipeline-v2.ts` (`runAiMermaidPipelineV
 5. **Score** — diagram quality score.
 6. **Validation** — structural checks.
 
-Shared engine: `lib/pipeline-core/` (`Pipeline`, `BaseStage`, typed results).
+Shared engine: `lib/diagram/pipeline-core/` (`Pipeline`, `BaseStage`, typed results).
 
 Planner prompts: `architecturePlanner.ts`. Models / keys: `lib/ai/models.ts`, `lib/ai/utils/apiKeyManager.ts`, `modelStore.ts`.
 
@@ -320,7 +321,7 @@ Stages under `lib/repo-diagram/pipeline-stages/`:
 
 Ingestion → Cache check → Analysis / Baseline → Classify → Extract → Relationships → Verify → **DocsReview** → Finalization → Cache write.
 
-- **DocsReviewStage** (GH2R-024) runs after the deterministic VerifyStage and BEFORE Finalization: it re-checks the surviving graph against the repo's own README/docs (phase 1.5 `snapshot.metaFiles`) via one LLM pass (`lib/agents/repo-docs-validator.ts`), applying the dormant `ReviewResult`/`ReviewCorrection` shapes through `applyReviewCorrections` (`graph-quality.ts`). It adds doc-described components/edges, drops doc-empty low-confidence hallucinations, and renames nodes to the docs' canonical naming. Best-effort: on LLM failure it passes the verified graph through and flags `docsReviewFailed` into `reviewNotes`. Budget toggles: `REPO_DOCS_MAX_TOKENS` / `REPO_DOCS_PROMPT_CHARS` in `repoModels.ts`.
+- **DocsReviewStage** (GH2R-024) runs after the deterministic VerifyStage and BEFORE Finalization: it re-checks the surviving graph against the repo's own README/docs (phase 1.5 `snapshot.metaFiles`) via one LLM pass (`lib/repo-diagram/agents/repo-docs-validator.ts`), applying the dormant `ReviewResult`/`ReviewCorrection` shapes through `applyReviewCorrections` (`graph-quality.ts`). It adds doc-described components/canvas/edges, drops doc-empty low-confidence hallucinations, and renames nodes to the docs' canonical naming. Best-effort: on LLM failure it passes the verified graph through and flags `docsReviewFailed` into `reviewNotes`. Budget toggles: `REPO_DOCS_MAX_TOKENS` / `REPO_DOCS_PROMPT_CHARS` in `repoModels.ts`.
 
 Ingestion is **meta-first** (GH2R-024): a phase-1.5 "architecture-meta read" captures ALL architecture-signaling files across the tree — every README, every `package.json`, docker-compose, terraform, CI workflows, prisma schema, docs — REGARDLESS of the source file/content budget, then de-prioritizes raw source-code sampling. Meta files imply the architecture directly; the extractor derives services/infra/workers from them (component cap is level-scaled, not capped at 25). Budgets live in `skip-rules.ts` (`MAX_META_FILES`/`MAX_META_CONTENT_BYTES`/`MAX_README_FILES`).
 
@@ -329,11 +330,11 @@ Supporting:
 - `tarball-ingestion.ts` — fetch/unpack GitHub tarball  
 - `skip-rules.ts` — **single source** for `MAX_FILE_SIZE/BINARY_RE/SKIPPED_DIRECTORIES` + `DEFAULT_FILE_BUDGET {400,900,1800}` + `DEFAULT_CONTENT_BUDGET_KB {1500,8000,12000}` (GH2R-007,006; do not re-introduce duplicate skip logic in `github-ingestion.ts`/`tarball-ingestion.ts`)
 - `import-graph.ts`, `import-resolvers.ts` (Python roots `app/backend/server/api/services`, TS alias `baseUrl="."`, Go fallback, Spring `value=/path`) , `graph-quality.ts`, `evidence-from-graph.ts`  
-- Agents in `lib/agents/`: classifier, component extractor, relationship analyst, schema compiler, verifier (sparse keep), prompt utils  
+- Agents in `lib/repo-diagram/agents/`: classifier, component extractor, relationship analyst, schema compiler, verifier (sparse keep), prompt utils  
 
 Ingestion budgets are **level-aware** (`IngestionStage` maps `detailLevel` → `DEFAULT_*` from `skip-rules.ts`; `github-ingestion.ts` fallback also level-aware). Cache keys are **level-scoped** `PIPELINE_VERSION(v8)::url::sha::L{level}` (see §19). Archive 404/403 logs `x-ratelimit-remaining` (tarball fallback is honest).
 
-UI: `components/RepoDiagramGenerator.tsx`.
+UI: `components/editor/RepoDiagramGenerator.tsx`.
 
 ---
 
@@ -349,9 +350,9 @@ UI: `components/RepoDiagramGenerator.tsx`.
 | **LR / TB layout** | Toolbar + `relayout.ts` | Mermaid→Dagre, not ELK |
 | **Command palette** | CommandPalette | Quick-add components (⌘K) |
 | **Multi-canvas tabs** | diagramStore | Undo/redo, auto-saved DB sync with conflict detection |
-| **Auth** | better-auth (`lib/auth.ts`, AuthProvider) | Google / GitHub OAuth (email+password disabled) |
+| **Auth** | better-auth (`lib/server/auth.ts`, AuthProvider) | Google / GitHub OAuth (email+password disabled) |
 | **Share / embed** | ShareModal, SharedCanvasViewer, embed routes | Domain allowlist |
-| **Export** | `lib/svgExport.ts`, toolbar actions | PNG/SVG/JSON/Mermaid |
+| **Export** | `lib/diagram/export/svgExport.ts`, toolbar actions | PNG/SVG/JSON/Mermaid |
 | **MCP** | `mcp-server/src/tools/*` | generate, update, validate, layout, template, export, checkpoints, list-nodes |
 | **Admin** | `app/admin`, admin-auth | Passcode + rate limits |
 | **Landing demo** | InteractiveLandingDemo | Preset load-balancer playground |
@@ -398,13 +399,13 @@ npx tsc --noEmit
 ```
 
 - Unit tests next to code: `**/__tests__/**`, `*.test.ts`.
-- Pipeline shared tests: `lib/pipeline-shared/__tests__/`.
-- Handle/edge: `lib/utils/__tests__/handleSlot*.ts`, `edgeRouteBuilder*.ts`.
+- Pipeline shared tests: `lib/diagram/pipeline-shared/__tests__/`.
+- Handle/edge: `lib/diagram/edges/__tests__/handleSlot*.ts`, `edgeRouteBuilder*.ts`.
 - Eval scripts (repo quality): `frontend/scripts/eval/`.
 
 When changing layout defaults, update `pipeline-shared` tests that assert `nodeSep` / `rankSep`.
 
-When changing sizing, update `lib/utils/__tests__/nodeSizing.test.ts`.
+When changing sizing, update `lib/diagram/nodes/__tests__/nodeSizing.test.ts`.
 
 ---
 
@@ -416,8 +417,8 @@ When changing sizing, update `lib/utils/__tests__/nodeSizing.test.ts`.
 4. **Nodes too cramped** → compound Dagre spacing in `LayoutEngine.defaultCompoundLayoutOptions`.
 5. **Handles “wrong” on diamonds** → dynamic ±16 is shared with rectangles; do not tip-lock unless asked.
 6. **Group positions** → children use parent-relative coords; relayout preserves `parentNode` / `parentId`.
-7. **Dual layout eras** → some docs in `docs/pipeline-refactor-plan.md` describe WIP; trust `relayout.ts` + `pipeline-shared/layout` for current truth.
-8. **README pipeline “8 stages”** → AI path is the stage list in `pipeline-v2.ts`; Mermaid path is separate (`lib/mermaid/pipeline.ts`).
+7. **Dual layout eras** → some docs in `docs/plans/pipeline-refactor-plan.md` describe WIP; trust `relayout.ts` + `pipeline-shared/layout` for current truth.
+8. **README pipeline “8 stages”** → AI path is the stage list in `pipeline-v2.ts`; Mermaid path is separate (`lib/diagram/mermaid/pipeline.ts`).
 
 ---
 
@@ -433,9 +434,9 @@ When changing sizing, update `lib/utils/__tests__/nodeSizing.test.ts`.
 | Auto layout | `relayout.ts`, `DagreLayout.ts`, `LayoutEngine.ts` |
 | AI prompt quality | `architecturePlanner.ts`, `conceptTemplates.ts` |
 | Skip/fix concept templates | `conceptTemplates.ts`, `ArchitecturePlanningStage.ts` |
-| Repo quality | `lib/repo-diagram/*`, `lib/agents/*` |
-| Persist / tabs | `diagramStore.ts`, `lib/db.ts` |
-| Auth | `lib/auth.ts`, `components/AuthProvider.tsx` |
+| Repo quality | `lib/repo-diagram/*`, `lib/repo-diagram/agents/*` |
+| Persist / tabs | `diagramStore.ts`, `lib/server/db.ts` |
+| Auth | `lib/server/auth.ts`, `components/providers/AuthProvider.tsx` |
 | Landing demo spacing | `InteractiveLandingDemo.tsx` |
 
 ---
@@ -475,7 +476,7 @@ Copy `frontend/.env.example` → `frontend/.env.local`.
 - No Redis → guest AI quota uses DB `usage_logs` fail-closed; if DB also fails, guests are denied (not unlimited).
 - No OAuth env → Google/GitHub sign-in disabled with a log warning.
 
-Validation helpers: `frontend/lib/env-validation.ts`.
+Validation helpers: `frontend/lib/server/env-validation.ts`.
 
 ---
 
@@ -497,7 +498,7 @@ Schema: `frontend/prisma/schema.prisma`. Client generated to `frontend/src/gener
 
 **Guest vs persisted**
 
-- Guests: primarily `localStorage` via `lib/storage/localStorage.ts` + `STORAGE_KEYS` in `lib/config.ts` (e.g. `guestCanvases`). Caps enforced in `diagramStore`.
+- Guests: primarily `localStorage` via `lib/client/localStorage.ts` + `STORAGE_KEYS` in `lib/config.ts` (e.g. `guestCanvases`). Caps enforced in `diagramStore`.
 - Authenticated: debounced save to `UserCanvas` through diagramStore / API.
 
 Do not hand-edit production DB; use Prisma migrations under `frontend/prisma/migrations/`.
@@ -510,9 +511,9 @@ Do not hand-edit production DB; use Prisma migrations under `frontend/prisma/mig
 |-------|------|----------|
 | In-memory diagram / repo | `lib/ai/services/diagramCache.ts` | Prompt/repo+sha keyed; TTL 5m dev / 30m prod; `PIPELINE_VERSION(v8)` busts entries; repo keys are `::L{1,2,3}` level-scoped (GH2R-003) with legacy fallback for rolling deploy |
 | Repo Redis (optional) | `lib/ai/services/repoDiagramRedisCache.ts` | Cross-instance repo results when Upstash configured; same level-scoped keys (`repo-diagram:v8:url:sha:Lx`) |
-| Blob SHA cache | `lib/cache/blobCache.ts` | Per-file parse/summary reuse for repo re-diagram — **reserved / not wired** (GH2R-019) |
+| Blob SHA cache | `lib/repo-diagram/blobCache.ts` | Per-file parse/summary reuse for repo re-diagram — **reserved / not wired** (GH2R-019) |
 | Tutorial responses | DB `TutorialResponseCache` | Hash → answer |
-| Rate limit counters | `lib/redis.ts` + Upstash | Guest hourly AI quota |
+| Rate limit counters | `lib/server/redis.ts` + Upstash | Guest hourly AI quota |
 
 When changing pipeline semantics, bump `PIPELINE_VERSION` (or equivalent) so stale graphs are not served.
 
@@ -520,10 +521,10 @@ When changing pipeline semantics, bump `PIPELINE_VERSION` (or equivalent) so sta
 
 ## 20. Auth flows
 
-- Library: **better-auth** (`lib/auth.ts`), Prisma adapter, 7-day sessions.
+- Library: **better-auth** (`lib/server/auth.ts`), Prisma adapter, 7-day sessions.
 - **Email/password is disabled** (`emailAndPassword.enabled: false`).
 - Social: Google and/or GitHub when env validates; otherwise those providers are off.
-- Client: `lib/auth-client.ts`, `components/AuthProvider.tsx`, `SignInButtons.tsx`, `AuthModal.tsx`.
+- Client: `lib/client/auth-client.ts`, `components/providers/AuthProvider.tsx`, `SignInButtons.tsx`, `AuthModal.tsx`.
 - API route: `app/api/auth/[...all]` (better-auth catch-all).
 - Session on server routes: `auth.api.getSession({ headers })` (see `quotaCheck.ts`).
 - `NEXT_PUBLIC_AUTH_ENABLED` can gate UI; production must set real `BETTER_AUTH_*`.
@@ -534,7 +535,7 @@ Trusted origins include localhost variants + `NEXT_PUBLIC_APP_URL` / `BETTER_AUT
 
 ## 21. Quotas, tiers & UpgradeModal
 
-Source of truth: `frontend/lib/userQuotas.ts`. Enforcement: `lib/middleware/quotaCheck.ts` on generate / repo routes.
+Source of truth: `frontend/lib/quotas/userQuotas.ts`. Enforcement: `lib/server/quotaCheck.ts` on generate / repo routes.
 
 Metering invariants (generate route; repo route uses quota only):
 
@@ -551,7 +552,7 @@ Metering invariants (generate route; repo route uses quota only):
 | Share / SVG / dashboard / tutorials progress | No | Yes |
 | Templates | Basic allowlist only | All advanced |
 
-UI upsell: `components/UpgradeModal.tsx` (Toolbar, TemplateModal, etc.) when guests hit gated actions.
+UI upsell: `components/editor/modals/UpgradeModal.tsx` (Toolbar, TemplateModal, etc.) when guests hit gated actions.
 
 429 responses include `code: 'QUOTA_EXCEEDED'` and optional `upgradePrompt`.
 
@@ -593,10 +594,10 @@ Prefer extending these over duplicating interaction logic in components.
 
 ## 24. Component registry & ports
 
-- **Registry:** `lib/componentRegistry.ts` — merges static JSON (`data/components.json`, `aws-components.json`, `db-components.json`, `services-components.json`) + custom localStorage + optional DB templates via `api-client`.
-- **Ports (I/O hints):** `lib/componentPorts.ts` — declarative input/output counts per component key (gateway, LB, DB, …). Used for validation / connection guidance, not React Flow handle counts (handles are still 2×4 sides).
+- **Registry:** `lib/component-library/componentRegistry.ts` — merges static JSON (`data/components.json`, `aws-components.json`, `db-components.json`, `services-components.json`) + custom localStorage + optional DB templates via `api-client`.
+- **Ports (I/O hints):** `lib/component-library/componentPorts.ts` — declarative input/output counts per component key (gateway, LB, DB, …). Used for validation / connection guidance, not React Flow handle counts (handles are still 2×4 sides).
 - **Palette mapping:** `ComponentSidebar.tsx`, `CommandPalette.tsx` map library ids → node `serviceType` / shapes (e.g. load balancer → diamond).
-- **Factory:** `lib/factory.ts` — creates RF nodes from type ids.
+- **Factory:** `lib/component-library/factory.ts` — creates RF nodes from type ids.
 
 When adding a palette item: update JSON or DB template, ports if needed, shape mapping, and icons.
 
@@ -628,10 +629,10 @@ When adding a palette item: update JSON or DB template, ports if needed, shape m
 | React Flow JSON | Store + share payloads | `nodes` / `edges` arrays; preserve `type`, `data`, `parentNode` |
 | Mermaid | `mermaidTranslator` / MermaidCodePanel / pipeline | Prefer `graph LR` / `graph TD` + `subgraph`; round-trip via relayout |
 | PNG | Toolbar export | Guests watermarked (`shouldWatermark`) |
-| SVG | `lib/svgExport.ts` (`generatePureSVG`) | Authenticated; mirrors visual system colors |
+| SVG | `lib/diagram/export/svgExport.ts` (`generatePureSVG`) | Authenticated; mirrors visual system colors |
 | PDF / html-embed | Quota allowlist | Gated for authenticated |
 
-Repo import helper: `lib/utils/importRepoDiagram.ts` (sizes nodes, maps API → RF).
+Repo import helper: `lib/repo-diagram/importRepoDiagram.ts` (sizes nodes, maps API → RF).
 
 Do not invent export fields; match existing node `data` shapes (`label`, `subtitle`, `shape`, `category`, `color`, …).
 
@@ -661,19 +662,19 @@ Needs `GITHUB_TOKEN` + Groq keys. Use before/after repo-pipeline changes. Defaul
 - Prefer existing Radix / shadcn under `components/ui/` for chrome; canvas nodes are custom.
 - Zustand stores are client-only; do not import `diagramStore` into server route modules.
 - Security headers / CSP set in `next.config.ts` (stricter in production; embed route has separate `frame-ancestors`).
-- Prisma client: `lib/prisma` / generated client — generate after schema changes.
+- Prisma client: `lib/server/prisma` / generated client — generate after schema changes.
 
 ---
 
 ## 29. Known WIP / dual-era debt
 
-See `docs/pipeline-refactor-plan.md` and `docs/layout-toggler-learnings.md`.
+See `docs/plans/pipeline-refactor-plan.md` and `docs/architecture/layout-toggler-learnings.md`.
 
 Still be aware of:
 
 - Historical “multiple layout owners” — **canonical** is Mermaid→Dagre via `relayout.ts` + `pipeline-shared/layout`; there is no frontend ELK path.
 - AI pipeline stage classes vs thin adapters in `pipeline-v2.ts` — prefer typed stages + `pipeline-core`.
-- Some docs/README stage counts lag code — trust `pipeline-v2.ts` and `lib/mermaid/pipeline.ts`.
+- Some docs/README stage counts lag code — trust `pipeline-v2.ts` and `lib/diagram/mermaid/pipeline.ts`.
 - Lint is non-blocking in CI today.
 
 Do not “finish the refactor” in an unrelated PR unless asked.

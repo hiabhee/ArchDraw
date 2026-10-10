@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateRepoArchitectureDiagramV2 as generateRepoArchitectureDiagram } from '@/lib/repo-diagram/pipeline-v2';
-import { parseGitHubUrl } from '@/lib/utils/githubUrl';
+import { parseGitHubUrl } from '@/lib/repo-diagram/githubUrl';
 import { clear } from '@/lib/ai/services/diagramCache';
-import { clearBlobCaches } from '@/lib/cache/blobCache';
+import { clearBlobCaches } from '@/lib/repo-diagram/blobCache';
 import logger from '@/lib/logger';
-import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId, getSessionFromRequest, releaseAIGeneration } from '@/lib/middleware/quotaCheck';
-import { requireAdmin } from '@/lib/admin-auth';
+import { checkAIGenerationQuota, incrementAIGeneration, logUsage, getGuestId, getSessionFromRequest, releaseAIGeneration } from '@/lib/server/quotaCheck';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // Allows pipeline up to 5 minutes to complete

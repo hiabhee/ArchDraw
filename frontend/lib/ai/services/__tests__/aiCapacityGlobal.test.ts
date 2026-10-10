@@ -4,7 +4,7 @@ const m = vi.hoisted(() => {
   const evalScript = vi.fn();
   return { evalScript, client: { eval: evalScript } as { eval?: unknown } };
 });
-vi.mock('@/lib/redis', () => ({ redis: m.client }));
+vi.mock('@/lib/server/redis', () => ({ redis: m.client }));
 vi.mock('@/lib/logger', () => ({ default: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn(), info: vi.fn() } }));
 
 import { acquireAiCapacity, CapacityBusyError, getGenerationBudget } from '../aiCapacity';

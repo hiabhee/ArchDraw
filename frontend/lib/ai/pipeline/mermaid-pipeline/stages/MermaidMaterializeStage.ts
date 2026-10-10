@@ -1,13 +1,13 @@
-import { BaseStage, type StageResult, successResult, errorResult, isDomainSuccess } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { BaseStage, type StageResult, successResult, errorResult, isDomainSuccess } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { runArchitecturePlanner } from '../architecturePlanner';
 import type { UserIntent } from '../../../types';
 import type { ArchitecturePlan } from './ArchitecturePlanningStage';
-import type { RFNode, RFEdge } from '@/lib/mermaid/types';
+import type { RFNode, RFEdge } from '@/lib/diagram/mermaid/types';
 import logger from '@/lib/logger';
 import { inferDiagramKind } from '../diagramIntent';
-import type { GeometrySummary } from '@/lib/mermaid/pipeline';
+import type { GeometrySummary } from '@/lib/diagram/mermaid/pipeline';
 
 export interface MermaidMaterializeOutput {
   nodesRemoved?: number;

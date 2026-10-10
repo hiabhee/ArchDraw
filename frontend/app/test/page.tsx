@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { JevArchitectureTest } from '@/components/JevArchitectureTest';
+import { JevArchitectureTest } from '@/components/jev/JevArchitectureTest';
 
 export const metadata: Metadata = {
   title: 'Jev Architecture Test',

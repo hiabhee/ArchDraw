@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Node, Edge } from 'reactflow';
 import { reactFlowToMermaid } from '../mermaidTranslator';
-import { parseMermaid } from '@/lib/mermaid/parse';
-import { buildReactFlowObjects } from '@/lib/mermaid/buildReactFlow';
+import { parseMermaid } from '@/lib/diagram/mermaid/parse';
+import { buildReactFlowObjects } from '@/lib/diagram/mermaid/buildReactFlow';
 
 function rfNode(id: string, type: string, data: Record<string, unknown>, extra: Partial<Node> = {}): Node {
   return {

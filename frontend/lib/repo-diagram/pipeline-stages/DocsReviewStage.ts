@@ -1,6 +1,6 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import { validateAgainstDocs } from '@/lib/agents/repo-docs-validator';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import { validateAgainstDocs } from '@/lib/repo-diagram/agents/repo-docs-validator';
 import { applyReviewCorrections } from '@/lib/repo-diagram/graph-quality';
 import type { RepoEnrichmentState } from './enrichment-types';
 import { detailLevelFromContext } from './context-utils';
@@ -11,7 +11,7 @@ import logger from '@/lib/logger';
  *
  * The deterministic VerifyStage prunes to hard evidence; this stage re-checks the
  * surviving graph AGAINST the repository's own README/docs (phase 1.5 metaFiles)
- * and applies minimal LLM corrections: add doc-described components/edges, drop
+ * and applies minimal LLM corrections: add doc-described components/canvas/edges, drop
  * doc-empty hallucinations, rename to the docs' canonical naming.
  *
  * Best-effort: if the LLM call fails, the verified graph flows through unchanged

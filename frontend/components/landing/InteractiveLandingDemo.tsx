@@ -21,8 +21,8 @@ import dagre from 'dagre';
 import { toast } from 'sonner';
 import { DEMO_NODE_TYPES, DEMO_EDGE_TYPES } from './landing-demo/DemoNodes';
 import { PRESETS } from './landing-demo/presets';
-import '@/components/nodes/nodeStyles.css';
-import { CanvasHostProvider, type CanvasHost } from '@/lib/canvas/CanvasHostContext';
+import '@/components/canvas/nodes/nodeStyles.css';
+import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 
 export default function InteractiveLandingDemo() {
   return (

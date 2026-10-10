@@ -1,4 +1,4 @@
-import type { Subsystem, StaticSignal, IntermediateGraph, ExtractedNode, RichEdge, NodeType, FileEntry } from '@/lib/types/repo-diagram';
+import type { Subsystem, StaticSignal, IntermediateGraph, ExtractedNode, RichEdge, NodeType, FileEntry } from '@/lib/repo-diagram/types';
 import { extractStaticSignals } from './static-analyzer';
 
 /**

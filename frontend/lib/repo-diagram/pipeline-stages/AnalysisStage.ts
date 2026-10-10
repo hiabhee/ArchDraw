@@ -1,9 +1,9 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { detectSubsystems } from '@/lib/repo-diagram/subsystem-detector';
 import { extractStaticSignals } from '@/lib/repo-diagram/static-analyzer';
 import { buildEvidenceGraph } from '@/lib/repo-diagram/evidence-from-graph';
-import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/types/repo-diagram';
+import type { RepoSnapshot, Subsystem, StaticSignal } from '@/lib/repo-diagram/types';
 import type { ImportGraph } from '@/lib/repo-diagram/import-graph';
 import type { IngestionOutput } from './IngestionStage';
 import logger from '@/lib/logger';

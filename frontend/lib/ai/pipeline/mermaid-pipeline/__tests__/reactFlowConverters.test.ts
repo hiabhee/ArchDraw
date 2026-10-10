@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toReactFlowNode, toReactFlowEdge } from '../reactFlowConverters';
-import type { RFNode, RFEdge } from '@/lib/mermaid/types';
+import type { RFNode, RFEdge } from '@/lib/diagram/mermaid/types';
 
 describe('toReactFlowNode field preservation', () => {
   it('keeps shape, color, category, typeId for Node Info sidebar', () => {

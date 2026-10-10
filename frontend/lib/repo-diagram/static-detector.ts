@@ -1,4 +1,4 @@
-import type { RepoSnapshot, StaticSignal, Subsystem } from '@/lib/types/repo-diagram';
+import type { RepoSnapshot, StaticSignal, Subsystem } from '@/lib/repo-diagram/types';
 
 export type StaticDetectionReport = {
   framework: string | null;

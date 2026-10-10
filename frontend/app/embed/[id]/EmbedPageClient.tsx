@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { EmbedCanvasViewer } from '@/components/embed/EmbedCanvasViewer';
-import { analytics } from '@/lib/analytics';
+import { EmbedCanvasViewer } from '@/components/viewers/embed/EmbedCanvasViewer';
+import { analytics } from '@/lib/client/analytics';
 import type { Node, Edge } from 'reactflow';
 
 interface DiagramData {

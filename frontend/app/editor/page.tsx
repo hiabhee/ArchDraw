@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 
-const EditorPage = dynamic(() => import('@/views/Editor'), {
+const EditorPage = dynamic(() => import('@/components/editor/Editor'), {
   ssr: false,
   loading: () => (
     <div style={{ minHeight: '100vh', background: '#0a0a12' }} />

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserTier, getGuestQuotas, getAuthenticatedQuotas } from '@/lib/userQuotas';
-import prisma from '@/lib/prisma';
-import { getSessionFromRequest, getGuestId } from '@/lib/middleware/quotaCheck';
-import { checkRateLimit } from '@/lib/redis';
+import { getUserTier, getGuestQuotas, getAuthenticatedQuotas } from '@/lib/quotas/userQuotas';
+import prisma from '@/lib/server/prisma';
+import { getSessionFromRequest, getGuestId } from '@/lib/server/quotaCheck';
+import { checkRateLimit } from '@/lib/server/redis';
 import logger from '@/lib/logger';
 
 export const runtime = 'nodejs';

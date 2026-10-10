@@ -58,8 +58,8 @@ function edgeTypeForLabel(label?: string): CanvasEdgeType {
   return 'sync';
 }
 
-import { createNode, createEdge } from '@/lib/factory';
-import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
+import { createNode, createEdge } from '@/lib/component-library/factory';
+import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
 
 function withCanvasStyle(nodes: Node[], edges: Edge[]): { nodes: Node[]; edges: Edge[] } {
   return {

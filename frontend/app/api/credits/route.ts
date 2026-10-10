@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCreditSnapshot } from '@/lib/credits';
+import { getCreditSnapshot } from '@/lib/server/credits';
 
 export async function GET(req: NextRequest) {
   try {

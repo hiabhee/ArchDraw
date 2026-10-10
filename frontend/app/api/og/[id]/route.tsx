@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import prisma from '@/lib/prisma';
+import prisma from '@/lib/server/prisma';
 import type { Node } from 'reactflow';
 
 export async function GET(

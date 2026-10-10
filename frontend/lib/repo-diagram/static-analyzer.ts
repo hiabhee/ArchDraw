@@ -1,4 +1,4 @@
-import type { FileEntry, StaticSignal, Subsystem } from '@/lib/types/repo-diagram';
+import type { FileEntry, StaticSignal, Subsystem } from '@/lib/repo-diagram/types';
 import logger from '@/lib/logger';
 import { parse as parseYaml } from 'yaml';
 

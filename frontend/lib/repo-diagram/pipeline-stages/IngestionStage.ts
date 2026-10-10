@@ -1,10 +1,10 @@
-import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import { ingestRepo } from '@/lib/github-ingestion';
-import type { RepoSnapshot } from '@/lib/types/repo-diagram';
+import { BaseStage, type StageResult, successResult, errorResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import { ingestRepo } from '@/lib/repo-diagram/github-ingestion';
+import type { RepoSnapshot } from '@/lib/repo-diagram/types';
 import logger from '@/lib/logger';
 import { DEFAULT_FILE_BUDGET, DEFAULT_CONTENT_BUDGET_KB } from '@/lib/repo-diagram/skip-rules';
-import type { ResolvedRepoHead } from '@/lib/github-ingestion';
+import type { ResolvedRepoHead } from '@/lib/repo-diagram/github-ingestion';
 
 export interface ResolvedRepoInput extends IngestionInput { resolvedHead: ResolvedRepoHead }
 

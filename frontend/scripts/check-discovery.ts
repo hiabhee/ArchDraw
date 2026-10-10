@@ -8,7 +8,7 @@
  * Run in CI: `npx tsx scripts/check-discovery.ts`
  */
 
-import { DOC_SECTIONS, SITE_URL } from '@/lib/discovery';
+import { DOC_SECTIONS, SITE_URL } from '@/lib/site/discovery';
 import { blogs } from '@/data/blogs';
 import { TUTORIALS } from '@/data/tutorials';
 

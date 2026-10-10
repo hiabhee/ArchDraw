@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { getClientIP } from '@/lib/server/ip';
-import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
+import { getSessionFromRequest } from '@/lib/server/quotaCheck';
 import { apiKeyManager } from '@/lib/ai/utils/apiKeyManager';
 import {
   AUTH_EXPLAIN_LIMIT_PER_STEP,
   type ExplainPhase,
 } from '@/lib/tutorial/explainQuota';
 import { buildExplainCacheHash } from '@/lib/tutorial/explainHash';
-import { getTutorialCachedResponse, upsertTutorialCachedResponse } from '@/lib/db';
+import { getTutorialCachedResponse, upsertTutorialCachedResponse } from '@/lib/server/db';
 
 export const runtime = 'nodejs';
 

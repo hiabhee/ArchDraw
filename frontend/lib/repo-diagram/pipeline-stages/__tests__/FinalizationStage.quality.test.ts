@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assessRepoDiagramQuality } from '../FinalizationStage';
-import type { DegradedFlags, ExtractedNode, RichEdge, RepoProfile } from '@/lib/types/repo-diagram';
+import type { DegradedFlags, ExtractedNode, RichEdge, RepoProfile } from '@/lib/repo-diagram/types';
 
 const nodes: ExtractedNode[] = [
   { id: 'app', label: 'App', type: 'SERVICE', description: '', sourceFiles: ['src/app.ts'], confidence: 'high' },

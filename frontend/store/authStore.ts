@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { authClient } from '@/lib/auth-client';
-import { analytics } from '@/lib/analytics';
+import { authClient } from '@/lib/client/auth-client';
+import { analytics } from '@/lib/client/analytics';
 import logger from '@/lib/logger';
 
 interface AuthUser {

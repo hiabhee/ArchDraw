@@ -1,4 +1,4 @@
-import type { ShapeType } from '@/lib/shapeRegistry';
+import type { ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
 import type { RenderStylePack, SketchRoughOptions } from './types';
 
 /** Default rough.js options — balanced hand-drawn wobble (Excalidraw-like).

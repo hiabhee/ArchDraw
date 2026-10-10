@@ -1,7 +1,7 @@
 import { Unzip, UnzipInflate } from 'fflate';
 import { isSkipped, MAX_ARCHIVE_CONTENT_LENGTH_BYTES, MAX_TOTAL_EXTRACTED_BYTES, MAX_PER_FILE_BYTES } from './skip-rules';
 import logger from '@/lib/logger';
-import type { FileEntry } from '@/lib/types/repo-diagram';
+import type { FileEntry } from '@/lib/repo-diagram/types';
 
 export type ArchiveResult = {
   /** path (prefix-stripped) → content (utf-8 string) for files that passed skip rules. */

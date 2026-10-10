@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { auth } from '@/lib/server/auth';
 import logger from '@/lib/logger';
-import prisma from '@/lib/prisma';
-import { hashAgenticSecret } from '@/lib/agentic-auth';
+import prisma from '@/lib/server/prisma';
+import { hashAgenticSecret } from '@/lib/server/agentic-auth';
 
 export const runtime = 'nodejs';
 

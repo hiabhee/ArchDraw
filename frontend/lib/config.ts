@@ -74,9 +74,9 @@ export const NODE_CONFIG = {
 } as const;
 
 // ─── LAYOUT ──────────────────────────────────────────────────
-// Frontend layout is Dagre-only via `lib/pipeline-shared/layout` (the ELK
+// Frontend layout is Dagre-only via `lib/diagram/pipeline-shared/layout` (the ELK
 // stack was removed; ELK now lives only in mcp-server). Spacing defaults:
-// `defaultCompoundLayoutOptions` in lib/pipeline-shared/layout/LayoutEngine.ts.
+// `defaultCompoundLayoutOptions` in lib/diagram/pipeline-shared/layout/LayoutEngine.ts.
 
 // ─── NODE SPACING (global minimums) ───────────────────────────
 

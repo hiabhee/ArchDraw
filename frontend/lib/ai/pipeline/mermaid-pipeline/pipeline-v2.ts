@@ -1,5 +1,5 @@
-import { Pipeline, toDomainResult } from '@/lib/pipeline-core';
-import type { DomainPipelineResult } from '@/lib/pipeline-core';
+import { Pipeline, toDomainResult } from '@/lib/diagram/pipeline-core';
+import type { DomainPipelineResult } from '@/lib/diagram/pipeline-core';
 import type { UserIntent, LayerType, ArchitectureEdge } from '../../types';
 import type { DiagramScore, PipelineDiagnostics } from '../types';
 import type { PipelineResult, PipelineState } from './types';

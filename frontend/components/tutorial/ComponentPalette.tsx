@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X } from 'lucide-react';
-import { CORE_COMPONENTS as components } from '@/lib/componentRegistry';
+import { CORE_COMPONENTS as components } from '@/lib/component-library/componentRegistry';
 
 type Component = {
   id: string;

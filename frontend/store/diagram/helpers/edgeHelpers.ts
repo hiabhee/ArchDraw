@@ -1,10 +1,10 @@
 import type { Edge, Node } from 'reactflow';
 import { MarkerType, Position } from 'reactflow';
-import { getObstacleAwareHandles } from '@/lib/features/dynamicHandles';
-import { processEdgeManagement } from '@/lib/features/edgeManagement';
-import { mergeParallelEdges } from '@/lib/utils/mergeParallelEdges';
-import { migrateEdgesToSmoothstep } from '@/lib/utils/edgeMigration';
-import { hasReverseEdge, resolveBidirectionalFacingSides } from '@/lib/utils/handleSlotOrder';
+import { getObstacleAwareHandles } from '@/lib/diagram/features/dynamicHandles';
+import { processEdgeManagement } from '@/lib/diagram/features/edgeManagement';
+import { mergeParallelEdges } from '@/lib/diagram/edges/mergeParallelEdges';
+import { migrateEdgesToSmoothstep } from '@/lib/diagram/edges/edgeMigration';
+import { hasReverseEdge, resolveBidirectionalFacingSides } from '@/lib/diagram/edges/handleSlotOrder';
 import { EDGE_CONFIG } from '@/lib/config';
 import { KNOWN_EDGE_TYPES, DEFAULT_EDGE_TYPE } from '../constants';
 

@@ -14,14 +14,14 @@ async function main() {
     const { config } = await import('dotenv');
     config({ path: '.env.local', quiet: true });
   }
-  const { runMermaidPipeline } = await import('../../../lib/mermaid/pipeline');
+  const { runMermaidPipeline } = await import('../../../lib/diagram/mermaid/pipeline');
   const { runAiMermaidPipelineV2 } = await import('../../../lib/ai/pipeline/mermaid-pipeline/pipeline-v2');
   const rows = [];
   for (const model of live ? models : ['fixture']) for (const test of diagramCorpus) {
     const start = performance.now();
     const result = live ? await runAiMermaidPipelineV2({ description: test.prompt, systemType: 'architecture', complexity: 'medium', diagramSize: test.existingContext ? 'large' : 'medium', detailLevel: test.existingContext ? 3 : 2, model: model === 'default' ? undefined : model, existingContext: test.existingContext }) : await runMermaidPipeline(test.mermaid);
     if (!result.success) { rows.push({ id: test.id, model, passed: false, error: String(result.error) }); continue; }
-    rows.push({ id: test.id, model, durationMs: Math.round(performance.now() - start), ...evaluateDiagram(test, result.data.nodes as import('../../../lib/mermaid/types').RFNode[], result.data.edges as import('../../../lib/mermaid/types').RFEdge[]) });
+    rows.push({ id: test.id, model, durationMs: Math.round(performance.now() - start), ...evaluateDiagram(test, result.data.nodes as import('../../../lib/diagram/mermaid/types').RFNode[], result.data.edges as import('../../../lib/diagram/mermaid/types').RFEdge[]) });
   }
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify({ mode: live ? 'live' : 'fixtures', createdAt: new Date().toISOString(), rows }, null, 2));

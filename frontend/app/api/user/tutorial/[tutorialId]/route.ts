@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { getTutorialProgress } from '@/lib/db';
+import { auth } from '@/lib/server/auth';
+import { getTutorialProgress } from '@/lib/server/db';
 import { headers } from 'next/headers';
 import logger from '@/lib/logger';
 

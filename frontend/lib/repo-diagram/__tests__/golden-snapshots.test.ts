@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { detectSubsystems } from '../subsystem-detector';
 import { extractStaticSignals } from '../static-analyzer';
 import { buildSubsystemGraph, intermediateToArchitecture } from '../intermediate-graphs';
-import type { FileEntry, RepoSnapshot } from '@/lib/types/repo-diagram';
+import type { FileEntry, RepoSnapshot } from '@/lib/repo-diagram/types';
 
 function makeSnapshot(overrides: Partial<RepoSnapshot> = {}): RepoSnapshot {
   return {

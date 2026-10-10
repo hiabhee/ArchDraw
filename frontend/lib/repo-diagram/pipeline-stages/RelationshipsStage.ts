@@ -1,6 +1,6 @@
-import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
-import { analyzeRelationships } from '@/lib/agents/repo-relationship-analyst';
+import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
+import { analyzeRelationships } from '@/lib/repo-diagram/agents/repo-relationship-analyst';
 import { detailLevelFromContext } from './context-utils';
 import type { RepoEnrichmentState } from './enrichment-types';
 import { recomputeDegradedAnything } from './enrichment-types';

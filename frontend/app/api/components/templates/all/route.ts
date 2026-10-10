@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllComponentTemplates } from '@/lib/db';
-import { getUserTier } from '@/lib/userQuotas';
-import { getSessionFromRequest } from '@/lib/middleware/quotaCheck';
+import { getAllComponentTemplates } from '@/lib/server/db';
+import { getUserTier } from '@/lib/quotas/userQuotas';
+import { getSessionFromRequest } from '@/lib/server/quotaCheck';
 
 export const runtime = 'nodejs';
 

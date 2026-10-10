@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapDomainResult } from '@/lib/pipeline-core';
-import { runMermaidPipeline } from '../../../../mermaid/pipeline';
-import type { RFNode } from '../../../../mermaid/types';
+import { unwrapDomainResult } from '@/lib/diagram/pipeline-core';
+import { runMermaidPipeline } from '../../../../diagram/mermaid/pipeline';
+import type { RFNode } from '../../../../diagram/mermaid/types';
 import type { ReactFlowNode } from '../../../../ai/types';
 
 const nestedCode = `graph TD

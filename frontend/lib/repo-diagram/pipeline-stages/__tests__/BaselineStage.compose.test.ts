@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addComposeArchitecture, addExternalSdkEvidenceEdges, addQueryEvidenceEdges, shouldExpandRoot } from '../BaselineStage';
-import type { ExtractedNode, StaticSignal, RepoSnapshot } from '@/lib/types/repo-diagram';
+import type { ExtractedNode, StaticSignal, RepoSnapshot } from '@/lib/repo-diagram/types';
 
 const signals: StaticSignal[] = [
   { type: 'docker_service', label: 'api', source: 'docker-compose.yml', details: {}, confidence: 'high' },

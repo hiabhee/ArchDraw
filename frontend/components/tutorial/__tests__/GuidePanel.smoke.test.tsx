@@ -7,7 +7,7 @@ import { defineTutorial, level, step } from '@/lib/tutorial/builder';
 import { initSession, advancePhase } from '@/lib/tutorial/engine';
 
 // Keep the heavy Mermaid pipeline out of the smoke test.
-vi.mock('@/lib/mermaid/relayout', () => ({
+vi.mock('@/lib/diagram/mermaid/relayout', () => ({
   layoutDiagramViaMermaid: vi.fn(async () => ({
     nodes: [],
     edges: [],

@@ -1,4 +1,4 @@
-import { saveUserCanvas as apiSaveUserCanvas, deleteUserCanvasApi as apiDeleteUserCanvas } from '@/lib/api-client';
+import { saveUserCanvas as apiSaveUserCanvas, deleteUserCanvasApi as apiDeleteUserCanvas } from '@/lib/client/api-client';
 import type { DiagramState } from '../types';
 import logger from '@/lib/logger';
 import { toast } from 'sonner';

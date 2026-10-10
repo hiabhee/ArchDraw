@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, Check, Loader2, Shield, ShieldOff } from 'lucide-react';
-import { SignInButtons } from '@/components/SignInButtons';
+import { SignInButtons } from '@/components/auth/SignInButtons';
 import { useAuthStore } from '@/store/authStore';
 
 interface AgenticWorkspace {

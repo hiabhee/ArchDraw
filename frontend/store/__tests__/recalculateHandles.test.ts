@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Position, type Edge, type Node } from 'reactflow';
 import { useDiagramStore } from '../diagramStore';
-import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
+import { computeEdgeRoute } from '@/lib/diagram/edges/edgeRouteBuilder';
 
 function positionToHandleId(position: Position, role: 'source' | 'target'): string {
   const side =

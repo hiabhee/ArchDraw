@@ -1,6 +1,6 @@
-import { redis } from '@/lib/redis';
+import { redis } from '@/lib/server/redis';
 import logger from '@/lib/logger';
-import type { PipelineResult } from '@/lib/types/repo-diagram';
+import type { PipelineResult } from '@/lib/repo-diagram/types';
 import { PIPELINE_VERSION } from './pipelineVersion';
 
 const TTL_SECONDS = 30 * 60; // 30 minutes — matches existing in-memory TTL

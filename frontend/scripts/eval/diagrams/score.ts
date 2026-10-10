@@ -1,6 +1,6 @@
-import { measureLayoutQuality } from '../../../lib/pipeline-shared/layout/layoutQuality';
+import { measureLayoutQuality } from '../../../lib/diagram/pipeline-shared/layout/layoutQuality';
 import type { DiagramCase } from './corpus';
-import type { RFNode, RFEdge } from '../../../lib/mermaid/types';
+import type { RFNode, RFEdge } from '../../../lib/diagram/mermaid/types';
 
 export function evaluateDiagram(test: DiagramCase, nodes: RFNode[], edges: RFEdge[]) {
   const matches = new Map(Object.entries(test.required).map(([key, pattern]) => [key,

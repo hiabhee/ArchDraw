@@ -1,8 +1,8 @@
-import { BaseStage, type StageResult, successResult, getSharedTyped } from '@/lib/pipeline-core';
-import type { PipelineContext } from '@/lib/pipeline-core';
+import { BaseStage, type StageResult, successResult, getSharedTyped } from '@/lib/diagram/pipeline-core';
+import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { setRepoDiagram } from '@/lib/ai/services/diagramCache';
 import { setRepoDiagramInRedis } from '@/lib/ai/services/repoDiagramRedisCache';
-import type { PipelineResult as RepoPipelineResult } from '@/lib/types/repo-diagram';
+import type { PipelineResult as RepoPipelineResult } from '@/lib/repo-diagram/types';
 import { REPO_SHARED } from './shared-keys';
 
 import { detailLevelFromContext } from './context-utils';

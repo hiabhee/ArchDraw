@@ -1,5 +1,5 @@
 import type { Node } from 'reactflow';
-import { componentRegistry } from '@/lib/componentRegistry';
+import { componentRegistry } from '@/lib/component-library/componentRegistry';
 import logger from '@/lib/logger';
 import { KNOWN_NODE_TYPES, RESERVED_LAYER_LABELS } from '../constants';
 

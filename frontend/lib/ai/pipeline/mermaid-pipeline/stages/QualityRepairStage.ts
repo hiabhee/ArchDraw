@@ -1,7 +1,7 @@
-import { successResult, type PipelineContext, type StageResult, isDomainSuccess } from '@/lib/pipeline-core';
+import { successResult, type PipelineContext, type StageResult, isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { runArchitecturePlanner } from '../architecturePlanner';
 import type { AiPipelineData } from '../aiPipelineTypes';
-import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
+import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { ScoreStage } from './ScoreStage';
 import { ValidationStage } from './ValidationStage';
 import logger from '@/lib/logger';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { RepoSnapshot, FileEntry } from '@/lib/types/repo-diagram';
+import type { RepoSnapshot, FileEntry } from '@/lib/repo-diagram/types';
 
 // Phase 4.2: single-subsystem repos must produce ≥ 4 typed baseline nodes
 // (built from top-level source directories) before any LLM call.

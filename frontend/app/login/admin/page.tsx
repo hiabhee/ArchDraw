@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield } from 'lucide-react';
-import { analytics } from '@/lib/analytics';
+import { analytics } from '@/lib/client/analytics';
 
 export default function AdminLoginPage() {
   const [passcode, setPasscode] = useState('');

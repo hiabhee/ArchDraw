@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { preloadCloudIconSet, type IconSet } from '@/lib/cloudIcons/loader';
-import type { CloudProviderId } from '@/lib/cloudIcons/types';
+import { preloadCloudIconSet, type IconSet } from '@/lib/icons/cloud/loader';
+import type { CloudProviderId } from '@/lib/icons/cloud/types';
 
 /**
  * Lazily loads (and caches per session) the icon set for a provider, keyed by
