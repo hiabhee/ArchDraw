@@ -361,7 +361,7 @@ UI: `components/editor/RepoDiagramGenerator.tsx`.
 
 ## 12. MCP server
 
-Package: `mcp-server/` (self-contained `node_modules`, zod 3 + SDK 1.29). Dev: `npm run dev:mcp` from `frontend/` (runs `tsx src/index.ts`). Tests: `cd mcp-server && npm test` (vitest, colocated `__tests__/`). CI builds + tests it independently of `frontend/`.
+Package: `mcp-server/` (self-contained `node_modules`, zod 3 + SDK 1.29). Dev: `npm run dev:mcp` from `frontend/` (runs `tsx src/index.ts`). Tests: `cd mcp-server && npm test` (vitest, colocated `__tests__/`; excluded from the published `dist/`). CI builds + tests it independently of `frontend/`.
 
 `mcp-server/tsconfig.json` has **no** `paths`/`typeRoots` aliases — imports resolve through real package exports so `tsx` and `node dist/` stay in sync. Do not reintroduce `../frontend/node_modules` path maps (they break `tsx` at runtime by loading `.d.ts` as modules).
 
@@ -377,6 +377,11 @@ Tools (under `mcp-server/src/tools/`):
 
 Because every MCP generation now creates a `SharedCanvas` row: `POST /api/diagram/load` is throttled per user / client IP (create 30 anon · 60 signed-in, dry-run preview 300, mcp-update 300 per hour) via `checkRateLimitWithFallback` (Redis, in-memory fallback — never use it for AI/billing quotas, those fail closed), and `/api/cron/cleanup-expired-shares` deletes expired shares daily.
 
+**Hosted endpoint (`/api/mcp`).** The same tools are served over Streamable HTTP (stateless, JSON responses) at `https://archdraw.hiabhee.online/api/mcp` for clients that only reach remote servers (claude.ai / Claude apps, OpenAI directory). `mcp-server/src/server.ts` is the shared factory (`createArchDrawMCPServer`, `handleMcpHttpRequest`); `src/index.ts` is only the stdio bootstrap. The frontend consumes it as the npm dependency `@hiabhee/archdraw-mcp-server` (export `./server`, listed in `serverExternalPackages`) — never import `../mcp-server` directly. Hosted specifics:
+- Working sessions persist via a `WorkingSessionStore` (`frontend/lib/server/mcp/sessionStore.ts`: Upstash, 24h TTL, in-memory fallback). With a store, `workingSessionId` must be an explicit UUID — there is no shared `'default'` session; stateful tools without one return an error.
+- Tools reach the API through `runWithMcpContext({ apiBase, fetch })` (AsyncLocalStorage in `mcp-server/src/lib/http.ts`; read the base with `getApiBase()`, never `process.env.API_BASE_URL` directly). The route passes `createInProcessFetch` (`lib/server/mcp/inProcessFetch.ts`), which calls the `/api/diagram/*` handlers in-process and forwards only edge-set client-IP headers, so the `/api/diagram/load` throttles apply per real client IP.
+- `/api/mcp` itself: 120 requests/min per IP, 1 MB body cap, GET/DELETE → 405.
+
 ---
 
 ## 12a. Claude plugin & marketplace
@@ -387,7 +392,7 @@ Because every MCP generation now creates a `SharedCanvas` row: `POST /api/diagra
   - Codex: `.agents/plugins/marketplace.json` (entries need `policy` + `category`) → `codex plugin marketplace add hiabhee/ArchDraw`, `codex plugin add archdraw@archdraw`. Codex reads the portable root `plugin.json` (settings under `extensions.com.openai`) and `mcp.json`; `.codex-plugin/plugin.json` is its fallback.
   - Keep `version`, description and the MCP pin identical across `.claude-plugin/plugin.json`, `plugin.json`, `.codex-plugin/plugin.json`, `.mcp.json` and `mcp.json`.
   - OpenAI's public plugin directory requires a remote HTTPS MCP server, so the npx/stdio server only distributes through the self-hosted Codex marketplace.
-- **Release order:** bump `mcp-server/package.json` + the `version` in `mcp-server/src/index.ts` → `npm publish` → update the exact pin in both MCP configs → bump `plugins/archdraw/.claude-plugin/plugin.json` `version` → `claude plugin validate --strict ./plugins/archdraw` and `claude plugin validate .` → push. Never pin an unpublished version (installs fail) and never use a range or `@latest` (directory validation blocks it).
+- **Release order:** bump `mcp-server/package.json` + `SERVER_VERSION` in `mcp-server/src/server.ts` → `npm publish` → bump the exact `@hiabhee/archdraw-mcp-server` version in `frontend/package.json` (+ `npm install` for the lockfile; this is what `/api/mcp` runs) → update the exact pin in both MCP configs → bump `plugins/archdraw/.claude-plugin/plugin.json` `version` → `claude plugin validate --strict ./plugins/archdraw` and `claude plugin validate .` → push. Never pin an unpublished version (installs fail) and never use a range or `@latest` (directory validation blocks it).
 
 ## 13. Testing & quality
 

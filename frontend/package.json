@@ -33,6 +33,7 @@
     "perf:lighthouse": "tsx scripts/perf/benchmark.ts --skip-build --runs 10"
   },
   "dependencies": {
+    "@hiabhee/archdraw-mcp-server": "1.0.5",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.8.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",

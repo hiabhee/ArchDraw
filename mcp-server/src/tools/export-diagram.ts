@@ -1,15 +1,15 @@
 import { getDiagramState } from '../lib/diagram-state.js';
 import { ExportDiagramInputSchema } from '../lib/schema.js';
-import { fetchWithTimeout } from '../lib/http.js';
+import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 
-const API_BASE = process.env.API_BASE_URL || 'https://archdraw.hiabhee.online';
+const DEFAULT_API_BASE = 'https://archdraw.hiabhee.online';
 
-export async function exportDiagram(input: unknown) {
+export async function exportDiagram(input: unknown, workingSession?: string) {
   const validated = ExportDiagramInputSchema.parse(input);
   const format = validated.format;
-  const sessionId = validated.sessionId || getDiagramState().sessionId;
+  const state = getDiagramState(workingSession);
+  const sessionId = validated.sessionId || state.sessionId;
 
-  const state = getDiagramState();
   if (state.nodes.length === 0) {
     return {
       success: false,
@@ -36,7 +36,7 @@ export async function exportDiagram(input: unknown) {
   }
 
   try {
-    const response = await fetchWithTimeout(`${API_BASE}/api/diagram/export`, {
+    const response = await fetchWithTimeout(`${getApiBase() || DEFAULT_API_BASE}/api/diagram/export`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, format }),

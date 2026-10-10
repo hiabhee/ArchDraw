@@ -2,7 +2,7 @@ import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { UpdateDiagramInput } from '../lib/schema.js';
 import { getDiagramState } from '../lib/diagram-state.js';
 import { validateGraph } from './validate-diagram.js';
-import { fetchWithTimeout } from '../lib/http.js';
+import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import {
   TIER_COLORS,
   COMM_COLORS,
@@ -212,7 +212,7 @@ export async function updateDiagram(input: UpdateDiagramInput, workingSession?: 
 
   // A published canvas is updated in place using its capability token and
   // optimistic revision. Local-only diagrams never leave this MCP process.
-  const API_BASE = process.env.API_BASE_URL;
+  const API_BASE = getApiBase();
   if (API_BASE && state.sessionId && state.updateToken) {
     try {
     const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {

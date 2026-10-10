@@ -65,7 +65,7 @@ export function loadCheckpoint(name: string, workingSession = 'default'): {
     return {
       success: false,
       error: `Checkpoint '${name}' not found`,
-      availableCheckpoints: listCheckpoints(),
+      availableCheckpoints: listCheckpoints(workingSession),
     };
   }
 
@@ -96,4 +96,19 @@ export function listCheckpoints(workingSession = 'default'): Array<{ name: strin
     nodeCount: cp.state.nodes.length,
     edgeCount: cp.state.edges.length,
   }));
+}
+
+/** Snapshot / restore / drop a working session's checkpoints (hosted persistence). */
+export function exportCheckpoints(workingSession = 'default'): Checkpoint[] {
+  return Array.from(checkpointsFor(workingSession).values()).map(cp => JSON.parse(JSON.stringify(cp)));
+}
+
+export function importCheckpoints(checkpoints: Checkpoint[], workingSession = 'default'): void {
+  const target = checkpointsFor(workingSession);
+  target.clear();
+  for (const cp of checkpoints) target.set(cp.name, JSON.parse(JSON.stringify(cp)));
+}
+
+export function clearCheckpoints(workingSession = 'default'): void {
+  checkpointsBySession.delete(workingSession);
 }

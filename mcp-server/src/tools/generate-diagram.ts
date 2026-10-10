@@ -1,7 +1,7 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { GenerateDiagramInput } from '../lib/schema.js';
 import { describeSaveFailure } from '../lib/preview-links.js';
-import { fetchWithTimeout } from '../lib/http.js';
+import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { validateGraph } from './validate-diagram.js';
 
 function structuredInputToMermaid(nodes: NodeInput[], edges: NonNullable<GenerateDiagramInput['edges']>, direction: GenerateDiagramInput['direction']): string {
@@ -201,7 +201,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
 
     // Handle Mermaid input directly
     if (input.mermaid) {
-      const API_BASE = process.env.API_BASE_URL;
+      const API_BASE = getApiBase();
       const label = input.label || 'AI Diagram';
       if (!API_BASE) {
         return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 }, errors: ['Mermaid generation requires API_BASE_URL to run the ArchDraw pipeline.'] };

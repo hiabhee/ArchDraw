@@ -1,5 +1,5 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
-import { fetchWithTimeout } from './http.js';
+import { fetchWithTimeout, getApiBase } from './http.js';
 
 export interface DiagramState {
   nodes: ReactFlowNode[];
@@ -45,6 +45,10 @@ export function setDiagramSessionId(sessionId: string | undefined, workingSessio
   setDiagramState({ ...state, sessionId }, workingSession);
 }
 
+export function clearDiagramState(workingSession = DEFAULT_WORKING_SESSION): void {
+  states.delete(workingSession);
+}
+
 export function hasDiagramState(workingSession = DEFAULT_WORKING_SESSION): boolean {
   return states.has(workingSession);
 }
@@ -60,7 +64,7 @@ export async function syncDiagramStateFromSession(
   apiBase?: string,
   workingSession = DEFAULT_WORKING_SESSION
 ): Promise<boolean> {
-  const API_BASE = apiBase || process.env.API_BASE_URL;
+  const API_BASE = apiBase || getApiBase();
   if (!API_BASE) return false;
   try {
     const response = await fetchWithTimeout(`${API_BASE}/api/diagram/session/${encodeURIComponent(sessionId)}`);

@@ -3,7 +3,7 @@ import type { ApplyTemplateInput } from '../lib/schema.js';
 import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
 import { COMM_COLORS } from '../lib/constants.js';
 import { describeSaveFailure } from '../lib/preview-links.js';
-import { fetchWithTimeout } from '../lib/http.js';
+import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import type { TierType } from '../types/index.js';
 
 interface TemplateNode {
@@ -375,7 +375,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
 
     let diagramUrl: string | undefined;
     let sessionId: string | undefined;
-    const API_BASE = process.env.API_BASE_URL;
+    const API_BASE = getApiBase();
     let updateToken: string | undefined;
     let linkError: string | undefined;
     // Links are rendered first by the tool handler (formatPreviewLinks).

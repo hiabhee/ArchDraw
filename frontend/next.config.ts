@@ -70,6 +70,9 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   poweredByHeader: false,
   compress: true,
+  // Hosted MCP endpoint: load the server package natively so its widget HTML
+  // (read via import.meta.url) resolves from node_modules at runtime.
+  serverExternalPackages: ['@hiabhee/archdraw-mcp-server'],
   transpilePackages: [],
   // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
   // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion

@@ -11,10 +11,12 @@
   "homepage": "https://archdraw.hiabhee.online",
   "repository": "https://github.com/hiabhee/ArchDraw",
   "license": "MIT",
-  "keywords": ["architecture", "diagram", "system-design", "mermaid", "mcp"],
-  "icon": "./assets/archdraw.png",
-  "documentationUrl": "https://archdraw.hiabhee.online/mcp",
-  "supportUrl": "https://github.com/hiabhee/ArchDraw/issues",
-  "privacyPolicyUrl": "https://archdraw.hiabhee.online/privacy",
-  "termsOfServiceUrl": "https://archdraw.hiabhee.online/terms"
+  "keywords": [
+    "architecture",
+    "diagram",
+    "system-design",
+    "mermaid",
+    "mcp"
+  ],
+  "icon": "./assets/archdraw.png"
 }

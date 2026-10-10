@@ -1,6 +1,6 @@
 import type { ReactFlowEdge, ReactFlowNode } from '../types/index.js';
 import type { FixLayoutInput } from '../lib/schema.js';
-import { fetchWithTimeout } from '../lib/http.js';
+import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 
 function escapeMermaidLabel(value: string): string {
   return value.replaceAll('"', "'").replaceAll('\n', ' ');
@@ -15,7 +15,7 @@ export async function fixLayout(input: FixLayoutInput): Promise<{
   metadata: { nodeCount: number; edgeCount: number; layoutAlgorithm: string; direction: string };
   errors?: string[];
 }> {
-  const apiBase = process.env.API_BASE_URL;
+  const apiBase = getApiBase();
   if (!apiBase) {
     return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid → Dagre', direction: input.direction }, errors: ['fix_layout requires API_BASE_URL so it can use the ArchDraw editor layout pipeline.'] };
   }

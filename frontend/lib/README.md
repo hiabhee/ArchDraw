@@ -7,7 +7,7 @@ Everything that isn't a React component or a route lives here, grouped by what i
 | `diagram/` | The diagram engine — see below | `diagram/mermaid/relayout.ts` |
 | `ai/` | Prompt → diagram generation: LLM planner, concept templates, model/key management | `ai/pipeline/mermaid-pipeline/pipeline-v2.ts`, `ai/services/orchestrator.ts` |
 | `repo-diagram/` | GitHub repo → diagram pipeline, its LLM `agents/`, ingestion, caching, types | `repo-diagram/pipeline-v2.ts` |
-| `server/` | **Server-only**: auth, database (Prisma), Redis, credits, AI quota checks, env validation | `server/quotaCheck.ts`, `server/db.ts` |
+| `server/` | **Server-only**: auth, database (Prisma), Redis, credits, AI quota checks, env validation, hosted-MCP glue (`server/mcp/`) | `server/quotaCheck.ts`, `server/db.ts` |
 | `client/` | **Browser-only**: API client, auth client, analytics, localStorage, React Flow instance ref | `client/api-client.ts` |
 | `quotas/` | Plan limits and credit policy (shared by client and server) | `quotas/userQuotas.ts` |
 | `theme/` | Render styles (precision/sketch/…), color tokens, shape geometry, app theme hooks | `theme/stylingConstants.ts`, `theme/shapeGeometry/` |
