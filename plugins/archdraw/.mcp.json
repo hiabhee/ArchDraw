@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "archdraw": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.4"],
+      "env": {
+        "API_BASE_URL": "https://archdraw.hiabhee.online"
+      }
+    }
+  }
+}

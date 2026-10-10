@@ -1,0 +1,20 @@
+{
+  "name": "archdraw",
+  "interface": {
+    "displayName": "ArchDraw"
+  },
+  "plugins": [
+    {
+      "name": "archdraw",
+      "source": {
+        "source": "local",
+        "path": "./plugins/archdraw"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

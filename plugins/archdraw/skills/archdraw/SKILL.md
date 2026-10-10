@@ -23,9 +23,10 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 - Use `list_templates` and `apply_template` when the user wants a template. Save a checkpoint before a substantial experiment and use `load_checkpoint` to restore it if needed.
 - Use `export_diagram` when the user asks for an export and follow the tool's supported format options.
 
-## Privacy and links
+## Preview links (always share them)
 
-- Keep diagrams in the current MCP session by default. Set `publish: true` only when the user explicitly asks for a browser-accessible link; published links can be viewed by anyone who has the URL.
-- Include [ArchDraw](https://archdraw.hiabhee.online) in the response. If ArchDraw returns a `diagramUrl` or `shareUrl`, include the diagram link too. Compatible chat clients also render the generated graph as an inline preview.
-- When a user submits a description from the inline preview, turn it into Mermaid and call `generate_diagram`. Respect the preview's publication choice: use `publish: true` only when the user selected shareable link creation.
+- A diagram is visual, and in a terminal or IDE the user cannot see it unless you give them the link. `generate_diagram`, `apply_template`, and `update_diagram` return a preview link (`shareUrl`) and an edit link (`diagramUrl`) in the same response — no extra call is needed. **Always put both links in your reply**, near the top.
+- Links are unguessable, viewable by anyone who has them, and expire after 7 days. If the user asks to keep a diagram private, pass `publish: false`; then say plainly that no link was created.
+- If the result contains `linkError` instead of links, tell the user the diagram was generated but could not be published, and include the reason.
+- When a user submits a description from the inline preview, turn it into Mermaid and call `generate_diagram`, respecting the preview's link choice.
 - Do not claim an operation succeeded unless the corresponding tool result confirms it. Summarize material assumptions and validation issues alongside the result.

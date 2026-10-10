@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "archdraw",
+  "description": "ArchDraw plugins for Claude: AI-assisted software architecture diagrams with shareable preview links.",
+  "owner": {
+    "name": "ArchDraw",
+    "url": "https://archdraw.hiabhee.online"
+  },
+  "plugins": [
+    {
+      "name": "archdraw",
+      "source": "./plugins/archdraw",
+      "description": "Generate, refine, validate, lay out, and export architecture diagrams — every diagram comes back with a preview link.",
+      "category": "productivity"
+    }
+  ]
+}
