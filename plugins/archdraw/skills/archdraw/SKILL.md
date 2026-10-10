@@ -14,7 +14,7 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 - Use subgraphs to group tiers or trust boundaries when they make the system easier to read. Keep labels concise and add communication labels for asynchronous, event, or streaming edges.
 - Before generation, audit the planned edges: avoid arrows into client-tier nodes except between client-tier nodes; prevent one node from becoming an unjustified hub; and keep the flow consistent with the intended architecture rather than adding layers by habit.
 - Call `list_node_types` when the user asks for a specific component icon or when choosing from ArchDraw's component library would improve the result.
-- Preserve and resend `workingSessionId` when handling multiple diagrams in parallel.
+- Keep the `workingSessionId` returned by `generate_diagram` / `apply_template` and pass it on every later call about that diagram (`update_diagram`, `get_diagram_state`, `validate_diagram`, checkpoints, `export_diagram`). The hosted server requires it.
 
 ## Refine and validate
 

@@ -22,7 +22,7 @@ codex plugin add archdraw@archdraw
 
 You can also install it from the Plugins Directory in the ChatGPT desktop app after adding the marketplace.
 
-Requirements: Node.js 18 or later with `npx` available, and network access to npm and to `archdraw.hiabhee.online`.
+Requirements: network access to `archdraw.hiabhee.online`. Claude needs nothing else; Codex also needs Node.js 18 or later with `npx` (see below).
 
 ## What you get
 
@@ -37,19 +37,20 @@ Try: "Draw the architecture of this repo", "Add a Redis cache in front of the AP
 | --- | --- |
 | Claude Code (terminal, IDE, desktop Code tab) | Skill and MCP tools |
 | Codex (CLI, IDE, desktop app) | Skill and MCP tools |
-| Cowork (session running on your computer) | Skill and MCP tools |
-| claude.ai chat | Skill only — local MCP servers don't run there |
+| Cowork | Skill and MCP tools |
+| Claude apps (claude.ai web, desktop, mobile) | Skill and MCP tools (hosted server) |
 
 ## What the plugin runs, sends, and stores
 
 Please read this before installing.
 
-- **Runs:** `npx -y @hiabhee/archdraw-mcp-server@1.0.4`, which downloads that exact, pinned version of the open-source MCP server ([source](https://github.com/hiabhee/ArchDraw/tree/main/mcp-server)) from the public npm registry and runs it locally over stdio.
-- **Sends:** the diagram content the agent passes to the tools — component names, labels, connections, and the Mermaid text — to `https://archdraw.hiabhee.online` (`/api/diagram/load`, `/api/diagram/session/<id>`, `/api/diagram/export`) to lay out, publish, sync, and export diagrams. It does not read your source files itself, send credentials, or collect telemetry. Whatever the agent puts in a diagram is what is sent, so avoid putting secrets in diagram labels.
-- **Publishes by default:** each generated diagram is saved as a preview link on ArchDraw so you can see it. Links are unguessable, viewable by anyone who has the URL, and expire after 7 days. Ask the agent to keep a diagram private (the tools' `publish: false`) and no link is created; the diagram then stays only in the local MCP session.
-- **Stores locally:** the current diagram and any checkpoints live in the MCP server's memory and are discarded when the session ends.
+- **Connects to (Claude):** the hosted ArchDraw MCP server at `https://archdraw.hiabhee.online/api/mcp` over HTTPS. Nothing is installed or run on your machine.
+- **Runs (Codex):** `npx -y @hiabhee/archdraw-mcp-server@1.0.5`, which downloads that exact, pinned version of the same open-source server ([source](https://github.com/hiabhee/ArchDraw/tree/main/mcp-server)) from the public npm registry and runs it locally over stdio.
+- **Sends:** the diagram content the agent passes to the tools — component names, labels, connections, and the Mermaid text — to `https://archdraw.hiabhee.online` (`/api/mcp` for Claude; `/api/diagram/load`, `/api/diagram/session/<id>`, `/api/diagram/export` for Codex) to lay out, publish, sync, and export diagrams. The hosted server sees your IP address, which it uses only for rate limiting. It does not read your source files itself, send credentials, or collect telemetry. Whatever the agent puts in a diagram is what is sent, so avoid putting secrets in diagram labels.
+- **Publishes by default:** each generated diagram is saved as a preview link on ArchDraw so you can see it. Links are unguessable, viewable by anyone who has the URL, and expire after 7 days. Ask the agent to keep a diagram private (the tools' `publish: false`) and no link is created; the diagram then stays only in its working session.
+- **Stores:** the current diagram and any checkpoints for a working session. On the hosted server they are kept for 24 hours under an unguessable working-session ID, then deleted; with the local Codex server they live in memory and are discarded when the session ends.
 
-To point the plugin at your own ArchDraw deployment, change `API_BASE_URL` in `.mcp.json`.
+To point the plugin at your own ArchDraw deployment, change the `url` in `.mcp.json` (Claude) or `API_BASE_URL` in `mcp.json` (Codex).
 
 ## Support
 
