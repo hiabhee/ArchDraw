@@ -2,13 +2,14 @@ import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '@/store/diagram/types';
 import type { EdgeData } from '@/data/edgeTypes';
 
-import { computeEdgeRoute, type EdgeRouteDirection } from '@/lib/utils/edgeRouteBuilder';
-import { buildSmoothStepSvg } from '@/lib/utils/collisionFreeEdgePath';
-import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
+import { type EdgeRouteDirection } from '@/lib/utils/edgeRouteBuilder';
+import { buildEdgePathGeometry } from '@/lib/utils/edgePathGeometry';
+import { getCachedDiagramGeometryPlan } from '@/lib/utils/diagramGeometry';
 import { resolveCanvasTokens, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { DiagramThemeId } from '@/lib/theme/stylingConstants';
 import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
+import { metallicSurfaceGradientSvgDefs } from '@/lib/theme/renderStyles/studioMetallic';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
 import { renderSystemNode, renderTextLabel, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
@@ -95,6 +96,9 @@ export function generatePureSVG(
 
   const nodeElements: string[] = [];
   const edgeElements: string[] = [];
+  const metallicSurfaceDefs = aesthetics.render.nodeMaterial === 'metallic'
+    ? metallicSurfaceGradientSvgDefs(isDark)
+    : '';
 
   for (const node of sortedNodes) {
     const nodeData: SystemNodeRenderData = {
@@ -186,8 +190,12 @@ export function generatePureSVG(
     } as Node;
   });
 
-  const nodeInternals = new Map(preparedNodes.map((n) => [n.id, n]));
-  const labelLayouts = computeEdgeLabelLayout(processedEdges, nodeInternals, layoutDirection, renderStyleId);
+  const geometry = getCachedDiagramGeometryPlan(routingNodes, processedEdges, {
+    direction: layoutDirection,
+    renderStyleId,
+    iconMode,
+    revision: 'svg-export',
+  });
 
   for (const edge of processedEdges) {
     const sourceNode = routingNodes.find((n) => n.id === edge.source);
@@ -195,7 +203,8 @@ export function generatePureSVG(
 
     if (!sourceNode || !targetNode) continue;
 
-    const route = computeEdgeRoute(edge, routingNodes, processedEdges, layoutDirection);
+    const route = geometry.routes.get(edge.id);
+    if (!route) continue;
 
     const sourceX = route.sourcePoint.x - bounds.minX;
     const sourceY = route.sourcePoint.y - bounds.minY;
@@ -205,33 +214,13 @@ export function generatePureSVG(
     const targetPos = route.targetPosition;
     const isFloating = edge.type === 'simpleFloating' || (!edge.sourceHandle && !edge.targetHandle);
 
-    const translatedWaypoints = route.waypoints.map((pt) => ({
-      x: pt.x - bounds.minX,
-      y: pt.y - bounds.minY,
-    }));
+    const shifted = (point: { x: number; y: number }) => ({ x: point.x - bounds.minX, y: point.y - bounds.minY });
+    const shiftedInput = route.path.kind === 'orthogonal'
+      ? { ...route.path, waypoints: route.path.waypoints.map(shifted) }
+      : { kind: 'cubic' as const, start: shifted(route.path.start), control1: shifted(route.path.control1), control2: shifted(route.path.control2), end: shifted(route.path.end) };
+    const svgPath = buildEdgePathGeometry(shiftedInput).d;
 
-    const isBrutal = renderStyleId === 'neubrutalism';
-    const isStep = edge.data?.pathType === 'step';
-    const borderRadius = isStep ? 0 : isBrutal ? 10 : 24;
-
-    let svgPath = '';
-    if (translatedWaypoints.length > 0) {
-      // Use the same wrap/corner logic as the canvas (computeEdgeRoute handles
-      // self-loops with Left→Right wrap, not the old r=40 Top→Right corner)
-      svgPath = buildSmoothStepSvg(translatedWaypoints, borderRadius);
-      // Fallback to the route's own svgPath (cubic for Top→Right corner) if
-      // waypoints were cubic — computeEdgeRoute already built the correct path.
-      if (!svgPath && route.svgPath) {
-        // Translate the route's svgPath from absolute to bounds-relative
-        svgPath = route.svgPath.replace(/([MLC])\s*(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (_m, cmd, x, y) => {
-          return `${cmd} ${parseFloat(x) - bounds.minX},${parseFloat(y) - bounds.minY}`;
-        });
-      }
-    } else if (route.svgPath) {
-      svgPath = route.svgPath;
-    }
-
-    const labelAnchor = labelLayouts.get(edge.id);
+    const labelAnchor = geometry.labels.get(edge.id);
     const labelX = labelAnchor ? labelAnchor.x - bounds.minX : undefined;
     const labelY = labelAnchor ? labelAnchor.y - bounds.minY : undefined;
 
@@ -255,8 +244,16 @@ export function generatePureSVG(
     edgeElements.push(renderEdge(edgeData, isDark, renderStyleId, aesthetics));
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
+  const geometryMetadata = escapeXml(JSON.stringify({
+    status: geometry.status,
+    violations: geometry.violations,
+    routeStatuses: [...geometry.routes].map(([edgeId, route]) => ({ edgeId, status: route.status, violations: route.violations })),
+  }));
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" data-geometry-status="${geometry.status}">
+  <metadata id="archdraw-geometry">${geometryMetadata}</metadata>
   ${renderStyleId === 'neubrutalism' ? brutalShadowFilter(isDark) : ''}
+  ${metallicSurfaceDefs}
   ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
   ${backgroundPattern}
   <g id="edges">

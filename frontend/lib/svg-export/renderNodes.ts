@@ -21,19 +21,19 @@ import {
   applyShapeSurface,
   getRenderStyle,
   getStrokeRenderer,
+  isStudioRenderStyle,
   renderSketchBodyMarkup,
   renderSketchSurface,
   resolveRenderSurface,
   BRUTAL_BORDER,
   BRUTAL_BORDER_DARK,
-  BRUTAL_FILL_LIGHT,
-  BRUTAL_FILL_DARK,
   BRUTAL_TITLE_LIGHT,
   BRUTAL_TITLE_DARK,
   BRUTAL_SUBTITLE_LIGHT,
   BRUTAL_SUBTITLE_DARK,
   BRUTAL_GROUP_FILL_LIGHT,
   BRUTAL_GROUP_FILL_DARK,
+  getBrutalNodeFill,
   SKETCH_INK_LIGHT_TITLE,
   SKETCH_INK_LIGHT_SUBTITLE,
   SKETCH_INK_DARK_TITLE,
@@ -118,7 +118,7 @@ export function renderSystemNode(
   const { x, y, width, height, data, selected } = node;
   const sketch = renderStyleId === 'sketch';
 
-  const studio = renderStyleId === 'studio-minimal' && aesthetics;
+  const studio = isStudioRenderStyle(renderStyleId) && aesthetics;
   const accentColor = data.accentColor || getConcernColor(
     data.layer || data.serviceType || data.category,
     aesthetics?.concerns,
@@ -227,13 +227,13 @@ export function renderSystemNode(
 
   if (renderStyleId === 'neubrutalism') {
     const border = isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER;
-    const surfFill = isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT;
+    const surfFill = getBrutalNodeFill(accentColor, isDark);
     const nodeTitle = isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT;
     const nodeSubtitle = isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT;
     const font = 'Space Grotesk, Inter, system-ui, sans-serif';
     const shadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
     return `
-    <g transform="translate(${x}, ${y})" filter="url(#${shadowId})">
+    <g transform="translate(${x}, ${y})">
       <rect
         x="0" y="0"
         width="${width}" height="${height}"
@@ -241,6 +241,7 @@ export function renderSystemNode(
         stroke="${border}"
         stroke-width="3"
         rx="6" ry="6"
+        filter="url(#${shadowId})"
       />
       <rect x="0" y="10" width="4" height="${Math.max(12, height - 20)}" fill="${accentColor}" />
       <g transform="translate(16, 12)">
@@ -286,7 +287,10 @@ export function renderSystemNode(
     return `
       <g transform="translate(${x}, ${y})">
         ${isDark && selected ? `<rect x="-3" y="-3" width="${width + 6}" height="${height + 6}" rx="15" fill="none" stroke="${accentColor}" stroke-opacity="0.16" stroke-width="6" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="2.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="${selectedFill}" filter="url(#archdraw-metallic-shadow)" />` : ''}
         <rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="${selectedFill}" stroke="${selectedBorder}" stroke-width="1.5" />
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
         ${icon ? `${iconWell}<g transform="translate(16, 14)">${icon}</g>` : ''}
         <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${selectedTitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="16.2" font-weight="600">${escapeXml(data.label || 'Service')}</text>
         ${data.subtitle ? `<text x="${textX}" y="47" fill="${selectedSubtitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="10.5">${escapeXml(String(data.subtitle))}</text>` : ''}
@@ -562,7 +566,7 @@ export function renderShapeNode(
 ): string {
   const { x, y, width: W, height: H, data, selected } = node;
   const shapeData = data as ShapeNodeData;
-  const studio = renderStyleId === 'studio-minimal' && aesthetics;
+  const studio = isStudioRenderStyle(renderStyleId) && aesthetics;
   const shape = studio ? 'rounded-rectangle' : shapeData.shape || 'rounded-rectangle';
   const shapeHint = shapeData.category || shapeData.serviceType || shapeData.layer || (
     ['actor', 'monitor', 'mobile'].includes(shapeData.shape || '') ? 'client' :
@@ -705,7 +709,10 @@ export function renderShapeNode(
     const iconGlyphY = iconY + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
     return `
       <g transform="translate(${x}, ${y})">
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : ''}
         ${body}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
         ${icon ? `${iconWell}<g transform="translate(${iconGlyphX}, ${iconGlyphY})">${icon}</g>` : ''}
         ${title ? `<text x="${textX}" y="${titleY}" fill="${titleColor}" font-family="${fontFamily}" font-size="16.2" font-weight="600" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
         ${subtitle ? `<text x="${textX}" y="${subtitleY}" fill="${subtitleColor}" font-family="${fontFamily}" font-size="10.5" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
