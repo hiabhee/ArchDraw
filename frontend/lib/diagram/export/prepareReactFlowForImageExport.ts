@@ -64,11 +64,12 @@ export function restoreReactFlowAfterImageExport(snapshots: PathSnapshot[]): voi
 export function reactFlowExportFilter(node: HTMLElement): boolean {
   const cls = node.classList;
   if (!cls) return true;
+  // Keep `react-flow__background`: the primary SVG→PNG path draws the grid
+  // when it's shown on the canvas, so the DOM-screenshot fallback must too.
   if (
     cls.contains('react-flow__minimap') ||
     cls.contains('react-flow__controls') ||
-    cls.contains('react-flow__panel') ||
-    cls.contains('react-flow__background')
+    cls.contains('react-flow__panel')
   ) {
     return false;
   }
