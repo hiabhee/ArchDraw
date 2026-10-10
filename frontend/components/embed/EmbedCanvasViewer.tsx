@@ -16,6 +16,7 @@ import { EDGE_TYPE_CONFIGS } from '@/data/edgeTypes';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { assignEdgeColors } from '@/lib/edgeColors';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
 import { useDiagramStore } from '@/store/diagramStore';
 import '@/components/nodes/nodeStyles.css';
 
@@ -63,6 +64,7 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
 
   return (
     <div className={isDark ? 'dark' : ''} style={{ width: '100%', height: '100%', background: backgroundColor }}>
+      <DiagramGeometryProvider nodes={nodes} edges={coloredEdges}>
       <ReactFlow
         nodes={nodes}
         edges={coloredEdges}
@@ -136,6 +138,7 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
           />
         )}
       </ReactFlow>
+      </DiagramGeometryProvider>
     </div>
   );
 }
