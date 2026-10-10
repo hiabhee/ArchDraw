@@ -67,12 +67,6 @@
       "skillPath": "skills/brutalist-skill/SKILL.md",
       "computedHash": "8fc355c4aadb7d29c53ca28bc41be3cd6eea765d121e3737c4dc2d0f90a8effa"
     },
-    "jev-agent": {
-      "source": "jev-ai/jev-agent-skill",
-      "sourceType": "github",
-      "skillPath": "SKILL.md",
-      "computedHash": "f6c6fb9e445de4a2ef50955ad50728480f567a86d9b11ed5a06317b5cc42d996"
-    },
     "minimalist-ui": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",
