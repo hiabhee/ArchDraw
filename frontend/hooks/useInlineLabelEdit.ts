@@ -48,7 +48,6 @@ export function useInlineLabelEdit({
   // looks like the first Enter "erased" the label.
   // This syncs local state to a one-shot store signal (autoStartLabelEdit) and
   // must run imperatively to avoid racing the commit/unmount blur handlers.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (autoStart && !isEditing && !didAutoStartRef.current && !isCommittingRef.current) {
       didAutoStartRef.current = true;
@@ -58,7 +57,6 @@ export function useInlineLabelEdit({
       setIsEditing(true);
     }
   }, [autoStart, isEditing, currentLabel]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   useLayoutEffect(() => {
     if (!isEditing) return;

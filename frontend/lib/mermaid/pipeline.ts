@@ -6,6 +6,9 @@ import { successResult, errorResult, warningResult } from '@/lib/pipeline-core/S
 import type { PipelineResult as CorePipelineResult } from '@/lib/pipeline-core/PipelineResult'
 import type { PipelineContext } from '@/lib/pipeline-core/PipelineContext'
 import type { RFObjects, RFNode, RFEdge, Direction, MermaidAST } from './types'
+import type { EdgeLayoutSemantics } from './edgeFlowSemantics'
+import { computeDiagramGeometryPlan } from '@/lib/utils/diagramGeometry'
+import type { GeometryStatus } from '@/lib/utils/geometryTypes'
 import {
   ParseStage,
   ValidateStage,
@@ -27,6 +30,19 @@ export interface PipelineResult {
   edgesRemoved?: number
   groupsRemoved?: number
   removedNodeIds?: string[]
+  geometrySummary?: GeometrySummary
+}
+
+export interface GeometrySummary {
+  status: GeometryStatus;
+  hardViolations: number;
+  crossings: number;
+  weightedCrossings: number;
+  unexplainedPrivateOverlapLength: number;
+  criticalPathDisconnectCount: number;
+  labelCollisions: number;
+  bendCount: number;
+  totalPathLength: number;
 }
 
 export type MermaidLayoutProfile = 'studio-minimal';
@@ -44,6 +60,7 @@ export interface MermaidPipelineData {
   diagramKind?: 'architecture' | 'workflow'
   pruneOrphans?: boolean
   removedNodeIds?: string[]
+  geometrySummary?: GeometrySummary
 }
 
 const parseStage = new ParseStage()
@@ -190,8 +207,23 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
         if (!result.success || !result.data) {
           return errorResult(result.error ?? new Error('Output validation failed'), result.warnings)
         }
-        const warnings = [...new Set([...input.warnings, ...result.data.validationWarnings])]
-        const data = { ...input, warnings }
+        const nodes = input.objects.nodes;
+        const edges = input.objects.edges;
+        const plan = computeDiagramGeometryPlan(nodes, edges, { direction: input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD' });
+        const geometrySummary: GeometrySummary = {
+          status: plan.status,
+          ...plan.quality,
+          labelCollisions: plan.violations.filter(issue => issue.code === 'LABEL_COLLISION').length,
+        };
+        const geometryWarnings = plan.status === 'ok' ? [] : [
+          `[GEOMETRY_${plan.status.toUpperCase()}] ${plan.quality.hardViolations} hard geometry violations, ${plan.quality.criticalPathDisconnectCount} main-path route failures, and ${plan.quality.unexplainedPrivateOverlapLength}px private route overlap remain after bounded layout repair.`,
+        ];
+        const warnings = [...new Set([
+          ...input.warnings.filter(warning => !/^\[GEOMETRY_(?:DEGRADED|INVALID|FAILED)\]/.test(warning)),
+          ...result.data.validationWarnings.filter(warning => !/^\[GEOMETRY_(?:DEGRADED|INVALID|FAILED)\]/.test(warning)),
+          ...geometryWarnings,
+        ])];
+        const data = { ...input, warnings, geometrySummary }
         return warnings.length > 0 ? warningResult(data, warnings) : successResult(data)
       },
     },
@@ -205,6 +237,7 @@ export async function runMermaidPipeline(
     diagramKind?: 'architecture' | 'workflow';
     pruneOrphans?: boolean;
     layoutProfile?: MermaidLayoutProfile;
+    edgeSemantics?: ReadonlyMap<string, EdgeLayoutSemantics>;
   } = {},
 ): Promise<DomainPipelineResult<PipelineResult>> {
   const pipeline = new Pipeline<string, MermaidPipelineData>(
@@ -232,6 +265,7 @@ export async function runMermaidPipeline(
     edgesRemoved: domainResult.data.originalEdgeIds?.filter(id => !domainResult.data.ast?.edges.some(e => e.id === id)).length ?? 0,
     groupsRemoved: domainResult.data.originalGroupIds?.filter(id => !domainResult.data.objects?.nodes.some(n => n.id === id)).length ?? 0,
     removedNodeIds: domainResult.data.removedNodeIds,
+    geometrySummary: domainResult.data.geometrySummary,
   }
 
   return {

@@ -127,6 +127,7 @@ export interface DiagramState {
   showGrid: boolean;
   iconMode: import('@/lib/utils/nodeIconVisibility').NodeIconMode;
   diagramChromeMode: 'edit' | 'present';
+  diagramViewMode: 'overview' | 'details';
   diagramStyleTheme: string;
   diagramRenderStyle: import('@/lib/theme/renderStyles').DiagramRenderStyleId;
   darkMode: boolean;
@@ -143,6 +144,7 @@ export interface DiagramState {
   cloudProvider: CloudProviderToggle;
   setCloudProvider: (toggle: CloudProviderToggle) => void;
   setDiagramChromeMode: (mode: 'edit' | 'present') => void;
+  setDiagramViewMode: (mode: 'overview' | 'details') => void;
   setDiagramStyleTheme: (theme: string) => void;
   setDiagramRenderStyle: (style: import('@/lib/theme/renderStyles').DiagramRenderStyleId) => void;
   toggleDarkMode: () => void;
@@ -189,7 +191,7 @@ export interface DiagramState {
     originHandleType: 'source' | 'target' | null;
     position: { x: number; y: number };
   }) => string;
-  importDiagram: (nodes: Node[], edges: Edge[]) => void;
+  importDiagram: (nodes: Node[], edges: Edge[], options?: { preserveTopology?: boolean }) => void;
   clearDiagram: () => void;
   deleteSelected: () => void;
   selectAll: () => void;

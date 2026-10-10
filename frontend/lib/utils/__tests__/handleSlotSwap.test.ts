@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Position, type Node, type Edge } from 'reactflow';
-import { getHandleSlotLayout, getEdgeShiftOffset, getCenteredSides, INCOMING_OUTGOING_GAP, sideFromHandleId, resolveSideFromEdgeHandles } from '../simpleFloatingEdge';
+import { getEdgeShiftOffset, INCOMING_OUTGOING_GAP } from '../simpleFloatingEdge';
 import type { EdgeSideResolver } from '../simpleFloatingEdge';
 
 function node(id: string, x: number, y: number): Node {
@@ -13,37 +13,6 @@ function node(id: string, x: number, y: number): Node {
     data: {},
   } as Node;
 }
-
-describe('sideFromHandleId', () => {
-  it('parses source and target handle ids', () => {
-    expect(sideFromHandleId('target-top')).toBe(Position.Top);
-    expect(sideFromHandleId('source-left')).toBe(Position.Left);
-    expect(sideFromHandleId('target-right')).toBe(Position.Right);
-    expect(sideFromHandleId('source-bottom')).toBe(Position.Bottom);
-    expect(sideFromHandleId(null)).toBeUndefined();
-  });
-
-  it('resolveSideFromEdgeHandles reads the node end of an edge', () => {
-    const edge: Edge = {
-      id: 'e1',
-      source: 'a',
-      target: 'cdn',
-      sourceHandle: 'source-bottom',
-      targetHandle: 'target-top',
-    };
-    expect(resolveSideFromEdgeHandles(edge, 'cdn')).toBe(Position.Top);
-    expect(resolveSideFromEdgeHandles(edge, 'a')).toBe(Position.Bottom);
-  });
-});
-
-describe('getHandleSlotLayout (fixed dedicated slots)', () => {
-  it('always places outgoing on −GAP and incoming on +GAP', () => {
-    const layout = getHandleSlotLayout();
-    expect(layout.sourceOffset).toBe(-INCOMING_OUTGOING_GAP);
-    expect(layout.targetOffset).toBe(INCOMING_OUTGOING_GAP);
-    expect(layout.sourceOffset).not.toBe(layout.targetOffset);
-  });
-});
 
 describe('getEdgeShiftOffset role → dedicated tip', () => {
   const internals = new Map<string, Node>([
@@ -169,43 +138,6 @@ describe('getEdgeShiftOffset with resolveSide — centers when only one directio
     expect(Math.abs(inOffset)).toBe(INCOMING_OUTGOING_GAP);
     expect(Math.abs(outOffset)).toBe(INCOMING_OUTGOING_GAP);
     expect(inOffset).not.toBe(outOffset);
-  });
-});
-
-describe('getCenteredSides', () => {
-  const _internals = new Map<string, Node>([
-    ['hub', node('hub', 200, 200)],
-    ['a', node('a', 50, 80)],
-    ['b', node('b', 50, 200)],
-    ['e', node('e', 400, 120)],
-  ]);
-
-  const resolveSide: EdgeSideResolver = (e, nodeId) => {
-    if (e.target === nodeId) return Position.Left;
-    return Position.Right;
-  };
-
-  it('returns all sides centered when no edges exist', () => {
-    const centered = getCenteredSides('hub', [], resolveSide);
-    expect(centered.size).toBe(4);
-  });
-
-  it('centers sides with only incoming edges', () => {
-    const edges: Edge[] = [
-      { id: 'i1', source: 'a', target: 'hub' },
-    ];
-    const centered = getCenteredSides('hub', edges, resolveSide);
-    expect(centered.has(Position.Left)).toBe(true);
-  });
-
-  it('does not center sides with both directions', () => {
-    const bothSides: EdgeSideResolver = (_e, _nodeId) => Position.Left;
-    const edges: Edge[] = [
-      { id: 'i1', source: 'a', target: 'hub' },
-      { id: 'o1', source: 'hub', target: 'e' },
-    ];
-    const centered = getCenteredSides('hub', edges, bothSides);
-    expect(centered.has(Position.Left)).toBe(false);
   });
 });
 

@@ -107,6 +107,8 @@ export default function SessionDetailPage() {
   }, [sessionId]);
 
   useEffect(() => {
+    // Initial fetch updates state only after the external request resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, [fetchData]);
 

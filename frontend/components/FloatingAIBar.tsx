@@ -69,6 +69,8 @@ export function FloatingAIBar({
     try {
       const hasUsed = localStorage.getItem('archdraw-has-used-canvas') === 'true';
       if (!hasUsed) {
+        // Read browser-only persisted state after hydration.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsFirstTime(true);
       }
     } catch { /* localStorage may throw in private browsing */ }

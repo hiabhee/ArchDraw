@@ -441,25 +441,56 @@
   border-color: var(--node-accent);
 }
 
+/* Studio Minimal Dark: quiet idle cards; a bright, branded selected state. */
+.dark .node-wrapper--studio-minimal-dark .node-card,
+.dark .shape-node-card--studio-minimal-dark {
+  transition: background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.dark .node-wrapper--studio-minimal-dark .node-card {
+  border-radius: 12px;
+}
+
+.dark .node-wrapper--studio-minimal-dark:not(.selected) .node-card:hover {
+  background: #1b2029;
+  border-color: rgba(184, 198, 218, 0.34);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38), 0 1px 2px rgba(255, 255, 255, 0.035);
+}
+
+.dark .node-wrapper--studio-minimal-dark .node-icon-box {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.dark .node-wrapper--studio-minimal-dark.selected .node-icon-box {
+  border-color: color-mix(in srgb, var(--node-accent) 34%, white);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.dark .shape-node--studio-minimal-dark {
+  --node-title-color: #e9eef6;
+  --node-subtitle-color: #9aa7b9;
+}
+
+.dark .shape-node--studio-minimal-dark.is-selected {
+  --node-title-color: #111827;
+  --node-subtitle-color: #526174;
+}
+
+.dark .shape-node-card--studio-minimal-dark {
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.dark .shape-node-card--studio-minimal-dark:hover {
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38), 0 1px 2px rgba(255, 255, 255, 0.035) !important;
+}
+
 /* ── Database Cylinder ─────────────────────────────────────────── */
 
 .node-card-db {
   border-radius: var(--arch-radius, 10px) !important;
-  border-top: 2px solid var(--node-accent);
   overflow: hidden;
-}
-
-.node-card-db::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--node-accent);
-  opacity: 0.12;
-  border-radius: var(--arch-radius, 10px) var(--arch-radius, 10px) 0 0;
-  z-index: 0;
 }
 
 .node-card-db::after {
@@ -671,14 +702,14 @@
 
 .node-database .node-icon-box {
   border-radius: 50%;
-  width: 53px;
-  height: 53px;
-  flex: 0 0 53px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
 }
 
 .node-database .node-icon {
-  width: 25px;
-  height: 25px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Table-record rows — three horizontal bars of varying width,
@@ -1324,7 +1355,7 @@
 [data-render-style='neubrutalism'] .node-card {
   border: 3px solid var(--arch-node-stroke, #1a1a1a) !important;
   box-shadow: 5px 5px 0px var(--arch-brutal-shadow, var(--arch-node-stroke, #1a1a1a)) !important;
-  background: var(--arch-node-fill, #ffffff) !important;
+  background: var(--node-card-bg, var(--arch-node-fill, #ffffff)) !important;
   border-radius: 6px !important;
 }
 
@@ -1447,4 +1478,18 @@
 [data-render-style='neubrutalism'] .react-flow__node-group,
 [data-render-style='neubrutalism'] .react-flow__node-frameNode {
   z-index: -1 !important;
+}
+
+/* Studio Metallic uses a satin highlight over the active palette's node fill. */
+[data-render-style='studio-metallic'] .node-card {
+  background-image: var(--arch-node-surface-overlay);
+  box-shadow: var(--arch-node-surface-elevation), var(--node-shadow), var(--arch-node-surface-inset);
+}
+
+[data-render-style='studio-metallic'] .node-wrapper.selected .node-card {
+  box-shadow: var(--node-shadow-selected), var(--arch-node-surface-inset);
+}
+
+[data-render-style='studio-metallic'] .node-wrapper:not(.selected) .node-card:hover {
+  background-image: var(--arch-node-surface-overlay);
 }

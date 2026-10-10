@@ -20,3 +20,5 @@ export const SUBGRAPH_PADDING_X = 28;
 export const SUBGRAPH_PADDING_TOP = 48;
 /** Air below a group's children. */
 export const SUBGRAPH_PADDING_BOTTOM = 28;
+/** Compact rank spacing within groups; outer graph profiles must not stretch small groups. */
+export const SUBGRAPH_CONTENT_RANK_SEP = 100;

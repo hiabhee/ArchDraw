@@ -23,6 +23,7 @@ import { layoutDiagramViaMermaid, type LayoutDirection } from '@/lib/mermaid/rel
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme';
 import '@/components/nodes/nodeStyles.css';
@@ -120,17 +121,24 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   // Preserve the creator's render style (if any) from the share URL.
   // Read in an effect (not a state initializer) so SSR/hydration always
   // agree on the first render.
-  const [renderStyle, setRenderStyle] = useState<DiagramRenderStyleId>('precision');
+  const [renderStyle, setRenderStyle] = useState<DiagramRenderStyleId>('studio-minimal');
 
   useEffect(() => {
     const style = new URLSearchParams(window.location.search).get('style');
+    // Read the URL after hydration to keep the server and first client render identical.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (style === 'sketch') setRenderStyle('sketch');
     else if (style === 'neubrutalism') setRenderStyle('neubrutalism');
     else if (style === 'studio-minimal') setRenderStyle('studio-minimal');
+    else if (style === 'studio-metallic') setRenderStyle('studio-metallic');
+    else if (style === 'precision') setRenderStyle('precision');
   }, []);
 
   useEffect(() => {
-    useDiagramStore.setState({ diagramRenderStyle: renderStyle });
+    useDiagramStore.setState({
+      diagramRenderStyle: renderStyle,
+      diagramStyleTheme: renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? 'studio-minimal' : 'slate',
+    });
     if (renderStyle === 'sketch') {
       ensureSketchFontLoaded();
     } else {
@@ -141,7 +149,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   const themeVars = useMemo(
     () => resolveCanvasTokens({
       renderStyleId: renderStyle,
-      colorThemeId: renderStyle === 'studio-minimal' ? 'studio-minimal' : 'slate',
+      colorThemeId: renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? 'studio-minimal' : 'slate',
       isDark,
     }).cssVars,
     [renderStyle, isDark],
@@ -425,6 +433,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       )}
 
       <div className="w-full h-full pt-12">
+        <DiagramGeometryProvider nodes={nodes} edges={coloredEdges}>
         <ReactFlow
           nodes={displayedNodes}
           edges={displayedEdges}
@@ -468,6 +477,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
             maskColor={isDark ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.06)'}
           />
         </ReactFlow>
+        </DiagramGeometryProvider>
       </div>
     </div>
   );

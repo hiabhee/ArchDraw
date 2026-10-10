@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Node, Edge } from 'reactflow';
 import { archdrawNodes, archdrawEdges } from '@/data/templates/archdraw';
-import { layoutDiagramViaMermaid } from './relayout';
+import { encodeTemporaryLayoutId, layoutDiagramViaMermaid } from './relayout';
 
 function group(id: string, label: string, parent?: string): Node {
   return {
@@ -25,6 +25,14 @@ function node(id: string, label: string, parent?: string): Node {
 }
 
 describe('layoutDiagramViaMermaid', () => {
+  it('encodes Mermaid layout IDs reversibly and independently of array order', () => {
+    const ids = ['', 'api.prod', 'api_prod', '東京', 'layout_0'];
+    const encoded = ids.map(encodeTemporaryLayoutId);
+    expect(new Set(encoded).size).toBe(ids.length);
+    expect([...ids].reverse().map(encodeTemporaryLayoutId).reverse()).toEqual(encoded);
+    expect(encoded.every(id => /^layout_[a-f0-9]+$/.test(id))).toBe(true);
+  });
+
   it('gives Studio Minimal a wider editorial rank rhythm without changing the default profile', async () => {
     const nodes: Node[] = [node('client', 'Client'), node('api', 'API'), node('data', 'Data')];
     const edges: Edge[] = [
@@ -129,7 +137,7 @@ describe('layoutDiagramViaMermaid', () => {
     expect(result.nodes.find((item) => item.id === 'note.one')?.data.anchorTarget).toBe('api.prod');
   });
 
-  it('clears absolute manual bends when the nodes move', async () => {
+  it('preserves user pinned waypoints when the nodes move', async () => {
     const nodes: Node[] = [node('api', 'API'), node('db', 'DB')];
     const edges: Edge[] = [{
       id: 'custom', source: 'api', target: 'db',
@@ -137,9 +145,25 @@ describe('layoutDiagramViaMermaid', () => {
     } as Edge];
     const result = await layoutDiagramViaMermaid(nodes, edges, 'TD');
     expect(result.success).toBe(true);
-    expect(result.edges[0].data?.customWaypoints).toBeUndefined();
+    expect(result.edges[0].data?.customWaypoints).toEqual([{ x: 5000, y: 5000 }]);
     expect(result.edges[0].data?.edgeType).toBe('async');
   });
+
+  it('restores exact metadata for same-label parallel edges regardless of input order', async () => {
+    const nodes: Node[] = [node('api.prod', 'API'), node('db', 'Database')];
+    const edges: Edge[] = [
+      { id: 'z-main', source: 'api.prod', target: 'db', label: 'writes', data: { importance: 'primary', importanceSource: 'explicit', flowRole: 'main', flowRoleSource: 'explicit' } } as Edge,
+      { id: 'a-support', source: 'api.prod', target: 'db', label: 'writes', data: { importance: 'supporting', importanceSource: 'explicit', flowRole: 'supporting', flowRoleSource: 'explicit' } } as Edge,
+    ];
+
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+
+    expect(result.success).toBe(true);
+    expect(result.edges.find(edge => edge.id === 'z-main')?.data).toMatchObject({ importance: 'primary', flowRole: 'main' });
+    expect(result.edges.find(edge => edge.id === 'a-support')?.data).toMatchObject({ importance: 'supporting', flowRole: 'supporting' });
+    expect(result.edges.map(edge => edge.id)).toEqual(['z-main', 'a-support']);
+  });
+
 
   it('layouts the ArchDraw template (same path as template load + toggler)', async () => {
     const result = await layoutDiagramViaMermaid(archdrawNodes, archdrawEdges, 'LR');

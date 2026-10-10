@@ -17,6 +17,7 @@ export function CanvasBackgroundControls() {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
+  const darkMode = useDiagramStore((s) => s.darkMode);
   const setCanvasBackground = useDiagramStore((s) => s.setCanvasBackground);
   const showGrid = useDiagramStore((s) => s.showGrid);
   const toggleGrid = useDiagramStore((s) => s.toggleGrid);
@@ -83,15 +84,19 @@ export function CanvasBackgroundControls() {
                   <div
                     className="absolute inset-0"
                     style={{
-                      backgroundColor: '#ffffff',
-                      backgroundImage: p.preview === 'none' ? 'none' : p.preview,
+                      backgroundColor: darkMode ? 'hsl(var(--canvas-bg))' : '#ffffff',
+                      backgroundImage: darkMode
+                        ? p.id === 'dots'
+                          ? 'radial-gradient(circle, rgba(148, 163, 184, 0.35) 1.2px, transparent 1.2px)'
+                          : 'linear-gradient(to right, hsl(var(--grid-color) / 0.25) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--grid-color) / 0.25) 1px, transparent 1px)'
+                        : p.preview,
                       backgroundSize: p.id === 'dots' ? '16px 16px' : '24px 24px',
                       backgroundPosition: 'center',
                     }}
                   />
                   <span
-                    className={`relative text-xs font-medium px-2 py-1 rounded-full ${
-                      active ? 'bg-primary text-primary-foreground' : 'bg-white/90 text-foreground border border-border'
+                    className={`relative text-xs font-semibold px-2 py-1 rounded-full shadow-sm ${
+                      active ? 'bg-primary text-primary-foreground' : 'bg-popover text-popover-foreground border border-border'
                     }`}
                   >
                     {p.label}
@@ -100,7 +105,7 @@ export function CanvasBackgroundControls() {
               );
             })}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-3">Pattern follows theme (light/dark) automatically.</p>
+          <p className="text-[11px] leading-relaxed text-muted-foreground dark:text-slate-300 mt-3">Pattern follows theme (light/dark) automatically.</p>
         </div>
       )}
     </div>

@@ -56,3 +56,17 @@ export function getDiamondLabelNudge(
   if (hasIcon) return -4;
   return 0;
 }
+
+/**
+ * Whether an icon+title row would squeeze the title into a column so narrow
+ * that words break mid-word (e.g. "Payment" → "Paymen"+"t" on a 160px cloud).
+ * Callers should fall back to a vertical icon-over-title stack, which gives
+ * the title the full mid-band width so wrapping happens at spaces.
+ */
+export function shouldStackLabelVertically(
+  labelMaxWidth: number,
+  iconSlotPx: number,
+): boolean {
+  const textColumn = labelMaxWidth - iconSlotPx - 20; // gap + container padding
+  return textColumn < 96;
+}

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArchDraw diagram</title>
+  <style>
+    :root { color-scheme: light dark; font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif); color: var(--color-text-primary, #20242c); background: var(--color-background-primary, #fff); }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 14px; }
+    .card { overflow: hidden; border: 1px solid var(--color-border-primary, #d9dde5); border-radius: 14px; background: var(--color-background-primary, #fff); }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--color-border-primary, #d9dde5); }
+    .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .brand-link { display: flex; align-items: center; gap: 9px; min-width: 0; color: inherit; text-decoration: none; }
+    .brand-link:hover h1 { color: #1167b1; }
+    .mark { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: #edf6ff; color: #1167b1; font-weight: 800; font-size: 15px; }
+    h1 { overflow: hidden; margin: 0; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .counts { margin-top: 2px; color: var(--color-text-secondary, #687080); font-size: 11px; }
+    .open { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: #1167b1; font-size: 12px; font-weight: 600; text-decoration: none; }
+    .open:hover { text-decoration: underline; }
+    a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid #1e90ff; outline-offset: 2px; }
+    .canvas { min-height: 190px; max-height: 440px; overflow: auto; background: var(--color-background-secondary, #f8fafc); }
+    svg { display: block; width: 100%; min-width: 360px; height: auto; max-height: 440px; }
+    .empty { display: grid; min-height: 190px; place-items: center; padding: 24px; color: var(--color-text-secondary, #687080); font-size: 13px; text-align: center; }
+    .warnings { padding: 8px 14px; border-top: 1px solid var(--color-border-primary, #d9dde5); color: #96610a; font-size: 11px; }
+    .actions { padding: 12px 14px 14px; border-top: 1px solid var(--color-border-primary, #d9dde5); }
+    .actions label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; }
+    textarea { display: block; width: 100%; min-height: 66px; resize: vertical; padding: 9px 10px; border: 1px solid var(--color-border-primary, #cbd1dc); border-radius: 9px; background: var(--color-background-primary, #fff); color: var(--color-text-primary, #20242c); font: inherit; font-size: 12px; }
+    .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; }
+    .publish { display: flex; align-items: flex-start; gap: 7px; max-width: 67%; color: var(--color-text-secondary, #687080); font-size: 10px; line-height: 1.35; }
+    .publish input { margin: 1px 0 0; accent-color: #1769d2; }
+    button { flex: 0 0 auto; padding: 8px 11px; border: 0; border-radius: 8px; background: #1769d2; color: #fff; font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .status { min-height: 14px; margin: 7px 0 0; color: var(--color-text-secondary, #687080); font-size: 10px; }
+    .edge { fill: none; stroke: #1e90ff; stroke-width: 1.5; }
+    .edge-label { fill: var(--color-text-secondary, #687080); font-size: 10px; }
+    .group-label { fill: var(--color-text-secondary, #687080); font-size: 12px; font-weight: 650; }
+    .node-title { fill: #192333; font-size: 12px; font-weight: 650; }
+    .node-subtitle { fill: #596579; font-size: 9px; }
+    @media (prefers-color-scheme: dark) {
+      .mark { background: #172f52; color: #9cc5ff; }
+      .node-title { fill: #f4f6fa; }
+      .node-subtitle { fill: #c2cad6; }
+      .edge { stroke: #8492a6; }
+      .open { color: #8dbdff; }
+      button { background: #246fc8; }
+    }
+  </style>
+</head>
+<body>
+  <section class="card" aria-label="ArchDraw diagram preview">
+    <header>
+      <div class="brand">
+        <a class="brand-link" href="https://archdraw.hiabhee.online" target="_blank" rel="noopener noreferrer" aria-label="Open ArchDraw">
+          <span class="mark" aria-hidden="true">A</span>
+          <div><h1 id="title">ArchDraw diagram</h1><div class="counts" id="counts">Preparing preview…</div></div>
+        </a>
+      </div>
+      <a class="open" id="open-link" hidden target="_blank" rel="noopener noreferrer"><span id="open-label">Open in ArchDraw</span><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h8v8M13 3 6 10M12 9v4H3V4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </header>
+    <main class="canvas" id="canvas"><div class="empty" id="empty">Loading the diagram preview…</div></main>
+    <div class="warnings" id="warnings" hidden></div>
+    <form class="actions" id="generate-form">
+      <label for="prompt">Create another diagram in this chat</label>
+      <textarea id="prompt" maxlength="2000" placeholder="Describe a system, for example: a video streaming platform with uploads, transcoding, and playback"></textarea>
+      <div class="action-row">
+        <label class="publish"><input id="publish" type="checkbox"><span>Create a shareable ArchDraw link. Anyone with the link can view it.</span></label>
+        <button id="generate" type="submit">Generate</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+  <script>
+    (() => {
+      const pending = new Map();
+      let requestId = 0;
+      let latestInput = {};
+      const $ = (id) => document.getElementById(id);
+      const canvas = $('canvas');
+      const escapeText = (value) => String(value ?? '');
+      const svgElement = (tag, attrs = {}, text) => {
+        const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, String(value));
+        if (text !== undefined) element.textContent = text;
+        return element;
+      };
+      const safeColor = (value, fallback) => /^#[0-9a-f]{3,8}$/i.test(value || '') ? value : fallback;
+
+      function request(method, params) {
+        const id = ++requestId;
+        return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => { pending.delete(id); reject(new Error('The chat did not respond.')); }, 10000);
+          pending.set(id, { resolve, reject, timeout });
+          window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+        });
+      }
+
+      function notify(method, params) {
+        window.parent.postMessage({ jsonrpc: '2.0', method, params }, '*');
+      }
+
+      function absPositions(nodes) {
+        const byId = new Map(nodes.map((node) => [node.id, node]));
+        const positions = new Map();
+        function resolve(node, visiting = new Set()) {
+          if (positions.has(node.id)) return positions.get(node.id);
+          const own = node.position || { x: 0, y: 0 };
+          const parentId = node.parentNode || node.data?.parentId;
+          if (!parentId || !byId.has(parentId) || visiting.has(node.id)) {
+            positions.set(node.id, own);
+            return own;
+          }
+          const nextVisiting = new Set(visiting);
+          nextVisiting.add(node.id);
+          const parent = resolve(byId.get(parentId), nextVisiting);
+          const absolute = { x: parent.x + own.x, y: parent.y + own.y };
+          positions.set(node.id, absolute);
+          return absolute;
+        }
+        for (const node of nodes) resolve(node);
+        return positions;
+      }
+
+      function render(graph) {
+        if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) return;
+        $('title').textContent = escapeText(graph.label || latestInput.label || 'ArchDraw diagram');
+        const nodes = graph.nodes;
+        const edges = graph.edges;
+        const positions = absPositions(nodes);
+        const boxes = nodes.map((node) => {
+          const position = positions.get(node.id) || { x: 0, y: 0 };
+          const width = Number(node.width || node.style?.width || 180);
+          const height = Number(node.height || node.style?.height || (node.data?.isGroup ? 220 : 72));
+          return { node, x: position.x, y: position.y, width, height };
+        });
+        if (!boxes.length) {
+          canvas.replaceChildren(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'ArchDraw returned no nodes for this diagram.' }));
+          return;
+        }
+        const minX = Math.min(0, ...boxes.map((box) => box.x)) - 28;
+        const minY = Math.min(0, ...boxes.map((box) => box.y)) - 28;
+        const maxX = Math.max(...boxes.map((box) => box.x + box.width)) + 28;
+        const maxY = Math.max(...boxes.map((box) => box.y + box.height)) + 28;
+        const svg = svgElement('svg', { viewBox: `${minX} ${minY} ${Math.max(320, maxX - minX)} ${Math.max(180, maxY - minY)}`, role: 'img', 'aria-label': 'Generated architecture diagram' });
+        const defs = svgElement('defs');
+        const marker = svgElement('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+        marker.append(svgElement('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#1e90ff' }));
+        defs.append(marker);
+        svg.append(defs);
+        const boxById = new Map(boxes.map((box) => [box.node.id, box]));
+
+        for (const box of boxes.filter(({ node }) => node.data?.isGroup)) {
+          const group = svgElement('g');
+          group.append(svgElement('rect', { x: box.x, y: box.y, width: box.width, height: box.height, rx: 12, fill: safeColor(box.node.data?.groupColor, '#edf2f8'), 'fill-opacity': 0.58, stroke: '#c8d1de', 'stroke-dasharray': '5 4' }));
+          group.append(svgElement('text', { x: box.x + 12, y: box.y + 20, class: 'group-label' }, escapeText(box.node.data?.groupLabel || box.node.data?.label || 'Group'));
+          svg.append(group);
+        }
+
+        for (const edge of edges) {
+          const source = boxById.get(edge.source);
+          const target = boxById.get(edge.target);
+          if (!source || !target) continue;
+          const direction = String(graph.metadata?.direction || '').toUpperCase();
+          const sourceSide = String(edge.sourceHandle || '').split('-').pop();
+          const targetSide = String(edge.targetHandle || '').split('-').pop();
+          let sx, sy, tx, ty, d;
+          if (sourceSide === 'top' || sourceSide === 'bottom' || targetSide === 'top' || targetSide === 'bottom' || direction === 'DOWN' || direction === 'UP') {
+            const down = direction !== 'UP';
+            sy = source.y + (sourceSide === 'top' ? 0 : sourceSide === 'bottom' ? source.height : down ? source.height : 0);
+            sx = source.x + source.width / 2;
+            ty = target.y + (targetSide === 'top' ? 0 : targetSide === 'bottom' ? target.height : down ? 0 : target.height);
+            tx = target.x + target.width / 2;
+            const mid = (sy + ty) / 2;
+            d = `M ${sx} ${sy} C ${sx} ${mid}, ${tx} ${mid}, ${tx} ${ty}`;
+          } else {
+            sx = source.x + (sourceSide === 'left' ? 0 : sourceSide === 'right' ? source.width : source.width);
+            sy = source.y + source.height / 2;
+            tx = target.x + (targetSide === 'left' ? 0 : targetSide === 'right' ? target.width : 0);
+            ty = target.y + target.height / 2;
+            const mid = (sx + tx) / 2;
+            d = `M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ty}, ${tx} ${ty}`;
+          }
+          svg.append(svgElement('path', { d, class: 'edge', 'marker-end': 'url(#arrow)', stroke: /^#[0-9a-f]{3,8}$/i.test(edge.style?.stroke || '') ? edge.style.stroke : '#1e90ff', 'stroke-dasharray': edge.style?.strokeDasharray || undefined }));
+          const label = edge.data?.label || edge.label;
+          if (label) svg.append(svgElement('text', { x: (sx + tx) / 2, y: (sy + ty) / 2 - 5, class: 'edge-label', 'text-anchor': 'middle' }, escapeText(label).slice(0, 32)));
+        }
+
+        for (const box of boxes.filter(({ node }) => !node.data?.isGroup)) {
+          const node = box.node;
+          const data = node.data || {};
+          const shape = String(data.shape || '');
+          const tier = String(data.tier || data.layer || '').toLowerCase();
+          const tierStroke = ({ client: '#475569', edge: '#475569', compute: '#0f766e', async: '#c2410c', data: '#334155', external: '#57534e', observe: '#475569' })[tier] || '#0f766e';
+          const stroke = safeColor(data.tierColor || data.accentColor, tierStroke);
+          const fill = 'var(--color-background-primary, #fff)';
+          const group = svgElement('g');
+          if (shape === 'diamond') {
+            group.append(svgElement('polygon', { points: `${box.x + box.width / 2},${box.y} ${box.x + box.width},${box.y + box.height / 2} ${box.x + box.width / 2},${box.y + box.height} ${box.x},${box.y + box.height / 2}`, fill, stroke, 'stroke-width': 1.4 }));
+          } else if (shape === 'ellipse' || shape === 'circle' || shape === 'actor') {
+            group.append(svgElement('ellipse', { cx: box.x + box.width / 2, cy: box.y + box.height / 2, rx: box.width / 2, ry: box.height / 2, fill, stroke, 'stroke-width': 1.4 }));
+          } else {
+            group.append(svgElement('rect', { x: box.x, y: box.y, width: box.width, height: box.height, rx: shape === 'cylinder' ? 16 : 9, fill, stroke, 'stroke-width': 1.4 }));
+          }
+          const maxChars = Math.max(10, Math.floor((box.width - 24) / 7));
+          const title = escapeText(data.label || node.id);
+          const subtitle = escapeText(data.subtitle || '');
+          group.append(svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2 - (subtitle ? 4 : -4), class: 'node-title', 'text-anchor': 'middle' }, title.length > maxChars ? `${title.slice(0, maxChars - 1)}…` : title));
+          if (subtitle) group.append(svgElement('text', { x: box.x + box.width / 2, y: box.y + box.height / 2 + 13, class: 'node-subtitle', 'text-anchor': 'middle' }, subtitle.length > maxChars + 10 ? `${subtitle.slice(0, maxChars + 9)}…` : subtitle));
+          svg.append(group);
+        }
+        canvas.replaceChildren(svg);
+        const visible = nodes.filter((node) => !node.data?.isGroup).length;
+        const groups = nodes.length - visible;
+        $('counts').textContent = `${visible} component${visible === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}${groups ? ` · ${groups} group${groups === 1 ? '' : 's'}` : ''}`;
+        const openUrl = graph.diagramUrl || graph.shareUrl;
+        const openLink = $('open-link');
+        if (openUrl && /^https:\/\//.test(openUrl)) {
+          openLink.href = openUrl;
+          openLink.hidden = false;
+          $('open-label').textContent = graph.shareUrl ? 'Open in ArchDraw' : 'Open diagram';
+        } else {
+          openLink.hidden = true;
+        }
+        const warnings = (graph.errors || []).filter((item) => typeof item === 'string');
+        $('warnings').hidden = warnings.length === 0;
+        $('warnings').textContent = warnings.slice(0, 3).join(' · ');
+      }
+
+      window.addEventListener('message', (event) => {
+        if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
+        const message = event.data;
+        if (message.id && pending.has(message.id)) {
+          const waiter = pending.get(message.id);
+          clearTimeout(waiter.timeout);
+          pending.delete(message.id);
+          if (message.error) waiter.reject(new Error(message.error.message || 'The chat rejected the request.'));
+          else waiter.resolve(message.result || {});
+          return;
+        }
+        if (message.method === 'ui/notifications/tool-input') latestInput = message.params?.arguments || {};
+        if (message.method === 'ui/notifications/tool-result') {
+          const result = message.params?.structuredContent || message.params?.structured_content;
+          if (result) render(result);
+        }
+        if (message.method === 'ui/notifications/tool-cancelled') $('counts').textContent = 'Generation cancelled';
+      });
+
+      $('generate-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const description = $('prompt').value.trim();
+        if (!description) { $('status').textContent = 'Describe the diagram you want first.'; return; }
+        const button = $('generate');
+        button.disabled = true;
+        $('status').textContent = 'Sending your request to the chat…';
+        const publish = $('publish').checked;
+        const instruction = [
+          'Create an architecture diagram in ArchDraw for the description below. Use the ArchDraw generate_diagram tool with Mermaid input and include the generated inline diagram in the response.',
+          publish ? 'Set publish:true and include both the ArchDraw editor URL and read-only share URL. The user chose to create a link accessible to anyone who has it.' : 'Keep it in the current MCP session; do not publish or create a public link.',
+          `Description: ${description}`,
+        ].join('\n\n');
+        try {
+          await request('ui/message', { role: 'user', content: { type: 'text', text: instruction } });
+          $('status').textContent = 'Request added to the chat. ArchDraw will show the generated preview there.';
+          $('prompt').value = '';
+        } catch (error) {
+          $('status').textContent = error instanceof Error ? error.message : 'Could not send the request. Use the chat composer instead.';
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+      request('ui/initialize', {
+        appInfo: { name: 'ArchDraw diagram preview', version: '1.0.0' },
+        appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
+        protocolVersion: '2026-01-26',
+      }).then(() => notify('ui/notifications/initialized', {})).catch(() => {
+        $('status').textContent = 'Use the chat composer to ask ArchDraw for another diagram.';
+      });
+    })();
+  </script>
+</body>
+</html>

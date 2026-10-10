@@ -5,6 +5,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { generateDiagram } from './tools/generate-diagram.js';
@@ -28,13 +30,15 @@ import {
   LoadCheckpointInputSchema,
   ExportDiagramInputSchema,
 } from './lib/schema.js';
+import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI } from './ui/diagram-widget.js';
 
 const TOOLS: Tool[] = [
   {
     name: 'generate_diagram',
-    description: `Generate a rich architecture diagram with groups, labeled edges, and visual hierarchy.
+    title: 'Generate an ArchDraw diagram',
+    description: `Generate a rich architecture diagram with groups, labeled edges, and visual hierarchy. Compatible chat clients display the result as an inline interactive preview; text-only clients receive a concise summary and the ArchDraw site link.
 
-**IMPORTANT**: When this tool returns a 'diagramUrl', tell the user to open that URL in their browser.
+Include the ArchDraw site link in your response. When a diagramUrl or shareUrl is returned, include those links too. A browser-accessible editor and share link are created only when publish:true; those links can be opened by anyone who has them.
 
 **INPUT MODES — choose ONE**:
 
@@ -183,6 +187,37 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
       },
       required: [],
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        nodes: { type: 'array', items: { type: 'object' } },
+        edges: { type: 'array', items: { type: 'object' } },
+        diagramUrl: { type: 'string' },
+        shareUrl: { type: 'string' },
+        sessionId: { type: 'string' },
+        workingSessionId: { type: 'string' },
+        label: { type: 'string' },
+        metadata: {
+          type: 'object',
+          properties: {
+            nodeCount: { type: 'number' },
+            edgeCount: { type: 'number' },
+            layoutAlgorithm: { type: 'string' },
+            direction: { type: 'string' },
+            groupCount: { type: 'number' },
+          },
+        },
+        errors: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['success', 'nodes', 'edges', 'workingSessionId', 'metadata'],
+    },
+    annotations: { title: 'Generate an ArchDraw diagram', openWorldHint: true },
+    _meta: {
+      ui: { resourceUri: DIAGRAM_WIDGET_URI },
+      'openai/toolInvocation/invoking': 'Generating diagram…',
+      'openai/toolInvocation/invoked': 'Diagram preview ready',
+    },
   },
   {
     name: 'fix_layout',
@@ -288,12 +323,11 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
   },
   {
     name: 'apply_template',
-    description: `Apply a pre-built architecture template with pre-defined nodes and edges.
-
-**IMPORTANT**: When this tool returns a 'diagramUrl', you MUST tell the user to open that URL in their browser to view the diagram. The URL format is: https://archdraw.hiabhee.online/editor?session=<sessionId>
+    title: 'Apply an ArchDraw template',
+    description: `Apply a pre-built architecture template with pre-defined nodes and edges. Compatible chat clients display the result as an inline preview.
 
 **USE WHEN**: User wants a common architecture pattern (e-commerce, chat app, rideshare, etc.)
-**OUTPUT**: Full diagram with positioned nodes and edges from the template. Check the 'message' and 'diagramUrl' fields and tell the user to open the diagramUrl.
+**OUTPUT**: Full diagram with positioned nodes and edges from the template. A browser-accessible link is created only when publish:true.
 
 **AVAILABLE TEMPLATES**:
 - archflow: ArchDraw's own architecture (modern SaaS)
@@ -341,6 +375,11 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
         workingSessionId: { type: 'string', description: 'Opaque local workspace key for isolating parallel diagrams.' },
       },
       required: ['templateId'],
+    },
+    _meta: {
+      ui: { resourceUri: DIAGRAM_WIDGET_URI },
+      'openai/toolInvocation/invoking': 'Loading template…',
+      'openai/toolInvocation/invoked': 'Diagram preview ready',
     },
   },
   {
@@ -501,11 +540,12 @@ class ArchDrawMCPServer {
     this.server = new Server(
       {
         name: 'archdraw-mcp-server',
-        version: '1.0.0',
+        version: '1.0.3',
       },
       {
         capabilities: {
           tools: {},
+          resources: {},
         },
       }
     );
@@ -516,6 +556,29 @@ class ArchDrawMCPServer {
   private setupHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return { tools: TOOLS };
+    });
+
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: [{
+        uri: DIAGRAM_WIDGET_URI,
+        name: 'ArchDraw diagram preview',
+        description: 'Inline diagram preview and prompt form for generating another ArchDraw diagram in the chat.',
+        mimeType: 'text/html;profile=mcp-app',
+      }],
+    }));
+
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      if (request.params.uri !== DIAGRAM_WIDGET_URI) {
+        throw new Error(`Unknown resource: ${request.params.uri}`);
+      }
+      return {
+        contents: [{
+          uri: DIAGRAM_WIDGET_URI,
+          mimeType: 'text/html;profile=mcp-app',
+          text: DIAGRAM_WIDGET_HTML,
+          _meta: { ui: { prefersBorder: true } },
+        }],
+      };
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -539,21 +602,27 @@ class ArchDrawMCPServer {
               const { setDiagramState } = await import('./lib/diagram-state.js');
               setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken }, workingSession);
             }
+            const structuredContent = {
+              success: result.success,
+              nodes: result.nodes,
+              edges: result.edges,
+              ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
+              ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
+              ...(result.sessionId ? { sessionId: result.sessionId } : {}),
+              workingSessionId: workingSession,
+              label: input.label || 'ArchDraw diagram',
+              metadata: result.metadata,
+              ...(result.errors?.length ? { errors: result.errors } : {}),
+            };
+            const message = result.message || (result.success
+              ? `Diagram generated with ${result.metadata.nodeCount} nodes and ${result.metadata.edgeCount} connections.${result.diagramUrl ? ` Open in ArchDraw: ${result.diagramUrl}` : ' The diagram is available in this chat preview; no public link was created.'}`
+              : `Diagram generation failed: ${(result.errors || ['Unknown error']).join('; ')}`);
             return {
+              structuredContent,
               content: [
                 {
                   type: 'text' as const,
-                  text: JSON.stringify({
-                    success: result.success,
-                    message: result.message,
-                    diagramUrl: result.diagramUrl,
-                    shareUrl: result.shareUrl,
-                    sessionId: result.sessionId,
-                    workingSessionId: workingSession,
-                    metadata: result.metadata,
-                    errors: result.errors,
-                    note: "Raw nodes and edges omitted for brevity."
-                  }, null, 2),
+                  text: `${message}\n\nArchDraw: https://archdraw.hiabhee.online`,
                 },
               ],
             };
@@ -592,20 +661,29 @@ class ArchDrawMCPServer {
               const { setDiagramState } = await import('./lib/diagram-state.js');
               setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken }, workingSession);
             }
+            const structuredContent = {
+              success: result.success,
+              nodes: result.nodes,
+              edges: result.edges,
+              ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
+              ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
+              ...(result.sessionId ? { sessionId: result.sessionId } : {}),
+              workingSessionId: workingSession,
+              label: input.templateId,
+              metadata: {
+                nodeCount: result.nodes.length,
+                edgeCount: result.edges.length,
+                groupCount: result.nodes.filter(node => node.data?.isGroup).length,
+                layoutAlgorithm: 'template',
+              },
+              ...(result.errors?.length ? { errors: result.errors } : {}),
+            };
             return {
+              structuredContent,
               content: [
                 {
                   type: 'text' as const,
-                  text: JSON.stringify({
-                    success: result.success,
-                    message: result.message,
-                    diagramUrl: result.diagramUrl,
-                    shareUrl: result.shareUrl,
-                    sessionId: result.sessionId,
-                    workingSessionId: workingSession,
-                    errors: result.errors,
-                    note: "Raw nodes and edges omitted for brevity."
-                  }, null, 2),
+                  text: `${result.message || `${input.templateId} template is ready${result.diagramUrl ? `: ${result.diagramUrl}` : ' in the inline preview'}.`}\n\nArchDraw: https://archdraw.hiabhee.online`,
                 },
               ],
             };

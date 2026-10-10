@@ -140,6 +140,14 @@ export function buildDefaultOrthogonalWaypoints(
   const targetIsH = isHorizontal(targetSide);
 
   if (sourceIsH && targetIsH) {
+    // Already axis-aligned: a midpoint would be a degenerate duplicate that
+    // renders rounding artifacts and breaks straight-path assertions.
+    if (Math.abs(source.y - target.y) < 0.5) {
+      return [
+        { x: source.x, y: source.y },
+        { x: target.x, y: target.y },
+      ];
+    }
     const mx = (source.x + target.x) / 2 + edgeOffset;
     return [
       { x: source.x, y: source.y },
@@ -149,6 +157,12 @@ export function buildDefaultOrthogonalWaypoints(
     ];
   }
   if (!sourceIsH && !targetIsH) {
+    if (Math.abs(source.x - target.x) < 0.5) {
+      return [
+        { x: source.x, y: source.y },
+        { x: target.x, y: target.y },
+      ];
+    }
     const my = (source.y + target.y) / 2 + edgeOffset;
     return [
       { x: source.x, y: source.y },

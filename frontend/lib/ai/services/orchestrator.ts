@@ -59,6 +59,8 @@ export async function generateDiagram(
           qualityWarnings: qualityWarnings.length > 0 ? qualityWarnings : undefined,
           pipelineDiagnostics: data.diagnostics,
           diagramType: data.diagramType,
+          layoutEngine: 'mermaid-dagre-v1',
+          layoutDirection: data.diagramType === 'graph TD' ? 'TD' : 'LR',
           styleTheme: data.diagnostics?.style || 'default',
           // Signal whether the result came from the hardcoded fallback or if
           // the user's existing diagram context was silently dropped, so API

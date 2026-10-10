@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ConceptDetectionStage } from '../ConceptDetectionStage';
 import { LayoutOverrideStage } from '../LayoutOverrideStage';
 import { generateFallbackPlan } from '../FallbackPlan';
+import { themePrimaryColor } from '@/lib/theme/stylingConstants';
 import { ValidationStage } from '../ValidationStage';
 import type { ConceptDetectionOutput } from '../ConceptDetectionStage';
 import type { ArchitecturePlan } from '../ArchitecturePlanningStage';
@@ -111,7 +112,7 @@ describe('generateFallbackPlan', () => {
     expect(plan.mermaidCode).toContain('graph LR');
     expect(plan.mermaidCode).toContain('API Gateway');
     expect(plan.mermaidCode).toContain('Database');
-    expect(plan.styleConfig.primaryColor).toBe('#0f766e');
+    expect(plan.styleConfig.primaryColor).toBe(themePrimaryColor('default'));
   });
 });
 
@@ -170,5 +171,31 @@ describe('ValidationStage', () => {
     expect(result.success).toBe(true);
     expect(result.data!.semanticIssues.length).toBeGreaterThan(0);
     expect(result.data!.mechanicalRepairs.length).toBeGreaterThan(0);
+  });
+
+  it('treats invalid geometry as a critical mechanical validation issue', async () => {
+    const result = await stage.execute({
+      nodes: [
+        { id: 'a', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'A' }, width: 100, height: 50 },
+        { id: 'b', type: 'shapeNode', position: { x: 200, y: 0 }, data: { label: 'B' }, width: 100, height: 50 },
+      ],
+      edges: [{ id: 'a-b', source: 'a', target: 'b', sourceHandle: null, targetHandle: null, type: 'simpleFloating' }],
+      reasoning: 'Step 0: plan\nStep 1: design\nStep 2: build\nStep 3: test\nStep 4: deploy\nStep 5: monitor\nStep 6: scale\nStep 7: maintain',
+      diagramSize: 'small', detailLevel: 1,
+      parseWarnings: ['[GEOMETRY_INVALID] 1 hard geometry violation remains after repair.'],
+    }, createContext());
+
+    expect(result.data?.mechanicalRepairs).toContainEqual(expect.objectContaining({ severity: 'critical', type: 'GEOMETRY_INVALID' }));
+  });
+
+  it('keeps geometry degraded as an explicit warning instead of a critical failure', async () => {
+    const result = await stage.execute({
+      nodes: [{ id: 'a', type: 'shapeNode', position: { x: 0, y: 0 }, data: { label: 'A' }, width: 100, height: 50 }],
+      edges: [], reasoning: 'Step 0: plan\nStep 1: design\nStep 2: build\nStep 3: test\nStep 4: deploy\nStep 5: monitor\nStep 6: scale\nStep 7: maintain',
+      diagramSize: 'small', detailLevel: 1,
+      parseWarnings: ['[GEOMETRY_DEGRADED] Crossings remain after bounded repair.'],
+    }, createContext());
+
+    expect(result.data?.mechanicalRepairs).toContainEqual(expect.objectContaining({ severity: 'warning', type: 'GEOMETRY_DEGRADED' }));
   });
 });

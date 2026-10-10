@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { serializedStorage, migrateLegacyStorage } from '@/lib/storage/localStorage';
+import { persist } from 'zustand/middleware';
+import { deferredJSONStorage, migrateLegacyStorage } from '@/lib/storage/localStorage';
 import type { DiagramState } from './diagram/types';
 import { deriveNodesAndEdges, wrapCreator } from './diagram/derive';
 import { diagramPersistPartialize } from './diagram/persistence/partialize';
@@ -21,6 +21,26 @@ export { registerFitViewCallback };
 
 migrateLegacyStorage();
 
+function migrateDiagramState(persistedState: unknown, version: number): DiagramState {
+  const state = (persistedState ?? {}) as Partial<DiagramState>;
+
+  // Move users who were still on the untouched original defaults to the new
+  // default once, while preserving any other saved appearance choice.
+  if (
+    version < 1 &&
+    state.diagramStyleTheme === 'default' &&
+    state.diagramRenderStyle === 'precision'
+  ) {
+    return {
+      ...state,
+      diagramStyleTheme: 'studio-minimal',
+      diagramRenderStyle: 'studio-minimal',
+    } as DiagramState;
+  }
+
+  return state as DiagramState;
+}
+
 const useDiagramStoreRaw = create<DiagramState>()(
   persist(
     wrapCreator((set, get, api) => ({
@@ -36,7 +56,9 @@ const useDiagramStoreRaw = create<DiagramState>()(
     })),
     {
       name: 'archdraw-storage',
-      storage: createJSONStorage(() => serializedStorage),
+      version: 1,
+      migrate: migrateDiagramState,
+      storage: deferredJSONStorage,
       partialize: diagramPersistPartialize,
       onRehydrateStorage: onDiagramRehydrate,
     }

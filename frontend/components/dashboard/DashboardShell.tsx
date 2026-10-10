@@ -102,6 +102,8 @@ function DashboardSearch() {
   const [searchVal, setSearchVal] = useState(queryParam);
 
   useEffect(() => {
+    // Keep the input in sync with browser back/forward URL changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchVal(queryParam);
   }, [queryParam]);
 

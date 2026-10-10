@@ -164,7 +164,6 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
   // One-shot auto-start when the store sets autoStartTextEdit (e.g. T key):
   // must run imperatively to enter edit mode before the store clears the flag,
   // matching the pattern in useInlineLabelEdit.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!data.autoStartTextEdit || didAutoStartRef.current) return;
     didAutoStartRef.current = true;
@@ -177,7 +176,6 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
     const timeouts = [0, 16, 50, 100].map((ms) => window.setTimeout(focusInput, ms));
     return () => timeouts.forEach(clearTimeout);
   }, [data.autoStartTextEdit, persistTextLabel]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!editing) return;

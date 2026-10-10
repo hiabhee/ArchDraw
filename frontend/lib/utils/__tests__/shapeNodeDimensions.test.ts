@@ -107,11 +107,11 @@ describe('resolveShapeNodeDimensions', () => {
     expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 200, height: 64 });
   });
 
-  it('uses the measured Studio card width for edge anchors', () => {
+  it('uses content-fit Studio card dimensions for edge anchors instead of stale Dagre size', () => {
     const node: Node = {
       id: 'system', type: 'systemNode', position: { x: 0, y: 0 }, width: 240, height: 64,
       data: { label: 'Long Service Name' },
     };
-    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 240, height: 64 });
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 200, height: 66 });
   });
 });

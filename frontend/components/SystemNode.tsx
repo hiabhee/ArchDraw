@@ -12,11 +12,13 @@ import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { resolveAutoCloudIcon } from '@/lib/cloudIcons/autoResolution';
 import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
+import { TechnologyBrandIcon } from '@/components/icons/TechnologyBrandIcon';
+import { getTechnologyBrandSlug } from '@/lib/brandIcons';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
-import { applyShapeSurface, getStrokeRenderer, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
+import { applyShapeSurface, getBrutalNodeFill, getStrokeRenderer, isStudioRenderStyle, renderSketchSurface, type RenderSurface } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
-import { getConcernColor, SIZE_M, STATUS_COLORS, ICON_SIZE } from '@/lib/theme/stylingConstants';
+import { resolveConcern, SIZE_M, STATUS_COLORS } from '@/lib/theme/stylingConstants';
 import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import {
   STUDIO_ICON_GLYPH_PX,
@@ -28,6 +30,8 @@ import './nodes/nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
 const _NODE_HEIGHT = DIAGRAM_CONSTANTS.node.minHeight;
+const SYSTEM_ICON_WELL_PX = 40;
+const SYSTEM_ICON_GLYPH_PX = 24;
 
 function hexToRgba(hex: string, alpha: number): string {
   if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) return hex;
@@ -103,9 +107,9 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     return null;
   })();
 
-  const concernHint = nodeData.layer || nodeData.serviceType ||
-    (aesthetics.renderStyleId === 'studio-minimal' ? nodeData.category : undefined);
-  const tierColor = getConcernColor(concernHint, aesthetics.concerns);
+  const concernHint = nodeData.layer || nodeData.serviceType || nodeData.category;
+  const concernSwatch = aesthetics.concerns[resolveConcern(concernHint)];
+  const tierColor = concernSwatch.color;
   // `accentColor` is an explicit user choice. Generated `data.color` is not:
   // use the selected theme's semantic palette for generated cards.
   const accentColor = nodeData.accentColor || tierColor;
@@ -120,7 +124,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     iconSource: nodeData.iconSource as import('@/lib/nodeIconResolver').NodeIconSource | undefined,
     color: accentColor,
   });
-  const providerIcon = aesthetics.renderStyleId === 'studio-minimal' || nodeData.iconSource === 'manual' ? null : resolveAutoCloudIcon({
+  const providerIcon = isStudioRenderStyle(aesthetics.renderStyleId) || nodeData.iconSource === 'manual' ? null : resolveAutoCloudIcon({
     label: data.label,
     typeId: nodeData.typeId,
     componentId: (nodeData as { componentId?: string }).componentId,
@@ -142,14 +146,27 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   const sketch = aesthetics.renderStyleId === 'sketch';
   const brutal = aesthetics.renderStyleId === 'neubrutalism';
-  const studio = aesthetics.renderStyleId === 'studio-minimal';
+  const studio = isStudioRenderStyle(aesthetics.renderStyleId);
   const catStyle = getDarkCategoryStyle(accentColor);
   const accentSoft = hexToRgba(accentColor, isDark ? 0.08 : 0.04);
-  const accentBg = hexToRgba(accentColor, isDark ? 0.14 : 0.08);
-  const studioCardBg = aesthetics.colors.nodeFill;
+  const accentBg = nodeData.accentColor
+    ? hexToRgba(accentColor, isDark ? 0.14 : 0.08)
+    : concernSwatch.bg;
+  const studioDarkSelected = studio && isDark && selected;
+  const studioCardBg = studioDarkSelected ? '#f7f9fc' : aesthetics.colors.nodeFill;
   const studioIconColor = accentColor;
-  const studioWellBg = hexToRgba(accentColor, isDark ? 0.2 : 0.11);
-  const studioBorder = hexToRgba(accentColor, isDark ? 0.5 : 0.36);
+  const studioWellBg = nodeData.accentColor
+    ? hexToRgba(accentColor, studioDarkSelected ? 0.14 : isDark ? 0.2 : 0.11)
+    : concernSwatch.bg;
+  const studioBorder = isDark
+    ? selected ? hexToRgba(accentColor, 0.78) : 'rgba(148, 163, 184, 0.22)'
+    : hexToRgba(accentColor, 0.36);
+  const studioSelectedShadow = studioDarkSelected
+    ? `0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 0 4px ${hexToRgba(accentColor, 0.16)}, 0 14px 32px rgba(0, 0, 0, 0.42)`
+    : undefined;
+  const brandTechnology = (!studio || studioDarkSelected) && resolvedIcon.source !== 'manual' && resolvedIcon.technology && getTechnologyBrandSlug(resolvedIcon.technology)
+    ? resolvedIcon.technology
+    : undefined;
 
   const handleClick = useCallback(() => {
     setSelectedNodeId(id);
@@ -243,18 +260,10 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   // visual anchor. Without it, a wrapped subtitle needs its own text stack;
   // otherwise the footer is squeezed into the title row.
   const studioTextStack = studio && !showIcon && Boolean(nodeData.subtitle);
-  const cloudIconSize = Math.max(
-    ICON_SIZE.cloudMin,
-    Math.round(Math.min(cardWidth * 0.3, cardHeight - 20)),
-  );
-  // Uniform well — same style for every generic node until it is explicitly named after an AWS/GCP/Azure service.
-  // Previously database/ai used boxLarge which broke the uniform row rhythm.
-  const defaultIconBoxSize = providerIcon ? cloudIconSize : ICON_SIZE.box;
-  const iconBoxSize = studio ? STUDIO_ICON_WELL_PX : defaultIconBoxSize;
-  const defaultIconGlyphSize = providerIcon
-    ? Math.round(cloudIconSize * 0.78)
-    : ICON_SIZE.node;
-  const iconGlyphSize = studio ? STUDIO_ICON_GLYPH_PX : defaultIconGlyphSize;
+  // Keep brand/provider marks subordinate to the label on every card size.
+  // Deriving icon dimensions from card width made wide cards show oversized logos.
+  const iconBoxSize = studio ? STUDIO_ICON_WELL_PX : SYSTEM_ICON_WELL_PX;
+  const iconGlyphSize = studio ? STUDIO_ICON_GLYPH_PX : SYSTEM_ICON_GLYPH_PX;
 
   // Sketch body: a rough SVG rounded-rect that bleeds ~2px past the card so
   // its wobbly border is fully visible once the crisp CSS border is removed.
@@ -297,7 +306,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
 
   return (
       <div
-        className={`node-wrapper${selected ? ' selected' : ''}${nodeKind ? ` node-${nodeKind}` : ''}`}
+        className={`node-wrapper${selected ? ' selected' : ''}${nodeKind ? ` node-${nodeKind}` : ''}${studio && isDark ? ' node-wrapper--studio-minimal-dark' : ''}`}
         style={{
           ['--node-accent' as string]: studio ? studioIconColor : accentColor,
           ['--node-accent-soft' as string]: accentSoft,
@@ -305,9 +314,17 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           ...(studio
             ? {
                 ['--node-card-bg' as string]: studioCardBg,
+                ['--node-title-color' as string]: studioDarkSelected ? '#111827' : aesthetics.colors.title,
+                ['--node-subtitle-color' as string]: studioDarkSelected ? '#526174' : aesthetics.colors.subtitle,
                 ['--arch-node-stroke' as string]: studioBorder,
+                ...(studioDarkSelected
+                  ? {
+                      ['--node-shadow-selected' as string]: studioSelectedShadow,
+                    }
+                  : {}),
               }
             : {}),
+          ...(brutal ? { ['--node-card-bg' as string]: getBrutalNodeFill(accentColor, isDark) } : {}),
           ['--node-accent-track' as string]: hexToRgba(accentColor, 0.35),
           ['--node-glow' as string]: catStyle.glow,
           ['--node-glow-border' as string]: catStyle.border,
@@ -391,6 +408,8 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                 size={iconGlyphSize}
                 color={providerIcon.color}
               />
+            ) : brandTechnology ? (
+              <TechnologyBrandIcon technology={brandTechnology} size={iconGlyphSize} color={resolvedIcon.color} />
             ) : (
               <NodeIcon
                 technology={resolvedIcon.technology}

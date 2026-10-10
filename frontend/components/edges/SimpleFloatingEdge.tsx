@@ -6,7 +6,11 @@ import { EdgeLabelRenderer, EdgeProps, useReactFlow, useStore, ReactFlowState, P
 import { computeEdgeRoute } from '@/lib/utils/edgeRouteBuilder';
 import { getPointOnPath, findClosestT, shortenSvgPathEnd, SKETCH_ARROWHEAD_TRIM_PX } from '@/lib/utils/edgeLabelDrag';
 import { buildSmoothStepSvg, trimWaypointsEnd } from '@/lib/utils/collisionFreeEdgePath';
-import { computeEdgeLabelLayout } from '@/lib/utils/edgeLabelLayout';
+import { composeEdgeDisplayLabel } from '@/lib/utils/edgeLabelLayout';
+import { useDiagramGeometryEdge } from './DiagramGeometryProvider';
+import { buildEdgePathGeometry } from '@/lib/utils/edgePathGeometry';
+import { buildDefaultOrthogonalWaypoints } from '@/lib/utils/handlerPairScorer';
+import type { EdgeRouteResult } from '@/lib/utils/edgeRouteBuilder';
 
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
@@ -18,7 +22,7 @@ import { resolveEdgeStrokeDasharray } from '@/lib/utils/edgeStroke';
 import type { EdgeData } from '@/data/edgeTypes';
 import { resolveEdgePalette } from '@/lib/edgeColors';
 import { isPrimaryEdge } from '@/lib/utils/edgeHierarchy';
-import { getStrokeRenderer } from '@/lib/theme/renderStyles';
+import { getStrokeRenderer, isStudioRenderStyle } from '@/lib/theme/renderStyles';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 
 /** Darken a hex color by a fixed amount; leaves non-hex colors untouched. */
@@ -77,7 +81,9 @@ export default function SimpleFloatingEdge({
   const { getViewport } = useReactFlow();
   const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
+  const iconMode = useDiagramStore((s) => s.iconMode);
   const { renderStyleId, colors } = useDiagramAesthetics();
+  const geometry = useDiagramGeometryEdge(id);
   const [labelEditing, setLabelEditing] = useState(false);
 
   // Extract primitive data values for stable memoization
@@ -91,6 +97,65 @@ export default function SimpleFloatingEdge({
   const isDenseBundle = (data as Record<string, unknown>)?.isDenseBundle === true;
 
   const route = useMemo(() => {
+    const planned = geometry.route;
+    if (planned) return planned;
+    if (geometry.provisional) {
+      const edgeObj: Edge = {
+        id,
+        source,
+        target,
+        sourceHandle: sourceHandleId,
+        targetHandle: targetHandleId,
+        data,
+      } as Edge;
+      // Prefer a full local route whenever both terminals are measured —
+      // this covers viewers and first paint with real smoothstep routing
+      // (side scoring + obstacle avoidance), not just a naive placeholder.
+      try {
+        const internals = Array.from(nodeInternals.values());
+        if (internals.length >= 2 && nodeInternals.get(source) && nodeInternals.get(target)) {
+          return computeEdgeRoute(
+            edgeObj,
+            internals,
+            edges,
+            activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
+            renderStyleId,
+            {
+              source: { x: _sourceX, y: _sourceY },
+              target: { x: _targetX, y: _targetY },
+            },
+            iconMode,
+          );
+        }
+      } catch {
+        // fall through to the orthogonal placeholder below
+      }
+      // Terminals not measured yet: render a proper smoothstep placeholder —
+      // never a straight diagonal — so first paint already matches the look.
+      const s = { x: _sourceX, y: _sourceY };
+      const t = { x: _targetX, y: _targetY };
+      let waypoints = [s, t];
+      try {
+        const built = buildDefaultOrthogonalWaypoints(
+          s,
+          t,
+          _sourcePosition as unknown as Parameters<typeof buildDefaultOrthogonalWaypoints>[2],
+          _targetPosition as unknown as Parameters<typeof buildDefaultOrthogonalWaypoints>[3],
+          0,
+        );
+        if (built.length >= 2) waypoints = built;
+      } catch {
+        // fall through with the direct endpoints
+      }
+      const radius = renderStyleId === 'neubrutalism' ? 10 : 24;
+      const path = { kind: 'orthogonal' as const, waypoints, cornerRadius: radius };
+      const renderedPath = buildEdgePathGeometry(path);
+      return {
+        sourcePosition: _sourcePosition, targetPosition: _targetPosition,
+        sourcePoint: waypoints[0], targetPoint: waypoints[1], waypoints,
+        svgPath: renderedPath.d, path, renderedPath, status: 'ok', violations: [], expandedStates: 0,
+      } as EdgeRouteResult;
+    }
     const nodes = Array.from(nodeInternals.values());
     const edgeObj: Edge = {
       id,
@@ -113,11 +178,13 @@ export default function SimpleFloatingEdge({
         source: { x: _sourceX, y: _sourceY },
         target: { x: _targetX, y: _targetY },
       },
+      iconMode,
     );
   }, [
     id, source, target, sourceHandleId, targetHandleId, data,
-    nodeInternals, edges, activeLayoutPresetId, renderStyleId,
-    _sourceX, _sourceY, _targetX, _targetY,
+    nodeInternals, edges, activeLayoutPresetId, renderStyleId, iconMode,
+    _sourceX, _sourceY, _targetX, _targetY, _sourcePosition, _targetPosition,
+    geometry.route, geometry.provisional,
   ]);
 
   const {
@@ -138,6 +205,11 @@ export default function SimpleFloatingEdge({
     setLastGoodEdgePath(edgePath);
   }
   const stableEdgePath = edgePath || lastGoodEdgePath;
+  const routeDiagnostic = route.status === 'ok'
+    ? undefined
+    : route.status === 'failed'
+      ? `Route unresolved: ${route.failureReason ?? 'no valid path found'}`
+      : `Route intersects geometry: ${route.violations.map((violation) => violation.code.replaceAll('_', ' ').toLowerCase()).join(', ') || 'review connection'}`;
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -240,12 +312,9 @@ export default function SimpleFloatingEdge({
   const brutal = renderStyleId === 'neubrutalism';
   // Global label placement: pass render style so the neubrutalism pill (larger
   // + hard shadow + larger arrowhead) reserves more room from nodes/marker.
-  const labelLayouts = useMemo(
-    () => computeEdgeLabelLayout(edges, nodeInternals, activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR', renderStyleId),
-    [edges, nodeInternals, activeLayoutPresetId, renderStyleId],
-  );
+  const labelLayout = geometry.label;
   const sketchInk = useMemo(
-    () => (sketch || renderStyleId === 'studio-minimal')
+    () => (sketch || isStudioRenderStyle(renderStyleId))
       ? { primary: colors.edgePrimary, default: colors.edgeDefault, supporting: colors.edgeDefault, dep: colors.edgeDefault, async: colors.edgeAsync, stream: colors.edgePrimary, event: colors.edgeAsync }
       : undefined,
     [sketch, renderStyleId, colors.edgePrimary, colors.edgeDefault, colors.edgeAsync],
@@ -278,10 +347,17 @@ export default function SimpleFloatingEdge({
       stroke = darkenColor(stroke, isDark ? 10 : 20);
     }
 
-    const strokeDasharray = resolveEdgeStrokeDasharray(
+    const strokeDasharray = route.status === 'failed'
+      ? '5 4'
+      : route.status === 'invalid'
+        ? '8 3 2 3'
+        : resolveEdgeStrokeDasharray(
       data as Record<string, unknown> | undefined,
       edgeStyle,
     );
+
+    if (route.status === 'failed') stroke = '#ef4444';
+    else if (route.status === 'invalid') stroke = '#f59e0b';
 
     const opacity = isHoverState
       ? 1
@@ -296,7 +372,7 @@ export default function SimpleFloatingEdge({
       transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s',
       opacity,
     };
-  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, isDenseBundle, data, sketch, sketchInk, brutal]);
+  }, [edgeStyle, isAsync, selected, isHovered, isDark, isBundle, edgeVariant, isDenseBundle, data, sketch, sketchInk, brutal, route.status]);
 
   const resolvedStroke = typeof strokeStyle.stroke === 'string' ? strokeStyle.stroke : undefined;
   const arrowheadColor = resolvedStroke ?? '#94a3b8';
@@ -369,14 +445,11 @@ export default function SimpleFloatingEdge({
     routeWaypoints, tx, ty, id, data, isDark, sketchInk,
   ]);
 
-  const rawLabel = responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
-    ? `${label || data?.label || ''} / ${responseLabel.trim()}`
-    : (typeof data?.label === 'string' ? data.label.trim() : (typeof label === 'string' ? label.trim() : ''));
-
-  const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : [];
-  const truncated = words.length === 0 ? '' : words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ');
-  // Remove trailing slash (handles both "A/" and "A / " cases)
-  const displayLabel = truncated.replace(/\s*\/\s*$/, '').trim();
+  const baseForLabel =
+    responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
+      ? (typeof label === 'string' && label.trim() ? label : data?.label)
+      : (typeof data?.label === 'string' && (data.label as string).trim() ? data.label : label);
+  const displayLabel = composeEdgeDisplayLabel(baseForLabel, responseLabel);
 
   const parallelEdges = useMemo(
     () => edges.filter((edge) =>
@@ -399,14 +472,22 @@ export default function SimpleFloatingEdge({
         return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
       }
     }
-    const resolved = labelLayouts.get(id);
-    if (resolved) return { x: resolved.x, y: resolved.y, angle: 0 };
+    const resolved = labelLayout;
+    if (resolved) {
+      // The shared label planner routes without React Flow's measured handle
+      // centers. Keep its collision-aware position along the edge, but sample
+      // the path we actually render so the pill is centered on the visible wire.
+      if (stableEdgePath && typeof window !== 'undefined') {
+        return getPointOnPath(stableEdgePath, resolved.t);
+      }
+      return { x: resolved.x, y: resolved.y, angle: 0 };
+    }
     try {
       return getPointOnPath(stableEdgePath, labelT);
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayouts, id, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
+  }, [labelLayout, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill
@@ -505,15 +586,19 @@ export default function SimpleFloatingEdge({
       <path
         id={id}
         d={stableEdgePath}
+        aria-label={routeDiagnostic}
+        data-geometry-status={route.status}
         fill="none"
-        strokeDasharray={sketch ? undefined : strokeStyle.strokeDasharray}
+        strokeDasharray={sketch && route.status === 'ok' ? undefined : strokeStyle.strokeDasharray}
         className="react-flow__edge-path"
-        style={sketch ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : strokeStyle}
+        style={sketch && route.status === 'ok' ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : strokeStyle}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-      />
+      >
+        {routeDiagnostic && <title>{routeDiagnostic}</title>}
+      </path>
 
       {precisionArrowheadPath ? (
         <path
@@ -577,7 +662,8 @@ export default function SimpleFloatingEdge({
           >
             <EdgeLabel
               edgeId={id}
-              label={displayLabel || rawLabel}
+              label={displayLabel}
+              responseLabel={typeof responseLabel === 'string' ? responseLabel : undefined}
               labelX={labelPos.x}
               labelY={labelPos.y}
               color={resolvedStroke}

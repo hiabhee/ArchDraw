@@ -39,10 +39,15 @@ describe('quality contracts', () => {
     const stage = new ArchitecturePlanningStage();
     const input = { prompt: 'Explain Docker', diagramSize: 'medium' as const, detailLevel: 2 as const,
       conceptDetection: { implicitConcept: { subject: 'Docker', domain: 'container-runtime' as const, template: 'docker' as const }, promptLower: 'explain docker', isVerticalRequested: false } };
+    // Short concept prompts use curated templates directly without hitting the LLM.
+    vi.mocked(runArchitecturePlanner).mockReset();
     vi.mocked(runArchitecturePlanner).mockResolvedValueOnce(plan);
     expect((await stage.execute(input, context())).data?.usedFallback).toBe(false);
+    expect(vi.mocked(runArchitecturePlanner)).not.toHaveBeenCalled();
+    vi.mocked(runArchitecturePlanner).mockReset();
     vi.mocked(runArchitecturePlanner).mockRejectedValueOnce(new Error('provider unavailable'));
-    expect((await stage.execute(input, context())).data?.usedFallback).toBe(true);
+    expect((await stage.execute(input, context())).data?.usedFallback).toBe(false);
+    vi.mocked(runArchitecturePlanner).mockReset();
     vi.mocked(runArchitecturePlanner).mockRejectedValueOnce(new Error('provider unavailable'));
     expect((await stage.execute({ ...input, existingContext: { nodes: [{ id: 'keep' }], edges: [] } }, context())).success).toBe(false);
   });

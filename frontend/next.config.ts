@@ -65,6 +65,9 @@ const embedHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Keep build tracing inside the frontend package even when a parent
+  // workspace manifest exists outside the repository checkout.
+  outputFileTracingRoot: process.cwd(),
   poweredByHeader: false,
   compress: true,
   transpilePackages: [],

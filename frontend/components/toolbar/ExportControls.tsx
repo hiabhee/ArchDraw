@@ -19,6 +19,9 @@ import {
 } from '@/lib/utils/prepareReactFlowForImageExport';
 import { computeDiagramCropRect, cropRasterDataUrl } from '@/lib/utils/exportCrop';
 import { reactFlowRef } from '@/lib/reactFlowRef';
+import type { CanvasBackgroundConfig } from '@/store/diagram/types';
+import type { SvgCanvasBackground } from '@/lib/svgExport';
+import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
 
 export type ExportFormat =
   | 'png-dark'
@@ -44,6 +47,63 @@ interface EmbedEdge {
   target: string;
   data?: Record<string, unknown>;
   style?: React.CSSProperties;
+}
+
+function resolveSvgCanvasBackground(
+  background: CanvasBackgroundConfig,
+  showGrid: boolean,
+  isDark: boolean,
+  reactFlowElement: HTMLElement | null,
+): SvgCanvasBackground {
+  const computedStyle = reactFlowElement ? window.getComputedStyle(reactFlowElement) : null;
+  const themeGridToken = computedStyle?.getPropertyValue('--arch-canvas-grid').trim() ?? '';
+  const gridToken = computedStyle?.getPropertyValue('--grid-color').trim() ?? '';
+  const defaultColor = background.variant === 'dots'
+    ? themeGridToken || (isDark ? '#94a3b8' : '#e2e8f0')
+    : themeGridToken || (isDark ? (gridToken ? `hsl(${gridToken})` : '#475569') : '#e5e7eb');
+  const configuredColor = background.patternColor
+    ?.replace('var(--grid-color)', themeGridToken || (gridToken ? `hsl(${gridToken})` : '')) ?? null;
+
+  return {
+    ...background,
+    patternColor: configuredColor || defaultColor,
+    showGrid,
+  };
+}
+
+const embeddedBrandSvgCache = new Map<string, Promise<string>>();
+
+async function inlineBrandImages(svg: string, required: boolean): Promise<string> {
+  const imageUrls = [...svg.matchAll(/<image\b[^>]*\bhref="(https:\/\/cdn\.simpleicons\.org\/[^\"]+)"/g)]
+    .map((match) => match[1]);
+  if (imageUrls.length === 0) return svg;
+
+  const uniqueUrls = [...new Set(imageUrls)];
+  const embedded = await Promise.all(uniqueUrls.map(async (url) => {
+    let pending = embeddedBrandSvgCache.get(url);
+    if (!pending) {
+      pending = fetch(url, { mode: 'cors' }).then(async (response) => {
+        if (!response.ok) throw new Error(`Brand icon request failed (${response.status})`);
+        const iconSvg = await response.text();
+        if (!/<svg\b/i.test(iconSvg)) throw new Error('Brand icon response was not SVG');
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(iconSvg)}`;
+      });
+      embeddedBrandSvgCache.set(url, pending);
+    }
+    try {
+      return [url, await pending] as const;
+    } catch (error) {
+      embeddedBrandSvgCache.delete(url);
+      if (required) throw error;
+      return [url, null] as const;
+    }
+  }));
+
+  let result = svg;
+  for (const [url, dataUrl] of embedded) {
+    if (dataUrl) result = result.replaceAll(`href="${url}"`, `href="${dataUrl}"`);
+  }
+  return result;
 }
 
 function escapeXml(str: string): string {
@@ -338,19 +398,22 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
         let svgBg = 'none';
         if (!isTransparent) {
-          if (bgType === 'dark') {
-            const { getDiagramTheme } = await import('@/lib/theme/stylingConstants');
-            svgBg = getDiagramTheme(state.diagramStyleTheme).dark.canvasHint;
-          } else if (element) {
-            svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
-          } else {
-            svgBg = '#ffffff';
-          }
+          svgBg = resolveCanvasTokens({
+            renderStyleId: state.diagramRenderStyle,
+            colorThemeId: state.diagramStyleTheme,
+            isDark: bgType === 'dark',
+          }).cssVars['--arch-canvas-bg'];
         }
 
         const { generatePureSVG } = await import('@/lib/svgExport');
         const isDarkForSvg = isTransparent ? !!state.darkMode : bgType === 'dark';
-        const svgContent = generatePureSVG(
+        const svgCanvasBackground = resolveSvgCanvasBackground(
+          state.canvasBackground,
+          state.showGrid,
+          isDarkForSvg,
+          element,
+        );
+        const generatedSvg = generatePureSVG(
           exportNodes,
           state.edges,
           isDarkForSvg,
@@ -359,7 +422,9 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           state.diagramRenderStyle,
           state.diagramStyleTheme,
           state.iconMode,
+          svgCanvasBackground,
         );
+        const svgContent = await inlineBrandImages(generatedSvg, false);
         downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
         toast.success(isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG');
         analytics.track({
@@ -399,16 +464,22 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
         let svgBg: string = 'none';
         if (bgType !== 'transparent') {
-          if (bgType === 'dark') {
-            const { getDiagramTheme } = await import('@/lib/theme/stylingConstants');
-            svgBg = getDiagramTheme(state.diagramStyleTheme).dark.canvasHint;
-          } else if (element) svgBg = resolveExportBackgroundColor('light', element) ?? '#ffffff';
-          else svgBg = '#ffffff';
+          svgBg = resolveCanvasTokens({
+            renderStyleId: state.diagramRenderStyle,
+            colorThemeId: state.diagramStyleTheme,
+            isDark: bgType === 'dark',
+          }).cssVars['--arch-canvas-bg'];
         }
 
         const { generatePureSVG } = await import('@/lib/svgExport');
         const isDarkForSvg = bgType === 'transparent' ? !!state.darkMode : bgType === 'dark';
-        const svgContent = generatePureSVG(
+        const svgCanvasBackground = resolveSvgCanvasBackground(
+          state.canvasBackground,
+          state.showGrid,
+          isDarkForSvg,
+          element,
+        );
+        const generatedSvg = generatePureSVG(
           exportNodes,
           state.edges,
           isDarkForSvg,
@@ -417,7 +488,9 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           state.diagramRenderStyle,
           state.diagramStyleTheme,
           state.iconMode,
+          svgCanvasBackground,
         );
+        const svgContent = await inlineBrandImages(generatedSvg, true);
 
         // Parse SVG dimensions from the generated markup (width/height in viewBox)
         const widthMatch = svgContent.match(/width="(\d+(?:\.\d+)?)"/);

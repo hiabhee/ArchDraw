@@ -1,0 +1,19 @@
+.shine {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle 230px at var(--shine-x, 50%) var(--shine-y, 50%),
+    rgba(91, 151, 255, .075),
+    rgba(91, 151, 255, .022) 45%,
+    transparent 76%
+  );
+  mix-blend-mode: screen;
+  transition: opacity 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shine { transition: none; }
+}

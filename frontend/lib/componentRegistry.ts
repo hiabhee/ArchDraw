@@ -50,7 +50,7 @@ class ComponentRegistry {
   constructor() {
     ALL_COMPONENTS.forEach(comp => this.components.set(comp.id, comp));
     this.loadCustomComponents();
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
       this.backgroundRefresh().catch(() => {});
     }
   }
@@ -108,7 +108,7 @@ class ComponentRegistry {
     });
 
     const idList = Array.from(ids);
-    if (idList.length > 0 && process.env.DATABASE_URL) {
+    if (idList.length > 0) {
       try {
         const data = await fetchComponentTemplatesByIds(idList);
         
@@ -136,8 +136,6 @@ class ComponentRegistry {
 
   async backgroundRefresh() {
     if (typeof window === 'undefined') return;
-    if (!process.env.DATABASE_URL) return;
-    
     const age = Date.now() - (this.syncedAt || 0);
     if (age < 24 * 60 * 60 * 1000) {
       return;

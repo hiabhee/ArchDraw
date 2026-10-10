@@ -121,6 +121,8 @@ export function createAiMermaidStages(): Stage<UserIntent, AiPipelineData>[] {
             detailLevel: data.detailLevel,
             styleTheme: data.plan.styleConfig.theme,
             prompt: data.prompt,
+            parseWarnings: data.parseOutput.parseWarnings,
+            geometrySummary: data.parseOutput.geometrySummary,
             stylePlan: {
               style: 'generic',
               strictness: 'explicit' as const,

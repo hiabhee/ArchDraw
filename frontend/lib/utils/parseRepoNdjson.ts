@@ -109,11 +109,10 @@ export function parseRepoNdjsonToReactFlow(ndjson: string): ParsedRepoNdjson {
       style: {
         stroke: '#64748b',
         strokeWidth: 2,
-        strokeDasharray: isAsync ? '5,5' : '',
       },
       data: {
         connectionType,
-        pathType: 'smooth',
+        pathType: 'Smoothstep',
         label,
       },
     } as Edge;

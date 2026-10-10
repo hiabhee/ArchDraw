@@ -40,11 +40,11 @@ const FAQS = [
   },
   {
     q: 'Is the MCP server secure?',
-    a: 'Yes. The server runs locally on your machine and talks to the AI over standard input/output (stdio) using JSON-RPC — no data is sent to a third-party gateway.',
+    a: 'The MCP process runs locally and communicates with the ArchDraw API configured in API_BASE_URL. Diagram generation and layout requests are sent to that API. Review the privacy policy and avoid sending data you are not allowed to share.',
   },
   {
     q: 'Do I need ArchDraw\u2019s cloud service to use the MCP server?',
-    a: 'No. The MCP server runs locally and operates on your diagram files directly. It is bundled in the project under the /mcp-server folder and can be run in any Node.js environment.',
+    a: 'The MCP process runs locally, but generation and layout use an ArchDraw API. The default setup points to the hosted ArchDraw service; self-hosted deployments can set API_BASE_URL to their own app URL.',
   },
   {
     q: 'Why would an AI want to edit a diagram instead of just describing it?',
@@ -129,7 +129,7 @@ export default function McpPage() {
           <FeatureCard
             icon={Cpu}
             title="Runs locally"
-            desc="The server executes on your machine over standard input/output, so canvas data never leaves your computer."
+            desc="The MCP process runs on your machine over standard input/output and calls the ArchDraw API you configure for diagram operations."
           />
           <FeatureCard
             icon={Shield}
@@ -168,29 +168,14 @@ export default function McpPage() {
 
         <section className="mt-12">
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-2">How to connect it</h2>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed mb-4">
-            Add the server to your MCP client configuration (for example{' '}
-            <code className="text-xs">~/Library/Application Support/Claude/claude_desktop_config.json</code>):
-          </p>
-          <pre className="overflow-x-auto rounded-lg border border-[hsl(var(--border)/0.16)] bg-[hsl(var(--muted)/0.3)] p-4 text-xs font-mono text-[hsl(var(--foreground))] leading-relaxed">
-{`{
-  "mcpServers": {
-    "archdraw-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/archdraw/mcp-server/dist/index.js"],
-      "env": {
-        "WORKSPACE_PATH": "/absolute/path/to/diagrams"
-      }
-    }
-  }
-}`}
-          </pre>
-          <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed mt-3">
-            Full instructions live in the{' '}
-            <Link href="/docs" className="text-[hsl(var(--foreground))] underline underline-offset-2 hover:opacity-80">
-              MCP Server Guide
+          <div className="rounded-xl border border-border bg-accent-bg p-5">
+            <p className="text-sm leading-6 text-text-secondary">Install the ArchDraw diagram skill, connect the MCP server to Codex, Claude Code, or Cursor, and check that the tools loaded with the step-by-step setup guide.</p>
+            <Link href="/agent-skill" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover">
+              Open the coding agent setup guide <ArrowRight className="w-4 h-4" />
             </Link>
-            , and we wrote a deep dive on the architecture in the{' '}
+          </div>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed mt-3">
+            For background on the implementation, see the{' '}
             <Link href="/blogs/mcp-server-claude-antigravity" className="text-[hsl(var(--foreground))] underline underline-offset-2 hover:opacity-80">
               engineering blog
             </Link>
@@ -220,10 +205,10 @@ export default function McpPage() {
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            href="/docs"
+            href="/agent-skill"
             className="w-full sm:w-auto inline-flex items-center justify-center text-sm font-semibold text-[hsl(var(--foreground))] px-6 py-3 rounded-lg border border-[hsl(var(--border)/0.16)] transition-colors duration-200"
           >
-            Read the MCP Server Guide
+            Set up a coding agent
           </Link>
         </div>
       </main>

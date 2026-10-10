@@ -428,26 +428,19 @@ body {
    ═══════════════════════════════════════════════════════════════ */
 
 .drafting-canvas-bg {
-  background-color: hsl(var(--canvas-bg));
+  background-color: var(--arch-canvas-bg, hsl(var(--canvas-bg)));
 }
 
 .react-flow__background {
-  background-color: hsl(var(--canvas-bg)) !important;
-}
-
-/* Atmospheric gradient in dark mode: lighter center, darker edges */
-.dark .react-flow__background {
-  background: radial-gradient(ellipse at center, hsl(217 30% 10% / 1) 0%, hsl(222 30% 8% / 1) 70%, hsl(220 25% 5% / 1) 100%) !important;
+  background-color: var(--arch-canvas-bg, hsl(var(--canvas-bg))) !important;
 }
 
 /* Technical drafting grid */
 .react-flow__background pattern circle {
-  fill: currentColor;
   opacity: 1;
 }
 
 .dark .react-flow__background pattern circle {
-  fill: currentColor;
   opacity: 1;
 }
 
@@ -529,6 +522,12 @@ body {
 
 .react-flow__edge.animated .react-flow__edge-path {
   animation: edgeFlow 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.animated .react-flow__edge-path {
+    animation: none;
+  }
 }
 
 .react-flow__edge.selected .react-flow__edge-path,

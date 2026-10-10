@@ -4,7 +4,7 @@
  */
 
 /** Render / aesthetic style id — how shapes are drawn (not color, not chrome). */
-export type DiagramRenderStyleId = 'precision' | 'sketch' | 'neubrutalism' | 'studio-minimal';
+export type DiagramRenderStyleId = 'precision' | 'sketch' | 'neubrutalism' | 'studio-minimal' | 'studio-metallic';
 
 /** Which stroke engine draws primitives. */
 export type StrokeEngineId = 'crisp' | 'rough' | 'brutalist';
@@ -76,6 +76,9 @@ export interface RenderStylePack {
   id: DiagramRenderStyleId;
   label: string;
   description: string;
+
+  /** Node surface material, independent of palette and geometry. */
+  nodeMaterial?: 'standard' | 'metallic';
 
   /** Which stroke engine draws primitives. */
   strokeEngine: StrokeEngineId;

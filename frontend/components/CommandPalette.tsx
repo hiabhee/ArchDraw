@@ -184,6 +184,8 @@ export function CommandPalette() {
   }, [open]);
 
   useEffect(() => {
+    // Reset keyboard selection whenever the result set changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIndex(0);
   }, [search]);
 

@@ -53,17 +53,22 @@ export class ArchitecturePlanningStage extends BaseStage<ArchitecturePlanningInp
 
     let plan: Awaited<ReturnType<typeof runArchitecturePlanner>>;
     let usedFallback = false;
-    try {
-      plan = await runArchitecturePlanner(prompt, diagramSize, detailLevel, model, existingContext);
-    } catch (err) {
-      // Templates are a disclosed recovery path, never a silent bypass of planning.
-      // Never replace an edit or an unknown topic with a generic web stack.
-      if (inEditMode || !implicitConcept) {
-        return errorResult(err instanceof Error ? err : new Error(String(err)));
-      }
-      logger.warn('[PlanningStage] Planner failed; using a matching concept template', err);
+    if (implicitConcept && !inEditMode) {
+      // Short concept prompts have curated plans; avoid waiting on the LLM for
+      // a result the template path can build deterministically.
       plan = getConceptTemplatePlan(implicitConcept, detailLevel);
-      usedFallback = true;
+    } else {
+      try {
+        plan = await runArchitecturePlanner(prompt, diagramSize, detailLevel, model, existingContext);
+      } catch (err) {
+        // Never replace an edit or an unknown topic with a generic web stack.
+        if (inEditMode || !implicitConcept) {
+          return errorResult(err instanceof Error ? err : new Error(String(err)));
+        }
+        logger.warn('[PlanningStage] Planner failed; using a matching concept template', err);
+        plan = getConceptTemplatePlan(implicitConcept, detailLevel);
+        usedFallback = true;
+      }
     }
 
     return successResult({

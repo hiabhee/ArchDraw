@@ -1,7 +1,9 @@
 import type { Edge, Node } from 'reactflow'
-import { computeEdgeRoute, isGroupNode, type EdgeRouteDirection } from './edgeRouteBuilder'
+import { computeEdgeRoute, isGroupNode, type EdgeRouteDirection, type EdgeRouteResult } from './edgeRouteBuilder'
 import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '@/lib/pipeline-shared/layout/layoutConstants'
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles'
+import type { NodeIconMode } from './nodeIconVisibility'
+import type { RenderedEdgePath } from './edgePathGeometry'
 
 export interface EdgeLabelAnchor {
   x: number
@@ -203,6 +205,36 @@ export function buildPathSegments(points: Array<{ x: number; y: number }>): Path
   return segs
 }
 
+function segmentsFromRenderedPath(path: RenderedEdgePath): PathSegment[] {
+  const result: PathSegment[] = []
+  for (const command of path.commands) {
+    if (command.kind === 'line') {
+      const len = Math.hypot(command.to.x - command.from.x, command.to.y - command.from.y)
+      if (len > 0) result.push({ type: 'line', x0: command.from.x, y0: command.from.y, x1: command.to.x, y1: command.to.y, len })
+      continue
+    }
+    if (command.kind === 'arc') {
+      const a0 = Math.atan2(command.from.y - command.center.y, command.from.x - command.center.x)
+      let delta = Math.atan2(command.to.y - command.center.y, command.to.x - command.center.x) - a0
+      if (command.sweep === 1) while (delta < 0) delta += Math.PI * 2
+      else while (delta > 0) delta -= Math.PI * 2
+      result.push({
+        type: 'arc', x0: command.from.x, y0: command.from.y, x1: command.to.x, y1: command.to.y,
+        len: Math.abs(delta) * command.radius, cx: command.center.x, cy: command.center.y,
+        r: command.radius, a0, d: delta,
+      })
+      continue
+    }
+    const samples = path.samples
+    for (let i = 1; i < samples.length; i++) {
+      const from = samples[i - 1], to = samples[i]
+      const len = Math.hypot(to.x - from.x, to.y - from.y)
+      if (len > 0) result.push({ type: 'line', x0: from.x, y0: from.y, x1: to.x, y1: to.y, len })
+    }
+  }
+  return result
+}
+
 export function pointAtFraction(segs: PathSegment[], f: number): { x: number; y: number } {
   if (segs.length === 0) return { x: 0, y: 0 }
   const total = segs.reduce((sum, seg) => sum + seg.len, 0)
@@ -228,22 +260,56 @@ export function pointAtFraction(segs: PathSegment[], f: number): { x: number; y:
 
 // ── Label text & preferred position (mirrors SimpleFloatingEdge) ───────────
 
+/**
+ * Joins a request label with its collapsed response label (`request / response`).
+ * Either side may be empty (e.g. a collapsed B→A edge with no forward label) —
+ * never emit a dangling leading/trailing `/` in that case.
+ */
+export function composeEdgeDisplayLabel(
+  baseLabel: unknown,
+  responseLabel: unknown,
+): string {
+  const base = typeof baseLabel === 'string' ? baseLabel.trim() : ''
+  const resp = typeof responseLabel === 'string' ? responseLabel.trim() : ''
+  // Join with a spaced separator only when both halves are present — an empty
+  // half must never leave a dangling "/". Inner slashes ("read/write",
+  // "/api/users") are content and pass through untouched.
+  const raw = base && resp ? `${base} / ${resp}` : base || resp
+  const words = raw ? raw.split(/\s+/).filter(Boolean) : []
+  if (words.length === 0) return ''
+  const full = words.length <= 3 ? raw : words.slice(0, 3).join(' ')
+  // Defensive: strip a leftover separator from legacy data (slash with
+  // adjacent whitespace), but preserve content slashes like "/api/users".
+  return full.replace(/^\s*\/\s+/, '').replace(/\s+\/\s*$/, '').trim()
+}
+
+/**
+ * Inverse of the join in `composeEdgeDisplayLabel`: split pill text edited by
+ * the user back into its request/response halves. A missing separator clears
+ * the response (what-you-see-is-what-you-get); content slashes without
+ * surrounding spaces ("read/write") never split.
+ */
+export function splitComposedEdgeLabel(draft: string): { base: string; response: string | undefined } {
+  const sep = ' / ';
+  const idx = draft.indexOf(sep);
+  if (idx === -1) {
+    // A trailing " /" with the response deleted is a leftover separator, not
+    // content (content slashes like "api/" have no preceding space).
+    return { base: draft.trim().replace(/\s+\/$/, '').trim(), response: undefined };
+  }
+  return {
+    base: draft.slice(0, idx).trim(),
+    response: draft.slice(idx + sep.length).trim() || undefined,
+  };
+}
+
 function getDisplayLabel(edge: Edge): string {
   const data = edge.data as Record<string, unknown> | undefined
-  const responseLabel = data?.responseLabel
-  const rawLabel = responseLabel && typeof responseLabel === 'string' && responseLabel.trim()
-    ? `${edge.label || data?.label || ''} / ${responseLabel.trim()}`
-    : typeof data?.label === 'string'
-      ? data.label.trim()
-      : typeof edge.label === 'string'
-        ? edge.label.trim()
-        : ''
-
-  const words = rawLabel ? rawLabel.split(/\s+/).filter(Boolean) : []
-  if (words.length === 0) return ''
-  const fullLabel = words.length <= 3 ? rawLabel.trim() : words.slice(0, 3).join(' ')
-  // Remove trailing slash (handles both "A/" and "A / " cases)
-  return fullLabel.replace(/\s*\/\s*$/, '').trim()
+  const base =
+    typeof edge.label === 'string' && edge.label.trim()
+      ? edge.label
+      : (data?.label as unknown)
+  return composeEdgeDisplayLabel(base, data?.responseLabel as unknown)
 }
 
 function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number): number {
@@ -262,6 +328,8 @@ function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number): n
  */
 const SHARED_PATH_DIST = 22
 const STEM_SAMPLE_COUNT = 48
+/** Keep labels away from other relationship paths, including crossings. */
+const LABEL_EDGE_CLEARANCE = 5
 /** Minimum unique-stem length (fraction of path) before we treat it as usable. */
 const MIN_UNIQUE_STEM = 0.12
 
@@ -602,6 +670,7 @@ interface RoutedEdge {
   edge: Edge
   segs: PathSegment[]
   samples: PathSample[]
+  bounds: PlacedRect
   label: string
 }
 
@@ -610,6 +679,8 @@ function computeLayout(
   nodeInternals: ReadonlyMap<string, Node>,
   direction: EdgeRouteDirection,
   renderStyle?: DiagramRenderStyleId,
+  routes?: ReadonlyMap<string, EdgeRouteResult>,
+  iconMode?: NodeIconMode,
 ): Map<string, EdgeLabelAnchor> {
   const nodes = Array.from(nodeInternals.values())
   const brutal = renderStyle === 'neubrutalism'
@@ -635,14 +706,27 @@ function computeLayout(
     // Match the canvas route exactly. Studio Minimal changes the effective
     // node height, so omitting its render style here places labels on the
     // route for a different-sized graph.
-    const route = computeEdgeRoute(edge, nodes, edges, direction, renderStyle)
+    const route = routes?.get(edge.id) ?? computeEdgeRoute(edge, nodes, edges, direction, renderStyle, undefined, iconMode)
     if (!route.waypoints || route.waypoints.length < 2) continue
-    const segs = buildPathSegments(route.waypoints)
+    const segs = segmentsFromRenderedPath(route.renderedPath)
     if (segs.length === 0) continue
+    const pathLength = segs.reduce((sum, seg) => sum + seg.len, 0)
+    const samples = samplePath(segs, Math.max(STEM_SAMPLE_COUNT, Math.min(256, Math.ceil(pathLength / 8))))
+    const bounds = samples.reduce<PlacedRect>((rect, sample, index) => {
+      if (index === 0) return { x: sample.x, y: sample.y, w: 0, h: 0 }
+      const right = Math.max(rect.x + rect.w, sample.x)
+      const bottom = Math.max(rect.y + rect.h, sample.y)
+      const x = Math.min(rect.x, sample.x)
+      const y = Math.min(rect.y, sample.y)
+      return { x, y, w: right - x, h: bottom - y }
+    }, { x: 0, y: 0, w: 0, h: 0 })
     routed.push({
       edge,
       segs,
-      samples: samplePath(segs),
+      // Use a finer sampling grid for both shared-corridor detection and label
+      // clearance. Sparse samples let long orthogonal legs slip under a pill.
+      samples,
+      bounds,
       label: getDisplayLabel(edge),
     })
   }
@@ -758,12 +842,35 @@ function computeLayout(
       const rect = { x: cand.x - item.size.w / 2, y: cand.y - item.size.h / 2, w: item.size.w, h: item.size.h }
       return !placed.some((p) => rectsOverlap(p, rect))
     }
+    const clearOfOtherEdges = (cand: LabelCandidate) => {
+      const rect = cssRectAt(cand)
+      const padded = {
+        x: rect.x - LABEL_EDGE_CLEARANCE,
+        y: rect.y - LABEL_EDGE_CLEARANCE,
+        w: rect.w + LABEL_EDGE_CLEARANCE * 2,
+        h: rect.h + LABEL_EDGE_CLEARANCE * 2,
+      }
+      return !routed.some((other) => {
+        if (other.edge.id === item.edgeId) return false
+        // Fast reject paths outside this label's bounding box, then test the
+        // sampled rendered route against the padded pill rectangle.
+        const bounds = other.bounds
+        if (
+          bounds.x + bounds.w < padded.x || bounds.x > padded.x + padded.w ||
+          bounds.y + bounds.h < padded.y || bounds.y > padded.y + padded.h
+        ) return false
+        return other.samples.some((sample) =>
+          sample.x >= padded.x && sample.x <= padded.x + padded.w &&
+          sample.y >= padded.y && sample.y <= padded.y + padded.h,
+        )
+      })
+    }
 
     let chosen: LabelCandidate | null = null
     for (const escape of NODE_ESCAPE_PERPS) {
       for (const base of item.candidates) {
         const cand = escape === 0 ? base : pointFor(base.t, escape)
-        if (clearOfLabels(cand) && clearOfNodes(cand)) {
+        if (clearOfLabels(cand) && clearOfNodes(cand) && clearOfOtherEdges(cand)) {
           chosen = cand
           break
         }
@@ -775,7 +882,7 @@ function computeLayout(
     // label-label overlap; only fall back to label-clear as a last resort.
     if (!chosen) {
       for (const cand of item.candidates) {
-        if (clearOfNodes(cand)) {
+        if (clearOfNodes(cand) && clearOfOtherEdges(cand)) {
           chosen = cand
           break
         }
@@ -810,25 +917,45 @@ interface CacheEntry {
   nodeInternals: ReadonlyMap<string, Node>
   direction: EdgeRouteDirection
   renderStyle?: DiagramRenderStyleId
+  routes?: ReadonlyMap<string, EdgeRouteResult>
+  iconMode?: NodeIconMode
   result: Map<string, EdgeLabelAnchor>
 }
 
 const layoutCache = new Map<Edge[], CacheEntry>()
 const CACHE_MAX = 8
+const draggingCache = new WeakMap<ReadonlyMap<string, Node>, boolean>()
+
+function hasDraggingNode(nodeInternals: ReadonlyMap<string, Node>): boolean {
+  const cached = draggingCache.get(nodeInternals)
+  if (cached !== undefined) return cached
+  const dragging = Array.from(nodeInternals.values()).some((node) => Boolean((node as Node & { dragging?: boolean }).dragging))
+  draggingCache.set(nodeInternals, dragging)
+  return dragging
+}
 
 export function computeEdgeLabelLayout(
   edges: Edge[],
   nodeInternals: ReadonlyMap<string, Node>,
   direction: EdgeRouteDirection,
   renderStyle?: DiagramRenderStyleId,
+  routes?: ReadonlyMap<string, EdgeRouteResult>,
+  iconMode?: NodeIconMode,
 ): ReadonlyMap<string, EdgeLabelAnchor> {
   const hit = layoutCache.get(edges)
-  if (hit && hit.nodeInternals === nodeInternals && hit.direction === direction && hit.renderStyle === renderStyle) {
+  if (hit && hit.nodeInternals === nodeInternals && hit.direction === direction && hit.renderStyle === renderStyle
+    && hit.routes === routes && hit.iconMode === iconMode) {
+    return hit.result
+  }
+  // During a node drag, edge paths already move every frame. Keep the last
+  // label fractions and project them onto those live paths; rerun the global
+  // obstacle-aware label planner once the drag ends.
+  if (hit && hit.direction === direction && hit.renderStyle === renderStyle && hit.iconMode === iconMode && hasDraggingNode(nodeInternals)) {
     return hit.result
   }
 
-  const result = computeLayout(edges, nodeInternals, direction, renderStyle)
-  layoutCache.set(edges, { nodeInternals, direction, renderStyle, result })
+  const result = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode)
+  layoutCache.set(edges, { nodeInternals, direction, renderStyle, routes, iconMode, result })
   if (layoutCache.size > CACHE_MAX) {
     const oldest = layoutCache.keys().next().value
     if (oldest !== undefined) layoutCache.delete(oldest)

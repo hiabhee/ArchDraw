@@ -27,7 +27,7 @@ export function Cylinder({ id, data, selected, backplates, isDark, styles, width
         <SketchBody shape="cylinder" width={W} height={H} surface={surface} seed={sketchSeed(id)} axis="vertical" isDark={isDark} />
         <Handles color={color} nodeId={id} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" sketch />
+          <Label data={data} color={color} nodeId={id} width={W} height={H} maxWidth={labelMaxWidth} shape="cylinder" sketch hideIcon />
         </div>
       </div>
     );

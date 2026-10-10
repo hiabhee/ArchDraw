@@ -36,7 +36,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CanvasSkeleton } from '@/components/CanvasSkeleton';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS, EDGE_CONFIG } from '@/lib/config';
+import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 
 import { useGrouping } from '@/hooks/useGrouping';
 import { toast } from 'sonner';
@@ -48,6 +48,8 @@ import { createNode, createEdge, createBlankShapeNode } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
+import { resolveDiagramPresentation } from '@/lib/utils/diagramPresentation';
 
 // Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
 function CanvasUrlSync() {
@@ -631,6 +633,13 @@ function CanvasInner() {
   }, []);
 
   const coloredEdges = useEdgeColors(edges);
+  const diagramViewMode = useDiagramStore((s) => s.diagramViewMode);
+  const presentation = useMemo(
+    () => resolveDiagramPresentation(nodes, coloredEdges, diagramViewMode),
+    [nodes, coloredEdges, diagramViewMode],
+  );
+  const visibleNodes = useMemo(() => nodes.filter((node) => presentation.visibleNodeIds.has(node.id)), [nodes, presentation]);
+  const visibleEdges = useMemo(() => coloredEdges.filter((edge) => presentation.visibleEdgeIds.has(edge.id)), [coloredEdges, presentation]);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
   const viewport = useViewport();
@@ -660,7 +669,7 @@ function CanvasInner() {
     <div
       className={cn(
         'w-full h-full relative transition-colors duration-200 overscroll-contain',
-        !canvasBackground.bgColor && 'bg-[hsl(var(--canvas-bg))]',
+        !canvasBackground.bgColor && 'bg-[var(--arch-canvas-bg)]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
         isSketch && sketchFontClass,
       )}
@@ -673,13 +682,17 @@ function CanvasInner() {
         width: '100%',
         height: '100%',
         overscrollBehavior: 'contain',
-        ...(canvasBackground.bgColor ? { backgroundColor: canvasBackground.bgColor } : {}),
-        ...themeVars
+        ...themeVars,
+        ...(canvasBackground.bgColor ? {
+          backgroundColor: canvasBackground.bgColor,
+          ['--arch-canvas-bg' as string]: canvasBackground.bgColor,
+        } : {}),
       }}
     >
+      <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
-        nodes={nodes}
-        edges={coloredEdges}
+        nodes={visibleNodes}
+        edges={visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
@@ -694,10 +707,13 @@ function CanvasInner() {
         onPaneContextMenu={onPaneContextMenu}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
+        onlyRenderVisibleElements
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
         fitView
-        fitViewOptions={{ padding: isMobile ? 0.15 : 0.0 }}
+        // Reserve room for the floating toolbar and prompt bar so the first
+        // fit never puts edge nodes underneath editor chrome.
+        fitViewOptions={{ padding: isMobile ? 0.15 : 0.16 }}
         selectionMode={isMobile ? SelectionMode.Partial : SelectionMode.Full}
         // Keep canvas panning on middle/right mouse so left-drag can draw selection box.
         // On mobile, allow single-finger pan for better touch handling.
@@ -713,10 +729,10 @@ function CanvasInner() {
         connectionMode={CANVAS_CONFIG.connectionMode as ConnectionMode}
         connectionRadius={isMobile ? 28 : CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.Bezier}
-        connectionLineStyle={{ stroke: isDark ? '#475569' : '#94a3b8', strokeWidth: 1.5, strokeDasharray: '6 4' }}
+        connectionLineStyle={{ stroke: themeVars['--arch-edge-primary'], strokeWidth: 1.5, strokeDasharray: '6 4' }}
         snapToGrid={CANVAS_CONFIG.snapToGrid}
         snapGrid={CANVAS_CONFIG.snapGrid}
-        defaultMarkerColor={isDark ? '#1E2130' : EDGE_CONFIG.strokeColor}
+        defaultMarkerColor={themeVars['--arch-edge-primary']}
         minZoom={CANVAS_CONFIG.minZoom}
         maxZoom={CANVAS_CONFIG.maxZoom}
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
@@ -728,18 +744,19 @@ function CanvasInner() {
             variant={BackgroundVariant.Dots}
             gap={canvasBackground.gap}
             size={canvasBackground.size}
-            color={canvasBackground.patternColor ?? (isDark ? '#94a3b8' : '#e2e8f0')}
+            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0')}
             style={{ opacity: isDark ? 0.35 : 0.5 }}
           />
         )}
         {canvasBackground.variant === 'lines' && showGrid && (
           <div
-            className="react-flow__background"
+            className="archdraw-lines-background"
             style={{
               position: 'absolute',
               inset: 0,
+              zIndex: 0,
               backgroundColor: 'transparent',
-              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? (isDark ? '#334155' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? (isDark ? '#334155' : '#e5e7eb')} 1px, transparent 1px)`,
+              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px)`,
               backgroundSize: `${canvasBackground.gap * viewport.zoom}px ${canvasBackground.gap * viewport.zoom}px`,
               backgroundPosition: `${viewport.x}px ${viewport.y}px`,
               opacity: isDark ? 0.25 : 1,
@@ -750,6 +767,7 @@ function CanvasInner() {
         <SVGEdgeMarkerDefs />
         <GuideLines />
       </ReactFlow>
+      </DiagramGeometryProvider>
 
       {/* Comet Trail Pen Overlay */}
       <CometTrailCanvas />

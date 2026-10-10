@@ -2,35 +2,54 @@ import logger from '@/lib/logger';
 
 const isBrowser = typeof window !== 'undefined';
 
-let writeChain: Promise<void> = Promise.resolve();
-
+// Coalesce graph snapshots before serialization and disk writes. Pending values
+// remain readable so a rehydrate cannot observe an older on-disk snapshot.
+const pending = new Map<string, string | (() => string)>();
+let writeTimer: ReturnType<typeof setTimeout> | undefined;
+export function flushDiagramStorage(): void {
+  if (writeTimer) clearTimeout(writeTimer);
+  writeTimer = undefined;
+  for (const [key, value] of pending) {
+    try { localStorage.setItem(key, typeof value === 'function' ? value() : value); } catch { /* Storage unavailable */ }
+  }
+  pending.clear();
+}
+function queueWrite(key: string, value: string | (() => string)): void {
+  if (!isBrowser) return;
+  pending.set(key, value);
+  // A bounded interval rather than a resetting debounce also saves long drags.
+  if (!writeTimer) writeTimer = setTimeout(flushDiagramStorage, 200);
+}
+if (isBrowser) {
+  window.addEventListener('pagehide', flushDiagramStorage);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushDiagramStorage();
+  });
+}
 export const serializedStorage = {
   getItem: (key: string): string | null => {
     if (!isBrowser) return null;
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
+    const value = pending.get(key);
+    if (value !== undefined) return typeof value === 'function' ? value() : value;
+    try { return localStorage.getItem(key); } catch { return null; }
   },
-  setItem: (key: string, value: string): void => {
-    if (!isBrowser) return;
-    writeChain = writeChain.then(() => {
-      try {
-        localStorage.setItem(key, value);
-      } catch {
-        // Storage unavailable — silently ignore
-      }
-    });
-  },
+  setItem: (key: string, value: string): void => queueWrite(key, value),
   removeItem: (key: string): void => {
+    pending.delete(key);
     if (!isBrowser) return;
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Ignore
-    }
+    try { localStorage.removeItem(key); } catch { /* Storage unavailable */ }
   },
+};
+
+/** Zustand storage: serialize only the latest snapshot at the flush boundary. */
+export const deferredJSONStorage = {
+  getItem: (key: string) => {
+    const value = serializedStorage.getItem(key);
+    if (!value) return null;
+    try { return JSON.parse(value); } catch { return null; }
+  },
+  setItem: (key: string, value: unknown): void => queueWrite(key, () => JSON.stringify(value)),
+  removeItem: serializedStorage.removeItem,
 };
 
 export function migrateLegacyStorage(): void {

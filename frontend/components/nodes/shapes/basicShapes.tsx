@@ -15,9 +15,10 @@ import {
   type ShapeShellProps,
 } from './shapeShell';
 
-export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal, studio }: ShapeShellProps & { rounded: boolean }) {
+export function Rectangle({ id, data, selected, rounded, backplates, isDark, styles, width, height, labelMaxWidth, sketch, brutal, studio, metallic }: ShapeShellProps & { rounded: boolean }) {
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, brutal, data.fillColor, data.strokeColor);
+  const darkStudio = studio && isDark;
   const r = studio ? 16 : getShapePrimitives(rounded ? 'rounded-rectangle' : 'rectangle', width, height)[0].rx ?? 6;
   if (sketch) {
     return (
@@ -44,16 +45,23 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
     );
   }
   return (
-    <div className="shape-node" style={{ width, height, position: 'relative', zIndex: 2 }}>
+    <div
+      className={`shape-node${darkStudio ? ' shape-node--studio-minimal-dark' : ''}${darkStudio && selected ? ' is-selected' : ''}`}
+      style={{ width, height, position: 'relative', zIndex: 2 }}
+    >
       {backplates.length > 0 && <Backplates layers={backplates} borderRadius={r} />}
       <div
+        className={darkStudio ? 'shape-node-card--studio-minimal-dark' : undefined}
         style={{
           width,
           height,
           borderRadius: r,
           border: `${surface.strokeWidth}px solid ${surface.stroke}`,
-          background: surface.fill,
-          boxShadow: surface.boxShadow,
+          backgroundColor: surface.fill,
+          ...(metallic ? {
+            backgroundImage: 'var(--arch-node-surface-overlay)',
+            boxShadow: ['var(--arch-node-surface-elevation)', surface.boxShadow, 'var(--arch-node-surface-inset)'].filter((shadow) => shadow && shadow !== 'none').join(', '),
+          } : { boxShadow: surface.boxShadow }),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -62,7 +70,18 @@ export function Rectangle({ id, data, selected, rounded, backplates, isDark, sty
           transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
         }}
       >
-          <Label data={data} color={color} nodeId={id} width={width} height={height} maxWidth={labelMaxWidth} shape={data.shape} studio={studio} />
+          <Label
+            data={data}
+            color={color}
+            nodeId={id}
+            width={width}
+            height={height}
+            maxWidth={labelMaxWidth}
+            shape={data.shape}
+            studio={studio}
+            selected={selected}
+            isDark={isDark}
+          />
       </div>
       <Handles color={color} nodeId={id} />
     </div>

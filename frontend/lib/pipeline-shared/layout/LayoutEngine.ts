@@ -12,6 +12,8 @@ export { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT };
 
 export interface LayoutNode {
   id: string;
+  label?: string;
+  serviceType?: string;
   width: number;
   height: number;
   parentId?: string;
@@ -19,12 +21,30 @@ export interface LayoutNode {
   direction?: LayoutDirection;
 }
 
+export type LayoutEdgeImportance = 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';
+export type LayoutFlowRole = 'main' | 'branch' | 'feedback' | 'supporting';
+
 export interface LayoutEdge {
   id: string;
   source: string;
   target: string;
   /** Optional label — the engine reserves rank space for its pill. */
   label?: string;
+  /** Existing relationship semantics from the Mermaid / React Flow pipeline. */
+  importance?: LayoutEdgeImportance;
+  flowRole?: LayoutFlowRole;
+  importanceSource?: 'explicit' | 'inferred';
+  flowRoleSource?: 'explicit' | 'inferred';
+  flowRoleConfidence?: number;
+  connectionType?: string;
+  sourceServiceType?: string;
+  targetServiceType?: string;
+}
+
+export interface AggregatedLayoutEdge extends LayoutEdge {
+  width: number;
+  height: number;
+  weight: number;
 }
 
 export interface LayoutOptions {
@@ -137,4 +157,133 @@ export function estimateEdgeLabelSize(label: string | undefined): { width: numbe
   // Reserve for the larger brutal pill (worst case): 6.2px per char + 16 padding, 15px height, 1.5x counter-scale
   const cssWidth = Math.max(38, label.length * 6.2 + 16);
   return { width: cssWidth * 1.5, height: 15 * 1.5 };
+}
+
+const IMPORTANCE_WEIGHT: Record<LayoutEdgeImportance, number> = {
+  primary: 5,
+  secondary: 3,
+  supporting: 1.5,
+  diagnostic: 0.5,
+  optional: 0.25,
+};
+
+const CORE_SERVICE_TYPES = new Set([
+  'actor', 'client', 'mobile', 'load-balancer', 'gateway', 'api-gateway',
+  'service', 'function', 'container', 'compute', 'application', 'api',
+]);
+const INFRASTRUCTURE_SERVICE_TYPES = new Set([
+  'database', 'cache', 'queue', 'broker', 'message-broker', 'event-bus', 'storage',
+  'external-service', 'observability', 'monitoring',
+]);
+const RETURN_EDGE_LABEL = /\b(return(?:s|ed)?|response|responds|reply|ack(?:nowledg(?:e|ment))?|callback|sends back|confirms)\b/i;
+
+export function isCoreServiceType(serviceType?: string): boolean {
+  return CORE_SERVICE_TYPES.has(serviceType?.toLowerCase() ?? '');
+}
+
+export function isInfrastructureServiceType(serviceType?: string): boolean {
+  return INFRASTRUCTURE_SERVICE_TYPES.has(serviceType?.toLowerCase() ?? '');
+}
+
+/**
+ * Layout priority is deliberately separate from visual styling. It controls
+ * which relationships establish ranks when a graph contains feedback loops,
+ * and how strongly a candidate layout is judged on crossings.
+ */
+export function getLayoutEdgeWeight(edge: LayoutEdge): number {
+  // A primary relationship is semantic backbone intent. Infrastructure and
+  // async metadata describe transport, not a reason to demote that intent.
+  if (edge.importance === 'primary') return IMPORTANCE_WEIGHT.primary;
+  if (edge.flowRole === 'main') return IMPORTANCE_WEIGHT.primary;
+  if (edge.flowRole === 'branch') return IMPORTANCE_WEIGHT.secondary;
+  if (edge.flowRole === 'feedback') return IMPORTANCE_WEIGHT.diagnostic;
+  if (RETURN_EDGE_LABEL.test(edge.label ?? '')) return IMPORTANCE_WEIGHT.diagnostic;
+
+  let weight = IMPORTANCE_WEIGHT[edge.importance ?? 'secondary'] ?? IMPORTANCE_WEIGHT.secondary;
+  const sourceType = edge.sourceServiceType?.toLowerCase();
+  const targetType = edge.targetServiceType?.toLowerCase();
+
+  // Service-to-service calls usually form the readable request path. The
+  // generation classifier labels many of these as generic secondary links.
+  if (
+    sourceType && targetType &&
+    isCoreServiceType(sourceType) && isCoreServiceType(targetType) &&
+    edge.importance !== 'diagnostic' && edge.importance !== 'optional'
+  ) {
+    weight = Math.max(weight, 4.5);
+  }
+
+  // Infrastructure and asynchronous links should remain visible, but should
+  // not pull the business-flow nodes into extra ranks or long detours.
+  if (
+    isInfrastructureServiceType(sourceType) ||
+    isInfrastructureServiceType(targetType) ||
+    ['async', 'event', 'stream', 'publish', 'consume'].includes(edge.connectionType?.toLowerCase() ?? '')
+  ) {
+    weight = Math.min(weight, 1.5);
+  }
+
+  return weight;
+}
+
+/** Combine parallel relationships into one Dagre constraint while reserving room for every label. */
+export function aggregateLayoutEdges(edges: LayoutEdge[]): AggregatedLayoutEdge[] {
+  const pairs = new Map<string, AggregatedLayoutEdge>();
+  for (const edge of edges) {
+    if (!edge.source || !edge.target || edge.source === edge.target) continue;
+    const key = `${edge.source}\u0000${edge.target}`;
+    const labelSize = estimateEdgeLabelSize(edge.label);
+    const weight = getLayoutEdgeWeight(edge);
+    const previous = pairs.get(key);
+    if (previous) {
+      previous.width += labelSize.width + (previous.width > 0 && labelSize.width > 0 ? 12 : 0);
+      previous.height = Math.max(previous.height, labelSize.height);
+      previous.weight = Math.max(previous.weight, weight);
+    } else {
+      pairs.set(key, { ...edge, width: labelSize.width, height: labelSize.height, weight });
+    }
+  }
+  return [...pairs.values()];
+}
+
+/**
+ * Keep every relationship in the returned diagram, but use a priority ordered
+ * acyclic subset for Dagre ranks. Feedback and low-priority links that would
+ * close a cycle still render; they simply cannot distort the main flow.
+ */
+export function selectAcyclicLayoutEdges(
+  edges: AggregatedLayoutEdge[],
+  _direction?: LayoutDirection,
+  _nodeOrder: string[] = [],
+): AggregatedLayoutEdge[] {
+  const ordered = [...edges].sort((a, b) => {
+    const weightDelta = b.weight - a.weight;
+    if (weightDelta !== 0) return weightDelta;
+    return a.source.localeCompare(b.source) || a.target.localeCompare(b.target) || a.id.localeCompare(b.id);
+  });
+  const outgoing = new Map<string, Set<string>>();
+  const selected: AggregatedLayoutEdge[] = [];
+
+  const reaches = (start: string, goal: string): boolean => {
+    const pending = [start];
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      if (current === goal) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const next of outgoing.get(current) ?? []) pending.push(next);
+    }
+    return false;
+  };
+
+  for (const edge of ordered) {
+    if (reaches(edge.target, edge.source)) continue;
+    const targets = outgoing.get(edge.source) ?? new Set<string>();
+    targets.add(edge.target);
+    outgoing.set(edge.source, targets);
+    selected.push(edge);
+  }
+
+  return selected;
 }

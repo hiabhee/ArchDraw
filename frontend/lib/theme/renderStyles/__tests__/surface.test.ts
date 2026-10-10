@@ -17,7 +17,7 @@ describe('resolveRenderSurface', () => {
       accentColor: '#0f766e',
     });
     expect(res.fill).toBe('#ffffff');
-    expect(res.stroke).toBe('rgba(15, 23, 42, 0.14)');
+    expect(res.stroke).toBe(LIGHT_NODE_STYLES.border);
     expect(res.strokeWidth).toBe(1.25);
     expect(res.boxShadow).toBe(LIGHT_NODE_STYLES.shadow);
   });
@@ -30,7 +30,7 @@ describe('resolveRenderSurface', () => {
       accentColor: '#0f766e',
     });
     expect(res.fill).toBe(DARK_NODE_STYLES.background);
-    expect(res.stroke).toBe('rgba(255, 255, 255, 0.12)');
+    expect(res.stroke).toBe(DARK_NODE_STYLES.border);
     expect(res.strokeWidth).toBe(1.25);
   });
 

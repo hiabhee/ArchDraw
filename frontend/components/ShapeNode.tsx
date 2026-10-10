@@ -16,6 +16,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { type ShapeType } from '@/lib/shapeRegistry';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 import './nodes/nodeStyles.css';
 import type { ShapeNodeData } from './nodes/shapes/types';
 import { resolveShapeLabelLayout, type ShapeLabelLayout } from './nodes/shapes/labelLayout';
@@ -88,7 +89,8 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const { isDark } = useCanvasTheme();
   const aesthetics = useDiagramAesthetics();
   const { renderStyleId } = aesthetics;
-  const studio = renderStyleId === 'studio-minimal';
+  const studio = isStudioRenderStyle(renderStyleId);
+  const studioDarkSelected = studio && isDark && selected;
   const baseStyles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   const styles = {
     ...baseStyles,
@@ -105,15 +107,21 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   // Studio uses one compact card vocabulary instead of the normal semantic
   // silhouettes. The node's persisted shape remains untouched; this is visual only.
   const studioData = studio ? { ...data, shape: 'rounded-rectangle' as const } : data;
-  const studioAccent = data.accentColor || getConcernColor(concernHintForShape(data), aesthetics.concerns);
-  const themedData: ShapeNodeData = studio
-    ? {
-        ...studioData,
-        accentColor: studioAccent,
-        fillColor: aesthetics.colors.nodeFill,
-        strokeColor: selected ? studioAccent : colorWash(studioAccent, isDark ? 0.5 : 0.36),
-      }
-    : studioData;
+  const themeAccent = data.accentColor || getConcernColor(concernHintForShape(data), aesthetics.concerns);
+  const themedData: ShapeNodeData = {
+    ...studioData,
+    // Legacy/generated `data.color` is not a user override. Resolve its
+    // semantic concern through the active palette, matching SystemNode.
+    accentColor: themeAccent,
+    ...(studio
+      ? {
+          fillColor: studioDarkSelected ? '#f7f9fc' : aesthetics.colors.nodeFill,
+          strokeColor: selected
+            ? themeAccent
+            : isDark ? 'rgba(148, 163, 184, 0.22)' : colorWash(themeAccent, 0.36),
+        }
+      : {}),
+  };
   const { width, height, labelMaxWidth } = resolveShapeSize(themedData, nodeShowIcon, studio);
   const sized = { width, height, labelMaxWidth };
   const updateNodeInternals = useUpdateNodeInternals();
@@ -191,6 +199,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     sketch: renderStyleId === 'sketch',
     brutal: renderStyleId === 'neubrutalism',
     studio,
+    metallic: aesthetics.render.nodeMaterial === 'metallic',
     ...sized,
   };
 

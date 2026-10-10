@@ -56,6 +56,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
     }
 
     importDiagram(parsed.nodes, parsed.edges);
+    useDiagramStore.getState().setDiagramViewMode('overview');
     const repoName = extractRepoName(repoUrl);
     renameCanvas(activeCanvasId, `${repoName} Architecture`);
     setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);

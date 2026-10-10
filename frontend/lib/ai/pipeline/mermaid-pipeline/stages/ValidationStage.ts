@@ -219,6 +219,10 @@ export class ValidationStage extends BaseStage<ValidationInput, ValidationOutput
         const message = match[2];
         if (type === 'LAYOUT_DIRECTION_FAILURE' || type === 'ORPHANED_NODE') {
           parserSemanticIssues.push({ severity: 'warning', type, message });
+        } else if (type === 'GEOMETRY_DEGRADED') {
+          parserMechanicalIssues.push({ severity: 'warning', type, message });
+        } else if (type.startsWith('GEOMETRY_')) {
+          parserMechanicalIssues.push({ severity: 'critical', type, message });
         } else {
           parserMechanicalIssues.push({ severity: 'warning', type, message });
         }

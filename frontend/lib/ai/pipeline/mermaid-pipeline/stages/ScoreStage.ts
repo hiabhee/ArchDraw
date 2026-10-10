@@ -5,6 +5,7 @@ import type { RFNode, RFEdge } from '@/lib/mermaid/types';
 import type { Node as RFNodeType, Edge as RFEdgeType } from 'reactflow';
 import type { ArchitectureStyle } from '../../types';
 import type { DiagramScore } from '../../types';
+import type { GeometrySummary } from '@/lib/mermaid/pipeline';
 
 export interface ScoreInput {
   nodes: RFNode[];
@@ -13,6 +14,8 @@ export interface ScoreInput {
   detailLevel: 1 | 2 | 3;
   styleTheme: string;
   prompt: string;
+  parseWarnings?: string[];
+  geometrySummary?: GeometrySummary;
   nodesRemoved?: number;
   edgesRemoved?: number;
   groupsRemoved?: number;
@@ -26,6 +29,8 @@ export interface ScoreInput {
 export interface ScoreOutput {
   diagramScore: DiagramScore;
   score: number;
+  geometryStatus: 'ok' | 'degraded' | 'invalid' | 'failed' | 'unverified';
+  geometrySummary?: GeometrySummary;
 }
 
 export class ScoreStage extends BaseStage<ScoreInput, ScoreOutput> {
@@ -48,9 +53,16 @@ export class ScoreStage extends BaseStage<ScoreInput, ScoreOutput> {
       }
     );
 
+    const geometryWarning = (input.parseWarnings ?? []).find(warning => /^\[GEOMETRY_(INVALID|FAILED|DEGRADED)\]/.test(warning));
+    const geometryStatus = input.geometrySummary?.status === 'failed' || geometryWarning?.startsWith('[GEOMETRY_FAILED]') ? 'failed'
+      : input.geometrySummary?.status === 'invalid' || geometryWarning?.startsWith('[GEOMETRY_INVALID]') ? 'invalid'
+        : input.geometrySummary?.status === 'degraded' || geometryWarning?.startsWith('[GEOMETRY_DEGRADED]') ? 'degraded'
+          : input.geometrySummary?.status === 'ok' ? 'ok' : 'unverified';
     return successResult({
       diagramScore: diagramScore as unknown as DiagramScore,
       score: diagramScore.score,
+      geometryStatus,
+      geometrySummary: input.geometrySummary,
     });
   }
 }

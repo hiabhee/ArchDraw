@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useUpdateNodeInternals } from 'reactflow';
 import { ICON_SIZE, PROMINENT_ICON_SLOT_PX, PROMINENT_ICON_GLYPH_RATIO, prominentIconGlyphSize, type NodeStyleConfig } from '@/lib/theme/stylingConstants';
 import { countPipeLabelLines } from '@/lib/utils/nodeSizing';
-import { getDiamondLabelNudge, getShapeLabelMaxWidth } from '@/lib/utils/shapeTextLayout';
+import { getDiamondLabelNudge, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/utils/shapeTextLayout';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -60,8 +60,11 @@ export function Label({
   maxWidth,
   shape,
   sketch = false,
+  hideIcon = false,
   brutal = false,
   studio = false,
+  selected = false,
+  isDark = false,
 }: {
   data: ShapeNodeData;
   color: string;
@@ -71,12 +74,15 @@ export function Label({
   maxWidth?: number;
   shape?: ShapeType;
   sketch?: boolean;
+  hideIcon?: boolean;
   brutal?: boolean;
   studio?: boolean;
+  selected?: boolean;
+  isDark?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iconMode = useDiagramStore((s) => s.iconMode);
-  const layout = studio ? 'default' : resolveShapeLabelLayout(shape, data, iconMode);
+  const layout = studio || hideIcon ? 'default' : resolveShapeLabelLayout(shape, data, iconMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,
     currentLabel: data.label || '',
@@ -106,7 +112,7 @@ export function Label({
           icon: data.icon,
         });
   const iconSizes = shape === 'diamond' ? ICON_SIZE.diamond : ICON_SIZE;
-  const brandTechnology = !studio && resolvedIcon.source !== 'manual' && resolvedIcon.technology && getTechnologyBrandSlug(resolvedIcon.technology)
+  const brandTechnology = (!studio || (isDark && selected)) && resolvedIcon.source !== 'manual' && resolvedIcon.technology && getTechnologyBrandSlug(resolvedIcon.technology)
     ? resolvedIcon.technology
     : undefined;
   const hasBrandLogo = Boolean(brandTechnology) || Boolean(providerIcon);
@@ -124,7 +130,7 @@ export function Label({
       ? Math.round(cloudIconSize * 0.78)
       : iconSizes.node;
   const iconModeAllows = iconMode !== 'off';
-  const showIcon = isPipeText
+  const showIcon = hideIcon ? false : isPipeText
     ? false
     : isIconBrand
       ? iconModeAllows && (hasBrandLogo || resolveNodeIconVisibility(iconMode, data.showIcon, resolvedIcon.source === 'manual'))
@@ -162,8 +168,11 @@ export function Label({
     />
   );
 
-  // Horizontal icon+title when icons are on (user request) — keeps the node compact and matches SystemNode's row layout
-  const horizontalWithIcon = showIcon && !isPipeText;
+  // Horizontal icon+title when icons are on (user request) — keeps the node compact and matches SystemNode's row layout.
+  // Fall back to a vertical stack when the row would squeeze the title into a
+  // <96px column and force mid-word breaks (e.g. "Payment" on a 160px cloud).
+  const horizontalWithIcon =
+    showIcon && !isPipeText && !shouldStackLabelVertically(maxWidth ?? width, iconSlotSize);
   return (
     <div
       ref={containerRef}
@@ -194,6 +203,13 @@ export function Label({
           flexShrink: 0,
           marginBottom: studio ? 0 : isIconBrand ? (showTitle ? 4 : 0) : 4,
           ...(studio && !isIconBrand ? { background: `color-mix(in srgb, ${color} 12%, transparent)` } : {}),
+          ...(studio && isDark && selected && !isIconBrand
+            ? {
+                background: `color-mix(in srgb, ${color} 18%, white)`,
+                border: `1px solid color-mix(in srgb, ${color} 40%, white)`,
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.9), 0 1px 3px rgba(15,23,42,.08)',
+              }
+            : {}),
           ...(providerIcon && !isIconBrand
             ? { borderRadius: Math.round(iconSlotSize * 0.27) }
             : {}),
@@ -274,7 +290,8 @@ export function Label({
             className="node-subtitle"
             style={{
               maxWidth: sublabelMaxWidth,
-              overflowWrap: 'anywhere',
+              overflowWrap: 'break-word',
+              wordBreak: 'normal',
               marginTop: 2,
               textAlign: horizontalWithIcon ? 'left' : 'center',
               fontSize: sketch ? 12.5 : shape === 'diamond' || shape === 'circle' ? 10 : isPipeText ? 10 : undefined,
@@ -444,4 +461,5 @@ export type ShapeShellProps = {
   sketch?: boolean;
   brutal?: boolean;
   studio?: boolean;
+  metallic?: boolean;
 };

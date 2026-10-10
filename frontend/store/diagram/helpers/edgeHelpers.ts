@@ -77,7 +77,7 @@ export function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: 
   return { x, y };
 }
 
-export function normalizeEdges(edges: Edge[]): Edge[] {
+export function normalizeEdges(edges: Edge[], options?: { preserveParallel?: boolean }): Edge[] {
   const migrated = migrateEdgesToSmoothstep(edges);
 
   const seenIds = new Set<string>();
@@ -90,7 +90,8 @@ export function normalizeEdges(edges: Edge[]): Edge[] {
     return { ...edge, id };
   });
 
-  return mergeParallelEdges(deduplicated.map(normalizeEdge));
+  const normalized = deduplicated.map(normalizeEdge);
+  return options?.preserveParallel ? normalized : mergeParallelEdges(normalized);
 }
 
 export function sanitizeEdges(edges: Edge[]): Edge[] {
@@ -163,10 +164,10 @@ export function distributeTargetHandles(
   nodes: Node[],
   edges: Edge[],
   activeLayoutPresetId: string = 'layered-lr',
-  options?: { skipBundling?: boolean },
+  options?: { skipBundling?: boolean; preserveParallel?: boolean },
 ): Edge[] {
-  const { edges: managedEdges } = processEdgeManagement(nodes, edges, options);
-  const normalized = normalizeEdges(managedEdges);
+  const { edges: managedEdges } = processEdgeManagement(nodes, edges, { skipBundling: options?.skipBundling || options?.preserveParallel });
+  const normalized = normalizeEdges(managedEdges, { preserveParallel: options?.preserveParallel });
   const direction = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
   return applyBidirectionalEdgeFixes(

@@ -23,6 +23,7 @@ import {
 } from '@/lib/theme/renderStyles';
 import { buildSolidArrowheadPath, escapeXml } from './svgPrimitives';
 import { getPath } from './edgePaths';
+import { composeEdgeDisplayLabel } from '@/lib/utils/edgeLabelLayout';
 import type { EdgeRenderData } from './types';
 
 export function renderEdge(
@@ -39,7 +40,7 @@ export function renderEdge(
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
 
-  const studioInk = renderStyleId === 'studio-minimal' && aesthetics ? {
+  const themeInk = aesthetics ? {
     primary: aesthetics.colors.edgePrimary,
     default: aesthetics.colors.edgeDefault,
     supporting: aesthetics.colors.edgeDefault,
@@ -52,11 +53,11 @@ export function renderEdge(
     data as Record<string, unknown> | undefined,
     isDark,
     isSketch,
-    isSketch ? sketchEdgeInk(isDark) : studioInk,
+    isSketch ? sketchEdgeInk(isDark) : themeInk,
   );
   let strokeColor = data?.color || visual.stroke;
   if (selected) {
-    strokeColor = isDark ? '#e2e8f0' : '#1e293b';
+    strokeColor = aesthetics?.colors.edgePrimary ?? (isDark ? '#e2e8f0' : '#1e293b');
   }
 
   let strokeWidth = isBrutal
@@ -97,18 +98,20 @@ export function renderEdge(
   const seed = rough.seedFor(id);
 
   let labelSVG = '';
-  if (data?.label && !data?.hideLabel) {
-    const labelText = data.label;
+  // Same display text as the canvas pill (collapsed "req / resp" + 3-word
+  // cap) — exporting raw data.label dropped the response half.
+  const labelText = composeEdgeDisplayLabel(data?.label, data?.responseLabel);
+  if (labelText && !data?.hideLabel) {
     // Sketch labels are warm ink — a hand-picked edge color stays (like the
     // canvas EdgeLabel); precision blends the edge color with slate.
-    const customColor = data.color && /^#[0-9a-fA-F]{6}$/.test(data.color) ? data.color : undefined;
+    const customColor = data?.color && /^#[0-9a-fA-F]{6}$/.test(data.color) ? data.color : undefined;
     const fg = customColor
       ? customColor
       : isSketch
         ? (isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE)
         : (strokeColor || (isDark ? '#CBD5E1' : '#64748b'));
-    const knockout = isDark ? '#0f1117' : '#f8fafc';
-    const border = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)';
+    const knockout = aesthetics?.colors.nodeFill ?? (isDark ? '#0f1117' : '#f8fafc');
+    const border = aesthetics?.colors.nodeStroke ?? (isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)');
     const sketchBorder = isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER;
     const paddingX = isSketch ? 7 : 7;
     const paddingY = isSketch ? 2 : 3;

@@ -7,7 +7,7 @@ import { ValidationStage } from './ValidationStage';
 import logger from '@/lib/logger';
 import { inferDiagramKind } from '../diagramIntent';
 
-const actionable = (data: AiPipelineData) => data.validationOutput?.semanticIssues.filter(i => !i.type.startsWith('REASONING_')) ?? [];
+const actionable = (data: AiPipelineData) => data.validationOutput?.semanticIssues.filter(i => !i.type.startsWith('REASONING_') && !i.type.startsWith('GEOMETRY_')) ?? [];
 const relationship = (e: { source: string; target: string; label?: unknown; data?: Record<string, unknown> }) =>
   JSON.stringify([e.source, e.target, e.label ?? e.data?.label ?? '']);
 
@@ -16,7 +16,7 @@ export async function repairDiagramQuality(data: AiPipelineData, context: Pipeli
   const original = data.parseOutput;
   if (!original || !data.plan || !data.scoreOutput || !data.validationOutput) return successResult(data);
   const issues = actionable(data);
-  if (data.plan.usedFallback || (issues.length === 0 && data.scoreOutput.score >= 65)) return successResult(data);
+  if (data.plan.usedFallback || data.plan.isConceptTemplate || (issues.length === 0 && data.scoreOutput.score >= 65)) return successResult(data);
   const attempted = { ...data, repairAttempted: true, repairAccepted: false };
   try {
     const feedback = issues.map(i => `${i.type}: ${i.message}`).join('\n');
@@ -43,6 +43,8 @@ export async function repairDiagramQuality(data: AiPipelineData, context: Pipeli
     if (original.nodes.some(n => !allowedChanges.has(n.id) && parsed.nodes.find(next => next.id === n.id)?.parentNode !== n.parentNode)) return successResult(attempted, ['[QUALITY_REPAIR_RETAINED] Retained the original diagram because the quality revision failed or did not safely improve it.']);
     const score = await new ScoreStage().execute({
       ...parsed, prompt: data.prompt, diagramSize: data.diagramSize, detailLevel: data.detailLevel,
+      parseWarnings: parsed.warnings,
+      geometrySummary: parsed.geometrySummary,
       styleTheme: data.plan.styleConfig.theme,
       stylePlan: { style: 'generic', strictness: 'inferred', productionDepth: 'conceptual' },
     }, context);

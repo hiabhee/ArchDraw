@@ -3,6 +3,7 @@ import { PRECISION_RENDER_STYLE } from './precision';
 import { SKETCH_RENDER_STYLE } from './sketch';
 import { NEUBRUTALISM_RENDER_STYLE } from './neubrutalism';
 import { STUDIO_MINIMAL_RENDER_STYLE } from './studioMinimal';
+import { STUDIO_METALLIC_RENDER_STYLE } from './studioMetallic';
 
 /** Render-style registry — the canonical set of aesthetic packs. */
 export const RENDER_STYLES: Record<DiagramRenderStyleId, RenderStylePack> = {
@@ -10,9 +11,10 @@ export const RENDER_STYLES: Record<DiagramRenderStyleId, RenderStylePack> = {
   sketch: SKETCH_RENDER_STYLE,
   neubrutalism: NEUBRUTALISM_RENDER_STYLE,
   'studio-minimal': STUDIO_MINIMAL_RENDER_STYLE,
+  'studio-metallic': STUDIO_METALLIC_RENDER_STYLE,
 };
 
-export const DEFAULT_RENDER_STYLE_ID: DiagramRenderStyleId = 'precision';
+export const DEFAULT_RENDER_STYLE_ID: DiagramRenderStyleId = 'studio-minimal';
 
 export function getRenderStyle(id?: DiagramRenderStyleId | string | null): RenderStylePack {
   if (id && id in RENDER_STYLES) return RENDER_STYLES[id as DiagramRenderStyleId];
@@ -21,4 +23,8 @@ export function getRenderStyle(id?: DiagramRenderStyleId | string | null): Rende
 
 export function isRenderStyleId(value: string | null | undefined): value is DiagramRenderStyleId {
   return value != null && value in RENDER_STYLES;
+}
+
+export function isStudioRenderStyle(id: DiagramRenderStyleId | string | null | undefined): boolean {
+  return id === 'studio-minimal' || id === 'studio-metallic';
 }

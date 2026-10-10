@@ -94,21 +94,35 @@ Shape vocabulary (lib/shapeRegistry.ts): hexagon=LB/gateway, cloud=external/SaaS
 
 ### MCP Server Guide — expanded
 
-Stdio transport over JSON-RPC. Config snippet:
+Connect the published stdio MCP package to the coding agent. The server needs an API_BASE_URL to run diagram generation and layout:
+
+\`\`\`sh
+codex mcp add archdraw --scope user --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server
+\`\`\`
+
+Install the reusable diagram skill:
+
+\`\`\`sh
+npx skills add hiabhee/archdraw-skill --skill archdraw-diagram
+\`\`\`
+
+See the [coding agent setup guide](${SITE_URL}/agent-skill) for Codex, Claude Code, Cursor configuration, verification, prompts, and troubleshooting.
+
+The MCP process runs locally over stdio JSON-RPC. Diagram generation and layout requests go to the API configured in API_BASE_URL; the default setup uses the hosted ArchDraw service.
 
 \`\`\`json
 {
   "mcpServers": {
-    "archdraw-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/archdraw/mcp-server/dist/index.js"],
-      "env": { "WORKSPACE_PATH": "/absolute/path/to/diagrams" }
+    "archdraw": {
+      "command": "npx",
+      "args": ["-y", "@hiabhee/archdraw-mcp-server"],
+      "env": { "API_BASE_URL": "https://archdraw.hiabhee.online" }
     }
   }
 }
 \`\`\`
 
-Works with Claude Desktop, Cursor, Antigravity. Server runs locally, no data leaves machine.
+Works with MCP-compatible clients such as Claude Code and Cursor. The process runs locally over stdin/stdout, and calls the configured ArchDraw API for diagram generation and layout.
 
 ### Prompt Guide — expanded
 
@@ -144,7 +158,7 @@ An MCP server for diagramming is a local bridge that lets AI assistants read, ed
 
 Capabilities: generate-diagram, update-diagram, validate-diagram, fix-layout, apply-template, export-diagram, list-nodes, save/load-checkpoint, read-me, list_templates, get_diagram_state.
 
-FAQ: works with any MCP-compatible client (Claude Desktop/Code, Cursor); runs locally over stdin/stdout; no cloud required (bundled in /mcp-server).
+FAQ: works with MCP-compatible clients such as Claude Code and Cursor. The process runs locally over stdin/stdout, and calls the configured ArchDraw API for diagram generation and layout.
 
 ## 4. How to generate an architecture diagram from a GitHub repo (${SITE_URL}/repo-diagram)
 

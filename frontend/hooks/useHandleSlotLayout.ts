@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Position, type Node, type Edge } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
+import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import {
   computeDynamicSlotOffsets,
   INCOMING_OUTGOING_GAP,
@@ -18,6 +19,7 @@ import {
   type HandlerRect,
 } from '@/lib/utils/handlerPairScorer';
 import { segmentIntersectsRect } from '@/lib/utils/collisionFreeEdgePath';
+import { useDiagramGeometryPlan } from '@/components/edges/DiagramGeometryProvider';
 
 const HANDLE_TRANSITION =
   'top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease';
@@ -52,9 +54,9 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   return { x, y };
 }
 
-function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string): HandlerRect {
+function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode): HandlerRect {
   const pos = getAbsolutePosition(node, nodes);
-  const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId);
+  const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
   return { x: pos.x, y: pos.y, width: w, height: h };
 }
 
@@ -90,12 +92,13 @@ function buildScorerObstacles(
   excludedIds: Set<string>,
   passableGroupIds: Set<string>,
   renderStyleId?: string,
+  iconMode?: NodeIconMode,
 ): Map<string, HandlerRect> {
   const map = new Map<string, HandlerRect>();
   for (const node of nodes) {
     if (excludedIds.has(node.id)) continue;
     if (isGroupNode(node) && passableGroupIds.has(node.id)) continue;
-    const rect = getNodeRect(node, nodes, renderStyleId);
+    const rect = getNodeRect(node, nodes, renderStyleId, iconMode);
     map.set(node.id, rect);
   }
   return map;
@@ -135,18 +138,15 @@ function resolveScorerSide(
   edges: Edge[],
   direction: 'LR' | 'TD',
   renderStyleId?: string,
+  iconMode?: NodeIconMode,
 ): Position | undefined {
   const data = edge.data as Record<string, unknown> | undefined;
   if (edge.source !== nodeId && edge.target !== nodeId) return undefined;
   const sourceNode = nodes.find((n) => n.id === edge.source);
   const targetNode = nodes.find((n) => n.id === edge.target);
   if (!sourceNode || !targetNode) return undefined;
-  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId);
-  const targetRect = getNodeRect(targetNode, nodes, renderStyleId);
-  const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, sourceRect, targetRect);
-  if (bidirectionalSides) {
-    return edge.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide;
-  }
+  const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId, iconMode);
+  const targetRect = getNodeRect(targetNode, nodes, renderStyleId, iconMode);
   // Explicit manual sides pin; lane sides only bias the scorer.
   // Handle ids do NOT pin sides — floating behavior.
   if (edge.source === nodeId) {
@@ -158,13 +158,17 @@ function resolveScorerSide(
   } else {
     return undefined;
   }
+  const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, sourceRect, targetRect);
+  if (bidirectionalSides) {
+    return edge.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide;
+  }
 
   const excluded = new Set([edge.source, edge.target]);
   const passableGroupIds = new Set<string>([
     ...getAncestorGroupIds(edge.source, nodes),
     ...getAncestorGroupIds(edge.target, nodes),
   ]);
-  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId);
+  const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId, iconMode);
 
   const manualSource = sideFromDataString(data?.sourceSide);
   const manualTarget = sideFromDataString(data?.targetSide);
@@ -227,14 +231,35 @@ function resolveScorerSide(
 function buildNodePositions(
   nodes: Node[],
   renderStyleId?: string,
+  iconMode?: NodeIconMode,
 ): Map<string, { x: number; y: number; width: number; height: number }> {
   const map = new Map<string, { x: number; y: number; width: number; height: number }>();
   for (const n of nodes) {
     const pos = getAbsolutePosition(n, nodes);
-    const { width, height } = getEffectiveNodeDimensions(n, renderStyleId);
+    const { width, height } = getEffectiveNodeDimensions(n, renderStyleId, iconMode);
     map.set(n.id, { x: pos.x, y: pos.y, width, height });
   }
   return map;
+}
+
+const nodePositionCache = new WeakMap<
+  Node[],
+  Map<string, Map<string, { x: number; y: number; width: number; height: number }>>
+>();
+
+function getCachedNodePositions(nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode) {
+  let byStyle = nodePositionCache.get(nodes);
+  if (!byStyle) {
+    byStyle = new Map();
+    nodePositionCache.set(nodes, byStyle);
+  }
+  const key = `${renderStyleId ?? ''}:${iconMode ?? ''}`;
+  let positions = byStyle.get(key);
+  if (!positions) {
+    positions = buildNodePositions(nodes, renderStyleId, iconMode);
+    byStyle.set(key, positions);
+  }
+  return positions;
 }
 
 /**
@@ -251,13 +276,17 @@ function buildNodePositions(
  * only incoming shows only target; both shows two offset ±16.
  */
 export function useHandleSlotLayout(nodeId?: string) {
+  const geometryPlan = useDiagramGeometryPlan();
   const edges = useDiagramStore((s) => s.edges);
   const nodes = useDiagramStore((s) => s.nodes);
   const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
   const renderStyleId = useDiagramStore((s) => s.diagramRenderStyle);
+  const iconMode = useDiagramStore((s) => s.iconMode);
   const direction: 'LR' | 'TD' = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
 
-  const nodePositions = useMemo(() => buildNodePositions(nodes, renderStyleId), [nodes, renderStyleId]);
+  // Every node owns a handle hook. Share the diagram geometry map across those
+  // hooks so a drag rebuilds it once, instead of once per node.
+  const nodePositions = useMemo(() => getCachedNodePositions(nodes, renderStyleId, iconMode), [nodes, renderStyleId, iconMode]);
 
   // Scorer side for each incident edge, memoized per node — same scorer as edgeRouteBuilder.
   const incidentEdges = useMemo(
@@ -269,11 +298,14 @@ export function useHandleSlotLayout(nodeId?: string) {
     if (!nodeId) return new Map<string, Position>();
     const cache = new Map<string, Position>();
     for (const edge of incidentEdges) {
-      const side = resolveScorerSide(edge, nodeId, nodes, edges, direction, renderStyleId);
+      const planned = edge.source === nodeId
+        ? geometryPlan?.sourceSides.get(edge.id)
+        : geometryPlan?.targetSides.get(edge.id);
+      const side = planned ?? resolveScorerSide(edge, nodeId, nodes, edges, direction, renderStyleId, iconMode);
       if (side) cache.set(edge.id, side);
     }
     return cache;
-  }, [incidentEdges, nodeId, nodes, edges, direction, renderStyleId]);
+  }, [incidentEdges, nodeId, nodes, edges, direction, renderStyleId, iconMode, geometryPlan]);
 
   const sidePresence = useMemo(() => {
     const map = new Map<Position, { hasIncoming: boolean; hasOutgoing: boolean }>();
@@ -315,10 +347,10 @@ export function useHandleSlotLayout(nodeId?: string) {
       return edgeSideCache.get(edge.id);
     };
     for (const side of SIDES) {
-      map.set(side, computeDynamicSlotOffsets(nodeId, side, edges, nodePositions, resolver as unknown as (edge: Edge, nodeId: string) => Position | undefined));
+      map.set(side, computeDynamicSlotOffsets(nodeId, side, incidentEdges, nodePositions, resolver as unknown as (edge: Edge, nodeId: string) => Position | undefined));
     }
     return map;
-  }, [nodeId, edges, nodePositions, edgeSideCache]);
+  }, [nodeId, incidentEdges, nodePositions, edgeSideCache]);
 
   const getSlotOffset = (side: Position, type: 'source' | 'target') => {
     if (centeredSides.has(side)) return 0;

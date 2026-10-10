@@ -7,8 +7,9 @@ export type {
   RenderStylePack,
   ResolvedCanvasTokens,
 } from './types';
-export { RENDER_STYLES, getRenderStyle, isRenderStyleId, DEFAULT_RENDER_STYLE_ID } from './registry';
+export { RENDER_STYLES, getRenderStyle, isRenderStyleId, isStudioRenderStyle, DEFAULT_RENDER_STYLE_ID } from './registry';
 export { PRECISION_RENDER_STYLE } from './precision';
+export { STUDIO_METALLIC_RENDER_STYLE } from './studioMetallic';
 export {
   NEUBRUTALISM_RENDER_STYLE,
   BRUTAL_SHADOW_FILTER,
@@ -35,6 +36,7 @@ export {
   BRUTAL_EDGE_ASYNC_DARK,
   BRUTAL_GROUP_FILL_LIGHT,
   BRUTAL_GROUP_FILL_DARK,
+  getBrutalNodeFill,
 } from './neubrutalism';
 export {
   SKETCH_RENDER_STYLE,
@@ -79,4 +81,3 @@ export { applyShapeSurface, type RenderSurface } from './applySurface';
 export { resolveRenderSurface, renderSketchSurface, type ResolveRenderSurfaceInput } from './surface';
 export type { StrokeRenderer } from './strokeRenderer/types';
 export { getStrokeRenderer } from './strokeRenderer';
-

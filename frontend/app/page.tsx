@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import RevampedLanding from '@/components/landing/RevampedLanding';
 
 export const metadata: Metadata = {
-  title: 'ArchDraw — Reimagine your codebase as a visual system',
+  title: 'ArchDraw | Architecture diagrams from code and ideas',
   description:
-    'Turn a GitHub repository, Mermaid diagram, or plain-English description into an editable architecture canvas your team can explore, refine, and share.',
+    'Turn a public GitHub repository or system idea into an editable architecture diagram. Refine the graph in ArchDraw or connect a coding agent.',
   keywords: [
     'system architecture diagram',
     'architecture diagram tool',
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
     'microservices diagram',
     'cloud architecture diagram',
     'AI diagram generator',
+    'coding agent architecture tools',
   ],
   alternates: {
     canonical: 'https://archdraw.hiabhee.online/',
@@ -21,17 +22,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: 'https://archdraw.hiabhee.online/',
-    title: 'ArchDraw — Reimagine your codebase as a visual system',
+    title: 'ArchDraw | Architecture diagrams from code and ideas',
     description:
-      'Turn a GitHub repository, Mermaid, or plain English into an editable architecture map your team can understand at a glance.',
+      'Map public repositories or system ideas, then edit the architecture on a canvas or with a connected coding agent.',
     siteName: 'ArchDraw',
-    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw — system architecture diagram tool' }],
+    images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw system architecture diagram tool' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ArchDraw — Reimagine your codebase as a visual system',
+    title: 'ArchDraw | Architecture diagrams from code and ideas',
     description:
-      'Turn a GitHub repository, Mermaid, or plain English into an editable architecture map.',
+      'Map public repositories or system ideas, then edit the architecture on a canvas or with a connected coding agent.',
     images: ['/api/og/home'],
   },
 };

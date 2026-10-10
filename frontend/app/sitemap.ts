@@ -32,6 +32,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/about`, lastModified: BUILD_DATE, changeFrequency: 'yearly', priority: 0.6 },
     { url: `${base}/contact`, lastModified: BUILD_DATE, changeFrequency: 'yearly', priority: 0.5 },
     { url: `${base}/mcp`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${base}/agent-skill`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.85 },
     { url: `${base}/repo-diagram`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${base}/tutorials`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/editor`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.8 },

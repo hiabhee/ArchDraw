@@ -4,7 +4,7 @@
  * Extracted from collisionFreeEdgePath.ts for single-responsibility.
  */
 import { Position } from '@/lib/utils/edgePositions';
-import { findAstFallbackPath } from './astar';
+import { findAstFallbackPathDetailed } from './astar';
 import { buildSmoothStepSvg } from './svgPathBuilder';
 
 const DEFAULT_BORDER_RADIUS = 24;
@@ -32,6 +32,16 @@ export interface CollisionFreePathParams {
   edgeOffset?: number;
   nodeRects?: Map<string, NodeRect>;
   excludedNodeIds?: Set<string>;
+  maxExpandedStates?: number;
+}
+
+export type RoutePathStatus = 'ok' | 'no-path-found' | 'search-budget-exceeded' | 'invalid-terminal';
+
+export interface RoutePathOutcome {
+  waypoints: Array<{ x: number; y: number }>;
+  status: RoutePathStatus;
+  violatedObstacleIds: string[];
+  expandedStates: number;
 }
 
 export function segmentIntersectsRect(
@@ -742,7 +752,10 @@ function preferLowBendReroute(
   return null;
 }
 
-function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {
+function computeWaypoints(
+  params: CollisionFreePathParams,
+  onAStarResult?: (expandedStates: number, status: 'ok' | 'no-path-found' | 'search-budget-exceeded') => void,
+): Array<{ x: number; y: number }> {
   const {
     sourceX: sx, sourceY: sy,
     targetX: tx, targetY: ty,
@@ -788,7 +801,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   if (sourceIsHorizontal && targetIsHorizontal) {
     middleWaypoints = findSafeHtoHPath(ssx, ssy, ttx, tty, edgeOffset, paddedRects, excludedNodeIds);
     if (!middleWaypoints && paddedRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
+      const outcome = findAstFallbackPathDetailed(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds, params.maxExpandedStates);
+      onAStarResult?.(outcome.expandedStates, outcome.status);
+      middleWaypoints = outcome.path;
     }
     if (!middleWaypoints) {
       const mx = (ssx + ttx) / 2 + edgeOffset;
@@ -802,7 +817,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   } else if (!sourceIsHorizontal && !targetIsHorizontal) {
     middleWaypoints = findSafeVtoVPath(ssx, ssy, ttx, tty, edgeOffset, paddedRects, excludedNodeIds);
     if (!middleWaypoints && paddedRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
+      const outcome = findAstFallbackPathDetailed(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds, params.maxExpandedStates);
+      onAStarResult?.(outcome.expandedStates, outcome.status);
+      middleWaypoints = outcome.path;
     }
     if (!middleWaypoints) {
       const my = (ssy + tty) / 2 + edgeOffset;
@@ -816,7 +833,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   } else if (sourceIsHorizontal) {
     middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, true, paddedRects, excludedNodeIds);
     if (!middleWaypoints && paddedRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
+      const outcome = findAstFallbackPathDetailed(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds, params.maxExpandedStates);
+      onAStarResult?.(outcome.expandedStates, outcome.status);
+      middleWaypoints = outcome.path;
     }
     if (!middleWaypoints) {
       middleWaypoints = [
@@ -828,7 +847,9 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
   } else {
     middleWaypoints = findSafeLShapePath(ssx, ssy, ttx, tty, false, paddedRects, excludedNodeIds);
     if (!middleWaypoints && paddedRects) {
-      middleWaypoints = findAstFallbackPath(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds);
+      const outcome = findAstFallbackPathDetailed(ssx, ssy, ttx, tty, paddedRects, excludedNodeIds, params.maxExpandedStates);
+      onAStarResult?.(outcome.expandedStates, outcome.status);
+      middleWaypoints = outcome.path;
     }
     if (!middleWaypoints) {
       middleWaypoints = [
@@ -887,7 +908,43 @@ function computeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y
 }
 
 export function getCollisionFreeWaypoints(params: CollisionFreePathParams): Array<{ x: number; y: number }> {
-  return computeWaypoints(params);
+  return getCollisionFreeWaypointsDetailed(params).waypoints;
+}
+
+/**
+ * Routes an edge and reports when the best fallback still intersects an
+ * obstacle. `no-path-found` means this bounded legacy candidate search did
+ * not produce a clear route; it does not prove that no route exists.
+ */
+export function getCollisionFreeWaypointsDetailed(params: CollisionFreePathParams): RoutePathOutcome {
+  const values = [params.sourceX, params.sourceY, params.targetX, params.targetY];
+  if (!values.every(Number.isFinite)) {
+    return { waypoints: [], status: 'invalid-terminal', violatedObstacleIds: [], expandedStates: 0 };
+  }
+
+  let searchBudgetExceeded = false;
+  let expandedStates = 0;
+  const waypoints = computeWaypoints(params, (expanded, status) => {
+    expandedStates += expanded;
+    if (status === 'search-budget-exceeded') searchBudgetExceeded = true;
+  });
+  const excluded = params.excludedNodeIds ?? new Set<string>();
+  const violatedObstacleIds: string[] = [];
+  for (const [id, rect] of params.nodeRects ?? []) {
+    if (excluded.has(id)) continue;
+    if (pathCollidesWithNodes(waypoints, new Map([[id, rect]]), new Set())) {
+      violatedObstacleIds.push(id);
+    }
+  }
+
+  return {
+    waypoints,
+    status: violatedObstacleIds.length
+      ? (searchBudgetExceeded ? 'search-budget-exceeded' : 'no-path-found')
+      : 'ok',
+    violatedObstacleIds,
+    expandedStates,
+  };
 }
 
 export function getCollisionFreeSmoothStepPath(params: CollisionFreePathParams): string {

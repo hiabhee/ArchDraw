@@ -1,6 +1,7 @@
 import { STORAGE_KEYS } from '@/lib/config';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import { resolveNodeCollisions } from '@/src/utils/resolveNodeCollisions';
+import { ensureSubgraphBoundsContainChildren } from '@/lib/mermaid/recomputeSubgraphBounds';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { normalizeNodes, sanitizeNodes, stripReservedLayerNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges, sanitizeEdges, applyBidirectionalEdgeFixes } from '../helpers/edgeHelpers';
@@ -19,7 +20,11 @@ function createDefaultGuestCanvas(): CanvasTab {
   };
 }
 
-function normalizeAllCanvases(canvases: CanvasTab[]): CanvasTab[] {
+function normalizeAllCanvases(
+  canvases: CanvasTab[],
+  renderStyleId: string,
+  iconMode: DiagramState['iconMode'],
+): CanvasTab[] {
   return canvases.map((c) => {
     const normalizedNodes = normalizeNodes(c.nodes || []);
     const cleaned = stripReservedLayerNodes(normalizedNodes);
@@ -87,9 +92,11 @@ function normalizeAllCanvases(canvases: CanvasTab[]): CanvasTab[] {
       }
     }
 
+    const containedNodes = ensureSubgraphBoundsContainChildren(resolved, renderStyleId, iconMode);
+
     return {
       ...c,
-      nodes: resolved,
+      nodes: containedNodes,
       edges: normalizedEdges,
     };
   });
@@ -224,7 +231,11 @@ export function rehydrateDiagramState(state: DiagramState): void {
     if (!state.activeCanvasId || !state.canvases.find((c) => c.id === state.activeCanvasId)) {
       state.activeCanvasId = state.canvases[0].id;
     }
-    state.canvases = normalizeAllCanvases(state.canvases);
+    state.canvases = normalizeAllCanvases(
+      state.canvases,
+      state.diagramRenderStyle,
+      state.iconMode,
+    );
   }
 
   if (!state.canvasBackground) {

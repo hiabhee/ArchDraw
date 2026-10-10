@@ -3,7 +3,7 @@
  * instead of brand logos or vendor pictograms.
  */
 
-export type RenderStyleId = 'sketch' | 'precision' | 'neubrutalism' | 'studio-minimal';
+export type RenderStyleId = 'sketch' | 'precision' | 'neubrutalism' | 'studio-minimal' | 'studio-metallic';
 
 /**
  * Technology brands that should be replaced with role-appropriate glyphs in sketch mode.

@@ -3,11 +3,14 @@ import {
   STROKE_WIDTH,
   getDiagramTheme,
   diagramThemeCssVars,
+  resolveThemeConcerns,
+  DEFAULT_DIAGRAM_THEME_ID,
   type DiagramThemeId,
 } from '@/lib/theme/stylingConstants';
 import type { DiagramRenderStyleId, ResolvedCanvasTokens } from './types';
 import { getRenderStyle } from './registry';
 import { getStrokeRenderer } from './strokeRenderer';
+import { metallicSurfaceElevation, metallicSurfaceInset, metallicSurfaceOverlayCss } from './studioMetallic';
 import {
   SKETCH_PAPER_TINT,
   SKETCH_PAPER_DARK,
@@ -69,16 +72,18 @@ export interface ResolveCanvasTokensOpts {
  */
 export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanvasTokens {
   const render = getRenderStyle(opts.renderStyleId);
-  const color = getDiagramTheme(opts.colorThemeId ?? 'default');
+  const color = getDiagramTheme(opts.colorThemeId ?? DEFAULT_DIAGRAM_THEME_ID);
   const mode = opts.isDark ? color.dark : color.light;
+  const concerns = resolveThemeConcerns(color, opts.isDark);
 
   const strokeWidth = STROKE_WIDTH * render.geometry.strokeWidthScale;
   const borderRadius = BORDER_RADIUS * render.geometry.borderRadiusScale;
 
   const isSketch = render.strokeEngine === 'rough';
   const isBrutal = render.strokeEngine === 'brutalist';
+  const isMetallic = render.nodeMaterial === 'metallic';
 
-  const baseVars = diagramThemeCssVars(opts.colorThemeId ?? 'default', opts.isDark);
+  const baseVars = diagramThemeCssVars(opts.colorThemeId ?? DEFAULT_DIAGRAM_THEME_ID, opts.isDark);
   const cssVars: Record<string, string> = {
     ...baseVars,
     '--arch-render-style': render.id,
@@ -88,16 +93,21 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
     '--arch-font-annotation': render.fonts.annotation,
     '--arch-stroke-width': `${strokeWidth}px`,
     '--arch-radius': `${borderRadius}px`,
+    ...(isMetallic ? {
+      '--arch-node-surface-overlay': metallicSurfaceOverlayCss(opts.isDark),
+      '--arch-node-surface-inset': metallicSurfaceInset(opts.isDark),
+      '--arch-node-surface-elevation': metallicSurfaceElevation(opts.isDark),
+    } : {}),
     '--arch-canvas-bg': isSketch
       ? (opts.isDark ? `hsl(${SKETCH_CANVAS_BG_DARK})` : `hsl(${SKETCH_CANVAS_BG_LIGHT})`)
       : isBrutal
         ? (opts.isDark ? `hsl(${BRUTAL_CANVAS_BG_DARK})` : `hsl(${BRUTAL_CANVAS_BG_LIGHT})`)
-        : 'hsl(var(--canvas-bg))',
+        : mode.canvasHint,
     '--arch-canvas-grid': isSketch
       ? (opts.isDark ? `hsl(${SKETCH_GRID_COLOR_DARK})` : `hsl(${SKETCH_GRID_COLOR_LIGHT})`)
       : isBrutal
-        ? (opts.isDark ? `hsl(${BRUTAL_GRID_DARK})` : `hsl(${BRUTAL_GRID_LIGHT})`)
-        : 'hsl(var(--grid-color))',
+      ? (opts.isDark ? `hsl(${BRUTAL_GRID_DARK})` : `hsl(${BRUTAL_GRID_LIGHT})`)
+      : baseVars['--arch-canvas-grid'],
     // Style-specific CSS overrides so resolved colors stay in sync
     ...(isSketch
       ? {
@@ -181,7 +191,7 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
   return {
     render,
     renderStyleId: render.id,
-    colorThemeId: opts.colorThemeId ?? 'default',
+    colorThemeId: opts.colorThemeId ?? DEFAULT_DIAGRAM_THEME_ID,
     isDark: opts.isDark,
     strokeRenderer: getStrokeRenderer(render.strokeEngine),
     colors: {
@@ -196,7 +206,7 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
       edgeAsync,
       shadow: mode.shadow,
     },
-    concerns: color.concerns,
+    concerns,
     strokeWidth,
     borderRadius,
     fonts: render.fonts,

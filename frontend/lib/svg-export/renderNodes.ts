@@ -13,24 +13,27 @@ import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
 import { Fragment, isValidElement, type ReactNode } from 'react';
 import { CustomNodeIcon, toCustomNodeIconName } from '@/components/icons/CustomNodeIcon';
 import { resolveNodeIcon, type NodeIconSource } from '@/lib/nodeIconResolver';
+import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/brandIcons';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/utils/nodeIconVisibility';
+import { shouldStackLabelVertically } from '@/lib/utils/shapeTextLayout';
+import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/utils/shapeNodeDimensions';
 import {
   applyShapeSurface,
   getRenderStyle,
   getStrokeRenderer,
+  isStudioRenderStyle,
   renderSketchBodyMarkup,
   renderSketchSurface,
   resolveRenderSurface,
   BRUTAL_BORDER,
   BRUTAL_BORDER_DARK,
-  BRUTAL_FILL_LIGHT,
-  BRUTAL_FILL_DARK,
   BRUTAL_TITLE_LIGHT,
   BRUTAL_TITLE_DARK,
   BRUTAL_SUBTITLE_LIGHT,
   BRUTAL_SUBTITLE_DARK,
   BRUTAL_GROUP_FILL_LIGHT,
   BRUTAL_GROUP_FILL_DARK,
+  getBrutalNodeFill,
   SKETCH_INK_LIGHT_TITLE,
   SKETCH_INK_LIGHT_SUBTITLE,
   SKETCH_INK_DARK_TITLE,
@@ -46,10 +49,6 @@ import {
   escapeXml,
   hexToRgba,
 } from './svgPrimitives';
-import {
-  getTierColorNormalized,
-  getDarkCategoryStyle,
-} from './nodeLayout';
 import type {
   SystemNodeRenderData,
   ShapeNodeData,
@@ -85,7 +84,7 @@ function iconElementSvg(node: ReactNode): string {
   return `<${node.type}${attributes}>${iconElementSvg(props.children as ReactNode)}</${node.type}>`;
 }
 
-function studioIconSvg(data: ShapeNodeData, color: string, isDark: boolean): string {
+function studioIconSvg(data: ShapeNodeData, color: string, isDark: boolean, selected = false): string {
   const resolved = resolveNodeIcon({
     label: data.label,
     typeId: data.typeId,
@@ -98,6 +97,13 @@ function studioIconSvg(data: ShapeNodeData, color: string, isDark: boolean): str
     color,
     isDark,
   });
+  const brandSlug = isDark && selected && resolved.source !== 'manual'
+    ? getTechnologyBrandSlug(resolved.technology)
+    : null;
+  if (brandSlug) {
+    const brandUrl = technologyBrandIconUrl(brandSlug, resolved.color);
+    return `<image data-brand-icon="${escapeXml(brandSlug)}" href="${escapeXml(brandUrl)}" x="0" y="0" width="36" height="36" preserveAspectRatio="xMidYMid meet" crossorigin="anonymous" />`;
+  }
   const name = toCustomNodeIconName(resolved.icon);
   return name ? `<g data-semantic-icon="${name}">${iconElementSvg(CustomNodeIcon({ name, color, size: 36 }))}</g>` : '';
 }
@@ -112,16 +118,25 @@ export function renderSystemNode(
   const { x, y, width, height, data, selected } = node;
   const sketch = renderStyleId === 'sketch';
 
-  const studio = renderStyleId === 'studio-minimal' && aesthetics;
-  const tierColor = getTierColorNormalized(data.layer);
-  const accentColor = data.accentColor || (studio
-    ? getConcernColor(data.layer || data.serviceType || data.category, aesthetics.concerns)
-    : data.color || tierColor || '#0f766e');
+  const studio = isStudioRenderStyle(renderStyleId) && aesthetics;
+  const accentColor = data.accentColor || getConcernColor(
+    data.layer || data.serviceType || data.category,
+    aesthetics?.concerns,
+  );
 
   const statusColor = STATUS_COLORS[data.status || 'healthy'] || '#10B981';
   const showStatus = data.status && data.status !== 'healthy';
-  const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
-  const catStyle = getDarkCategoryStyle(data.layer);
+  const baseStyles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
+  const styles = aesthetics
+    ? {
+        ...baseStyles,
+        background: aesthetics.colors.nodeFill,
+        border: aesthetics.colors.nodeStroke,
+        titleColor: aesthetics.colors.title,
+        subtitleColor: aesthetics.colors.subtitle,
+        shadow: aesthetics.colors.shadow,
+      }
+    : baseStyles;
 
   let borderCol: string;
   let iconColor: string;
@@ -131,8 +146,8 @@ export function renderSystemNode(
   let styleAttr = '';
 
   if (isDark) {
-    borderCol = selected ? catStyle.border : styles.border;
-    iconColor = catStyle.border;
+    borderCol = selected ? accentColor : styles.border;
+    iconColor = accentColor;
     fillBg = styles.background;
     titleColor = styles.titleColor;
     subtitleColor = styles.subtitleColor;
@@ -212,13 +227,13 @@ export function renderSystemNode(
 
   if (renderStyleId === 'neubrutalism') {
     const border = isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER;
-    const surfFill = isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT;
+    const surfFill = getBrutalNodeFill(accentColor, isDark);
     const nodeTitle = isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT;
     const nodeSubtitle = isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT;
     const font = 'Space Grotesk, Inter, system-ui, sans-serif';
     const shadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
     return `
-    <g transform="translate(${x}, ${y})" filter="url(#${shadowId})">
+    <g transform="translate(${x}, ${y})">
       <rect
         x="0" y="0"
         width="${width}" height="${height}"
@@ -226,6 +241,7 @@ export function renderSystemNode(
         stroke="${border}"
         stroke-width="3"
         rx="6" ry="6"
+        filter="url(#${shadowId})"
       />
       <rect x="0" y="10" width="4" height="${Math.max(12, height - 20)}" fill="${accentColor}" />
       <g transform="translate(16, 12)">
@@ -256,14 +272,28 @@ export function renderSystemNode(
 
   if (studio) {
     const showIcon = resolveNodeIconVisibility(iconMode, data.showIcon);
-    const icon = showIcon ? studioIconSvg(data as ShapeNodeData, accentColor, isDark) : '';
+    const icon = showIcon ? studioIconSvg(data as ShapeNodeData, accentColor, isDark, !!selected) : '';
     const textX = icon ? 70 : 16;
+    const selectedFill = isDark && selected ? '#f7f9fc' : fillBg;
+    const selectedTitle = isDark && selected ? '#111827' : titleColor;
+    const selectedSubtitle = isDark && selected ? '#526174' : subtitleColor;
+    const selectedBorder = isDark
+      ? selected ? hexToRgba(accentColor, 0.78) : 'rgba(148,163,184,0.22)'
+      : borderCol;
+    const cornerRadius = isDark ? 12 : 18;
+    const iconWell = isDark && selected
+      ? `<rect x="10" y="8" width="48" height="48" rx="11" fill="${accentColor}" fill-opacity="0.18" stroke="${accentColor}" stroke-opacity="0.4" />`
+      : `<rect x="10" y="8" width="48" height="48" rx="11" fill="${hexToRgba(accentColor, isDark ? 0.2 : 0.11)}" />`;
     return `
       <g transform="translate(${x}, ${y})">
-        <rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="18" fill="${fillBg}" stroke="${borderCol}" stroke-width="1.5" />
-        ${icon ? `<rect x="10" y="8" width="48" height="48" rx="11" fill="${hexToRgba(accentColor, isDark ? 0.2 : 0.11)}" /><g transform="translate(16, 14)">${icon}</g>` : ''}
-        <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${titleColor}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="16.2" font-weight="600">${escapeXml(data.label || 'Service')}</text>
-        ${data.subtitle ? `<text x="${textX}" y="47" fill="${subtitleColor}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="10.5">${escapeXml(String(data.subtitle))}</text>` : ''}
+        ${isDark && selected ? `<rect x="-3" y="-3" width="${width + 6}" height="${height + 6}" rx="15" fill="none" stroke="${accentColor}" stroke-opacity="0.16" stroke-width="6" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="2.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="${selectedFill}" filter="url(#archdraw-metallic-shadow)" />` : ''}
+        <rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="${selectedFill}" stroke="${selectedBorder}" stroke-width="1.5" />
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
+        ${icon ? `${iconWell}<g transform="translate(16, 14)">${icon}</g>` : ''}
+        <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${selectedTitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="16.2" font-weight="600">${escapeXml(data.label || 'Service')}</text>
+        ${data.subtitle ? `<text x="${textX}" y="47" fill="${selectedSubtitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="10.5">${escapeXml(String(data.subtitle))}</text>` : ''}
         ${showStatus ? `<circle cx="${width - 13}" cy="${height - 13}" r="3" fill="${statusColor}" />` : ''}
       </g>
     `.trim();
@@ -436,7 +466,7 @@ export function renderGroupNode(
                     (data as { color?: string })?.color ||
                     getConcernColor(
                       (data as { layer?: string; label?: string }).layer || (data as { label?: string }).label,
-                      renderStyleId === 'studio-minimal' ? aesthetics?.concerns : undefined,
+                      aesthetics?.concerns,
                     ) ||
                     '#0f766e';
 
@@ -536,7 +566,7 @@ export function renderShapeNode(
 ): string {
   const { x, y, width: W, height: H, data, selected } = node;
   const shapeData = data as ShapeNodeData;
-  const studio = renderStyleId === 'studio-minimal' && aesthetics;
+  const studio = isStudioRenderStyle(renderStyleId) && aesthetics;
   const shape = studio ? 'rounded-rectangle' : shapeData.shape || 'rounded-rectangle';
   const shapeHint = shapeData.category || shapeData.serviceType || shapeData.layer || (
     ['actor', 'monitor', 'mobile'].includes(shapeData.shape || '') ? 'client' :
@@ -544,25 +574,38 @@ export function renderShapeNode(
     shapeData.shape === 'queue' ? 'async' :
     ['cloud', 'dashed-rectangle'].includes(shapeData.shape || '') ? 'external' : 'compute'
   );
-  const color = shapeData.accentColor ?? (studio
-    ? getConcernColor(shapeHint, aesthetics.concerns)
-    : shapeData.color ?? getConcernColor(shapeData.layer) ?? '#0f766e');
+  const color = shapeData.accentColor ?? getConcernColor(shapeHint, aesthetics?.concerns);
   const sketch = renderStyleId === 'sketch';
+  const baseStyles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
+  const styles = aesthetics
+    ? {
+        ...baseStyles,
+        background: aesthetics.colors.nodeFill,
+        border: aesthetics.colors.nodeStroke,
+        titleColor: aesthetics.colors.title,
+        subtitleColor: aesthetics.colors.subtitle,
+        shadow: aesthetics.colors.shadow,
+      }
+    : baseStyles;
   const surface = resolveRenderSurface({
     renderStyleId,
     isDark,
     selected: selected ?? false,
     accentColor: color,
-    fillColor: studio ? aesthetics.colors.nodeFill : shapeData.fillColor,
-    strokeColor: studio ? (selected ? color : hexToRgba(color, isDark ? 0.5 : 0.36)) : shapeData.strokeColor,
+    fillColor: studio ? (isDark && selected ? '#f7f9fc' : aesthetics.colors.nodeFill) : shapeData.fillColor,
+    strokeColor: studio
+      ? (selected
+        ? isDark ? hexToRgba(color, 0.78) : color
+        : isDark ? 'rgba(148,163,184,0.22)' : hexToRgba(color, 0.36))
+      : shapeData.strokeColor,
+    nodeStyle: styles,
   });
-  const styles = isDark ? DARK_NODE_STYLES : LIGHT_NODE_STYLES;
   // Sketch titles/subtitles are warm ink (brown on paper, chalk on board) —
   // not the precision slate.
-  const titleColor = studio ? aesthetics.colors.title : sketch
+  const titleColor = studio ? (isDark && selected ? '#111827' : aesthetics.colors.title) : sketch
     ? isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
     : styles.titleColor;
-  const subtitleColor = studio ? aesthetics.colors.subtitle : sketch
+  const subtitleColor = studio ? (isDark && selected ? '#526174' : aesthetics.colors.subtitle) : sketch
     ? isDark ? SKETCH_INK_DARK_SUBTITLE : SKETCH_INK_LIGHT_SUBTITLE
     : styles.subtitleColor;
   const title = shapeData.label || '';
@@ -651,14 +694,28 @@ export function renderShapeNode(
 
   if (studio) {
     const showIcon = resolveNodeIconVisibility(iconMode, shapeData.showIcon);
-    const icon = showIcon ? studioIconSvg(shapeData, color, isDark) : '';
-    const textX = icon ? 70 : W / 2;
+    const icon = showIcon ? studioIconSvg(shapeData, color, isDark, !!selected) : '';
+    const stackIcon = Boolean(icon) && shouldStackLabelVertically(W, STUDIO_ICON_WELL_PX);
+    const iconX = stackIcon ? (W - STUDIO_ICON_WELL_PX) / 2 : 6;
+    const contentHeight = STUDIO_ICON_WELL_PX + (title ? 18 : 0) + (subtitle ? 14 : 0);
+    const iconY = stackIcon ? Math.max(4, (H - contentHeight) / 2) : 8;
+    const textX = icon && !stackIcon ? iconX + STUDIO_ICON_WELL_PX + 8 : W / 2;
+    const titleY = stackIcon ? iconY + STUDIO_ICON_WELL_PX + 17 : subtitle ? 29 : 39;
+    const subtitleY = stackIcon ? titleY + 14 : 47;
+    const iconWell = isDark && selected
+      ? `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="11" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-opacity="0.4" />`
+      : `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="11" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" />`;
+    const iconGlyphX = iconX + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
+    const iconGlyphY = iconY + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
     return `
       <g transform="translate(${x}, ${y})">
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : ''}
         ${body}
-        ${icon ? `<rect x="10" y="8" width="48" height="48" rx="11" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" /><g transform="translate(16, 14)">${icon}</g>` : ''}
-        ${title ? `<text x="${textX}" y="${subtitle ? 29 : 39}" fill="${titleColor}" font-family="${fontFamily}" font-size="16.2" font-weight="600" text-anchor="${icon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
-        ${subtitle ? `<text x="${textX}" y="47" fill="${subtitleColor}" font-family="${fontFamily}" font-size="10.5" text-anchor="${icon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
+        ${icon ? `${iconWell}<g transform="translate(${iconGlyphX}, ${iconGlyphY})">${icon}</g>` : ''}
+        ${title ? `<text x="${textX}" y="${titleY}" fill="${titleColor}" font-family="${fontFamily}" font-size="16.2" font-weight="600" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
+        ${subtitle ? `<text x="${textX}" y="${subtitleY}" fill="${subtitleColor}" font-family="${fontFamily}" font-size="10.5" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
       </g>
     `.trim();
   }

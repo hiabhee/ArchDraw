@@ -4,9 +4,10 @@ import { DEFAULT_RENDER_STYLE_ID } from '../registry';
 import { SKETCH_PAPER_TINT } from '../sketch';
 
 describe('resolveCanvasTokens', () => {
-  it('defaults to precision render style', () => {
-    const tokens = resolveCanvasTokens({ renderStyleId: null, colorThemeId: 'default', isDark: false });
-    expect(tokens.renderStyleId).toBe('precision');
+  it('defaults to Studio Minimal render style and color theme', () => {
+    const tokens = resolveCanvasTokens({ renderStyleId: null, isDark: false });
+    expect(tokens.renderStyleId).toBe('studio-minimal');
+    expect(tokens.colorThemeId).toBe('studio-minimal');
     expect(tokens.render.strokeEngine).toBe('crisp');
     expect(tokens.strokeRenderer.engine).toBe('crisp');
   });
@@ -48,6 +49,6 @@ describe('resolveCanvasTokens', () => {
   });
 
   it('returns a default render style id constant', () => {
-    expect(DEFAULT_RENDER_STYLE_ID).toBe('precision');
+    expect(DEFAULT_RENDER_STYLE_ID).toBe('studio-minimal');
   });
 });

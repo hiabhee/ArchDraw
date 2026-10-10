@@ -11,6 +11,7 @@ import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { isTextNode } from '@/lib/mermaid/textNodes';
 import { ensureDiagramHeading } from '@/lib/mermaid/diagramHeading';
 import { placeTextNodes } from '@/lib/mermaid/textPlacement';
+import { ensureSubgraphBoundsContainChildren } from '@/lib/mermaid/recomputeSubgraphBounds';
 import logger from '@/lib/logger';
 import type { RFNode } from '@/lib/mermaid/types';
 import type { DiagramState, NodeData } from '../types';
@@ -329,7 +330,7 @@ export const createGraphSlice: StateCreator<
         const newDimensions = calculateNodeDimensions(label, subtitle, { shape: data.shape });
 
         // Update both data and dimensions
-        const nodes = get().nodes.map((n) =>
+        const nodes = ensureSubgraphBoundsContainChildren(get().nodes.map((n) =>
           n.id === id
             ? {
                 ...n,
@@ -339,7 +340,7 @@ export const createGraphSlice: StateCreator<
                 height: newDimensions.height,
               }
             : n
-        );
+        ), get().diagramRenderStyle, get().iconMode);
         const canvases = get().canvases.map((c) =>
           c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
         );
@@ -379,7 +380,7 @@ export const createGraphSlice: StateCreator<
     ) {
       return;
     }
-    const nextNodes = nodes.map((n) => {
+    const resizedNodes = nodes.map((n) => {
       if (n.id !== id) return n;
       const style = { ...(n.style || {}) };
       if (size.width !== undefined) style.width = size.width;
@@ -396,6 +397,11 @@ export const createGraphSlice: StateCreator<
         },
       };
     });
+    const nextNodes = ensureSubgraphBoundsContainChildren(
+      resizedNodes,
+      get().diagramRenderStyle,
+      get().iconMode,
+    );
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId ? { ...c, nodes: nextNodes, updatedAt: Date.now() } : c
     );
@@ -420,18 +426,19 @@ export const createGraphSlice: StateCreator<
     get().saveCanvasToDB(get().activeCanvasId);
   },
 
-  importDiagram: (nodes, edges) => {
+  importDiagram: (nodes, edges, options) => {
     get().pushHistory();
 
+    const preserveTopology = options?.preserveTopology === true;
     const normalizedNodes = normalizeNodes(nodes);
-    const cleanedNodes = stripReservedLayerNodes(normalizedNodes);
+    const cleanedNodes = preserveTopology ? normalizedNodes : stripReservedLayerNodes(normalizedNodes);
     const validatedNodes = validateAndFixNodes(cleanedNodes);
-    const normalizedEdges = normalizeEdges(edges);
+    const normalizedEdges = normalizeEdges(edges, { preserveParallel: preserveTopology });
 
-    const { nodes: clarityNodes, edges: clarityEdges, report } = runClarityCompiler(
-      validatedNodes,
-      normalizedEdges
-    );
+    const compiled = preserveTopology ? null : runClarityCompiler(validatedNodes, normalizedEdges);
+    const clarityNodes = compiled?.nodes ?? validatedNodes;
+    const clarityEdges = compiled?.edges ?? normalizedEdges;
+    const report = compiled?.report ?? { artifactsRemoved: 0, requestResponseCollapsed: 0, spineFound: false, spineNodeCount: 0, warnings: [] };
 
     if (report.warnings.length > 0) {
       logger.warn('[ClarityCompiler]', report.warnings.join('; '));
@@ -441,7 +448,7 @@ export const createGraphSlice: StateCreator<
     // nudge shows as a diagonal slit above the grid line and only snaps to
     // 0° after a click/drag (which triggers re-render + autoStraighten). Fix
     // on import so the first render is already straight.
-    {
+    if (!preserveTopology) {
       const STRAIGHT_THRESHOLD = 12;
       const isVerticalLayout = get().activeLayoutPresetId === 'layered-tb';
       const nodeById = new Map(clarityNodes.map((n) => [n.id, n]));
@@ -498,11 +505,17 @@ export const createGraphSlice: StateCreator<
       }
     }
 
-    const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId);
+    const edgesWithHandles = distributeTargetHandles(clarityNodes, clarityEdges, get().activeLayoutPresetId, { preserveParallel: preserveTopology });
 
     const activeCanvas = get().canvases.find((c) => c.id === get().activeCanvasId);
-    const withHeading = ensureDiagramHeading(clarityNodes, activeCanvas?.name);
-    const placedNodes = placeTextNodes(withHeading as RFNode[]) as Node[];
+    const withHeading = preserveTopology ? clarityNodes : ensureDiagramHeading(clarityNodes, activeCanvas?.name);
+    const placedNodes = preserveTopology
+      ? withHeading
+      : ensureSubgraphBoundsContainChildren(
+          placeTextNodes(withHeading as RFNode[]) as Node[],
+          get().diagramRenderStyle,
+          get().iconMode,
+        );
 
     const canvases = get().canvases.map((c) =>
       c.id === get().activeCanvasId
@@ -656,7 +669,7 @@ export const createGraphSlice: StateCreator<
       ...(parentId ? { parentId, parentNode: parentId, extent: 'parent' as const } : {}),
     };
 
-    const newNodes = [
+    const groupedNodes = [
       ...nodes.filter((n) => !idsToGroup.includes(n.id)),
       groupNode,
       ...selected.map((n) => ({
@@ -674,6 +687,11 @@ export const createGraphSlice: StateCreator<
         },
       })),
     ];
+    const newNodes = ensureSubgraphBoundsContainChildren(
+      groupedNodes,
+      get().diagramRenderStyle,
+      get().iconMode,
+    );
 
     const newCanvases = canvases.map((c) =>
       c.id === activeCanvasId ? { ...c, nodes: newNodes, updatedAt: Date.now() } : c
@@ -748,7 +766,7 @@ export const createGraphSlice: StateCreator<
       }
     }
 
-    const newNodes = nodes.map((n) =>
+    const movedNodes = nodes.map((n) =>
       n.id === nodeId
         ? {
             ...n,
@@ -758,6 +776,11 @@ export const createGraphSlice: StateCreator<
             position: newPosition,
           }
         : n
+    );
+    const newNodes = ensureSubgraphBoundsContainChildren(
+      movedNodes,
+      get().diagramRenderStyle,
+      get().iconMode,
     );
 
     const newCanvases = canvases.map((c) =>

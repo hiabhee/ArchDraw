@@ -1,6 +1,7 @@
 import { Pipeline, pipelineStages, toDomainResult } from '@/lib/pipeline-core';
 import type { DomainPipelineResult, Stage } from '@/lib/pipeline-core';
 import { IngestStage } from './pipeline-stages/IngestionStage';
+import { ResolveRepoHeadStage } from './pipeline-stages/ResolveRepoHeadStage';
 import type { IngestionInput } from './pipeline-stages/IngestionStage';
 import { CacheCheckStage } from './pipeline-stages/CacheCheckStage';
 import { AnalysisStage } from './pipeline-stages/AnalysisStage';
@@ -17,6 +18,7 @@ import type { PipelineProgressEvent } from '@/lib/types/repo-diagram';
 import logger from '@/lib/logger';
 
 const PROGRESS_STAGE_MAP: Record<string, PipelineProgressEvent['stage']> = {
+  'resolve-head': 'ingesting',
   ingesting: 'ingesting',
   'cache-check': 'ingesting',
   analysis: 'detecting_subsystems',
@@ -33,8 +35,9 @@ const PROGRESS_STAGE_MAP: Record<string, PipelineProgressEvent['stage']> = {
 /** Flat stage list — no mega-orchestrator. Exported for characterization tests. */
 export function createRepoDiagramStages(): Stage<IngestionInput, RepoPipelineResult>[] {
   return pipelineStages<IngestionInput, RepoPipelineResult>(
-    new IngestStage(),
+    new ResolveRepoHeadStage(),
     new CacheCheckStage(),
+    new IngestStage(),
     new AnalysisStage(),
     new BaselineStage(),
     new ClassifyStage(),
