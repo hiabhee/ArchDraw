@@ -67,10 +67,6 @@ export const createGraphSlice: StateCreator<
       c.id === activeId ? { ...c, nodes, ...(isStructural ? { updatedAt: Date.now() } : {}) } : c
     );
     set({ canvases });
-
-    if (isStructural) {
-      get().saveCanvasToDB(activeId);
-    }
   },
 
   onEdgesChange: (changes) => {
@@ -88,10 +84,6 @@ export const createGraphSlice: StateCreator<
       c.id === activeId ? { ...c, edges, ...(isStructural ? { updatedAt: Date.now() } : {}) } : c
     );
     set({ canvases });
-
-    if (isStructural) {
-      get().saveCanvasToDB(activeId);
-    }
   },
 
   onConnect: (connection) => {
@@ -111,7 +103,6 @@ export const createGraphSlice: StateCreator<
     );
 
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   addNodeOnEdgeDrop: ({ originNodeId, originHandleType, position }) => {
@@ -173,7 +164,6 @@ export const createGraphSlice: StateCreator<
       selectedNodeId: newNode.id,
       selectedNodeIds: [newNode.id],
     });
-    get().saveCanvasToDB(get().activeCanvasId);
     return newNode.id;
   },
 
@@ -226,7 +216,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   removeNode: (id) => {
@@ -263,7 +252,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes: validatedNodes, edges, updatedAt: Date.now() } : c
     );
     set({ canvases, selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   /**
@@ -316,7 +304,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
     );
     set({ canvases, selectedNodeId: newId, selectedNodeIds: [newId] });
-    get().saveCanvasToDB(get().activeCanvasId);
     return newId;
   },
 
@@ -345,7 +332,6 @@ export const createGraphSlice: StateCreator<
           c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
         );
         set({ canvases });
-        get().saveCanvasToDB(get().activeCanvasId);
         return;
       }
     }
@@ -358,7 +344,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   updateNodeSize: (id, size) => {
@@ -406,7 +391,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes: nextNodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   updateEdgeData: (id, data) => {
@@ -423,7 +407,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   importDiagram: (nodes, edges, options) => {
@@ -523,7 +506,6 @@ export const createGraphSlice: StateCreator<
         : c
     );
     set({ canvases, clarityReport: report });
-    get().saveCanvasToDB(get().activeCanvasId);
     setTimeout(() => get().fitView(), 80);
   },
 
@@ -533,7 +515,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes: [], edges: [], updatedAt: Date.now() } : c
     );
     set({ canvases, selectedNodeId: null });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   deleteSelected: () => {
@@ -590,7 +571,6 @@ export const createGraphSlice: StateCreator<
     );
 
     set({ canvases: syncedCanvases, selectedNodeIds: [], selectedNodeId: null });
-    get().saveCanvasToDB(activeCanvasId);
   },
 
   selectAll: () => {
@@ -697,7 +677,6 @@ export const createGraphSlice: StateCreator<
       c.id === activeCanvasId ? { ...c, nodes: newNodes, updatedAt: Date.now() } : c
     );
     set({ canvases: newCanvases, selectedNodeIds: [], selectedNodeId: groupId });
-    get().saveCanvasToDB(activeCanvasId);
   },
 
   ungroupNodes: (groupId: string) => {
@@ -743,7 +722,6 @@ export const createGraphSlice: StateCreator<
       c.id === activeCanvasId ? { ...c, nodes: newNodes, updatedAt: Date.now() } : c
     );
     set({ canvases: newCanvases, selectedNodeIds: children.map((c) => c.id) });
-    get().saveCanvasToDB(activeCanvasId);
   },
 
   moveToGroup: (nodeId: string, groupId: string | null) => {
@@ -787,7 +765,6 @@ export const createGraphSlice: StateCreator<
       c.id === activeCanvasId ? { ...c, nodes: newNodes, updatedAt: Date.now() } : c
     );
     set({ canvases: newCanvases });
-    get().saveCanvasToDB(activeCanvasId);
   },
 
   loadTemplate: (nodes, edges) => {
@@ -834,7 +811,6 @@ export const createGraphSlice: StateCreator<
         : c
     );
     set({ canvases, selectedNodeId: null, selectedEdgeId: null });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   alignConnectedNodes: () => {
@@ -879,7 +855,6 @@ export const createGraphSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes: updated, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   recalculateHandles: (nodesOverride?: Node[]) => {
@@ -908,7 +883,6 @@ export const createGraphSlice: StateCreator<
       c.id === activeCanvasId ? { ...c, edges: edgesWithHandles, updatedAt: Date.now() } : c
     );
     set({ canvases: nextCanvases });
-    get().saveCanvasToDB(activeCanvasId);
   },
 
   /**
@@ -942,7 +916,6 @@ export const createGraphSlice: StateCreator<
         c.id === activeCanvasId ? { ...c, nodes: updatedNodes, updatedAt: Date.now() } : c
       );
       set({ canvases: newCanvases });
-      get().saveCanvasToDB(activeCanvasId);
       toast.success('Fixed nodes with missing labels');
     } else {
       toast.info('No nodes need fixing - all labels are visible');

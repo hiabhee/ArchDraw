@@ -102,13 +102,17 @@ function normalizeAllCanvases(
   });
 }
 
-function rehydrateGuestNewSession(state: DiagramState): void {
+function dropLegacyGuestKeys(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.guestCanvases);
     localStorage.removeItem('archdraw-guest-canvas');
   } catch {
     // ignore
   }
+}
+
+function rehydrateGuestNewSession(state: DiagramState): void {
+  dropLegacyGuestKeys();
 
   const defaultGuest = createDefaultGuestCanvas();
   state.canvases = [defaultGuest];
@@ -122,8 +126,12 @@ function rehydrateGuestNewSession(state: DiagramState): void {
   }
 }
 
+/** Migrate guest canvases from the legacy pre-persist localStorage keys. */
 function loadGuestCanvasesFromLocalStorage(state: DiagramState): void {
-  if (state.canvases && state.canvases.length > 0) return;
+  if (state.canvases && state.canvases.length > 0) {
+    dropLegacyGuestKeys();
+    return;
+  }
 
   const guestListSaved = localStorage.getItem(STORAGE_KEYS.guestCanvases);
   if (guestListSaved) {
@@ -159,8 +167,6 @@ function loadGuestCanvasesFromLocalStorage(state: DiagramState): void {
             ? state.activeCanvasId
             : guestCanvases[0].id;
 
-        const active = guestCanvases.find((c) => c.id === state.activeCanvasId) || guestCanvases[0];
-        localStorage.setItem('archdraw-guest-canvas', JSON.stringify(active));
       }
     } catch {
       // ignore
@@ -186,9 +192,11 @@ function loadGuestCanvasesFromLocalStorage(state: DiagramState): void {
     state.canvases = [defaultGuest];
     state.activeCanvasId = 'guest-canvas';
     state.openCanvasIds = ['guest-canvas'];
-    localStorage.setItem(STORAGE_KEYS.guestCanvases, JSON.stringify([defaultGuest]));
-    localStorage.setItem('archdraw-guest-canvas', JSON.stringify(defaultGuest));
   }
+
+  // One-time migration: canvases now live only in the zustand persist entry,
+  // which will be written from `state`. Drop the legacy duplicate keys.
+  dropLegacyGuestKeys();
 }
 
 function markGuestSessionActive(): void {

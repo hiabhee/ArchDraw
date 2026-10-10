@@ -49,6 +49,8 @@ export interface CanvasTab {
   nodes: Node[];
   edges: Edge[];
   updatedAt?: number;
+  /** DB `updatedAt` (ms) of the last version this tab loaded or saved. */
+  serverUpdatedAt?: number;
   createdAt?: number;
   isOpen?: boolean;
   isPinned?: boolean;
@@ -112,6 +114,10 @@ export interface DiagramState {
   saveCanvasToDB: (canvasId: string) => void;
   savingState: 'idle' | 'saving' | 'saved';
   setSavingState: (s: 'idle' | 'saving' | 'saved') => void;
+  /** Record the server version after a save; does not bump `updatedAt`. */
+  setCanvasServerVersion: (canvasId: string, serverUpdatedAt: number) => void;
+  /** Replace a canvas with the DB copy (discarding local edits). */
+  reloadCanvasFromDB: (canvasId: string) => Promise<void>;
 
   // ── Selection ─────────────────────────────────────────────────────────────
   selectedNodeId: string | null;

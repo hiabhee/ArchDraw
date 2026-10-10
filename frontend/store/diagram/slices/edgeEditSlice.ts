@@ -38,7 +38,6 @@ export const createEdgeEditSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   updateEdgeData: (edgeId, dataUpdates) => {
@@ -49,7 +48,6 @@ export const createEdgeEditSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   deleteEdge: (edgeId) => {
@@ -60,7 +58,6 @@ export const createEdgeEditSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
     set({ canvases, selectedEdgeId: null });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   onReconnect: (oldEdge, newConnection) => {
@@ -82,6 +79,5 @@ export const createEdgeEditSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 });

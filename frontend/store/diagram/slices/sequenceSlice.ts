@@ -41,6 +41,5 @@ export const createSequenceSlice: StateCreator<
         c.id === canvasId ? { ...c, nodes: [], edges: [], updatedAt: Date.now() } : c
       ),
     }));
-    get().saveCanvasToDB(canvasId);
   },
 });

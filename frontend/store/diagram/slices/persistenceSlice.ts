@@ -1,7 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { Edge, Node } from 'reactflow';
 import { toast } from 'sonner';
-import { STORAGE_KEYS } from '@/lib/config';
 import { fetchUserCanvases as apiGetUserCanvases } from '@/lib/api-client';
 import { validateAndFixNodes } from '@/lib/utils/nodeValidation';
 import type { DiagramState, CanvasTab, SetUserProfileOptions } from '../types';
@@ -10,6 +9,41 @@ import { mergeCanvases } from '../helpers/canvasHelpers';
 import { normalizeNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges } from '../helpers/edgeHelpers';
 import { debouncedSaveCanvasToDB } from '../persistence/dbSave';
+import { withAutoSaveSuppressed } from '../persistence/autoSave';
+
+type CanvasRow = { id: string; name: string; nodes: unknown; edges: unknown; updatedAt: Date | string | null };
+
+function canvasFromRow(d: CanvasRow): CanvasTab {
+  const rawNodes = normalizeNodes((d.nodes as unknown as Node[]) ?? []);
+  const updatedAt = d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now();
+  return {
+    id: d.id,
+    name: d.name,
+    nodes: validateAndFixNodes(rawNodes),
+    edges: normalizeEdges((d.edges as unknown as Edge[]) ?? []),
+    updatedAt,
+    serverUpdatedAt: d.updatedAt ? updatedAt : undefined,
+    isOpen: true,
+    lastAccessedAt: updatedAt,
+  };
+}
+
+const GUEST_STORAGE_WARN_BYTES = 2 * 1024 * 1024;
+let guestSizeCheckTimer: ReturnType<typeof setTimeout> | undefined;
+
+function warnIfGuestStorageLarge(get: () => DiagramState) {
+  clearTimeout(guestSizeCheckTimer);
+  guestSizeCheckTimer = setTimeout(() => {
+    try {
+      const size = JSON.stringify(get().canvases.slice(0, MAX_GUEST_CANVASES)).length;
+      if (size > GUEST_STORAGE_WARN_BYTES) {
+        toast.warning('Your guest canvases are approaching the 2MB size limit. Please sign in to save without limits.');
+      }
+    } catch {
+      // ignore
+    }
+  }, 1500);
+}
 
 function hasCanvasContent(canvases: CanvasTab[]): boolean {
   return canvases.some((c) => (c.nodes?.length ?? 0) > 0 || (c.edges?.length ?? 0) > 0);
@@ -21,6 +55,8 @@ export type PersistenceSlice = Pick<
   | 'setUserProfile'
   | 'savingState'
   | 'setSavingState'
+  | 'setCanvasServerVersion'
+  | 'reloadCanvasFromDB'
   | 'loadCanvasesFromDB'
   | 'saveCanvasToDB'
 >;
@@ -45,38 +81,19 @@ export const createPersistenceSlice: StateCreator<
         set({ userProfile: profile });
         return;
       }
-      let guestCanvas;
-      const guestSaved = typeof window !== 'undefined' ? localStorage.getItem('archdraw-guest-canvas') : null;
-      if (guestSaved) {
-        try {
-          guestCanvas = JSON.parse(guestSaved);
-        } catch {
-          guestCanvas = {
-            id: 'guest-canvas',
-            name: 'Elephant',
-            nodes: [],
-            edges: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            isOpen: true,
-            lastAccessedAt: Date.now(),
-          };
-        }
-      } else {
-        guestCanvas = {
-          id: 'guest-canvas',
-          name: 'Elephant',
-          nodes: [],
-          edges: [],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          isOpen: true,
-          lastAccessedAt: Date.now(),
-        };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('archdraw-guest-canvas', JSON.stringify(guestCanvas));
-        }
-      }
+      // Guest canvases persist through zustand `persist` (archdraw-storage)
+      // only; the legacy archdraw-guest-canvas / guestCanvases keys are read
+      // once during rehydrate for migration and no longer written.
+      const guestCanvas: CanvasTab = {
+        id: 'guest-canvas',
+        name: 'Elephant',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isOpen: true,
+        lastAccessedAt: Date.now(),
+      };
       const targetId = guestCanvas.id || 'guest-canvas';
       set({
         userProfile: profile,
@@ -92,6 +109,29 @@ export const createPersistenceSlice: StateCreator<
   savingState: 'idle',
   setSavingState: (s) => set({ savingState: s }),
 
+  setCanvasServerVersion: (canvasId, serverUpdatedAt) => {
+    set({
+      canvases: get().canvases.map((c) => (c.id === canvasId ? { ...c, serverUpdatedAt } : c)),
+    });
+  },
+
+  reloadCanvasFromDB: async (canvasId) => {
+    try {
+      const rows = (await apiGetUserCanvases()) as CanvasRow[];
+      const row = rows?.find((r) => r.id === canvasId);
+      if (!row) return;
+      const fresh = canvasFromRow(row);
+      withAutoSaveSuppressed(() => set({
+        canvases: get().canvases.map((c) =>
+          c.id === canvasId ? { ...fresh, isOpen: c.isOpen, isPinned: c.isPinned } : c
+        ),
+        ...(get().activeCanvasId === canvasId ? { past: [], future: [] } : {}),
+      }));
+    } catch {
+      toast.error('Could not load the latest version of this canvas');
+    }
+  },
+
   loadCanvasesFromDB: async () => {
     const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
     if (!authEnabled) return;
@@ -103,31 +143,18 @@ export const createPersistenceSlice: StateCreator<
 
       const rows = await apiGetUserCanvases();
       if (rows && rows.length > 0) {
-        const dbCanvases: CanvasTab[] = rows.map(
-          (d: { id: string; name: string; nodes: unknown; edges: unknown; updatedAt: Date | null }) => {
-            const rawNodes = normalizeNodes((d.nodes as unknown as Node[]) ?? []);
-            const sortedNodes = validateAndFixNodes(rawNodes);
-            return {
-              id: d.id,
-              name: d.name,
-              nodes: sortedNodes,
-              edges: normalizeEdges((d.edges as unknown as Edge[]) ?? []),
-              updatedAt: d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now(),
-              isOpen: true,
-              lastAccessedAt: d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now(),
-            };
-          }
-        );
+        const dbCanvases: CanvasTab[] = (rows as CanvasRow[]).map(canvasFromRow);
 
         const mergedCanvases = mergeCanvases(localCanvases, dbCanvases);
 
         const openIds = mergedCanvases.map((c) => c.id);
         const targetCanvas = mergedCanvases.find((c) => c.id === activeCanvasId) || mergedCanvases[0];
-        set({
+        // Server data — don't echo it straight back as saves.
+        withAutoSaveSuppressed(() => set({
           canvases: mergedCanvases,
           openCanvasIds: openIds,
           activeCanvasId: targetCanvas.id,
-        });
+        }));
       }
     } catch {
       // silently fail — guest fallback
@@ -138,23 +165,9 @@ export const createPersistenceSlice: StateCreator<
     const state = get();
     const isGuest = !state.userProfile || state.userProfile.id === 'guest';
     if (isGuest) {
-      try {
-        const guestCanvases = state.canvases.slice(0, MAX_GUEST_CANVASES);
-        const serializedAll = JSON.stringify(guestCanvases);
-        if (serializedAll.length > 2 * 1024 * 1024) {
-          toast.warning(
-            'Your guest canvases are approaching the 2MB size limit. Please sign in to save without limits.'
-          );
-        }
-        localStorage.setItem(STORAGE_KEYS.guestCanvases, serializedAll);
-
-        const active = state.canvases.find((c) => c.id === canvasId) || guestCanvases[0];
-        if (active) {
-          localStorage.setItem('archdraw-guest-canvas', JSON.stringify(active));
-        }
-      } catch {
-        // ignore
-      }
+      // Guest canvases are already persisted by zustand `persist`; just warn
+      // (debounced) when they approach the localStorage budget.
+      warnIfGuestStorageLarge(get);
       return;
     }
     debouncedSaveCanvasToDB(canvasId, get);

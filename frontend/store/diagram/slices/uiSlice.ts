@@ -82,7 +82,6 @@ export const createUiSlice: StateCreator<
       c.id === activeCanvasId ? { ...c, cloudProvider: toggle } : c
     );
     set({ canvases: nextCanvases });
-    get().saveCanvasToDB(activeCanvasId);
   },
   setDiagramChromeMode: (mode) => set({ diagramChromeMode: mode }),
   setDiagramViewMode: (mode) => set({ diagramViewMode: mode }),

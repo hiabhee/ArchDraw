@@ -93,7 +93,6 @@ export const createCanvasSlice: StateCreator<
         future: [],
       });
 
-      get().saveCanvasToDB(id);
       return id;
     }
 
@@ -216,7 +215,6 @@ export const createCanvasSlice: StateCreator<
           past: [],
           future: [],
         });
-        get().saveCanvasToDB(replacementId);
         return;
       }
 
@@ -237,7 +235,6 @@ export const createCanvasSlice: StateCreator<
         past: [],
         future: [],
       });
-      get().saveCanvasToDB(nextActiveId);
       return;
     }
     if (canvases.length <= 1) return;
@@ -304,7 +301,6 @@ export const createCanvasSlice: StateCreator<
       c.id === id ? { ...c, name, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(id);
   },
 
   openCanvas: async (id) => {

@@ -1,11 +1,19 @@
 import { saveUserCanvas as apiSaveUserCanvas, deleteUserCanvasApi as apiDeleteUserCanvas } from '@/lib/api-client';
-import { debounce } from '../helpers/debounce';
 import type { DiagramState } from '../types';
 import logger from '@/lib/logger';
 import { toast } from 'sonner';
 
-/** Debounced persist of a single canvas tab to the API (authenticated users only). */
-async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Promise<void> {
+const SAVE_DEBOUNCE_MS = 1500;
+
+type SaveOptions = {
+  /** Skip the conflict check and overwrite the server copy ("keep mine"). */
+  force?: boolean;
+  /** Use a keepalive request so the save survives page unload. */
+  keepalive?: boolean;
+};
+
+/** Persist one canvas tab to the API (authenticated users only). */
+async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState, options: SaveOptions = {}): Promise<void> {
   const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
   if (!authEnabled) return;
   const state = get();
@@ -27,12 +35,15 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Pro
   }
   state.setSavingState('saving');
   try {
-    await apiSaveUserCanvas({
+    const saved = await apiSaveUserCanvas({
       id: canvasId,
       name: canvas.name,
       nodes: canvas.nodes as object,
       edges: canvas.edges as object,
-    });
+      ...(options.force || canvas.serverUpdatedAt === undefined ? {} : { baseUpdatedAt: canvas.serverUpdatedAt }),
+    }, { keepalive: options.keepalive }) as { updatedAt?: string } | null;
+    const serverUpdatedAt = saved?.updatedAt ? new Date(saved.updatedAt).getTime() : NaN;
+    if (Number.isFinite(serverUpdatedAt)) get().setCanvasServerVersion(canvasId, serverUpdatedAt);
     state.setSavingState('saved');
     setTimeout(() => {
       if (get().savingState === 'saved') get().setSavingState('idle');
@@ -59,6 +70,21 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Pro
     }
     state.setSavingState('idle');
     // Surface actionable message instead of generic "Failed to save canvas" console error
+    if (e.code === 'CANVAS_CONFLICT') {
+      toast.error(`"${canvas.name}" was changed in another tab or device.`, {
+        id: `canvas-conflict-${canvasId}`,
+        duration: Infinity,
+        action: {
+          label: 'Keep mine',
+          onClick: () => { void enqueueSave(canvasId, get, { force: true }); },
+        },
+        cancel: {
+          label: 'Load theirs',
+          onClick: () => { void get().reloadCanvasFromDB(canvasId); },
+        },
+      });
+      return;
+    }
     if (e.status === 401) {
       toast.error('Session expired — please sign in again to sync');
       return;
@@ -83,15 +109,58 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState): Pro
   }
 }
 
-export async function flushCanvasSaveToDB(canvasId: string, get: () => DiagramState): Promise<void> {
-  debouncedSaveCanvasToDB.cancel();
-  await saveCanvasToDBNow(canvasId, get);
+// Per-canvas debounce timers. A single shared debounce meant editing canvas A
+// and then touching canvas B within the window silently dropped A's save.
+const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Saves for the same canvas run one at a time so each carries the server
+// version returned by the previous one (otherwise they'd 409 each other).
+const inflightSaves = new Map<string, Promise<void>>();
+let latestGet: (() => DiagramState) | null = null;
+
+function enqueueSave(canvasId: string, get: () => DiagramState, options?: SaveOptions): Promise<void> {
+  const previous = inflightSaves.get(canvasId) ?? Promise.resolve();
+  const next = previous.catch(() => {}).then(() => saveCanvasToDBNow(canvasId, get, options));
+  inflightSaves.set(canvasId, next);
+  void next.finally(() => {
+    if (inflightSaves.get(canvasId) === next) inflightSaves.delete(canvasId);
+  });
+  return next;
 }
 
-/** Debounced persist of a single canvas tab to the API (authenticated users only). */
-export const debouncedSaveCanvasToDB = debounce((canvasId: string, get: () => DiagramState) => {
-  void saveCanvasToDBNow(canvasId, get);
-}, 1500);
+/** Debounced persist of a single canvas tab, debounced independently per canvas. */
+export function debouncedSaveCanvasToDB(canvasId: string, get: () => DiagramState): void {
+  latestGet = get;
+  clearTimeout(pendingTimers.get(canvasId));
+  pendingTimers.set(canvasId, setTimeout(() => {
+    pendingTimers.delete(canvasId);
+    void enqueueSave(canvasId, get);
+  }, SAVE_DEBOUNCE_MS));
+}
+
+export async function flushCanvasSaveToDB(canvasId: string, get: () => DiagramState): Promise<void> {
+  clearTimeout(pendingTimers.get(canvasId));
+  pendingTimers.delete(canvasId);
+  await enqueueSave(canvasId, get);
+}
+
+/** Immediately send every debounced-but-unsent save (e.g. on page hide). */
+export function flushAllPendingCanvasSaves(options: { keepalive?: boolean } = {}): Promise<void[]> {
+  const get = latestGet;
+  const ids = Array.from(pendingTimers.keys());
+  for (const id of ids) clearTimeout(pendingTimers.get(id));
+  pendingTimers.clear();
+  if (!get) return Promise.resolve([]);
+  return Promise.all(ids.map((id) => enqueueSave(id, get, { keepalive: options.keepalive })));
+}
+
+if (typeof window !== 'undefined') {
+  // Without this, edits made in the last debounce window before closing the
+  // tab never reached the server for signed-in users.
+  window.addEventListener('pagehide', () => { void flushAllPendingCanvasSaves({ keepalive: true }); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flushAllPendingCanvasSaves({ keepalive: true });
+  });
+}
 
 export async function deleteCanvasFromDB(canvasId: string, get: () => DiagramState): Promise<void> {
   const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';

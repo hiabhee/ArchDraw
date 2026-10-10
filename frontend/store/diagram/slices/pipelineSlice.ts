@@ -34,7 +34,6 @@ export const createPipelineSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes: validatedNodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   setEdges: (edges) => {
@@ -43,7 +42,6 @@ export const createPipelineSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges: normalized, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   appendNode: (node) => {
@@ -52,7 +50,6 @@ export const createPipelineSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, nodes, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   appendEdge: (edge) => {
@@ -61,7 +58,6 @@ export const createPipelineSlice: StateCreator<
       c.id === get().activeCanvasId ? { ...c, edges, updatedAt: Date.now() } : c
     );
     set({ canvases });
-    get().saveCanvasToDB(get().activeCanvasId);
   },
 
   startGeneration: () => {

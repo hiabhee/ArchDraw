@@ -15,6 +15,7 @@ import { createPipelineSlice } from './diagram/slices/pipelineSlice';
 import { createEdgeEditSlice } from './diagram/slices/edgeEditSlice';
 import { createGraphSlice } from './diagram/slices/graphSlice';
 import { registerFitViewCallback } from './diagram/fitView';
+import { installCanvasAutoSave } from './diagram/persistence/autoSave';
 
 export type { GuideLine, NodeData, CanvasTab, UserProfile } from './diagram/types';
 export { registerFitViewCallback };
@@ -65,14 +66,26 @@ const useDiagramStoreRaw = create<DiagramState>()(
   )
 );
 
+// Persist canvases from one subscription instead of per-mutation calls.
+// Installed after hydration so restoring from localStorage doesn't re-save
+// every canvas on page load.
+if (typeof window !== 'undefined') {
+  let installed = false;
+  const install = () => {
+    if (installed) return;
+    installed = true;
+    installCanvasAutoSave(useDiagramStoreRaw);
+  };
+  if (useDiagramStoreRaw.persist.hasHydrated()) install();
+  else useDiagramStoreRaw.persist.onFinishHydration(install);
+}
+
 export const useDiagramStore = Object.assign(
-  (selector?: (state: DiagramState) => unknown, equalityFn?: (a: unknown, b: unknown) => boolean) => {
+  (selector?: (state: DiagramState) => unknown) => {
     if (selector) {
-      const wrappedSelector = (state: DiagramState) => {
-        const proxied = deriveNodesAndEdges(state);
-        return selector(proxied);
-      };
-      return (useDiagramStoreRaw as (selector: (state: DiagramState) => unknown, equalityFn?: (a: unknown, b: unknown) => boolean) => unknown)(wrappedSelector, equalityFn);
+      // zustand v5 hooks take no equality fn; use `useShallow` for object selectors.
+      const wrappedSelector = (state: DiagramState) => selector(deriveNodesAndEdges(state));
+      return (useDiagramStoreRaw as (selector: (state: DiagramState) => unknown) => unknown)(wrappedSelector);
     }
     const state = useDiagramStoreRaw();
     return deriveNodesAndEdges(state);
