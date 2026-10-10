@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import { Position, type Node, type Edge } from 'reactflow';
-import { useDiagramStore } from '@/store/diagramStore';
 import { getEffectiveNodeDimensions } from '@/lib/utils/shapeNodeDimensions';
 import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 import {
@@ -20,6 +19,7 @@ import {
 } from '@/lib/utils/handlerPairScorer';
 import { segmentIntersectsRect } from '@/lib/utils/collisionFreeEdgePath';
 import { useDiagramGeometryPlan } from '@/components/edges/DiagramGeometryProvider';
+import { useCanvasView, useHostGraph } from '@/lib/canvas/CanvasHostContext';
 
 const HANDLE_TRANSITION =
   'top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease, transform 0.2s ease';
@@ -277,12 +277,10 @@ function getCachedNodePositions(nodes: Node[], renderStyleId?: string, iconMode?
  */
 export function useHandleSlotLayout(nodeId?: string) {
   const geometryPlan = useDiagramGeometryPlan();
-  const edges = useDiagramStore((s) => s.edges);
-  const nodes = useDiagramStore((s) => s.nodes);
-  const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
-  const renderStyleId = useDiagramStore((s) => s.diagramRenderStyle);
-  const iconMode = useDiagramStore((s) => s.iconMode);
-  const direction: 'LR' | 'TD' = activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+  // The graph and view of the host rendering this node — not the editor's
+  // active canvas, which is unrelated in share/embed/tutorial views.
+  const { nodes, edges } = useHostGraph();
+  const { renderStyleId, iconMode, direction } = useCanvasView();
 
   // Every node owns a handle hook. Share the diagram geometry map across those
   // hooks so a drag rebuilds it once, instead of once per node.

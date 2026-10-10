@@ -1,6 +1,7 @@
 'use client';
 
 import type { NodeStyleConfig } from '@/lib/theme/stylingConstants';
+import { horizontalPipeGeometry, verticalDrumGeometry } from '@/lib/theme/shapeGeometry';
 import {
   BrutalBody,
   Handles,
@@ -75,21 +76,8 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
   const color = data.accentColor ?? data.color ?? '#0f766e';
   const surface = resolveShapeSurface(isDark, styles, selected, color, sketch, false, data.fillColor, data.strokeColor);
   const { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge } = cylinderShades(isDark, styles);
-  const RY = Math.max(10, Math.round(H * 0.12));
-  const rx = (W - 4) / 2;
-  const cx = W / 2;
-  const left = 2;
-  const right = W - 2;
-  const topY = RY;
-  const bottomY = H - RY;
-  const silhouette = [
-    `M ${left} ${topY}`,
-    `L ${left} ${bottomY}`,
-    `A ${rx} ${RY} 0 0 0 ${right} ${bottomY}`,
-    `L ${right} ${topY}`,
-    `A ${rx} ${RY} 0 0 1 ${left} ${topY}`,
-    'Z',
-  ].join(' ');
+  // Geometry is shared with the SVG export (shapeGeometry); only paint differs.
+  const { RY, rx, cx, left, right, topY, bottomY, silhouette, backRim, frontRim } = verticalDrumGeometry(W, H);
   return (
     <div className="shape-node" style={{ width: W, height: H, position: 'relative', zIndex: 2 }}>
       {backplates.map((layer, i) => (
@@ -117,7 +105,7 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
         <ellipse cx={cx} cy={bottomY} rx={rx} ry={RY} fill={sideShade} stroke="none" />
         {/* Back rim (upper arc, hidden behind body) — dashed; front rim (lower arc) — solid */}
         <path
-          d={`M ${left} ${bottomY} A ${rx} ${RY} 0 0 1 ${right} ${bottomY}`}
+          d={backRim}
           fill="none"
           stroke={hiddenEdge}
           strokeWidth={surface.strokeWidth}
@@ -125,7 +113,7 @@ function VerticalDrumCylinder({ id, data, selected, backplates, isDark, styles, 
           strokeLinecap="round"
         />
         <path
-          d={`M ${left} ${bottomY} A ${rx} ${RY} 0 0 0 ${right} ${bottomY}`}
+          d={frontRim}
           fill="none"
           stroke={surface.stroke}
           strokeWidth={surface.strokeWidth}
@@ -209,24 +197,8 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
   }
 
   const { topHighlight, bodyShade, sideShade, sideEdge, hiddenEdge } = cylinderShades(isDark, styles);
-  const inset = 2;
-  const R = Math.max(8, Math.round((H - inset * 2) / 2));
-  const midY = H / 2;
-  const leftCx = inset + R;
-  const rightCx = W - inset - R;
-  const bodyTop = midY - R;
-  const bodyBot = midY + R;
-  const bodyW = Math.max(0, rightCx - leftCx);
-
-  const silhouette = [
-    `M ${leftCx - R} ${midY}`,
-    `A ${R} ${R} 0 0 1 ${leftCx} ${bodyTop}`,
-    `L ${rightCx} ${bodyTop}`,
-    `A ${R} ${R} 0 0 1 ${rightCx} ${bodyBot}`,
-    `L ${leftCx} ${bodyBot}`,
-    `A ${R} ${R} 0 0 1 ${leftCx - R} ${midY}`,
-    'Z',
-  ].join(' ');
+  // Geometry is shared with the SVG export (shapeGeometry); only paint differs.
+  const { R, midY, leftCx, rightCx, bodyTop, bodyBot, bodyW, silhouette, backRim, frontRim } = horizontalPipeGeometry(W, H);
 
   const centralSafeMax = Math.max(72, Math.min(labelMaxWidth, bodyW > 0 ? bodyW - 12 : labelMaxWidth));
   return (
@@ -268,7 +240,7 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
 
         {/* Far opening: back rim dashed, front rim solid — no filled end cap */}
         <path
-          d={`M ${rightCx} ${bodyTop} A ${R} ${R} 0 0 0 ${rightCx} ${bodyBot}`}
+          d={backRim}
           fill="none"
           stroke={hiddenEdge}
           strokeWidth={surface.strokeWidth}
@@ -276,7 +248,7 @@ export function HorizontalPipeCylinder({ id, data, selected, backplates, isDark,
           strokeLinecap="round"
         />
         <path
-          d={`M ${rightCx} ${bodyTop} A ${R} ${R} 0 0 1 ${rightCx} ${bodyBot}`}
+          d={frontRim}
           fill="none"
           stroke={surface.stroke}
           strokeWidth={surface.strokeWidth}

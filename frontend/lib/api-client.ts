@@ -12,16 +12,23 @@ export async function fetchUserCanvases() {
   return res.json();
 }
 
+// Browsers cap keepalive request bodies at 64KB.
+const KEEPALIVE_MAX_BYTES = 60_000;
+
 export async function saveUserCanvas(data: {
   id: string;
   name: string;
   nodes: unknown;
   edges: unknown;
-}) {
+  /** Server updatedAt (ms) this edit is based on; enables conflict detection. */
+  baseUpdatedAt?: number;
+}, options: { keepalive?: boolean } = {}) {
+  const body = JSON.stringify(data);
   const res = await fetch('/api/user/canvases', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body,
+    keepalive: Boolean(options.keepalive) && body.length < KEEPALIVE_MAX_BYTES,
   });
   if (!res.ok) {
     let details: Record<string, unknown> = {};

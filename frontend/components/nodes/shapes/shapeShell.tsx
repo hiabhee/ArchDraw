@@ -7,7 +7,7 @@ import { countPipeLabelLines } from '@/lib/utils/nodeSizing';
 import { getDiamondLabelNudge, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/utils/shapeTextLayout';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
-import { useDiagramStore } from '@/store/diagramStore';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
 import { NodeIcon } from '@/components/NodeIcon';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
@@ -81,7 +81,7 @@ export function Label({
   isDark?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const iconMode = useDiagramStore((s) => s.iconMode);
+  const { iconMode } = useCanvasView();
   const layout = studio || hideIcon ? 'default' : resolveShapeLabelLayout(shape, data, iconMode);
   const labelEdit = useInlineLabelEdit({
     nodeId,

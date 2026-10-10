@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import { ShareModal } from '@/components/ShareModal';
@@ -28,14 +29,50 @@ import { resolveDiagramPresentation } from '@/lib/utils/diagramPresentation';
 export function Toolbar() {
   const router = useRouter();
   const {
-    clearDiagram, nodes, edges, importDiagram,
-    undo, redo, past, future,
-    canvases, activeCanvasId, removeCanvas,
-    savingState, userProfile, setSidebarOpen, sidebarOpen,
+    clearDiagram,
+    nodes,
+    edges,
+    importDiagram,
+    undo,
+    redo,
+    past,
+    future,
+    canvases,
+    activeCanvasId,
+    removeCanvas,
+    savingState,
+    userProfile,
+    setSidebarOpen,
+    sidebarOpen,
     sequenceDiagrams,
-    isPenModeActive, setPenModeActive,
-    diagramViewMode, setDiagramViewMode,
-  } = useDiagramStore();
+    isPenModeActive,
+    setPenModeActive,
+    diagramViewMode,
+    setDiagramViewMode,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      clearDiagram: s.clearDiagram,
+      nodes: s.nodes,
+      edges: s.edges,
+      importDiagram: s.importDiagram,
+      undo: s.undo,
+      redo: s.redo,
+      past: s.past,
+      future: s.future,
+      canvases: s.canvases,
+      activeCanvasId: s.activeCanvasId,
+      removeCanvas: s.removeCanvas,
+      savingState: s.savingState,
+      userProfile: s.userProfile,
+      setSidebarOpen: s.setSidebarOpen,
+      sidebarOpen: s.sidebarOpen,
+      sequenceDiagrams: s.sequenceDiagrams,
+      isPenModeActive: s.isPenModeActive,
+      setPenModeActive: s.setPenModeActive,
+      diagramViewMode: s.diagramViewMode,
+      setDiagramViewMode: s.setDiagramViewMode,
+    })),
+  );
 
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);

@@ -3,6 +3,8 @@
 import { memo, useCallback, useEffect, useRef, useState, useMemo, useLayoutEffect } from 'react';
 import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { NodeHandles } from '@/components/nodes/NodeHandles';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
+import { useCanvasTheme } from '@/lib/theme';
 import { useDiagramStore } from '@/store/diagramStore';
 import {
   TEXT_LABEL_FONT_SIZE,
@@ -39,7 +41,7 @@ function resolveTextLabelContent(data: TextLabelNodeData): string {
 
 function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
   const updateNodeInternals = useUpdateNodeInternals();
-  const isDark = useDiagramStore((s) => s.darkMode);
+  const { isDark } = useCanvasTheme();
   const resolvedText = resolveTextLabelContent(data);
   const textColor = resolveTextLabelColor(data.color, isDark);
   const [editing, setEditing] = useState(false);
@@ -82,19 +84,22 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
     }
   }
 
+  const { readOnly } = useCanvasView();
   const persistTextLabel = useCallback(
     (patch: Partial<TextLabelNodeData>) => {
+      if (readOnly) return;
       useDiagramStore.getState().updateNodeData(id, patch);
     },
-    [id],
+    [id, readOnly],
   );
 
   const syncNodeDimensions = useCallback(
     (content: string, size: TextSize) => {
+      if (readOnly) return;
       const dims = estimateTextNodeSize(content || 'Text', size);
       useDiagramStore.getState().updateNodeSize(id, { width: dims.width, height: dims.height });
     },
-    [id],
+    [id, readOnly],
   );
 
   const updateNodeFontSize = useCallback(

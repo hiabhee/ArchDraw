@@ -1,6 +1,7 @@
 'use client';
 
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 import { X, Pin, Plus, MoreVertical, Trash2, Search } from 'lucide-react';
 import { useState } from 'react';
@@ -21,7 +22,17 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
     removeCanvas,
     renameCanvas,
     addCanvas,
-  } = useDiagramStore();
+  } = useDiagramStore(
+    useShallow((s) => ({
+      canvases: s.canvases,
+      activeCanvasId: s.activeCanvasId,
+      openCanvas: s.openCanvas,
+      togglePinCanvas: s.togglePinCanvas,
+      removeCanvas: s.removeCanvas,
+      renameCanvas: s.renameCanvas,
+      addCanvas: s.addCanvas,
+    })),
+  );
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');

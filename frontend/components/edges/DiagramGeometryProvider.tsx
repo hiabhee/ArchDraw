@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, useState, type ReactNode } from 'react';
 import { useStore, type Edge, type Node, type ReactFlowState } from 'reactflow';
-import { useDiagramStore } from '@/store/diagramStore';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
 import { computeDiagramGeometryPreview, computeDiagramGeometryPlan, geometrySnapshotKey, type DiagramGeometryPlan } from '@/lib/utils/diagramGeometry';
 import { computeDiagramGeometryInWorker } from '@/lib/utils/diagramGeometryWorkerClient';
 import type { EdgeRouteHandleAnchors } from '@/lib/utils/edgeRouteBuilder';
@@ -62,11 +62,7 @@ export function DiagramGeometryProvider({
   edges: Edge[];
   children: ReactNode;
 }) {
-  const direction = useDiagramStore((state): 'LR' | 'TD' => state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR');
-  const activeCanvasId = useDiagramStore((state) => state.activeCanvasId);
-  const planStoreKey = activeCanvasId ?? 'active-canvas';
-  const renderStyleId = useDiagramStore((state) => state.diagramRenderStyle);
-  const iconMode = useDiagramStore((state) => state.iconMode);
+  const { direction, planKey: planStoreKey, renderStyleId, iconMode } = useCanvasView();
   const [workerPlan, setWorkerPlan] = useState<DiagramGeometryPlan | null>(null);
   const settledPlan = useSyncExternalStore(
     (listener) => subscribeToSettledPlan(planStoreKey, listener),

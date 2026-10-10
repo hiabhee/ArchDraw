@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARCH_ICON_IDS, CUSTOM_ICON_SET } from '@/lib/archIconCatalog';
 import { AWS_TO_ARCH_ICON, toCanvasArchIcon } from '@/lib/iconAliases';
-import { toCustomNodeIconName } from '@/components/icons/CustomNodeIcon';
+import { toCustomNodeIconName } from '@/lib/icons/CustomNodeIcon';
 
 describe('custom architecture icons', () => {
   it('maps every catalog id to a canvas glyph', () => {

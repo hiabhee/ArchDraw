@@ -1,6 +1,7 @@
 'use client';
 import { memo, useState, useRef, useEffect, useMemo } from 'react';
 import { NodeProps, NodeResizer, useUpdateNodeInternals } from 'reactflow';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { hexToRgba } from '@/lib/utils';
@@ -41,10 +42,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
     return () => ro.disconnect();
   }, []);
 
-  const handleResizeEnd = () => {
-    const state = useDiagramStore.getState();
-    state.saveCanvasToDB(state.activeCanvasId);
-  };
+  const { readOnly } = useCanvasView();
 
   const dataRec = data as {
     accentColor?: string;
@@ -61,7 +59,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   // editing. Clear the one-shot flag so reloading a saved canvas doesn't
   // re-enter edit mode.
   useEffect(() => {
-    if (!dataRec.autoStartLabelEdit) return;
+    if (!dataRec.autoStartLabelEdit || readOnly) return;
     useDiagramStore.getState().updateNodeData(id, { autoStartLabelEdit: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per mount, on creation only
   }, [id]);
@@ -252,7 +250,6 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
           border: `1.5px solid ${hexToRgba(color, 0.7)}`,
           borderRadius: 2,
         }}
-        onResizeEnd={handleResizeEnd}
       />
       {/* Quiet caption label - for loop groups, show at bottom with repeat icon */}
       {!isLoop && (

@@ -4,6 +4,7 @@ import { useState, forwardRef, useImperativeHandle, useCallback, useRef } from '
 import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/authStore';
 import { analytics } from '@/lib/analytics';
 import logger from '@/lib/logger';
@@ -290,7 +291,7 @@ export interface ExportControlsHandle {
 }
 
 export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsProps>(function ExportControls({ getExportFilename }, ref) {
-  const { nodes, edges } = useDiagramStore();
+  const { nodes, edges } = useDiagramStore(useShallow((s) => ({ nodes: s.nodes, edges: s.edges })));
   const { user } = useAuthStore();
   const tier = getUserTier(user?.id);
 

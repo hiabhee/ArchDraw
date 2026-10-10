@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { CanvasPreviewPopover } from './CanvasPreviewPopover';
 
 function formatRelativeTime(timestamp?: number): string {
@@ -22,7 +23,7 @@ function formatRelativeTime(timestamp?: number): string {
 
 export function RecentCanvases() {
   const router = useRouter();
-  const { canvases, switchCanvas } = useDiagramStore();
+  const { canvases, switchCanvas } = useDiagramStore(useShallow((s) => ({ canvases: s.canvases, switchCanvas: s.switchCanvas })));
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
 

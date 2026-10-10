@@ -1,7 +1,7 @@
 'use client';
 
 import { iconRegistry } from '@/lib/iconRegistry';
-import { CustomNodeIcon, toCustomNodeIconName } from './icons/CustomNodeIcon';
+import { CustomNodeIcon, toCustomNodeIconName } from '@/lib/icons/CustomNodeIcon';
 import { filterIconForMode, type RenderStyleId } from '@/lib/iconModeFilter';
 import { normalizeColor } from '@/lib/semanticColors';
 

@@ -153,7 +153,11 @@ export function EdgeLabel({
       : (isDark ? mixHex(lineColor, '#e2e8f0', 0.55) : mixHex(lineColor, '#334155', 0.45))
     : sketch
       ? isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
-      : isDark ? '#94a3b8' : '#64748b';
+      : brutal
+        // Brutal chips sit on a near-black pill in dark mode — needs
+        // near-white text, not the muted slate of precision labels.
+        ? isDark ? '#e9eff6' : '#1a1a1a'
+        : isDark ? '#94a3b8' : '#64748b';
 
   const pillStyle: React.CSSProperties = sketch
     ? {

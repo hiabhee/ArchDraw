@@ -17,16 +17,16 @@ import 'reactflow/dist/style.css';
 import { Download, Sun, Moon, MoveHorizontal, MoveVertical, Loader2, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
-import { useDiagramStore } from '@/store/diagramStore';
 import { assignEdgeColors } from '@/lib/edgeColors';
 import { layoutDiagramViaMermaid, type LayoutDirection } from '@/lib/mermaid/relayout';
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
-import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/components/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme';
 import '@/components/nodes/nodeStyles.css';
+import { CanvasHostProvider, type CanvasHost } from '@/lib/canvas/CanvasHostContext';
 
 interface SharedCanvas {
   id: string;
@@ -134,11 +134,10 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     else if (style === 'precision') setRenderStyle('precision');
   }, []);
 
+  // The shared diagram's look is passed to nodes via CanvasHostProvider below.
+  // It used to be written into the (persisted) editor store, which permanently
+  // replaced the visitor's own render-style preference.
   useEffect(() => {
-    useDiagramStore.setState({
-      diagramRenderStyle: renderStyle,
-      diagramStyleTheme: renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? 'studio-minimal' : 'slate',
-    });
     if (renderStyle === 'sketch') {
       ensureSketchFontLoaded();
     } else {
@@ -223,10 +222,16 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     [laidOutEdges, edges, isDark],
   );
 
-  // Sync darkMode in diagram store so node CSS picks up the theme
-  useEffect(() => {
-    useDiagramStore.setState({ darkMode: isDark });
-  }, [isDark]);
+  const canvasHost = useMemo<CanvasHost>(() => ({
+    readOnly: true,
+    nodes: displayedNodes,
+    edges: displayedEdges,
+    renderStyleId: renderStyle,
+    colorThemeId: renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? 'studio-minimal' : 'slate',
+    direction: layoutDir,
+    isDark,
+    planKey: `share:${canvasId ?? 'none'}`,
+  }), [displayedNodes, displayedEdges, renderStyle, layoutDir, isDark, canvasId]);
 
   if (!canvas) {
     return (
@@ -433,6 +438,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       )}
 
       <div className="w-full h-full pt-12">
+        <CanvasHostProvider value={canvasHost}>
         <DiagramGeometryProvider nodes={nodes} edges={displayedEdges}>
         <ReactFlow
           nodes={displayedNodes}
@@ -478,6 +484,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           />
         </ReactFlow>
         </DiagramGeometryProvider>
+        </CanvasHostProvider>
       </div>
     </div>
   );

@@ -3,8 +3,9 @@
 import { useRef, useState, useCallback, useMemo } from 'react';
 import { X, Type, Search, Copy, Trash2, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { ShapeType } from '@/components/ShapeNode';
-import { CustomNodeIcon, type CustomNodeIconName } from '@/components/icons/CustomNodeIcon';
+import { CustomNodeIcon, type CustomNodeIconName } from '@/lib/icons/CustomNodeIcon';
 import { ARCH_ICON_CATALOG, ARCH_ICON_CATEGORY_LABELS, type ArchIconCategory } from '@/lib/archIconCatalog';
 import { resolveNodeIcon } from '@/lib/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
@@ -29,7 +30,21 @@ const SHAPES: { value: ShapeType; label: string; icon: string }[] = [
 ];
 
 function EdgePropertiesPanel() {
-  const { selectedEdgeId, edges, updateEdgeLabel, updateEdgeData, setSelectedEdgeId } = useDiagramStore();
+  const {
+    selectedEdgeId,
+    edges,
+    updateEdgeLabel,
+    updateEdgeData,
+    setSelectedEdgeId,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      selectedEdgeId: s.selectedEdgeId,
+      edges: s.edges,
+      updateEdgeLabel: s.updateEdgeLabel,
+      updateEdgeData: s.updateEdgeData,
+      setSelectedEdgeId: s.setSelectedEdgeId,
+    })),
+  );
   const edge = edges.find((e) => e.id === selectedEdgeId);
   const [localLabel, setLocalLabel] = useState(edge?.data?.label ?? '');
   const [prevEdge, setPrevEdge] = useState(edge);
@@ -101,9 +116,26 @@ function EdgePropertiesPanel() {
 
 export function PropertiesPanel() {
   const {
-    selectedNodeId, selectedNodeIds, nodes, updateNodeSize, setSelectedNodeId, setSelectedNodeIds,
-    selectedEdgeId, iconMode,
-  } = useDiagramStore();
+    selectedNodeId,
+    selectedNodeIds,
+    nodes,
+    updateNodeSize,
+    setSelectedNodeId,
+    setSelectedNodeIds,
+    selectedEdgeId,
+    iconMode,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      selectedNodeId: s.selectedNodeId,
+      selectedNodeIds: s.selectedNodeIds,
+      nodes: s.nodes,
+      updateNodeSize: s.updateNodeSize,
+      setSelectedNodeId: s.setSelectedNodeId,
+      setSelectedNodeIds: s.setSelectedNodeIds,
+      selectedEdgeId: s.selectedEdgeId,
+      iconMode: s.iconMode,
+    })),
+  );
 
   const isMulti = selectedNodeIds.length > 1 && !selectedNodeId;
   const targetIds = useMemo(

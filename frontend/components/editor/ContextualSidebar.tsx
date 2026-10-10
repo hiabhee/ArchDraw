@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { X, Layers, ExternalLink, Info, Zap, Trash2, Pencil } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 
 import { getComponentKnowledge } from '@/lib/knowledge/componentKnowledge';
 import { TIER_THEME } from '@/lib/tierColors';
@@ -14,7 +15,7 @@ interface ContextualSidebarProps {
 }
 
 export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
-  const { nodes, updateNodeData, removeNode } = useDiagramStore();
+  const { nodes, updateNodeData, removeNode } = useDiagramStore(useShallow((s) => ({ nodes: s.nodes, updateNodeData: s.updateNodeData, removeNode: s.removeNode })));
   const node = nodes.find(n => n.id === nodeId);
   const [isEditing, setIsEditing] = useState(false);
 

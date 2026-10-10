@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, Loader2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -15,7 +16,19 @@ import {
 
 export function DiagramPagination() {
   const router = useRouter();
-  const { canvases, activeCanvasId, addCanvas, switchCanvas } = useDiagramStore();
+  const {
+    canvases,
+    activeCanvasId,
+    addCanvas,
+    switchCanvas,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      canvases: s.canvases,
+      activeCanvasId: s.activeCanvasId,
+      addCanvas: s.addCanvas,
+      switchCanvas: s.switchCanvas,
+    })),
+  );
   
   const [isNavigating, setIsNavigating] = useState(false);
 

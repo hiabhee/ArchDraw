@@ -1,6 +1,7 @@
 import type { ShapeType } from '@/lib/shapeRegistry';
 
-export type Direction = 'TD' | 'LR' | 'BT' | 'RL'
+import type { Direction } from '@/lib/pipeline-shared/reactflow/types'
+export type { Direction } from '@/lib/pipeline-shared/reactflow/types'
 export type Shape = 'rectangle' | 'diamond' | 'circle' | 'rounded' | 'cylinder' | 'hexagon' | 'parallelogram'
 export type EdgeType = 'arrow' | 'dotted' | 'thick' | 'open' | 'bidirectional' | 'invisible'
 
@@ -93,36 +94,7 @@ export interface ValidationReport {
   warnings: ValidationWarning[]
 }
 
-export interface RFNode {
-  id: string
-  type: string
-  position: { x: number; y: number }
-  data: Record<string, unknown>
-  parentNode?: string
-  extent?: 'parent' | [[number, number], [number, number]]
-  width?: number
-  height?: number
-  style?: Record<string, unknown>
-  zIndex?: number
-}
-
-export interface RFEdge {
-  id: string
-  source: string
-  target: string
-  sourceHandle: string | null
-  targetHandle: string | null
-  type: string
-  label?: string
-  data?: Record<string, unknown>
-  animated?: boolean
-  [key: string]: unknown
-}
-
-export interface RFObjects {
-  nodes: RFNode[]
-  edges: RFEdge[]
-}
+export type { RFNode, RFEdge, RFObjects } from '@/lib/pipeline-shared/reactflow/types'
 
 export const NODE_WIDTH = 180
 export const NODE_HEIGHT = 100

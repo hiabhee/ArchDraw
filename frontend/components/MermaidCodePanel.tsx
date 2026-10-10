@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, type CSSProperties } from 'react'
 import { X, Check, AlertCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 import { recomputeSubgraphBounds } from '@/lib/mermaid/recomputeSubgraphBounds';
@@ -44,7 +45,7 @@ function hashNodesEdges(nodes: Record<string, unknown>[], edges: Record<string, 
 }
 
 export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
-  const { nodes, edges, importDiagram } = useDiagramStore();
+  const { nodes, edges, importDiagram } = useDiagramStore(useShallow((s) => ({ nodes: s.nodes, edges: s.edges, importDiagram: s.importDiagram })));
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useLayoutEffect, useCallback, useEffect } from 'react';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useCanvasHost } from '@/lib/canvas/CanvasHostContext';
 
 interface UseInlineLabelEditOptions {
   nodeId: string;
@@ -22,6 +23,9 @@ export function useInlineLabelEdit({
   autoStart = false,
   onCommit,
 }: UseInlineLabelEditOptions) {
+  // Viewers (share/embed/tutorial) render nodes that aren't in the editor store.
+  const { readOnly } = useCanvasHost();
+  autoStart = autoStart && !readOnly;
   const [isEditing, setIsEditing] = useState(autoStart);
   const [draft, setDraft] = useState(currentLabel);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -186,13 +190,13 @@ export function useInlineLabelEdit({
 
   const startEdit = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (isCommittingRef.current) return;
+    if (readOnly || isCommittingRef.current) return;
     originalLabelRef.current = currentLabel;
     setDraft(currentLabel);
     draftRef.current = currentLabel;
     ignoreBlurUntilRef.current = Date.now() + 100;
     setIsEditing(true);
-  }, [currentLabel]);
+  }, [currentLabel, readOnly]);
 
   const handleBlur = useCallback(() => {
     if (isCommittingRef.current) return;

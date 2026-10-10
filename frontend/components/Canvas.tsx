@@ -47,9 +47,10 @@ import { calculateNodeDimensions } from '@/lib/utils/nodeSizing';
 import { createNode, createEdge, createBlankShapeNode } from '@/lib/factory';
 import { reactFlowRef } from '@/lib/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/canvas/resolveNodeDropConnection';
-import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/components/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
 import { resolveDiagramPresentation } from '@/lib/utils/diagramPresentation';
+import { CanvasHostProvider, EDITOR_HOST } from '@/lib/canvas/CanvasHostContext';
 
 // Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
 function CanvasUrlSync() {
@@ -342,9 +343,6 @@ function CanvasInner() {
     };
   }, [reactFlowInstance]);
 
-  const activeCanvasId = useDiagramStore((s) => s.activeCanvasId);
-  const saveCanvasToDB = useDiagramStore((s) => s.saveCanvasToDB);
-
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: Node, draggedNodes: Node[]) => {
       onNodeDragStopSnap(event, node, draggedNodes);
@@ -411,21 +409,14 @@ function CanvasInner() {
 
       const latestNodes = hasChanges ? resolvedNodes : useDiagramStore.getState().nodes;
 
-      if (hasChanges || autoStraightened) {
-        // setNodes already calls saveCanvasToDB
-        if (hasChanges) setNodes(resolvedNodes);
-        else if (autoStraightened) saveCanvasToDB(activeCanvasId);
-      } else {
-        // Drag finished with no collision fix — persist the final positions.
-        // onNodesChange intentionally skips saveCanvasToDB on position changes
-        // (to prevent 60fps infinite loops), so we do one save here instead.
-        saveCanvasToDB(activeCanvasId);
-      }
+      // Persistence is handled by the store's auto-save subscription, which
+      // saves the final (non-dragging) positions.
+      if (hasChanges) setNodes(resolvedNodes);
 
       // Recalculate connection handles from the post-drag node positions
       useDiagramStore.getState().recalculateHandles(latestNodes);
     },
-    [onNodeDragStopSnap, setNodes, saveCanvasToDB, activeCanvasId]
+    [onNodeDragStopSnap, setNodes]
   );
 
   const onConnectStart: OnConnectStart = useCallback(
@@ -689,6 +680,7 @@ function CanvasInner() {
         } : {}),
       }}
     >
+      <CanvasHostProvider value={EDITOR_HOST}>
       <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
         nodes={visibleNodes}
@@ -768,6 +760,7 @@ function CanvasInner() {
         <GuideLines />
       </ReactFlow>
       </DiagramGeometryProvider>
+      </CanvasHostProvider>
 
       {/* Comet Trail Pen Overlay */}
       <CometTrailCanvas />

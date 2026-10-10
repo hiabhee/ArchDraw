@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { analytics } from '@/lib/analytics';
 import type { Template } from '@/data/templates';
 import { getUserTier, getGuestQuotas, getAuthenticatedQuotas } from '@/lib/userQuotas';
@@ -34,7 +35,7 @@ export function DashboardClient(_props: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
-  const { canvases, addCanvas, switchCanvas } = useDiagramStore();
+  const { canvases, addCanvas, switchCanvas } = useDiagramStore(useShallow((s) => ({ canvases: s.canvases, addCanvas: s.addCanvas, switchCanvas: s.switchCanvas })));
   const [now] = useState(() => Date.now());
   const [quotaData, setQuotaData] = useState<QuotaData | null>(null);
   const tier = getUserTier(user?.id);

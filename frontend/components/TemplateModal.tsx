@@ -5,6 +5,7 @@ import type { Node, Edge } from 'reactflow';
 import { X, Search, LayoutTemplate, Lock } from 'lucide-react';
 import { TEMPLATES, type Template } from '@/data/templates/index';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/authStore';
 import { layoutDiagramViaMermaid } from '@/lib/mermaid/relayout';
 import { toast } from 'sonner';
@@ -19,7 +20,19 @@ export function TemplateModal({ onClose }: Props) {
   const [query, setQuery] = useState('');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const { nodes, loadTemplate, fitView, addCanvas } = useDiagramStore();
+  const {
+    nodes,
+    loadTemplate,
+    fitView,
+    addCanvas,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      nodes: s.nodes,
+      loadTemplate: s.loadTemplate,
+      fitView: s.fitView,
+      addCanvas: s.addCanvas,
+    })),
+  );
   const renameCanvas = useDiagramStore((s) => s.renameCanvas);
   const setActiveLayoutPresetId = useDiagramStore((s) => s.setActiveLayoutPresetId);
   const { user } = useAuthStore();

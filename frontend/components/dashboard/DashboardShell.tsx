@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Search, Bell, LayoutDashboard, FolderOpen, Sparkles, ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { UserAvatar, SettingsPanel } from '@/components/UserAvatar';
 import { RecentCanvases } from './RecentCanvases';
 
@@ -136,7 +137,7 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuthStore();
-  const { addCanvas, canvases } = useDiagramStore();
+  const { addCanvas, canvases } = useDiagramStore(useShallow((s) => ({ addCanvas: s.addCanvas, canvases: s.canvases })));
 
   // RSC boundary fix: compute activePage inside client island instead of parent layout (was 'use client' layout forcing all children client)
   const activePage = activePageProp ?? (() => {

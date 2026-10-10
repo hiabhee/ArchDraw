@@ -12,6 +12,7 @@ import { buildEdgePathGeometry } from '@/lib/utils/edgePathGeometry';
 import { buildDefaultOrthogonalWaypoints } from '@/lib/utils/handlerPairScorer';
 import type { EdgeRouteResult } from '@/lib/utils/edgeRouteBuilder';
 
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { useCanvasTheme } from '@/lib/theme';
@@ -79,9 +80,14 @@ export default function SimpleFloatingEdge({
   const edges = useStore((s: ReactFlowState) => s.edges);
   const zoom = useStore((s: ReactFlowState) => s.transform[2]);
   const { getViewport } = useReactFlow();
-  const updateEdgeData = useDiagramStore((s) => s.updateEdgeData);
-  const activeLayoutPresetId = useDiagramStore((s) => s.activeLayoutPresetId);
-  const iconMode = useDiagramStore((s) => s.iconMode);
+  const { readOnly, direction, iconMode } = useCanvasView();
+  const updateEdgeDataInStore = useDiagramStore((s) => s.updateEdgeData);
+  // Viewers render someone else's diagram: never write waypoint/label fixes
+  // into the editor's active canvas.
+  const updateEdgeData = useCallback<typeof updateEdgeDataInStore>(
+    (edgeId, patch) => { if (!readOnly) updateEdgeDataInStore(edgeId, patch); },
+    [readOnly, updateEdgeDataInStore],
+  );
   const { renderStyleId, colors } = useDiagramAesthetics();
   const geometry = useDiagramGeometryEdge(id);
   const [labelEditing, setLabelEditing] = useState(false);
@@ -118,7 +124,7 @@ export default function SimpleFloatingEdge({
             edgeObj,
             internals,
             edges,
-            activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
+            direction,
             renderStyleId,
             {
               source: { x: _sourceX, y: _sourceY },
@@ -169,7 +175,7 @@ export default function SimpleFloatingEdge({
       edgeObj,
       nodes,
       edges,
-      activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR',
+      direction,
       renderStyleId,
       {
         // React Flow already gives custom edges the measured handle centers.
@@ -182,7 +188,7 @@ export default function SimpleFloatingEdge({
     );
   }, [
     id, source, target, sourceHandleId, targetHandleId, data,
-    nodeInternals, edges, activeLayoutPresetId, renderStyleId, iconMode,
+    nodeInternals, edges, direction, renderStyleId, iconMode,
     _sourceX, _sourceY, _targetX, _targetY, _sourcePosition, _targetPosition,
     geometry.route, geometry.provisional,
   ]);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useReactFlow } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getViewportCenter } from '@/lib/utils';
 import { Copy, Scissors, Group, Type, MessageSquare, CheckSquare, ZoomIn, ZoomOut, Maximize2, ChevronRight, GitBranch } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -28,10 +29,34 @@ export function ContextMenu({ menu, onClose }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { fitView } = useReactFlow();
   const {
-    nodes, removeNode, deleteEdge: storeDeleteEdge,
-    selectedNodeIds, setSelectedNodeIds, createGroup, ungroupNodes, moveToGroup,
-    pushHistory, fitView: _storeFitView, updateEdgeData, appendNode,
-  } = useDiagramStore();
+    nodes,
+    removeNode,
+    deleteEdge: storeDeleteEdge,
+    selectedNodeIds,
+    setSelectedNodeIds,
+    createGroup,
+    ungroupNodes,
+    moveToGroup,
+    pushHistory,
+    fitView: _storeFitView,
+    updateEdgeData,
+    appendNode,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      nodes: s.nodes,
+      removeNode: s.removeNode,
+      deleteEdge: s.deleteEdge,
+      selectedNodeIds: s.selectedNodeIds,
+      setSelectedNodeIds: s.setSelectedNodeIds,
+      createGroup: s.createGroup,
+      ungroupNodes: s.ungroupNodes,
+      moveToGroup: s.moveToGroup,
+      pushHistory: s.pushHistory,
+      fitView: s.fitView,
+      updateEdgeData: s.updateEdgeData,
+      appendNode: s.appendNode,
+    })),
+  );
 
   useEffect(() => {
     const handler = (e: MouseEvent | KeyboardEvent) => {

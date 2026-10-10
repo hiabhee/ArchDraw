@@ -15,10 +15,10 @@ import 'reactflow/dist/style.css';
 import { EDGE_TYPE_CONFIGS } from '@/data/edgeTypes';
 import { DIAGRAM_CONSTANTS } from '@/constants/diagram';
 import { assignEdgeColors } from '@/lib/edgeColors';
-import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/components/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/edges/DiagramGeometryProvider';
-import { useDiagramStore } from '@/store/diagramStore';
 import '@/components/nodes/nodeStyles.css';
+import { CanvasHostProvider, type CanvasHost } from '@/lib/canvas/CanvasHostContext';
 
 interface EmbedCanvasProps {
   nodes: Node[];
@@ -50,7 +50,6 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
     const root = document.documentElement;
     if (isDark) root.classList.add('dark');
     else root.classList.remove('dark');
-    useDiagramStore.setState({ darkMode: isDark });
   }, [isDark]);
 
   useEffect(() => {
@@ -61,10 +60,15 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
   }, [fitView]);
 
   const coloredEdges = useMemo(() => assignEdgeColors(edges, isDark), [edges, isDark]);
+  const canvasHost = useMemo<CanvasHost>(
+    () => ({ readOnly: true, nodes, edges: coloredEdges, isDark, planKey: 'embed' }),
+    [nodes, coloredEdges, isDark],
+  );
 
   return (
     <div className={isDark ? 'dark' : ''} style={{ width: '100%', height: '100%', background: backgroundColor }}>
-      <DiagramGeometryProvider nodes={nodes} edges={coloredEdges}>
+      <CanvasHostProvider value={canvasHost}>
+<DiagramGeometryProvider nodes={nodes} edges={coloredEdges}>
       <ReactFlow
         nodes={nodes}
         edges={coloredEdges}
@@ -139,6 +143,7 @@ function EmbedCanvasInner({ nodes, edges, theme = 'dark', zoom = 1, showControls
         )}
       </ReactFlow>
       </DiagramGeometryProvider>
+        </CanvasHostProvider>
     </div>
   );
 }

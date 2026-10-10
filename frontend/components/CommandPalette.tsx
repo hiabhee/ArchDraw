@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Search, X, Command, Layers, FileText, ArrowRight, LayoutTemplate, Lock, Loader2 } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/authStore';
 import { componentRegistry, type ComponentDefinition } from '@/lib/componentRegistry';
 import { createPaletteNode, isBlankInitComponent } from '@/lib/factory';
@@ -124,7 +125,7 @@ export function CommandPalette() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const { addNode, addCanvas, canvases } = useDiagramStore();
+  const { addNode, addCanvas, canvases } = useDiagramStore(useShallow((s) => ({ addNode: s.addNode, addCanvas: s.addCanvas, canvases: s.canvases })));
   const { user } = useAuthStore();
   
   const registryVersion = useCustomComponentListener();

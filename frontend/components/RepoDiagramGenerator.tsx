@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, GitBranch, Loader2, Check, AlertTriangle, BarChart3, Workflow as WorkflowIcon, Package } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 import { parseAndValidateRepoDiagram } from '@/lib/utils/importRepoDiagram';
 import type { RepoDiagramApiResponse } from '@/lib/types/repo-diagram';
@@ -36,7 +37,19 @@ export function RepoDiagramGenerator({ onClose }: Props) {
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [progressPct, setProgressPct] = useState<number>(0);
 
-  const { importDiagram, activeCanvasId, renameCanvas, fitView } = useDiagramStore();
+  const {
+    importDiagram,
+    activeCanvasId,
+    renameCanvas,
+    fitView,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      importDiagram: s.importDiagram,
+      activeCanvasId: s.activeCanvasId,
+      renameCanvas: s.renameCanvas,
+      fitView: s.fitView,
+    })),
+  );
 
   const extractRepoName = (url: string): string => {
     try {

@@ -15,7 +15,7 @@ import 'reactflow/dist/style.css';
 import '@/components/nodes/nodeStyles.css';
 import { runMermaidPipeline } from '@/lib/mermaid/pipeline';
 import { isDomainSuccess } from '@/lib/pipeline-core';
-import { NODE_TYPES, EDGE_TYPES } from '@/lib/constants/canvasTypes';
+import { NODE_TYPES, EDGE_TYPES } from '@/components/canvasTypes';
 import { SVGEdgeMarkerDefs } from '@/lib/utils/edgeColorUtils';
 import { Maximize2, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';

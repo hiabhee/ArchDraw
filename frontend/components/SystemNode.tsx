@@ -2,6 +2,8 @@
 
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { NodeProps, useUpdateNodeInternals } from 'reactflow';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
+import { findNodeById } from '@/store/diagram/derive';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme';
 import { Activity, Palette, Pencil, Copy, Trash2 } from 'lucide-react';
@@ -70,12 +72,12 @@ function ToolbarButton({
 
 function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const setSelectedNodeId = useDiagramStore((s) => s.setSelectedNodeId);
-  const iconMode = useDiagramStore((s) => s.iconMode);
+  const { iconMode, readOnly } = useCanvasView();
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const { isDark } = useCanvasTheme();
   const aesthetics = useDiagramAesthetics();
   const nodeCardRef = useRef<HTMLDivElement>(null);
-  const showEditChrome = diagramChromeMode !== 'present';
+  const showEditChrome = !readOnly && diagramChromeMode !== 'present';
 
   const nodeData = data as NodeData & {
     layer?: string;
@@ -218,15 +220,18 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
   const updateNodeInternals = useUpdateNodeInternals();
   const updateNodeSize = useDiagramStore((s) => s.updateNodeSize);
   const storedNodeWidth = useDiagramStore((s) => {
-    const n = s.nodes.find((nd) => nd.id === id);
+    if (readOnly) return undefined;
+    const n = findNodeById(s.nodes, id);
     return (n?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
   });
   const storedNodeHeight = useDiagramStore((s) => {
-    const n = s.nodes.find((nd) => nd.id === id);
+    if (readOnly) return undefined;
+    const n = findNodeById(s.nodes, id);
     return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
   });
   const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
   useLayoutEffect(() => {
+    if (readOnly) return;
     if (storedNodeWidth === cardWidth && storedNodeHeight === cardHeight) {
       lastPushedSizeRef.current = { w: cardWidth, h: cardHeight };
       return;
@@ -246,7 +251,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
       if (curW === cardWidth && curH === cardHeight) return;
       updateNodeSize(id, { width: cardWidth, height: cardHeight });
     });
-  }, [id, cardWidth, cardHeight, storedNodeWidth, storedNodeHeight, updateNodeSize]);
+  }, [id, cardWidth, cardHeight, storedNodeWidth, storedNodeHeight, updateNodeSize, readOnly]);
   const pendingInternalsRef = useRef(false);
   useLayoutEffect(() => {
     if (pendingInternalsRef.current) return;
@@ -357,7 +362,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           }}
         onClick={handleClick}
       >
-        {selected && (
+        {selected && !readOnly && (
           <div className="node-toolbar" onClick={(e) => e.stopPropagation()}>
             <ToolbarButton onClick={handleEdit} title="Edit">
               <Pencil className="w-3.5 h-3.5" />

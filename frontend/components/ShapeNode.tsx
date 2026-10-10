@@ -12,6 +12,8 @@ import {
   resolveShapeNodeDimensions,
 } from '@/lib/utils/shapeNodeDimensions';
 import { getShapeLabelMaxWidth } from '@/lib/utils/shapeTextLayout';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
+import { findNodeById } from '@/store/diagram/derive';
 import { useDiagramStore } from '@/store/diagramStore';
 import { resolveNodeIconVisibility } from '@/lib/utils/nodeIconVisibility';
 import { type ShapeType } from '@/lib/shapeRegistry';
@@ -101,7 +103,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     shadow: aesthetics.colors.shadow,
   };
   const backplates = styles.backplates;
-  const iconMode = useDiagramStore((s) => s.iconMode);
+  const { iconMode, readOnly } = useCanvasView();
   // Resolve icon visibility for dynamic sizing — nodes shrink when icons are off.
   const nodeShowIcon = resolveNodeIconVisibility(iconMode, data.showIcon, false);
   // Studio uses one compact card vocabulary instead of the normal semantic
@@ -134,12 +136,16 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   // "Maximum update depth exceeded"). Compare against our OWN persisted
   // data.nodeWidth/nodeHeight integers instead, which settle exactly once we
   // write them.
+  // Size write-back only happens in the editor; viewers keep the size the
+  // diagram was saved with and must not touch the editor's canvas.
   const storedNodeWidth = useDiagramStore((s) => {
-    const n = s.nodes.find((nd) => nd.id === id);
+    if (readOnly) return undefined;
+    const n = findNodeById(s.nodes, id);
     return (n?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
   });
   const storedNodeHeight = useDiagramStore((s) => {
-    const n = s.nodes.find((nd) => nd.id === id);
+    if (readOnly) return undefined;
+    const n = findNodeById(s.nodes, id);
     return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
   });
 
@@ -151,6 +157,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
 
   useLayoutEffect(() => {
+    if (readOnly) return;
     if (storedNodeWidth === width && storedNodeHeight === height) {
       lastPushedSizeRef.current = { w: width, h: height };
       return;
@@ -174,7 +181,7 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
       if (curW === width && curH === height) return;
       updateNodeSize(id, { width, height });
     });
-  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize]);
+  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize, readOnly]);
 
   // updateNodeInternals is a React Flow imperative handle; calling it
   // synchronously on every size change can trigger onNodesChange -> set

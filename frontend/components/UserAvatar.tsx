@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useModalStore } from '@/store/modalStore';
 import type { NodeIconMode } from '@/lib/utils/nodeIconVisibility';
 
@@ -92,7 +93,25 @@ function SettingRow({ icon: Icon, title, desc, children }: { icon?: React.Elemen
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
   const { user, signOut } = useAuthStore();
-  const { showGrid, toggleGrid, iconMode, setIconMode, edgeAnimations, userProfile, canvases } = useDiagramStore();
+  const {
+    showGrid,
+    toggleGrid,
+    iconMode,
+    setIconMode,
+    edgeAnimations,
+    userProfile,
+    canvases,
+  } = useDiagramStore(
+    useShallow((s) => ({
+      showGrid: s.showGrid,
+      toggleGrid: s.toggleGrid,
+      iconMode: s.iconMode,
+      setIconMode: s.setIconMode,
+      edgeAnimations: s.edgeAnimations,
+      userProfile: s.userProfile,
+      canvases: s.canvases,
+    })),
+  );
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const ref = useRef<HTMLDivElement>(null);
   
@@ -656,7 +675,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
 export function UserAvatar() {
   const { user, signOut } = useAuthStore();
-  const { userProfile, canvases } = useDiagramStore();
+  const { userProfile, canvases } = useDiagramStore(useShallow((s) => ({ userProfile: s.userProfile, canvases: s.canvases })));
   const { isProfileOpen, openProfile, closeProfile } = useModalStore();
   const ref = useRef<HTMLDivElement>(null);
 

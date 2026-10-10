@@ -46,6 +46,7 @@ const EDGE_TYPES = {
 import { ComponentPalette } from '@/components/tutorial/ComponentPalette';
 import { CORE_COMPONENTS as components } from '@/lib/componentRegistry';
 import { COMPONENT_TOOLTIPS, type RichTooltipData } from '@/data/componentTooltips';
+import { CanvasHostProvider, type CanvasHost } from '@/lib/canvas/CanvasHostContext';
 
 export interface NodeDetailsInfo {
   label: string;
@@ -421,11 +422,17 @@ function TutorialCanvasInner({
   }, [fitCanvas]);
 
   const coloredEdges = useMemo(() => assignEdgeColors(edges), [edges]);
+  // Tutorial graph lives in tutorialStore; nodes must not read or write the editor canvas.
+  const canvasHost = useMemo<CanvasHost>(
+    () => ({ readOnly: true, nodes, edges: coloredEdges, planKey: 'tutorial' }),
+    [nodes, coloredEdges],
+  );
 
   return (
     <div className="flex-1 relative flex flex-col">
       <SVGEdgeMarkerDefs />
       <div className="flex-1 relative">
+        <CanvasHostProvider value={canvasHost}>
         <ReactFlow
           nodes={nodes}
           edges={coloredEdges}
@@ -471,6 +478,7 @@ function TutorialCanvasInner({
             className={controlsClass}
           />
         </ReactFlow>
+        </CanvasHostProvider>
 
         {nodes.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-10">
