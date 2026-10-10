@@ -161,6 +161,7 @@ export interface PipelineDiagnostics {
   removedInvalidEdgeIds: string[];
   /** True when semantic auto-injection was intentionally skipped */
   rejectedAutoInjection: boolean;
+  geometrySummary?: import('@/lib/mermaid/pipeline').GeometrySummary;
   /** Existing diagram node IDs dropped by the model (not re-injected during validation) */
   removedExistingNodeIds?: string[];
 }

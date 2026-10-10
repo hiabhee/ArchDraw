@@ -37,6 +37,7 @@ export async function runAiMermaidPipelineV2(
     productionDepth: 'conceptual',
     semanticIssues: validationOutput.semanticIssues,
     mechanicalRepairs: validationOutput.mechanicalRepairs,
+    geometrySummary: parseOutput.geometrySummary,
     removedInvalidEdgeIds: [],
     rejectedAutoInjection: true,
   };

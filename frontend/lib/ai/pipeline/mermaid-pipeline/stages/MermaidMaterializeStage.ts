@@ -7,6 +7,7 @@ import type { ArchitecturePlan } from './ArchitecturePlanningStage';
 import type { RFNode, RFEdge } from '@/lib/mermaid/types';
 import logger from '@/lib/logger';
 import { inferDiagramKind } from '../diagramIntent';
+import type { GeometrySummary } from '@/lib/mermaid/pipeline';
 
 export interface MermaidMaterializeOutput {
   nodesRemoved?: number;
@@ -15,6 +16,7 @@ export interface MermaidMaterializeOutput {
   nodes: RFNode[];
   edges: RFEdge[];
   parseWarnings: string[];
+  geometrySummary?: GeometrySummary;
   plan: ArchitecturePlan;
   usedFallback: boolean;
   droppedExistingContext: boolean;
@@ -110,6 +112,7 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
       nodes: parseResult.data.nodes,
       edges: parseResult.data.edges,
       parseWarnings: parseResult.data.warnings,
+      geometrySummary: parseResult.data.geometrySummary,
       plan: currentPlan,
       usedFallback,
       droppedExistingContext,

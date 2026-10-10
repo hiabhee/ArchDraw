@@ -217,7 +217,9 @@ export function scoreDiagram(
   }
 
   const geometry = measureLayoutQuality(nodes, edges);
-  score = Math.max(0, Math.min(100, score - preservationPenalty - qualityPenalty - Math.min(25, geometry.penalty)));
+  // Geometry failures are not allowed to disappear behind a score cap: hard
+  // overlaps and collision estimates subtract their full measured penalty.
+  score = Math.max(0, Math.min(100, score - preservationPenalty - qualityPenalty - geometry.penalty));
 
   let grade: 'A' | 'B' | 'C' | 'F';
   if (score >= 85) grade = 'A';
