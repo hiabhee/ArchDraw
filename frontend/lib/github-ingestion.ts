@@ -113,6 +113,19 @@ async function getBranchHeadSha(owner: string, repo: string, branch: string, hea
   return sha;
 }
 
+export interface ResolvedRepoHead { owner: string; repo: string; branch: string; isPrivate: boolean; headSha: string }
+
+/** Resolve immutable repo identity before downloading the file tree/archive. */
+export async function resolveRepoHead(repoUrl: string, signal?: AbortSignal, userGithubToken?: string): Promise<ResolvedRepoHead> {
+  const { owner, repo } = parseGithubUrl(repoUrl);
+  const headers: Record<string, string> = { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'ArchDraw-App' };
+  const token = userGithubToken ?? process.env.GITHUB_TOKEN;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const { branch, isPrivate } = await getDefaultBranch(owner, repo, headers, signal);
+  const headSha = await getBranchHeadSha(owner, repo, branch, headers, signal);
+  return { owner, repo, branch, isPrivate, headSha };
+}
+
 async function getRecursiveTree(owner: string, repo: string, sha: string, headers: Record<string, string>, signal?: AbortSignal): Promise<{ tree: GitTreeItem[]; truncated: boolean }> {
   const cacheKey = `${owner}/${repo}:${sha}`;
   const cached = treeCache.get(cacheKey);
@@ -442,7 +455,7 @@ function metaPriority(kind: string, path: string): number {
 
 export async function ingestRepo(
   repoUrl: string,
-  opts?: { fileBudget?: number; contentBudgetKB?: number },
+  opts?: { fileBudget?: number; contentBudgetKB?: number; resolvedHead?: ResolvedRepoHead },
   signal?: AbortSignal,
   userGithubToken?: string
 ): Promise<RepoSnapshot> {
@@ -461,11 +474,15 @@ export async function ingestRepo(
   }
 
   logger.info(`[Ingest] Resolving default branch for ${owner}/${repo}...`);
-  const { branch: defaultBranch, isPrivate } = await getDefaultBranch(owner, repo, headers, signal);
+  const resolved = opts?.resolvedHead;
+  if (resolved && (resolved.owner !== owner || resolved.repo !== repo)) throw new Error('Resolved repository identity does not match ingestion URL');
+  const { branch: defaultBranch, isPrivate } = resolved
+    ? { branch: resolved.branch, isPrivate: resolved.isPrivate }
+    : await getDefaultBranch(owner, repo, headers, signal);
   logger.info(`[Ingest] Default branch: ${defaultBranch}`);
 
   logger.info(`[Ingest] Resolving branch HEAD SHA...`);
-  const headSha = await getBranchHeadSha(owner, repo, defaultBranch, headers, signal);
+  const headSha = resolved?.headSha ?? await getBranchHeadSha(owner, repo, defaultBranch, headers, signal);
 
   logger.log(`[Ingest] Fetching recursive tree for ${owner}/${repo}@${defaultBranch}...`);
   const treeData = await getRecursiveTree(owner, repo, headSha, headers, signal);

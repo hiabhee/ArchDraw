@@ -11,8 +11,9 @@ describe('repo-pipeline-v2 structure', () => {
     const names = stages.map(s => s.name);
 
     expect(names).toEqual([
-      'ingesting',
+      'resolve-head',
       'cache-check',
+      'ingesting',
       'analysis',
       'baseline',
       'classifying',
