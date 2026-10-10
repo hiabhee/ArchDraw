@@ -144,9 +144,15 @@ export function hexagonPrimitives(W: number, H: number): ShapePrimitive[] {
 
 // ── cylinder (vertical drum / horizontal pipe) ───────────────────────────────
 
-export function verticalDrumPrimitives(W: number, H: number): ShapePrimitive[] {
+/**
+ * Named geometry for the vertical drum (database cylinder). Single source for
+ * both the primitive list below and the canvas renderer, which paints each
+ * part with its own gradients.
+ */
+export function verticalDrumGeometry(W: number, H: number) {
   const RY = Math.max(10, Math.round(H * 0.12));
   const rx = (W - 4) / 2;
+  const cx = W / 2;
   const left = 2;
   const right = W - 2;
   const topY = RY;
@@ -159,6 +165,17 @@ export function verticalDrumPrimitives(W: number, H: number): ShapePrimitive[] {
     `A ${rx} ${RY} 0 0 1 ${left} ${topY}`,
     'Z',
   ].join(' ');
+  return {
+    RY, rx, cx, left, right, topY, bottomY, silhouette,
+    /** Upper half of the bottom rim (hidden behind the body; drawn dashed). */
+    backRim: `M ${left} ${bottomY} A ${rx} ${RY} 0 0 1 ${right} ${bottomY}`,
+    /** Lower half of the bottom rim (visible). */
+    frontRim: `M ${left} ${bottomY} A ${rx} ${RY} 0 0 0 ${right} ${bottomY}`,
+  };
+}
+
+export function verticalDrumPrimitives(W: number, H: number): ShapePrimitive[] {
+  const { RY, left, right, topY, bottomY, silhouette, backRim, frontRim } = verticalDrumGeometry(W, H);
   return [
     { kind: 'path', bounds: { x: 0, y: 0, width: W, height: H }, d: silhouette, fillable: true },
     { kind: 'rect', bounds: { x: left, y: topY, width: W - 4, height: bottomY - topY } },
@@ -169,7 +186,7 @@ export function verticalDrumPrimitives(W: number, H: number): ShapePrimitive[] {
     {
       kind: 'path',
       bounds: { x: 0, y: 0, width: W, height: H },
-      d: `M ${left} ${bottomY} A ${rx} ${RY} 0 0 1 ${right} ${bottomY}`,
+      d: backRim,
       dasharray: '4 3',
       strokeLinecap: 'round',
       strokeOnly: true,
@@ -177,7 +194,7 @@ export function verticalDrumPrimitives(W: number, H: number): ShapePrimitive[] {
     {
       kind: 'path',
       bounds: { x: 0, y: 0, width: W, height: H },
-      d: `M ${left} ${bottomY} A ${rx} ${RY} 0 0 0 ${right} ${bottomY}`,
+      d: frontRim,
       strokeLinecap: 'round',
       strokeOnly: true,
     },
@@ -374,7 +391,8 @@ export function horizontalPipeSketchPrimitives(W: number, H: number): ShapePrimi
   return primitives;
 }
 
-export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[] {
+/** Named geometry for the horizontal pipe (queue/stream cylinder). */
+export function horizontalPipeGeometry(W: number, H: number) {
   const inset = 2;
   const R = Math.max(8, Math.round((H - inset * 2) / 2));
   const midY = H / 2;
@@ -383,7 +401,6 @@ export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[]
   const bodyTop = midY - R;
   const bodyBot = midY + R;
   const bodyW = Math.max(0, rightCx - leftCx);
-
   const silhouette = [
     `M ${leftCx - R} ${midY}`,
     `A ${R} ${R} 0 0 1 ${leftCx} ${bodyTop}`,
@@ -393,6 +410,17 @@ export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[]
     `A ${R} ${R} 0 0 1 ${leftCx - R} ${midY}`,
     'Z',
   ].join(' ');
+  return {
+    R, midY, leftCx, rightCx, bodyTop, bodyBot, bodyW, silhouette,
+    /** Far opening, hidden half (drawn dashed). */
+    backRim: `M ${rightCx} ${bodyTop} A ${R} ${R} 0 0 0 ${rightCx} ${bodyBot}`,
+    /** Far opening, visible half. */
+    frontRim: `M ${rightCx} ${bodyTop} A ${R} ${R} 0 0 1 ${rightCx} ${bodyBot}`,
+  };
+}
+
+export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[] {
+  const { R, midY, leftCx, rightCx, bodyTop, bodyBot, bodyW, silhouette, backRim, frontRim } = horizontalPipeGeometry(W, H);
 
   const primitives: ShapePrimitive[] = [
     { kind: 'path', bounds: { x: 0, y: 0, width: W, height: H }, d: silhouette, fillable: true },
@@ -428,7 +456,7 @@ export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[]
     {
       kind: 'path',
       bounds: { x: 0, y: 0, width: W, height: H },
-      d: `M ${rightCx} ${bodyTop} A ${R} ${R} 0 0 0 ${rightCx} ${bodyBot}`,
+      d: backRim,
       dasharray: '4 3',
       strokeLinecap: 'round',
       strokeOnly: true,
@@ -436,7 +464,7 @@ export function horizontalPipePrimitives(W: number, H: number): ShapePrimitive[]
     {
       kind: 'path',
       bounds: { x: 0, y: 0, width: W, height: H },
-      d: `M ${rightCx} ${bodyTop} A ${R} ${R} 0 0 1 ${rightCx} ${bodyBot}`,
+      d: frontRim,
       strokeLinecap: 'round',
       strokeOnly: true,
     },

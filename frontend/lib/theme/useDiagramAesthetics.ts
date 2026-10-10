@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useDiagramStore } from '@/store/diagramStore';
+import { useCanvasView } from '@/lib/canvas/CanvasHostContext';
 import { useCanvasTheme } from '@/lib/theme';
 import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
 
@@ -10,8 +10,7 @@ import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
  * labels). Recomputes only when render style, color theme, or light/dark change.
  */
 export function useDiagramAesthetics() {
-  const renderStyleId = useDiagramStore((s) => s.diagramRenderStyle);
-  const colorThemeId = useDiagramStore((s) => s.diagramStyleTheme);
+  const { renderStyleId, colorThemeId } = useCanvasView();
   const { isDark } = useCanvasTheme();
 
   return useMemo(

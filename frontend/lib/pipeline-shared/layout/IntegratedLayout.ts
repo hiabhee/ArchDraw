@@ -1,36 +1,12 @@
 import { DagreLayoutEngine } from './DagreLayout';
-import type { LayoutEdge, LayoutEdgeImportance, LayoutParams, LayoutResult, LayoutDirection } from './LayoutEngine';
+import type { LayoutEdge, LayoutEdgeImportance, LayoutParams, LayoutResult, RankDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
-import { isTextNode } from '@/lib/mermaid/textNodes';
+import { isTextNode } from '../textNodes';
+import type { RFNode, RFEdgeInput, RFObjectsInput, Direction } from '../reactflow/types';
 
-/** Minimal ReactFlow-shaped graph used by pipeline layout. */
-export interface RFNode {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  data: Record<string, unknown>;
-  width?: number;
-  height?: number;
-  style?: Record<string, unknown>;
-  parentNode?: string;
-  extent?: 'parent' | [[number, number], [number, number]];
-  [key: string]: unknown;
-}
-export interface RFEdge {
-  id: string;
-  source: string;
-  target: string;
-  type?: string;
-  data?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-export interface RFObjects {
-  nodes: RFNode[];
-  edges: RFEdge[];
-}
-
-export type Direction = 'TD' | 'LR' | 'BT' | 'RL';
+// Layout accepts edges without handles/type, so it works on the *input* shapes.
+type RFObjects = RFObjectsInput;
+export type { RFNode, RFEdgeInput, RFObjectsInput, Direction };
 
 export interface IntegratedLayoutOptions {
   direction?: Direction;
@@ -161,8 +137,8 @@ export class IntegratedLayoutEngine {
     };
   }
 
-  private mapDirection(direction: Direction): LayoutDirection {
-    const map: Record<Direction, LayoutDirection> = {
+  private mapDirection(direction: Direction): RankDirection {
+    const map: Record<Direction, RankDirection> = {
       TD: 'TB',
       LR: 'LR',
       BT: 'BT',

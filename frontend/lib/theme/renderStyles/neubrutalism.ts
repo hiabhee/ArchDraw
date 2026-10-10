@@ -22,11 +22,13 @@ export const BRUTAL_EDGE_PRIMARY_LIGHT = '#2563eb';
 export const BRUTAL_EDGE_ASYNC_LIGHT = '#7c3aed';
 
 // ── Dark mode ────────────────────────────────────────────────────────────────
-// Dark mode keeps the heavy graphic outline, but uses slate ink and a tinted
-// offset plate instead of bright white borders/shadows that glare on canvas.
-export const BRUTAL_FILL_DARK = '#242a34';
-export const BRUTAL_BORDER_DARK = '#aab4c3';
-export const BRUTAL_SHADOW_DARK = '#465367';
+// Dark mode keeps the heavy graphic outline, but inverted: a near-white
+// border plus a solid light offset plate — the brutalist signature — instead
+// of mid-slate tones that dissolve into the dark canvas. Fills stay deeply
+// saturated (see getBrutalNodeFill) so concern colors read as jewel tones.
+export const BRUTAL_FILL_DARK = '#12161d';
+export const BRUTAL_BORDER_DARK = '#e8edf3';
+export const BRUTAL_SHADOW_DARK = '#b9c6d8';
 export const BRUTAL_GROUP_FILL_DARK = '#202a3a';
 export const BRUTAL_CANVAS_BG_DARK = '225 12% 10%';
 export const BRUTAL_GRID_DARK = '220 10% 18%';
@@ -41,9 +43,11 @@ export const BRUTAL_EDGE_ASYNC_DARK = '#b8a0ec';
 /** Subtle concern tint while retaining the flat, hard-edged brutal surface. */
 export function getBrutalNodeFill(accentColor: string, isDark: boolean): string {
   if (!/^#([0-9a-fA-F]{6})$/.test(accentColor)) return isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT;
-  const base = isDark ? [36, 42, 52] : [255, 255, 255];
+  // Dark mode leans hard into the accent (jewel tones on near-black) —
+  // a weak tint over slate is what made dark brutal look washed-out mud.
+  const base = isDark ? [18, 22, 29] : [255, 255, 255];
   const tint = [1, 3, 5].map((offset) => parseInt(accentColor.slice(offset, offset + 2), 16));
-  const amount = isDark ? 0.38 : 0.14;
+  const amount = isDark ? 0.72 : 0.14;
   const mixed = base.map((channel, index) => Math.round(channel * (1 - amount) + tint[index] * amount));
   return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
 }

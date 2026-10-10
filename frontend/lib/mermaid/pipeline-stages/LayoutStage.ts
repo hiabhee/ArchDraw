@@ -2,7 +2,7 @@ import { BaseStage, type StageResult, successResult } from '@/lib/pipeline-core'
 import type { PipelineContext } from '@/lib/pipeline-core';
 import { measureLayoutQuality } from '@/lib/pipeline-shared/layout/layoutQuality';
 import { applyRfLayout } from '@/lib/pipeline-shared/layout/IntegratedLayout';
-import { defaultCompoundLayoutOptions, type LayoutDirection } from '@/lib/pipeline-shared/layout/LayoutEngine';
+import { defaultCompoundLayoutOptions, type RankDirection } from '@/lib/pipeline-shared/layout/LayoutEngine';
 import { applySubgraphBoundsToRf } from '../recomputeSubgraphBounds';
 import { getCachedDiagramGeometryPlan } from '@/lib/utils/diagramGeometry';
 import type { RFObjects, Direction } from '../types';
@@ -81,7 +81,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       depth(a.id) - depth(b.id)
       || String(parentById.get(a.id) ?? '').localeCompare(String(parentById.get(b.id) ?? ''))
       || a.id.localeCompare(b.id));
-    const layoutDirection = (input.direction === 'LR' || input.direction === 'RL' ? input.direction : input.direction === 'BT' ? 'BT' : 'TB') as LayoutDirection;
+    const layoutDirection = (input.direction === 'LR' || input.direction === 'RL' ? input.direction : input.direction === 'BT' ? 'BT' : 'TB') as RankDirection;
     const denseDefaults = defaultCompoundLayoutOptions(layoutDirection, {
       edgeCount: semanticObjects.edges.length,
       nodeCount: semanticObjects.nodes.length,

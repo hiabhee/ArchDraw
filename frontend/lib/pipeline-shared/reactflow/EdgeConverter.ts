@@ -1,4 +1,4 @@
-import type { RFEdge } from '@/lib/mermaid/types';
+import type { RFEdge } from './types';
 
 export interface EdgeInput {
   id: string;

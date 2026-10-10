@@ -1,3 +1,4 @@
+import type { Direction } from '@/lib/pipeline-shared/reactflow/types';
 import type { Node, Edge } from 'reactflow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from './pipeline';
@@ -19,7 +20,8 @@ export interface RelayoutCanvasResult {
   warnings: string[];
 }
 
-export type LayoutDirection = 'TD' | 'LR';
+/** The two canvas layout directions the toolbar toggles between. */
+export type LayoutDirection = Extract<Direction, 'TD' | 'LR'>;
 
 export interface RelayoutOptions {
   /** Used when the graph has no top heading yet (templates, manual diagrams). */

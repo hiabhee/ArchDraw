@@ -12,7 +12,7 @@ export type {
   LayoutEdge,
   PositionedNode,
   PositionedEdge,
-  LayoutDirection,
+  RankDirection,
   LayoutOptions,
 } from './LayoutEngine';
 export {
@@ -22,8 +22,8 @@ export {
 } from './LayoutEngine';
 export type {
   IntegratedLayoutOptions,
-  RFObjects,
+  RFObjectsInput,
   RFNode,
-  RFEdge,
+  RFEdgeInput,
   Direction,
 } from './IntegratedLayout';

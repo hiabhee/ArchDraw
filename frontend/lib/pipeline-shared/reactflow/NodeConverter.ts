@@ -1,4 +1,4 @@
-import type { RFNode } from '@/lib/mermaid/types';
+import type { RFNode } from './types';
 
 export interface NodeInput {
   id: string;

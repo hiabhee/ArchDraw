@@ -3,7 +3,7 @@ import type {
   LayoutEdge,
   LayoutParams,
   LayoutResult,
-  LayoutDirection,
+  RankDirection,
 } from './LayoutEngine';
 import {
   aggregateLayoutEdges,
@@ -51,8 +51,8 @@ interface LevelLayout {
   height: number;
 }
 
-function toDagreRankDir(direction: LayoutDirection): string {
-  const map: Record<LayoutDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
+function toDagreRankDir(direction: RankDirection): string {
+  const map: Record<RankDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
   return map[direction] ?? 'TB';
 }
 
@@ -76,8 +76,8 @@ interface CompoundContext {
   dimsById: Map<string, { width: number; height: number }>;
   serviceTypeById: Map<string, string | undefined>;
   edges: LayoutEdge[];
-  direction: LayoutDirection;
-  directionByGroup: Map<string, LayoutDirection>;
+  direction: RankDirection;
+  directionByGroup: Map<string, RankDirection>;
   nodeSep: number;
   rankSep: number;
   warnings: string[];
@@ -487,7 +487,7 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
   const memberSet = new Set(members);
 
   // Determine the rank direction for this level: top-level uses global, inner levels use their parent group's direction if set (e.g. LR outer / TB inner for the dashed loop)
-  let levelDirection: LayoutDirection = ctx.direction;
+  let levelDirection: RankDirection = ctx.direction;
   if (depth > 0 && members.length > 0) {
     const parentId = ctx.parentOf.get(members[0]);
     if (parentId && ctx.directionByGroup.has(parentId)) {
@@ -826,7 +826,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
     const baseNodeSep = effectiveHasExplicit ? (opts.nodeSep ?? defaults.nodeSep ?? 110) : (defaults.nodeSep ?? 110);
     const baseRankSep = effectiveHasExplicit ? (opts.rankSep ?? defaults.rankSep ?? 170) : (defaults.rankSep ?? 170);
 
-    const directionByGroup = new Map<string, LayoutDirection>();
+    const directionByGroup = new Map<string, RankDirection>();
     for (const node of params.nodes) {
       if (node.isGroup && node.direction) {
         directionByGroup.set(node.id, node.direction);

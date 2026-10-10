@@ -11,7 +11,7 @@ import { semanticShapeBodySvg } from '@/lib/utils/shapeSilhouetteSvg';
 import { resolveTextLabelColor } from '@/lib/utils/textSizing';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
 import { Fragment, isValidElement, type ReactNode } from 'react';
-import { CustomNodeIcon, toCustomNodeIconName } from '@/components/icons/CustomNodeIcon';
+import { CustomNodeIcon, toCustomNodeIconName } from '@/lib/icons/CustomNodeIcon';
 import { resolveNodeIcon, type NodeIconSource } from '@/lib/nodeIconResolver';
 import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/brandIcons';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/utils/nodeIconVisibility';
@@ -636,35 +636,11 @@ export function renderShapeNode(
       body = renderBody(getShapePrimitives(shape, W, H));
       break;
     case 'cylinder': {
+      // Same primitives as the canvas cylinders (verticalDrumGeometry /
+      // horizontalPipeGeometry). The export previously hand-drew a simplified
+      // drum/pipe that dropped the rims, side walls and outline.
       const axis = resolveCylinderAxis(shapeData);
-      if (renderStyleId === 'sketch') {
-        body = renderBody(getShapePrimitives('cylinder', W, H, axis, true));  // Pass true for sketch mode
-      } else if (axis === 'horizontal') {
-        const inset = 2;
-        const R = Math.max(8, Math.round((H - inset * 2) / 2));
-        const midY = H / 2;
-        const leftCx = inset + R;
-        const rightCx = W - inset - R;
-        const bodyW = Math.max(0, rightCx - leftCx);
-        body = `
-          ${bodyW > 0 ? `<rect x="${leftCx}" y="${midY - R}" width="${bodyW}" height="${R * 2}" fill="${surface.fill}" />` : ''}
-          <ellipse cx="${leftCx}" cy="${midY}" rx="${R}" ry="${R}" fill="${surface.fill}" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />
-          <path d="M ${rightCx} ${midY - R} A ${R} ${R} 0 0 1 ${rightCx} ${midY + R}" fill="none" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />
-        `.trim();
-      } else {
-        const RY = Math.max(10, Math.round(H * 0.12));
-        const rx = (W - 4) / 2;
-        const cx = W / 2;
-        const left = 2;
-        const right = W - 2;
-        const topY = RY;
-        const bottomY = H - RY;
-        body = `
-          <rect x="${left}" y="${topY}" width="${W - 4}" height="${bottomY - topY}" fill="${surface.fill}" />
-          <ellipse cx="${cx}" cy="${topY}" rx="${rx}" ry="${RY}" fill="${surface.fill}" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />
-          <path d="M ${left} ${bottomY} A ${rx} ${RY} 0 0 0 ${right} ${bottomY}" fill="none" stroke="${surface.stroke}" stroke-width="${surface.strokeWidth}" />
-        `.trim();
-      }
+      body = renderBody(getShapePrimitives('cylinder', W, H, axis, renderStyleId === 'sketch'));
       break;
     }
     default: {

@@ -1,7 +1,7 @@
 /** Geometry diagnostics. Edge centerlines and label boxes are estimates, not rendered SVG paths. */
 import {
   getLayoutEdgeWeight,
-  type LayoutDirection,
+  type RankDirection,
   type LayoutEdgeImportance,
 } from './LayoutEngine';
 
@@ -23,7 +23,7 @@ const cross = (a: Point, b: Point, c: Point) => (b.x - a.x) * (c.y - a.y) - (b.y
 export function measureLayoutQuality(
   nodes: LayoutNode[],
   edges: LayoutEdge[],
-  direction?: LayoutDirection,
+  direction?: RankDirection,
 ) {
   const byId = new Map(nodes.map(n => [n.id, n]));
   const boxes = new Map<string, Box>();

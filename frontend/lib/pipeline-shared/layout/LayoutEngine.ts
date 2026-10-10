@@ -1,4 +1,5 @@
-export type LayoutDirection = 'TB' | 'BT' | 'LR' | 'RL';
+/** Dagre `rankdir` values (TB, not Mermaid's TD). See `Direction` for the RF/Mermaid form. */
+export type RankDirection = 'TB' | 'BT' | 'LR' | 'RL';
 
 import {
   DEFAULT_NODE_WIDTH,
@@ -18,7 +19,7 @@ export interface LayoutNode {
   height: number;
   parentId?: string;
   isGroup?: boolean;
-  direction?: LayoutDirection;
+  direction?: RankDirection;
 }
 
 export type LayoutEdgeImportance = 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';
@@ -62,7 +63,7 @@ export interface LayoutOptions {
 export interface LayoutParams {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
-  direction: LayoutDirection;
+  direction: RankDirection;
   options?: LayoutOptions;
 }
 
@@ -97,7 +98,7 @@ export interface LayoutEngine {
  * still centering mirrored sub-trees (e.g. Leader → 2 Followers).
  */
 export function defaultCompoundLayoutOptions(
-  direction: LayoutDirection,
+  direction: RankDirection,
   density?: { edgeCount?: number; nodeCount?: number },
 ): LayoutOptions {
   const isVertical = direction === 'TB' || direction === 'BT';
@@ -253,7 +254,7 @@ export function aggregateLayoutEdges(edges: LayoutEdge[]): AggregatedLayoutEdge[
  */
 export function selectAcyclicLayoutEdges(
   edges: AggregatedLayoutEdge[],
-  _direction?: LayoutDirection,
+  _direction?: RankDirection,
   _nodeOrder: string[] = [],
 ): AggregatedLayoutEdge[] {
   const ordered = [...edges].sort((a, b) => {

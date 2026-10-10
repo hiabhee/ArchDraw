@@ -5,7 +5,7 @@ import type {
   LayoutResult,
   PositionedNode,
   PositionedEdge,
-  LayoutDirection,
+  RankDirection,
   LayoutEdge,
 } from './LayoutEngine';
 import {
@@ -19,8 +19,8 @@ import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } fro
 import { layoutCompoundTwoPhase } from './CompoundLayout';
 import logger from '@/lib/logger';
 
-function toDagreRankDir(direction: LayoutDirection): string {
-  const map: Record<LayoutDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
+function toDagreRankDir(direction: RankDirection): string {
+  const map: Record<RankDirection, string> = { TB: 'TB', BT: 'BT', LR: 'LR', RL: 'RL' };
   return map[direction] ?? 'TB';
 }
 

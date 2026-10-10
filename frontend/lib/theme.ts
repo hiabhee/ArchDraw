@@ -2,24 +2,30 @@
 
 import { useTheme as useNextTheme } from 'next-themes';
 import { useDiagramStore } from '@/store/diagramStore';
+import { useCanvasHost } from '@/lib/canvas/CanvasHostContext';
 
 export type Theme = 'dark' | 'light';
 
+/** App (chrome) theme — next-themes is the source of truth. */
 export function useTheme() {
   const { setTheme, resolvedTheme } = useNextTheme();
-  const darkMode = useDiagramStore((s) => s.darkMode);
   const isDark = resolvedTheme === 'dark';
 
   return {
     theme: (resolvedTheme || 'dark') as Theme,
     isDark,
-    darkMode,
     setTheme,
   };
 }
 
+/**
+ * Canvas theme. A host (embed/share) may pin it; otherwise it follows the app
+ * theme via `store.darkMode`, which ThemeProvider mirrors from next-themes.
+ */
 export function useCanvasTheme() {
-  const darkMode = useDiagramStore((s) => s.darkMode);
+  const hostIsDark = useCanvasHost().isDark;
+  const storeDarkMode = useDiagramStore((s) => s.darkMode);
+  const darkMode = hostIsDark ?? storeDarkMode;
 
   return {
     isDark: darkMode,
