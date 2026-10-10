@@ -433,7 +433,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       )}
 
       <div className="w-full h-full pt-12">
-        <DiagramGeometryProvider nodes={nodes} edges={coloredEdges}>
+        <DiagramGeometryProvider nodes={nodes} edges={displayedEdges}>
         <ReactFlow
           nodes={displayedNodes}
           edges={displayedEdges}
