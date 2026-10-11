@@ -137,6 +137,11 @@ export function debouncedSaveCanvasToDB(canvasId: string, get: () => DiagramStat
   }, SAVE_DEBOUNCE_MS));
 }
 
+/** True while a save for this canvas is debounced or in flight. */
+export function hasPendingCanvasSave(canvasId: string): boolean {
+  return pendingTimers.has(canvasId) || inflightSaves.has(canvasId);
+}
+
 export async function flushCanvasSaveToDB(canvasId: string, get: () => DiagramState): Promise<void> {
   clearTimeout(pendingTimers.get(canvasId));
   pendingTimers.delete(canvasId);

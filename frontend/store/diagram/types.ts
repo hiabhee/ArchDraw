@@ -41,6 +41,8 @@ export interface NodeData {
   showIcon?: boolean;
   /** true = icon only, false = always show label, undefined = auto (brand logos hide label). */
   iconOnly?: boolean;
+  /** Live projects: repo-relative paths/globs this component owns (agent activity mapping). */
+  codePaths?: string[];
 }
 
 export interface CanvasTab {
@@ -59,6 +61,8 @@ export interface CanvasTab {
   thumbnail?: string;
   /** Render-only view preference: AWS/Azure icon set or Off. Not in Mermaid IR. */
   cloudProvider?: CloudProviderToggle;
+  /** Server-owned: set when this canvas is a live project linked to coding agents. */
+  agenticProjectId?: string | null;
 }
 
 export interface UserProfile {
@@ -116,6 +120,8 @@ export interface DiagramState {
   setSavingState: (s: 'idle' | 'saving' | 'saved') => void;
   /** Record the server version after a save; does not bump `updatedAt`. */
   setCanvasServerVersion: (canvasId: string, serverUpdatedAt: number) => void;
+  /** Record the server's project link for a canvas (not undoable, not auto-saved). */
+  setCanvasProjectLink: (canvasId: string, agenticProjectId: string | null) => void;
   /** Replace a canvas with the DB copy (discarding local edits). */
   reloadCanvasFromDB: (canvasId: string) => Promise<void>;
 
