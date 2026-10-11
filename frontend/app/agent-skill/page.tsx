@@ -6,16 +6,15 @@ import { Footer } from '@/components/landing/Footer';
 import { LandingNav } from '@/components/landing/LandingNav';
 
 const SKILL_COMMAND = 'npx skills add hiabhee/archdraw-skill --skill archdraw-diagram';
-const CODEX_COMMAND = 'codex mcp add archdraw --scope user --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server';
-const CLAUDE_COMMAND = 'claude mcp add --scope local --transport stdio --env API_BASE_URL=https://archdraw.hiabhee.online archdraw -- npx -y @hiabhee/archdraw-mcp-server';
+// Keep the pin in sync with plugins/archdraw/mcp.json.
+const MCP_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.5';
+const REMOTE_MCP_URL = 'https://archdraw.hiabhee.online/api/mcp';
+const CODEX_COMMAND = `codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y ${MCP_PACKAGE}`;
+const CLAUDE_COMMAND = `claude mcp add --scope user --transport http archdraw ${REMOTE_MCP_URL}`;
 const CURSOR_CONFIG = `{
   "mcpServers": {
     "archdraw": {
-      "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server"],
-      "env": {
-        "API_BASE_URL": "https://archdraw.hiabhee.online"
-      }
+      "url": "${REMOTE_MCP_URL}"
     }
   }
 }`;
@@ -129,7 +128,7 @@ export default function AgentSkillPage() {
                 <StepNumber>2</StepNumber>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold">Connect MCP</h3>
-                  <p className="mb-4 mt-1 text-xs leading-5 text-text-secondary">Set <code className="rounded bg-surface-panel px-1 py-0.5 font-mono">API_BASE_URL</code> so the server can use ArchDraw’s diagram generation and layout API.</p>
+                  <p className="mb-4 mt-1 text-xs leading-5 text-text-secondary">Claude Code and Cursor connect to the hosted endpoint. Codex runs the local server, which needs <code className="rounded bg-surface-panel px-1 py-0.5 font-mono">API_BASE_URL</code>. Without it, diagram generation fails.</p>
 
                   <div className="space-y-4">
                     <CodePanel title="Codex CLI" value={CODEX_COMMAND} />
@@ -137,12 +136,12 @@ export default function AgentSkillPage() {
                     <CodePanel title="Cursor · .cursor/mcp.json" value={CURSOR_CONFIG} language="JSON" />
                   </div>
 
-                  <p className="mt-3 text-xs leading-5 text-text-muted">Codex above installs for your user account. To limit it to the current project, change <code className="font-mono">--scope user</code> to <code className="font-mono">--scope project</code>. Claude Code above saves a local entry for this project.</p>
+                  <p className="mt-3 text-xs leading-5 text-text-muted">Codex saves the server in <code className="font-mono">~/.codex/config.toml</code> for all projects. Claude Code above saves it for your user account. To limit it to the current project, change <code className="font-mono">--scope user</code> to <code className="font-mono">--scope project</code>.</p>
 
                   <div className="mt-4 rounded-lg border border-border bg-accent-bg p-4 text-xs leading-5 text-text-secondary">
-                    <strong className="text-accent-text">Using a different MCP client?</strong> Add a local stdio server named <code className="font-mono">archdraw</code>, with command <code className="font-mono">npx</code>, arguments <code className="font-mono">-y @hiabhee/archdraw-mcp-server</code>, and environment variable <code className="font-mono">API_BASE_URL=https://archdraw.hiabhee.online</code>.
+                    <strong className="text-accent-text">Using a different MCP client?</strong> Connect to <code className="font-mono">{REMOTE_MCP_URL}</code> with the Streamable HTTP transport. If the client supports only local servers, add a stdio server named <code className="font-mono">archdraw</code>, with command <code className="font-mono">npx</code>, arguments <code className="font-mono">-y {MCP_PACKAGE}</code>, and environment variable <code className="font-mono">API_BASE_URL=https://archdraw.hiabhee.online</code>. <Link href="/docs/connect-agents" className="font-semibold text-accent-text underline underline-offset-2">Steps for each client</Link>.
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-text-muted">The MCP process runs on your machine and sends diagram requests to the API URL you configure. For a self-hosted ArchDraw instance, set that variable to your instance URL.</p>
+                  <p className="mt-3 text-xs leading-5 text-text-muted">The local server runs on your machine and sends diagram requests to the API URL you configure. For a self-hosted ArchDraw instance, use your instance URL in place of archdraw.hiabhee.online.</p>
                 </div>
               </div>
             </section>
@@ -182,7 +181,7 @@ export default function AgentSkillPage() {
               <div className="mt-5 space-y-3">
                 <details className="group rounded-xl border border-border bg-surface-card p-4">
                   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold"><CircleHelp size={15} className="text-accent" aria-hidden="true" /> I ran <code className="font-mono text-xs">npx archdraw-agent setup</code> and nothing happened.</summary>
-                  <p className="mt-3 pl-6 text-xs leading-5 text-text-secondary">That setup command can exit without registering the MCP server. Use the manual skill and MCP steps above; the Codex and Claude commands will write the server entry into the respective agent configuration.</p>
+                  <p className="mt-3 pl-6 text-xs leading-5 text-text-secondary">Versions 0.1.3 and earlier exit without output when npx starts them, and register the local server without <code className="font-mono">API_BASE_URL</code>. Run <code className="font-mono">npx -y archdraw-agent@0.1.4 setup --force</code> to install again and repair the entries, or use the manual steps above.</p>
                 </details>
                 <details className="group rounded-xl border border-border bg-surface-card p-4">
                   <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold"><CircleHelp size={15} className="text-accent" aria-hidden="true" /> The MCP server is missing from the agent.</summary>

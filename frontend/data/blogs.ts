@@ -41,12 +41,12 @@ export const blogs: BlogPost[] = [
         heading: 'Set up ArchDraw in Codex',
         body:
           'Codex supports local MCP servers and discovers installed skills from its skills directory. Copy the complete archdraw-diagram skill directory to ~/.codex/skills/archdraw-diagram/, then add the ArchDraw MCP server. Restart Codex after installing the skill or changing MCP configuration.',
-        code: `codex mcp add archdraw -- npx -y @hiabhee/archdraw-mcp-server
+        code: `codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.5
 codex mcp list`,
         bullets: [
           'The ArchDraw skill supplies architecture-specific guidance; the MCP server provides the diagram actions.',
           'The same setup works in Codex CLI and makes the ArchDraw tools available to the agent working in your repository.',
-          'To use a self-hosted ArchDraw deployment, set API_BASE_URL when adding the MCP server.',
+          'The local server requires API_BASE_URL. Without it, the tools load but diagram generation fails. For a self-hosted ArchDraw deployment, use its URL instead.',
         ],
       },
       {
@@ -54,12 +54,12 @@ codex mcp list`,
         body:
           'Install the ArchDraw skill first, then connect the local MCP server. Restart Claude Code after the connection is added. The skill tells Claude how to approach architecture work; the MCP server creates and manages the diagram in ArchDraw.',
         code: `npx skills add hiabhee/archdraw-skill --skill archdraw-diagram -g -a claude-code
-claude mcp add archdraw -- npx -y @hiabhee/archdraw-mcp-server
+claude mcp add --scope user --transport http archdraw https://archdraw.hiabhee.online/api/mcp
 claude mcp list`,
         bullets: [
-          'Node.js 18 or newer is required to run the MCP server.',
-          'The default MCP configuration connects to the hosted ArchDraw application.',
-          'Use API_BASE_URL in the MCP server environment when connecting to a self-hosted ArchDraw deployment.',
+          'This connects Claude Code to the hosted ArchDraw MCP endpoint. Nothing runs on your machine.',
+          'The ArchDraw plugin does the same in one step: /plugin marketplace add hiabhee/ArchDraw, then /plugin install archdraw@archdraw.',
+          'For a self-hosted ArchDraw deployment, use https://<your-domain>/api/mcp as the URL.',
         ],
       },
       {
@@ -69,11 +69,10 @@ claude mcp list`,
         code: `{
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "servers": {
-      "archdraw": {
-        "type": "local",
-        "command": ["npx", "-y", "@hiabhee/archdraw-mcp-server"]
-      }
+    "archdraw": {
+      "type": "remote",
+      "url": "https://archdraw.hiabhee.online/api/mcp",
+      "enabled": true
     }
   }
 }
@@ -81,7 +80,7 @@ claude mcp list`,
 opencode mcp list`,
         bullets: [
           'Install the skill at .opencode/skills/archdraw-diagram/SKILL.md for one repository, or ~/.config/opencode/skills/archdraw-diagram/SKILL.md for personal use.',
-          'OpenCode prefixes MCP tool names with the server name, so ArchDraw actions appear under names such as archdraw_generate_diagram.',
+          'This is the OpenCode v1 format. OpenCode v2 nests servers under mcp.servers instead; see /docs/connect-agents#opencode for both.',
           'Ask explicitly for the archdraw-diagram skill if you want to guarantee that the agent loads its architecture workflow.',
         ],
       },
@@ -259,51 +258,47 @@ show the affected dependencies and data flows, and clearly separate facts from a
       {
         heading: 'What you need before you start',
         body:
-          'You need three things before connecting the server: a recent Node.js runtime (18 or newer) so the server can run, a local clone of the ArchDraw repository, and Claude Desktop itself. The MCP server lives inside the repository in the `mcp-server/` directory — it is a self-contained Node process, so nothing needs to be hosted or deployed. If you want the server to persist diagram session files, create a folder for them too (for example `~/ArchDraw/diagrams`); you will point `WORKSPACE_PATH` at it in a later step.',
+          'The easiest method is a custom connector. Claude Desktop then connects to the hosted ArchDraw server at `https://archdraw.hiabhee.online/api/mcp`. You do not install software, and you do not clone the repository. If you cannot use a custom connector, use the local server. The local server needs Node.js 18 or later.',
         bullets: [
-          'Node.js 18+ — check with `node --version`',
-          'A local clone of the ArchDraw repository (the server builds from `mcp-server/`)',
           'Claude Desktop, installed and signed in',
+          'Network access to `archdraw.hiabhee.online`',
+          'For the local server only: Node.js 18 or later. Type `node --version` to examine the version.',
         ],
-        code: `node --version`,
       },
       {
-        heading: 'Install dependencies and build the server',
+        heading: 'Add ArchDraw as a custom connector (recommended)',
         body:
-          'The server talks to MCP clients over standard input/output (stdio), so it must be compiled before Claude can launch it. Open a terminal, move into the `mcp-server` directory, install its dependencies, and build. TypeScript compiles the source into `dist/index.js`, which is the file you will point Claude at. During development you can also run `npm run dev` to launch the server straight from source with tsx.',
-        code: `cd mcp-server
-npm install
-npm run build`,
+          'Go to Settings → Connectors and select Add custom connector. Type `ArchDraw` as the name and the URL below. Then select Add. The connector is also available on claude.ai and in Claude mobile with the same account. On Team and Enterprise plans, it is possible that an owner must add the connector first.',
+        code: `https://archdraw.hiabhee.online/api/mcp`,
       },
       {
-        heading: 'Open your Claude Desktop configuration file',
+        heading: 'Use the local server (alternative)',
         body:
-          'Claude Desktop reads its MCP configuration from a local JSON file. The exact path depends on your operating system:',
+          'Use this method only if you cannot use a custom connector. Open the Claude Desktop configuration file. The path depends on your operating system:',
         bullets: [
           'macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`',
           'Windows: `%APPDATA%\\Claude\\claude_desktop_config.json`',
-          'Linux: `~/.config/Claude/claude_desktop_config.json`',
         ],
       },
       {
-        heading: 'Register the server in the config file',
+        heading: 'Register the local server in the config file',
         body:
-          'Add an `mcpServers` block to the JSON. Each entry names a server and describes how Claude should launch it: the command to run (`node`), the absolute path to the compiled server (`dist/index.js`), and an optional `WORKSPACE_PATH` environment variable pointing at the folder where diagram session files are written. Replace the two paths below with real ones.',
+          'Add an `archdraw` entry to the `mcpServers` block. `npx` downloads the pinned version of the server from npm and runs it. You must set `API_BASE_URL`. If you do not set it, the tools show, but diagram generation and layout do not operate.',
         code: `{
   "mcpServers": {
-    "archdraw-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/archdraw/mcp-server/dist/index.js"],
+    "archdraw": {
+      "command": "npx",
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.5"],
       "env": {
-        "WORKSPACE_PATH": "/absolute/path/to/diagrams"
+        "API_BASE_URL": "https://archdraw.hiabhee.online"
       }
     }
   }
 }`,
         bullets: [
-          '`command` — how to start the process; if `node` is not on Claude\'s PATH, use the full binary path from `which node`',
-          '`args` — the absolute path to `mcp-server/dist/index.js`',
-          '`env.WORKSPACE_PATH` — where diagram session files are saved; create the folder before launching Claude',
+          '`command` — if Claude cannot find `npx`, use the full path from `which npx`',
+          '`args` — the pinned package version; change the number to update',
+          '`env.API_BASE_URL` — the ArchDraw API; use your own domain for a self-hosted deployment',
         ],
       },
       {
@@ -323,7 +318,7 @@ npm run build`,
           '`validate_diagram` and `fix_layout` — run structural checks and repair the layout',
           '`apply_template` and `list_templates` — load curated architecture templates',
           '`save_checkpoint` and `load_checkpoint` — snapshot and restore diagram state',
-          '`export_diagram` — export as JSON, Mermaid, PNG, or SVG',
+          '`export_diagram` — export as JSON, PNG, or SVG',
           '`list_node_types` — look up available components and icons',
           '`get_diagram_state` — inspect the current canvas nodes and edges',
         ],
@@ -332,11 +327,11 @@ npm run build`,
         heading: 'Troubleshooting',
         body: 'Most connection issues come from paths, PATH resolution, or forgetting to restart Claude. Walk through these in order:',
         bullets: [
-          'The server shows as failed to start — make sure `args` points at `mcp-server/dist/index.js` and that you ran `npm run build` after the latest changes.',
-          '`node` is not found — replace `"node"` in the config with the full binary path from `which node`.',
+          'The local server does not start — make sure that Node.js 18 or later is installed. Type `node --version` to examine the version.',
+          '`npx` is not found — replace `"npx"` in the config with the full path from `which npx`.',
+          'The tools show, but generation fails with "requires API_BASE_URL" — add `API_BASE_URL` to the `env` block.',
           'Tools do not appear after editing the config — quit Claude Desktop completely (Cmd+Q), not just the window, and reopen it.',
           'Config file is invalid — check Claude\'s log file (`claude_mcp_logs.txt`, stored next to the config) for JSON parse errors.',
-          'No session files are written — create the `WORKSPACE_PATH` directory before starting Claude.',
         ],
       },
     ],
