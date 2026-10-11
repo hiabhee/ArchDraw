@@ -28,5 +28,6 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 - A diagram is visual, and in a terminal or IDE the user cannot see it unless you give them the link. `generate_diagram`, `apply_template`, and `update_diagram` return a preview link (`shareUrl`) and an edit link (`diagramUrl`) in the same response — no extra call is needed. **Always put both links in your reply**, near the top.
 - Links are unguessable, viewable by anyone who has them, and expire after 7 days. If the user asks to keep a diagram private, pass `publish: false`; then say plainly that no link was created.
 - If the result contains `linkError` instead of links, tell the user the diagram was generated but could not be published, and include the reason.
+- Never put secrets, credentials, or private hostnames in diagram labels. Anyone with the link can read them.
 - When a user submits a description from the inline preview, turn it into Mermaid and call `generate_diagram`, respecting the preview's link choice.
 - Do not claim an operation succeeded unless the corresponding tool result confirms it. Summarize material assumptions and validation issues alongside the result.
