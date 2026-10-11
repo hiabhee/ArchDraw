@@ -2,6 +2,7 @@
 import { memo, useState, useRef, useEffect, useMemo } from 'react';
 import { NodeProps, NodeResizer, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
+import { LiveActivityBadge } from './LiveActivityBadge';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
 import { hexToRgba } from '@/lib/utils';
@@ -355,6 +356,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
       )}
 
       <NodeHandles nodeId={id} />
+      <LiveActivityBadge nodeId={id} />
     </div>
   );
 }

@@ -79,7 +79,8 @@ export function reactFlowExportFilter(node: HTMLElement): boolean {
     cls.contains('react-flow__handle') ||
     cls.contains('rh') ||
     cls.contains('node-toolbar') ||
-    cls.contains('group-resize-handle')
+    cls.contains('group-resize-handle') ||
+    cls.contains('live-activity-overlay')
   ) {
     return false;
   }

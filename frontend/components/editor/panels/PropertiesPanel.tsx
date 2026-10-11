@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo } from 'react';
-import { X, Type, Search, Copy, Trash2, ChevronDown, ChevronUp, Palette } from 'lucide-react';
+import { X, Type, Search, Copy, Trash2, ChevronDown, ChevronUp, Palette, FolderGit2 } from 'lucide-react';
 import { useDiagramStore, type NodeData } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { ShapeType } from '@/components/canvas/nodes/ShapeNode';
@@ -9,6 +9,7 @@ import { CustomNodeIcon, type CustomNodeIconName } from '@/lib/icons/CustomNodeI
 import { ARCH_ICON_CATALOG, ARCH_ICON_CATEGORY_LABELS, type ArchIconCategory } from '@/lib/icons/archIconCatalog';
 import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/diagram/nodes/nodeIconVisibility';
+import { getCodePaths } from '@/lib/diagram/projects/pathMatcher';
 
 const GROUP_COLOR_OPTIONS = [
   '#3b82f6', '#22c55e', '#ec4899', '#f97316', '#14b8a6',
@@ -145,6 +146,7 @@ export function PropertiesPanel() {
 
   const node = isMulti ? null : nodes.find((n) => n.id === selectedNodeId);
 
+  const isLiveProject = useDiagramStore((s) => Boolean(s.canvases.find((c) => c.id === s.activeCanvasId)?.agenticProjectId));
   const labelRef = useRef<HTMLInputElement>(null);
   const [localLabel, setLocalLabel] = useState(node?.data?.label ?? '');
   const [prevNode, setPrevNode] = useState(node);
@@ -281,6 +283,11 @@ export function PropertiesPanel() {
               className="w-full px-3 py-2.5 text-sm bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors"
             />
           </div>
+        )}
+
+        {/* Live projects: which code this component owns */}
+        {!isMulti && isLiveProject && node && (
+          <CodePathsField key={node.id} nodeId={node.id} initial={getCodePaths(node)} />
         )}
 
         {/* Appearance: Shape + Color */}
@@ -459,6 +466,38 @@ export function PropertiesPanel() {
           <Trash2 className="w-3.5 h-3.5" /> Delete {isMulti ? `${targetIds.length} nodes` : 'node'}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Repo-relative paths/globs, one per line; edits agent activity mapping. */
+function CodePathsField({ nodeId, initial }: { nodeId: string; initial: string[] }) {
+  const [value, setValue] = useState(initial.join('\n'));
+
+  const commit = () => {
+    const next = Array.from(new Set(value.split('\n').map((line) => line.trim()).filter(Boolean)));
+    if (next.join('\n') === initial.join('\n')) return;
+    const store = useDiagramStore.getState();
+    store.pushHistory();
+    store.updateNodeData(nodeId, { codePaths: next });
+  };
+
+  return (
+    <div>
+      <label htmlFor={`code-paths-${nodeId}`} className="text-[11px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+        <FolderGit2 className="w-3 h-3" /> Code paths
+      </label>
+      <textarea
+        id={`code-paths-${nodeId}`}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.stopPropagation()}
+        rows={3}
+        placeholder={'frontend/lib/server/auth.ts\nfrontend/app/api/auth/**'}
+        className="w-full px-3 py-2 text-xs font-mono bg-secondary/60 border border-border/50 rounded-xl outline-none focus:border-primary/50 focus:bg-card transition-colors resize-y"
+      />
+      <p className="mt-1 text-[10px] text-muted-foreground">One path or glob per line. Agent edits to these files light up this component.</p>
     </div>
   );
 }

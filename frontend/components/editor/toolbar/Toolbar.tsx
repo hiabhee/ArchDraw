@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
+import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -13,6 +13,7 @@ import { EmailCaptureModal, type EmailCaptureReason } from '@/components/editor/
 import logger from '@/lib/logger';
 import { analytics } from '@/lib/client/analytics';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
+import { OPEN_LIVE_PROJECT_EVENT } from '@/components/editor/panels/LiveProjectPanel';
 import { getUserTier, canAccessFeature } from '@/lib/quotas/userQuotas';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/editor/toolbar/ThemeToggle';
@@ -97,6 +98,7 @@ export function Toolbar() {
   const exportControlsRef = useRef<ExportControlsHandle>(null);
 
   const openGuide = useOnboardingStore((s) => s.open);
+  const isLiveProject = useDiagramStore((s) => Boolean(s.canvases.find((c) => c.id === s.activeCanvasId)?.agenticProjectId));
   const darkMode = useDiagramStore((s) => s.darkMode);
   const toggleDarkMode = useDiagramStore((s) => s.toggleDarkMode);
 
@@ -430,6 +432,17 @@ export function Toolbar() {
               title="Share diagram"
             >
               {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" aria-hidden="true" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIVE_PROJECT_EVENT))}
+              className={`!w-8 sm:!w-9 !h-8 sm:!h-9${isLiveProject ? ' !text-emerald-600' : ''}`}
+              aria-label={isLiveProject ? 'Live project' : 'Make live project'}
+              title={isLiveProject ? 'Live project' : 'Make live project'}
+            >
+              <Radio className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
           </span>
 

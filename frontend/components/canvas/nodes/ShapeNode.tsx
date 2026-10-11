@@ -13,6 +13,7 @@ import {
 } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { getShapeLabelMaxWidth } from '@/lib/diagram/nodes/shapeTextLayout';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
+import { LiveActivityBadge } from './LiveActivityBadge';
 import { findNodeById } from '@/store/diagram/derive';
 import { useDiagramStore } from '@/store/diagramStore';
 import { resolveNodeIconVisibility } from '@/lib/diagram/nodes/nodeIconVisibility';
@@ -241,7 +242,12 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
     }
   };
 
-  return renderShape();
+  return (
+    <>
+      {renderShape()}
+      <LiveActivityBadge nodeId={id} />
+    </>
+  );
 }
 
 export const ShapeNode = memo(ShapeNodeComponent);

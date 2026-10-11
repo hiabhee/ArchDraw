@@ -10,6 +10,7 @@ import { ComponentSidebar } from '@/components/editor/panels/ComponentSidebar';
 import { CanvasSidebar } from '@/components/editor/panels/CanvasSidebar';
 import { reactFlowRef } from '@/lib/client/reactFlowRef';
 import { PropertiesPanel } from '@/components/editor/panels/PropertiesPanel';
+import { LiveProjectPanel } from '@/components/editor/panels/LiveProjectPanel';
 import { FloatingAIBar } from '@/components/editor/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/editor/GenerationProgress';
@@ -608,6 +609,7 @@ export default function EditorPage() {
 
         {(selectedNodeId || selectedNodeIds.length > 0 || selectedEdgeId) && <PropertiesPanel />}
 
+        <LiveProjectPanel />
         <CommandPalette />
         <OnboardingOverlay />
           <FloatingAIBar
