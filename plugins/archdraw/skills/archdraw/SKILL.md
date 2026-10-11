@@ -31,3 +31,12 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 - Never put secrets, credentials, or private hostnames in diagram labels. Anyone with the link can read them.
 - When a user submits a description from the inline preview, turn it into Mermaid and call `generate_diagram`, respecting the preview's link choice.
 - Do not claim an operation succeeded unless the corresponding tool result confirms it. Summarize material assumptions and validation issues alongside the result.
+
+## Live projects (Claude Code)
+
+- When a session starts in a repository linked to an ArchDraw live project, the ArchDraw hook adds a short "ArchDraw live project" note to your context with the project link, your ArchDraw session id, and the exact `map` / `publish` / `intent` commands. Use those commands; they read the local link, so you never see or pass a credential.
+- File paths you edit are reported automatically. Share intent once per distinct task with the `intent` command (one line, no secrets); do not narrate every step.
+- To map a codebase: inspect the repository's real structure (manifests, entry points, services, data stores, queues), then publish Mermaid with one node per meaningful component, subgraphs for areas such as frontend/backend/infra, and stable ids. Pass a JSON map from node id to the repo-relative paths or globs it owns (for example `{"auth": ["frontend/lib/server/auth.ts", "frontend/app/api/auth/**"]}`). Map every directory that agents commonly edit; prefer directories over long file lists.
+- Keep the diagram live: when your change adds, removes, renames or moves a real component (a service, module, worker, store, or integration — not a helper file), export the current diagram with `mermaid --out <dir>`, edit `diagram.mmd` and `paths.json`, and `publish --session <your id>`. Keep existing node ids so components keep their identity; publishing keeps the user's layout and only places new components. Use `--relayout` only when the user asks for a fresh layout.
+- The hook may note that a file you created belongs to no component. Update the diagram only if it is genuinely a new component.
+- To link a repository, the user runs `npx -y @hiabhee/archdraw-mcp-server link --api <ArchDraw URL>` and enters the printed code in the editor's Live project panel.
