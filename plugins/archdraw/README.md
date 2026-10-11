@@ -54,6 +54,6 @@ To point the plugin at your own ArchDraw deployment, change the `url` in `.mcp.j
 
 ## Support
 
-Questions and bug reports: [GitHub issues](https://github.com/hiabhee/ArchDraw/issues). Documentation: [archdraw.hiabhee.online/mcp](https://archdraw.hiabhee.online/mcp). [Privacy policy](https://archdraw.hiabhee.online/privacy) · [Terms](https://archdraw.hiabhee.online/terms).
+Questions and bug reports: [GitHub issues](https://github.com/hiabhee/ArchDraw/issues). Documentation: [archdraw.hiabhee.online/mcp](https://archdraw.hiabhee.online/mcp). Setup for other clients (Cursor, VS Code, Gemini CLI, OpenCode, Claude apps): [connection guide](https://archdraw.hiabhee.online/docs/connect-agents). [Privacy policy](https://archdraw.hiabhee.online/privacy) · [Terms](https://archdraw.hiabhee.online/terms).
 
 Licensed under MIT.
