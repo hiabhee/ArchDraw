@@ -25,7 +25,7 @@ const TAXONOMY = {
       aliases: ['Model Context Protocol Server', 'archdraw-mcp'],
       deprecated_names: [],
       status: 'active',
-      description: 'Local stdio JSON-RPC server exposing diagram tools to Claude/Cursor.',
+      description: 'MCP server exposing diagram tools to AI agents: hosted Streamable HTTP at /api/mcp, or local stdio via npx @hiabhee/archdraw-mcp-server.',
     },
     {
       canonical_name: 'Repo → Diagram',

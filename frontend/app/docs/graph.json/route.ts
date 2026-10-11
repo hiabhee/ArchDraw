@@ -62,6 +62,7 @@ export function GET() {
     // mcp relates to docs mcp-server
     { from: 'mcp', to: 'mcp-server', relation: 'expands' },
     { from: 'agent-skill', to: 'mcp', relation: 'setup-for' },
+    { from: 'connect-agents', to: 'mcp', relation: 'setup-for' },
     { from: 'repo-diagram', to: 'getting-started', relation: 'requires' },
     // discovery file relations
     { from: 'llms-full', to: 'llms-txt', relation: 'expands' },

@@ -41,7 +41,7 @@ URL: ${SITE_URL}/docs
 ${docSectionBlocks}
 
 ## /mcp
-Summary: What is an MCP server for diagramming — local stdio JSON-RPC bridge so Claude/Cursor can read, edit, and lay out your canvas.
+Summary: What is an MCP server for diagramming — hosted (/api/mcp) or local (npx) tools so AI agents can make, edit, and lay out diagrams.
 Prerequisites: /docs#mcp-server
 URL: ${SITE_URL}/mcp
 

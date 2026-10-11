@@ -25,6 +25,7 @@ const DOC_GROUPS = [
     label: 'Integrate',
     links: [
       { href: '#mcp', label: 'MCP server' },
+      { href: '/docs/connect-agents', label: 'Connect a coding agent' },
       { href: '#export', label: 'Share & export' },
       { href: '#faq', label: 'FAQ' },
     ],
@@ -124,8 +125,8 @@ export default function DocsPage() {
             <section id="mcp" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
               <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">MCP server</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">Bring ArchDraw into your AI workflow.</h2>
-              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">The local MCP server exposes diagram tools for compatible assistants. Use it to generate, update, validate, lay out, and export the same canvas you use in the browser.</p>
-              <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><Terminal size={17} /></DocIcon><p className="text-sm leading-6 text-[#51605a]">Install the ArchDraw skill and connect the MCP server with the <Link href="/agent-skill" className="font-semibold text-[#075aaf] underline underline-offset-2">coding agent setup guide</Link>.</p></div>
+              <p className="mt-4 text-[15px] leading-7 text-[#51605a]">The ArchDraw MCP server gives diagram tools to AI agents. The agent can make, change, validate, lay out, and export diagrams. Connect to the hosted server at <code className="rounded bg-[#eef1ec] px-1 font-mono text-[0.85em]">https://archdraw.hiabhee.online/api/mcp</code>, or run the server locally with npx.</p>
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#dfe4df] bg-white p-4"><DocIcon><Terminal size={17} /></DocIcon><p className="text-sm leading-6 text-[#51605a]">For the steps for Claude Code, the Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and other clients, read <Link href="/docs/connect-agents" className="font-semibold text-[#075aaf] underline underline-offset-2">Connect a coding agent</Link>.</p></div>
             </section>
 
             <section id="export" className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
@@ -148,7 +149,7 @@ export default function DocsPage() {
           <aside className="hidden xl:block">
             <div className="sticky top-20 border-l border-[#dfe4df] pl-5">
               <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-[#8b9691]">On this page</p>
-              <div className="space-y-2 text-xs"><a className="block text-[#65706c] hover:text-[#075aaf]" href="#overview">Overview</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#generate">Generate a diagram</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#repository">Map a repository</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#canvas">Canvas concepts</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#mcp">MCP server</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#faq">FAQ</a></div>
+              <div className="space-y-2 text-xs"><a className="block text-[#65706c] hover:text-[#075aaf]" href="#overview">Overview</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#generate">Generate a diagram</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#repository">Map a repository</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#canvas">Canvas concepts</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#mcp">MCP server</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="/docs/connect-agents">Connect a coding agent</a><a className="block text-[#65706c] hover:text-[#075aaf]" href="#faq">FAQ</a></div>
             </div>
           </aside>
         </div>

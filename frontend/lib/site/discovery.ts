@@ -46,9 +46,17 @@ export const DOC_SECTIONS: DocSection[] = [
     id: 'mcp-server',
     title: 'MCP Server Guide',
     url: `${SITE_URL}/docs#mcp-server`,
-    summary: 'Run the local MCP server over stdio JSON-RPC so Claude / Cursor can read, edit, validate, and lay out your canvas programmatically.',
+    summary: 'ArchDraw MCP tools for AI agents: hosted Streamable HTTP endpoint at /api/mcp, or local stdio via npx. Make, change, validate, lay out, and export diagrams.',
     prerequisites: ['/docs#getting-started'],
-    keywords: ['MCP', 'Model Context Protocol', 'Claude', 'Cursor'],
+    keywords: ['MCP', 'Model Context Protocol', 'Claude', 'Cursor', 'Codex'],
+  },
+  {
+    id: 'connect-agents',
+    title: 'Connect a coding agent',
+    url: `${SITE_URL}/docs/connect-agents`,
+    summary: 'Setup and verification steps for Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and other MCP clients. Remote URL, pinned npx command, privacy, limits, troubleshooting.',
+    prerequisites: ['/docs#mcp-server'],
+    keywords: ['MCP setup', 'Claude Code', 'Codex', 'Cursor', 'VS Code', 'Gemini CLI', 'OpenCode', 'connector'],
   },
   {
     id: 'prompt-guide',
@@ -107,7 +115,7 @@ export const CORE_PAGES: SitePage[] = [
   {
     title: 'MCP — What is an MCP server for diagramming?',
     url: SITE_URL + '/mcp',
-    summary: 'How the local MCP server lets AI assistants like Claude and Cursor read, edit, and lay out diagrams plus connection instructions.',
+    summary: 'How the ArchDraw MCP server (hosted or local) lets AI agents make, edit, and lay out diagrams.',
     category: 'guide',
   },
   {
