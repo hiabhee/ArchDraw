@@ -125,3 +125,51 @@ export async function fetchAllComponentTemplates() {
   if (!res.ok) throw new Error('Failed to fetch component templates');
   return res.json();
 }
+
+// ── Live projects ────────────────────────────────────────────────────────────
+
+async function projectRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error((body as { error?: string }).error || 'Request failed') as Error & { status?: number; code?: string };
+    error.status = res.status;
+    error.code = (body as { code?: string }).code;
+    throw error;
+  }
+  return body as T;
+}
+
+export interface ProjectLink {
+  canvasId: string;
+  agenticProjectId: string | null;
+  workspaceId: string | null;
+  repositoryRemote: string | null;
+}
+
+export function makeCanvasProject(canvasId: string, data: { repositoryRemote?: string | null } = {}) {
+  return projectRequest<{ project: ProjectLink }>(`/api/projects/${encodeURIComponent(canvasId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export function unlinkCanvasProject(canvasId: string) {
+  return projectRequest<{ ok: true }>(`/api/projects/${encodeURIComponent(canvasId)}`, { method: 'DELETE' });
+}
+
+export function fetchProjectLive(canvasId: string, signal?: AbortSignal) {
+  return projectRequest<import('@/lib/diagram/projects/liveActivity').ProjectLiveSnapshot>(
+    `/api/projects/${encodeURIComponent(canvasId)}/live`,
+    { cache: 'no-store', signal },
+  );
+}
+
+export function approveAgentPairing(data: { userCode: string; projectId: string; workspaceId: string }) {
+  return projectRequest<{ approved: true }>('/api/agentic/pairing/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}

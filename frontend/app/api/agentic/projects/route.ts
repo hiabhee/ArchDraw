@@ -1,10 +1,10 @@
-import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { auth } from '@/lib/server/auth';
 import logger from '@/lib/logger';
 import prisma from '@/lib/server/prisma';
+import { createAgenticProject, normalizeRepositoryRemote } from '@/lib/server/projects/agenticProjects';
 
 export const runtime = 'nodejs';
 
@@ -15,26 +15,6 @@ const createProjectSchema = z.object({
   branchName: z.string().trim().max(255).optional().nullable(),
   baseCommitSha: z.string().trim().max(128).optional().nullable(),
 });
-
-function normalizeRepositoryRemote(value?: string | null) {
-  if (!value) return null;
-  const remote = value.trim();
-  if (!remote) return null;
-
-  try {
-    const url = new URL(remote);
-    if (!['http:', 'https:', 'ssh:', 'git:'].includes(url.protocol)) return undefined;
-    url.username = '';
-    url.password = '';
-    url.search = '';
-    url.hash = '';
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    const scpRemote = remote.match(/^(?:[^@\s]+@)?([^:/\s]+):([^?#\s]+)$/);
-    if (!scpRemote) return undefined;
-    return `ssh://${scpRemote[1].toLowerCase()}/${scpRemote[2].replace(/^\/+/, '')}`;
-  }
-}
 
 export async function GET() {
   try {
@@ -93,56 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid repository remote' }, { status: 400 });
     }
 
-    const branchName = body.branchName || body.defaultBranch || null;
-    const project = await prisma.agenticProject.create({
-      data: {
-        ownerId: session.user.id,
-        name: body.name,
-        repositoryRemote,
-        defaultBranch: body.defaultBranch || null,
-        workspaces: {
-          create: {
-            bindingKey: randomUUID(),
-            branchName,
-            baseCommitSha: body.baseCommitSha || null,
-            revisions: {
-              create: {
-                revision: 0,
-                baseCommitSha: body.baseCommitSha || null,
-                snapshot: { components: [], relationships: [] },
-                summary: 'Project created',
-                actorType: 'user',
-                actorId: session.user.id,
-              },
-            },
-            views: {
-              create: {
-                name: 'Architecture overview',
-                viewType: 'overview',
-                state: { focusNodeIds: [], direction: 'LR', annotations: [] },
-              },
-            },
-          },
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        repositoryRemote: true,
-        defaultBranch: true,
-        createdAt: true,
-        workspaces: {
-          select: {
-            id: true,
-            branchName: true,
-            baseCommitSha: true,
-            currentRevision: true,
-            revisions: { select: { revision: true } },
-            views: { select: { id: true, name: true, viewType: true } },
-          },
-        },
-      },
-    });
+    const project = await createAgenticProject(session.user.id, { ...body, repositoryRemote });
 
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
