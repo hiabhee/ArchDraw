@@ -11,7 +11,7 @@ This document uses ASD-STE100 Simplified Technical English.
 | Connection type | Value | Use it when |
 | --- | --- | --- |
 | **Remote (HTTP)** | `https://archdraw.hiabhee.online/api/mcp` | The client can connect to a remote MCP server. This is the recommended type. You do not install this package. |
-| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.0.5` | The client can only start a local process. |
+| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.0.6` | The client can only start a local process. |
 
 For the steps for each client (Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and others), refer to the [connection guide](https://archdraw.hiabhee.online/docs/connect-agents).
 
@@ -31,7 +31,7 @@ Most clients use this format:
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.5"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.6"],
       "env": {
         "API_BASE_URL": "https://archdraw.hiabhee.online"
       }
@@ -47,6 +47,29 @@ Most clients use this format:
 | Variable | Necessary | Function |
 | --- | --- | --- |
 | `API_BASE_URL` | Yes | The ArchDraw web API that does the layout, publishes previews, and keeps sessions. Use `https://archdraw.hiabhee.online`, or the URL of your own deployment. |
+
+## Link a repository to a live project
+
+A live project is an ArchDraw canvas that shows which coding-agent session works on which component. To connect a repository to a live project:
+
+1. In the ArchDraw editor, open the canvas and select **Make live project**.
+2. In the repository, run:
+
+   ```bash
+   npx -y @hiabhee/archdraw-mcp-server@1.0.6 link --api https://archdraw.hiabhee.online
+   ```
+
+3. In the editor, select **Live project → Connect an agent** and enter the code that the command shows.
+
+The command keeps the link in `~/.archdraw/projects.json` (mode `0600`), outside the repository. The file contains a project token. Do not share it. Other commands:
+
+| Command | Result |
+| --- | --- |
+| `link --api <URL>` | Links the current repository (or its main repository, for a git worktree). |
+| `status` | Shows the project that the current repository is linked to. |
+| `unlink` | Removes the local link. To revoke the token, select **Stop** in the editor. |
+
+The ArchDraw plugin for Claude Code uses this link to report the files that each session edits. It sends file paths only.
 
 ## Tools
 
