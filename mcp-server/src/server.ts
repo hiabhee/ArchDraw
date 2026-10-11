@@ -542,7 +542,7 @@ Useful for multi-turn workflows: save before a major change, restore if needed.`
   },
 ];
 
-export const SERVER_VERSION = '1.0.5';
+export const SERVER_VERSION = '1.0.6';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
