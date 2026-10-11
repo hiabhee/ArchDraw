@@ -23,28 +23,30 @@ export const metadata = {
 };
 
 const TOOLS = [
-  { name: 'generate-diagram', desc: 'Create a new diagram from a prompt or Mermaid snippet.' },
-  { name: 'update-diagram', desc: 'Add, remove, or rewire nodes and edges on the active canvas.' },
-  { name: 'validate-diagram', desc: 'Check the current graph for structural and semantic issues.' },
-  { name: 'fix-layout', desc: 'Re-run auto-layout to clean up overlapping or cramped nodes.' },
-  { name: 'apply-template', desc: 'Load an architecture template onto the canvas.' },
-  { name: 'export-diagram', desc: 'Export the current diagram as JSON, Mermaid, PNG, or SVG.' },
-  { name: 'list-nodes', desc: 'Inspect what is currently on the canvas, node by node.' },
-  { name: 'save-checkpoint / load-checkpoint', desc: 'Snapshot and restore canvas state during a session.' },
+  { name: 'read_me', desc: 'Gives the reference guide for the agent. The agent calls it first.' },
+  { name: 'generate_diagram', desc: 'Makes a diagram from Mermaid text or from nodes and edges.' },
+  { name: 'update_diagram', desc: 'Adds, removes, or changes nodes and edges in the current diagram.' },
+  { name: 'get_diagram_state', desc: 'Gives the nodes and edges of the current diagram.' },
+  { name: 'validate_diagram', desc: 'Finds structural problems and gives recommendations.' },
+  { name: 'fix_layout', desc: 'Calculates the layout again with the ArchDraw editor pipeline.' },
+  { name: 'apply_template / list_templates', desc: 'Loads an architecture template, or gives the list of templates.' },
+  { name: 'list_node_types', desc: 'Gives the list of component types in the ArchDraw library.' },
+  { name: 'save_checkpoint / load_checkpoint', desc: 'Saves the current diagram with a name, and restores it.' },
+  { name: 'export_diagram', desc: 'Exports the diagram as JSON, PNG, or SVG.' },
 ];
 
 const FAQS = [
   {
     q: 'Which AI assistants can use the ArchDraw MCP server?',
-    a: 'Any MCP-compatible client, including Claude Desktop, Claude Code, Cursor, and other agents that read mcp configuration files.',
+    a: 'All MCP clients. This includes Claude Code, the Claude apps, Codex, Cursor, VS Code, Gemini CLI, and OpenCode. Clients that support remote servers connect to https://archdraw.hiabhee.online/api/mcp. Other clients run the local server with npx.',
   },
   {
     q: 'Is the MCP server secure?',
-    a: 'The MCP process runs locally and communicates with the ArchDraw API configured in API_BASE_URL. Diagram generation and layout requests are sent to that API. Review the privacy policy and avoid sending data you are not allowed to share.',
+    a: 'The tools send only the diagram content that the agent gives them: component names, labels, connections, and Mermaid text. They do not read your source files. Preview links expire after 7 days. Do not put secrets in diagram labels. Read the privacy policy before you connect.',
   },
   {
     q: 'Do I need ArchDraw\u2019s cloud service to use the MCP server?',
-    a: 'The MCP process runs locally, but generation and layout use an ArchDraw API. The default setup points to the hosted ArchDraw service; self-hosted deployments can set API_BASE_URL to their own app URL.',
+    a: 'Yes. The remote server is the hosted ArchDraw service. The local server also uses the hosted ArchDraw API for layout and preview links. For a self-hosted deployment, use https://<your-domain>/api/mcp, or set API_BASE_URL to your domain.',
   },
   {
     q: 'Why would an AI want to edit a diagram instead of just describing it?',
@@ -107,10 +109,10 @@ export default function McpPage() {
           </h1>
 
           <p className="text-sm sm:text-base text-[#5a6066] leading-relaxed mb-4">
-            An MCP server for diagramming is a local bridge that lets AI assistants like Claude and
-            Cursor read, edit, and lay out architecture diagrams programmatically. ArchDraw ships one:
-            instead of describing the diagram you want, the AI manipulates your actual canvas — adding
-            nodes, wiring edges, running layouts, and validating the graph — through a stdio JSON-RPC interface.
+            An MCP server for diagramming lets AI agents like Claude, Codex, and Cursor make, change,
+            and lay out architecture diagrams. ArchDraw has one. The agent does not only describe the
+            diagram. It adds nodes, connects edges, calculates the layout, and validates the graph
+            through MCP tools. You can connect to the hosted server, or run it locally with npx.
           </p>
           <p className="text-sm sm:text-base text-[hsl(var(--muted-foreground))] leading-relaxed">
             The Model Context Protocol (MCP) is an open standard for giving AI models access to tools
@@ -128,18 +130,18 @@ export default function McpPage() {
           />
           <FeatureCard
             icon={Cpu}
-            title="Runs locally"
-            desc="The MCP process runs on your machine over standard input/output and calls the ArchDraw API you configure for diagram operations."
+            title="Remote or local"
+            desc="Connect to the hosted server at /api/mcp with no installation. Or run the server locally over stdio with npx."
           />
           <FeatureCard
             icon={Shield}
-            title="JSON-RPC transport"
-            desc="Requests and responses are structured JSON-RPC messages — fast, debuggable, and standard across MCP clients."
+            title="Preview links"
+            desc="Each new diagram gets a preview link that you can open and share. Links expire after 7 days. Tell the agent to keep a diagram private if you do not want a link."
           />
           <FeatureCard
             icon={GitBranch}
             title="Works with your workflow"
-            desc="Connect from Claude Desktop, Claude Code, or Cursor; the same tools drive generation, layout, validation, and export."
+            desc="Connect from Claude Code, the Claude apps, Codex, Cursor, VS Code, Gemini CLI, or OpenCode. The same tools make, lay out, validate, and export diagrams."
           />
         </div>
 
@@ -169,9 +171,12 @@ export default function McpPage() {
         <section className="mt-12">
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-2">How to connect it</h2>
           <div className="rounded-xl border border-border bg-accent-bg p-5">
-            <p className="text-sm leading-6 text-text-secondary">Install the ArchDraw diagram skill, connect the MCP server to Codex, Claude Code, or Cursor, and check that the tools loaded with the step-by-step setup guide.</p>
+            <p className="text-sm leading-6 text-text-secondary">The connection guide gives the steps for each client. It also tells you how to make sure that the tools loaded.</p>
             <Link href="/agent-skill" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover">
               Open the coding agent setup guide <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link href="/docs/connect-agents" className="mt-3 block text-sm text-text-secondary underline underline-offset-2 hover:opacity-80">
+              Read the connection steps for all clients
             </Link>
           </div>
           <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed mt-3">

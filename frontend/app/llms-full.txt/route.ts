@@ -94,10 +94,16 @@ Shape vocabulary (lib/shapeRegistry.ts): hexagon=LB/gateway, cloud=external/SaaS
 
 ### MCP Server Guide — expanded
 
-Connect the published stdio MCP package to the coding agent. The server needs an API_BASE_URL to run diagram generation and layout:
+Clients that support remote MCP servers connect to the hosted Streamable HTTP endpoint \`https://archdraw.hiabhee.online/api/mcp\` (no install):
 
 \`\`\`sh
-codex mcp add archdraw --scope user --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server
+claude mcp add --scope user --transport http archdraw https://archdraw.hiabhee.online/api/mcp
+\`\`\`
+
+The local stdio package requires API_BASE_URL (there is no default; without it, diagram generation and layout fail):
+
+\`\`\`sh
+codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.5
 \`\`\`
 
 Install the reusable diagram skill:
@@ -106,16 +112,16 @@ Install the reusable diagram skill:
 npx skills add hiabhee/archdraw-skill --skill archdraw-diagram
 \`\`\`
 
-See the [coding agent setup guide](${SITE_URL}/agent-skill) for Codex, Claude Code, Cursor configuration, verification, prompts, and troubleshooting.
+See [Connect a coding agent](${SITE_URL}/docs/connect-agents) for setup and verification in each client (Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode), plus privacy, limits, and troubleshooting.
 
-The MCP process runs locally over stdio JSON-RPC. Diagram generation and layout requests go to the API configured in API_BASE_URL; the default setup uses the hosted ArchDraw service.
+The local MCP process runs over stdio JSON-RPC. Diagram generation and layout requests go to the API configured in API_BASE_URL, which must be set:
 
 \`\`\`json
 {
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.5"],
       "env": { "API_BASE_URL": "https://archdraw.hiabhee.online" }
     }
   }
