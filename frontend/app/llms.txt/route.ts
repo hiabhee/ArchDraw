@@ -34,6 +34,7 @@ ${docSectionLines}
 ## Guides
 
 - [What is an MCP server for diagramming?](${BASE_URL}/mcp): How ArchDraw's local MCP server lets AI assistants like Claude and Cursor read, edit, and lay out diagrams — plus connection instructions.
+- [Connect a coding agent](${BASE_URL}/docs/connect-agents): Setup and verification for Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and other MCP clients.
 - [Use ArchDraw with your coding agent](${BASE_URL}/agent-skill): Install the diagram skill, configure MCP for Codex, Claude Code, Cursor, or another client, and verify it.
 - [How to generate an architecture diagram from a GitHub repo with AI](${BASE_URL}/repo-diagram): Paste a GitHub repo URL and get an auto-laid-out architecture diagram with components, workflows, and dependency intelligence.
 - [Tutorials](${BASE_URL}/tutorials): Guided system-design lessons (ChatGPT, Netflix, Uber, Shopify, RAG, AI agents — ${TUTORIALS.length} total).

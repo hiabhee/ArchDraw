@@ -26,6 +26,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: base, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 1 },
     { url: `${base}/docs`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.85 },
+    { url: `${base}/docs/connect-agents`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.85 },
     { url: `${base}/blogs`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/pricing`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.85 },
     { url: `${base}/faq`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.7 },
