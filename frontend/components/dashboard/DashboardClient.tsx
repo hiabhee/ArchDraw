@@ -179,8 +179,13 @@ export function DashboardClient(_props: DashboardClientProps) {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="min-w-0">
-                          <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-brand-text transition-colors">
-                            {canvas.name}
+                          <h4 className="flex items-center gap-2 text-sm font-medium text-text-primary group-hover:text-brand-text transition-colors">
+                            <span className="truncate">{canvas.name}</span>
+                            {canvas.agenticProjectId && (
+                              <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                                Live project
+                              </span>
+                            )}
                           </h4>
                           <p className="text-[11px] text-text-muted mt-0.5">
                             {nodeCount} components • {edgeCount} connections

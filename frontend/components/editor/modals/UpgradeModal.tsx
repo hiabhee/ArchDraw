@@ -132,6 +132,11 @@ export const UPGRADE_BENEFITS = {
     'Canvas versioning (last 3 versions)',
     'Access from any device',
   ],
+  projects: [
+    'Turn a canvas into a live project',
+    'See which coding-agent session works on which component',
+    'Keep the architecture map in sync with your codebase',
+  ],
   general: [
     '10 AI generations per day (vs 3/hour)',
     'Save up to 5 canvases (vs 1 session)',

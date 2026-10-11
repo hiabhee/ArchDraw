@@ -3,6 +3,7 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
+import { LiveActivityBadge } from './LiveActivityBadge';
 import { findNodeById } from '@/store/diagram/derive';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
@@ -480,6 +481,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           )}
         </div>
         <FloatingHandles nodeId={id} />
+        <LiveActivityBadge nodeId={id} />
       </div>
     </div>
   );
