@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "archdraw",
   "displayName": "ArchDraw",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Generate, refine, validate, lay out, and export software architecture diagrams with ArchDraw — every diagram comes back with a preview link you can open and share.",
   "author": {
     "name": "ArchDraw",

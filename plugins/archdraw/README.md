@@ -26,6 +26,7 @@ Requirements: network access to `archdraw.hiabhee.online`. Claude needs nothing 
 
 ## What you get
 
+- **Hooks (optional live projects)** — report which files each Claude Code session edits to a linked ArchDraw project canvas, so you can watch sessions work on the diagram. Inactive until you link a repository (see below).
 - **Skill `archdraw`** — tells the agent when and how to use the ArchDraw tools, to prefer Mermaid input, and to always show you the preview link.
 - **MCP server `archdraw`** with these tools: `generate_diagram`, `update_diagram`, `validate_diagram`, `fix_layout`, `apply_template`, `list_templates`, `list_node_types`, `get_diagram_state`, `save_checkpoint`, `load_checkpoint`, `export_diagram`, `read_me`.
 
@@ -49,6 +50,15 @@ Please read this before installing.
 - **Sends:** the diagram content the agent passes to the tools — component names, labels, connections, and the Mermaid text — to `https://archdraw.hiabhee.online` (`/api/mcp` for Claude; `/api/diagram/load`, `/api/diagram/session/<id>`, `/api/diagram/export` for Codex) to lay out, publish, sync, and export diagrams. The hosted server sees your IP address, which it uses only for rate limiting. It does not read your source files itself, send credentials, or collect telemetry. Whatever the agent puts in a diagram is what is sent, so avoid putting secrets in diagram labels.
 - **Publishes by default:** each generated diagram is saved as a preview link on ArchDraw so you can see it. Links are unguessable, viewable by anyone who has the URL, and expire after 7 days. Ask the agent to keep a diagram private (the tools' `publish: false`) and no link is created; the diagram then stays only in its working session.
 - **Stores:** the current diagram and any checkpoints for a working session. On the hosted server they are kept for 24 hours under an unguessable working-session ID, then deleted; with the local Codex server they live in memory and are discarded when the session ends.
+
+### Live projects (optional, Claude Code only)
+
+The plugin also ships Claude Code **hooks** (`hooks/hooks.json`) that run `node scripts/archdraw-project.mjs hook` on SessionStart, after Edit/Write/MultiEdit/NotebookEdit, on Stop, and on SessionEnd. They need Node.js 18+.
+
+- **Off unless you link a repository.** Without a link in `~/.archdraw/projects.json` (created only by `npx -y @hiabhee/archdraw-mcp-server link`, after you approve a pairing code in the ArchDraw editor) the hook exits immediately and sends nothing.
+- **Sends (when linked):** to your linked ArchDraw project at `<ArchDraw URL>/api/projects/<canvas id>/activity` — the Claude Code session id, event type, the repository-relative path of each edited file, the git branch, a label (`repo (branch) #abcd`), and any one-line intent the agent shares. Never file contents, diffs, prompts, or command output.
+- **Stores:** the link (ArchDraw URL, canvas and project ids, and a revocable project-scoped token) in `~/.archdraw/projects.json` with `0600` permissions, outside your repository. "Stop" in the editor's Live project panel revokes the token; `archdraw-mcp-server unlink` removes the local link.
+- **Agent context:** on SessionStart in a linked repository the hook adds a short note with the project link and the `map` / `mermaid` / `publish` / `intent` commands. When the agent creates a file that no component owns, the hook may add a one-line note suggesting a diagram update (at most once per directory per session; it remembers which directories in a small file in your temp directory). `publish` sends the Mermaid diagram, the component → path map the agent writes, and the session id.
 
 To point the plugin at your own ArchDraw deployment, change the `url` in `.mcp.json` (Claude) or `API_BASE_URL` in `mcp.json` (Codex).
 
