@@ -11,7 +11,14 @@ import { normalizeEdges } from '../helpers/edgeHelpers';
 import { debouncedSaveCanvasToDB } from '../persistence/dbSave';
 import { withAutoSaveSuppressed } from '../persistence/autoSave';
 
-type CanvasRow = { id: string; name: string; nodes: unknown; edges: unknown; updatedAt: Date | string | null };
+type CanvasRow = {
+  id: string;
+  name: string;
+  nodes: unknown;
+  edges: unknown;
+  updatedAt: Date | string | null;
+  agenticProjectId?: string | null;
+};
 
 function canvasFromRow(d: CanvasRow): CanvasTab {
   const rawNodes = normalizeNodes((d.nodes as unknown as Node[]) ?? []);
@@ -25,6 +32,7 @@ function canvasFromRow(d: CanvasRow): CanvasTab {
     serverUpdatedAt: d.updatedAt ? updatedAt : undefined,
     isOpen: true,
     lastAccessedAt: updatedAt,
+    agenticProjectId: d.agenticProjectId ?? null,
   };
 }
 
@@ -56,6 +64,7 @@ export type PersistenceSlice = Pick<
   | 'savingState'
   | 'setSavingState'
   | 'setCanvasServerVersion'
+  | 'setCanvasProjectLink'
   | 'reloadCanvasFromDB'
   | 'loadCanvasesFromDB'
   | 'saveCanvasToDB'
@@ -112,6 +121,12 @@ export const createPersistenceSlice: StateCreator<
   setCanvasServerVersion: (canvasId, serverUpdatedAt) => {
     set({
       canvases: get().canvases.map((c) => (c.id === canvasId ? { ...c, serverUpdatedAt } : c)),
+    });
+  },
+
+  setCanvasProjectLink: (canvasId, agenticProjectId) => {
+    set({
+      canvases: get().canvases.map((c) => (c.id === canvasId ? { ...c, agenticProjectId } : c)),
     });
   },
 

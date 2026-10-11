@@ -3,6 +3,8 @@ export interface GuestQuotas {
   aiGenerationsPerHour: number;
   maxCanvases: number;
   maxNodesPerCanvas: number;
+  /** Canvases that can be live projects linked to coding agents. */
+  maxProjects: number;
   allowedExportFormats: string[];
   svgExport: boolean;
   allowSharing: boolean;
@@ -23,6 +25,8 @@ export interface AuthenticatedQuotas {
   aiGenerationsPerDay: number;
   maxCanvases: number;
   maxNodesPerCanvas: number;
+  /** Canvases that can be live projects linked to coding agents. */
+  maxProjects: number;
   allowedExportFormats: string[];
   svgExport: boolean;
   allowSharing: boolean;
@@ -49,6 +53,7 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     aiGenerationsPerHour: 10,
     maxCanvases: 1,
     maxNodesPerCanvas: 50,
+    maxProjects: 0,
     allowedExportFormats: ['json', 'png'],
     svgExport: false,
     allowSharing: false,
@@ -70,6 +75,8 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     aiGenerationsPerDay: 30,
     maxCanvases: 5,
     maxNodesPerCanvas: 150,
+    // One free project (agentic plan AG-061); paid expansion comes later.
+    maxProjects: 1,
     allowedExportFormats: ['json', 'png', 'svg', 'pdf', 'html-embed'],
     svgExport: true,
     allowSharing: true,

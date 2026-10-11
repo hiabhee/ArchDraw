@@ -39,21 +39,21 @@ model Session {
 }
 
 model User {
-  id                     String              @id
+  id                     String                  @id
   name                   String
-  email                  String              @unique
-  emailVerified          Boolean             @default(false)
+  email                  String                  @unique
+  emailVerified          Boolean                 @default(false)
   image                  String?
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  visitorId              String?             @db.Uuid
-  dailyGenerations       Int                 @default(0) @map("daily_generations")
-  dailyGenerationsDate   DateTime            @default(now()) @map("daily_generations_date")
-  featureFlags           Json                @default("{}") @map("feature_flags")
-  totalGenerations       Int                 @default(0) @map("total_generations")
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  visitorId              String?                 @db.Uuid
+  dailyGenerations       Int                     @default(0) @map("daily_generations")
+  dailyGenerationsDate   DateTime                @default(now()) @map("daily_generations_date")
+  featureFlags           Json                    @default("{}") @map("feature_flags")
+  totalGenerations       Int                     @default(0) @map("total_generations")
   Account                Account[]
   Session                Session[]
-  visitors               Visitor?            @relation(fields: [visitorId], references: [id])
+  visitors               Visitor?                @relation(fields: [visitorId], references: [id])
   profiles               Profile?
   sharedCanvases         SharedCanvas[]
   tutorialProgress       TutorialProgress[]
@@ -76,12 +76,12 @@ model Verification {
 }
 
 model ComponentCategory {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String
-  color         String?  @default("#94a3b8")
-  icon          String?
-  displayOrder  Int?     @default(0) @map("display_order")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  color        String?  @default("#94a3b8")
+  icon         String?
+  displayOrder Int?     @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   templates ComponentTemplate[]
 
@@ -105,16 +105,16 @@ model ComponentTemplate {
 }
 
 model Event {
-  id        BigInt  @id @default(autoincrement())
-  sessionId String  @map("session_id") @db.Uuid
-  visitorId String  @map("visitor_id") @db.Uuid
-  eventType String  @map("event_type")
-  eventName String? @map("event_name")
-  pagePath  String? @map("page_path")
-  payload   Json    @default("{}")
+  id        BigInt   @id @default(autoincrement())
+  sessionId String   @map("session_id") @db.Uuid
+  visitorId String   @map("visitor_id") @db.Uuid
+  eventType String   @map("event_type")
+  eventName String?  @map("event_name")
+  pagePath  String?  @map("page_path")
+  payload   Json     @default("{}")
   createdAt DateTime @default(now()) @map("created_at")
 
-  visitor Visitor @relation(fields: [visitorId], references: [id])
+  visitor Visitor        @relation(fields: [visitorId], references: [id])
   session VisitorSession @relation(fields: [sessionId], references: [id])
 
   @@index([createdAt(sort: Desc)])
@@ -156,36 +156,36 @@ model VisitorSession {
 }
 
 model SharedCanvas {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  canvasName      String   @map("canvas_name")
-  nodes           Json
-  edges           Json
-  createdAt       DateTime @default(now()) @map("created_at")
-  expiresAt       DateTime @default(dbgenerated("(now() + '30 days'::interval)")) @map("expires_at")
-  accessType      String   @default("anyone") @map("access_type")
-  linkPermission  String   @default("viewer") @map("link_permission")
-  users           Json     @default("[]")
-  ownerId         String?  @map("owner_id")
-  revision        Int      @default(1)
-  mcpUpdateToken  String?  @unique @map("mcp_update_token")
-  User            User?    @relation(fields: [ownerId], references: [id])
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  canvasName     String   @map("canvas_name")
+  nodes          Json
+  edges          Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @default(dbgenerated("(now() + '30 days'::interval)")) @map("expires_at")
+  accessType     String   @default("anyone") @map("access_type")
+  linkPermission String   @default("viewer") @map("link_permission")
+  users          Json     @default("[]")
+  ownerId        String?  @map("owner_id")
+  revision       Int      @default(1)
+  mcpUpdateToken String?  @unique @map("mcp_update_token")
+  User           User?    @relation(fields: [ownerId], references: [id])
 
   @@map("shared_canvases")
 }
 
 model TutorialProgress {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String   @map("user_id")
-  tutorialId       String   @map("tutorial_id")
-  currentLevel     Int      @default(1) @map("current_level")
-  currentStep      Int      @default(1) @map("current_step")
-  currentPhase     String   @default("context") @map("current_phase")
-  completedLevels  Int[]    @default([]) @map("completed_levels")
-  canvasNodes      Json     @default("[]") @map("canvas_nodes")
-  canvasEdges      Json     @default("[]") @map("canvas_edges")
-  explainCount     Int      @default(0) @map("explain_count")
-  updatedAt        DateTime @updatedAt @default(now()) @map("updated_at")
-  User             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id")
+  tutorialId      String   @map("tutorial_id")
+  currentLevel    Int      @default(1) @map("current_level")
+  currentStep     Int      @default(1) @map("current_step")
+  currentPhase    String   @default("context") @map("current_phase")
+  completedLevels Int[]    @default([]) @map("completed_levels")
+  canvasNodes     Json     @default("[]") @map("canvas_nodes")
+  canvasEdges     Json     @default("[]") @map("canvas_edges")
+  explainCount    Int      @default(0) @map("explain_count")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+  User            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tutorialId])
   @@map("tutorial_progress")
@@ -215,17 +215,45 @@ model UsageLog {
 }
 
 model UserCanvas {
-  id        String   @id
-  userId    String   @map("user_id")
-  name      String   @default("Canvas 1")
-  nodes     Json     @default("[]")
-  edges     Json     @default("[]")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String          @id
+  userId           String          @map("user_id")
+  name             String          @default("Canvas 1")
+  nodes            Json            @default("[]")
+  edges            Json            @default("[]")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at")
+  /// Set when the canvas is a live project; the agentic project anchors agent credentials.
+  agenticProjectId String?         @unique @map("agentic_project_id") @db.Uuid
+  User             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agenticProject   AgenticProject? @relation(fields: [agenticProjectId], references: [id], onDelete: SetNull)
+  agentSessions    AgentSession[]
 
   @@index([userId])
   @@map("user_canvases")
+}
+
+/// One coding-agent session (e.g. a Claude Code session) reporting activity on a project canvas.
+model AgentSession {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  canvasId           String   @map("canvas_id")
+  sessionKey         String   @map("session_key")
+  label              String
+  branch             String?
+  status             String   @default("active")
+  intent             String?
+  currentComponentId String?  @map("current_component_id")
+  touched            Json     @default("{}")
+  unmappedPaths      Json     @default("[]") @map("unmapped_paths")
+  /// Last structural diagram change this session published ({added, removed, renamed, at}).
+  lastChange         Json?    @map("last_change")
+  startedAt          DateTime @default(now()) @map("started_at")
+  lastSeenAt         DateTime @default(now()) @map("last_seen_at")
+
+  canvas UserCanvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+
+  @@unique([canvasId, sessionKey])
+  @@index([canvasId, lastSeenAt(sort: Desc)])
+  @@map("agent_sessions")
 }
 
 model AgenticProject {
@@ -241,6 +269,7 @@ model AgenticProject {
   workspaces      AgenticWorkspace[]
   credentials     AgenticCredential[]
   pairingRequests AgenticPairingRequest[]
+  canvas          UserCanvas?
 
   @@index([ownerId, updatedAt(sort: Desc)])
   @@map("agentic_projects")
@@ -365,19 +394,19 @@ model AgenticPairingRequest {
 }
 
 model Visitor {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  anonId         String    @unique @map("anon_id")
-  userId         String?   @map("user_id")
-  firstSeenAt    DateTime  @default(now()) @map("first_seen_at")
-  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
-  firstReferrer  String?   @map("first_referrer")
-  firstUtm       Json?     @map("first_utm")
-  userAgent      String?   @map("user_agent")
-  country        String?
-  isInternal     Boolean?  @default(false) @map("is_internal")
-  User           User[]
-  sessions       VisitorSession[]
-  events         Event[]
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anonId        String           @unique @map("anon_id")
+  userId        String?          @map("user_id")
+  firstSeenAt   DateTime         @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime         @default(now()) @map("last_seen_at")
+  firstReferrer String?          @map("first_referrer")
+  firstUtm      Json?            @map("first_utm")
+  userAgent     String?          @map("user_agent")
+  country       String?
+  isInternal    Boolean?         @default(false) @map("is_internal")
+  User          User[]
+  sessions      VisitorSession[]
+  events        Event[]
 
   @@index([anonId])
   @@index([userId])
