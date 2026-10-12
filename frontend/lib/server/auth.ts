@@ -81,6 +81,12 @@ export const auth = betterAuth({
     enabled: true,
     window: 60,
     max: 20,
+    // Every page load and tab focus reads the session. A 429 here looks like
+    // "no session" to the client, which then signs the user out, so only the
+    // sign-in paths stay limited.
+    customRules: {
+      '/get-session': false,
+    },
   },
 });
 

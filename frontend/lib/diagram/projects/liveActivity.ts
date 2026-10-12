@@ -107,6 +107,8 @@ export interface LiveAgentSession {
 
 export interface ProjectLiveSnapshot {
   canvasId: string;
+  /** Server-side canvas name (agents can name an auto-named canvas). */
+  canvasName: string;
   isProject: boolean;
   agenticProjectId: string | null;
   /** Workspace an agent pairing is approved into. */
@@ -114,6 +116,8 @@ export interface ProjectLiveSnapshot {
   repositoryRemote: string | null;
   canvasUpdatedAt: number;
   serverTime: number;
+  /** Active agent links (one per `link`d checkout); sessions there need no pairing. */
+  linkedCheckouts: number;
   sessions: LiveAgentSession[];
 }
 

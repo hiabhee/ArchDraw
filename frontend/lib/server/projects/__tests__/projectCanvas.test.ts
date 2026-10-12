@@ -9,7 +9,7 @@ vi.mock('@/lib/server/prisma', () => ({ default: { userCanvas: { findUnique: m.f
 vi.mock('@/lib/server/agentic-auth', () => ({ getAgenticPrincipal: m.getAgenticPrincipal }));
 vi.mock('@/lib/server/auth', () => ({ auth: { api: { getSession: m.getSession } } }));
 
-import { authorizeAgentForCanvas, getOwnedCanvas } from '../projectCanvas';
+import { authorizeAgentForCanvas, getOwnedCanvas, readJsonBody } from '../projectCanvas';
 
 const canvas = { id: 'c1', userId: 'u1', agenticProjectId: 'p1', nodes: [], name: 'X', updatedAt: new Date() };
 const req = (authorization?: string) =>
@@ -60,5 +60,20 @@ describe('getOwnedCanvas', () => {
   it('returns no user when signed out', async () => {
     m.getSession.mockResolvedValue(null);
     expect(await getOwnedCanvas(req(), 'c1')).toEqual({ userId: null, canvas: null });
+  });
+});
+
+describe('readJsonBody', () => {
+  const body = (text: string, length?: number) =>
+    new Request('http://localhost/x', { method: 'POST', body: text, headers: length ? { 'content-length': String(length) } : {} });
+
+  it('parses JSON within the limit and returns null for malformed JSON', async () => {
+    expect(await readJsonBody(body('{"a":1}'), 100)).toEqual({ tooLarge: false, value: { a: 1 } });
+    expect(await readJsonBody(body('{nope'), 100)).toEqual({ tooLarge: false, value: null });
+  });
+
+  it('refuses bodies over the limit, by header or by actual size', async () => {
+    expect(await readJsonBody(body('{}', 5_000), 1_000)).toEqual({ tooLarge: true });
+    expect(await readJsonBody(body(JSON.stringify({ a: 'x'.repeat(2_000) })), 1_000)).toEqual({ tooLarge: true });
   });
 });

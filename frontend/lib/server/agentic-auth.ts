@@ -16,6 +16,8 @@ export function hashAgenticSecret(secret: string) {
  * credential. A supplied but invalid Authorization header never falls back to
  * a browser cookie.
  */
+const LAST_USED_PRECISION_MS = 60_000;
+
 export async function getAgenticPrincipal(
   request: Request,
   projectId: string,
@@ -33,15 +35,20 @@ export async function getAgenticPrincipal(
         revokedAt: null,
         expiresAt: { gt: new Date() },
       },
-      select: { id: true, ownerId: true },
+      select: { id: true, ownerId: true, lastUsedAt: true },
     });
     if (!credential) return null;
 
-    const markedUsed = await prisma.agenticCredential.updateMany({
-      where: { id: credential.id, revokedAt: null, expiresAt: { gt: new Date() } },
-      data: { lastUsedAt: new Date() },
-    });
-    if (markedUsed.count !== 1) return null;
+    // Hooks call this on every edit; a minute's precision is plenty and saves
+    // a write round trip per request. Revocation was checked by the lookup.
+    const now = Date.now();
+    if (!credential.lastUsedAt || now - credential.lastUsedAt.getTime() > LAST_USED_PRECISION_MS) {
+      const markedUsed = await prisma.agenticCredential.updateMany({
+        where: { id: credential.id, revokedAt: null, expiresAt: { gt: new Date(now) } },
+        data: { lastUsedAt: new Date(now) },
+      });
+      if (markedUsed.count !== 1) return null;
+    }
 
     return { userId: credential.ownerId, credentialId: credential.id };
   }

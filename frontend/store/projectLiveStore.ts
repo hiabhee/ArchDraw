@@ -3,6 +3,7 @@ import { fetchProjectLive } from '@/lib/client/api-client';
 import { buildNodeActivity, type NodeLiveActivity, type ProjectLiveSnapshot } from '@/lib/diagram/projects/liveActivity';
 import { hasPendingCanvasSave } from '@/store/diagram/persistence/dbSave';
 import { useDiagramStore } from '@/store/diagramStore';
+import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
 
 /**
  * Live coding-agent activity for the active project canvas. Deliberately
@@ -41,14 +42,28 @@ function schedule(run: () => void) {
   timer = setTimeout(run, delay);
 }
 
+let reloading: Promise<void> | null = null;
+
+/** Adopt a name the server gave an auto-named canvas (the linked repository). */
+function maybeAdoptCanvasName(snapshot: ProjectLiveSnapshot) {
+  const diagram = useDiagramStore.getState();
+  const tab = diagram.canvases.find((c) => c.id === snapshot.canvasId);
+  if (!tab || !snapshot.canvasName || tab.name === snapshot.canvasName) return;
+  // Never override a name the user typed.
+  if (!isAutoCanvasName(tab.name) || isAutoCanvasName(snapshot.canvasName)) return;
+  diagram.renameCanvas(tab.id, snapshot.canvasName);
+}
+
 /** Pull in agent-published diagram changes unless the user has unsaved edits. */
 function maybeReloadCanvas(snapshot: ProjectLiveSnapshot) {
+  // A slow reload can outlast the poll interval: never run two at once.
+  if (reloading) return;
   const diagram = useDiagramStore.getState();
   const tab = diagram.canvases.find((c) => c.id === snapshot.canvasId);
   if (!tab || tab.serverUpdatedAt === undefined) return;
   if (snapshot.canvasUpdatedAt <= tab.serverUpdatedAt) return;
   if (hasPendingCanvasSave(snapshot.canvasId)) return;
-  void diagram.reloadCanvasFromDB(snapshot.canvasId);
+  reloading = diagram.reloadCanvasFromDB(snapshot.canvasId, { skipIfDirty: true }).finally(() => { reloading = null; });
 }
 
 export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
@@ -85,6 +100,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
       if (get().canvasId !== canvasId) return;
       failures = 0;
       set({ snapshot, nodeActivity: buildNodeActivity(snapshot.sessions, snapshot.serverTime), error: null });
+      maybeAdoptCanvasName(snapshot);
       maybeReloadCanvas(snapshot);
     } catch (err) {
       if (current.signal.aborted || get().canvasId !== canvasId) return;

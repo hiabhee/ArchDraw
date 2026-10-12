@@ -10,7 +10,7 @@ import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { checkRateLimitWithFallback } from '@/lib/server/redis';
-import { authorizeAgentForCanvas } from '@/lib/server/projects/projectCanvas';
+import { authorizeAgentForCanvas, readJsonBody } from '@/lib/server/projects/projectCanvas';
 import { getCodePaths, type CodePathNode } from '@/lib/diagram/projects/pathMatcher';
 import { publishGraph } from '@/lib/diagram/projects/publishGraph';
 import { isEmptyChange, summarizeChange } from '@/lib/diagram/projects/structureDiff';
@@ -19,6 +19,8 @@ export const runtime = 'nodejs';
 
 /** Publishing runs the layout pipeline; bound it per agent credential. */
 const PUBLISH_LIMIT_PER_HOUR = 120;
+/** The stored canvas row is capped well below this by maxNodesPerCanvas. */
+const MAX_PUBLISH_BYTES = 2 * 1024 * 1024;
 
 type StoredNode = CodePathNode & { parentId?: string; parentNode?: string };
 
@@ -104,11 +106,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     );
     if (!rate.allowed) return NextResponse.json({ error: 'Too many diagram updates' }, { status: 429 });
 
-    const parsed = putSchema.safeParse(await request.json().catch(() => null));
+    const raw = await readJsonBody(request, MAX_PUBLISH_BYTES);
+    if (raw.tooLarge) return NextResponse.json({ error: 'Diagram payload too large', code: 'PAYLOAD_TOO_LARGE' }, { status: 413 });
+    const parsed = putSchema.safeParse(raw.value);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid diagram payload', details: parsed.error.flatten() }, { status: 400 });
     }
     const body = parsed.data;
+    // The agent read an older copy than the one we would merge into.
+    if (body.baseUpdatedAt !== undefined && agent.canvas.updatedAt.getTime() > body.baseUpdatedAt) {
+      return NextResponse.json(
+        { error: 'The canvas changed since you read it. Retry.', code: 'CANVAS_CONFLICT', serverUpdatedAt: agent.canvas.updatedAt.getTime() },
+        { status: 409 },
+      );
+    }
     const existing = storedGraph(agent.canvas);
     const now = Date.now();
 
@@ -156,7 +167,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         userId: agent.canvas.userId,
         // Merges are computed from the canvas we just read; never apply one
         // over a newer save (e.g. the user moving nodes meanwhile).
-        updatedAt: body.baseUpdatedAt !== undefined ? { lte: new Date(body.baseUpdatedAt) } : agent.canvas.updatedAt,
+        updatedAt: agent.canvas.updatedAt,
       },
       data: { nodes: result.nodes as never, edges: result.edges as never },
     });
@@ -170,11 +181,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (body.sessionKey && !isEmptyChange(result.change)) {
       const change = result.change as unknown as Prisma.InputJsonObject;
+      // The diagram is already saved: a failure here (e.g. a race with the
+      // session's activity report) must not tell the agent to publish again.
       await prisma.agentSession.upsert({
         where: { canvasId_sessionKey: { canvasId: agent.canvas.id, sessionKey: body.sessionKey } },
         create: { canvasId: agent.canvas.id, sessionKey: body.sessionKey, label: 'Agent session', lastChange: change },
         update: { lastChange: change, lastSeenAt: new Date(now), status: 'active' },
-      });
+      }).catch((error: unknown) => logger.warn('Project diagram PUT: could not record session change', error));
     }
 
     return NextResponse.json({

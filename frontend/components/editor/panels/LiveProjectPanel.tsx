@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, ChevronDown, ChevronUp, FileQuestion, GitCommitVertical, Link2, Loader2, Plus, Radio, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
 import { approveAgentPairing, makeCanvasProject, unlinkCanvasProject } from '@/lib/client/api-client';
@@ -21,10 +19,15 @@ export const OPEN_LIVE_PROJECT_EVENT = 'open-live-project';
 
 function timeAgo(ms: number, now: number) {
   const s = Math.max(0, Math.round((now - ms) / 1000));
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return `${s}s`;
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  return `${Math.round(m / 60)}h ago`;
+  if (m < 60) return `${m}m`;
+  return `${Math.round(m / 60)}h`;
+}
+
+/** Pairing codes are 12 letters/digits, often typed as XXXX-XXXX-XXXX or with spaces. */
+function looksLikePairingCode(value: string) {
+  return /^[A-Z0-9]{12}$/i.test(value.replace(/[\s-]/g, ''));
 }
 
 const STATUS_LABEL: Record<LiveAgentSession['status'], string> = {
@@ -32,6 +35,12 @@ const STATUS_LABEL: Record<LiveAgentSession['status'], string> = {
   idle: 'Idle',
   ended: 'Ended',
 };
+
+const INPUT_CLASS =
+  'w-full h-8 rounded-lg border border-border bg-transparent px-2.5 text-xs text-text-primary placeholder:text-text-muted/70 outline-none transition-colors focus:border-border-strong aria-[invalid=true]:border-destructive/60';
+const PRIMARY_BUTTON_CLASS =
+  'inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-text-primary px-3 text-xs font-medium text-surface-panel transition-opacity hover:opacity-90 disabled:opacity-40';
+const TEXT_BUTTON_CLASS = 'text-[11px] text-text-muted transition-colors hover:text-text-primary';
 
 /**
  * Live project companion: turns the active canvas into a project, pairs coding
@@ -75,7 +84,9 @@ export function LiveProjectPanel() {
     <>
       {visible && activeCanvasId && (
         <div
-          className="absolute left-3 bottom-28 z-30 w-[min(320px,calc(100vw-24px))] rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl"
+          className={`absolute left-3 bottom-28 z-30 rounded-xl border border-border bg-surface-panel/95 text-text-primary shadow-[0_8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur ${
+            isProject && collapsed ? 'w-auto' : 'w-[min(288px,calc(100vw-24px))]'
+          }`}
           role="region"
           aria-label="Live project"
         >
@@ -104,8 +115,21 @@ export function LiveProjectPanel() {
 }
 
 function MakeProjectView({ canvasId, onClose }: { canvasId: string; onClose: () => void }) {
+  const [code, setCode] = useState('');
   const [remote, setRemote] = useState('');
+  const [showRemote, setShowRemote] = useState(false);
   const [busy, setBusy] = useState(false);
+  const codeInvalid = code.trim() !== '' && !looksLikePairingCode(code);
+
+  // A pairing code pasted into the remote field belongs in the code field.
+  const handleRemoteChange = (value: string) => {
+    if (looksLikePairingCode(value)) {
+      setCode(value.trim());
+      setRemote('');
+    } else {
+      setRemote(value);
+    }
+  };
 
   const handleCreate = async () => {
     setBusy(true);
@@ -114,7 +138,19 @@ function MakeProjectView({ canvasId, onClose }: { canvasId: string; onClose: () 
       await flushCanvasSaveToDB(canvasId, useDiagramStore.getState);
       const { project } = await makeCanvasProject(canvasId, { repositoryRemote: remote.trim() || null });
       useDiagramStore.getState().setCanvasProjectLink(canvasId, project.agenticProjectId);
-      toast.success('This canvas is now a live project');
+      if (!code.trim() || !project.agenticProjectId || !project.workspaceId) {
+        toast.success('This canvas is now a live project');
+        return;
+      }
+      try {
+        await approveAgentPairing({ userCode: code, projectId: project.agenticProjectId, workspaceId: project.workspaceId });
+        toast.success('Live project created and agent connected');
+      } catch (err) {
+        toast.error(
+          `Project created, but the pairing code did not work${err instanceof Error ? `: ${err.message}` : ''}. ` +
+            'Run the link command again and use "Connect agent".',
+        );
+      }
     } catch (err) {
       const e = err as Error & { code?: string };
       toast.error(
@@ -128,34 +164,73 @@ function MakeProjectView({ canvasId, onClose }: { canvasId: string; onClose: () 
   };
 
   return (
-    <div className="p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Radio className="w-4 h-4 text-accent" aria-hidden />
-          <h2 className="text-sm font-semibold">Make this a live project</h2>
-        </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="Close">
-          <X className="w-4 h-4" />
+    <div className="p-3.5 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[13px] font-medium tracking-tight">Live project</h2>
+        <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors" aria-label="Close">
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        Link this canvas to a codebase. Your coding agents keep the diagram up to date, and you can see which
-        session is working on which component while they work.
+      <p className="text-[11.5px] leading-relaxed text-text-muted">
+        Link this canvas to a codebase. Agents keep it current and you see what each one is touching.
       </p>
-      <label className="block space-y-1">
-        <span className="text-[11px] font-medium text-muted-foreground">Repository remote (optional)</span>
-        <Input
+      <LinkCommand />
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Pairing code (optional)"
+        className={`${INPUT_CLASS} font-mono uppercase placeholder:normal-case placeholder:font-sans`}
+        aria-label="Pairing code"
+        aria-invalid={codeInvalid}
+        title={codeInvalid ? 'A pairing code has 12 letters and digits.' : undefined}
+      />
+      {showRemote ? (
+        <input
           value={remote}
-          onChange={(e) => setRemote(e.target.value)}
+          onChange={(e) => handleRemoteChange(e.target.value)}
           placeholder="git@github.com:you/repo.git"
-          className="h-8 text-xs"
+          className={INPUT_CLASS}
+          aria-label="Git remote URL"
+          autoFocus
         />
-      </label>
-      <Button size="sm" className="w-full" onClick={handleCreate} disabled={busy}>
-        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Radio className="w-3.5 h-3.5" />}
-        Make live project
-      </Button>
+      ) : (
+        <button onClick={() => setShowRemote(true)} className={TEXT_BUTTON_CLASS}>
+          + Git remote
+        </button>
+      )}
+      <button className={`${PRIMARY_BUTTON_CLASS} w-full`} onClick={handleCreate} disabled={busy || codeInvalid}>
+        {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        {code.trim() ? 'Create and connect' : 'Create live project'}
+      </button>
     </div>
+  );
+}
+
+/** Copyable `link` command that prints a pairing code. */
+function LinkCommand() {
+  const [copied, setCopied] = useState(false);
+  const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
+  const command = `npx -y @hiabhee/archdraw-mcp-server link --api ${apiBase}`;
+  return (
+    <button
+      onClick={() => {
+        void navigator.clipboard?.writeText(command);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="group flex w-full items-start gap-2 rounded-lg bg-text-primary/[0.04] px-2.5 py-2 text-left transition-colors hover:bg-text-primary/[0.07]"
+      title="Copy command"
+    >
+      <code className="flex-1 break-all font-mono text-[10.5px] leading-relaxed text-text-secondary">
+        <span className="select-none text-text-muted">$ </span>
+        {command}
+      </code>
+      {copied ? (
+        <Check className="mt-0.5 w-3 h-3 shrink-0 text-emerald-500" aria-label="Copied" />
+      ) : (
+        <Copy className="mt-0.5 w-3 h-3 shrink-0 text-text-muted opacity-60 group-hover:opacity-100" aria-hidden />
+      )}
+    </button>
   );
 }
 
@@ -178,6 +253,7 @@ function ProjectView({
 
   const sessions = useMemo(() => snapshot?.sessions ?? [], [snapshot]);
   const liveCount = sessions.filter((s) => s.status !== 'ended').length;
+  const linkedCheckouts = snapshot?.linkedCheckouts ?? 0;
   const labels = useMemo(() => {
     const map = new Map<string, string>();
     for (const n of nodes) map.set(n.id, String((n.data as { label?: unknown })?.label ?? n.id));
@@ -204,76 +280,75 @@ function ProjectView({
     <div>
       <button
         onClick={onToggleCollapsed}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3"
+        className="w-full flex items-center gap-2 px-3.5 py-2.5"
         aria-expanded={!collapsed}
       >
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          <span className={`w-2 h-2 rounded-full ${liveCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
-          Live project
-          <span className="text-xs font-normal text-muted-foreground">
-            {liveCount} {liveCount === 1 ? 'agent' : 'agents'}
-          </span>
+        <span className="relative flex w-1.5 h-1.5">
+          {liveCount > 0 && <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-60 motion-reduce:hidden" />}
+          <span className={`relative w-1.5 h-1.5 rounded-full ${liveCount > 0 ? 'bg-emerald-500' : 'bg-text-muted/40'}`} />
         </span>
-        {collapsed ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        <span className="text-[13px] font-medium tracking-tight">Live</span>
+        <span className="text-[11px] tabular-nums text-text-muted">{liveCount}</span>
+        <ChevronDown
+          className={`ml-auto w-3.5 h-3.5 text-text-muted transition-transform ${collapsed ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
       </button>
 
       {!collapsed && (
-        <div className="px-4 pb-4 space-y-3 max-h-[50vh] overflow-y-auto">
-          {error && <p className="text-xs text-destructive">Live updates paused: {error}</p>}
+        <div className="border-t border-border">
+          <div className="px-1.5 py-1.5 max-h-[50vh] overflow-y-auto">
+            {error && <p className="px-2 py-1.5 text-[11px] text-destructive">Paused: {error}</p>}
 
-          {!hasMappings && (
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              No component has code paths yet. Ask your agent to map the codebase into this project, or add
-              paths to a component in its properties.
-            </p>
-          )}
-
-          {sessions.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No agent sessions yet. Connect an agent to get started.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {sessions.map((s) => {
-                const focused = focusedSessionKey === s.sessionKey;
-                return (
-                  <li key={s.id}>
-                    <button
-                      onClick={() => setFocusedSession(focused ? null : s.sessionKey)}
-                      className={`w-full text-left rounded-xl px-2.5 py-2 border transition-colors ${
-                        focused ? 'border-accent bg-accent/5' : 'border-transparent hover:bg-muted/60'
-                      } ${s.status === 'ended' ? 'opacity-50' : ''}`}
-                      aria-pressed={focused}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                        <span className="text-xs font-medium truncate flex-1">{s.label}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {STATUS_LABEL[s.status]} · {timeAgo(s.lastSeenAt, now)}
-                        </span>
-                      </span>
-                      {s.intent && <span className="block mt-1 pl-[18px] text-[11px] text-foreground/80 line-clamp-2">{s.intent}</span>}
-                      {s.lastChange && (
-                        <span className="flex items-start gap-1 mt-1 pl-[18px] text-[11px] text-foreground/80">
-                          <GitCommitVertical className="w-3 h-3 shrink-0 mt-px" aria-hidden />
-                          <span className="line-clamp-2">
-                            {summarizeChange(s.lastChange)} · {timeAgo(s.lastChange.at, now)}
+            {sessions.length === 0 ? (
+              <p className="px-2 py-2 text-[11.5px] leading-relaxed text-text-muted">
+                {linkedCheckouts > 0
+                  ? `No sessions in the last few hours. ${linkedCheckouts === 1 ? 'Your linked checkout needs' : `Your ${linkedCheckouts} linked checkouts need`} no new pairing: start Claude there and it shows up here.`
+                  : 'No agents yet. Link a checkout once and every session started there shows up here.'}
+                {!hasMappings && ' Ask one to map this codebase.'}
+              </p>
+            ) : (
+              <ul>
+                {sessions.map((s) => {
+                  const focused = focusedSessionKey === s.sessionKey;
+                  const where = s.currentComponentId ? labels.get(s.currentComponentId) ?? s.currentComponentId : null;
+                  const detail = s.intent ?? (s.lastChange ? summarizeChange(s.lastChange) : null);
+                  return (
+                    <li key={s.id}>
+                      <button
+                        onClick={() => setFocusedSession(focused ? null : s.sessionKey)}
+                        className={`w-full text-left rounded-lg px-2 py-1.5 transition-colors ${
+                          focused ? 'bg-text-primary/[0.06]' : 'hover:bg-text-primary/[0.035]'
+                        } ${s.status === 'ended' ? 'opacity-45' : ''}`}
+                        aria-pressed={focused}
+                        title={`${s.label} · ${STATUS_LABEL[s.status]}${s.branch && s.branch !== s.label ? ` · ${s.branch}` : ''}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.status === 'active' ? '' : 'opacity-50'}`}
+                            style={{ backgroundColor: s.color }}
+                          />
+                          <span className="flex-1 truncate text-xs font-medium">{s.label}</span>
+                          <span className="shrink-0 text-[10.5px] tabular-nums text-text-muted">
+                            {timeAgo(s.lastSeenAt, now)}
                           </span>
                         </span>
-                      )}
-                      <span className="flex items-center gap-1 mt-1 pl-[18px] text-[11px] text-muted-foreground">
-                        <Activity className="w-3 h-3 shrink-0" aria-hidden />
-                        <span className="truncate">
-                          {s.currentComponentId ? labels.get(s.currentComponentId) ?? s.currentComponentId : 'No mapped edits yet'}
-                          {s.branch && s.branch !== s.label ? ` · ${s.branch}` : ''}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                        {(where || detail) && (
+                          <span className="mt-0.5 block truncate pl-3.5 text-[11px] text-text-muted">
+                            {where && <span className="text-text-secondary">{where}</span>}
+                            {where && detail && ' — '}
+                            {detail}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
-          {unmapped.length > 0 && <UnmappedFiles paths={unmapped} />}
+            {unmapped.length > 0 && <UnmappedFiles paths={unmapped} />}
+          </div>
 
           {showConnect ? (
             <ConnectAgent
@@ -282,18 +357,16 @@ function ProjectView({
               onDone={() => setShowConnect(false)}
             />
           ) : (
-            <div className="flex items-center gap-2 pt-1">
-              <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => setShowConnect(true)}>
-                <Link2 className="w-3.5 h-3.5" /> Connect an agent
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 text-xs text-muted-foreground hover:!text-destructive"
+            <div className="flex items-center justify-between border-t border-border px-3.5 py-2">
+              <button onClick={() => setShowConnect(true)} className={TEXT_BUTTON_CLASS}>
+                {linkedCheckouts > 0 ? '+ Link another checkout' : '+ Link a checkout'}
+              </button>
+              <button
                 onClick={() => setConfirmUnlink(true)}
+                className="text-[11px] text-text-muted transition-colors hover:text-destructive"
               >
                 Stop
-              </Button>
+              </button>
             </div>
           )}
         </div>
@@ -328,22 +401,20 @@ function UnmappedFiles({ paths }: { paths: string[] }) {
   };
 
   return (
-    <div className="space-y-1">
-      <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-        <FileQuestion className="w-3 h-3" aria-hidden /> Edited files not on the diagram
-      </p>
+    <div className="mt-1 px-2 pt-2 pb-1">
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-text-muted">Unmapped</p>
       <ul className="space-y-0.5">
         {paths.map((path) => (
-          <li key={path} className="flex items-center gap-1.5 text-[11px]">
-            <code className="truncate flex-1 text-foreground/80" title={path}>{path}</code>
+          <li key={path} className="group flex items-center gap-2">
+            <code className="flex-1 truncate font-mono text-[10.5px] text-text-secondary" title={path}>{path}</code>
             <button
               onClick={() => assign(path)}
               disabled={!selectedNode}
-              className="shrink-0 inline-flex items-center gap-0.5 text-accent disabled:text-muted-foreground/50"
+              className="shrink-0 text-[10.5px] text-text-muted transition-colors hover:text-text-primary disabled:opacity-40 disabled:hover:text-text-muted"
               title={selectedLabel ? `Map to ${selectedLabel}` : 'Select a component to map this file'}
               aria-label={selectedLabel ? `Map ${path} to ${selectedLabel}` : `Select a component to map ${path}`}
             >
-              <Plus className="w-3 h-3" /> map
+              map
             </button>
           </li>
         ))}
@@ -363,15 +434,12 @@ function ConnectAgent({
 }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
-  const command = `npx -y @hiabhee/archdraw-mcp-server link --api ${apiBase}`;
-
   const approve = async () => {
     if (!agenticProjectId || !workspaceId) return;
     setBusy(true);
     try {
       await approveAgentPairing({ userCode: code, projectId: agenticProjectId, workspaceId });
-      toast.success('Agent connected. It will appear here once it starts working.');
+      toast.success('Checkout linked. Every Claude session started there now shows up here.');
       setCode('');
       onDone();
     } catch (err) {
@@ -382,34 +450,25 @@ function ConnectAgent({
   };
 
   return (
-    <div className="space-y-2 rounded-xl border border-border p-3">
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        1. In your repository, run:
+    <div className="space-y-2 border-t border-border p-3.5">
+      <p className="text-[11px] leading-relaxed text-text-muted">
+        Only for a new machine or clone. Run this once in that checkout; its sessions and worktrees then connect on their own.
       </p>
-      <button
-        onClick={() => {
-          void navigator.clipboard?.writeText(command);
-          toast.success('Command copied');
-        }}
-        className="w-full text-left rounded-lg bg-muted px-2 py-1.5 font-mono text-[10.5px] break-all"
-        title="Copy command"
-      >
-        {command}
-      </button>
-      <p className="text-[11px] text-muted-foreground">2. Enter the code it prints:</p>
-      <div className="flex gap-2">
-        <Input
+      <LinkCommand />
+      <div className="flex gap-1.5">
+        <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="ABCD-EFGH-JKLM"
-          className="h-8 text-xs font-mono uppercase"
+          placeholder="Pairing code"
+          className={`${INPUT_CLASS} font-mono uppercase placeholder:normal-case placeholder:font-sans`}
           aria-label="Pairing code"
+          autoFocus
         />
-        <Button size="sm" className="h-8 text-xs" onClick={approve} disabled={busy || code.trim().length < 12 || !workspaceId}>
+        <button className={PRIMARY_BUTTON_CLASS} onClick={approve} disabled={busy || code.trim().length < 12 || !workspaceId}>
           {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Connect'}
-        </Button>
+        </button>
       </div>
-      <button onClick={onDone} className="text-[11px] text-muted-foreground hover:text-foreground">Cancel</button>
+      <button onClick={onDone} className={TEXT_BUTTON_CLASS}>Cancel</button>
     </div>
   );
 }

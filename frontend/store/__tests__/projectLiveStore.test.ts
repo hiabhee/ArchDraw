@@ -5,21 +5,23 @@ const m = vi.hoisted(() => ({
   hasPendingCanvasSave: vi.fn(),
   reloadCanvasFromDB: vi.fn(),
   setState: vi.fn(),
-  canvases: [] as Array<{ id: string; serverUpdatedAt?: number }>,
+  renameCanvas: vi.fn(),
+  canvases: [] as Array<{ id: string; name?: string; serverUpdatedAt?: number }>,
 }));
 vi.mock('@/lib/client/api-client', () => ({ fetchProjectLive: m.fetchProjectLive }));
 vi.mock('@/store/diagram/persistence/dbSave', () => ({ hasPendingCanvasSave: m.hasPendingCanvasSave }));
 vi.mock('@/store/diagramStore', () => ({
   useDiagramStore: {
-    getState: () => ({ canvases: m.canvases, reloadCanvasFromDB: m.reloadCanvasFromDB }),
+    getState: () => ({ canvases: m.canvases, reloadCanvasFromDB: m.reloadCanvasFromDB, renameCanvas: m.renameCanvas }),
     setState: m.setState,
   },
 }));
 
 import { useProjectLiveStore } from '../projectLiveStore';
 
-const snapshot = (canvasUpdatedAt: number) => ({
+const snapshot = (canvasUpdatedAt: number, canvasName = 'Giraffe') => ({
   canvasId: 'c1',
+  canvasName,
   isProject: true,
   agenticProjectId: 'p1',
   workspaceId: 'w1',
@@ -39,8 +41,9 @@ describe('projectLiveStore', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    m.canvases = [{ id: 'c1', serverUpdatedAt: 500 }];
+    m.canvases = [{ id: 'c1', name: 'Giraffe', serverUpdatedAt: 500 }];
     m.hasPendingCanvasSave.mockReturnValue(false);
+    m.reloadCanvasFromDB.mockResolvedValue(undefined);
   });
   afterEach(() => {
     useProjectLiveStore.getState().stop();
@@ -60,7 +63,32 @@ describe('projectLiveStore', () => {
   it('reloads the canvas when the server copy is newer and nothing is pending', async () => {
     m.fetchProjectLive.mockResolvedValue(snapshot(900));
     useProjectLiveStore.getState().start('c1');
-    await vi.waitFor(() => expect(m.reloadCanvasFromDB).toHaveBeenCalledWith('c1'));
+    await vi.waitFor(() => expect(m.reloadCanvasFromDB).toHaveBeenCalledWith('c1', { skipIfDirty: true }));
+  });
+
+  it('never runs a second reload while one is still in flight', async () => {
+    let finish: () => void = () => {};
+    m.reloadCanvasFromDB.mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+    m.fetchProjectLive.mockResolvedValue(snapshot(900));
+    useProjectLiveStore.getState().start('c1');
+    await vi.waitFor(() => expect(m.reloadCanvasFromDB).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(m.fetchProjectLive).toHaveBeenCalledTimes(2);
+    expect(m.reloadCanvasFromDB).toHaveBeenCalledTimes(1);
+    finish();
+  });
+
+  it('adopts the repository name for an auto-named canvas, never over a user name', async () => {
+    m.fetchProjectLive.mockResolvedValue(snapshot(500, 'ArchDraw'));
+    useProjectLiveStore.getState().start('c1');
+    await vi.waitFor(() => expect(m.renameCanvas).toHaveBeenCalledWith('c1', 'ArchDraw'));
+    useProjectLiveStore.getState().stop();
+
+    m.renameCanvas.mockClear();
+    m.canvases = [{ id: 'c1', name: 'My diagram', serverUpdatedAt: 500 }];
+    useProjectLiveStore.getState().start('c1');
+    await vi.waitFor(() => expect(useProjectLiveStore.getState().snapshot).not.toBeNull());
+    expect(m.renameCanvas).not.toHaveBeenCalled();
   });
 
   it('does not reload over unsaved local edits', async () => {

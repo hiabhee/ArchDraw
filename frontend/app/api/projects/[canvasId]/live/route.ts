@@ -14,18 +14,28 @@ const LIVE_WINDOW_MS = 6 * 60 * 60 * 1000;
 export async function GET(request: NextRequest, { params }: { params: Promise<{ canvasId: string }> }) {
   try {
     const { canvasId } = await params;
+    const now = Date.now();
+    // Polled every few seconds: overlap the session read with the ownership
+    // check (it is only returned once ownership is confirmed).
+    const sessionsQuery = prisma.agentSession.findMany({
+      where: { canvasId, lastSeenAt: { gt: new Date(now - LIVE_WINDOW_MS) } },
+      orderBy: { lastSeenAt: 'desc' },
+      take: 50,
+    });
+    sessionsQuery.catch(() => {}); // awaited below only when authorized
     const { userId, canvas } = await getOwnedCanvas(request, canvasId);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!canvas) return NextResponse.json({ error: 'Canvas not found' }, { status: 404 });
 
-    const now = Date.now();
-    const rows = canvas.agenticProjectId
-      ? await prisma.agentSession.findMany({
-          where: { canvasId: canvas.id, lastSeenAt: { gt: new Date(now - LIVE_WINDOW_MS) } },
-          orderBy: { lastSeenAt: 'desc' },
-          take: 50,
-        })
-      : [];
+    const [rows, linkedCheckouts] = canvas.agenticProjectId
+      ? await Promise.all([
+          sessionsQuery,
+          // One credential per `link`: every session started in that checkout reuses it.
+          prisma.agenticCredential.count({
+            where: { projectId: canvas.agenticProjectId, revokedAt: null, expiresAt: { gt: new Date(now) } },
+          }),
+        ])
+      : [[], 0];
 
     const sessions = rows.map((row) => ({
       id: row.id,
@@ -46,12 +56,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(
       {
         canvasId: canvas.id,
+        canvasName: canvas.name,
         isProject: Boolean(canvas.agenticProjectId),
         agenticProjectId: canvas.agenticProjectId,
         workspaceId: canvas.agenticProject?.workspaces[0]?.id ?? null,
         repositoryRemote: canvas.agenticProject?.repositoryRemote ?? null,
         canvasUpdatedAt: canvas.updatedAt.getTime(),
         serverTime: now,
+        linkedCheckouts,
         sessions,
       },
       { headers: { 'Cache-Control': 'no-store' } },

@@ -28,8 +28,71 @@ export function normalizeRepoPath(path: string): string {
     .replace(/\/{2,}/g, '/');
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+type GlobToken =
+  | { kind: 'char'; char: string }
+  | { kind: 'one' } // `?`: one character, not `/`
+  | { kind: 'segment' } // `*`: any run without `/`
+  | { kind: 'any' } // trailing or inline `**`: any run
+  | { kind: 'dirs' }; // `**/`: zero or more whole directories
+
+function tokenizeGlob(pattern: string): GlobToken[] {
+  const tokens: GlobToken[] = [];
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    if (char === '*' && pattern[i + 1] === '*') {
+      if (pattern[i + 2] === '/') {
+        tokens.push({ kind: 'dirs' });
+        i += 2;
+      } else {
+        tokens.push({ kind: 'any' });
+        i += 1;
+      }
+    } else if (char === '*') {
+      tokens.push({ kind: 'segment' });
+    } else if (char === '?') {
+      tokens.push({ kind: 'one' });
+    } else {
+      tokens.push({ kind: 'char', char });
+    }
+  }
+  return tokens;
+}
+
+/**
+ * Linear-time glob match (tokens × path characters). Patterns come from
+ * agents, so a backtracking RegExp (`**a**a**a…`) could stall the server.
+ */
+function matchGlob(tokens: readonly GlobToken[], path: string): boolean {
+  const n = path.length;
+  // cur[j]: the tokens so far match path[0..j).
+  let cur = new Uint8Array(n + 1);
+  cur[0] = 1;
+  for (const token of tokens) {
+    const next = new Uint8Array(n + 1);
+    let seen = 0; // some cur[k] with k <= j - 1 (for `dirs`)
+    for (let j = 0; j <= n; j++) {
+      switch (token.kind) {
+        case 'char':
+          if (j > 0 && cur[j - 1] && path[j - 1] === token.char) next[j] = 1;
+          break;
+        case 'one':
+          if (j > 0 && cur[j - 1] && path[j - 1] !== '/') next[j] = 1;
+          break;
+        case 'segment':
+          if (cur[j] || (j > 0 && next[j - 1] && path[j - 1] !== '/')) next[j] = 1;
+          break;
+        case 'any':
+          if (cur[j] || (j > 0 && next[j - 1])) next[j] = 1;
+          break;
+        case 'dirs':
+          if (cur[j] || (seen && path[j - 1] === '/')) next[j] = 1;
+          break;
+      }
+      if (cur[j]) seen = 1;
+    }
+    cur = next;
+  }
+  return cur[n] === 1;
 }
 
 export function compilePattern(rawPattern: string): CompiledPattern | null {
@@ -46,28 +109,8 @@ export function compilePattern(rawPattern: string): CompiledPattern | null {
     };
   }
 
-  let source = '';
-  for (let i = 0; i < pattern.length; i++) {
-    const char = pattern[i];
-    if (char === '*' && pattern[i + 1] === '*') {
-      // `**/` matches zero or more directories; a trailing `**` matches anything.
-      if (pattern[i + 2] === '/') {
-        source += '(?:.*/)?';
-        i += 2;
-      } else {
-        source += '.*';
-        i += 1;
-      }
-    } else if (char === '*') {
-      source += '[^/]*';
-    } else if (char === '?') {
-      source += '[^/]';
-    } else {
-      source += escapeRegex(char);
-    }
-  }
-  const regex = new RegExp(`^${source}$`);
-  return { specificity: wildcardAt, test: (path) => regex.test(path) };
+  const tokens = tokenizeGlob(pattern);
+  return { specificity: wildcardAt, test: (path) => matchGlob(tokens, path) };
 }
 
 export function getCodePaths(node: CodePathNode): string[] {

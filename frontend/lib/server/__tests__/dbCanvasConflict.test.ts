@@ -39,4 +39,17 @@ describe('upsertUserCanvas conflict detection', () => {
     expect(m.upsert).toHaveBeenCalledTimes(2);
     expect(m.upsert.mock.calls[0][0].create).not.toHaveProperty('baseUpdatedAt');
   });
+
+  it('keeps a repository name on a project canvas when a stale tab saves its generated name', async () => {
+    m.findUnique.mockResolvedValue({ userId: 'u1', name: 'ArchDraw', agenticProjectId: 'p1' });
+    await upsertUserCanvas('u1', { ...data, name: 'Giraffe' });
+    expect(m.upsert.mock.calls[0][0].update.name).toBe('ArchDraw');
+
+    // A name the user typed always wins, and plain canvases are untouched.
+    await upsertUserCanvas('u1', { ...data, name: 'Payments' });
+    expect(m.upsert.mock.calls[1][0].update.name).toBe('Payments');
+    m.findUnique.mockResolvedValue({ userId: 'u1', name: 'ArchDraw', agenticProjectId: null });
+    await upsertUserCanvas('u1', { ...data, name: 'Giraffe' });
+    expect(m.upsert.mock.calls[2][0].update.name).toBe('Giraffe');
+  });
 });

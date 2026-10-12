@@ -8,7 +8,7 @@ import { MAX_GUEST_CANVASES } from '../constants';
 import { mergeCanvases } from '../helpers/canvasHelpers';
 import { normalizeNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges } from '../helpers/edgeHelpers';
-import { debouncedSaveCanvasToDB } from '../persistence/dbSave';
+import { debouncedSaveCanvasToDB, hasPendingCanvasSave } from '../persistence/dbSave';
 import { withAutoSaveSuppressed } from '../persistence/autoSave';
 
 type CanvasRow = {
@@ -130,11 +130,13 @@ export const createPersistenceSlice: StateCreator<
     });
   },
 
-  reloadCanvasFromDB: async (canvasId) => {
+  reloadCanvasFromDB: async (canvasId, options) => {
     try {
       const rows = (await apiGetUserCanvases()) as CanvasRow[];
       const row = rows?.find((r) => r.id === canvasId);
       if (!row) return;
+      // An edit made during the fetch would be overwritten; the next poll retries.
+      if (options?.skipIfDirty && hasPendingCanvasSave(canvasId)) return;
       const fresh = canvasFromRow(row);
       withAutoSaveSuppressed(() => set({
         canvases: get().canvases.map((c) =>

@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import { AUTO_CANVAS_NAMES } from '@/lib/diagram/canvas/canvasNames';
 import { toast } from 'sonner';
 import { componentRegistry } from '@/lib/component-library/componentRegistry';
 import type { DiagramState, CanvasTab } from '../types';
@@ -47,10 +48,7 @@ export const createCanvasSlice: StateCreator<
   cloudProvider: 'off',
 
   getRandomAnimalName: () => {
-    const animals = [
-      'Elephant', 'Lion', 'Panda', 'Tiger', 'Falcon', 'Shark', 'Wolf', 'Fox', 'Bear', 'Eagle',
-      'Owl', 'Hawk', 'Dolphin', 'Penguin', 'Zebra', 'Giraffe', 'Leopard', 'Jaguar', 'Panther', 'Cheetah',
-    ];
+    const animals = AUTO_CANVAS_NAMES;
     const usedNames = get().canvases.map((c) => c.name);
     const available = animals.filter((a) => !usedNames.includes(a));
     if (available.length > 0) {
