@@ -1,8 +1,15 @@
+import type { BlogDemoId } from '@/components/landing/BlogDemo';
+
 export interface BlogSection {
   heading: string;
+  /** Paragraphs are separated by a blank line. */
   body: string;
   bullets?: string[];
   code?: string;
+  /** File the code block comes from, shown above it. */
+  codeTitle?: string;
+  /** Interactive demo rendered after the text (see components/landing/BlogDemo). */
+  demo?: BlogDemoId;
 }
 
 export interface BlogPost {
@@ -17,6 +24,177 @@ export interface BlogPost {
 }
 
 export const blogs: BlogPost[] = [
+  {
+    slug: 'live-projects-performance',
+    title: 'How we made live projects fast',
+    kicker: 'Performance',
+    category: 'Engineering',
+    readTime: '12 min',
+    date: 'Oct 12, 2026',
+    summary:
+      'A live project shows each coding-agent session on an architecture diagram. Our first build froze the editor, signed users out and showed agents late. This post shows each cause, the code we changed and the numbers. Each section has a demo that you can change.',
+    sections: [
+      {
+        heading: 'The system',
+        body:
+          'A project is a canvas. Coding agents (for example, Claude Code sessions) send the file paths that they edit. The server maps each path to a diagram component. The editor polls for activity and shows a badge on each component that a session touches.\n\nThe stack is Next.js (App Router), React Flow 11, Zustand, Prisma 7 with Postgres, and Claude Code hooks. Our test diagram had 47 nodes (9 groups) and 43 edges. The editor supports 150 nodes, so this size must be easy.\n\nOur rule for this work: measure first, then change code. We used CPU profiles from headless Chrome, store-update counters and a timer on each server step.',
+        code: `Claude Code session ─ PostToolUse hook (file path) ─▶ archdraw-project.mjs
+  archdraw-project.mjs ─ POST /activity (Bearer adp_ token) ─▶ Next.js API route ─▶ Postgres (AgentSession)
+Editor tab ─ GET /live every 3 s ─▶ Next.js API route
+Editor tab ─▶ React Flow canvas + badges ─ edge layout ─▶ Web Worker`,
+      },
+      {
+        heading: 'Canvas rendering: a 32-second freeze',
+        body:
+          'The agent published the diagram. The browser then showed "Page Unresponsive". The CPU profile showed one long task of 31.7 seconds. The top functions were SimpleFloatingEdge.useMemo[route] (14.3 s), scoreAllHandlerPairs (10.0 s) and useHandleSlotLayout (4.7 s). Three causes multiplied each other.\n\nChange the inputs below to see how the main-thread work grows. The model counts full route calculations on the main thread during one load.',
+        bullets: [
+          'The layout worker never started. A module in its import graph used typeof window !== \'undefined\'. Next.js replaces this check with true in all client bundles. A worker is a client bundle, but it has no window, so the worker failed when it loaded and sent no reply.',
+          'The fallback was the full router. Until the worker plan arrives, each edge calculated its own obstacle-aware route on the main thread, and each node handle scored all four sides for each of its edges.',
+          'Each node caused a full pass. Each ShapeNode called updateNodeInternals(id) in its own microtask. Each call made a new nodeInternals map, which is a dependency of every edge. We counted 273 render passes during one load.',
+          'Fixes: read the port from globalThis.location; the worker sends a ready message (5 s timeout, then one main-thread calculation); edges draw a right-angle placeholder until the plan arrives; all size updates go to React Flow in one batch.',
+          'Result: the long task went from 32 s to 7 s in a development build. The remaining time is React development overhead, which production builds do not have.',
+        ],
+        demo: 'render-work',
+        codeTitle: 'frontend/components/canvas/nodes/ShapeNode.tsx',
+        code: `const pendingInternals = new Map<UpdateNodeInternals, Set<string>>();
+
+function queueNodeInternalsUpdate(update: UpdateNodeInternals, id: string) {
+  const ids = pendingInternals.get(update);
+  if (ids) { ids.add(id); return; }
+  pendingInternals.set(update, new Set([id]));
+  queueMicrotask(() => {
+    const batch = pendingInternals.get(update);
+    pendingInternals.delete(update);
+    if (batch?.size) update([...batch]); // React Flow 11 accepts string[]
+  });
+}`,
+      },
+      {
+        heading: 'Edge geometry: 87 false failures',
+        body:
+          'When the worker started to work, a banner said "87 hard geometry issues". Many edges also showed an amber dash-dot line, which is the warning style for a route that fails validation. All checked violations had the same form: an edge "crossed" the group that holds its own source or target.\n\nThe router treats the ancestor groups of both endpoints as passable, because an edge must cross its own group border to leave the group. The final routeStatus() check got only the two endpoint ids, so it counted those groups as obstacles. Use the switch to compare.',
+        bullets: [
+          'Result: hard issues went from 87 to 7. The 7 that remain come from one real edge that crosses a stack of nodes.',
+          'The banner now shows only hard issues. Edge crossings (72 on this diagram) are normal in a dense architecture diagram, so they do not show a warning.',
+        ],
+        demo: 'geometry-check',
+        codeTitle: 'frontend/lib/diagram/edges/edgeRouteBuilder.ts',
+        code: `const passableGroupIds = new Set([
+  ...getAncestorGroupIds(edge.source, nodes),
+  ...getAncestorGroupIds(edge.target, nodes),
+])
+// Validation must skip the same groups routing treats as passable, or every
+// edge leaving its own group is reported as crossing it.
+const validationExcludedIds = new Set([...excludedIds, ...passableGroupIds])
+
+- let validation = routeStatus(result.waypoints, nodes, excludedIds, terminals)
++ let validation = routeStatus(result.waypoints, nodes, validationExcludedIds, terminals)`,
+      },
+      {
+        heading: 'Auto-save: conflicts with no edits',
+        body:
+          'Saves use optimistic concurrency. Each save sends baseUpdatedAt. If the server copy is newer, the server returns 409 and the editor shows "changed in another tab". The user saw this warning, but the user did not edit the canvas.\n\nAfter each updateNodeInternals call, React Flow reports a dimensions change for each node, also when the size is the same. applyNodeChanges returns a new array, and the auto-save subscriber compares arrays by reference, so it saw an edit and saved 1.5 s later. If the agent published in that time, the save carried an old version.',
+        bullets: [
+          'The store now ignores a size report that is equal to the stored size (a real resize still saves).',
+          'A selection change does not start a save.',
+          'This also removes one full canvas render after each load. A conflict writes a warning to the log, not an error, because the toast already handles it.',
+        ],
+        codeTitle: 'frontend/store/diagram/slices/graphSlice.ts',
+        code: `export function dropNoopDimensionChanges(changes: NodeChange[], nodes: Node[]) {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  return changes.filter((c) => {
+    if (c.type !== 'dimensions' || !c.dimensions || c.resizing !== undefined || c.updateStyle) return true;
+    const node = byId.get(c.id);
+    if (!node || node.width == null || node.height == null) return true;
+    return Math.abs(node.width - c.dimensions.width) >= 0.5
+        || Math.abs(node.height - c.dimensions.height) >= 0.5;
+  });
+}`,
+      },
+      {
+        heading: 'Sign-in: a rate limit that signed users out',
+        body:
+          'After some hard refreshes, users had to sign in again. The sessions in the database were valid for 7 days. The cause was the auth rate limit: 20 requests per 60 seconds, with one bucket for each IP and path. Each page load and each tab focus calls /get-session. Request 21 got a 429, and the client read a 429 the same as "no session".\n\nA session read only checks a cookie that the user already has. An attacker cannot use it to guess credentials, so the exemption is safe. The sign-in paths keep the limit.',
+        demo: 'session-bucket',
+        codeTitle: 'frontend/lib/server/auth.ts',
+        code: `rateLimit: {
+  enabled: true,
+  window: 60,
+  max: 20,
+  // A 429 here looks like "no session" to the client, which then signs the
+  // user out, so only the sign-in paths stay limited.
+  customRules: { '/get-session': false },
+},`,
+      },
+      {
+        heading: 'Agent hooks: sessions that did not arrive',
+        body:
+          'Users paired the agent again for each new session. The pairing was not the problem: one link in ~/.archdraw/projects.json serves all sessions in a checkout for 90 days. But new sessions never showed on the canvas, so users thought the link had failed.\n\nThe hook script stopped each request after 1.5 seconds, because hooks run inside the agent loop. The local API needed 2.4 to 3.7 seconds. So the start report was lost, edit reports were lost, and the start note said "0 components". That note told the agent to map the codebase again.',
+        bullets: [
+          'Activity reports now go out from a detached background process with a 15 s budget. The agent does not wait for it.',
+          'If the component map does not load in 4 s, the start note says "not loaded yet", never "0 components".',
+          'The payload goes in argv, not through a pipe, because a parent process can exit before a pipe flushes. It holds paths only; the token stays in the 0600 link file.',
+          'A test uses a server that answers in 4.5 s: the session still registers and the note says "not loaded yet".',
+        ],
+        demo: 'hook-timeline',
+        codeTitle: 'plugins/archdraw/scripts/archdraw-project.mjs',
+        code: `function sendInBackground(cwd, payload) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  spawn(process.execPath, [SCRIPT_PATH, 'send', cwd, encoded],
+        { detached: true, stdio: 'ignore' }).unref();
+}
+
+async function runSend([cwd, encoded]) {
+  const binding = loadBinding(cwd); // token read from disk, never argv
+  const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+  await api(binding, '/activity', { method: 'POST', body: JSON.stringify(payload), timeoutMs: 15_000 });
+}`,
+      },
+      {
+        heading: 'Server API: 7 seconds for one report',
+        body:
+          'Each activity report took 7 seconds. We timed each step in-process against the same database. One select 1 took 320 ms, because the test database is in a distant region. Then we found three problems.\n\nUse the switches to apply each fix. Use the slider to change the database round-trip time. At 5 ms (same region, as in production), round trips matter much less.',
+        bullets: [
+          'Rate limit, 3,004 ms on each call. The Upstash host no longer existed (DNS failure), so each call waited for the 3-second timeout. Fix: a 30-second circuit breaker. It still throws, so AI quota checks keep their fail-closed fallback.',
+          'Canvas lookup, 1,733 ms. The nested select (project → workspaces) made more than one query and read the full diagram JSON. Fix: agent routes use one query with no relations; owner routes skip the JSON and run the session check and canvas lookup in parallel.',
+          'Credential check, 1,359 ms: one read, then one lastUsedAt write on each request. Fix: write lastUsedAt at most once a minute.',
+          'Result: POST /activity went from 7.0 s to 1.4 s, and the component map from 3.0 s to 0.7 s.',
+        ],
+        demo: 'api-waterfall',
+        codeTitle: 'frontend/lib/server/redis.ts',
+        code: `const REDIS_RETRY_AFTER_MS = 30_000;
+let redisRateLimitDownUntil = 0;
+
+// Still throws: callers keep their fail-closed fallbacks (AI quotas).
+if (Date.now() < redisRateLimitDownUntil) {
+  throw new RedisRateLimitError('Redis rate limit skipped: recently unreachable');
+}
+// ...
+} catch (error) {
+  redisRateLimitDownUntil = Date.now() + REDIS_RETRY_AFTER_MS;
+  throw new RedisRateLimitError(/* ... */);
+}`,
+      },
+      {
+        heading: 'Results and lessons',
+        body:
+          'All numbers come from a local development server with a remote test database. We did not measure a production build.',
+        bullets: [
+          'Canvas: longest main-thread task on load went from 32 s to 7 s (development build).',
+          'Geometry: hard issues on the test diagram went from 87 to 7.',
+          'Auto-save: saves with no user edit went from one per load to none.',
+          'Auth: session reads that succeed went from 11 of 25 to 25 of 25.',
+          'Hooks: with a 3 s server, the session report went from lost to delivered.',
+          'API: POST /activity went from 7.0 s to 1.4 s; the component map from 3.0 s to 0.7 s.',
+          'Lesson: measure before you change code. The diagram size was not the problem; one profile showed the real cause.',
+          'Lesson: look for multipliers. A small cost × each edge × each node × each pass became 32 seconds.',
+          'Lesson: do not report "unknown" as "zero". A slow request told the agent that the project was empty, so it did the work again.',
+          'Lesson: count round trips. At 320 ms each, the number of sequential queries matters more than all other work.',
+          'Lesson: make the state visible. The pairing worked, but the panel did not say so, so users paired again.',
+        ],
+      },
+    ],
+  },
   {
     slug: 'archdraw-claude-code-opencode',
     title: 'Give your coding agent an architecture workspace with ArchDraw',

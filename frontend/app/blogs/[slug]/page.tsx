@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Clock, Tag, ArrowLeft, Calendar } from 'lucide-react';
 import { blogs } from '@/data/blogs';
+import { BlogDemo } from '@/components/landing/BlogDemo';
 
 interface BlogDetailProps {
   params: Promise<{
@@ -220,9 +221,11 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
                     <span className="leading-snug">{section.heading}</span>
                   </h2>
 
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed text-justify">
-                    {section.body}
-                  </p>
+                  {section.body.split('\n\n').map((paragraph, pIdx) => (
+                    <p key={pIdx} className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed text-justify">
+                      {paragraph}
+                    </p>
+                  ))}
 
                   {/* Bullets */}
                   {section.bullets && section.bullets.length > 0 && (
@@ -239,9 +242,19 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
                     </ul>
                   )}
 
+                  {/* Interactive demo */}
+                  {section.demo && (
+                    <div className="pt-1">
+                      <BlogDemo id={section.demo} />
+                    </div>
+                  )}
+
                   {/* Code Block */}
                   {section.code && (
-                    <div className="pt-1">
+                    <div className="pt-1 space-y-1.5">
+                      {section.codeTitle && (
+                        <div className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{section.codeTitle}</div>
+                      )}
                       <pre 
                         className="overflow-x-auto rounded-lg border border-[hsl(var(--border)/0.16)] bg-[hsl(var(--muted)/0.3)] p-4 text-xs font-mono leading-relaxed text-[hsl(var(--foreground))] shadow-inner"
                         style={{ borderLeft: '3px solid hsl(var(--border))' }}
