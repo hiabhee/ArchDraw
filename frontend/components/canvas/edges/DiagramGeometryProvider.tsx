@@ -137,22 +137,21 @@ export function DiagramGeometryProvider({
 
   useEffect(() => { geometryStore.set(plan); }, [plan]);
 
+  // Only hard issues (an edge through a node, colliding nodes) interrupt the
+  // user. Soft ones are mostly ordinary crossings, which any dense
+  // architecture diagram has; a standing warning about them was noise.
   const hardIssueCount = plan.violations.filter((issue) => issue.severity === 'hard').length;
-  const softIssueCount = plan.violations.filter((issue) => issue.severity === 'soft').length;
-  const issueCount = hardIssueCount + softIssueCount;
   return (
     <DiagramGeometryContext.Provider value={geometryStore}>
       {children}
-      {!plan.provisional && issueCount > 0 && (
+      {!plan.provisional && hardIssueCount > 0 && (
         <div
           role="status"
           aria-live="polite"
           className="absolute bottom-3 left-3 z-20 max-w-xs rounded-md border border-amber-500/40 bg-background/95 px-3 py-2 text-xs text-foreground shadow-sm"
-          title={plan.violations.map((issue) => issue.code).join(', ')}
+          title={plan.violations.filter((issue) => issue.severity === 'hard').map((issue) => issue.code).join(', ')}
         >
-          {hardIssueCount > 0
-            ? `${hardIssueCount} hard geometry issue${hardIssueCount === 1 ? '' : 's'} need attention. Move a node or try another layout.`
-            : `${softIssueCount} route overlap${softIssueCount === 1 ? '' : 's'} may make the flow harder to follow. Try another layout.`}
+          {`${hardIssueCount} layout issue${hardIssueCount === 1 ? '' : 's'}: an edge runs through a node or nodes overlap. Move a node or try another layout.`}
         </div>
       )}
     </DiagramGeometryContext.Provider>

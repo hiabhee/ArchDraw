@@ -50,8 +50,9 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState, opti
     }, 2000);
   } catch (err) {
     const e = err as Error & { status?: number; code?: string; details?: unknown };
-    const isQuotaError = e?.code === 'CANVAS_SIZE_EXCEEDED' || e?.code === 'CANVAS_LIMIT_EXCEEDED';
-    const logFn = isQuotaError ? logger.warn : logger.error;
+    // Expected outcomes the user resolves through a toast — not app errors.
+    const isHandled = e?.code === 'CANVAS_SIZE_EXCEEDED' || e?.code === 'CANVAS_LIMIT_EXCEEDED' || e?.code === 'CANVAS_CONFLICT';
+    const logFn = isHandled ? logger.warn : logger.error;
     // Log both structured context and raw error — previous version logged {} when e was empty
     logFn('[CanvasPersistence] Failed to save canvas to database:', {
       canvasId,

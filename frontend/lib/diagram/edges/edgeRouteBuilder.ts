@@ -834,6 +834,9 @@ export function computeEdgeRoute(
     ...getAncestorGroupIds(edge.source, nodes),
     ...getAncestorGroupIds(edge.target, nodes),
   ])
+  // Validation must skip the same groups routing treats as passable, or every
+  // edge leaving its own group is reported as crossing it.
+  const validationExcludedIds = new Set<string>([...excludedIds, ...passableGroupIds])
   const scorerObstacles = buildScorerObstacles(nodes, excludedIds, passableGroupIds, renderStyleId, iconMode)
   const srcHandlerRect: HandlerRect = {
     x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h,
@@ -918,13 +921,13 @@ export function computeEdgeRoute(
       waypoints,
       svgPath,
     }
-    const validation = routeStatus(result.waypoints, nodes, new Set([edge.source, edge.target]))
+    const validation = routeStatus(result.waypoints, nodes, validationExcludedIds)
     const customPathValid = hasValidCustomWaypointPath(sh, th, sourcePosition, targetPosition, customWaypoints);
     if (!customPathValid) {
       validation.violations.push({ code: 'CUSTOM_PATH_INVALID' })
       validation.status = 'invalid'
     }
-    const completed = completeRoute({ ...result, ...validation }, nodes, new Set([edge.source, edge.target]), curveRadius)
+    const completed = completeRoute({ ...result, ...validation }, nodes, validationExcludedIds, curveRadius)
     return customPathValid ? completed : { ...completed, status: 'invalid', violations: [...completed.violations, { code: 'CUSTOM_PATH_INVALID' }] }
   }
 
@@ -1113,7 +1116,7 @@ export function computeEdgeRoute(
     waypoints,
     svgPath,
   }
-  let validation = routeStatus(result.waypoints, nodes, excludedIds, { source: sourceRect, target: targetRect })
+  let validation = routeStatus(result.waypoints, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
   if (parallelLaneOffset !== 0) {
     const horizontal = sourceIsHorizontal && targetIsHorizontal
     const stub = Math.max(24, curveRadius + 8)
@@ -1127,7 +1130,7 @@ export function computeEdgeRoute(
     const lanePath = horizontal
       ? [sh, sourceStub, { x: sourceStub.x, y: lane }, { x: targetStub.x, y: lane }, targetStub, th]
       : [sh, sourceStub, { x: lane, y: sourceStub.y }, { x: lane, y: targetStub.y }, targetStub, th]
-    const laneStatus = routeStatus(lanePath, nodes, excludedIds, { source: sourceRect, target: targetRect })
+    const laneStatus = routeStatus(lanePath, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
     if (laneStatus.status === 'ok') {
       waypoints = lanePath
       svgPath = buildSmoothStepSvg(waypoints, curveRadius)
@@ -1141,5 +1144,5 @@ export function computeEdgeRoute(
     validation.status = 'failed'
     validation.failureReason = 'no-path-found'
   }
-  return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, excludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
+  return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
 }

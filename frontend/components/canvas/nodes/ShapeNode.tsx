@@ -45,6 +45,25 @@ export type { ShapeType };
 export type { ShapeNodeData, ShapeLabelLayout };
 export { resolveShapeLabelLayout };
 
+type UpdateNodeInternals = ReturnType<typeof useUpdateNodeInternals>;
+const pendingInternals = new Map<UpdateNodeInternals, Set<string>>();
+
+/**
+ * Coalesce handle re-measurement across nodes. Each call rebuilds React
+ * Flow's nodeInternals and re-renders every edge and handle, so a diagram
+ * mounting 40 nodes must measure once, not 40 times.
+ */
+function queueNodeInternalsUpdate(update: UpdateNodeInternals, id: string) {
+  const ids = pendingInternals.get(update);
+  if (ids) { ids.add(id); return; }
+  pendingInternals.set(update, new Set([id]));
+  queueMicrotask(() => {
+    const batch = pendingInternals.get(update);
+    pendingInternals.delete(update);
+    if (batch?.size) update([...batch]);
+  });
+}
+
 /** Fit to optical grid; wrap long labels inside the silhouette mid-band. */
 function resolveShapeSize(data: ShapeNodeData, showIcon?: boolean, compact = false): { width: number; height: number; labelMaxWidth: number } {
   const { width: resolvedWidth, height: resolvedHeight } = resolveShapeNodeDimensions(
@@ -186,15 +205,9 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
 
   // updateNodeInternals is a React Flow imperative handle; calling it
   // synchronously on every size change can trigger onNodesChange -> set
-  // -> effect loop. Defer and coalesce.
-  const pendingInternalsRef = useRef(false);
+  // -> effect loop. Defer and coalesce (across all nodes).
   useLayoutEffect(() => {
-    if (pendingInternalsRef.current) return;
-    pendingInternalsRef.current = true;
-    queueMicrotask(() => {
-      pendingInternalsRef.current = false;
-      updateNodeInternals(id);
-    });
+    queueNodeInternalsUpdate(updateNodeInternals, id);
   }, [id, width, height, updateNodeInternals]);
 
   const shellProps = {

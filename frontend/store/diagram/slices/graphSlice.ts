@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { Edge, Node } from 'reactflow';
-import { addEdge, applyNodeChanges, applyEdgeChanges } from 'reactflow';
+import { addEdge, applyNodeChanges, applyEdgeChanges, type NodeChange } from 'reactflow';
 import { toast } from 'sonner';
 import { runClarityCompiler } from '@/lib/diagram/features/clarityCompiler';
 import { getNodeShape } from '@/lib/diagram/nodes/nodeShapes';
@@ -18,6 +18,7 @@ import type { DiagramState, NodeData } from '../types';
 import { MAX_GUEST_NODES, MAX_AUTH_NODES } from '../constants';
 import { stripReservedLayerNodes, normalizeNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges, distributeTargetHandles } from '../helpers/edgeHelpers';
+import { withAutoSaveSuppressed } from '../persistence/autoSave';
 
 export type GraphSlice = Pick<
   DiagramState,
@@ -45,13 +46,31 @@ export type GraphSlice = Pick<
   | 'fixMissingLabels'
 >;
 
+/** Size reports that match the stored size (and aren't a user resize). */
+export function dropNoopDimensionChanges(changes: NodeChange[], nodes: Node[]): NodeChange[] {
+  if (!changes.some((c) => c.type === 'dimensions')) return changes;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  return changes.filter((c) => {
+    if (c.type !== 'dimensions' || !c.dimensions || c.resizing !== undefined || c.updateStyle) return true;
+    const node = byId.get(c.id);
+    if (!node || node.width == null || node.height == null) return true;
+    return Math.abs(node.width - c.dimensions.width) >= 0.5 || Math.abs(node.height - c.dimensions.height) >= 0.5;
+  });
+}
+
 export const createGraphSlice: StateCreator<
   DiagramState,
   [['zustand/persist', unknown]],
   [],
   GraphSlice
 > = (set, get) => ({
-  onNodesChange: (changes) => {
+  onNodesChange: (allChanges) => {
+    // React Flow re-reports every node's size whenever handles are
+    // re-measured (forceUpdate), even when nothing changed. Applying those
+    // made a fresh nodes array → an auto-save of an unchanged canvas, which
+    // 409s against an agent that published in the meantime.
+    const changes = dropNoopDimensionChanges(allChanges, get().nodes);
+    if (changes.length === 0) return;
     const structural = changes.filter((c) => c.type === 'add' || c.type === 'remove');
     const isStructural = structural.length > 0;
 
@@ -66,7 +85,9 @@ export const createGraphSlice: StateCreator<
     const canvases = get().canvases.map((c) =>
       c.id === activeId ? { ...c, nodes, ...(isStructural ? { updatedAt: Date.now() } : {}) } : c
     );
-    set({ canvases });
+    // Selection is view state; don't persist the canvas just for a click.
+    if (changes.every((c) => c.type === 'select')) withAutoSaveSuppressed(() => set({ canvases }));
+    else set({ canvases });
   },
 
   onEdgesChange: (changes) => {
