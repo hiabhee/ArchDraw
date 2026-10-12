@@ -170,7 +170,7 @@ Fit-view registration: `registerFitViewCallback` in the same file.
 
 `frontend/components/canvas/Canvas.tsx` — React Flow host: node/edge types, selection, connection drawing, template query params, fit view, collision helpers.
 
-Editor chrome: `frontend/components/editor/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, `CommandPalette.tsx`, `ComponentSidebar.tsx`, `PropertiesPanel.tsx`, `MermaidCodePanel.tsx`.
+Editor chrome: `frontend/components/editor/Editor.tsx`, `Toolbar.tsx`, `FloatingAIBar.tsx`, `CommandPalette.tsx`, `ComponentSidebar.tsx`, `MermaidCodePanel.tsx`. There is no node/edge properties panel: selecting a node or edge opens nothing.
 
 ### Node types
 
@@ -182,7 +182,7 @@ Editor chrome: `frontend/components/editor/Editor.tsx`, `Toolbar.tsx`, `Floating
 | **AnnotationNode** | annotation | Callouts / notes |
 | **TextLabelNode** | text label | Free text on canvas |
 
-Shape config / palette: `frontend/lib/diagram/constants/nodeShapeConfig.ts`, `PropertiesPanel.tsx`, `ComponentSidebar.tsx`.
+Shape config / palette: `frontend/lib/diagram/constants/nodeShapeConfig.ts`, `ComponentSidebar.tsx`.
 
 Icons: `NodeIcon.tsx`, `components/icons/`, `lib/icons/CustomNodeIcon.tsx` (pure; shared by canvas + SVG export), `lib/icons/nodeIconResolver.ts`.
 
@@ -348,6 +348,7 @@ UI: `components/editor/RepoDiagramGenerator.tsx`.
 | **Tutorials** | `data/tutorials/*`, `components/tutorial/*` | Step-guided component placement |
 | **Mermaid panel** | MermaidCodePanel | Round-trip RF ↔ Mermaid |
 | **LR / TB layout** | Toolbar + `relayout.ts` | Mermaid→Dagre, not ELK |
+| **High-level / In-depth** | Toolbar toggle (`diagramViewMode`), `lib/diagram/geometry/highLevelView.ts`, `Canvas.tsx` | High-level collapses each top-level group into one component, merges edges between groups, lays the summary out via `layoutDiagramViaMermaid`; view-only (read-only host, no store writes) |
 | **Command palette** | CommandPalette | Quick-add components (⌘K) |
 | **Multi-canvas tabs** | diagramStore | Undo/redo, auto-saved DB sync with conflict detection |
 | **Auth** | better-auth (`lib/server/auth.ts`, AuthProvider) | Google / GitHub OAuth (email+password disabled) |
@@ -398,11 +399,11 @@ Because every MCP generation now creates a `SharedCanvas` row: `POST /api/diagra
 
 A **live project is a canvas** (`UserCanvas`) linked to coding agents: `UserCanvas.agenticProjectId` points at an `AgenticProject`, which exists only to anchor the existing `adp_` agent credentials and `/api/agentic/pairing` flow. Several diagrams on one project canvas are top-level groups. The Agentic revision/proposal/view tables are not used by this feature.
 
-- **Mapping:** node `data.codePaths` (repo-relative paths/globs). `lib/diagram/projects/pathMatcher.ts` picks the most specific match (leaf beats group on ties). Edited in PropertiesPanel ("Code paths") or published by the agent.
+- **Mapping:** node `data.codePaths` (repo-relative paths/globs). `lib/diagram/projects/pathMatcher.ts` picks the most specific match (leaf beats group on ties). Set by the agent when it publishes (`componentPaths`); there is no manual editor.
 - **APIs** (`frontend/app/api/projects/[canvasId]/`): `POST`/`DELETE` (owner: make/stop project; stop deletes the agentic project → revokes credentials, clears sessions), `activity` (agent token: session events with file paths only → `AgentSession` rows), `live` (owner: polled snapshot), `diagram` (agent token: `GET` component map, `PUT` Mermaid + `componentPaths` through `runMermaidPipeline`, CAS via `baseUpdatedAt`). Auth helpers: `lib/server/projects/projectCanvas.ts` (agent routes reject browser sessions and require the credential owner to own the canvas).
 - **Editor:** `store/projectLiveStore.ts` polls `live` every 3s while visible and is deliberately separate from `diagramStore` (no undo/autosave writes); it calls `reloadCanvasFromDB` when the server copy is newer and `hasPendingCanvasSave` is false. Overlay: `components/canvas/nodes/LiveActivityBadge.tsx` (editor hosts only; `live-activity-overlay` is filtered from image export). Panel: `components/editor/panels/LiveProjectPanel.tsx` (toolbar radio button / `open-live-project` event).
 - **Structure updates:** `PUT …/diagram` merges by default (`lib/diagram/projects/publishGraph.ts` → `lib/diagram/mermaid/mergePreservingLayout.ts`, the same merge the Mermaid code panel uses): existing components keep positions/sizes/data incl. `codePaths`, new leaves are placed off existing ones, removed ones drop, group bounds are recomputed; `relayout: true` (or an empty canvas) takes the fresh Dagre layout. The write is CAS'd on the `updatedAt` it merged from. `structureDiff.ts` computes added/removed/renamed; with `sessionKey` it is stored as `AgentSession.lastChange` and shown as a "New" ring/badge (2 min) plus a per-session summary. `GET …/diagram?format=mermaid` returns the current Mermaid + componentPaths for edit-and-republish.
-- **Agent side:** `archdraw-mcp-server link|unlink|status` (`mcp-server/src/cli/project-link.ts`) pairs a checkout and writes `~/.archdraw/projects.json` (0600, `version: 1`, format owned by `mcp-server/src/lib/project-binding.ts`). The plugin's Claude Code hooks (`plugins/archdraw/hooks/hooks.json` → `scripts/archdraw-project.mjs`, zero-dependency, `node --test plugins/archdraw/scripts/*.test.mjs`) no-op unless linked, resolve worktrees to the main repo's link, send paths only, and inject the `map`/`publish`/`intent` commands at SessionStart so the token never enters model context.
+- **Agent side:** `archdraw-mcp-server link|unlink|status` (`mcp-server/src/cli/project-link.ts`) pairs a checkout and writes `~/.archdraw/projects.json` (0600, `version: 1`, format owned by `mcp-server/src/lib/project-binding.ts`). The plugin's Claude Code hooks (`plugins/archdraw/hooks/hooks.json` → `scripts/archdraw-project.mjs`, zero-dependency, `node --test plugins/archdraw/scripts/*.test.mjs`) no-op unless linked, resolve worktrees to the main repo's link, send paths only (activity reports go out from a detached `send` process so a slow server neither blocks the agent nor drops the report), and inject the `map`/`publish`/`intent` commands at SessionStart so the token never enters model context.
 - Quota: `maxProjects` in `userQuotas.ts` (guest 0, signed-in 1).
 
 ## 13. Testing & quality
