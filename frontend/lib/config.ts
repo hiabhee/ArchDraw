@@ -94,7 +94,9 @@ export const STORAGE_KEYS = {
   guideDismissed: 'archdraw_guide_dismissed',
   customComponents: 'archdraw_custom_components',
   introCount: 'archdraw-intro-shown-count',
-  state: typeof window !== 'undefined' ? window.location.port : 'archdraw-state',
+  // Not `typeof window`: Next folds that to true in client bundles, which
+  // includes the edge geometry worker, where `window` does not exist.
+  state: globalThis.location?.port ?? 'archdraw-state',
 } as const;
 
 export const STORAGE_KEY = STORAGE_KEYS.state; // Backwards compatibility for existing code

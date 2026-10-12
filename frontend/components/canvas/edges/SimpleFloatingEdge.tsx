@@ -106,38 +106,11 @@ export default function SimpleFloatingEdge({
     const planned = geometry.route;
     if (planned) return planned;
     if (geometry.provisional) {
-      const edgeObj: Edge = {
-        id,
-        source,
-        target,
-        sourceHandle: sourceHandleId,
-        targetHandle: targetHandleId,
-        data,
-      } as Edge;
-      // Prefer a full local route whenever both terminals are measured —
-      // this covers viewers and first paint with real smoothstep routing
-      // (side scoring + obstacle avoidance), not just a naive placeholder.
-      try {
-        const internals = Array.from(nodeInternals.values());
-        if (internals.length >= 2 && nodeInternals.get(source) && nodeInternals.get(target)) {
-          return computeEdgeRoute(
-            edgeObj,
-            internals,
-            edges,
-            direction,
-            renderStyleId,
-            {
-              source: { x: _sourceX, y: _sourceY },
-              target: { x: _targetX, y: _targetY },
-            },
-            iconMode,
-          );
-        }
-      } catch {
-        // fall through to the orthogonal placeholder below
-      }
-      // Terminals not measured yet: render a proper smoothstep placeholder —
-      // never a straight diagonal — so first paint already matches the look.
+      // The diagram-wide plan is still being computed (off the main thread).
+      // Don't route here: every node measurement re-renders every edge, and a
+      // full obstacle-aware route per edge per render froze the page on
+      // diagrams of ~50 nodes. Draw a smoothstep placeholder — never a
+      // straight diagonal — until the plan replaces it.
       const s = { x: _sourceX, y: _sourceY };
       const t = { x: _targetX, y: _targetY };
       let waypoints = [s, t];
@@ -650,6 +623,7 @@ export default function SimpleFloatingEdge({
       {(displayLabel || labelEditing) && (
         <EdgeLabelRenderer>
           <div
+            data-edge-label={id}
             onMouseDown={handleLabelMouseDown}
             onDoubleClick={(e) => {
               e.stopPropagation();
