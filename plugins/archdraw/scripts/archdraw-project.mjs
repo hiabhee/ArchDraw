@@ -9,19 +9,24 @@
 //                             Update the project diagram. Keeps the user's layout: existing
 //                             components stay put, new ones are placed, removed ones dropped.
 //   intent --session ID TEXT  Tell the canvas what this session is working on
+//   send CWD PAYLOAD          (internal) deliver one activity report in the background
 //
 // Reads the link written by `archdraw-mcp-server link` from ~/.archdraw/projects.json
 // (ARCHDRAW_HOME overrides). Sends repository-relative file paths only — never
 // file contents, diffs or prompts. Unlinked repositories: every command is a no-op.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Hooks run inline with the agent's tool loop, so keep them short.
-const REQUEST_TIMEOUT_MS = 1500;
+// Hooks run inline with the agent's tool loop, so only what the hook must
+// answer with waits on the network; activity reports go out in the background.
+const REQUEST_TIMEOUT_MS = 10_000;
+const START_MAP_TIMEOUT_MS = 4_000;
+const NUDGE_TIMEOUT_MS = 3_000;
+const BACKGROUND_TIMEOUT_MS = 15_000;
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 
 function git(args, cwd) {
@@ -56,7 +61,7 @@ export function loadBinding(cwd, env = process.env) {
   const roots = repoRoots(cwd);
   for (const root of roots) {
     const binding = projects[root];
-    if (binding?.apiBase && binding?.canvasId && binding?.token) return { ...binding, checkoutRoot: roots[0] };
+    if (binding?.apiBase && binding?.canvasId && binding?.token) return { ...binding, checkoutRoot: roots[0], repoRoot: root };
   }
   return null;
 }
@@ -102,6 +107,9 @@ export function buildActivity(input, binding) {
     const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
     if (branch && branch !== 'HEAD') payload.branch = branch;
     payload.label = sessionLabel(binding.checkoutRoot, payload.branch, input.session_id);
+    // Names an auto-named project canvas after the repository (the linked root,
+    // so a worktree reports the main repository's name).
+    payload.repoName = basename(binding.repoRoot || binding.checkoutRoot);
   }
   return payload;
 }
@@ -111,16 +119,20 @@ function startContext(binding, sessionId, map) {
   const url = `${binding.apiBase}/editor?canvas=${encodeURIComponent(binding.canvasId)}`;
   const components = map?.components?.length ?? 0;
   const mapped = map?.components?.filter((c) => c.codePaths?.length).length ?? 0;
+  // Unknown is not empty: never ask for a fresh mapping because a request was slow.
+  const summary = map ? `${components} components, ${mapped} mapped to code` : 'component map not loaded yet';
   return [
-    `ArchDraw live project: this repository is linked to ${url} (${components} components, ${mapped} mapped to code).`,
+    `ArchDraw live project: this repository is linked to ${url} (${summary}).`,
     'File paths you edit are reported to it automatically (paths only), so the user can see which component each session is working on.',
     `Your ArchDraw session id: ${sessionId}`,
     `- Component map: ${node} map`,
     `- Change the architecture (you added, removed, renamed or moved a component): ${node} mermaid --out <tmp dir>, edit <tmp dir>/diagram.mmd and <tmp dir>/paths.json ({"<nodeId>": ["repo/path", "dir/**"]}), then ${node} publish --session ${sessionId} --mermaid <tmp dir>/diagram.mmd --paths <tmp dir>/paths.json. Keep existing node ids; the user's layout is preserved.`,
     `- When you start a distinct piece of work, share it in one line: ${node} intent --session ${sessionId} "<what you are doing>"`,
-    mapped === 0
-      ? 'The project has no code-mapped components yet: offer to map this codebase into it (graph LR, one subgraph per area, stable ids).'
-      : 'Update the diagram only for real architectural changes, not for every file.',
+    !map
+      ? `Run the map command before changing the diagram; the project may already be mapped.`
+      : mapped === 0
+        ? 'The project has no code-mapped components yet: offer to map this codebase into it (graph LR, one subgraph per area, stable ids).'
+        : 'Update the diagram only for real architectural changes, not for every file.',
   ].join('\n');
 }
 
@@ -178,21 +190,30 @@ async function runHook() {
   const payload = buildActivity(input, binding);
   if (!payload) return;
 
-  const [activity, map] = await Promise.all([
-    api(binding, '/activity', { method: 'POST', body: JSON.stringify(payload) }).catch(() => null),
-    payload.event === 'start' ? api(binding, '/diagram').then((r) => (r.ok ? r.body : null)).catch(() => null) : null,
-  ]);
+  // A newly written file no component owns may be a new module: that nudge
+  // needs the server's answer, so only Write waits (briefly) for its report.
+  const wantsNudge = payload.event === 'edit' && input.tool_name === 'Write';
+  if (!wantsNudge) sendInBackground(input.cwd || process.cwd(), payload);
 
   if (payload.event === 'start') {
+    const map = await api(binding, '/diagram', { timeoutMs: START_MAP_TIMEOUT_MS })
+      .then((r) => (r.ok ? r.body : null))
+      .catch(() => null);
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: startContext(binding, payload.sessionKey, map) },
     }));
     return;
   }
+  if (!wantsNudge) return;
 
-  // A newly written file no component owns may be a new module: nudge once per area.
-  const unmapped = activity?.ok && Array.isArray(activity.body.unmapped) ? activity.body.unmapped : [];
-  if (input.tool_name === 'Write' && unmapped.length > 0) {
+  const activity = await api(binding, '/activity', { method: 'POST', body: JSON.stringify(payload), timeoutMs: NUDGE_TIMEOUT_MS })
+    .catch(() => null);
+  if (!activity) {
+    sendInBackground(input.cwd || process.cwd(), payload); // too slow: still record the edit
+    return;
+  }
+  const unmapped = activity.ok && Array.isArray(activity.body.unmapped) ? activity.body.unmapped : [];
+  if (unmapped.length > 0) {
     const areas = takeNewAreas(payload.sessionKey, unmapped);
     if (areas.length > 0) {
       process.stdout.write(JSON.stringify({
@@ -200,6 +221,26 @@ async function runHook() {
       }));
     }
   }
+}
+
+/**
+ * Deliver an activity report from a detached process so a slow or distant
+ * server neither delays the agent nor drops the report when the hook exits.
+ */
+function sendInBackground(cwd, payload) {
+  try {
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    spawn(process.execPath, [SCRIPT_PATH, 'send', cwd, encoded], { detached: true, stdio: 'ignore' }).unref();
+  } catch {
+    // best effort: hooks must never fail the agent's turn
+  }
+}
+
+async function runSend([cwd, encoded]) {
+  const binding = loadBinding(cwd || process.cwd());
+  if (!binding || !encoded) return;
+  const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+  await api(binding, '/activity', { method: 'POST', body: JSON.stringify(payload), timeoutMs: BACKGROUND_TIMEOUT_MS });
 }
 
 const BOOLEAN_FLAGS = new Set(['relayout']);
@@ -286,14 +327,14 @@ async function runIntent(argv) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH;
 if (isMain) {
   const [command, ...rest] = process.argv.slice(2);
-  const run = { hook: runHook, map: runMap, mermaid: runMermaid, publish: runPublish, intent: runIntent }[command];
+  const run = { hook: runHook, send: runSend, map: runMap, mermaid: runMermaid, publish: runPublish, intent: runIntent }[command];
   if (!run) {
     console.error('Usage: archdraw-project.mjs hook | map | mermaid [--out DIR] | publish --mermaid FILE [--paths FILE] [--session ID] [--relayout] | intent --session ID TEXT');
     process.exit(2);
   }
   run(rest).catch((error) => {
     // Hooks must never block or fail the agent's turn.
-    if (command === 'hook') process.exit(0);
+    if (command === 'hook' || command === 'send') process.exit(0);
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   });
