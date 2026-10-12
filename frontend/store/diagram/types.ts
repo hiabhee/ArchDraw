@@ -123,7 +123,11 @@ export interface DiagramState {
   /** Record the server's project link for a canvas (not undoable, not auto-saved). */
   setCanvasProjectLink: (canvasId: string, agenticProjectId: string | null) => void;
   /** Replace a canvas with the DB copy (discarding local edits). */
-  reloadCanvasFromDB: (canvasId: string) => Promise<void>;
+  /**
+   * Replace a canvas with the server copy. `skipIfDirty`: abandon the reload if
+   * the user made an edit while it was fetching (background sync).
+   */
+  reloadCanvasFromDB: (canvasId: string, options?: { skipIfDirty?: boolean }) => Promise<void>;
 
   // ── Selection ─────────────────────────────────────────────────────────────
   selectedNodeId: string | null;

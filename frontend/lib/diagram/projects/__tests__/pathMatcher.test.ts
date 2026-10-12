@@ -63,3 +63,25 @@ describe('createComponentMatcher', () => {
     expect(matcher.match('')).toBeNull();
   });
 });
+
+describe('compilePattern (hostile input)', () => {
+  it('matches backtracking-prone globs in linear time', () => {
+    const pattern = compilePattern(`${'**a'.repeat(60)}b`)!;
+    const path = 'a'.repeat(1024);
+    const started = performance.now();
+    expect(pattern.test(path)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('keeps glob semantics for directories, segments and single characters', () => {
+    expect(compilePattern('src/**/x.ts')!.test('src/x.ts')).toBe(true);
+    expect(compilePattern('src/**/x.ts')!.test('src/a/b/x.ts')).toBe(true);
+    expect(compilePattern('src/**/x.ts')!.test('srcx.ts')).toBe(false);
+    expect(compilePattern('src/*.ts')!.test('src/a.ts')).toBe(true);
+    expect(compilePattern('src/*.ts')!.test('src/a/b.ts')).toBe(false);
+    expect(compilePattern('src/?.ts')!.test('src/a.ts')).toBe(true);
+    expect(compilePattern('src/?.ts')!.test('src/ab.ts')).toBe(false);
+    expect(compilePattern('lib/**')!.test('lib/a/b/c')).toBe(true);
+    expect(compilePattern('a.b/*')!.test('aXb/c')).toBe(false);
+  });
+});

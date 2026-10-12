@@ -6,10 +6,15 @@ const m = vi.hoisted(() => ({
   rate: vi.fn(),
   findUnique: vi.fn(),
   upsert: vi.fn(),
+  deleteMany: vi.fn(),
+  executeRaw: vi.fn(),
 }));
-vi.mock('@/lib/server/projects/projectCanvas', () => ({ authorizeAgentForCanvas: m.authorize }));
+vi.mock('@/lib/server/projects/projectCanvas', () => ({
+  authorizeAgentForCanvas: m.authorize,
+  readJsonBody: async (request: Request) => ({ tooLarge: false, value: await request.json().catch(() => null) }),
+}));
 vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
-vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, upsert: m.upsert } } }));
+vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, upsert: m.upsert, deleteMany: m.deleteMany }, $executeRaw: m.executeRaw } }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
 
 import { POST } from '../route';
@@ -25,6 +30,7 @@ const req = (body: unknown) =>
 const canvas = {
   id: 'c1',
   userId: 'u1',
+  name: 'Giraffe',
   nodes: [
     { id: 'auth', type: 'systemNode', data: { codePaths: ['frontend/lib/server/auth.ts'] } },
     { id: 'api', type: 'systemNode', data: { codePaths: ['frontend/app/api/**'] } },
@@ -38,6 +44,32 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     m.rate.mockResolvedValue({ allowed: true });
     m.findUnique.mockResolvedValue(null);
     m.upsert.mockResolvedValue({ id: 's1' });
+    m.deleteMany.mockResolvedValue({ count: 0 });
+  });
+
+  it('retries once when a concurrent report created the session first', async () => {
+    m.upsert.mockRejectedValueOnce(Object.assign(new Error('Unique constraint'), { code: 'P2002' }));
+    const res = await POST(req({ sessionKey: 'k', event: 'edit', files: ['src/a.ts'] }), params);
+    expect(res.status).toBe(200);
+    expect(m.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('names an auto-named canvas after the repository on session start, and only then', async () => {
+    await POST(req({ sessionKey: 'k', event: 'start', repoName: 'ArchDraw' }), params);
+    expect(m.executeRaw).toHaveBeenCalledTimes(1);
+    expect(m.executeRaw.mock.calls[0].slice(1)).toEqual(['ArchDraw', 'c1', 'Giraffe']);
+
+    m.authorize.mockResolvedValue({ canvas: { ...canvas, name: 'Payments' }, principal: { userId: 'u1', credentialId: 'cred' } });
+    await POST(req({ sessionKey: 'k', event: 'start', repoName: 'ArchDraw' }), params);
+    await POST(req({ sessionKey: 'k', event: 'edit', repoName: 'ArchDraw' }), params);
+    expect(m.executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('prunes old sessions of the canvas when a session starts', async () => {
+    await POST(req({ sessionKey: 'k', event: 'start' }), params);
+    expect(m.deleteMany.mock.calls[0][0].where.canvasId).toBe('c1');
+    await POST(req({ sessionKey: 'k', event: 'edit' }), params);
+    expect(m.deleteMany).toHaveBeenCalledTimes(1);
   });
 
   it('rejects unauthorized agents', async () => {

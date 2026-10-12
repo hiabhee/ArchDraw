@@ -8,7 +8,10 @@ const m = vi.hoisted(() => ({
   findUnique: vi.fn(),
   sessionUpsert: vi.fn(),
 }));
-vi.mock('@/lib/server/projects/projectCanvas', () => ({ authorizeAgentForCanvas: m.authorize }));
+vi.mock('@/lib/server/projects/projectCanvas', () => ({
+  authorizeAgentForCanvas: m.authorize,
+  readJsonBody: async (request: Request) => ({ tooLarge: false, value: await request.json().catch(() => null) }),
+}));
 vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
 vi.mock('@/lib/server/prisma', () => ({
   default: {
@@ -46,6 +49,7 @@ describe('/api/projects/[canvasId]/diagram', () => {
     m.rate.mockResolvedValue({ allowed: true });
     m.updateMany.mockResolvedValue({ count: 1 });
     m.findUnique.mockResolvedValue({ updatedAt: new Date(2000) });
+    m.sessionUpsert.mockResolvedValue({ id: 's1' });
   });
 
   it('GET returns a compact component map', async () => {
@@ -87,10 +91,16 @@ describe('/api/projects/[canvasId]/diagram', () => {
   });
 
   it('returns 409 when the canvas changed since baseUpdatedAt', async () => {
-    m.updateMany.mockResolvedValue({ count: 0 });
     const res = await PUT(put({ nodes: [{ id: 'a' }], edges: [], baseUpdatedAt: 500 }), params);
     expect(res.status).toBe(409);
-    expect(m.updateMany.mock.calls[0][0].where.updatedAt).toEqual({ lte: new Date(500) });
+    expect(m.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('always writes against the exact version it merged from (a future baseUpdatedAt cannot skip the check)', async () => {
+    m.updateMany.mockResolvedValue({ count: 0 });
+    const res = await PUT(put({ nodes: [{ id: 'a' }], edges: [], baseUpdatedAt: 9_999_999_999_999 }), params);
+    expect(res.status).toBe(409);
+    expect(m.updateMany.mock.calls[0][0].where.updatedAt).toEqual(canvas.updatedAt);
   });
 
   it('GET ?format=mermaid returns Mermaid and the componentPaths map', async () => {

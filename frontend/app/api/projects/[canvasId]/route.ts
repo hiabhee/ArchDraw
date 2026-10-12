@@ -37,7 +37,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!parsed.success) return NextResponse.json({ error: 'Invalid project payload' }, { status: 400 });
     const repositoryRemote = normalizeRepositoryRemote(parsed.data.repositoryRemote);
     if (repositoryRemote === undefined) {
-      return NextResponse.json({ error: 'Invalid repository remote' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'That is not a git remote. Use something like github.com/you/repo, or leave the field empty.', code: 'INVALID_REMOTE' },
+        { status: 400 },
+      );
     }
 
     const { maxProjects } = getUserQuotas(getUserTier(userId));

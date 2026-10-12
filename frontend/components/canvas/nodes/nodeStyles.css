@@ -1497,68 +1497,65 @@
 /* ── Live project activity overlay (editor only, excluded from exports) ── */
 .live-activity-badge {
   position: absolute;
-  top: -9px;
-  right: -9px;
+  top: -5px;
+  right: -5px;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px 4px;
-  border-radius: 999px;
-  background: var(--color-surface-page, #fff);
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.18);
+  gap: 0;
   pointer-events: auto;
 }
 .live-activity-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--surface-page, #fff);
+}
+.live-activity-dot + .live-activity-dot {
+  margin-left: -3px;
 }
 .live-activity-dot--idle {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 .live-activity-more {
+  margin-left: 3px;
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
-  color: #475569;
-  padding-left: 1px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #8a8f98);
 }
 .live-activity-ring {
   position: absolute;
-  inset: -6px;
+  inset: -4px;
   z-index: 0;
-  border-radius: 16px;
-  border: 2px solid var(--live-color);
+  border-radius: 14px;
+  border: 1px solid var(--live-color);
+  opacity: 0.7;
   pointer-events: none;
 }
 .live-activity-ring--pulse {
-  animation: live-activity-pulse 1.6s ease-out infinite;
+  animation: live-activity-pulse 2s ease-in-out infinite;
 }
 @keyframes live-activity-pulse {
-  0% { opacity: 0.9; box-shadow: 0 0 0 0 var(--live-color); }
-  70% { opacity: 0.6; box-shadow: 0 0 0 8px transparent; }
-  100% { opacity: 0.9; box-shadow: 0 0 0 0 transparent; }
+  0%, 100% { opacity: 0.75; box-shadow: 0 0 0 0 transparent; }
+  50% { opacity: 0.35; box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-color) 18%, transparent); }
 }
 .live-activity-ring--added {
   border-style: dashed;
 }
 .live-activity-new {
-  font-size: 9px;
-  font-weight: 700;
+  margin-right: 4px;
+  font-size: 8.5px;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: #fff;
-  padding: 2px 5px;
-  border-radius: 999px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--surface-page, #fff);
 }
 @media (prefers-reduced-motion: reduce) {
   .live-activity-ring--pulse { animation: none; }
-}
-.dark .live-activity-badge {
-  background: #1a1d24;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
-}
-.dark .live-activity-more {
-  color: #cbd5e1;
 }

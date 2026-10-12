@@ -28,8 +28,14 @@ export function normalizeRepositoryRemote(value?: string | null) {
     return url.toString().replace(/\/$/, '');
   } catch {
     const scpRemote = remote.match(/^(?:[^@\s]+@)?([^:/\s]+):([^?#\s]+)$/);
-    if (!scpRemote) return undefined;
-    return `ssh://${scpRemote[1].toLowerCase()}/${scpRemote[2].replace(/^\/+/, '')}`;
+    if (scpRemote) return `ssh://${scpRemote[1].toLowerCase()}/${scpRemote[2].replace(/^\/+/, '')}`;
+
+    // Forms people type by hand: `github.com/owner/repo` or just `owner/repo` (GitHub).
+    const hostPath = remote.match(/^([a-z0-9-]+(?:\.[a-z0-9-]+)+)\/([\w.-]+\/[\w.-]+(?:\/[\w.-]+)*)\/?$/i);
+    if (hostPath) return `https://${hostPath[1].toLowerCase()}/${hostPath[2]}`;
+    const ownerRepo = remote.match(/^([\w.-]+)\/([\w.-]+)$/);
+    if (ownerRepo) return `https://github.com/${ownerRepo[1]}/${ownerRepo[2]}`;
+    return undefined;
   }
 }
 
