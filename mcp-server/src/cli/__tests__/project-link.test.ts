@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runProjectCommand } from '../project-link.js';
-import { getBinding } from '../../lib/project-binding.js';
+import { getBinding, saveBinding } from '../../lib/project-binding.js';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -29,6 +29,14 @@ describe('project link CLI', () => {
     sleep: async () => {},
     cwd: repo,
     env: {},
+  });
+
+  it('never overwrites an unreadable link file (it holds other repos)', () => {
+    const file = join(home, 'projects.json');
+    writeFileSync(file, '{ not json');
+    const binding = { apiBase: 'http://localhost:3000', canvasId: 'c', agenticProjectId: 'p', workspaceId: 'w', token: 'adp_x', linkedAt: '' };
+    expect(() => saveBinding(repo, binding)).toThrow(/not valid JSON/);
+    expect(readFileSync(file, 'utf8')).toBe('{ not json');
   });
 
   it('requires an https (or localhost) API base', async () => {

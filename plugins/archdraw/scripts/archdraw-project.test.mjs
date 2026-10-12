@@ -5,7 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { areaOf, buildActivity, loadBinding, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
 
@@ -104,14 +104,54 @@ test('hook posts paths only and injects session context on start', async () => {
   );
   assert.equal(edit.code, 0);
   assert.equal(edit.out, '');
+  // Activity reports are delivered by a detached background process.
+  await waitFor(() => requests.filter((r) => r.url === '/api/projects/c1/activity').length >= 2);
   server.close();
 
   const activity = requests.filter((r) => r.url === '/api/projects/c1/activity');
+  activity.sort((x, y) => (x.body.event === 'start' ? -1 : y.body.event === 'start' ? 1 : 0));
   assert.equal(activity[0].body.event, 'start');
   assert.equal(activity[0].body.branch, 'main');
+  assert.equal(activity[0].body.repoName, basename(repo));
   assert.deepEqual(activity[1].body, { sessionKey: 'sess-1234', event: 'edit', files: ['src/a.ts'] });
   assert.ok(requests.every((r) => r.auth === 'Bearer adp_t'));
   assert.ok(!JSON.stringify(requests).includes('SECRET'));
+});
+
+async function waitFor(check, timeoutMs = 5000) {
+  const until = Date.now() + timeoutMs;
+  while (!check()) {
+    if (Date.now() > until) throw new Error('timed out waiting for background request');
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+test('a slow server still records the session and never claims an empty map', async () => {
+  const repo = makeRepo();
+  const requests = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      requests.push({ url: req.url, body: body ? JSON.parse(body) : null });
+      res.setHeader('content-type', 'application/json');
+      // Slower than the hook's map budget, well within the background budget.
+      setTimeout(() => res.end(JSON.stringify(req.url.endsWith('/diagram') ? { components: [] } : { ok: true })), 4_500);
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const env = { ARCHDRAW_HOME: makeHome({ [repo]: binding(`http://127.0.0.1:${server.address().port}`) }) };
+
+  const started = Date.now();
+  const start = await runHook({ hook_event_name: 'SessionStart', session_id: 'slow-1', cwd: repo }, env);
+  assert.ok(Date.now() - started < 6_000);
+  const context = JSON.parse(start.out).hookSpecificOutput.additionalContext;
+  assert.match(context, /component map not loaded yet/);
+  assert.doesNotMatch(context, /no code-mapped components/);
+
+  await waitFor(() => requests.some((r) => r.url === '/api/projects/c1/activity' && r.body?.event === 'start'), 8_000);
+  server.closeAllConnections();
+  server.close();
 });
 
 test('hook is a silent no-op when unlinked or the server is down', async () => {

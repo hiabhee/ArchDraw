@@ -72,7 +72,7 @@ async function link(flags: Record<string, string>, io: CliIO): Promise<number> {
 
   io.log('');
   io.log(`Linking ${repoRoot} to an ArchDraw live project.`);
-  io.log(`Open your project canvas in ArchDraw → Live project → Connect an agent, and enter:`);
+  io.log(`Open your project canvas in ArchDraw → Live project → Link a checkout (or the pairing code field when you make the project), and enter:`);
   io.log('');
   io.log(`    ${formatUserCode(pairing.userCode)}`);
   io.log('');

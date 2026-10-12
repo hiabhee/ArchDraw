@@ -41,14 +41,29 @@ export function resolveRepoRoot(cwd: string = process.cwd()): string {
   }
 }
 
+function parseBindings(path: string): BindingFile {
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<BindingFile>;
+  return { version: 1, projects: parsed.projects && typeof parsed.projects === 'object' ? parsed.projects : {} };
+}
+
 export function readBindings(): BindingFile {
   const path = bindingFilePath();
   if (!existsSync(path)) return { version: 1, projects: {} };
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<BindingFile>;
-    return { version: 1, projects: parsed.projects && typeof parsed.projects === 'object' ? parsed.projects : {} };
+    return parseBindings(path);
   } catch {
     return { version: 1, projects: {} };
+  }
+}
+
+/** For writes: an unreadable file must not be replaced (it holds other repos' links). */
+function readBindingsForUpdate(): BindingFile {
+  const path = bindingFilePath();
+  if (!existsSync(path)) return { version: 1, projects: {} };
+  try {
+    return parseBindings(path);
+  } catch {
+    throw new Error(`${path} is not valid JSON. Fix or delete it, then run the command again.`);
   }
 }
 
@@ -67,13 +82,13 @@ export function getBinding(repoRoot: string): ProjectBinding | undefined {
 }
 
 export function saveBinding(repoRoot: string, binding: ProjectBinding) {
-  const file = readBindings();
+  const file = readBindingsForUpdate();
   file.projects[repoRoot] = binding;
   writeBindings(file);
 }
 
 export function removeBinding(repoRoot: string): boolean {
-  const file = readBindings();
+  const file = readBindingsForUpdate();
   if (!file.projects[repoRoot]) return false;
   delete file.projects[repoRoot];
   writeBindings(file);
