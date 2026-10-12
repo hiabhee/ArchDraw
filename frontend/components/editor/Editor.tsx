@@ -9,7 +9,6 @@ import { Toolbar } from '@/components/editor/toolbar/Toolbar';
 import { ComponentSidebar } from '@/components/editor/panels/ComponentSidebar';
 import { CanvasSidebar } from '@/components/editor/panels/CanvasSidebar';
 import { reactFlowRef } from '@/lib/client/reactFlowRef';
-import { PropertiesPanel } from '@/components/editor/panels/PropertiesPanel';
 import { LiveProjectPanel } from '@/components/editor/panels/LiveProjectPanel';
 import { FloatingAIBar } from '@/components/editor/FloatingAIBar';
 import { AnimatePresence } from 'framer-motion';
@@ -35,6 +34,7 @@ import type { CreateComponentData, ComponentToEdit } from '@/components/editor/m
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { CanvasSkeleton } from '@/components/canvas/CanvasSkeleton';
 import { getUserTier } from '@/lib/quotas/userQuotas';
+import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
 const CommandPalette = dynamic(() => import('@/components/editor/CommandPalette').then(m => ({ default: m.CommandPalette })), { ssr: false });
 const MermaidCodePanel = dynamic(() => import('@/components/editor/panels/MermaidCodePanel').then(m => ({ default: m.MermaidCodePanel })), { ssr: false });
@@ -67,12 +67,11 @@ function generateCanvasName(prompt: string): string {
 
 export default function EditorPage() {
   const {
-    selectedNodeId, selectedNodeIds, selectedEdgeId, nodes, sidebarOpen, setSidebarOpen,
+    nodes, sidebarOpen, setSidebarOpen,
     importDiagram, importSequenceDiagram, fitView, renameCanvas,
     activeCanvasId, sequenceDiagrams,
     startGeneration, markPipelineDone, markPipelineError
   } = useDiagramStore(useShallow((state) => ({
-    selectedNodeId: state.selectedNodeId, selectedNodeIds: state.selectedNodeIds, selectedEdgeId: state.selectedEdgeId,
     nodes: state.nodes, sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
     importDiagram: state.importDiagram, importSequenceDiagram: state.importSequenceDiagram, fitView: state.fitView,
     renameCanvas: state.renameCanvas, activeCanvasId: state.activeCanvasId, sequenceDiagrams: state.sequenceDiagrams,
@@ -150,6 +149,22 @@ export default function EditorPage() {
       const active = document.activeElement as HTMLElement;
       const activeTag = active?.tagName?.toLowerCase();
       const isEditingText = activeTag === 'input' || activeTag === 'textarea' || active?.getAttribute('contenteditable') === 'true';
+
+      // The high-level summary is view-only: editing shortcuts would act on the
+      // hidden full diagram (e.g. delete a node selected before switching).
+      const store = getStore();
+      if (!isEditingText && store.diagramViewMode === 'overview' && hasHighLevelView(store.nodes)) {
+        if (e.key === 'f' && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          reactFlowRef.instance?.fitView?.({ padding: 0.0, duration: 200 });
+        } else if (e.key === '?') {
+          e.preventDefault();
+          document.dispatchEvent(new CustomEvent('toggle-shortcuts-modal'));
+        } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+          e.preventDefault(); // still swallow the browser's bookmark shortcut
+        }
+        return;
+      }
 
       // Cmd/Ctrl + A — select all nodes and edges on the canvas
       if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'a' || e.code === 'KeyA')) {
@@ -606,8 +621,6 @@ export default function EditorPage() {
             onOpenCreateModal={() => setShowCreateModal(true)}
           />
         )}
-
-        {(selectedNodeId || selectedNodeIds.length > 0 || selectedEdgeId) && <PropertiesPanel />}
 
         <LiveProjectPanel />
         <CommandPalette />

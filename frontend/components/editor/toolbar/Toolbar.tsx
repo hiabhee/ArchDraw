@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -25,7 +25,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/editor/toolbar/ExportControls';
 import { LayoutToggleButton } from '@/components/editor/toolbar/LayoutControls';
-import { resolveDiagramPresentation } from '@/lib/diagram/geometry/diagramPresentation';
+import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
 export function Toolbar() {
   const router = useRouter();
@@ -79,7 +79,7 @@ export function Toolbar() {
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
   const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
-  const hiddenInOverview = resolveDiagramPresentation(nodes, edges, 'overview').hiddenEdgeIds.size;
+  const canShowHighLevel = useMemo(() => hasHighLevelView(nodes), [nodes]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -397,14 +397,17 @@ export function Toolbar() {
               variant="ghost"
               size="sm"
               onClick={() => setDiagramViewMode(diagramViewMode === 'overview' ? 'details' : 'overview')}
-              title={diagramViewMode === 'overview' ? 'Show all diagram connections' : 'Show the main flow'}
-              aria-label={diagramViewMode === 'overview' ? 'Show details' : 'Show overview'}
+              disabled={!canShowHighLevel && diagramViewMode !== 'overview'}
+              title={!canShowHighLevel
+                ? 'High-level view needs groups: it collapses each group into one component'
+                : diagramViewMode === 'overview'
+                  ? 'Showing each group as one component (view only). Click for the in-depth diagram.'
+                  : 'Showing every component. Click for the high-level view.'}
+              aria-label={diagramViewMode === 'overview' ? 'Show in-depth diagram' : 'Show high-level diagram'}
               aria-pressed={diagramViewMode === 'overview'}
               className="h-8 px-2 text-xs"
             >
-              {diagramViewMode === 'overview'
-                ? `Overview${hiddenInOverview ? ` · ${hiddenInOverview} hidden` : ''}`
-                : 'Details'}
+              {diagramViewMode === 'overview' ? 'High-level' : 'In-depth'}
             </Button>
 
             <NodeIconModeToggle />

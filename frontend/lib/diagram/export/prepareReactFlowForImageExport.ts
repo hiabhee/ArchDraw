@@ -31,7 +31,13 @@ function restorePathSnapshots(snapshots: PathSnapshot[]): void {
 /**
  * Inline computed styles onto SVG edge paths before html-to-image export.
  */
+/** Canvas wrapper whose selection-focus dimming is paused during an export. */
+let pausedFocusRoot: Element | null = null;
+
 export function prepareReactFlowForImageExport(root: HTMLElement): PathSnapshot[] {
+  // Selection focus is a view effect: never bake the dimming into an image.
+  pausedFocusRoot = root.closest('.archdraw-focus') ?? root.querySelector('.archdraw-focus');
+  pausedFocusRoot?.classList.remove('archdraw-focus');
   const snapshots: PathSnapshot[] = [];
   const paths = root.querySelectorAll<SVGPathElement>('.react-flow__edge-path');
   paths.forEach((path) => {
@@ -58,6 +64,8 @@ export function prepareReactFlowForImageExport(root: HTMLElement): PathSnapshot[
 
 export function restoreReactFlowAfterImageExport(snapshots: PathSnapshot[]): void {
   restorePathSnapshots(snapshots);
+  pausedFocusRoot?.classList.add('archdraw-focus');
+  pausedFocusRoot = null;
 }
 
 /** Skip minimap, controls, dot background and handles — handles must never leak into exported PNG. */

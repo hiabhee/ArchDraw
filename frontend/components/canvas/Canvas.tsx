@@ -49,8 +49,9 @@ import { reactFlowRef } from '@/lib/client/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/diagram/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
-import { resolveDiagramPresentation } from '@/lib/diagram/geometry/diagramPresentation';
-import { CanvasHostProvider, EDITOR_HOST } from '@/lib/diagram/canvas/CanvasHostContext';
+import { buildHighLevelGraph } from '@/lib/diagram/geometry/highLevelView';
+import { computeSelectionFocus, selectionFocusCss, SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
+import { CanvasHostProvider, EDITOR_HOST, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 
 // Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
 function CanvasUrlSync() {
@@ -625,12 +626,48 @@ function CanvasInner() {
 
   const coloredEdges = useEdgeColors(edges);
   const diagramViewMode = useDiagramStore((s) => s.diagramViewMode);
-  const presentation = useMemo(
-    () => resolveDiagramPresentation(nodes, coloredEdges, diagramViewMode),
-    [nodes, coloredEdges, diagramViewMode],
+  const layoutDirection = useDiagramStore((s): 'LR' | 'TD' => (s.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR'));
+  // High-level view: groups collapsed into single components, laid out fresh.
+  // A read-only projection; the stored diagram is untouched.
+  const highLevelSource = useMemo(
+    () => (diagramViewMode === 'overview' ? buildHighLevelGraph(nodes, coloredEdges) : null),
+    [diagramViewMode, nodes, coloredEdges],
   );
-  const visibleNodes = useMemo(() => nodes.filter((node) => presentation.visibleNodeIds.has(node.id)), [nodes, presentation]);
-  const visibleEdges = useMemo(() => coloredEdges.filter((edge) => presentation.visibleEdgeIds.has(edge.id)), [coloredEdges, presentation]);
+  const [highLevelGraph, setHighLevelGraph] = useState<{ source: object; nodes: Node[]; edges: typeof coloredEdges } | null>(null);
+  useEffect(() => {
+    if (!highLevelSource) return;
+    let cancelled = false;
+    void layoutDiagramViaMermaid(highLevelSource.nodes, highLevelSource.edges, layoutDirection).then((result) => {
+      if (cancelled) return;
+      setHighLevelGraph({
+        source: highLevelSource,
+        nodes: result.success ? result.nodes : highLevelSource.nodes,
+        edges: result.success ? result.edges : highLevelSource.edges,
+      });
+      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }));
+    });
+    return () => { cancelled = true; };
+  }, [highLevelSource, layoutDirection, reactFlowInstance]);
+  // Until the summary is laid out, keep showing the full diagram.
+  const highLevel = highLevelSource !== null && highLevelGraph?.source === highLevelSource ? highLevelGraph : null;
+  const visibleNodes = highLevel?.nodes ?? nodes;
+  const visibleEdges = highLevel?.edges ?? coloredEdges;
+  const canvasHost = useMemo<CanvasHost>(
+    () => (highLevel ? { readOnly: true, nodes: highLevel.nodes, edges: highLevel.edges, planKey: 'high-level' } : EDITOR_HOST),
+    [highLevel],
+  );
+  // Selected nodes + their first-degree neighbours stay visible; the rest dims.
+  const selectionFocusStyle = useMemo(() => {
+    if (highLevel) return null;
+    const focus = computeSelectionFocus(selectedNodeIds, nodes, edges);
+    return focus ? selectionFocusCss(focus) : null;
+  }, [highLevel, selectedNodeIds, nodes, edges]);
+  const wasHighLevel = useRef(false);
+  useEffect(() => {
+    // Leaving the summary: frame the full diagram again.
+    if (wasHighLevel.current && !highLevel) requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }));
+    wasHighLevel.current = Boolean(highLevel);
+  }, [highLevel, reactFlowInstance]);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
   const viewport = useViewport();
@@ -663,12 +700,13 @@ function CanvasInner() {
         !canvasBackground.bgColor && 'bg-[var(--arch-canvas-bg)]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
         isSketch && sketchFontClass,
+        selectionFocusStyle && SELECTION_FOCUS_CLASS,
       )}
       data-render-style={diagramRenderStyle}
       data-color-theme={diagramStyleTheme}
       data-pipeline={pipelineStatus}
         onDragOver={(e) => e.preventDefault()}
-        onDoubleClick={onPaneDoubleClick}
+        onDoubleClick={highLevel ? undefined : onPaneDoubleClick}
       style={{
         width: '100%',
         height: '100%',
@@ -680,23 +718,30 @@ function CanvasInner() {
         } : {}),
       }}
     >
-      <CanvasHostProvider value={EDITOR_HOST}>
+      {selectionFocusStyle && <style>{selectionFocusStyle}</style>}
+      <CanvasHostProvider value={canvasHost}>
       <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
         nodes={visibleNodes}
         edges={visibleEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={handleConnect}
-        onReconnect={onReconnect}
-        onConnectStart={onConnectStart}
-        onConnectEnd={onConnectEnd}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
+        // The high-level summary is view-only: its nodes are synthetic, so no
+        // change may reach the store (or its auto-save).
+        onNodesChange={highLevel ? undefined : onNodesChange}
+        onEdgesChange={highLevel ? undefined : onEdgesChange}
+        onConnect={highLevel ? undefined : handleConnect}
+        onReconnect={highLevel ? undefined : onReconnect}
+        onConnectStart={highLevel ? undefined : onConnectStart}
+        onConnectEnd={highLevel ? undefined : onConnectEnd}
+        onNodeDrag={highLevel ? undefined : onNodeDrag}
+        onNodeDragStop={highLevel ? undefined : onNodeDragStop}
         onPaneClick={onPaneClick}
-        onSelectionChange={onSelectionChange}
-        onNodeContextMenu={onNodeContextMenu}
-        onPaneContextMenu={onPaneContextMenu}
+        onSelectionChange={highLevel ? undefined : onSelectionChange}
+        onNodeContextMenu={highLevel ? undefined : onNodeContextMenu}
+        onPaneContextMenu={highLevel ? undefined : onPaneContextMenu}
+        nodesDraggable={!highLevel}
+        nodesConnectable={!highLevel}
+        elementsSelectable={!highLevel}
+        deleteKeyCode={highLevel ? null : undefined}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         onlyRenderVisibleElements
@@ -730,7 +775,7 @@ function CanvasInner() {
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         proOptions={{ hideAttribution: true }}
       >
-        <GroupBackgroundLayer />
+        {!highLevel && <GroupBackgroundLayer />}
         {canvasBackground.variant === 'dots' && showGrid && (
           <Background
             variant={BackgroundVariant.Dots}
