@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const m = vi.hoisted(() => ({ canvas: vi.fn(), sessions: vi.fn(), rate: vi.fn() }));
+const m = vi.hoisted(() => ({ canvas: vi.fn(), sessions: vi.fn(), rate: vi.fn(), getSession: vi.fn() }));
 vi.mock('@/lib/server/prisma', () => ({ default: { userCanvas: { findUnique: m.canvas }, agentSession: { findMany: m.sessions } } }));
 vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
+vi.mock('@/lib/server/auth', () => ({ auth: { api: { getSession: m.getSession } } }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
 
 import { GET } from '../route';
@@ -29,6 +30,7 @@ describe('GET /api/live/[token]', () => {
     m.rate.mockResolvedValue({ allowed: true });
     m.canvas.mockResolvedValue(canvas);
     m.sessions.mockResolvedValue([session]);
+    m.getSession.mockResolvedValue(null);
   });
 
   it('serves the diagram and sessions to anyone with a valid link, without private paths', async () => {
@@ -40,6 +42,16 @@ describe('GET /api/live/[token]', () => {
     expect(body.sessions[0].label).toBe('repo (main)');
     expect(body.sessions[0].unmappedPaths).toEqual([]);
     expect(body.claimable).toBe(false);
+  });
+
+  it('tells a signed-in owner the project is theirs, only when asked (first load)', async () => {
+    const token = createWatchToken('c1', 'p1')!;
+    expect((await (await get(token)).json()).ownedByViewer).toBeUndefined();
+    expect(m.getSession).not.toHaveBeenCalled();
+    m.getSession.mockResolvedValue({ user: { id: 'u1' } });
+    expect((await (await get(token, '?viewer=1')).json()).ownedByViewer).toBe(true);
+    m.getSession.mockResolvedValue({ user: { id: 'someone-else' } });
+    expect((await (await get(token, '?viewer=1')).json()).ownedByViewer).toBe(false);
   });
 
   it('marks projects made without an account as claimable', async () => {

@@ -8,6 +8,7 @@ import { queryLiveSessions, toLiveSession } from '@/lib/server/projects/liveSess
 import { assignDistinctColors } from '@/lib/diagram/projects/liveActivity';
 import { parseWatchToken, verifyWatchToken } from '@/lib/server/projects/watchLink';
 import { isAnonymousUserId } from '@/lib/server/projects/anonymousUser';
+import { auth } from '@/lib/server/auth';
 
 export const runtime = 'nodejs';
 
@@ -32,7 +33,8 @@ function publicNodes(nodes: unknown): unknown[] {
  * Public, read-only view of a live project (no sign-in): the diagram and which
  * agent session is working where. Unmapped file paths and code paths are left
  * out. `?since=<updatedAt>` skips the graph when it has not changed;
- * `?detail=<updatedAt or 0>` adds the detailed map when it is newer.
+ * `?detail=<updatedAt or 0>` adds the detailed map when it is newer;
+ * `?viewer=1` (first load only) says whether the signed-in visitor owns it.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -54,6 +56,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
     if (!canvas?.agenticProjectId || !verifyWatchToken(token, canvas.id, canvas.agenticProjectId)) return notFound();
 
+    // Only on the page's first load: the session lookup is a database read.
+    const viewer = request.nextUrl.searchParams.has('viewer')
+      ? await auth.api.getSession({ headers: request.headers }).catch(() => null)
+      : null;
     const since = Number(request.nextUrl.searchParams.get('since'));
     const updatedAt = canvas.updatedAt.getTime();
     const detailUpdatedAt = canvas.detailMap?.updatedAt.getTime() ?? null;
@@ -73,6 +79,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         canvasName: canvas.name,
         // Made with `npx archdraw-live` and not saved to an account yet.
         claimable: isAnonymousUserId(canvas.userId),
+        ...(request.nextUrl.searchParams.has('viewer') ? { ownedByViewer: Boolean(viewer?.user?.id && viewer.user.id === canvas.userId) } : {}),
         canvasUpdatedAt: updatedAt,
         detailUpdatedAt,
         serverTime: now,

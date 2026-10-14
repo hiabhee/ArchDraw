@@ -44,6 +44,8 @@ interface WatchResponse {
   canvasName: string;
   /** Made with `npx archdraw-live` and not saved to an account yet. */
   claimable?: boolean;
+  /** Sent for `?viewer=1`: the signed-in visitor owns this project. */
+  ownedByViewer?: boolean;
   canvasUpdatedAt: number;
   serverTime: number;
   sessions: LiveAgentSession[];
@@ -168,14 +170,18 @@ function Viewer({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const [claimable, setClaimable] = useState(false);
+  const [owned, setOwned] = useState(false);
   const canvasId = useMemo(() => token.slice(0, Math.max(token.lastIndexOf('.'), 0)), [token]);
   const claim = useClaim(canvasId, claimable);
+  // Who is looking: the owner gets "In your account · Open in editor".
+  const signedInKey = useAuthStore((s) => (s.user && s.user.id !== 'guest' ? s.user.id : 'anonymous'));
+  const ownerCheckRef = useRef<string | null>(null);
   const updatedAtRef = useRef<number | null>(null);
   // Overview first; the detailed map is fetched only while it is shown.
   const level = useProjectLiveStore((s) => s.level);
   const setLevel = useProjectLiveStore((s) => s.setLevel);
   const [detail, setDetail] = useState<{ nodes: Node[]; edges: Edge[]; updatedAt: number } | null>(null);
-  const [detailUpdatedAt, setDetailUpdatedAt] = useState<number | null>(null);
+  const [detailUpdatedAt, setDetailUpdatedAt] = useState<number | null | undefined>(undefined);
   const detailAtRef = useRef<number | null>(null);
   const focusedSessionKey = useProjectLiveStore((s) => s.focusedSessionKey);
   const setFocusedSession = useProjectLiveStore((s) => s.setFocusedSession);
@@ -184,6 +190,8 @@ function Viewer({ token }: { token: string }) {
     const query = new URLSearchParams();
     if (updatedAtRef.current !== null) query.set('since', String(updatedAtRef.current));
     if (level === 'detail') query.set('detail', String(detailAtRef.current ?? 0));
+    // First load: is this the signed-in owner's project? (re-asked after sign-in)
+    if (updatedAtRef.current === null || ownerCheckRef.current !== signedInKey) query.set('viewer', '1');
     const res = await fetch(`/api/live/${encodeURIComponent(token)}${query.size ? `?${query}` : ''}`, { signal, cache: 'no-store' });
     if (res.status === 404) {
       setGone(true);
@@ -193,6 +201,10 @@ function Viewer({ token }: { token: string }) {
     const body = (await res.json()) as WatchResponse;
     setName(body.canvasName);
     setClaimable(Boolean(body.claimable));
+    if (body.ownedByViewer !== undefined) {
+      setOwned(body.ownedByViewer);
+      ownerCheckRef.current = signedInKey;
+    }
     setSessions(body.sessions);
     setServerTime(body.serverTime);
     // Badges and figures read the shared live store; this page has no editor using it.
@@ -224,7 +236,7 @@ function Viewer({ token }: { token: string }) {
     }
     setError(null);
     return true;
-  }, [token, level]);
+  }, [token, level, signedInKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -297,7 +309,16 @@ function Viewer({ token }: { token: string }) {
           </span>
           <h1 className="truncate text-sm font-semibold">{name || 'Live project'}</h1>
           <span className="shrink-0 text-xs text-muted-foreground">· view only</span>
-          <MapLevelToggle level={level} onChange={setLevel} hasDetail={detailUpdatedAt !== null} className="ml-1 shrink-0" />
+          <MapLevelToggle level={level} onChange={setLevel} hasDetail={detailUpdatedAt != null} className="ml-1 shrink-0" />
+          {owned && (
+            <a
+              href={`/editor?canvas=${encodeURIComponent(canvasId)}`}
+              className="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
+              title="This project is saved to your account"
+            >
+              In your account · Open in editor
+            </a>
+          )}
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" aria-label="Agent sessions">
           {sessions.length === 0 && <span className="text-xs text-muted-foreground">No agent sessions in the last few hours.</span>}
