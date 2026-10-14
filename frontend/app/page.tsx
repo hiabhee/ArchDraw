@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
-import RevampedLanding from '@/components/landing/RevampedLanding';
+import LiveLanding from '@/components/landing/live/LiveLanding';
 
 export const metadata: Metadata = {
-  title: 'ArchDraw | Architecture diagrams from code and ideas',
+  title: 'ArchDraw | A live map of your codebase for Claude Code',
   description:
-    'Turn a public GitHub repository or system idea into an editable architecture diagram. Refine the graph in ArchDraw or connect a coding agent.',
+    'See every Claude Code session on a live architecture map of your codebase: where each one is working, what it is changing, and which one needs you. One command, no account.',
   keywords: [
+    'Claude Code',
+    'parallel coding agents',
+    'Claude Code sessions',
+    'live architecture map',
+    'codebase map',
     'system architecture diagram',
     'architecture diagram tool',
     'system design diagram',
@@ -22,21 +27,21 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: 'https://archdraw.hiabhee.online/',
-    title: 'ArchDraw | Architecture diagrams from code and ideas',
+    title: 'Six agents are coding. Which one needs you?',
     description:
-      'Map public repositories or system ideas, then edit the architecture on a canvas or with a connected coding agent.',
+      'ArchDraw puts every Claude Code session on a live map of your codebase. One command, no account.',
     siteName: 'ArchDraw',
     images: [{ url: '/api/og/home', width: 1200, height: 630, alt: 'ArchDraw system architecture diagram tool' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ArchDraw | Architecture diagrams from code and ideas',
+    title: 'Six agents are coding. Which one needs you?',
     description:
-      'Map public repositories or system ideas, then edit the architecture on a canvas or with a connected coding agent.',
+      'ArchDraw puts every Claude Code session on a live map of your codebase. One command, no account.',
     images: ['/api/og/home'],
   },
 };
 
 export default function LandingPage() {
-  return <RevampedLanding />;
+  return <LiveLanding />;
 }

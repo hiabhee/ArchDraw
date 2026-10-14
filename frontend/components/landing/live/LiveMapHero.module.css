@@ -1,0 +1,35 @@
+.frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--arch-canvas-bg, #101318);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .6),
+    0 40px 120px -40px rgba(0, 0, 0, .9),
+    0 0 80px -30px rgba(124, 180, 255, .18);
+}
+.window { display: flex; flex-direction: column; }
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 46px;
+  padding: 9px 16px;
+  border-bottom: 1px solid hsl(var(--border) / .6);
+  background: hsl(var(--background) / .85);
+  font-family: Inter, var(--font-body), system-ui, sans-serif;
+}
+.chips { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.canvas { position: relative; height: clamp(460px, 54vw, 720px); }
+
+@media (max-width: 900px) {
+  .chips { display: none; }
+}
+@media (max-width: 600px) {
+  /* Phones get a legible map that swipes sideways instead of a miniature. */
+  .canvas { width: 1000px; height: 540px; }
+}
