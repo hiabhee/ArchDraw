@@ -42,6 +42,8 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState, opti
       edges: canvas.edges as object,
       ...(options.force || canvas.serverUpdatedAt === undefined ? {} : { baseUpdatedAt: canvas.serverUpdatedAt }),
     }, { keepalive: options.keepalive }) as { updatedAt?: string } | null;
+    saveRetries.delete(canvasId);
+    toast.dismiss(`canvas-save-retry-${canvasId}`);
     const serverUpdatedAt = saved?.updatedAt ? new Date(saved.updatedAt).getTime() : NaN;
     if (Number.isFinite(serverUpdatedAt)) get().setCanvasServerVersion(canvasId, serverUpdatedAt);
     state.setSavingState('saved');
@@ -51,7 +53,10 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState, opti
   } catch (err) {
     const e = err as Error & { status?: number; code?: string; details?: unknown };
     // Expected outcomes the user resolves through a toast — not app errors.
-    const isHandled = e?.code === 'CANVAS_SIZE_EXCEEDED' || e?.code === 'CANVAS_LIMIT_EXCEEDED' || e?.code === 'CANVAS_CONFLICT';
+    // Server/network trouble (5xx, 429, no response): the edit is still in the
+    // tab, so retry with backoff instead of dropping it until the next change.
+    const transient = e?.status === undefined || e.status >= 500 || e.status === 429;
+    const isHandled = transient || e?.code === 'CANVAS_SIZE_EXCEEDED' || e?.code === 'CANVAS_LIMIT_EXCEEDED' || e?.code === 'CANVAS_CONFLICT';
     const logFn = isHandled ? logger.warn : logger.error;
     // Log both structured context and raw error — previous version logged {} when e was empty
     logFn('[CanvasPersistence] Failed to save canvas to database:', {
@@ -70,6 +75,7 @@ async function saveCanvasToDBNow(canvasId: string, get: () => DiagramState, opti
       logFn('[CanvasPersistence] Raw error object:', err);
     }
     state.setSavingState('idle');
+    if (transient && !options.keepalive && scheduleSaveRetry(canvasId, get)) return;
     // Surface actionable message instead of generic "Failed to save canvas" console error
     if (e.code === 'CANVAS_CONFLICT') {
       toast.error(`"${canvas.name}" was changed in another tab or device.`, {
@@ -117,6 +123,32 @@ const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // version returned by the previous one (otherwise they'd 409 each other).
 const inflightSaves = new Map<string, Promise<void>>();
 let latestGet: (() => DiagramState) | null = null;
+
+const RETRY_DELAYS_MS = [5_000, 15_000, 45_000, 90_000];
+const saveRetries = new Map<string, number>();
+
+/** Retry a save after a transient failure. False once retries are used up. */
+function scheduleSaveRetry(canvasId: string, get: () => DiagramState): boolean {
+  const attempt = saveRetries.get(canvasId) ?? 0;
+  if (attempt >= RETRY_DELAYS_MS.length) {
+    saveRetries.delete(canvasId);
+    toast.dismiss(`canvas-save-retry-${canvasId}`);
+    return false; // falls through to the error toast
+  }
+  saveRetries.set(canvasId, attempt + 1);
+  if (attempt === 0) {
+    toast.message('Can’t reach the server. Your changes are kept here and will save when it’s back.', {
+      id: `canvas-save-retry-${canvasId}`,
+      duration: Infinity,
+    });
+  }
+  clearTimeout(pendingTimers.get(canvasId));
+  pendingTimers.set(canvasId, setTimeout(() => {
+    pendingTimers.delete(canvasId);
+    void enqueueSave(canvasId, get);
+  }, RETRY_DELAYS_MS[attempt]));
+  return true;
+}
 
 function enqueueSave(canvasId: string, get: () => DiagramState, options?: SaveOptions): Promise<void> {
   const previous = inflightSaves.get(canvasId) ?? Promise.resolve();

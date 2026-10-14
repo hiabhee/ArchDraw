@@ -26,7 +26,7 @@ Requirements: network access to `archdraw.hiabhee.online`. Claude needs nothing 
 
 ## What you get
 
-- **Hooks (optional live projects)** — report which files each Claude Code session edits to a linked ArchDraw project canvas, so you can watch sessions work on the diagram. Inactive until you link a repository (see below).
+- **Hooks (optional live projects)** — report which files each Claude Code session reads and edits to a linked ArchDraw project canvas, so each session appears as a figure working on the diagram. Inactive until you link a repository (see below).
 - **Skill `archdraw`** — tells the agent when and how to use the ArchDraw tools, to prefer Mermaid input, and to always show you the preview link.
 - **MCP server `archdraw`** with these tools: `generate_diagram`, `update_diagram`, `validate_diagram`, `fix_layout`, `apply_template`, `list_templates`, `list_node_types`, `get_diagram_state`, `save_checkpoint`, `load_checkpoint`, `export_diagram`, `read_me`.
 
@@ -53,11 +53,12 @@ Please read this before installing.
 
 ### Live projects (optional, Claude Code only)
 
-The plugin also ships Claude Code **hooks** (`hooks/hooks.json`) that run `node scripts/archdraw-project.mjs hook` on SessionStart, after Edit/Write/MultiEdit/NotebookEdit, on Stop, and on SessionEnd. They need Node.js 18+.
+The plugin also ships Claude Code **hooks** (`hooks/hooks.json`) that run `node scripts/archdraw-project.mjs hook` on SessionStart, on UserPromptSubmit, after Edit/Write/MultiEdit/NotebookEdit/Read/Grep/Glob, on Notification, on Stop, and on SessionEnd. They need Node.js 18+.
 
-- **Off unless you link a repository.** Without a link in `~/.archdraw/projects.json` (created only by `npx -y @hiabhee/archdraw-mcp-server link`, after you approve a pairing code in the ArchDraw editor) the hook exits immediately and sends nothing.
-- **Sends (when linked):** to your linked ArchDraw project at `<ArchDraw URL>/api/projects/<canvas id>/activity` — the Claude Code session id, event type, the repository-relative path of each edited file, the git branch, a label (`repo (branch) #abcd`), and any one-line intent the agent shares. Never file contents, diffs, prompts, or command output.
+- **Off unless you link a repository.** Without a link in `~/.archdraw/projects.json` (created only by `npx archdraw-live` or by `npx -y @hiabhee/archdraw-mcp-server link` after you approve a pairing code in the ArchDraw editor) the hook exits immediately and sends nothing.
+- **Sends (when linked):** to your linked ArchDraw project at `<ArchDraw URL>/api/projects/<canvas id>/activity` — the Claude Code session id, event type, the repository-relative path of each edited file and of each file or directory it reads or searches (at most one read report per 1.5 seconds), the git branch, a label (`repo (branch) #abcd`), the repository folder name, and any one-line intent the agent shares. On UserPromptSubmit the prompt is compared on your machine with the diagram's component names (cached for the session in your temp directory); only the matching component id is sent, never the prompt. Notification sends only that the session is waiting for your permission (an "idle, waiting for input" notification sends nothing). Never file contents, diffs, prompts, search patterns, or command output.
 - **Stores:** the link (ArchDraw URL, canvas and project ids, and a revocable project-scoped token) in `~/.archdraw/projects.json` with `0600` permissions, outside your repository. "Stop" in the editor's Live project panel revokes the token; `archdraw-mcp-server unlink` removes the local link.
+- **Your terminal:** on SessionStart the server gives the session a short name (for example "Otter"), the same one the live map shows. The hook names the Claude Code session after it (like `/rename`, only for new sessions without a title), shows a one-line message with the map link, and sets the terminal window title through Claude Code's `terminalSequence` (`Otter · repo`, `● Otter needs you` on a permission prompt, `✓ Otter · your turn` when it finishes). The name and title state are kept in small files in your temp directory.
 - **Agent context:** on SessionStart in a linked repository the hook adds a short note with the project link and the `map` / `mermaid` / `publish` / `intent` commands. When the agent creates a file that no component owns, the hook may add a one-line note suggesting a diagram update (at most once per directory per session; it remembers which directories in a small file in your temp directory). `publish` sends the Mermaid diagram, the component → path map the agent writes, and the session id.
 
 To point the plugin at your own ArchDraw deployment, change the `url` in `.mcp.json` (Claude) or `API_BASE_URL` in `mcp.json` (Codex).

@@ -68,6 +68,10 @@ const nextConfig: NextConfig = {
   // Keep build tracing inside the frontend package even when a parent
   // workspace manifest exists outside the repository checkout.
   outputFileTracingRoot: process.cwd(),
+  // Same for the dev watcher: a stray lockfile in a parent folder (e.g. the
+  // home directory) would otherwise make Turbopack watch all of it, and every
+  // write there (~/.claude session logs) recompiles and reloads the page.
+  turbopack: { root: process.cwd() },
   poweredByHeader: false,
   compress: true,
   // Hosted MCP endpoint: load the server package natively so its widget HTML

@@ -54,7 +54,8 @@ export const createUiSlice: StateCreator<
   diagramViewMode: 'details',
   diagramStyleTheme: 'studio-minimal',
   diagramRenderStyle: 'studio-minimal',
-  darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') === 'dark' : false,
+  // Dark by default; only an explicit light choice turns it off.
+  darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') !== 'light' : true,
   sidebarOpen: false,
   canvasMode: 'empty',
   activeLayoutPresetId: 'layered-lr',

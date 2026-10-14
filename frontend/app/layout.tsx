@@ -131,11 +131,12 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
+                  // Dark unless the visitor chose light (matches ThemeProvider's defaultTheme).
                   var theme = localStorage.getItem('archdraw-theme');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else if (!theme || theme === 'light') {
+                  if (theme === 'light') {
                     document.documentElement.classList.remove('dark');
+                  } else {
+                    document.documentElement.classList.add('dark');
                   }
                 } catch (e) {}
               })();
@@ -166,7 +167,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="archdraw-theme" themes={['dark', 'light']}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="archdraw-theme" themes={['dark', 'light']}>
           <AuthProvider>
             <AnalyticsProvider>
               {children}

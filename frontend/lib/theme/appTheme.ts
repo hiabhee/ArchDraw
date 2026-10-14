@@ -9,7 +9,9 @@ export type Theme = 'dark' | 'light';
 /** App (chrome) theme — next-themes is the source of truth. */
 export function useTheme() {
   const { setTheme, resolvedTheme } = useNextTheme();
-  const isDark = resolvedTheme === 'dark';
+  // Before next-themes resolves (server render), assume the default theme
+  // (dark); otherwise server and client markup disagree on first paint.
+  const isDark = (resolvedTheme ?? 'dark') === 'dark';
 
   return {
     theme: (resolvedTheme || 'dark') as Theme,

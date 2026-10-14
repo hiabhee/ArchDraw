@@ -10,7 +10,7 @@ vi.mock('@/lib/client/api-client', () => ({
   saveUserCanvas: m.saveUserCanvas,
   deleteUserCanvasApi: vi.fn(),
 }));
-vi.mock('sonner', () => ({ toast: { error: m.toastError, warning: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { error: m.toastError, warning: vi.fn(), message: vi.fn(), dismiss: vi.fn() } }));
 vi.mock('@/lib/logger', () => ({ default: { error: vi.fn(), warn: vi.fn(), log: vi.fn(), info: vi.fn() } }));
 
 import { debouncedSaveCanvasToDB, flushAllPendingCanvasSaves, flushCanvasSaveToDB } from '../dbSave';
@@ -42,6 +42,30 @@ describe('canvas DB saves', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
+  });
+
+  it('retries a save after a server outage instead of dropping the edit', async () => {
+    const { get } = makeStore([canvas('R')]);
+    const outage = Object.assign(new Error('Internal server error'), { status: 500 });
+    m.saveUserCanvas.mockRejectedValueOnce(outage).mockRejectedValueOnce(outage);
+    await flushCanvasSaveToDB('R', get);
+    expect(m.saveUserCanvas).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(m.saveUserCanvas).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(m.saveUserCanvas).toHaveBeenCalledTimes(3); // third attempt succeeds
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(m.saveUserCanvas).toHaveBeenCalledTimes(3);
+    expect(m.toastError).not.toHaveBeenCalled();
+  });
+
+  it('does not retry client errors', async () => {
+    const { get } = makeStore([canvas('F')]);
+    m.saveUserCanvas.mockRejectedValueOnce(Object.assign(new Error('Forbidden'), { status: 403 }));
+    await flushCanvasSaveToDB('F', get);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(m.saveUserCanvas).toHaveBeenCalledTimes(1);
+    expect(m.toastError).toHaveBeenCalled();
   });
 
   it('debounces per canvas, so touching canvas B does not drop canvas A', async () => {
