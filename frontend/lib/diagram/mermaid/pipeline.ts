@@ -238,6 +238,11 @@ export async function runMermaidPipeline(
     pruneOrphans?: boolean;
     layoutProfile?: MermaidLayoutProfile;
     edgeSemantics?: ReadonlyMap<string, EdgeLayoutSemantics>;
+    /**
+     * `flow`: top-level subgraphs are listed in data-flow order; or their ids
+     * in that order. Edges back to an earlier one are feedback (not ranked).
+     */
+    areaOrder?: 'flow' | readonly string[];
   } = {},
 ): Promise<DomainPipelineResult<PipelineResult>> {
   const pipeline = new Pipeline<string, MermaidPipelineData>(

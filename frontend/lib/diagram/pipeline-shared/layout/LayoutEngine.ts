@@ -58,6 +58,8 @@ export interface LayoutOptions {
   paddingBottom?: number;
   paddingLeft?: number;
   paddingRight?: number;
+  /** Top-level groups are flow stages: keep them in rank order (no sidecar lanes). */
+  flowAreas?: boolean;
 }
 
 export interface LayoutParams {
@@ -192,6 +194,11 @@ export function isInfrastructureServiceType(serviceType?: string): boolean {
  * and how strongly a candidate layout is judged on crossings.
  */
 export function getLayoutEdgeWeight(edge: LayoutEdge): number {
+  // A caller-declared feedback edge (e.g. back to an earlier stage) never
+  // ranks, whatever importance the classifier inferred for it.
+  if (edge.flowRole === 'feedback' && edge.flowRoleSource === 'explicit' && edge.importanceSource !== 'explicit') {
+    return IMPORTANCE_WEIGHT.diagnostic;
+  }
   // A primary relationship is semantic backbone intent. Infrastructure and
   // async metadata describe transport, not a reason to demote that intent.
   if (edge.importance === 'primary') return IMPORTANCE_WEIGHT.primary;

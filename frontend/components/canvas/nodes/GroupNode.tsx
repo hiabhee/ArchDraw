@@ -5,7 +5,7 @@ import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { LiveActivityBadge } from './LiveActivityBadge';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
-import { hexToRgba } from '@/lib/utils';
+import { hexToRgba, toHex6 } from '@/lib/utils';
 import { NodeHandles } from '@/components/canvas/nodes/NodeHandles';
 import { getConcernColor, CONCERN_COLORS } from '@/lib/theme/stylingConstants';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
@@ -14,10 +14,24 @@ import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 import '@reactflow/node-resizer/dist/style.css';
 import './nodeStyles.css';
 
+// Pastel #eff6ff etc with 0.08 alpha is invisible on white in precision.
+// Groups created after 0d66a6a stored pastel directly; map back to saturated for precision so the tint reads.
+const PASTEL_TO_SATURATED: Record<string, string> = {
+  '#eff6ff': '#3b82f6',
+  '#f0fdf4': '#22c55e',
+  '#fefce8': '#f59e0b',
+  '#fdf2f8': '#ec4899',
+  '#eef2ff': '#2563eb',
+  '#fff7ed': '#f97316',
+  '#faf5ff': '#a855f7',
+  '#f0fdfa': '#14b8a6',
+};
+
 function GroupNodeComponent({ id, data, selected }: NodeProps) {
   const updateNodeInternals = useUpdateNodeInternals();
-  const [isEditing, setIsEditing] = useState(() => Boolean(data.autoStartLabelEdit));
-  const [editValue, setEditValue] = useState('');
+  const { readOnly } = useCanvasView();
+  const [isEditing, setIsEditing] = useState(() => !readOnly && Boolean(data.autoStartLabelEdit));
+  const [editValue, setEditValue] = useState(() => data.groupLabel || data.label || 'Group');
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -32,18 +46,17 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
     updateNodeInternals(id);
   }, [id, updateNodeInternals]);
 
+  // `box` only feeds the sketch body; skip per-frame re-renders otherwise.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || !sketch) return;
     const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       setBox({ width, height });
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-
-  const { readOnly } = useCanvasView();
+  }, [sketch]);
 
   const dataRec = data as {
     accentColor?: string;
@@ -66,29 +79,18 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
   }, [id]);
 
   const concernHint = dataRec.layer || dataRec.tier || dataRec.label || dataRec.groupLabel;
+  // Stored colors come from imports / MCP / AI and may be #rgb or named;
+  // hexToRgba only understands #rrggbb, so normalize or fall back to the concern color.
   const rawColor =
-    dataRec.accentColor ||
-    dataRec.groupColor ||
-    dataRec.color ||
-    getConcernColor(concernHint, aesthetics.concerns) ||
+    toHex6(dataRec.accentColor) ||
+    toHex6(dataRec.groupColor) ||
+    toHex6(dataRec.color) ||
+    toHex6(getConcernColor(concernHint, aesthetics.concerns)) ||
     CONCERN_COLORS.compute.color;
-  // Pastel #eff6ff etc with 0.08 alpha is invisible on white in precision.
-  // Groups created after 0d66a6a stored pastel directly; map back to saturated for precision so the tint reads.
-  const PASTEL_TO_SATURATED: Record<string, string> = {
-    '#eff6ff': '#3b82f6',
-    '#f0fdf4': '#22c55e',
-    '#fefce8': '#f59e0b',
-    '#fdf2f8': '#ec4899',
-    '#eef2ff': '#2563eb',
-    '#fff7ed': '#f97316',
-    '#faf5ff': '#a855f7',
-    '#f0fdfa': '#14b8a6',
-  };
-  const pastelMapped = PASTEL_TO_SATURATED[rawColor.toLowerCase()] ?? rawColor;
+  const pastelMapped = PASTEL_TO_SATURATED[rawColor] ?? rawColor;
   // In precision use saturated for visibility; sketch/brutal keep raw (brutal lightens via GroupBackgroundLayer, sketch uses faint hachure)
   const color = !brutal && !sketch ? pastelMapped : rawColor;
 
-  // Sketch groups keep the concern tint at a softer opacity so the dashed
   // Brutal plates are now rendered by GroupBackgroundLayer *behind* the
   // edge SVG (inside .react-flow__viewport before .react-flow__edges) so
   // the opaque #dbeafe fill never covers edge paths. Keep the node itself
@@ -157,7 +159,6 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
     : isDark
       ? hexToRgba(color, 0.9)
       : color;
-  const tagBg = isDark ? 'transparent' : 'transparent';
 
   const label = dataRec.groupLabel || dataRec.label || '';
 
@@ -168,21 +169,20 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
     }
   }, [isEditing]);
 
-  const handleContainerClick = (_e: React.MouseEvent) => {
-    // Let ReactFlow handle selection.
-  };
-
   const handleMouseEnter = () => setIsHovered(true);
   const handleMouseLeave = () => setIsHovered(false);
 
+  // First click selects the group (React Flow); clicking the title of an
+  // already-selected group renames it. Viewers never edit.
   const handleLabelClick = (e: React.MouseEvent) => {
+    if (readOnly || !selected) return;
     e.stopPropagation();
     setIsEditing(true);
     setEditValue(label || 'Group');
   };
 
   const handleSave = () => {
-    if (editValue.trim()) {
+    if (!readOnly && editValue.trim()) {
       useDiagramStore.getState().updateNodeData(id, { groupLabel: editValue.trim() });
     }
     setIsEditing(false);
@@ -195,8 +195,6 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
       setIsEditing(false);
     }
   };
-
-  void handleContainerClick;
 
   return (
     <div
@@ -219,7 +217,6 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
           ? aesthetics.colors.nodeFill
           : isDark ? '#1a1d24' : '#ffffff',
       }}
-      onClick={handleContainerClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onDragStart={(e) => e.preventDefault()}
@@ -240,7 +237,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
       <NodeResizer
-        isVisible={!!selected || isHovered}
+        isVisible={!readOnly && (!!selected || isHovered)}
         minWidth={150}
         minHeight={100}
         lineStyle={{ borderColor: hexToRgba(color, 0.4) }}
@@ -258,8 +255,8 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
           className={sketch || brutal ? 'group-label' : undefined}
           style={{
             position: 'absolute',
-          top: studio ? 18 : 16,
-          left: studio ? 18 : 12,
+            top: studio ? 18 : 16,
+            left: studio ? 18 : 12,
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,
@@ -269,17 +266,17 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
             letterSpacing: '0.04em',
             textTransform: brutal ? 'uppercase' : 'none',
             color: tagText,
-            background: tagBg,
+            background: 'transparent',
             border: brutal ? `2px solid ${borderColor}` : 'none',
             borderRadius: brutal ? 4 : 0,
             lineHeight: 1.3,
             whiteSpace: 'nowrap',
-            cursor: 'pointer',
+            cursor: readOnly ? 'default' : 'pointer',
             minWidth: 40,
             boxShadow: 'none',
           }}
           onClick={handleLabelClick}
-          title="Click to edit group name"
+          title={readOnly ? undefined : 'Click to edit group name'}
         >
           {isEditing ? (
             <input
@@ -295,8 +292,8 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                fontSize: brutal ? 12 : 11,
-                fontWeight: brutal ? 700 : 500,
+                fontSize: brutal ? 12 : studio ? 13 : 11,
+                fontWeight: brutal ? 700 : studio ? 600 : 500,
                 letterSpacing: '0.04em',
                 color: tagText,
                 width: '100%',
@@ -324,10 +321,10 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
             letterSpacing: '0.01em',
             color: isDark ? 'rgba(148,163,184,0.9)' : 'rgba(100,116,139,0.9)',
             whiteSpace: 'nowrap',
-            cursor: 'pointer',
+            cursor: readOnly ? 'default' : 'pointer',
           }}
           onClick={handleLabelClick}
-          title="Click to edit loop label"
+          title={readOnly ? undefined : 'Click to edit loop label'}
         >
           <span style={{ fontSize: 14, lineHeight: 1 }}>↻</span>
           <span>{isEditing ? (
