@@ -445,7 +445,10 @@ export default function SimpleFloatingEdge({
     [edges, source, target]
   );
   const labelOrder = Math.max(0, parallelEdges.findIndex((edge) => edge.id === id));
-  const labelT = data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
+  // Read-only hosts (watch page, detailed map, high-level view) can't save a
+  // moved label, so the move is kept locally for this view instead.
+  const [localLabelT, setLocalLabelT] = useState<number | null>(null);
+  const labelT = localLabelT ?? data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
 
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
@@ -459,7 +462,7 @@ export default function SimpleFloatingEdge({
       }
     }
     const resolved = labelLayout;
-    if (resolved) {
+    if (resolved && localLabelT === null) {
       // The shared label planner routes without React Flow's measured handle
       // centers. Keep its collision-aware position along the edge, but sample
       // the path we actually render so the pill is centered on the visible wire.
@@ -473,7 +476,7 @@ export default function SimpleFloatingEdge({
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayout, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
+  }, [labelLayout, localLabelT, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill
@@ -509,7 +512,8 @@ export default function SimpleFloatingEdge({
         const flowX = (ev.clientX - vpX) / zoom;
         const flowY = (ev.clientY - vpY) / zoom;
         const newT = findClosestT(stableEdgePath, flowX, flowY);
-        if (useDiagramStore.getState().activeCanvasId) {
+        if (readOnly) setLocalLabelT(newT);
+        else if (useDiagramStore.getState().activeCanvasId) {
           updateEdgeData(id, { labelT: newT });
         }
       };
@@ -531,7 +535,7 @@ export default function SimpleFloatingEdge({
         window.removeEventListener('mouseup', onMouseUp);
       };
     },
-    [stableEdgePath, getViewport, id, labelEditing, updateEdgeData]
+    [stableEdgePath, getViewport, id, labelEditing, readOnly, updateEdgeData]
   );
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
