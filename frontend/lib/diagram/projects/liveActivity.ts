@@ -7,7 +7,26 @@ import type { StructureChange } from './structureDiff';
 
 export type AgentSessionStatus = 'active' | 'idle' | 'ended';
 
-export type ActivityEvent = 'start' | 'edit' | 'stop' | 'end';
+export type ActivityEvent = 'start' | 'read' | 'edit' | 'aim' | 'wait' | 'stop' | 'end';
+
+/**
+ * What a session did last; drives its figure on the canvas. `waiting`: asked
+ * for permission; `done`: finished its turn (the user's move).
+ */
+export type SessionAction = 'start' | 'read' | 'edit' | 'waiting' | 'done';
+
+const ACTION_FOR_EVENT: Partial<Record<ActivityEvent, SessionAction>> = {
+  start: 'start',
+  read: 'read',
+  edit: 'edit',
+  wait: 'waiting',
+  stop: 'done',
+};
+
+/** Null when the event does not change the action (aim, end). */
+export function actionForEvent(event: ActivityEvent): SessionAction | null {
+  return ACTION_FOR_EVENT[event] ?? null;
+}
 
 export interface TouchedEntry {
   count: number;
@@ -76,9 +95,10 @@ export function mergeUnmapped(existing: unknown, paths: readonly string[]): stri
 }
 
 /** Stable, readable color per session key (independent of list order). */
+/** Ten clearly separable hues on light and dark canvases. */
 export const SESSION_COLORS = [
-  '#2563eb', '#db2777', '#059669', '#d97706', '#7c3aed',
-  '#0891b2', '#dc2626', '#65a30d', '#c026d3', '#0d9488',
+  '#3b82f6', '#ef4444', '#10b981', '#a855f7', '#f97316',
+  '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#facc15',
 ] as const;
 
 export function sessionColor(sessionKey: string): string {
@@ -87,10 +107,71 @@ export function sessionColor(sessionKey: string): string {
   return SESSION_COLORS[Math.abs(hash) % SESSION_COLORS.length];
 }
 
+/**
+ * Give the sessions of one snapshot different colours (up to the palette size).
+ * Live sessions pick first (ended ones only fill in), earliest first; a session
+ * keeps its hashed colour unless taken, else gets the first unused hue. Order
+ * of the list is preserved.
+ */
+export function assignDistinctColors<T extends { sessionKey: string; startedAt: number; color: string; status?: AgentSessionStatus }>(sessions: readonly T[]): T[] {
+  const used = new Set<string>();
+  const rank = (s: T) => (s.status === 'ended' ? 1 : 0);
+  const byStart = [...sessions].sort((a, b) => rank(a) - rank(b) || a.startedAt - b.startedAt || a.sessionKey.localeCompare(b.sessionKey));
+  const colors = new Map<string, string>();
+  for (const s of byStart) {
+    const preferred = sessionColor(s.sessionKey);
+    const color = !used.has(preferred) ? preferred : SESSION_COLORS.find((c) => !used.has(c)) ?? preferred;
+    used.add(color);
+    colors.set(s.sessionKey, color);
+  }
+  return sessions.map((s) => ({ ...s, color: colors.get(s.sessionKey) ?? s.color }));
+}
+
+/**
+ * Session names: short, distinct words that read well on the map and in a
+ * terminal ("Otter needs you"). A session keeps its name; live sessions on one
+ * canvas never share one while names remain.
+ */
+export const SESSION_NAMES = [
+  'Otter', 'Fox', 'Owl', 'Lynx', 'Panda', 'Koala', 'Tiger', 'Wolf', 'Bear', 'Hawk',
+  'Seal', 'Moose', 'Bison', 'Crane', 'Heron', 'Raven', 'Gecko', 'Lemur', 'Llama', 'Yak',
+  'Zebra', 'Hippo', 'Rhino', 'Camel', 'Badger', 'Beaver', 'Cobra', 'Dingo', 'Eagle', 'Falcon',
+  'Ferret', 'Ibis', 'Jaguar', 'Kiwi', 'Mole', 'Newt', 'Orca', 'Puffin', 'Quail', 'Robin',
+  'Shark', 'Toucan', 'Viper', 'Walrus', 'Wombat', 'Bat', 'Crab', 'Dove', 'Elk', 'Finch',
+] as const;
+
+function hashKey(key: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < key.length; i++) hash = Math.imul(hash ^ key.charCodeAt(i), 16777619);
+  return hash >>> 0;
+}
+
+/** The session's preferred name, or the next one not in `taken`. */
+export function sessionNameFor(sessionKey: string, taken: ReadonlySet<string> = new Set()): string {
+  const start = hashKey(sessionKey) % SESSION_NAMES.length;
+  for (let i = 0; i < SESSION_NAMES.length; i++) {
+    const name = SESSION_NAMES[(start + i) % SESSION_NAMES.length];
+    if (!taken.has(name)) return name;
+  }
+  return `${SESSION_NAMES[start]} ${sessionKey.replace(/[^a-z0-9]/gi, '').slice(0, 3)}`;
+}
+
+/**
+ * New code no component owns yet, shown as a construction site next to
+ * `anchorId`. `key` groups sessions working in the same place.
+ */
+export interface LiveSite {
+  key: string;
+  label: string;
+  anchorId: string | null;
+}
+
 /** One session as returned by `GET /api/projects/:canvasId/live`. */
 export interface LiveAgentSession {
   id: string;
   sessionKey: string;
+  /** Short display name, also shown in the session's terminal ("Otter"). */
+  name: string;
   label: string;
   branch: string | null;
   status: AgentSessionStatus;
@@ -103,6 +184,59 @@ export interface LiveAgentSession {
   color: string;
   /** Last structural diagram change this session published. */
   lastChange: StructureChange | null;
+  lastAction: SessionAction | null;
+  lastActionAt: number | null;
+  /** Component the session's task points at (before it reads or edits anything). */
+  aimComponentId: string | null;
+  /** Editing new code that is not on the diagram yet. */
+  site: LiveSite | null;
+  /** Edited source files that were / were not on a component. */
+  mappedHits: number;
+  unmappedHits: number;
+  /** Part of the detailed map the session is at (null: its component). */
+  detailComponentId: string | null;
+}
+
+/** Below this many edited files a coverage figure means little. */
+export const MIN_COVERAGE_SAMPLE = 5;
+
+/**
+ * Share of the source files agents edited that landed on a component: how
+ * well the diagram matches where the work happens. Null until there is enough.
+ */
+export function mapCoverage(sessions: readonly Pick<LiveAgentSession, 'mappedHits' | 'unmappedHits'>[]): { percent: number; total: number } | null {
+  let mapped = 0;
+  let total = 0;
+  for (const s of sessions) {
+    mapped += s.mappedHits;
+    total += s.mappedHits + s.unmappedHits;
+  }
+  return total >= MIN_COVERAGE_SAMPLE ? { percent: Math.round((mapped / total) * 100), total } : null;
+}
+
+/** A "your turn" flag older than this no longer asks for attention. */
+export const DONE_ATTENTION_MS = 10 * 60 * 1000;
+
+export interface AttentionItem {
+  session: LiveAgentSession;
+  reason: 'waiting' | 'done';
+  since: number;
+}
+
+/**
+ * Sessions that need the user, most urgent first: permission requests (the
+ * agent is blocked) before finished turns, each longest-waiting first.
+ */
+export function attentionQueue(sessions: readonly LiveAgentSession[], now: number): AttentionItem[] {
+  const items: AttentionItem[] = [];
+  for (const session of sessions) {
+    if (session.status === 'ended' || session.lastActionAt == null) continue;
+    if (session.lastAction === 'waiting') items.push({ session, reason: 'waiting', since: session.lastActionAt });
+    else if (session.lastAction === 'done' && now - session.lastActionAt < DONE_ATTENTION_MS) {
+      items.push({ session, reason: 'done', since: session.lastActionAt });
+    }
+  }
+  return items.sort((a, b) => Number(a.reason === 'done') - Number(b.reason === 'done') || a.since - b.since);
 }
 
 export interface ProjectLiveSnapshot {
@@ -118,7 +252,34 @@ export interface ProjectLiveSnapshot {
   serverTime: number;
   /** Active agent links (one per `link`d checkout); sessions there need no pairing. */
   linkedCheckouts: number;
+  /** Read-only watch link path (`/live/<token>`); null when sharing is unavailable. */
+  watchPath: string | null;
+  /** When the detailed map was last drawn; null until there is one. */
+  detailUpdatedAt: number | null;
+  /** The detailed map, sent only when asked for and newer than the client's copy. */
+  detail?: DetailMapGraph;
   sessions: LiveAgentSession[];
+}
+
+/** Detailed map of a project: overview components as boxes of their parts. */
+export interface DetailMapGraph {
+  nodes: import('reactflow').Node[];
+  edges: import('reactflow').Edge[];
+  updatedAt: number;
+}
+
+export type MapLevel = 'overview' | 'detail';
+
+/**
+ * Sessions as the detailed map places them: on the part they are working in
+ * when known, else on their component (whose box has the same id).
+ */
+export function sessionsForLevel<T extends Pick<LiveAgentSession, 'currentComponentId' | 'detailComponentId'>>(
+  sessions: readonly T[],
+  level: MapLevel,
+): T[] {
+  if (level !== 'detail') return sessions as T[];
+  return sessions.map((s) => (s.detailComponentId ? { ...s, currentComponentId: s.detailComponentId } : s));
 }
 
 export interface NodeSessionMark {

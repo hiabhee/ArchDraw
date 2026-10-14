@@ -1,32 +1,70 @@
 {
-  "description": "ArchDraw live projects: report which files this session edits (paths only) to the linked ArchDraw project canvas. Does nothing unless the repository was linked with `archdraw-mcp-server link`.",
+  "description": "ArchDraw live projects: report which files this session reads and edits (paths only) to the linked ArchDraw project canvas, so each session appears as a figure on the diagram. Prompts never leave the machine: a task is matched to a component name locally and only that component id is sent. Does nothing unless the repository was linked with `archdraw-mcp-server link`.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook",
+            "timeout": 10
+          }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook",
+            "timeout": 10
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook",
+            "timeout": 10
+          }
         ]
       }
     ],
     "SessionEnd": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/archdraw-project.mjs\" hook",
+            "timeout": 10
+          }
         ]
       }
     ]
