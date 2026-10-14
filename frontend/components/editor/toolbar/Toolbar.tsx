@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState, useEffect, useMemo } from 'react';
+import { MapLevelToggle } from '@/components/canvas/MapLevelToggle';
+import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
@@ -80,6 +82,10 @@ export function Toolbar() {
   const isGuest = tier === 'guest';
   const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
   const canShowHighLevel = useMemo(() => hasHighLevelView(nodes), [nodes]);
+  // Live projects switch between the overview (this canvas) and the detailed map.
+  const mapLevel = useProjectLiveStore((s) => s.level);
+  const setMapLevel = useProjectLiveStore((s) => s.setLevel);
+  const hasDetailMap = useProjectLiveStore((s) => s.snapshot?.detailUpdatedAt != null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -393,6 +399,9 @@ export function Toolbar() {
 
             <LayoutToggleButton />
 
+            {isLiveProject ? (
+              <MapLevelToggle level={mapLevel} onChange={setMapLevel} hasDetail={hasDetailMap} />
+            ) : (
             <Button
               variant="ghost"
               size="sm"
@@ -409,6 +418,7 @@ export function Toolbar() {
             >
               {diagramViewMode === 'overview' ? 'High-level' : 'In-depth'}
             </Button>
+            )}
 
             <NodeIconModeToggle />
 

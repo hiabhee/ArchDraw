@@ -159,9 +159,10 @@ export function unlinkCanvasProject(canvasId: string) {
   return projectRequest<{ ok: true }>(`/api/projects/${encodeURIComponent(canvasId)}`, { method: 'DELETE' });
 }
 
-export function fetchProjectLive(canvasId: string, signal?: AbortSignal) {
+/** `detailSince`: also fetch the detailed map when newer than this (ms; 0 = any). */
+export function fetchProjectLive(canvasId: string, signal?: AbortSignal, detailSince?: number) {
   return projectRequest<import('@/lib/diagram/projects/liveActivity').ProjectLiveSnapshot>(
-    `/api/projects/${encodeURIComponent(canvasId)}/live`,
+    `/api/projects/${encodeURIComponent(canvasId)}/live${detailSince !== undefined ? `?detail=${detailSince}` : ''}`,
     { cache: 'no-store', signal },
   );
 }

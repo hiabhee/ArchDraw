@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, Copy, Loader2, X } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, ChevronDown, Copy, Eye, Loader2, Plus, Power, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
 import { approveAgentPairing, makeCanvasProject, unlinkCanvasProject } from '@/lib/client/api-client';
-import type { LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { RECENT_EDIT_MS, mapCoverage, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
 import { getCodePaths } from '@/lib/diagram/projects/pathMatcher';
 import { summarizeChange } from '@/lib/diagram/projects/structureDiff';
 import { useAuthStore } from '@/store/authStore';
@@ -29,12 +29,6 @@ function timeAgo(ms: number, now: number) {
 function looksLikePairingCode(value: string) {
   return /^[A-Z0-9]{12}$/i.test(value.replace(/[\s-]/g, ''));
 }
-
-const STATUS_LABEL: Record<LiveAgentSession['status'], string> = {
-  active: 'Active',
-  idle: 'Idle',
-  ended: 'Ended',
-};
 
 const INPUT_CLASS =
   'w-full h-8 rounded-lg border border-border bg-transparent px-2.5 text-xs text-text-primary placeholder:text-text-muted/70 outline-none transition-colors focus:border-border-strong aria-[invalid=true]:border-destructive/60';
@@ -234,6 +228,36 @@ function LinkCommand() {
   );
 }
 
+
+/** What the session is doing, as one lowercase word. */
+function sessionVerb(s: LiveAgentSession, now: number) {
+  if (s.status === 'ended') return 'ended';
+  if (s.status === 'idle') return 'idle';
+  const lastEdit = s.currentComponentId ? s.touched[s.currentComponentId]?.lastAt : undefined;
+  return lastEdit !== undefined && now - lastEdit < RECENT_EDIT_MS ? 'editing' : 'working';
+}
+
+function Avatar({ session, size = 'md' }: { session: LiveAgentSession; size?: 'sm' | 'md' }) {
+  const handle = session.name;
+  const dims = size === 'sm' ? 'h-5 w-5 text-[8.5px]' : 'h-7 w-7 text-[9.5px]';
+  const live = session.status === 'active';
+  return (
+    <span
+      className={`live-presence-avatar relative inline-flex shrink-0 items-center justify-center rounded-full font-mono font-semibold uppercase ${dims} ${live ? 'live-presence-avatar--live text-white' : 'bg-transparent'}`}
+      style={{
+        ['--presence' as string]: session.color,
+        backgroundColor: live ? session.color : undefined,
+        color: live ? undefined : session.color,
+        boxShadow: live ? undefined : `inset 0 0 0 1.5px ${session.color}`,
+        opacity: session.status === 'ended' ? 0.45 : 1,
+      }}
+      aria-hidden
+    >
+      {handle.slice(0, 2)}
+    </span>
+  );
+}
+
 function ProjectView({
   canvasId,
   collapsed,
@@ -250,10 +274,15 @@ function ProjectView({
   const nodes = useDiagramStore((s) => s.nodes);
   const [showConnect, setShowConnect] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [showEarlier, setShowEarlier] = useState(false);
+  const [showUnmapped, setShowUnmapped] = useState(false);
 
   const sessions = useMemo(() => snapshot?.sessions ?? [], [snapshot]);
-  const liveCount = sessions.filter((s) => s.status !== 'ended').length;
+  const now = snapshot?.serverTime ?? 0;
+  const current = sessions.filter((s) => s.status === 'active');
+  const earlier = sessions.filter((s) => s.status !== 'active');
   const linkedCheckouts = snapshot?.linkedCheckouts ?? 0;
+  const coverage = useMemo(() => mapCoverage(sessions), [sessions]);
   const labels = useMemo(() => {
     const map = new Map<string, string>();
     for (const n of nodes) map.set(n.id, String((n.data as { label?: unknown })?.label ?? n.id));
@@ -264,7 +293,6 @@ function ProjectView({
     () => Array.from(new Set(sessions.filter((s) => s.status !== 'ended').flatMap((s) => s.unmappedPaths))).slice(0, 8),
     [sessions],
   );
-  const now = snapshot?.serverTime ?? 0;
 
   const handleUnlink = async () => {
     try {
@@ -276,78 +304,124 @@ function ProjectView({
     }
   };
 
+  const row = (s: LiveAgentSession) => {
+    const focused = focusedSessionKey === s.sessionKey;
+    const where = s.site ? `New: ${s.site.label}` : s.currentComponentId ? labels.get(s.currentComponentId) ?? s.currentComponentId : null;
+    const verb = sessionVerb(s, now);
+    const note = s.intent ?? (s.lastChange ? summarizeChange(s.lastChange) : null);
+    return (
+      <li key={s.id}>
+        <button
+          onClick={() => setFocusedSession(focused ? null : s.sessionKey)}
+          aria-pressed={focused}
+          title={[`${s.name} — the terminal title shows this name`, s.label, note].filter(Boolean).join('\n')}
+          className={`group flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors ${
+            focused ? 'bg-text-primary/[0.07]' : 'hover:bg-text-primary/[0.04]'
+          }`}
+        >
+          <Avatar session={s} />
+          <span className="min-w-0 flex-1">
+            <span className={`block truncate text-[12.5px] font-medium leading-tight ${where ? 'text-text-primary' : 'text-text-muted'}`}>
+              {where ?? 'Not on the map yet'}
+            </span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight text-text-muted">
+              <span className="shrink-0 font-semibold text-text-primary/80">{s.name}</span>
+              {s.branch && <span className="truncate font-mono">{s.branch}</span>}
+              <span aria-hidden>·</span>
+              <span className={verb === 'editing' ? 'text-text-primary' : ''} style={verb === 'editing' ? { color: s.color } : undefined}>
+                {verb}
+              </span>
+            </span>
+          </span>
+          <span className="shrink-0 self-start pt-0.5 text-[10px] tabular-nums text-text-muted/80">{timeAgo(s.lastSeenAt, now)}</span>
+        </button>
+      </li>
+    );
+  };
+
   return (
     <div>
       <button
         onClick={onToggleCollapsed}
-        className="w-full flex items-center gap-2 px-3.5 py-2.5"
+        className="flex w-full items-center gap-2.5 px-3 py-2.5"
         aria-expanded={!collapsed}
+        aria-label={`Live project: ${current.length} session${current.length === 1 ? '' : 's'} working`}
       >
-        <span className="relative flex w-1.5 h-1.5">
-          {liveCount > 0 && <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-60 motion-reduce:hidden" />}
-          <span className={`relative w-1.5 h-1.5 rounded-full ${liveCount > 0 ? 'bg-emerald-500' : 'bg-text-muted/40'}`} />
+        <span className="relative flex h-1.5 w-1.5">
+          {current.length > 0 && <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500 opacity-60 motion-reduce:hidden" />}
+          <span className={`relative h-1.5 w-1.5 rounded-full ${current.length > 0 ? 'bg-emerald-500' : 'bg-text-muted/40'}`} />
         </span>
-        <span className="text-[13px] font-medium tracking-tight">Live</span>
-        <span className="text-[11px] tabular-nums text-text-muted">{liveCount}</span>
-        <ChevronDown
-          className={`ml-auto w-3.5 h-3.5 text-text-muted transition-transform ${collapsed ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
+        <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-text-primary">Live</span>
+        <span className="flex items-center -space-x-1.5">
+          {current.slice(0, 4).map((s) => (
+            <span key={s.id} className="rounded-full ring-2 ring-surface-panel">
+              <Avatar session={s} size="sm" />
+            </span>
+          ))}
+          {current.length > 4 && (
+            <span className="relative inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-text-primary/10 px-1 text-[9px] font-semibold tabular-nums ring-2 ring-surface-panel">
+              +{current.length - 4}
+            </span>
+          )}
+        </span>
+        {!collapsed && current.length === 0 && <span className="text-[11px] text-text-muted">quiet</span>}
+        <ChevronDown className={`ml-auto h-3.5 w-3.5 text-text-muted transition-transform ${collapsed ? 'rotate-180' : ''}`} aria-hidden />
       </button>
 
       {!collapsed && (
-        <div className="border-t border-border">
-          <div className="px-1.5 py-1.5 max-h-[50vh] overflow-y-auto">
-            {error && <p className="px-2 py-1.5 text-[11px] text-destructive">Paused: {error}</p>}
+        <>
+          <div className="max-h-[50vh] overflow-y-auto px-1.5 pb-1.5">
+            {error && <p className="px-2 pb-1.5 text-[11px] text-destructive">Paused: {error}</p>}
 
             {sessions.length === 0 ? (
-              <p className="px-2 py-2 text-[11.5px] leading-relaxed text-text-muted">
+              <p className="px-2 pb-2 text-[11.5px] leading-relaxed text-text-muted">
                 {linkedCheckouts > 0
-                  ? `No sessions in the last few hours. ${linkedCheckouts === 1 ? 'Your linked checkout needs' : `Your ${linkedCheckouts} linked checkouts need`} no new pairing: start Claude there and it shows up here.`
-                  : 'No agents yet. Link a checkout once and every session started there shows up here.'}
-                {!hasMappings && ' Ask one to map this codebase.'}
+                  ? 'Start Claude in your linked checkout and it appears here, on the component it touches.'
+                  : 'Link a checkout once; every Claude session started there appears here.'}
+                {!hasMappings && ' Ask it to map this codebase first.'}
               </p>
             ) : (
-              <ul>
-                {sessions.map((s) => {
-                  const focused = focusedSessionKey === s.sessionKey;
-                  const where = s.currentComponentId ? labels.get(s.currentComponentId) ?? s.currentComponentId : null;
-                  const detail = s.intent ?? (s.lastChange ? summarizeChange(s.lastChange) : null);
-                  return (
-                    <li key={s.id}>
-                      <button
-                        onClick={() => setFocusedSession(focused ? null : s.sessionKey)}
-                        className={`w-full text-left rounded-lg px-2 py-1.5 transition-colors ${
-                          focused ? 'bg-text-primary/[0.06]' : 'hover:bg-text-primary/[0.035]'
-                        } ${s.status === 'ended' ? 'opacity-45' : ''}`}
-                        aria-pressed={focused}
-                        title={`${s.label} · ${STATUS_LABEL[s.status]}${s.branch && s.branch !== s.label ? ` · ${s.branch}` : ''}`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.status === 'active' ? '' : 'opacity-50'}`}
-                            style={{ backgroundColor: s.color }}
-                          />
-                          <span className="flex-1 truncate text-xs font-medium">{s.label}</span>
-                          <span className="shrink-0 text-[10.5px] tabular-nums text-text-muted">
-                            {timeAgo(s.lastSeenAt, now)}
-                          </span>
-                        </span>
-                        {(where || detail) && (
-                          <span className="mt-0.5 block truncate pl-3.5 text-[11px] text-text-muted">
-                            {where && <span className="text-text-secondary">{where}</span>}
-                            {where && detail && ' — '}
-                            {detail}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <>
+                {current.length > 0 ? (
+                  <ul className="space-y-0.5">{current.map(row)}</ul>
+                ) : (
+                  <p className="px-2 pb-1 text-[11.5px] text-text-muted">Nobody is working right now.</p>
+                )}
+                {earlier.length > 0 && (
+                  <div className="mt-1">
+                    <button
+                      onClick={() => setShowEarlier((v) => !v)}
+                      className="flex w-full items-center gap-2 px-2 py-1 text-[10.5px] text-text-muted transition-colors hover:text-text-primary"
+                      aria-expanded={showEarlier}
+                    >
+                      <span className="flex -space-x-1">
+                        {earlier.slice(0, 3).map((s) => (
+                          <span key={s.id} className="h-2 w-2 rounded-full ring-1 ring-surface-panel" style={{ backgroundColor: s.color, opacity: 0.5 }} />
+                        ))}
+                      </span>
+                      {earlier.length} earlier
+                      <ChevronDown className={`h-3 w-3 transition-transform ${showEarlier ? 'rotate-180' : ''}`} aria-hidden />
+                    </button>
+                    {showEarlier && <ul className="space-y-0.5 opacity-80">{earlier.map(row)}</ul>}
+                  </div>
+                )}
+              </>
             )}
 
-            {unmapped.length > 0 && <UnmappedFiles paths={unmapped} />}
+            {unmapped.length > 0 && (
+              <div className="mt-1 border-t border-border/60 pt-1">
+                <button
+                  onClick={() => setShowUnmapped((v) => !v)}
+                  className="flex w-full items-center gap-2 px-2 py-1 text-[10.5px] text-text-muted transition-colors hover:text-text-primary"
+                  aria-expanded={showUnmapped}
+                >
+                  <span className="h-1.5 w-1.5 rotate-45 border border-current" aria-hidden />
+                  {unmapped.length} file{unmapped.length === 1 ? '' : 's'} not on the map
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showUnmapped ? 'rotate-180' : ''}`} aria-hidden />
+                </button>
+                {showUnmapped && <UnmappedFiles paths={unmapped} />}
+              </div>
+            )}
           </div>
 
           {showConnect ? (
@@ -357,31 +431,71 @@ function ProjectView({
               onDone={() => setShowConnect(false)}
             />
           ) : (
-            <div className="flex items-center justify-between border-t border-border px-3.5 py-2">
-              <button onClick={() => setShowConnect(true)} className={TEXT_BUTTON_CLASS}>
-                {linkedCheckouts > 0 ? '+ Link another checkout' : '+ Link a checkout'}
-              </button>
-              <button
-                onClick={() => setConfirmUnlink(true)}
-                className="text-[11px] text-text-muted transition-colors hover:text-destructive"
-              >
-                Stop
-              </button>
+            <div className="flex items-center gap-1 border-t border-border/60 px-2 py-1.5">
+              <span className="flex-1 px-1 text-[10.5px] text-text-muted">
+                {linkedCheckouts > 0 ? `${linkedCheckouts} checkout${linkedCheckouts === 1 ? '' : 's'} linked` : 'No checkout linked'}
+                {coverage && (
+                  <span title={`${coverage.percent}% of the ${coverage.total} files agents edited are on a component. Low? Ask Claude to re-map the project.`}>
+                    {' '}· map covers {coverage.percent}%
+                  </span>
+                )}
+              </span>
+              <IconAction label={linkedCheckouts > 0 ? 'Link another checkout' : 'Link a checkout'} onClick={() => setShowConnect(true)}>
+                <Plus className="h-3.5 w-3.5" />
+              </IconAction>
+              {snapshot?.watchPath && <CopyWatchLink path={snapshot.watchPath} />}
+              <IconAction label="Stop live project" onClick={() => setConfirmUnlink(true)} danger>
+                <Power className="h-3.5 w-3.5" />
+              </IconAction>
             </div>
           )}
-        </div>
+        </>
       )}
 
       <ConfirmDialog
         open={confirmUnlink}
         onOpenChange={setConfirmUnlink}
         title="Stop live project?"
-        description="Connected agents lose access and session history is cleared. The diagram itself is kept."
+        description="Connected agents lose access, watch links stop working and session history is cleared. The diagram itself is kept."
         confirmText="Stop project"
         destructive
         onConfirm={handleUnlink}
       />
     </div>
+  );
+}
+
+function IconAction({ label, onClick, danger, children }: { label: string; onClick: () => void; danger?: boolean; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-text-primary/[0.06] ${danger ? 'hover:text-destructive' : 'hover:text-text-primary'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Copy the read-only link others can open to watch this project without signing in. */
+function CopyWatchLink({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    const url = `${window.location.origin}${path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('Watch link copied. Anyone with it can view this project live, without signing in.');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.message('Copy this watch link', { description: url, duration: 15_000 });
+    }
+  };
+  return (
+    <IconAction label="Copy watch link (view only, no sign-in)" onClick={copy}>
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+    </IconAction>
   );
 }
 
@@ -401,20 +515,19 @@ function UnmappedFiles({ paths }: { paths: string[] }) {
   };
 
   return (
-    <div className="mt-1 px-2 pt-2 pb-1">
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-text-muted">Unmapped</p>
+    <div className="px-2 pb-1">
       <ul className="space-y-0.5">
         {paths.map((path) => (
-          <li key={path} className="group flex items-center gap-2">
+          <li key={path} className="flex items-center gap-2">
             <code className="flex-1 truncate font-mono text-[10.5px] text-text-secondary" title={path}>{path}</code>
             <button
               onClick={() => assign(path)}
               disabled={!selectedNode}
-              className="shrink-0 text-[10.5px] text-text-muted transition-colors hover:text-text-primary disabled:opacity-40 disabled:hover:text-text-muted"
-              title={selectedLabel ? `Map to ${selectedLabel}` : 'Select a component to map this file'}
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:bg-text-primary/[0.06] hover:text-text-primary disabled:opacity-40 disabled:hover:bg-transparent"
+              title={selectedLabel ? `Map to ${selectedLabel}` : 'Select a component on the canvas, then map this file to it'}
               aria-label={selectedLabel ? `Map ${path} to ${selectedLabel}` : `Select a component to map ${path}`}
             >
-              map
+              {selectedLabel ? `→ ${selectedLabel}` : 'map'}
             </button>
           </li>
         ))}

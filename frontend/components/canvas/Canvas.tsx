@@ -6,6 +6,8 @@ import ReactFlow, {
   SelectionMode, ConnectionLineType,
   ConnectionMode,
   type OnSelectionChangeParams,
+  type NodeChange,
+  applyNodeChanges,
   type Connection,
   type Edge,
   type OnConnectStart,
@@ -16,6 +18,10 @@ import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/canvas/GuideLines';
 import { GroupBackgroundLayer } from '@/components/canvas/GroupBackgroundLayer';
+import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
+import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
+import { DetailMapEmpty } from '@/components/canvas/MapLevelToggle';
+import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { ContextMenu, type ContextMenuState } from '@/components/editor/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/canvas/CometTrailCanvas';
@@ -151,6 +157,27 @@ function CanvasUrlSync() {
   }, [searchParams, switchCanvas]);
 
   return null;
+}
+
+/** Positions the user gave boxes in the high-level view, per canvas (this browser only). */
+const NO_DETAIL_EDGES: Edge[] = [];
+
+function highLevelKey(canvasId: string | null) {
+  return `archdraw-high-level:${canvasId ?? 'none'}`;
+}
+function readHighLevelPositions(canvasId: string | null): Record<string, { x: number; y: number }> {
+  try {
+    return JSON.parse(localStorage.getItem(highLevelKey(canvasId)) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+function writeHighLevelPositions(canvasId: string | null, positions: Record<string, { x: number; y: number }>) {
+  try {
+    localStorage.setItem(highLevelKey(canvasId), JSON.stringify(positions));
+  } catch {
+    // storage unavailable: the arrangement just isn't remembered
+  }
 }
 
 function CanvasInner() {
@@ -626,42 +653,118 @@ function CanvasInner() {
 
   const coloredEdges = useEdgeColors(edges);
   const diagramViewMode = useDiagramStore((s) => s.diagramViewMode);
-  const layoutDirection = useDiagramStore((s): 'LR' | 'TD' => (s.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR'));
   // High-level view: groups collapsed into single components, laid out fresh.
   // A read-only projection; the stored diagram is untouched.
+  // Rebuilt only when the summary's content changes (groups, members, links),
+  // not on every new nodes array — a rebuild re-lays it out and would undo
+  // the user's arrangement mid-drag.
+  const highLevelSignature = useMemo(() => {
+    if (diagramViewMode !== 'overview') return null;
+    const graph = buildHighLevelGraph(nodes, coloredEdges);
+    if (!graph) return null;
+    return JSON.stringify([
+      graph.nodes.map((n) => [n.id, n.data?.label, n.data?.subtitle]),
+      graph.edges.map((e) => [e.source, e.target, e.data?.connectionCount]),
+    ]);
+  }, [diagramViewMode, nodes, coloredEdges]);
   const highLevelSource = useMemo(
-    () => (diagramViewMode === 'overview' ? buildHighLevelGraph(nodes, coloredEdges) : null),
-    [diagramViewMode, nodes, coloredEdges],
+    () => (highLevelSignature ? buildHighLevelGraph(nodes, coloredEdges) : null),
+    // Keyed on the summary's content on purpose (see above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [highLevelSignature],
   );
+  const activeCanvasId = useDiagramStore((s) => s.activeCanvasId);
   const [highLevelGraph, setHighLevelGraph] = useState<{ source: object; nodes: Node[]; edges: typeof coloredEdges } | null>(null);
   useEffect(() => {
     if (!highLevelSource) return;
     let cancelled = false;
-    void layoutDiagramViaMermaid(highLevelSource.nodes, highLevelSource.edges, layoutDirection).then((result) => {
+    // Lay the summary out both ways and keep the one that fits the window
+    // better (a long left-to-right chain wastes most of a wide screen's height).
+    void Promise.all([
+      layoutDiagramViaMermaid(highLevelSource.nodes, highLevelSource.edges, 'LR'),
+      layoutDiagramViaMermaid(highLevelSource.nodes, highLevelSource.edges, 'TD'),
+    ]).then((results) => {
       if (cancelled) return;
+      const viewAspect = window.innerWidth / Math.max(window.innerHeight - 160, 200);
+      const fit = (r: (typeof results)[number]) => {
+        if (!r.success || r.nodes.length === 0) return Infinity;
+        const xs = r.nodes.flatMap((n) => [n.position.x, n.position.x + (n.width ?? 200)]);
+        const ys = r.nodes.flatMap((n) => [n.position.y, n.position.y + (n.height ?? 100)]);
+        const aspect = (Math.max(...xs) - Math.min(...xs)) / Math.max(Math.max(...ys) - Math.min(...ys), 1);
+        return Math.abs(Math.log(aspect / viewAspect));
+      };
+      const best = fit(results[0]) <= fit(results[1]) ? results[0] : results[1];
+      // Boxes the user arranged keep their place (view state; the diagram is untouched).
+      const saved = readHighLevelPositions(activeCanvasId);
+      const laidOut = best.success ? best.nodes : highLevelSource.nodes;
       setHighLevelGraph({
         source: highLevelSource,
-        nodes: result.success ? result.nodes : highLevelSource.nodes,
-        edges: result.success ? result.edges : highLevelSource.edges,
+        // Summary boxes are always movable (the layout pipeline can mark nodes fixed).
+        nodes: laidOut.map((n) => ({ ...n, draggable: true, ...(saved[n.id] ? { position: saved[n.id] } : {}) })),
+        edges: best.success ? best.edges : highLevelSource.edges,
       });
-      requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }));
+      // Fit once React Flow has measured the new boxes (a fit on the first
+      // frame still sees the full diagram's bounds and leaves the summary tiny).
+      for (const delay of [60, 350]) setTimeout(() => { if (!cancelled) reactFlowInstance.fitView({ padding: 0.16, duration: 300 }); }, delay);
     });
     return () => { cancelled = true; };
-  }, [highLevelSource, layoutDirection, reactFlowInstance]);
+  }, [highLevelSource, activeCanvasId, reactFlowInstance]);
+  // The summary is movable: drags change only this view's positions.
+  const onHighLevelNodesChange = useCallback((changes: NodeChange[]) => {
+    setHighLevelGraph((graph) => (graph ? { ...graph, nodes: applyNodeChanges(changes, graph.nodes) } : graph));
+  }, []);
+  const onHighLevelDragStop = useCallback((_event: React.MouseEvent, _node: Node, dragged: Node[]) => {
+    const saved = readHighLevelPositions(activeCanvasId);
+    for (const n of dragged) saved[n.id] = { x: n.position.x, y: n.position.y };
+    writeHighLevelPositions(activeCanvasId, saved);
+  }, [activeCanvasId]);
   // Until the summary is laid out, keep showing the full diagram.
   const highLevel = highLevelSource !== null && highLevelGraph?.source === highLevelSource ? highLevelGraph : null;
-  const visibleNodes = highLevel?.nodes ?? nodes;
-  const visibleEdges = highLevel?.edges ?? coloredEdges;
+
+  // Live project "Detailed" level: the detailed map replaces the overview
+  // (this canvas) as a view-only projection with the agents still on it.
+  const projectLevel = useProjectLiveStore((s) => (s.canvasId === activeCanvasId && s.snapshot?.isProject ? s.level : 'overview'));
+  const detailMap = useProjectLiveStore((s) => (s.canvasId === activeCanvasId ? s.detail : null));
+  const detailEdges = useEdgeColors(detailMap?.edges ?? NO_DETAIL_EDGES);
+  const [detailNodes, setDetailNodes] = useState<{ source: object; nodes: Node[] } | null>(null);
+  if (detailMap && detailNodes?.source !== detailMap) {
+    setDetailNodes({
+      source: detailMap,
+      nodes: detailMap.nodes.map((n) => ({ ...n, selected: false, dragging: false, ...(n.type === 'groupNode' ? { zIndex: -1 } : {}) })),
+    });
+  }
+  const detailView = useMemo(
+    () => (projectLevel === 'detail' && detailMap && detailNodes?.source === detailMap ? { nodes: detailNodes.nodes, edges: detailEdges } : null),
+    [projectLevel, detailMap, detailNodes, detailEdges],
+  );
+  const detailMissing = projectLevel === 'detail' && !detailMap;
+  // Boxes of the detailed map can be moved for a better look; nothing is saved.
+  const onDetailNodesChange = useCallback((changes: NodeChange[]) => {
+    setDetailNodes((current) => (current ? { ...current, nodes: applyNodeChanges(changes, current.nodes) } : current));
+  }, []);
+  useEffect(() => {
+    if (!detailView) return;
+    for (const delay of [60, 350]) setTimeout(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }), delay);
+    // Frame the map when it appears or is redrawn, not on every drag.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailMap, projectLevel, reactFlowInstance]);
+
+  /** A view-only projection replaces the editable diagram (high-level summary or detailed map). */
+  const projection = detailView ?? highLevel;
+  const visibleNodes = projection?.nodes ?? nodes;
+  const visibleEdges = projection?.edges ?? coloredEdges;
   const canvasHost = useMemo<CanvasHost>(
-    () => (highLevel ? { readOnly: true, nodes: highLevel.nodes, edges: highLevel.edges, planKey: 'high-level' } : EDITOR_HOST),
-    [highLevel],
+    () => (detailView
+      ? { readOnly: true, showLiveActivity: true, nodes: detailView.nodes, edges: detailView.edges, planKey: 'detail-map' }
+      : highLevel ? { readOnly: true, nodes: highLevel.nodes, edges: highLevel.edges, planKey: 'high-level' } : EDITOR_HOST),
+    [detailView, highLevel],
   );
   // Selected nodes + their first-degree neighbours stay visible; the rest dims.
   const selectionFocusStyle = useMemo(() => {
-    if (highLevel) return null;
+    if (projection) return null;
     const focus = computeSelectionFocus(selectedNodeIds, nodes, edges);
     return focus ? selectionFocusCss(focus) : null;
-  }, [highLevel, selectedNodeIds, nodes, edges]);
+  }, [projection, selectedNodeIds, nodes, edges]);
   const wasHighLevel = useRef(false);
   useEffect(() => {
     // Leaving the summary: frame the full diagram again.
@@ -706,7 +809,7 @@ function CanvasInner() {
       data-color-theme={diagramStyleTheme}
       data-pipeline={pipelineStatus}
         onDragOver={(e) => e.preventDefault()}
-        onDoubleClick={highLevel ? undefined : onPaneDoubleClick}
+        onDoubleClick={projection ? undefined : onPaneDoubleClick}
       style={{
         width: '100%',
         height: '100%',
@@ -726,22 +829,22 @@ function CanvasInner() {
         edges={visibleEdges}
         // The high-level summary is view-only: its nodes are synthetic, so no
         // change may reach the store (or its auto-save).
-        onNodesChange={highLevel ? undefined : onNodesChange}
-        onEdgesChange={highLevel ? undefined : onEdgesChange}
-        onConnect={highLevel ? undefined : handleConnect}
-        onReconnect={highLevel ? undefined : onReconnect}
-        onConnectStart={highLevel ? undefined : onConnectStart}
-        onConnectEnd={highLevel ? undefined : onConnectEnd}
-        onNodeDrag={highLevel ? undefined : onNodeDrag}
-        onNodeDragStop={highLevel ? undefined : onNodeDragStop}
+        onNodesChange={detailView ? onDetailNodesChange : highLevel ? onHighLevelNodesChange : onNodesChange}
+        onEdgesChange={projection ? undefined : onEdgesChange}
+        onConnect={projection ? undefined : handleConnect}
+        onReconnect={projection ? undefined : onReconnect}
+        onConnectStart={projection ? undefined : onConnectStart}
+        onConnectEnd={projection ? undefined : onConnectEnd}
+        onNodeDrag={projection ? undefined : onNodeDrag}
+        onNodeDragStop={detailView ? undefined : highLevel ? onHighLevelDragStop : onNodeDragStop}
         onPaneClick={onPaneClick}
-        onSelectionChange={highLevel ? undefined : onSelectionChange}
-        onNodeContextMenu={highLevel ? undefined : onNodeContextMenu}
-        onPaneContextMenu={highLevel ? undefined : onPaneContextMenu}
-        nodesDraggable={!highLevel}
-        nodesConnectable={!highLevel}
-        elementsSelectable={!highLevel}
-        deleteKeyCode={highLevel ? null : undefined}
+        onSelectionChange={projection ? undefined : onSelectionChange}
+        onNodeContextMenu={projection ? undefined : onNodeContextMenu}
+        onPaneContextMenu={projection ? undefined : onPaneContextMenu}
+        nodesDraggable
+        nodesConnectable={!projection}
+        elementsSelectable={!projection}
+        deleteKeyCode={projection ? null : undefined}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         onlyRenderVisibleElements
@@ -775,7 +878,7 @@ function CanvasInner() {
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         proOptions={{ hideAttribution: true }}
       >
-        {!highLevel && <GroupBackgroundLayer />}
+        {!projection && <GroupBackgroundLayer />}
         {canvasBackground.variant === 'dots' && showGrid && (
           <Background
             variant={BackgroundVariant.Dots}
@@ -803,7 +906,14 @@ function CanvasInner() {
         )}
         <SVGEdgeMarkerDefs />
         <GuideLines />
+        {(!highLevel || detailView) && <AgentAtlasLayer />}
+        {(!highLevel || detailView) && <NeedsYouQueue className="!top-20" />}
       </ReactFlow>
+      {detailMissing && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/40">
+          <DetailMapEmpty />
+        </div>
+      )}
       </DiagramGeometryProvider>
       </CanvasHostProvider>
 

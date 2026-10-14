@@ -2,11 +2,14 @@ import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const m = vi.hoisted(() => ({
+  sessionFindMany: vi.fn(async () => [] as Array<{ id: string; siteArea: string; name?: string }>),
+  sessionUpdate: vi.fn<(args: unknown) => Promise<object>>(async () => ({})),
   authorize: vi.fn(),
   rate: vi.fn(),
   updateMany: vi.fn(),
   findUnique: vi.fn(),
   sessionUpsert: vi.fn(),
+  detailUpsert: vi.fn(async () => ({ updatedAt: new Date(3000) })),
 }));
 vi.mock('@/lib/server/projects/projectCanvas', () => ({
   authorizeAgentForCanvas: m.authorize,
@@ -16,7 +19,8 @@ vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
 vi.mock('@/lib/server/prisma', () => ({
   default: {
     userCanvas: { updateMany: m.updateMany, findUnique: m.findUnique },
-    agentSession: { upsert: m.sessionUpsert },
+    agentSession: { upsert: m.sessionUpsert, findMany: m.sessionFindMany, update: m.sessionUpdate },
+    projectDetailMap: { upsert: m.detailUpsert },
   },
 }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
@@ -63,6 +67,28 @@ describe('/api/projects/[canvasId]/diagram', () => {
     });
   });
 
+  it('stores the detailed map separately and leaves the overview canvas alone', async () => {
+    const mermaid = [
+      'graph LR',
+      '  subgraph area["Frontend"]',
+      '    subgraph web["Web"]',
+      '      web__pages("Pages<br/>app/ routes")',
+      '      web__api("API client")',
+      '    end',
+      '  end',
+      '  web__pages -->|"requests"| web__api',
+    ].join('\n');
+    const res = await PUT(put({ level: 'detail', mermaid, componentPaths: { web__pages: ['frontend/app/**'], web: ['frontend/**'] } }), params);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, level: 'detail', updatedAt: 3000, mappedCount: 2 });
+    expect(m.updateMany).not.toHaveBeenCalled();
+    const stored = (m.detailUpsert.mock.calls[0] as unknown as [{ create: { canvasId: string; nodes: Array<{ id: string; parentNode?: string; data: { codePaths?: string[] } }> } }])[0].create;
+    expect(stored.canvasId).toBe('c1');
+    const pages = stored.nodes.find((n) => n.id === 'web__pages')!;
+    expect(pages.parentNode).toBe('web');
+    expect(pages.data.codePaths).toEqual(['frontend/app/**']);
+  });
+
   it('rejects unauthorized agents', async () => {
     m.authorize.mockResolvedValue(null);
     expect((await PUT(put({ mermaid: 'graph LR\n a-->b' }), params)).status).toBe(401);
@@ -88,6 +114,20 @@ describe('/api/projects/[canvasId]/diagram', () => {
     const saved = m.updateMany.mock.calls[0][0].data.nodes as Array<{ id: string; data: { codePaths?: string[] } }>;
     expect(saved.find((n) => n.id === 'web')?.data.codePaths).toEqual(['frontend/app/**']);
     expect(saved.find((n) => n.id === 'fe')?.data.codePaths).toBeUndefined();
+  });
+
+  it('turns construction sites the new diagram covers into that component', async () => {
+    m.sessionFindMany.mockResolvedValueOnce([{ id: 's1', siteArea: 'frontend/app/exports' }, { id: 's2', siteArea: 'tools/cli' }]);
+    const res = await PUT(
+      put({ mermaid: 'graph LR\n  exports["CSV export"]\n  api["API"]\n  exports --> api', componentPaths: { exports: ['frontend/app/exports/**'] } }),
+      params,
+    );
+    expect(res.status).toBe(200);
+    expect(m.sessionUpdate).toHaveBeenCalledTimes(1);
+    expect(m.sessionUpdate.mock.calls[0][0]).toEqual({
+      where: { id: 's1' },
+      data: { siteArea: null, siteAnchorId: null, currentComponentId: 'exports' },
+    });
   });
 
   it('returns 409 when the canvas changed since baseUpdatedAt', async () => {
