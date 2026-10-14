@@ -145,6 +145,30 @@ function isAxisAligned(
 /** A measured handle anchor is trustworthy only when it sits on the scored anchor. */
 const HANDLE_ANCHOR_TOLERANCE = 6
 
+const HAIRPIN_ALTERNATIVE_PAIRS = 6
+const ROUTE_STATUS_RANK: Record<EdgeRouteResult['status'], number> = { ok: 0, invalid: 1, failed: 2 }
+
+/**
+ * True when the route reverses direction across a leg shorter than `maxLeg`
+ * (e.g. up, 16px right, back down) — the corners round into a tight U that
+ * reads as the edge overshooting its handle.
+ */
+export function hasHairpinTurn(points: ReadonlyArray<{ x: number; y: number }>, maxLeg: number): boolean {
+  const dir = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
+    x: Math.abs(b.x - a.x) < 0.5 ? 0 : Math.sign(b.x - a.x),
+    y: Math.abs(b.y - a.y) < 0.5 ? 0 : Math.sign(b.y - a.y),
+  })
+  for (let i = 0; i + 3 < points.length; i++) {
+    const u = dir(points[i], points[i + 1])
+    const w = dir(points[i + 2], points[i + 3])
+    if ((u.x || u.y) && u.x === -w.x && u.y === -w.y
+      && Math.hypot(points[i + 2].x - points[i + 1].x, points[i + 2].y - points[i + 1].y) < maxLeg) {
+      return true
+    }
+  }
+  return false
+}
+
 function pointsNear(
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -655,6 +679,55 @@ export function createEdgeRoutingContext(nodes: Node[], edges: Edge[], direction
   };
 }
 
+/**
+ * Orthogonal route on a shifted lane (parallel/overlapping edges). Each end
+ * leaves and enters straight along its own side — a horizontal stub for a
+ * left/right handle, a vertical one for top/bottom — so an edge never hooks
+ * into a handle from the side. The lane runs between the two stubs:
+ * - both horizontal: a horizontal run at the mid y (+ offset)
+ * - both vertical: a vertical run at the mid x (+ offset)
+ * - mixed: the run follows the source's exit axis, then turns into the
+ *   target's stub.
+ */
+export function buildLanePath(
+  sh: { x: number; y: number },
+  th: { x: number; y: number },
+  sourcePosition: Position,
+  targetPosition: Position,
+  laneOffset: number,
+  stub: number,
+): Array<{ x: number; y: number }> {
+  const horizontalSide = (p: Position) => p === Position.Left || p === Position.Right
+  const stubFrom = (p: { x: number; y: number }, side: Position) => {
+    switch (side) {
+      case Position.Right: return { x: p.x + stub, y: p.y }
+      case Position.Left: return { x: p.x - stub, y: p.y }
+      case Position.Bottom: return { x: p.x, y: p.y + stub }
+      default: return { x: p.x, y: p.y - stub }
+    }
+  }
+  const s = stubFrom(sh, sourcePosition)
+  const t = stubFrom(th, targetPosition)
+  const sourceH = horizontalSide(sourcePosition)
+  const targetH = horizontalSide(targetPosition)
+  if (sourceH && targetH) {
+    const lane = (sh.y + th.y) / 2 + laneOffset
+    return [sh, s, { x: s.x, y: lane }, { x: t.x, y: lane }, t, th]
+  }
+  if (!sourceH && !targetH) {
+    const lane = (sh.x + th.x) / 2 + laneOffset
+    return [sh, s, { x: lane, y: s.y }, { x: lane, y: t.y }, t, th]
+  }
+  if (!sourceH) {
+    // Leaves top/bottom, enters left/right: horizontal lane between the stubs.
+    const lane = (s.y + t.y) / 2 + laneOffset
+    return [sh, s, { x: s.x, y: lane }, { x: t.x, y: lane }, t, th]
+  }
+  // Leaves left/right, enters top/bottom: vertical lane between the stubs.
+  const lane = (s.x + t.x) / 2 + laneOffset
+  return [sh, s, { x: lane, y: s.y }, { x: lane, y: t.y }, t, th]
+}
+
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
@@ -995,154 +1068,169 @@ export function computeEdgeRoute(
   if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
   if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
-  const nodeMap = context.nodeById
-  const resolveSide = context.resolveSide
+  const routeForSides = (sourcePosition: Position, targetPosition: Position): EdgeRouteResult => {
+    const nodeMap = context.nodeById
+    const resolveSide = context.resolveSide
 
-  const sourceShift = getEdgeShiftOffset(
-    edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
-    undefined, undefined, resolveSide, renderStyleId, iconMode,
-  )
-  const targetShift = getEdgeShiftOffset(
-    edge.target, edge.id, targetPosition, edges, nodeMap, 24,
-    undefined, undefined, resolveSide, renderStyleId, iconMode,
-  )
-  // Scorer-side anchors are perpendicular to the visible handles by
-  // construction. Live measured centers belong to the edge's stored handle
-  // ids, which go stale when a side re-floats (React Flow keeps reporting the
-  // old handle, hidden but still mounted) — adopting one blindly lands the
-  // arrow on empty canvas at an angle. Adopt a measured anchor only when it
-  // sits on the scorer winner; otherwise use the scored anchor so the wire
-  // meets the handle it is drawn next to, perpendicular to it.
-  const scoredSh = getBoundaryAnchor(
-    sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
-    sourcePosition, sourceShift,
-  )
-  const scoredTh = getBoundaryAnchor(
-    targetRect.x, targetRect.y, targetRect.w, targetRect.h,
-    targetPosition, targetShift,
-  )
-  const measuredSh = handleAnchors?.source
-  const measuredTh = handleAnchors?.target
-  const [preSh, preTh] = [
-    measuredSh && pointsNear(measuredSh, scoredSh) ? measuredSh : scoredSh,
-    measuredTh && pointsNear(measuredTh, scoredTh) ? measuredTh : scoredTh,
-  ]
-  // Pixel-straighten near-aligned facing terminals (see helper): a 2–7px
-  // diagonal reads as slanted, while the midpoint stays in both donuts.
-  const [sh, th] = snapNearAlignedEndpoints(preSh, preTh, sourcePosition, targetPosition)
+    const sourceShift = getEdgeShiftOffset(
+      edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
+      undefined, undefined, resolveSide, renderStyleId, iconMode,
+    )
+    const targetShift = getEdgeShiftOffset(
+      edge.target, edge.id, targetPosition, edges, nodeMap, 24,
+      undefined, undefined, resolveSide, renderStyleId, iconMode,
+    )
+    // Scorer-side anchors are perpendicular to the visible handles by
+    // construction. Live measured centers belong to the edge's stored handle
+    // ids, which go stale when a side re-floats (React Flow keeps reporting the
+    // old handle, hidden but still mounted) — adopting one blindly lands the
+    // arrow on empty canvas at an angle. Adopt a measured anchor only when it
+    // sits on the scorer winner; otherwise use the scored anchor so the wire
+    // meets the handle it is drawn next to, perpendicular to it.
+    const scoredSh = getBoundaryAnchor(
+      sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
+      sourcePosition, sourceShift,
+    )
+    const scoredTh = getBoundaryAnchor(
+      targetRect.x, targetRect.y, targetRect.w, targetRect.h,
+      targetPosition, targetShift,
+    )
+    const measuredSh = handleAnchors?.source
+    const measuredTh = handleAnchors?.target
+    const [preSh, preTh] = [
+      measuredSh && pointsNear(measuredSh, scoredSh) ? measuredSh : scoredSh,
+      measuredTh && pointsNear(measuredTh, scoredTh) ? measuredTh : scoredTh,
+    ]
+    // Pixel-straighten near-aligned facing terminals (see helper): a 2–7px
+    // diagonal reads as slanted, while the midpoint stays in both donuts.
+    const [sh, th] = snapNearAlignedEndpoints(preSh, preTh, sourcePosition, targetPosition)
 
 
-  // Intermediate nodes only for the obstacle map — source/target are added
-  // inside computeDirectWaypoints so detours cannot tunnel through terminals.
-  const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId, iconMode)
-  const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
-  // Opposite-direction edges with vertically (or horizontally) staggered
-  // endpoints can otherwise share the same middle stem even though their
-  // handles use separate lanes. Give each direction its own middle track
-  // once that shared stem would exceed the handle lane gap. Near-aligned
-  // endpoints keep the simpler straight route.
-  const bidirectionalLane = getBidirectionalLaneOffset(
-    edge,
-    edge.source,
-    edges,
-    new Map([
-      [edge.source, { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h }],
-      [edge.target, { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h }],
-    ]),
-  )
-  const sourceIsHorizontal = sourcePosition === Position.Left || sourcePosition === Position.Right
-  const targetIsHorizontal = targetPosition === Position.Left || targetPosition === Position.Right
-  const routeAxisSeparation =
-    sourceIsHorizontal && targetIsHorizontal
-      ? Math.abs(sh.y - th.y)
-      : !sourceIsHorizontal && !targetIsHorizontal
-        ? Math.abs(sh.x - th.x)
-        : 0
-  const edgeOffset = bidirectionalLane !== null && routeAxisSeparation > INCOMING_OUTGOING_GAP * 2
-    ? Math.sign(bidirectionalLane) * BIDIRECTIONAL_ROUTE_LANE_OFFSET
-    : 0
+    // Intermediate nodes only for the obstacle map — source/target are added
+    // inside computeDirectWaypoints so detours cannot tunnel through terminals.
+    const nodeRects = buildBlockingNodeRects(nodes, excludedIds, passableGroupIds, renderStyleId, iconMode)
+    const nodeRectParam = nodeRects.size > 0 ? nodeRects : undefined
+    // Opposite-direction edges with vertically (or horizontally) staggered
+    // endpoints can otherwise share the same middle stem even though their
+    // handles use separate lanes. Give each direction its own middle track
+    // once that shared stem would exceed the handle lane gap. Near-aligned
+    // endpoints keep the simpler straight route.
+    const bidirectionalLane = getBidirectionalLaneOffset(
+      edge,
+      edge.source,
+      edges,
+      new Map([
+        [edge.source, { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h }],
+        [edge.target, { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h }],
+      ]),
+    )
+    const sourceIsHorizontal = sourcePosition === Position.Left || sourcePosition === Position.Right
+    const targetIsHorizontal = targetPosition === Position.Left || targetPosition === Position.Right
+    const routeAxisSeparation =
+      sourceIsHorizontal && targetIsHorizontal
+        ? Math.abs(sh.y - th.y)
+        : !sourceIsHorizontal && !targetIsHorizontal
+          ? Math.abs(sh.x - th.x)
+          : 0
+    const edgeOffset = bidirectionalLane !== null && routeAxisSeparation > INCOMING_OUTGOING_GAP * 2
+      ? Math.sign(bidirectionalLane) * BIDIRECTIONAL_ROUTE_LANE_OFFSET
+      : 0
 
-  const parallelEdges = edges
-    .filter(candidate => candidate.source === edge.source && candidate.target === edge.target)
-    .sort((a, b) => a.id.localeCompare(b.id))
-  const parallelIndex = parallelEdges.findIndex(candidate => candidate.id === edge.id)
-  const parallelLaneOffset = routeOptions.laneOffset ?? (parallelEdges.length > 1
-    ? (parallelIndex - (parallelEdges.length - 1) / 2) * 28
-    : 0)
-  const directRoute = computeDirectWaypoints(
-    sh, th, sourcePosition, targetPosition, edgeOffset,
-    nodeRectParam, sourceRect, targetRect,
-    curveRadius,
-    Boolean(
-      measuredSh && pointsNear(measuredSh, scoredSh) &&
-      measuredTh && pointsNear(measuredTh, scoredTh),
-    ),
-    routeOptions.searchBudget?.maxExpandedStates,
-  )
-  let waypoints = directRoute.waypoints
-  let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
+    const parallelEdges = edges
+      .filter(candidate => candidate.source === edge.source && candidate.target === edge.target)
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const parallelIndex = parallelEdges.findIndex(candidate => candidate.id === edge.id)
+    const parallelLaneOffset = routeOptions.laneOffset ?? (parallelEdges.length > 1
+      ? (parallelIndex - (parallelEdges.length - 1) / 2) * 28
+      : 0)
+    const directRoute = computeDirectWaypoints(
+      sh, th, sourcePosition, targetPosition, edgeOffset,
+      nodeRectParam, sourceRect, targetRect,
+      curveRadius,
+      Boolean(
+        measuredSh && pointsNear(measuredSh, scoredSh) &&
+        measuredTh && pointsNear(measuredTh, scoredTh),
+      ),
+      routeOptions.searchBudget?.maxExpandedStates,
+    )
+    let waypoints = directRoute.waypoints
+    let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
 
-  // Degenerate case: coincident anchors (overlapping nodes) produce a single
-  // point after deduplication → empty SVG. Always return a visible fallback so
-  // the edge never disappears while dragging.
-  if (!svgPath || waypoints.length < 2) {
-    const dx = th.x - sh.x
-    const dy = th.y - sh.y
-    const dist = Math.hypot(dx, dy)
-    if (dist < 12) {
-      const isH = sourcePosition === Position.Left || sourcePosition === Position.Right
-      const offset = 50
-      const perpX = isH ? 0 : offset
-      const perpY = isH ? offset : 0
-      // Small U-shaped detour perpendicular to the terminal side, offset
-      // consistently so parallel edges remain separated.
-      const mid1 = { x: sh.x + perpX, y: sh.y + perpY }
-      const mid2 = { x: th.x + perpX, y: th.y + perpY }
-      const fallback = [sh, mid1, mid2, th]
-      waypoints = fallback
-      svgPath = buildSmoothStepSvg(fallback, curveRadius) || `M ${sh.x},${sh.y} L ${mid1.x},${mid1.y} L ${mid2.x},${mid2.y} L ${th.x},${th.y}`
-    } else if (!svgPath) {
-      // Non-coincident but still empty (e.g. duplicate points) → straight line fallback
-      waypoints = [sh, th]
-      svgPath = `M ${sh.x},${sh.y} L ${th.x},${th.y}`
+    // Degenerate case: coincident anchors (overlapping nodes) produce a single
+    // point after deduplication → empty SVG. Always return a visible fallback so
+    // the edge never disappears while dragging.
+    if (!svgPath || waypoints.length < 2) {
+      const dx = th.x - sh.x
+      const dy = th.y - sh.y
+      const dist = Math.hypot(dx, dy)
+      if (dist < 12) {
+        const isH = sourcePosition === Position.Left || sourcePosition === Position.Right
+        const offset = 50
+        const perpX = isH ? 0 : offset
+        const perpY = isH ? offset : 0
+        // Small U-shaped detour perpendicular to the terminal side, offset
+        // consistently so parallel edges remain separated.
+        const mid1 = { x: sh.x + perpX, y: sh.y + perpY }
+        const mid2 = { x: th.x + perpX, y: th.y + perpY }
+        const fallback = [sh, mid1, mid2, th]
+        waypoints = fallback
+        svgPath = buildSmoothStepSvg(fallback, curveRadius) || `M ${sh.x},${sh.y} L ${mid1.x},${mid1.y} L ${mid2.x},${mid2.y} L ${th.x},${th.y}`
+      } else if (!svgPath) {
+        // Non-coincident but still empty (e.g. duplicate points) → straight line fallback
+        waypoints = [sh, th]
+        svgPath = `M ${sh.x},${sh.y} L ${th.x},${th.y}`
+      }
+    }
+
+    const result = {
+      sourcePosition,
+      targetPosition,
+      sourcePoint: sh,
+      targetPoint: th,
+      waypoints,
+      svgPath,
+    }
+    let validation = routeStatus(result.waypoints, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
+    if (parallelLaneOffset !== 0) {
+      const lanePath = buildLanePath(sh, th, sourcePosition, targetPosition, parallelLaneOffset, Math.max(24, curveRadius + 8))
+      const laneStatus = routeStatus(lanePath, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
+      if (laneStatus.status === 'ok') {
+        waypoints = lanePath
+        svgPath = buildSmoothStepSvg(waypoints, curveRadius)
+        validation = laneStatus
+      }
+    }
+    if (pathEntersTerminalInterior(waypoints, sourceRect, targetRect)) {
+      // Terminal penetration is a hard geometry violation; keep the route so
+      // the editor can show a diagnostic while the graph remains editable.
+      validation.violations.push({ code: 'TERMINAL_INTERSECTION', nodeId: edge.source })
+      validation.status = 'failed'
+      validation.failureReason = 'no-path-found'
+    }
+    return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
+  }
+
+  const primary = routeForSides(sourcePosition, targetPosition)
+  // A side pair that faces away from the other node forces the router to
+  // overshoot and double back (a tight U next to the handle). When the sides
+  // are ours to choose, try the next-best pairs and keep the first clean
+  // route that validates at least as well.
+  const sidesPinned = manualSourceSide !== undefined || manualTargetSide !== undefined
+    || handleAnchors?.sourceSide !== undefined || handleAnchors?.targetSide !== undefined
+  if (sidesPinned || !hasHairpinTurn(primary.waypoints, curveRadius * 2)) return primary
+  const alternatives = applyLaneBias(
+    scoreAllHandlerPairs(srcHandlerRect, tgtHandlerRect, direction, scorerObstacles, excludedIds),
+    laneSourcePreference,
+    laneTargetPreference,
+  )
+  for (const { pair } of alternatives.slice(0, HAIRPIN_ALTERNATIVE_PAIRS)) {
+    if (pair.sourceSide === primary.sourcePosition && pair.targetSide === primary.targetPosition) continue
+    if (orthogonalPenetratesTerminal(srcHandlerRect, tgtHandlerRect, pair.sourceSide, pair.targetSide)) continue
+    const alternative = routeForSides(pair.sourceSide, pair.targetSide)
+    if (ROUTE_STATUS_RANK[alternative.status] <= ROUTE_STATUS_RANK[primary.status]
+      && !hasHairpinTurn(alternative.waypoints, curveRadius * 2)) {
+      return alternative
     }
   }
-
-  const result = {
-    sourcePosition,
-    targetPosition,
-    sourcePoint: sh,
-    targetPoint: th,
-    waypoints,
-    svgPath,
-  }
-  let validation = routeStatus(result.waypoints, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
-  if (parallelLaneOffset !== 0) {
-    const horizontal = sourceIsHorizontal && targetIsHorizontal
-    const stub = Math.max(24, curveRadius + 8)
-    const lane = (sh[horizontal ? 'y' : 'x'] + th[horizontal ? 'y' : 'x']) / 2 + parallelLaneOffset
-    const sourceStub = horizontal
-      ? { x: sh.x + (sourcePosition === Position.Right ? stub : -stub), y: sh.y }
-      : { x: sh.x, y: sh.y + (sourcePosition === Position.Bottom ? stub : -stub) }
-    const targetStub = horizontal
-      ? { x: th.x + (targetPosition === Position.Right ? stub : -stub), y: th.y }
-      : { x: th.x, y: th.y + (targetPosition === Position.Bottom ? stub : -stub) }
-    const lanePath = horizontal
-      ? [sh, sourceStub, { x: sourceStub.x, y: lane }, { x: targetStub.x, y: lane }, targetStub, th]
-      : [sh, sourceStub, { x: lane, y: sourceStub.y }, { x: lane, y: targetStub.y }, targetStub, th]
-    const laneStatus = routeStatus(lanePath, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
-    if (laneStatus.status === 'ok') {
-      waypoints = lanePath
-      svgPath = buildSmoothStepSvg(waypoints, curveRadius)
-      validation = laneStatus
-    }
-  }
-  if (pathEntersTerminalInterior(waypoints, sourceRect, targetRect)) {
-    // Terminal penetration is a hard geometry violation; keep the route so
-    // the editor can show a diagnostic while the graph remains editable.
-    validation.violations.push({ code: 'TERMINAL_INTERSECTION', nodeId: edge.source })
-    validation.status = 'failed'
-    validation.failureReason = 'no-path-found'
-  }
-  return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
+  return primary
 }

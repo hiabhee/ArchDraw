@@ -62,7 +62,7 @@ export function DiagramGeometryProvider({
   edges: Edge[];
   children: ReactNode;
 }) {
-  const { direction, planKey: planStoreKey, renderStyleId, iconMode } = useCanvasView();
+  const { direction, planKey: planStoreKey, renderStyleId, iconMode, readOnly } = useCanvasView();
   const [workerPlan, setWorkerPlan] = useState<DiagramGeometryPlan | null>(null);
   const settledPlan = useSyncExternalStore(
     (listener) => subscribeToSettledPlan(planStoreKey, listener),
@@ -144,7 +144,8 @@ export function DiagramGeometryProvider({
   return (
     <DiagramGeometryContext.Provider value={geometryStore}>
       {children}
-      {!plan.provisional && hardIssueCount > 0 && (
+      {/* Viewers can't move nodes, so the advice is for the editor only. */}
+      {!readOnly && !plan.provisional && hardIssueCount > 0 && (
         <div
           role="status"
           aria-live="polite"
