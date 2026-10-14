@@ -75,8 +75,8 @@ export const USER_QUOTAS: Record<string, UserQuotas> = {
     aiGenerationsPerDay: 30,
     maxCanvases: 5,
     maxNodesPerCanvas: 150,
-    // One free project (agentic plan AG-061); paid expansion comes later.
-    maxProjects: 1,
+    // Two free projects for now; paid expansion comes later.
+    maxProjects: 2,
     allowedExportFormats: ['json', 'png', 'svg', 'pdf', 'html-embed'],
     svgExport: true,
     allowSharing: true,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
+import { deleteStaleAnonymousProjects } from '@/lib/server/projects/anonymousProjects';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,7 +47,13 @@ export async function GET(req: NextRequest) {
       if (expired.length < BATCH_SIZE) break;
     }
     logger.info('[Cron] Deleted expired shared canvases', { deleted });
-    return NextResponse.json({ deleted });
+    // Projects made without an account that nobody claimed or used for 30 days.
+    const anonymousProjects = await deleteStaleAnonymousProjects(now).catch((error: unknown) => {
+      logger.error('[Cron] Anonymous project cleanup failed', { error });
+      return 0;
+    });
+    if (anonymousProjects > 0) logger.info('[Cron] Deleted stale anonymous projects', { anonymousProjects });
+    return NextResponse.json({ deleted, anonymousProjects });
   } catch (error) {
     logger.error('[Cron] Expired share cleanup failed', { deleted, error });
     return NextResponse.json({ error: 'Cleanup failed', deleted }, { status: 500 });

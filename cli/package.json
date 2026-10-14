@@ -1,0 +1,35 @@
+{
+  "name": "archdraw-live",
+  "version": "0.1.0",
+  "description": "See your coding agents work on a live architecture map of your codebase. One command, no account.",
+  "type": "module",
+  "bin": {
+    "archdraw-live": "bin/archdraw-live.mjs"
+  },
+  "files": [
+    "bin",
+    "lib/*.mjs",
+    "!lib/*.test.mjs",
+    "hooks"
+  ],
+  "scripts": {
+    "test": "node --test lib/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "claude-code",
+    "coding-agents",
+    "architecture",
+    "diagram",
+    "archdraw"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hiabhee/ArchDraw.git",
+    "directory": "cli"
+  },
+  "homepage": "https://archdraw.hiabhee.online",
+  "license": "MIT"
+}
