@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { fetchProjectLive } from '@/lib/client/api-client';
-import { buildNodeActivity, type NodeLiveActivity, type ProjectLiveSnapshot } from '@/lib/diagram/projects/liveActivity';
+import { buildNodeActivity, type DetailMapGraph, type MapLevel, type NodeLiveActivity, type ProjectLiveSnapshot } from '@/lib/diagram/projects/liveActivity';
 import { hasPendingCanvasSave } from '@/store/diagram/persistence/dbSave';
 import { useDiagramStore } from '@/store/diagramStore';
 import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
@@ -11,7 +11,7 @@ import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
  * history or auto-save.
  */
 
-const VISIBLE_POLL_MS = 3_000;
+const VISIBLE_POLL_MS = 2_000;
 const MAX_BACKOFF_MS = 30_000;
 
 interface ProjectLiveState {
@@ -21,6 +21,11 @@ interface ProjectLiveState {
   /** Session the user picked in the panel; its components are highlighted. */
   focusedSessionKey: string | null;
   error: string | null;
+  /** Which map the canvas shows: the overview (the editable canvas) or the detailed map (view only). */
+  level: MapLevel;
+  /** Detailed map, fetched while it is shown. */
+  detail: DetailMapGraph | null;
+  setLevel: (level: MapLevel) => void;
   start: (canvasId: string) => void;
   stop: () => void;
   refresh: () => Promise<void>;
@@ -72,12 +77,22 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
   nodeActivity: {},
   focusedSessionKey: null,
   error: null,
+  level: 'overview',
+  detail: null,
+
+  // A view preference (never on the diagram undo stack); fetches the map at once.
+  setLevel: (level) => {
+    if (get().level === level) return;
+    set({ level });
+    if (level === 'detail') void get().refresh();
+  },
 
   start: (canvasId) => {
     if (get().canvasId === canvasId) return;
     get().stop();
     failures = 0;
-    set({ canvasId, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null });
+    // Every project opens on its overview.
+    set({ canvasId, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null, level: 'overview', detail: null });
     void get().refresh();
   },
 
@@ -85,7 +100,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
     clearTimeout(timer);
     controller?.abort();
     controller = undefined;
-    set({ canvasId: null, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null });
+    set({ canvasId: null, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null, level: 'overview', detail: null });
   },
 
   refresh: async () => {
@@ -96,10 +111,16 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
     const current = new AbortController();
     controller = current;
     try {
-      const snapshot = await fetchProjectLive(canvasId, current.signal);
+      const { level, detail } = get();
+      const snapshot = await fetchProjectLive(canvasId, current.signal, level === 'detail' ? detail?.updatedAt ?? 0 : undefined);
       if (get().canvasId !== canvasId) return;
       failures = 0;
-      set({ snapshot, nodeActivity: buildNodeActivity(snapshot.sessions, snapshot.serverTime), error: null });
+      set({
+        snapshot,
+        nodeActivity: buildNodeActivity(snapshot.sessions, snapshot.serverTime),
+        error: null,
+        ...(snapshot.detail ? { detail: snapshot.detail } : snapshot.detailUpdatedAt === null ? { detail: null } : {}),
+      });
       maybeAdoptCanvasName(snapshot);
       maybeReloadCanvas(snapshot);
     } catch (err) {

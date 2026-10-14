@@ -11,7 +11,8 @@ import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { checkRateLimitWithFallback } from '@/lib/server/redis';
 import { authorizeAgentForCanvas, readJsonBody } from '@/lib/server/projects/projectCanvas';
-import { getCodePaths, type CodePathNode } from '@/lib/diagram/projects/pathMatcher';
+import { createComponentMatcher, getCodePaths, type CodePathNode } from '@/lib/diagram/projects/pathMatcher';
+import { pickSessionName } from '@/lib/server/projects/liveSessions';
 import { publishGraph } from '@/lib/diagram/projects/publishGraph';
 import { isEmptyChange, summarizeChange } from '@/lib/diagram/projects/structureDiff';
 
@@ -87,6 +88,12 @@ const putSchema = z
     sessionKey: z.string().trim().min(1).max(200).optional(),
     /** Server `updatedAt` (ms) the agent last read; stale writes get 409. */
     baseUpdatedAt: z.number().int().nonnegative().optional(),
+    /**
+     * `detail`: the detailed map (overview components as boxes of their
+     * modules/files, same ids). Always laid out fresh; the overview canvas
+     * is not touched.
+     */
+    level: z.enum(['overview', 'detail']).optional(),
   })
   .refine((body) => Boolean(body.mermaid) !== Boolean(body.nodes), {
     message: 'Provide either mermaid or nodes/edges',
@@ -113,6 +120,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid diagram payload', details: parsed.error.flatten() }, { status: 400 });
     }
     const body = parsed.data;
+    if (body.level === 'detail') return publishDetailMap(agent, body);
     // The agent read an older copy than the one we would merge into.
     if (body.baseUpdatedAt !== undefined && agent.canvas.updatedAt.getTime() > body.baseUpdatedAt) {
       return NextResponse.json(
@@ -126,7 +134,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     let warnings: string[] = [];
     let result;
     if (body.mermaid) {
-      const pipeline = await runMermaidPipeline(body.mermaid);
+      const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
       if (!isDomainSuccess(pipeline)) {
         return NextResponse.json({ error: 'Failed to parse Mermaid code', warnings: pipeline.warnings }, { status: 400 });
       }
@@ -179,13 +187,34 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    // Construction sites the new diagram now covers become that component.
+    const matcher = createComponentMatcher(result.nodes as unknown as CodePathNode[]);
+    const sites = await prisma.agentSession.findMany({
+      where: { canvasId: agent.canvas.id, siteArea: { not: null } },
+      select: { id: true, siteArea: true },
+    }).catch(() => []);
+    for (const site of sites) {
+      const componentId = matcher.match(`${site.siteArea}/_`);
+      if (!componentId) continue;
+      await prisma.agentSession.update({
+        where: { id: site.id },
+        data: { siteArea: null, siteAnchorId: null, currentComponentId: componentId },
+      }).catch((error: unknown) => logger.warn('Project diagram PUT: could not settle a construction site', error));
+    }
+
     if (body.sessionKey && !isEmptyChange(result.change)) {
       const change = result.change as unknown as Prisma.InputJsonObject;
       // The diagram is already saved: a failure here (e.g. a race with the
       // session's activity report) must not tell the agent to publish again.
       await prisma.agentSession.upsert({
         where: { canvasId_sessionKey: { canvasId: agent.canvas.id, sessionKey: body.sessionKey } },
-        create: { canvasId: agent.canvas.id, sessionKey: body.sessionKey, label: 'Agent session', lastChange: change },
+        create: {
+          canvasId: agent.canvas.id,
+          sessionKey: body.sessionKey,
+          label: 'Agent session',
+          name: await pickSessionName(agent.canvas.id, body.sessionKey, now),
+          lastChange: change,
+        },
         update: { lastChange: change, lastSeenAt: new Date(now), status: 'active' },
       }).catch((error: unknown) => logger.warn('Project diagram PUT: could not record session change', error));
     }
@@ -205,4 +234,60 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Project diagram PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+type AgentCanvas = NonNullable<Awaited<ReturnType<typeof authorizeAgentForCanvas>>>;
+
+/** Store the detailed map (Mermaid only, always a fresh layout). */
+async function publishDetailMap(agent: AgentCanvas, body: z.infer<typeof putSchema>) {
+  if (!body.mermaid) {
+    return NextResponse.json({ error: 'The detailed map is published as mermaid' }, { status: 400 });
+  }
+  // The detailed map keeps the overview's left-to-right order of areas.
+  const overviewAreas = storedGraph(agent.canvas).nodes
+    .filter((node) => node.type === 'groupNode' && !node.parentNode && !(node as { parentId?: string }).parentId)
+    .sort((a, b) => a.position.x - b.position.x)
+    .map((node) => node.id);
+  const pipeline = await runMermaidPipeline(body.mermaid, {
+    layoutProfile: 'studio-minimal',
+    areaOrder: overviewAreas.length > 1 ? overviewAreas : 'flow',
+  });
+  if (!isDomainSuccess(pipeline)) {
+    return NextResponse.json({ error: 'Failed to parse Mermaid code', warnings: pipeline.warnings }, { status: 400 });
+  }
+  const result = publishGraph({
+    existingNodes: [],
+    laidOut: { nodes: pipeline.data.nodes as unknown as Node[], edges: pipeline.data.edges as unknown as Edge[] },
+    componentPaths: body.componentPaths,
+    relayout: true,
+    now: Date.now(),
+  });
+  const { maxNodesPerCanvas } = getUserQuotas(getUserTier(agent.canvas.userId));
+  const componentCount = result.nodes.filter((n) => !isTextNode(n)).length;
+  if (componentCount > maxNodesPerCanvas) {
+    return NextResponse.json(
+      { error: `Detailed map too large. Maximum ${maxNodesPerCanvas} nodes allowed.`, code: 'CANVAS_SIZE_EXCEEDED' },
+      { status: 400 },
+    );
+  }
+  const graph = { nodes: result.nodes as never, edges: result.edges as never };
+  const row = await prisma.projectDetailMap.upsert({
+    where: { canvasId: agent.canvas.id },
+    create: { canvasId: agent.canvas.id, ...graph },
+    update: graph,
+    select: { updatedAt: true },
+  });
+  const warnings = [
+    ...pipeline.data.warnings,
+    ...(result.unknownPathIds.length > 0 ? [`componentPaths ids not in the diagram: ${result.unknownPathIds.slice(0, 10).join(', ')}`] : []),
+  ];
+  return NextResponse.json({
+    ok: true,
+    canvasId: agent.canvas.id,
+    level: 'detail',
+    updatedAt: row.updatedAt.getTime(),
+    componentCount,
+    mappedCount: result.nodes.filter((n) => getCodePaths(n as CodePathNode).length > 0).length,
+    warnings,
+  });
 }
