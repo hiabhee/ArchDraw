@@ -7,7 +7,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { areaOf, buildActivity, loadBinding, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
+import { areaOf, buildActivity, loadBinding, matchPromptToComponent, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./archdraw-project.mjs', import.meta.url));
 
@@ -257,4 +257,84 @@ test('publish retries once on a concurrent-edit conflict', async () => {
   assert.equal(result.code, 0, result.err);
   assert.equal(requests.length, 2);
   server.close();
+});
+
+test('reads, searches and permission prompts become read/wait events', () => {
+  const b = { ...binding(), checkoutRoot: '/r' };
+  assert.deepEqual(
+    buildActivity({ hook_event_name: 'PostToolUse', tool_name: 'Read', session_id: 's1', cwd: '/r', tool_input: { file_path: '/r/src/auth.ts' } }, b),
+    { sessionKey: 's1', event: 'read', files: ['src/auth.ts'] },
+  );
+  assert.deepEqual(
+    buildActivity({ hook_event_name: 'PostToolUse', tool_name: 'Grep', session_id: 's1', cwd: '/r', tool_input: { pattern: 'SECRET', path: '/r/lib' } }, b),
+    { sessionKey: 's1', event: 'read', files: ['lib'] },
+  );
+  assert.equal(buildActivity({ hook_event_name: 'PostToolUse', tool_name: 'Bash', session_id: 's1', cwd: '/r', tool_input: { command: 'ls' } }, b), null);
+  assert.deepEqual(buildActivity({ hook_event_name: 'Notification', session_id: 's1', cwd: '/r' }, b), { sessionKey: 's1', event: 'wait' });
+});
+
+test('a task is matched to a component locally', () => {
+  const components = [
+    { id: 'group', label: 'Group Node' },
+    { id: 'edges', label: 'Nodes / Handles / Edges' },
+    { id: 'auth', label: 'Auth API' },
+  ];
+  assert.equal(matchPromptToComponent('Please fix the group node resizing', components), 'group');
+  assert.equal(matchPromptToComponent('the auth api returns 500s', components), 'auth');
+  assert.equal(matchPromptToComponent('refactor billing', components), null);
+  // Every word of a name must appear: "node" alone does not pick "Nodes / Handles / Edges".
+  assert.equal(matchPromptToComponent('one node is broken', components), null);
+});
+
+test('a prompt sends only the matched component id, never the text', async () => {
+  const repo = makeRepo();
+  const requests = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      requests.push({ url: req.url, body: body ? JSON.parse(body) : null });
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(req.url.endsWith('/diagram') ? { components: [{ id: 'group', label: 'Group Node', codePaths: [] }] } : { ok: true }));
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const env = { ARCHDRAW_HOME: makeHome({ [repo]: binding(`http://127.0.0.1:${server.address().port}`) }) };
+  const session = `prompt-${Date.now()}`;
+
+  await runHook({ hook_event_name: 'SessionStart', session_id: session, cwd: repo }, env);
+  await runHook({ hook_event_name: 'UserPromptSubmit', session_id: session, cwd: repo, prompt: 'fix the group node, token=SECRET123' }, env);
+  await waitFor(() => requests.some((r) => r.body?.event === 'aim'));
+  server.closeAllConnections();
+  server.close();
+
+  const aim = requests.find((r) => r.body?.event === 'aim');
+  assert.deepEqual(aim.body, { sessionKey: session, event: 'aim', componentIds: ['group'] });
+  assert.ok(!JSON.stringify(requests).includes('SECRET123'));
+});
+
+test('a session gets its map name in the terminal: message, session title and window title that follows its state', async () => {
+  const repo = makeRepo();
+  const { server, requests, apiBase } = await stubServer((req) => [200, req.url.endsWith('/diagram') ? { components: [] } : { ok: true, name: 'Otter' }]);
+  const env = { ARCHDRAW_HOME: makeHome({ [repo]: binding(apiBase) }) };
+  const session = `title-${Date.now()}`;
+
+  const start = JSON.parse((await runHook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: repo }, env)).out);
+  assert.match(start.systemMessage, /this session is "Otter"/);
+  assert.equal(start.hookSpecificOutput.sessionTitle, 'Otter');
+  assert.match(start.hookSpecificOutput.additionalContext, /this session is "Otter"/);
+  assert.equal(start.terminalSequence, `\x1b]0;Otter · ${basename(repo)}\x07`);
+
+  const ask = JSON.parse((await runHook({ hook_event_name: 'Notification', notification_type: 'permission_prompt', session_id: session, cwd: repo }, env)).out);
+  assert.equal(ask.terminalSequence, '\x1b]0;● Otter needs you\x07');
+  const idle = await runHook({ hook_event_name: 'Notification', notification_type: 'idle_prompt', session_id: session, cwd: repo }, env);
+  assert.equal(idle.out, '');
+  const resumed = JSON.parse((await runHook({ hook_event_name: 'PostToolUse', tool_name: 'Read', session_id: session, cwd: repo, tool_input: { file_path: join(repo, 'x.ts') } }, env)).out);
+  assert.equal(resumed.terminalSequence, `\x1b]0;Otter · ${basename(repo)}\x07`);
+  const done = JSON.parse((await runHook({ hook_event_name: 'Stop', session_id: session, cwd: repo }, env)).out);
+  assert.equal(done.terminalSequence, '\x1b]0;✓ Otter · your turn\x07');
+
+  await waitFor(() => requests.filter((r) => r.body?.event === 'stop').length >= 1);
+  server.close();
+  assert.equal(requests.filter((r) => r.body?.event === 'wait').length, 1, 'idle prompts are not permission requests');
 });

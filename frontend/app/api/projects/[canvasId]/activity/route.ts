@@ -6,8 +6,10 @@ import { type Prisma } from '@/src/generated/prisma/client';
 import { checkRateLimitWithFallback } from '@/lib/server/redis';
 import { authorizeAgentForCanvas, readJsonBody } from '@/lib/server/projects/projectCanvas';
 import { createComponentMatcher, normalizeRepoPath, type CodePathNode } from '@/lib/diagram/projects/pathMatcher';
-import { mergeTouched, mergeUnmapped, parseTouched, statusForEvent } from '@/lib/diagram/projects/liveActivity';
+import { actionForEvent, mergeTouched, mergeUnmapped, parseTouched, statusForEvent } from '@/lib/diagram/projects/liveActivity';
 import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
+import { isSourcePath, siteAnchorFor, siteAreaFor } from '@/lib/diagram/projects/constructionSite';
+import { pickSessionName } from '@/lib/server/projects/liveSessions';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +19,8 @@ export const runtime = 'nodejs';
  */
 const activitySchema = z.object({
   sessionKey: z.string().trim().min(1).max(200),
-  event: z.enum(['start', 'edit', 'stop', 'end']),
+  /** read: the agent read/searched files (moves its figure, does not count as an edit). aim: componentIds the task points at. wait: asked for permission. */
+  event: z.enum(['start', 'read', 'edit', 'aim', 'wait', 'stop', 'end']),
   files: z.array(z.string().max(1024)).max(50).optional(),
   componentIds: z.array(z.string().max(200)).max(50).optional(),
   label: z.string().trim().max(120).optional(),
@@ -37,6 +40,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { canvasId } = await params;
     const agent = await authorizeAgentForCanvas(request, canvasId);
     if (!agent) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // The detailed map (if drawn) places the session on a module, not just a component.
+    const detailQuery = prisma.projectDetailMap
+      .findUnique({ where: { canvasId: agent.canvas.id }, select: { nodes: true } })
+      .catch(() => null);
 
     const rate = await checkRateLimitWithFallback(
       `project-activity:${agent.principal.credentialId}`,
@@ -66,10 +73,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (componentId) mapped[path] = componentId;
       else unmapped.push(path);
     }
-    const touchedIds = [
-      ...Object.values(mapped),
-      ...(body.componentIds ?? []).filter((id) => nodeIds.has(id)),
-    ];
+    const knownComponentIds = (body.componentIds ?? []).filter((id) => nodeIds.has(id));
+    const isRead = body.event === 'read';
+    const isAim = body.event === 'aim';
+    // Edits count on the component (badges); reads and aims only move the figure.
+    const touchedIds = isRead || isAim ? [] : [...Object.values(mapped), ...knownComponentIds];
+    const locatedAt = isRead ? Object.values(mapped).at(-1) : touchedIds.at(-1);
+    const aimComponentId = isAim ? knownComponentIds[0] : undefined;
+    const action = actionForEvent(body.event);
+    const isEdit = body.event === 'edit' && (body.files?.length ?? 0) > 0;
+    // Coverage counts edited source files; reading docs or config is not work on a component.
+    const mappedHits = isEdit ? Object.keys(mapped).filter(isSourcePath).length : 0;
+    const unmappedHits = isEdit ? unmapped.filter(isSourcePath).length : 0;
+    // Editing new code outside the map: a construction site at its folder.
+    const lastEdited = isEdit ? normalizeRepoPath(body.files!.at(-1)!) : null;
+    const siteArea = lastEdited && !mapped[lastEdited] ? siteAreaFor(lastEdited, nodes) : null;
+
+    // Where on the detailed map: the most specific part that owns the file.
+    let detailComponentId: string | null | undefined;
+    if (locatedAt) {
+      const detail = await detailQuery;
+      const detailNodes = (Array.isArray(detail?.nodes) ? detail.nodes : []) as unknown as CodePathNode[];
+      if (detailNodes.length > 0) {
+        const detailMatcher = createComponentMatcher(detailNodes);
+        const located = Object.keys(mapped).at(-1);
+        detailComponentId = (located && detailMatcher.match(located)) || null;
+      }
+    }
 
     const now = new Date();
     const key = { canvasId_sessionKey: { canvasId: agent.canvas.id, sessionKey: body.sessionKey } };
@@ -77,11 +107,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // can arrive together (hooks deliver in the background): both may try to
     // create the row, so a unique-key race retries once against the winner.
     const writeSession = async () => {
-      const existing = await prisma.agentSession.findUnique({ where: key, select: { touched: true, unmappedPaths: true, currentComponentId: true } });
+      const existing = await prisma.agentSession.findUnique({
+        where: key,
+        select: { touched: true, unmappedPaths: true, currentComponentId: true, name: true },
+      });
+      const name = existing?.name ?? (await pickSessionName(agent.canvas.id, body.sessionKey, now.getTime()));
+      // An edit on the map leaves any site; an edit of new code moves to (or stays at) its site.
+      const siteFields = !isEdit
+        ? {}
+        : siteArea
+          ? { siteArea, siteAnchorId: siteAnchorFor(siteArea, nodes, existing?.currentComponentId ?? null) }
+          : Object.keys(mapped).length > 0
+            ? { siteArea: null, siteAnchorId: null }
+            : {};
       const touched = mergeTouched(parseTouched(existing?.touched), touchedIds, now.getTime()) as unknown as Prisma.InputJsonObject;
-      const unmappedPaths = mergeUnmapped(existing?.unmappedPaths, unmapped);
-      const currentComponentId = touchedIds.at(-1) ?? existing?.currentComponentId ?? null;
+      // Files read outside the map are normal exploration, not "unmapped" work.
+      const unmappedPaths = isRead ? mergeUnmapped(existing?.unmappedPaths, []) : mergeUnmapped(existing?.unmappedPaths, unmapped);
+      const currentComponentId = locatedAt ?? existing?.currentComponentId ?? null;
       const status = statusForEvent(body.event);
+      const actionFields = {
+        ...(detailComponentId !== undefined ? { detailComponentId } : {}),
+        ...(action ? { lastAction: action, lastActionAt: now } : {}),
+        ...(aimComponentId ? { aimComponentId } : {}),
+      };
 
       return prisma.agentSession.upsert({
         where: key,
@@ -96,6 +144,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           touched,
           unmappedPaths,
           lastSeenAt: now,
+          name,
+          mappedHits,
+          unmappedHits,
+          ...siteFields,
+          ...actionFields,
         },
         update: {
           ...(body.label ? { label: body.label } : {}),
@@ -106,8 +159,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           touched,
           unmappedPaths,
           lastSeenAt: now,
+          ...(existing?.name ? {} : { name }),
+          ...(mappedHits ? { mappedHits: { increment: mappedHits } } : {}),
+          ...(unmappedHits ? { unmappedHits: { increment: unmappedHits } } : {}),
+          ...siteFields,
+          ...actionFields,
         },
-        select: { id: true },
+        select: { id: true, name: true },
       });
     };
     let session;
@@ -132,7 +190,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       });
     }
 
-    return NextResponse.json({ ok: true, sessionId: session.id, mapped, unmapped });
+    return NextResponse.json({ ok: true, sessionId: session.id, name: session.name, mapped, unmapped });
   } catch (error) {
     logger.error('Project activity POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

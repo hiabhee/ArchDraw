@@ -10,8 +10,14 @@ import {
   mergeUnmapped,
   parseTouched,
   sessionColor,
+  assignDistinctColors,
   statusForEvent,
+  SESSION_NAMES,
+  attentionQueue,
+  mapCoverage,
+  sessionNameFor,
   type LiveAgentSession,
+  sessionsForLevel,
 } from '../liveActivity';
 
 describe('deriveSessionStatus', () => {
@@ -67,6 +73,7 @@ describe('sessionColor', () => {
 describe('buildNodeActivity', () => {
   const base = {
     id: 'x', branch: null, intent: null, unmappedPaths: [], startedAt: 0, color: '#000', lastChange: null,
+    lastAction: null, lastActionAt: null, aimComponentId: null, name: 'Otter', site: null, mappedHits: 0, unmappedHits: 0, detailComponentId: null,
   };
   const now = 1_000_000;
   const sessions: LiveAgentSession[] = [
@@ -98,6 +105,7 @@ describe('buildNodeActivity — added components', () => {
   const session = (key: string, at: number, added: string[]): LiveAgentSession => ({
     id: key, sessionKey: key, label: key.toUpperCase(), branch: null, status: 'ended', intent: null,
     currentComponentId: null, touched: {}, unmappedPaths: [], startedAt: 0, lastSeenAt: now, color: `#${key}`,
+    lastAction: null, lastActionAt: null, aimComponentId: null, name: 'Otter', site: null, mappedHits: 0, unmappedHits: 0, detailComponentId: null,
     lastChange: { added: added.map((id) => ({ id, label: id })), removed: [], renamed: [], at },
   });
 
@@ -110,5 +118,79 @@ describe('buildNodeActivity — added components', () => {
 
   it('forgets old changes', () => {
     expect(buildNodeActivity([session('aaa', now - RECENT_CHANGE_MS, ['q'])], now)).toEqual({});
+  });
+});
+
+describe('assignDistinctColors', () => {
+  it('gives every session in a snapshot its own colour, earliest keeps its hash', () => {
+    const sessions = Array.from({ length: 8 }, (_, i) => ({ sessionKey: `k${i}`, startedAt: i, color: 'x' }));
+    const out = assignDistinctColors(sessions);
+    expect(new Set(out.map((s) => s.color)).size).toBe(8);
+    expect(out[0].color).toBe(sessionColor('k0'));
+    expect(out.map((s) => s.sessionKey)).toEqual(sessions.map((s) => s.sessionKey));
+  });
+
+  it('lets live sessions pick before ended ones', () => {
+    const ended = Array.from({ length: 10 }, (_, i) => ({ sessionKey: `old${i}`, startedAt: i, color: 'x', status: 'ended' as const }));
+    const live = Array.from({ length: 5 }, (_, i) => ({ sessionKey: `new${i}`, startedAt: 100 + i, color: 'x', status: 'active' as const }));
+    const out = assignDistinctColors([...ended, ...live]);
+    expect(new Set(out.slice(10).map((s) => s.color)).size).toBe(5);
+  });
+});
+
+describe('sessionNameFor', () => {
+  it('is stable per session and skips names other live sessions use', () => {
+    const first = sessionNameFor('session-1');
+    expect(sessionNameFor('session-1')).toBe(first);
+    const second = sessionNameFor('session-1', new Set([first]));
+    expect(second).not.toBe(first);
+    expect(SESSION_NAMES).toContain(second);
+  });
+
+  it('gives ten sessions ten different names', () => {
+    const taken = new Set<string>();
+    for (let i = 0; i < 10; i++) taken.add(sessionNameFor(`k${i}`, taken));
+    expect(taken.size).toBe(10);
+  });
+});
+
+describe('mapCoverage', () => {
+  it('needs a few edited files before it reports anything', () => {
+    expect(mapCoverage([{ mappedHits: 2, unmappedHits: 1 }])).toBeNull();
+  });
+
+  it('is the share of edited files that landed on a component', () => {
+    expect(mapCoverage([{ mappedHits: 7, unmappedHits: 1 }, { mappedHits: 2, unmappedHits: 0 }])).toEqual({ percent: 90, total: 10 });
+  });
+});
+
+describe('attentionQueue', () => {
+  const now = 1_000_000;
+  const s = (key: string, lastAction: LiveAgentSession['lastAction'], ago: number, status: LiveAgentSession['status'] = 'active') => ({
+    id: key, sessionKey: key, name: key, label: key, branch: null, status, intent: null, currentComponentId: null, touched: {},
+    unmappedPaths: [], startedAt: 0, lastSeenAt: now, color: '#000', lastChange: null, lastAction, lastActionAt: now - ago,
+    aimComponentId: null, site: null, mappedHits: 0, unmappedHits: 0, detailComponentId: null,
+  }) satisfies LiveAgentSession;
+
+  it('lists permission requests first, longest waiting first, then finished turns', () => {
+    const queue = attentionQueue([
+      s('done-old', 'done', 60_000), s('wait-new', 'waiting', 5_000), s('busy', 'edit', 1_000),
+      s('wait-old', 'waiting', 90_000), s('gone', 'waiting', 1_000, 'ended'), s('stale', 'done', 3_600_000),
+    ], now);
+    expect(queue.map((i) => i.session.sessionKey)).toEqual(['wait-old', 'wait-new', 'done-old']);
+    expect(queue.map((i) => i.reason)).toEqual(['waiting', 'waiting', 'done']);
+  });
+});
+
+describe('sessionsForLevel', () => {
+  const sessions = [
+    { sessionKey: 'a', currentComponentId: 'model', detailComponentId: 'model__trainer' },
+    { sessionKey: 'b', currentComponentId: 'api', detailComponentId: null },
+  ];
+  it('keeps overview positions on the overview', () => {
+    expect(sessionsForLevel(sessions, 'overview')).toBe(sessions);
+  });
+  it('puts sessions on their part of the detailed map, else on their component box', () => {
+    expect(sessionsForLevel(sessions, 'detail').map((s) => s.currentComponentId)).toEqual(['model__trainer', 'api']);
   });
 });

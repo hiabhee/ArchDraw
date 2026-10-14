@@ -5,16 +5,18 @@ const m = vi.hoisted(() => ({
   authorize: vi.fn(),
   rate: vi.fn(),
   findUnique: vi.fn(),
+  findMany: vi.fn(),
   upsert: vi.fn(),
   deleteMany: vi.fn(),
   executeRaw: vi.fn(),
+  detailFindUnique: vi.fn(),
 }));
 vi.mock('@/lib/server/projects/projectCanvas', () => ({
   authorizeAgentForCanvas: m.authorize,
   readJsonBody: async (request: Request) => ({ tooLarge: false, value: await request.json().catch(() => null) }),
 }));
 vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
-vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, upsert: m.upsert, deleteMany: m.deleteMany }, $executeRaw: m.executeRaw } }));
+vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, findMany: m.findMany, upsert: m.upsert, deleteMany: m.deleteMany }, projectDetailMap: { findUnique: m.detailFindUnique }, $executeRaw: m.executeRaw } }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
 
 import { POST } from '../route';
@@ -43,8 +45,10 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     m.authorize.mockResolvedValue({ canvas, principal: { userId: 'u1', credentialId: 'cred' } });
     m.rate.mockResolvedValue({ allowed: true });
     m.findUnique.mockResolvedValue(null);
-    m.upsert.mockResolvedValue({ id: 's1' });
+    m.findMany.mockResolvedValue([]);
+    m.upsert.mockResolvedValue({ id: 's1', name: 'Otter' });
     m.deleteMany.mockResolvedValue({ count: 0 });
+    m.detailFindUnique.mockResolvedValue(null);
   });
 
   it('retries once when a concurrent report created the session first', async () => {
@@ -70,6 +74,26 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     expect(m.deleteMany.mock.calls[0][0].where.canvasId).toBe('c1');
     await POST(req({ sessionKey: 'k', event: 'edit' }), params);
     expect(m.deleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('places the session on the detailed map part that owns the file, and falls back to its component', async () => {
+    m.detailFindUnique.mockResolvedValue({
+      nodes: [
+        { id: 'api', type: 'groupNode', data: { codePaths: ['frontend/app/api/**'] } },
+        { id: 'api__users', type: 'shapeNode', parentNode: 'api', data: { codePaths: ['frontend/app/api/users/**'] } },
+      ],
+    });
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/app/api/users/route.ts'] }), params);
+    expect(m.upsert.mock.calls[0][0].update).toMatchObject({ currentComponentId: 'api', detailComponentId: 'api__users' });
+
+    m.detailFindUnique.mockResolvedValue({ nodes: [{ id: 'api__users', type: 'shapeNode', data: { codePaths: ['frontend/app/api/users/**'] } }] });
+    await POST(req({ sessionKey: 'k', event: 'read', files: ['frontend/lib/server/auth.ts'] }), params);
+    expect(m.upsert.mock.calls[1][0].update).toMatchObject({ currentComponentId: 'auth', detailComponentId: null });
+
+    // No detailed map: the field is left alone.
+    m.detailFindUnique.mockResolvedValue(null);
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/lib/server/auth.ts'] }), params);
+    expect(m.upsert.mock.calls[2][0].update).not.toHaveProperty('detailComponentId');
   });
 
   it('rejects unauthorized agents', async () => {
@@ -122,5 +146,43 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     expect(m.upsert.mock.calls[0][0].update.status).toBe('idle');
     await POST(req({ sessionKey: 'k', event: 'end' }), params);
     expect(m.upsert.mock.calls[1][0].update.status).toBe('ended');
+  });
+
+  it('gives a new session a name no live session on the canvas uses, and returns it', async () => {
+    const { sessionNameFor } = await import('@/lib/diagram/projects/liveActivity');
+    const preferred = sessionNameFor('k');
+    m.findMany.mockResolvedValue([{ name: preferred }]);
+    const res = await POST(req({ sessionKey: 'k', event: 'start' }), params);
+    const { create, update } = m.upsert.mock.calls[0][0];
+    expect(create.name).not.toBe(preferred);
+    expect(update.name).toBe(create.name);
+    expect((await res.json()).name).toBe('Otter');
+
+    m.findUnique.mockResolvedValue({ touched: {}, unmappedPaths: [], currentComponentId: null, name: 'Fox' });
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/app/api/x.ts'] }), params);
+    expect(m.upsert.mock.calls[1][0].update.name).toBeUndefined();
+  });
+
+  it('puts new code outside the map on a construction site beside the nearest component, and leaves it on a mapped edit', async () => {
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/app/exports/csv.ts'] }), params);
+    let { create } = m.upsert.mock.calls[0][0];
+    expect(create.siteArea).toBe('frontend/app/exports');
+    expect(create.siteAnchorId).toBe('api');
+    expect(create.unmappedHits).toBe(1);
+
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/app/api/x.ts'] }), params);
+    ({ create } = m.upsert.mock.calls[1][0]);
+    expect(create.siteArea).toBeNull();
+    expect(create.mappedHits).toBe(1);
+    expect(m.upsert.mock.calls[1][0].update.mappedHits).toEqual({ increment: 1 });
+  });
+
+  it('counts only edited source files for coverage; reads and docs leave the site alone', async () => {
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['docs/a.md'] }), params);
+    expect(m.upsert.mock.calls[0][0].create).toMatchObject({ mappedHits: 0, unmappedHits: 0 });
+    expect(m.upsert.mock.calls[0][0].create.siteArea).toBeUndefined();
+    await POST(req({ sessionKey: 'k', event: 'read', files: ['frontend/app/exports/csv.ts'] }), params);
+    expect(m.upsert.mock.calls[1][0].create.siteArea).toBeUndefined();
+    expect(m.upsert.mock.calls[1][0].create.unmappedHits).toBe(0);
   });
 });

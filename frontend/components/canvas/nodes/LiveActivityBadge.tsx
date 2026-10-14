@@ -7,22 +7,27 @@ import { useNodeLiveActivity, useProjectLiveStore } from '@/store/projectLiveSto
 const MAX_DOTS = 3;
 
 /**
- * Live coding-agent overlay for a project canvas node: one dot per session
- * that touched the node, a pulse while it is being edited, and a ring for the
- * session focused in the Sessions panel. Editor-only; excluded from exports
+ * Live coding-agent overlay for a project canvas node. The node a session is
+ * working on right now gets a coloured outline + glow (the session's figure
+ * stands beside it, drawn by AgentAtlasLayer); nodes it touched earlier keep a
+ * faint outline and a dot per session; a node an agent just added is shown
+ * under construction. Editor-only; excluded from exports
  * via the `live-activity-overlay` class.
  */
 function LiveActivityBadgeComponent({ nodeId }: { nodeId: string }) {
-  const { readOnly } = useCanvasView();
+  const { showLiveActivity } = useCanvasView();
   const activity = useNodeLiveActivity(nodeId);
   const focusedSessionKey = useProjectLiveStore((s) => s.focusedSessionKey);
-  if (readOnly || !activity || (activity.sessions.length === 0 && !activity.addedBy)) return null;
+  if (!showLiveActivity || !activity || (activity.sessions.length === 0 && !activity.addedBy)) return null;
 
+  // Sessions whose latest edit is on this node: the "someone is here" state.
+  const here = activity.sessions.filter((s) => s.isCurrent);
   const focused = focusedSessionKey
     ? activity.sessions.find((s) => s.sessionKey === focusedSessionKey)
     : undefined;
   const { addedBy } = activity;
-  const ringColor = (focused ?? activity.sessions[0])?.color ?? addedBy?.color;
+  const lead = focused ?? here[0] ?? activity.sessions[0];
+  const ringColor = lead?.color ?? addedBy?.color;
   const title = [
     ...(addedBy ? [`Added by ${addedBy.label}`] : []),
     ...activity.sessions.map(
@@ -30,15 +35,26 @@ function LiveActivityBadgeComponent({ nodeId }: { nodeId: string }) {
     ),
   ].join('\n');
   const extra = activity.sessions.length - MAX_DOTS;
+  const ringClass = here.length > 0
+    ? 'live-activity-ring--here'
+    : focused || activity.recent
+      ? ''
+      : addedBy
+        ? 'live-activity-ring--added'
+        : 'live-activity-ring--visited';
 
   return (
     <>
-      {(activity.recent || focused || addedBy) && (
-        <div
-          aria-hidden
-          className={`live-activity-overlay live-activity-ring${activity.recent ? ' live-activity-ring--pulse' : ''}${addedBy && !activity.recent ? ' live-activity-ring--added' : ''}`}
-          style={{ ['--live-color' as string]: ringColor }}
-        />
+      <div
+        aria-hidden
+        className={`live-activity-overlay live-activity-ring ${ringClass}${activity.recent ? ' live-activity-ring--pulse' : ''}`}
+        style={{ ['--live-color' as string]: ringColor }}
+      />
+      {addedBy && (
+        // Just added by an agent: shown under construction (see nodeStyles.css).
+        <div aria-hidden className="live-activity-overlay live-construction" style={{ ['--live-color' as string]: addedBy.color }}>
+          <span className="live-construction-label">building</span>
+        </div>
       )}
       <div className="live-activity-overlay live-activity-badge nodrag nopan" title={title} role="status" aria-label={title}>
         {addedBy && (

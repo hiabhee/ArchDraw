@@ -1556,6 +1556,86 @@
   border-radius: 4px;
   box-shadow: 0 0 0 2px var(--surface-page, #fff);
 }
+/* Node a session is working on right now: solid outline + glow in its colour. */
+.live-activity-ring--here {
+  inset: -5px;
+  border-width: 2px;
+  opacity: 1;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--live-color) 22%, transparent),
+    0 0 22px 2px color-mix(in srgb, var(--live-color) 45%, transparent);
+}
+.live-activity-ring--here.live-activity-ring--pulse {
+  animation: live-activity-here-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-activity-here-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-color) 22%, transparent), 0 0 22px 2px color-mix(in srgb, var(--live-color) 45%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--live-color) 10%, transparent), 0 0 34px 6px color-mix(in srgb, var(--live-color) 55%, transparent); }
+}
+/* Touched earlier in the session: a quiet trace only. */
+.live-activity-ring--visited {
+  opacity: 0.35;
+  border-style: dotted;
+}
+/* Just added by an agent: under construction until the change settles. */
+.react-flow__node:has(.live-construction) > * {
+  opacity: 0.55;
+}
+.react-flow__node:has(.live-construction) .live-construction {
+  opacity: 1;
+}
+.live-construction {
+  position: absolute;
+  inset: -4px;
+  z-index: 1;
+  border-radius: 12px;
+  border: 1.5px dashed var(--live-color);
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--live-color) 16%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  background-size: 34px 34px;
+  animation: live-construction-hatch 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes live-construction-hatch {
+  to { background-position: 34px 0; }
+}
+.live-construction-label {
+  position: absolute;
+  top: -9px;
+  left: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--live-color);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
 @media (prefers-reduced-motion: reduce) {
-  .live-activity-ring--pulse { animation: none; }
+  .live-activity-ring--pulse,
+  .live-activity-ring--here.live-activity-ring--pulse,
+  .live-construction { animation: none; }
+}
+
+/* Live panel presence avatars: active sessions breathe in their colour. */
+.live-presence-avatar--live::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 1.5px solid var(--presence);
+  opacity: 0;
+  animation: live-presence-breathe 2.4s ease-out infinite;
+}
+@keyframes live-presence-breathe {
+  0% { opacity: 0.55; transform: scale(0.92); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-presence-avatar--live::after { animation: none; }
 }

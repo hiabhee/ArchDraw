@@ -227,9 +227,23 @@ model UserCanvas {
   User             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   agenticProject   AgenticProject? @relation(fields: [agenticProjectId], references: [id], onDelete: SetNull)
   agentSessions    AgentSession[]
+  detailMap        ProjectDetailMap?
 
   @@index([userId])
   @@map("user_canvases")
+}
+
+/// Detailed map of a live project: each overview component as a box of its
+/// modules/files. Separate from the canvas row so writing it never bumps the
+/// canvas updatedAt (no false save conflicts) and canvas lists stay small.
+model ProjectDetailMap {
+  canvasId  String     @id @map("canvas_id")
+  nodes     Json       @default("[]")
+  edges     Json       @default("[]")
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at")
+  canvas    UserCanvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+
+  @@map("project_detail_maps")
 }
 
 /// One coding-agent session (e.g. a Claude Code session) reporting activity on a project canvas.
@@ -246,6 +260,22 @@ model AgentSession {
   unmappedPaths      Json     @default("[]") @map("unmapped_paths")
   /// Last structural diagram change this session published ({added, removed, renamed, at}).
   lastChange         Json?    @map("last_change")
+  /// What the session did last: start | read | edit | waiting | done (drives the canvas figure).
+  lastAction         String?  @map("last_action")
+  lastActionAt       DateTime? @map("last_action_at")
+  /// Component the session's task is about (matched locally from the prompt; the prompt is never sent).
+  aimComponentId     String?  @map("aim_component_id")
+  /// Short name shown on the map and in the session's terminal ("Otter"); distinct among a canvas's live sessions.
+  name               String?
+  /// Folder of new code no component owns that the session is editing (drawn as a construction site).
+  siteArea           String?  @map("site_area")
+  /// Component the construction site is drawn next to.
+  siteAnchorId       String?  @map("site_anchor_id")
+  /// Part of the detailed map the session is at (null: use currentComponentId).
+  detailComponentId  String?  @map("detail_component_id")
+  /// Edited source files that were / were not on a component (map coverage).
+  mappedHits         Int      @default(0) @map("mapped_hits")
+  unmappedHits       Int      @default(0) @map("unmapped_hits")
   startedAt          DateTime @default(now()) @map("started_at")
   lastSeenAt         DateTime @default(now()) @map("last_seen_at")
 
