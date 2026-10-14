@@ -71,6 +71,10 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
+    // Validate most requests from a signed cookie instead of two database
+    // reads (session + user). Live panels poll every few seconds. Trade-off: a
+    // session revoked elsewhere stays usable for up to maxAge.
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   trustedOrigins: Array.from(trustedOrigins),
   baseURL,
