@@ -737,7 +737,11 @@ function CanvasInner() {
     () => (projectLevel === 'detail' && detailMap && detailNodes?.source === detailMap ? { nodes: detailNodes.nodes, edges: detailEdges } : null),
     [projectLevel, detailMap, detailNodes, detailEdges],
   );
-  const detailMissing = projectLevel === 'detail' && !detailMap;
+  // Until the map arrives, "missing" is only what the server says: it has no
+  // detailed map. Otherwise the map is still loading.
+  const detailUpdatedAt = useProjectLiveStore((s) => (s.canvasId === activeCanvasId ? s.snapshot?.detailUpdatedAt : undefined));
+  const detailPending = projectLevel === 'detail' && !detailMap;
+  const detailMissing = detailPending && detailUpdatedAt === null;
   // Boxes of the detailed map can be moved for a better look; nothing is saved.
   const onDetailNodesChange = useCallback((changes: NodeChange[]) => {
     setDetailNodes((current) => (current ? { ...current, nodes: applyNodeChanges(changes, current.nodes) } : current));
@@ -909,9 +913,9 @@ function CanvasInner() {
         {(!highLevel || detailView) && <AgentAtlasLayer />}
         {(!highLevel || detailView) && <NeedsYouQueue className="!top-20" />}
       </ReactFlow>
-      {detailMissing && (
+      {detailPending && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/40">
-          <DetailMapEmpty />
+          {detailMissing ? <DetailMapEmpty /> : <span className="text-sm text-muted-foreground">Loading the detailed map…</span>}
         </div>
       )}
       </DiagramGeometryProvider>
