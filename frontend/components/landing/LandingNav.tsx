@@ -15,7 +15,13 @@ const NAV_LINKS = [
   { label: 'Docs', href: '/docs', track: 'nav_docs' },
 ];
 
-const DARK_NAV_LINKS = NAV_LINKS.filter((link) => link.label !== 'Features');
+/** The dark nav belongs to the live-projects landing (`components/landing/live`). */
+const DARK_NAV_LINKS = [
+  { label: 'How it works', href: '/#how', track: 'nav_how_it_works' },
+  { label: 'Privacy', href: '/#privacy', track: 'nav_privacy' },
+  { label: 'Pricing', href: '/pricing', track: 'nav_pricing' },
+  { label: 'Docs', href: '/docs', track: 'nav_docs' },
+];
 
 export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassName?: string; tone?: 'light' | 'dark' }) {
   const pathname = usePathname();
@@ -23,7 +29,7 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
   const isAuthenticated = initialized && Boolean(user && user.id !== 'guest');
   const isDark = tone === 'dark';
   const navLinks = isDark ? DARK_NAV_LINKS : NAV_LINKS;
-  const startHref = isDark ? (pathname === '/' ? '#generate' : '/#generate') : startCtaHref(pathname);
+  const startHref = isDark ? (pathname === '/' ? '#start' : '/#start') : startCtaHref(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -47,8 +53,8 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
       <div className="max-w-[1280px] mx-auto px-6 h-full flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className={`w-7 h-7 rounded-lg ${isDark ? 'bg-[#2563eb] shadow-[0_0_18px_rgba(37,99,235,0.35)]' : 'bg-brand shadow-[0_0_15px_rgba(30,144,255,0.35)]'} flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105`}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <div className={`w-7 h-7 rounded-lg ${isDark ? 'bg-[#ece9e2] shadow-[0_0_18px_rgba(236,233,226,0.25)]' : 'bg-brand shadow-[0_0_15px_rgba(30,144,255,0.35)]'} flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105`}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isDark ? "#0b0b0c" : "#fff"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
                 <path d="M2 12l10 5 10-5" />
@@ -76,7 +82,7 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
             <a
               href="/dashboard"
               data-track="nav_dashboard"
-              className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#2563eb] text-white hover:bg-[#3b82f6] active:bg-[#1d4ed8]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
+              className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#ece9e2] text-[#0b0b0c] hover:bg-white active:bg-[#d9d5cc]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
             >
               Dashboard
               <ArrowRight className="w-3.5 h-3.5" />
@@ -93,9 +99,9 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
               <a
                 href={startHref}
                 data-track="nav_get_started"
-                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#2563eb] text-white hover:bg-[#3b82f6] active:bg-[#1d4ed8]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
+                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#ece9e2] text-[#0b0b0c] hover:bg-white active:bg-[#d9d5cc]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
               >
-                {isDark ? 'Start a diagram' : START_CTA_LABEL}
+                {isDark ? 'Get started' : START_CTA_LABEL}
                 <ArrowRight className="w-3.5 h-3.5" />
               </a>
             </>
@@ -130,7 +136,7 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
                 href="/dashboard"
                 data-track="nav_dashboard"
                 onClick={() => setMenuOpen(false)}
-                className={`text-sm font-semibold text-center ${isDark ? 'bg-[#2563eb] text-white hover:bg-[#3b82f6]' : 'text-white bg-brand hover:bg-brand-hover'} px-4 py-3 rounded-lg transition-colors`}
+                className={`text-sm font-semibold text-center ${isDark ? 'bg-[#ece9e2] text-[#0b0b0c] hover:bg-white' : 'text-white bg-brand hover:bg-brand-hover'} px-4 py-3 rounded-lg transition-colors`}
               >
                 Dashboard
               </a>
@@ -146,9 +152,9 @@ export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassNam
                 <a
                   href={startHref}
                   onClick={() => setMenuOpen(false)}
-                  className={`text-sm font-semibold text-center ${isDark ? 'bg-[#2563eb] text-white hover:bg-[#3b82f6]' : 'text-white bg-brand hover:bg-brand-hover'} px-4 py-3 rounded-lg transition-colors`}
+                  className={`text-sm font-semibold text-center ${isDark ? 'bg-[#ece9e2] text-[#0b0b0c] hover:bg-white' : 'text-white bg-brand hover:bg-brand-hover'} px-4 py-3 rounded-lg transition-colors`}
                 >
-                  {isDark ? 'Start a diagram' : START_CTA_LABEL}
+                  {isDark ? 'Get started' : START_CTA_LABEL}
                 </a>
               </>
             )}

@@ -1,0 +1,112 @@
+.svg { display: block; width: 100%; height: auto; font-family: var(--font-body); }
+
+.box { fill: #14161b; stroke: rgba(255, 255, 255, .12); stroke-width: 1.2; }
+.boxNew { fill: #14161b; stroke: #5fe0a8; stroke-width: 1.4; }
+.boxText { fill: var(--ink); font-size: 12.5px; font-weight: 600; }
+.wire { fill: none; stroke: rgba(196, 206, 222, .35); stroke-width: 1.3; }
+.newBadge { fill: #5fe0a8; }
+.newBadgeText { fill: #06281a; font-size: 9.5px; font-weight: 700; }
+.plot { fill: rgba(255, 176, 87, .05); stroke: #ffb057; stroke-width: 1.3; stroke-dasharray: 5 4; animation: march 1.2s linear infinite; }
+.plotTitle { fill: #ffb057; font-family: var(--font-mono); font-size: 8px; font-weight: 600; letter-spacing: .07em; }
+.plotPath { fill: rgba(236, 233, 226, .55); font-family: var(--font-mono); font-size: 9.5px; }
+.workingStar { filter: drop-shadow(0 0 6px #ffb057); transform-box: fill-box; transform-origin: center; animation: spin 3.6s linear infinite; }
+
+/* Construction site → mapped component, on a 7s loop. */
+.plotPhase { animation: plotPhase 7s ease-in-out infinite; }
+.mappedPhase { opacity: 0; animation: mappedPhase 7s ease-in-out infinite; }
+@keyframes plotPhase { 0%, 52% { opacity: 1; } 60%, 94% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes mappedPhase { 0%, 52% { opacity: 0; } 60%, 94% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Overview ↔ detailed, on an 8s loop. */
+.overviewPhase { animation: overviewPhase 8s ease-in-out infinite; }
+.detailPhase { opacity: 0; animation: detailPhase 8s ease-in-out infinite; }
+@keyframes overviewPhase { 0%, 40% { opacity: 1; transform: scale(1); } 50%, 92% { opacity: 0; transform: scale(1.06); } 100% { opacity: 1; } }
+@keyframes detailPhase { 0%, 40% { opacity: 0; transform: scale(.95); } 50%, 92% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
+.overviewPhase, .detailPhase { transform-origin: 160px 75px; }
+.group { fill: rgba(255, 255, 255, .02); stroke: rgba(255, 255, 255, .1); }
+.groupText { fill: rgba(236, 233, 226, .45); font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .12em; }
+.part { fill: #14161b; stroke: rgba(255, 255, 255, .09); }
+.partActive { fill: #14161b; stroke: #7cb4ff; filter: drop-shadow(0 0 6px rgba(124, 180, 255, .5)); }
+.partText { fill: rgba(236, 233, 226, .78); font-family: var(--font-mono); font-size: 9.5px; }
+
+.aimLine { fill: none; stroke: #62dcf0; stroke-width: 1.4; stroke-dasharray: 4 5; animation: march .9s linear infinite; }
+.tag { fill: rgba(10, 11, 14, .92); stroke: #62dcf0; stroke-opacity: .55; }
+.tagText { fill: var(--ink); font-size: 10.5px; font-weight: 600; }
+.prompt { fill: #0c0d10; stroke: rgba(255, 255, 255, .1); }
+.promptText { fill: rgba(236, 233, 226, .7); font-family: var(--font-mono); font-size: 10px; }
+
+.queue { display: grid; gap: 7px; padding: 4px 0; }
+.queueRow {
+  display: grid;
+  grid-template-columns: 4px auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, .025);
+  font-size: 12.5px;
+}
+.queueRow i { align-self: stretch; border-radius: 2px; background: #ff8fc8; }
+.queueRow[data-kind='waiting'] { border-color: rgba(245, 165, 36, .4); background: rgba(245, 165, 36, .06); }
+.queueRow[data-kind='waiting'] i { background: var(--attention); }
+.queueRow:first-child { animation: nudge 2.4s ease-in-out infinite; }
+.queueRow b { color: var(--ink); font-weight: 650; }
+.queueRow span { color: var(--ld-muted); }
+.queueRow time { color: var(--ld-muted); font-family: var(--font-mono); font-size: 11px; }
+.tabTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px 7px 0 0;
+  padding: 6px 12px;
+  background: #0c0d10;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.dotAmber { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--attention); box-shadow: 0 0 8px var(--attention); animation: blink 1.4s ease-in-out infinite; }
+
+.link { display: grid; gap: 14px; }
+.urlBar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: #0c0d10;
+  color: var(--ld-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.urlBar b { color: var(--ink); font-weight: 500; }
+.lock { flex: none; width: 9px; height: 9px; border: 1.5px solid #5fe0a8; border-radius: 2px; }
+.linkFacts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.linkFacts li { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--ld-muted); font-size: 11.5px; }
+
+@property --cover { syntax: '<integer>'; inherits: false; initial-value: 97; }
+.coverage { display: grid; gap: 12px; }
+.coverageHead { display: flex; align-items: baseline; justify-content: space-between; color: var(--ld-muted); font-size: 12.5px; }
+.coverageNum { color: var(--ink); font-family: var(--font-display); font-size: 40px; font-weight: 400; line-height: 1; animation: cover 6s ease-in-out infinite; counter-reset: cover var(--cover); }
+.coverageNum::after { content: counter(cover) '%'; }
+.meter { overflow: hidden; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .07); }
+.meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5fe0a8, #7cb4ff); animation: meter 6s ease-in-out infinite; transform-origin: left; }
+.coverageNote { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ld-muted); font-size: 12.5px; }
+
+@keyframes cover { 0%, 30% { --cover: 97; } 45%, 80% { --cover: 88; } 95%, 100% { --cover: 97; } }
+@keyframes meter { 0%, 30% { transform: scaleX(.97); } 45%, 80% { transform: scaleX(.88); } 95%, 100% { transform: scaleX(.97); } }
+@keyframes march { to { stroke-dashoffset: -18; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes nudge { 0%, 70%, 100% { transform: translateX(0); } 76% { transform: translateX(-3px); } 82% { transform: translateX(3px); } 88% { transform: translateX(0); } }
+@keyframes blink { 50% { opacity: .3; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .svg *, .queue *, .coverage * { animation: none !important; }
+  .mappedPhase, .detailPhase { opacity: 0; }
+}
