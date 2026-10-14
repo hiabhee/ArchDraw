@@ -29,8 +29,8 @@ describe('buildHighLevelGraph', () => {
     expect(graph.nodes.map((n) => n.id)).toEqual(['api', 'data', 'browser']);
     const api = graph.nodes.find((n) => n.id === 'api')!;
     expect(api.type).toBe('shapeNode');
-    expect(api.data.subtitle).toBe('2 components');
-    expect(graph.nodes.find((n) => n.id === 'data')!.data.subtitle).toBe('1 component');
+    expect(api.data.subtitle).toBe('auth · users');
+    expect(graph.nodes.find((n) => n.id === 'data')!.data.subtitle).toBe('pg');
     expect(graph.nodes.every((n) => !n.parentNode)).toBe(true);
   });
 
@@ -41,9 +41,9 @@ describe('buildHighLevelGraph', () => {
       edge('e3', 'users', 'pg'),
       edge('e4', 'auth', 'users'),
     ])!;
-    expect(graph.edges.map((e) => [e.source, e.target, e.data?.label])).toEqual([
-      ['browser', 'api', 'login'],
-      ['api', 'data', '2 connections'],
+    expect(graph.edges.map((e) => [e.source, e.target, e.data?.label, e.data?.connectionCount])).toEqual([
+      ['browser', 'api', undefined, 1],
+      ['api', 'data', undefined, 2],
     ]);
   });
 });

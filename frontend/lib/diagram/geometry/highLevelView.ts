@@ -12,6 +12,12 @@ function parentOf(node: Node): string | undefined {
   return node.parentNode ?? (node as Node & { parentId?: string }).parentId ?? undefined;
 }
 
+function summarizeMembers(labels: readonly string[]): string {
+  if (labels.length === 0) return 'empty';
+  const shown = labels.slice(0, 3).map((l) => (l.length > 18 ? `${l.slice(0, 17)}…` : l));
+  return labels.length > 3 ? `${shown.join(' · ')} +${labels.length - 3}` : shown.join(' · ');
+}
+
 export function hasHighLevelView(nodes: readonly Node[]): boolean {
   return nodes.some((node) => node.type === 'groupNode' && !parentOf(node));
 }
@@ -35,11 +41,13 @@ export function buildHighLevelGraph(nodes: readonly Node[], edges: readonly Edge
     return owner;
   };
 
-  const memberCount = new Map<string, number>();
+  const members = new Map<string, string[]>();
   for (const node of nodes) {
     if (node.type === 'groupNode' || !parentOf(node)) continue;
     const owner = topLevelOwner(node.id);
-    if (owner) memberCount.set(owner, (memberCount.get(owner) ?? 0) + 1);
+    if (!owner) continue;
+    const label = String((node.data as { label?: unknown } | undefined)?.label ?? node.id);
+    members.set(owner, [...(members.get(owner) ?? []), label]);
   }
 
   const summaryNodes: Node[] = [];
@@ -50,14 +58,15 @@ export function buildHighLevelGraph(nodes: readonly Node[], edges: readonly Edge
       summaryNodes.push({ id: node.id, type: node.type, position: { x: 0, y: 0 }, data });
       continue;
     }
-    const count = memberCount.get(node.id) ?? 0;
+    const inside = members.get(node.id) ?? [];
     summaryNodes.push({
       id: node.id,
       type: 'shapeNode',
       position: { x: 0, y: 0 },
       data: {
         label: data.label ?? node.id,
-        subtitle: `${count} component${count === 1 ? '' : 's'}`,
+        // What the area holds, not just how much: "Editor · Canvas · Dashboard +4".
+        subtitle: summarizeMembers(inside),
         shape: 'rounded-rectangle',
         ...(data.color ? { color: data.color } : {}),
         ...(data.category ? { category: data.category } : {}),
@@ -85,14 +94,14 @@ export function buildHighLevelGraph(nodes: readonly Node[], edges: readonly Edge
         source,
         target,
         type: edge.type,
-        // Hand-drawn routing belongs to the full view.
-        data: { ...(edge.data ?? {}), customWaypoints: undefined, sourceSide: undefined, targetSide: undefined },
+        // Hand-drawn routing and per-call labels belong to the full view.
+        data: { ...(edge.data ?? {}), label: undefined, customWaypoints: undefined, sourceSide: undefined, targetSide: undefined },
       },
     });
   }
-  const summaryEdges = [...merged.values()].map(({ edge, count }) =>
-    count > 1 ? { ...edge, data: { ...edge.data, label: `${count} connections` } } : edge,
-  );
+  // No "N connections" labels (they crowd the summary): busier links are
+  // drawn thicker instead (SimpleFloatingEdge reads `connectionCount`).
+  const summaryEdges = [...merged.values()].map(({ edge, count }) => ({ ...edge, data: { ...edge.data, connectionCount: count } }));
 
   return { nodes: summaryNodes, edges: summaryEdges };
 }

@@ -276,7 +276,12 @@ function placeSidecarGroups(
     })
     // A single attachment is usually an entry/exit group. Reposition only
     // multi-connection sidecars, where the long-trunk problem is measurable.
-    .filter(candidate => groupRole(candidate.id) !== 'core' && candidate.crossEdges.length >= 2);
+    // A group that only feeds the main group (data sources, upstream APIs)
+    // is part of the flow: it stays upstream, where its edges run along it.
+    .filter(candidate =>
+      groupRole(candidate.id) !== 'core' &&
+      candidate.crossEdges.length >= 2 &&
+      !candidate.crossEdges.every(edge => candidate.candidateDescendants.has(edge.source)));
   if (candidates.length === 0) return;
 
   const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
@@ -329,6 +334,70 @@ function placeSidecarGroups(
       positions,
       parentOf,
     );
+  }
+}
+
+/**
+ * Each group is laid out on its own, blind to where its outside neighbours
+ * end up, so independent members (e.g. an "External" column of data sources)
+ * can be stacked against the order of what they connect to and their edges
+ * cross. Re-order members that share a lane and have no edges among their
+ * siblings by the mean cross-axis position of their outside neighbours
+ * (barycenter), keeping the lane's slot centers.
+ */
+function orderUnlinkedSiblingsByNeighbours(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  childrenByParent: Map<string, string[]>,
+  dimsById: Map<string, { width: number; height: number }>,
+): void {
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const center = (id: string) => {
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) return undefined;
+    return { x: position.x + dims.width / 2, y: position.y + dims.height / 2 };
+  };
+  const neighbours = new Map<string, string[]>();
+  for (const edge of params.edges) {
+    if (edge.source === edge.target) continue;
+    neighbours.set(edge.source, [...(neighbours.get(edge.source) ?? []), edge.target]);
+    neighbours.set(edge.target, [...(neighbours.get(edge.target) ?? []), edge.source]);
+  }
+
+  for (const [, children] of childrenByParent) {
+    const siblings = new Set(children);
+    const loose = children.filter(id =>
+      !groupIds.has(id) &&
+      positions.has(id) &&
+      !(neighbours.get(id) ?? []).some(other => siblings.has(other)));
+    // Lanes: members in the same rank (same column for LR, row for TD).
+    const lanes = new Map<number, string[]>();
+    for (const id of loose) {
+      const c = center(id)!;
+      const key = Math.round(horizontalFlow ? c.x : c.y);
+      lanes.set(key, [...(lanes.get(key) ?? []), id]);
+    }
+    for (const lane of lanes.values()) {
+      if (lane.length < 2) continue;
+      const barycenter = new Map<string, number>();
+      for (const id of lane) {
+        const points = (neighbours.get(id) ?? []).map(center).filter(Boolean) as Array<{ x: number; y: number }>;
+        if (points.length === 0) break;
+        barycenter.set(id, points.reduce((sum, p) => sum + (horizontalFlow ? p.y : p.x), 0) / points.length);
+      }
+      if (barycenter.size !== lane.length) continue;
+      const slots = lane.map(id => (horizontalFlow ? center(id)!.y : center(id)!.x)).sort((a, b) => a - b);
+      const ordered = [...lane].sort((a, b) => barycenter.get(a)! - barycenter.get(b)! || a.localeCompare(b));
+      ordered.forEach((id, index) => {
+        const position = positions.get(id)!;
+        const dims = dimsById.get(id)!;
+        positions.set(id, horizontalFlow
+          ? { x: position.x, y: slots[index] - dims.height / 2 }
+          : { x: slots[index] - dims.width / 2, y: position.y });
+      });
+    }
   }
 }
 
@@ -862,7 +931,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
     // around a wide compound group (for example planner → knowledge/cache in
     // an agent loop) while leaving ordinary single-entry/single-exit groups in
     // their Dagre-ranked positions.
-    placeSidecarGroups(
+    if (!params.options?.flowAreas) placeSidecarGroups(
       result.positions,
       params,
       parentOf,
@@ -877,6 +946,8 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       dimsById,
       Math.max(32, Math.min(72, (ctx.nodeSep || defaults.nodeSep || 110) / 2)),
     );
+
+    orderUnlinkedSiblingsByNeighbours(result.positions, params, childrenByParent, dimsById);
 
     // Root offset: keeps absolute coordinates clear of (0,0) and gives the
     // diagram a small margin on the canvas.

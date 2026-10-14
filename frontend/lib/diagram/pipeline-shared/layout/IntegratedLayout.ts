@@ -20,6 +20,8 @@ export interface IntegratedLayoutOptions {
     paddingBottom?: number;
     paddingLeft?: number;
     paddingRight?: number;
+    /** Top-level groups are flow stages: keep them in rank order (no sidecar lanes). */
+    flowAreas?: boolean;
   };
 }
 

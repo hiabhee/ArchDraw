@@ -89,11 +89,13 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     const base = { ...denseDefaults, ...layoutOptions };
     const baseNodeSep = base.nodeSep ?? 110;
     const baseRankSep = base.rankSep ?? 170;
+    // Areas given in data-flow order are stages: keep them in rank order.
+    const flowAreas = _context.metadata.areaOrder ? { flowAreas: true } : {};
     const candidates = [
-      { nodes: canonicalNodes, options: layoutOptions },
-      { nodes: [...canonicalNodes].reverse(), options: layoutOptions },
-      { nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 32 } },
-      { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48 } },
+      { nodes: canonicalNodes, options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
+      { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
+      { nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 32, ...flowAreas } },
+      { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } },
     ];
     let layouted: RFObjects | undefined;
     let best: { nodeQuality: ReturnType<typeof measureLayoutQuality>; geometry: ReturnType<typeof getCachedDiagramGeometryPlan> } | undefined;
