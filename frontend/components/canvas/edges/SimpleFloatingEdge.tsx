@@ -194,9 +194,13 @@ export default function SimpleFloatingEdge({
 
   const intermediateWaypoints = useMemo(() => {
     const stored = data?.customWaypoints as Array<{ x: number; y: number }> | undefined;
-    if (!stored || stored.length === 0) return [];
-    return stored;
-  }, [data?.customWaypoints]);
+    if (stored && stored.length > 0) return stored;
+    // An auto-routed edge has no stored bends yet: offer its current bends as
+    // handles (the first drag stores them via ensureCustomWaypoints, which
+    // slices the same route), or the edge could never be reshaped.
+    if (readOnly) return [];
+    return route.waypoints.slice(1, -1);
+  }, [data?.customWaypoints, readOnly, route.waypoints]);
 
   const ensureCustomWaypoints = useCallback(() => {
     const currentCustom = useDiagramStore.getState().edges.find(e => e.id === id)?.data?.customWaypoints;
@@ -302,9 +306,12 @@ export default function SimpleFloatingEdge({
   const strokeStyle: React.CSSProperties = useMemo(() => {
     const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark, sketch, sketchInk);
     let stroke = edgeStyle?.stroke || palette.stroke;
-    const baseWidth = brutal
+    // Summary edges (high-level view) stand for several calls: thicker per call.
+    const connectionCount = Number((data as Record<string, unknown> | undefined)?.connectionCount) || 1;
+    const weight = Math.min(connectionCount - 1, 4) * 0.6;
+    const baseWidth = (brutal
       ? (palette.isPrimary ? 3 : 2.75)
-      : (palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth);
+      : (palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth)) + weight;
 
     if (isBundle) {
       stroke = isDenseBundle ? '#475569' : '#94a3b8';

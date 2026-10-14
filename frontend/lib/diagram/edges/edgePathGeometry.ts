@@ -79,11 +79,25 @@ const unit = (a: Point, b: Point): Point => {
   return length === 0 ? { x: 0, y: 0 } : { x: (b.x - a.x) / length, y: (b.y - a.y) / length };
 };
 
+/** Waypoints within this distance of the line through their neighbours are not corners. */
+const COLLINEAR_TOLERANCE = 0.5;
+
 function cleanPoints(points: readonly Point[]): Point[] {
   const result: Point[] = [];
   for (const point of points) {
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
     if (!result.length || distance(result[result.length - 1], point) > 0.001) result.push(point);
+  }
+  // Drop interior points that are not real turns: straight runs with subpixel
+  // handle drift (which would round into a 2r semicircle) and 180° spikes
+  // (which would round into a stray tick and then retrace the segment).
+  for (let i = 1; i < result.length - 1;) {
+    if (distanceToLine(result[i], result[i - 1], result[i + 1]) < COLLINEAR_TOLERANCE) {
+      result.splice(i, 1);
+      if (i > 1) i--;
+    } else {
+      i++;
+    }
   }
   return result;
 }

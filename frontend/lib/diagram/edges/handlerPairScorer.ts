@@ -125,6 +125,28 @@ export function outwardDirection(side: Position): { dx: number; dy: number } {
   }
 }
 
+/** True when the two handles face each other along this axis (Right→Left with source left of target, …). */
+function facingAlong(sourceSide: Position, targetSide: Position, sourceCoord: number, targetCoord: number): boolean {
+  if (sourceSide === Position.Right && targetSide === Position.Left) return sourceCoord < targetCoord;
+  if (sourceSide === Position.Left && targetSide === Position.Right) return sourceCoord > targetCoord;
+  if (sourceSide === Position.Bottom && targetSide === Position.Top) return sourceCoord < targetCoord;
+  if (sourceSide === Position.Top && targetSide === Position.Bottom) return sourceCoord > targetCoord;
+  return false;
+}
+
+/**
+ * Middle lane of a Z route. A lane offset (bidirectional pairs) must not push
+ * the lane behind either facing handle: in a narrow gap that makes the edge
+ * leave its handle backwards and double back in a tight U.
+ */
+function laneBetween(sourceCoord: number, targetCoord: number, edgeOffset: number, facing: boolean): number {
+  const mid = (sourceCoord + targetCoord) / 2;
+  const lane = mid + edgeOffset;
+  if (!facing) return lane;
+  const lo = Math.min(sourceCoord, targetCoord), hi = Math.max(sourceCoord, targetCoord);
+  return lane > lo && lane < hi ? lane : mid;
+}
+
 /**
  * Default orthogonal waypoints for a handler pair (Z or L), matching
  * computeDirectWaypoints in edgeRouteBuilder — no collision detours.
@@ -148,7 +170,7 @@ export function buildDefaultOrthogonalWaypoints(
         { x: target.x, y: target.y },
       ];
     }
-    const mx = (source.x + target.x) / 2 + edgeOffset;
+    const mx = laneBetween(source.x, target.x, edgeOffset, facingAlong(sourceSide, targetSide, source.x, target.x));
     return [
       { x: source.x, y: source.y },
       { x: mx, y: source.y },
@@ -163,7 +185,7 @@ export function buildDefaultOrthogonalWaypoints(
         { x: target.x, y: target.y },
       ];
     }
-    const my = (source.y + target.y) / 2 + edgeOffset;
+    const my = laneBetween(source.y, target.y, edgeOffset, facingAlong(sourceSide, targetSide, source.y, target.y));
     return [
       { x: source.x, y: source.y },
       { x: source.x, y: my },
@@ -284,6 +306,16 @@ export function facingSideToward(
   if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
     return Position.Right;
   }
+  // Decide the axis by the clear gap between the rectangles, not the center
+  // vector: wide nodes stacked with a small vertical gap but a sideways offset
+  // have |dx| > |dy| at their centers, yet a Right→Left pair would have to
+  // exit past the other node and double back into a tight U.
+  const gapX = Math.max(to.x - (from.x + from.width), from.x - (to.x + to.width));
+  const gapY = Math.max(to.y - (from.y + from.height), from.y - (to.y + to.height));
+  if (gapX > 0 || gapY > 0) {
+    if (gapY > gapX) return dy > 0 ? Position.Bottom : Position.Top;
+    return dx > 0 ? Position.Right : Position.Left;
+  }
   if (Math.abs(dy) > Math.abs(dx)) {
     return dy > 0 ? Position.Bottom : Position.Top;
   }
@@ -295,14 +327,42 @@ export function facingSideToward(
  * Strong enough to beat bend+directional preference for L-shapes that
  * wrap to far sides, but far below the collision penalty (1000).
  */
+/** Clear gap a target must sit downstream before the flow sides win. */
+const FLOW_RANK_GAP = 40;
+
+/**
+ * Flow-aligned sides when the target sits in a later rank (LR: a column to
+ * the right, TD: a row below): Right→Left / Bottom→Top, even when the
+ * vertical (LR) offset is larger than the gap between ranks. Layered
+ * diagrams read along the flow; entering a downstream node from its top or
+ * bottom looks like the edge comes from inside the column. Null for nodes
+ * in the same rank and for backward edges.
+ */
+function flowFacingSides(
+  sourceRect: HandlerRect,
+  targetRect: HandlerRect,
+  direction: 'LR' | 'TD',
+): { source: Position; target: Position } | null {
+  if (direction === 'LR') {
+    return targetRect.x - (sourceRect.x + sourceRect.width) >= FLOW_RANK_GAP
+      ? { source: Position.Right, target: Position.Left }
+      : null;
+  }
+  return targetRect.y - (sourceRect.y + sourceRect.height) >= FLOW_RANK_GAP
+    ? { source: Position.Bottom, target: Position.Top }
+    : null;
+}
+
 function facingPenalty(
   sourceRect: HandlerRect,
   targetRect: HandlerRect,
   sourceSide: Position,
   targetSide: Position,
+  direction: 'LR' | 'TD',
 ): number {
-  const idealSource = facingSideToward(sourceRect, targetRect);
-  const idealTarget = facingSideToward(targetRect, sourceRect);
+  const flow = flowFacingSides(sourceRect, targetRect, direction);
+  const idealSource = flow?.source ?? facingSideToward(sourceRect, targetRect);
+  const idealTarget = flow?.target ?? facingSideToward(targetRect, sourceRect);
   let penalty = 0;
   if (sourceSide !== idealSource) penalty += 30;
   if (targetSide !== idealTarget) penalty += 30;
@@ -375,7 +435,7 @@ export function scoreAllHandlerPairs(
         { sourceSide: srcSide, targetSide: tgtSide },
         direction,
       );
-      const facePenalty = facingPenalty(sourceRect, targetRect, srcSide, tgtSide);
+      const facePenalty = facingPenalty(sourceRect, targetRect, srcSide, tgtSide, direction);
 
       // Terminal penetration is as bad as hitting another node — otherwise a
       // short path that tunnels through source/target can beat a clean detour.
