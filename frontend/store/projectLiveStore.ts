@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { fetchProjectLive } from '@/lib/client/api-client';
-import { buildNodeActivity, type DetailMapGraph, type MapLevel, type NodeLiveActivity, type ProjectLiveSnapshot } from '@/lib/diagram/projects/liveActivity';
+import { buildNodeActivity, livePollBaseMs, reuseNodeActivity, type DetailMapGraph, type MapLevel, type NodeLiveActivity, type ProjectLiveSnapshot } from '@/lib/diagram/projects/liveActivity';
 import { hasPendingCanvasSave } from '@/store/diagram/persistence/dbSave';
 import { useDiagramStore } from '@/store/diagramStore';
 import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
@@ -11,7 +11,6 @@ import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
  * history or auto-save.
  */
 
-const VISIBLE_POLL_MS = 2_000;
 const MAX_BACKOFF_MS = 30_000;
 
 interface ProjectLiveState {
@@ -40,10 +39,10 @@ function isVisible() {
   return typeof document === 'undefined' || document.visibilityState === 'visible';
 }
 
-function schedule(run: () => void) {
+function schedule(run: () => void, baseMs: number) {
   clearTimeout(timer);
   if (!isVisible()) return; // resumed by the visibilitychange listener
-  const delay = Math.min(VISIBLE_POLL_MS * 2 ** failures, MAX_BACKOFF_MS);
+  const delay = Math.min(baseMs * 2 ** failures, MAX_BACKOFF_MS);
   timer = setTimeout(run, delay);
 }
 
@@ -117,7 +116,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
       failures = 0;
       set({
         snapshot,
-        nodeActivity: buildNodeActivity(snapshot.sessions, snapshot.serverTime),
+        nodeActivity: reuseNodeActivity(get().nodeActivity, buildNodeActivity(snapshot.sessions, snapshot.serverTime)),
         error: null,
         ...(snapshot.detail ? { detail: snapshot.detail } : snapshot.detailUpdatedAt === null ? { detail: null } : {}),
       });
@@ -128,7 +127,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
       failures = Math.min(failures + 1, 4);
       set({ error: err instanceof Error ? err.message : 'Live updates unavailable' });
     }
-    if (get().canvasId === canvasId) schedule(() => void get().refresh());
+    if (get().canvasId === canvasId) schedule(() => void get().refresh(), livePollBaseMs(get().snapshot?.sessions ?? []));
   },
 
   setFocusedSession: (sessionKey) => set({ focusedSessionKey: sessionKey }),

@@ -6,6 +6,8 @@ import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
 import { RECENT_EDIT_MS, sessionsForLevel, type LiveAgentSession, type LiveSite } from '@/lib/diagram/projects/liveActivity';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
+import { useDiagramGeometryPlan } from '@/components/canvas/edges/DiagramGeometryProvider';
+import type { DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
 
 /**
  * Agent Atlas: every live coding-agent session is a star on the architecture
@@ -61,6 +63,19 @@ const SITE_COLOR = '#f59e0b';
 
 function overlaps(a: Rect, b: Rect, margin = 16): boolean {
   return a.x < b.x + b.w + margin && b.x < a.x + a.w + margin && a.y < b.y + b.h + margin && b.y < a.y + a.h + margin;
+}
+
+/** Whether an axis-aligned or diagonal segment passes within `margin` of a rect. */
+function segmentHitsRect(p: Point, q: Point, r: Rect, margin = 10): boolean {
+  const x0 = r.x - margin, y0 = r.y - margin, x1 = r.x + r.w + margin, y1 = r.y + r.h + margin;
+  if (Math.max(p.x, q.x) < x0 || Math.min(p.x, q.x) > x1 || Math.max(p.y, q.y) < y0 || Math.min(p.y, q.y) > y1) return false;
+  // Routes are orthogonal; for the rare diagonal, sample along it.
+  if (Math.abs(p.x - q.x) < 0.5 || Math.abs(p.y - q.y) < 0.5) return true;
+  for (let t = 0; t <= 1; t += 0.05) {
+    const x = p.x + (q.x - p.x) * t, y = p.y + (q.y - p.y) * t;
+    if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return true;
+  }
+  return false;
 }
 
 function center(r: Rect): Point {
@@ -151,6 +166,10 @@ export function AgentAtlasLayer() {
   const { isDark } = useCanvasTheme();
   const rfStore = useStoreApi();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Planned edge routes: construction sites are placed clear of them.
+  const plan = useDiagramGeometryPlan();
+  const planRef = useRef<DiagramGeometryPlan | null>(plan);
+  useEffect(() => { planRef.current = plan; }, [plan]);
   const darkRef = useRef(isDark);
   useEffect(() => { darkRef.current = isDark; }, [isDark]);
 
@@ -194,7 +213,13 @@ export function AgentAtlasLayer() {
       const snapshot = live.snapshot;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
-      if (!snapshot || snapshot.sessions.length === 0) { walkers.clear(); return; }
+      if (!snapshot || snapshot.sessions.length === 0) {
+        // Nothing to draw: sleep until the next snapshot instead of redrawing an empty canvas every frame.
+        walkers.clear();
+        cancelAnimationFrame(raf);
+        raf = 0;
+        return;
+      }
       if (snapshot !== snapshotRef) {
         snapshotRef = snapshot;
         clockOffset = snapshot.serverTime - Date.now();
@@ -232,18 +257,42 @@ export function AgentAtlasLayer() {
 
       // Construction sites: beside their anchor component, clear of nodes and each other.
       const siteRects = new Map<string, Rect>();
+      const routes = planRef.current?.routes;
+      const hitsEdge = (rect: Rect) => {
+        if (!routes) return false;
+        for (const route of routes.values()) {
+          const w = route.waypoints;
+          for (let i = 1; i < w.length; i++) if (segmentHitsRect(w[i - 1], w[i], rect)) return true;
+        }
+        return false;
+      };
       const siteRectFor = (site: LiveSite): Rect => {
         const cached = siteRects.get(site.key);
         if (cached) return cached;
         const anchor = site.anchorId ? nodeRect(nodes.get(site.anchorId)) : null;
-        const rect: Rect = anchor
-          ? { x: anchor.x + anchor.w + SITE_GAP, y: anchor.y + (anchor.h - SITE_H) / 2, w: SITE_W, h: SITE_H }
-          : { x: minX, y: maxY + SITE_GAP + 30, w: SITE_W, h: SITE_H };
-        for (let i = 0; i < 12; i++) {
-          const blocked = solidRects.some((r) => overlaps(rect, r)) || [...siteRects.values()].some((r) => overlaps(rect, r));
-          if (!blocked) break;
-          rect.y += SITE_H + 28;
+        // Beside the anchor first, then below (clear of the figure's name tag), left, above.
+        const starts: Rect[] = anchor
+          ? [
+              { x: anchor.x + anchor.w + SITE_GAP, y: anchor.y + (anchor.h - SITE_H) / 2, w: SITE_W, h: SITE_H },
+              { x: anchor.x + (anchor.w - SITE_W) / 2, y: anchor.y + anchor.h + SITE_GAP + 24, w: SITE_W, h: SITE_H },
+              { x: anchor.x - SITE_GAP - SITE_W, y: anchor.y + (anchor.h - SITE_H) / 2, w: SITE_W, h: SITE_H },
+              { x: anchor.x + (anchor.w - SITE_W) / 2, y: anchor.y - SITE_GAP - SITE_H, w: SITE_W, h: SITE_H },
+            ]
+          : [{ x: minX, y: maxY + SITE_GAP + 30, w: SITE_W, h: SITE_H }];
+        const blockedByShapes = (rect: Rect) =>
+          solidRects.some((r) => overlaps(rect, r)) || [...siteRects.values()].some((r) => overlaps(rect, r));
+        let fallback: Rect | null = null;
+        let chosen: Rect | null = null;
+        search: for (const start of starts) {
+          for (let i = 0; i < 6; i++) {
+            const rect = { ...start, y: start.y + i * (SITE_H + 28) };
+            if (blockedByShapes(rect)) continue;
+            fallback ??= rect;
+            if (!hitsEdge(rect)) { chosen = rect; break search; }
+          }
         }
+        // No spot clear of edges: keep it clear of components (the plot is opaque).
+        const rect = chosen ?? fallback ?? starts[0];
         siteRects.set(site.key, rect);
         return rect;
       };
@@ -333,52 +382,52 @@ export function AgentAtlasLayer() {
         const anchorRect = site.anchorId ? nodeRect(nodes.get(site.anchorId)) : null;
         ctx.save();
         if (anchorRect) {
-          const from = toScreen({ x: anchorRect.x + anchorRect.w, y: anchorRect.y + anchorRect.h / 2 });
-          ctx.setLineDash([3, 5]);
+          // A faint tether from the nearest side of the anchor.
+          const ac = center(anchorRect);
+          const sc = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+          const horizontal = Math.abs(sc.x - ac.x) > Math.abs(sc.y - ac.y);
+          const fromFlow = horizontal
+            ? { x: sc.x > ac.x ? anchorRect.x + anchorRect.w : anchorRect.x, y: ac.y }
+            : { x: ac.x, y: sc.y > ac.y ? anchorRect.y + anchorRect.h : anchorRect.y };
+          const toFlow = horizontal
+            ? { x: sc.x > ac.x ? r.x : r.x + r.w, y: sc.y }
+            : { x: sc.x, y: sc.y > ac.y ? r.y : r.y + r.h };
+          const from = toScreen(fromFlow);
+          const to = toScreen(toFlow);
+          ctx.setLineDash([2, 4]);
           ctx.strokeStyle = SITE_COLOR;
-          ctx.globalAlpha = 0.5;
-          ctx.lineWidth = 1.2;
+          ctx.globalAlpha = 0.35;
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(from.x, from.y);
-          ctx.lineTo(a.x, a.y + sh / 2);
+          ctx.lineTo(to.x, to.y);
           ctx.stroke();
         }
+        // Opaque card so edges never show through, with a light amber tint.
         ctx.globalAlpha = 1;
         roundRect(ctx, a.x, a.y, sw, sh, 10 * zoom);
-        ctx.fillStyle = dark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.08)';
+        ctx.fillStyle = dark ? '#16191f' : '#ffffff';
         ctx.fill();
-        // Hatching: "under construction".
-        ctx.save();
-        ctx.clip();
+        ctx.fillStyle = dark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.07)';
+        ctx.fill();
+        ctx.setLineDash([5, 4]);
         ctx.strokeStyle = SITE_COLOR;
-        ctx.globalAlpha = 0.14;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([]);
-        const step = 10 * Math.max(zoom, 0.4);
-        for (let x = a.x - sh; x < a.x + sw; x += step) {
-          ctx.beginPath();
-          ctx.moveTo(x, a.y + sh);
-          ctx.lineTo(x + sh, a.y);
-          ctx.stroke();
-        }
-        ctx.restore();
-        roundRect(ctx, a.x, a.y, sw, sh, 10 * zoom);
-        ctx.setLineDash([6, 5]);
-        ctx.strokeStyle = SITE_COLOR;
-        ctx.globalAlpha = 0.9;
-        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.85;
+        ctx.lineWidth = 1.25;
         ctx.stroke();
         if (zoom >= 0.35) {
           ctx.setLineDash([]);
           ctx.globalAlpha = 1;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+          const maxW = sw - 16 * zoom;
           ctx.fillStyle = SITE_COLOR;
-          ctx.font = `700 ${Math.max(8.5 * zoom, 7)}px ui-sans-serif, system-ui, sans-serif`;
-          ctx.fillText('NEW · NOT ON THE MAP YET', a.x + sw / 2, a.y + sh * 0.32);
+          ctx.font = `700 ${8.5 * zoom}px ui-sans-serif, system-ui, sans-serif`;
+          ctx.fillText('NEW CODE', a.x + sw / 2, a.y + sh * 0.32, maxW);
           ctx.fillStyle = ink;
-          ctx.font = `600 ${Math.max(12 * zoom, 8)}px ui-sans-serif, system-ui, sans-serif`;
-          const label = site.label.length > 22 ? `${site.label.slice(0, 21)}…` : site.label;
+          ctx.font = `600 ${12 * zoom}px ui-sans-serif, system-ui, sans-serif`;
+          let label = site.label;
+          while (label.length > 4 && ctx.measureText(label).width > maxW) label = `${label.slice(0, -2)}…`;
           ctx.fillText(label, a.x + sw / 2, a.y + sh * 0.66);
         }
         ctx.restore();
@@ -577,20 +626,59 @@ export function AgentAtlasLayer() {
         ctx.restore();
       }
     };
-    raf = requestAnimationFrame(frame);
+    const wake = () => {
+      if (raf) return;
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
+    };
+    const unsubscribe = useProjectLiveStore.subscribe((state, prev) => {
+      if (state.snapshot !== prev.snapshot) wake();
+    });
+    wake();
     return () => {
       cancelAnimationFrame(raf);
+      unsubscribe();
       observer.disconnect();
     };
   }, [showLiveActivity, rfStore]);
 
   if (!showLiveActivity) return null;
   return (
-    <canvas
-      ref={canvasRef}
-      className="live-activity-overlay"
-      aria-hidden
-      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 4 }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className="live-activity-overlay"
+        aria-hidden
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 4 }}
+      />
+      <AgentAtlasSummary />
+    </>
+  );
+}
+
+function sessionStateText(s: LiveAgentSession): string {
+  if (s.lastAction === 'waiting') return 'needs your permission';
+  if (s.lastAction === 'done') return 'finished, your turn';
+  return s.status;
+}
+
+/** Screen-reader text for what the canvas figures show. */
+function AgentAtlasSummary() {
+  const sessions = useProjectLiveStore((s) => s.snapshot?.sessions);
+  const rfStore = useStoreApi();
+  const current = (sessions ?? []).filter((s) => s.status !== 'ended');
+  if (current.length === 0) return null;
+  const labelOf = (id: string | null | undefined) => {
+    if (!id) return null;
+    const label = rfStore.getState().nodeInternals.get(id)?.data?.label;
+    return typeof label === 'string' ? label.replace(/<br\s*\/?>/gi, ' ') : null;
+  };
+  return (
+    <ul className="sr-only" aria-label="Agent sessions on the map">
+      {current.map((s) => {
+        const place = labelOf(s.currentComponentId);
+        return <li key={s.sessionKey}>{`${s.name}: ${sessionStateText(s)}${place ? `, at ${place}` : ''}`}</li>;
+      })}
+    </ul>
   );
 }

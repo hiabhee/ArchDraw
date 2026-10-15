@@ -18,6 +18,10 @@ import {
   sessionNameFor,
   type LiveAgentSession,
   sessionsForLevel,
+  reuseNodeActivity,
+  livePollBaseMs,
+  LIVE_POLL_ACTIVE_MS,
+  LIVE_POLL_QUIET_MS,
 } from '../liveActivity';
 
 describe('deriveSessionStatus', () => {
@@ -97,6 +101,36 @@ describe('buildNodeActivity', () => {
     expect(activity.n2.sessions.map((s) => s.sessionKey)).toEqual(['a', 'b']);
     expect(activity.n1.recent).toBe(true);
     expect(activity.n2.recent).toBe(false);
+  });
+
+  it('reuseNodeActivity keeps the previous map when a poll changes nothing', () => {
+    const prev = buildNodeActivity(sessions, now);
+    expect(reuseNodeActivity(prev, buildNodeActivity(sessions, now))).toBe(prev);
+  });
+
+  it('reuseNodeActivity keeps unchanged entries and replaces changed ones', () => {
+    const prev = buildNodeActivity(sessions, now);
+    const moved = sessions.map((s) => (s.sessionKey === 'b' ? { ...s, status: 'active' as const } : s));
+    const next = reuseNodeActivity(prev, buildNodeActivity(moved, now));
+    expect(next).not.toBe(prev);
+    expect(next.n1).toBe(prev.n1);
+    expect(next.n2).not.toBe(prev.n2);
+    expect(next.n2.sessions.map((m) => m.status)).toEqual(['active', 'active']);
+  });
+
+  it('reuseNodeActivity drops nodes no session touches any more', () => {
+    const prev = buildNodeActivity(sessions, now);
+    const next = reuseNodeActivity(prev, buildNodeActivity(sessions.slice(0, 1), now));
+    expect(next).not.toBe(prev);
+    expect(next.n1).toBe(prev.n1);
+  });
+});
+
+describe('livePollBaseMs', () => {
+  it('polls fast while a session is active and slower otherwise', () => {
+    expect(livePollBaseMs([{ status: 'idle' }, { status: 'active' }])).toBe(LIVE_POLL_ACTIVE_MS);
+    expect(livePollBaseMs([{ status: 'idle' }, { status: 'ended' }])).toBe(LIVE_POLL_QUIET_MS);
+    expect(livePollBaseMs([])).toBe(LIVE_POLL_QUIET_MS);
   });
 });
 

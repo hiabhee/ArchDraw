@@ -343,3 +343,43 @@ export function buildNodeActivity(sessions: readonly LiveAgentSession[], now: nu
   }
   return result;
 }
+
+function sameActivity(a: NodeLiveActivity, b: NodeLiveActivity): boolean {
+  if (a.recent !== b.recent || a.sessions.length !== b.sessions.length) return false;
+  if (a.addedBy?.sessionKey !== b.addedBy?.sessionKey || a.addedBy?.label !== b.addedBy?.label || a.addedBy?.color !== b.addedBy?.color) return false;
+  return a.sessions.every((m, i) => {
+    const n = b.sessions[i];
+    return m.sessionKey === n.sessionKey && m.label === n.label && m.color === n.color && m.status === n.status && m.isCurrent === n.isCurrent;
+  });
+}
+
+/**
+ * Keeps the previous entry for every node whose activity did not change (and
+ * the previous map when nothing changed), so nodes subscribed to their own
+ * entry do not re-render on every poll.
+ */
+export function reuseNodeActivity(
+  prev: Record<string, NodeLiveActivity>,
+  next: Record<string, NodeLiveActivity>,
+): Record<string, NodeLiveActivity> {
+  let unchanged = Object.keys(prev).length === Object.keys(next).length;
+  const result: Record<string, NodeLiveActivity> = {};
+  for (const [nodeId, entry] of Object.entries(next)) {
+    const old = prev[nodeId];
+    if (old && sameActivity(old, entry)) {
+      result[nodeId] = old;
+    } else {
+      result[nodeId] = entry;
+      unchanged = false;
+    }
+  }
+  return unchanged ? prev : result;
+}
+
+export const LIVE_POLL_ACTIVE_MS = 2_000;
+export const LIVE_POLL_QUIET_MS = 5_000;
+
+/** Poll fast while a session is working, slower while every session is idle or none exists. */
+export function livePollBaseMs(sessions: readonly { status: AgentSessionStatus }[]): number {
+  return sessions.some((s) => s.status === 'active') ? LIVE_POLL_ACTIVE_MS : LIVE_POLL_QUIET_MS;
+}
