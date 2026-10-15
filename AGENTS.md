@@ -248,6 +248,8 @@ Styles: `components/canvas/nodes/nodeStyles.css` (handles often opacity 0 until 
 - Primary renderer: `components/canvas/edges/SimpleFloatingEdge.tsx`.
 - Path building: `lib/diagram/edges/edgeRouteBuilder.ts` (orthogonal / collision-aware waypoints, handler pair scoring).
 - Labels / toolbar: `EdgeLabel.tsx`, `EdgeToolbar`, edge type data under `data/edgeTypes` (if present).
+- Solid vs dashed carries meaning (call vs async). `DEFAULT_EDGE_OPTIONS.animated` is on, and React Flow's `.animated` CSS dashes every edge, so `SimpleFloatingEdge` writes `stroke-dasharray: none` inline for solid edges — keep it.
+- Focus: selecting nodes (editor) or hovering a component (every host, `lib/diagram/canvas/useHoverFocus.ts`) keeps it, its edges and their other ends bright and dims the rest (`selectionFocus.ts`). View state only; hover is off while a selection or a connection drag is active.
 
 ---
 
@@ -284,9 +286,9 @@ Files:
 
 - There is no ELK path anywhere — the ELK stack was removed from the frontend and `mcp-server`; layout is Dagre-only via `pipeline-shared/layout`. Store presets all route through `layoutDiagramViaMermaid`.
 
-### Landing demo
+### Landing hero
 
-`components/landing/InteractiveLandingDemo.tsx` — hand-authored load-balancer preset + its own dagre arrange (keep spacing generous if editing).
+`components/landing/live/LiveMapHero.tsx` — hero map built in `heroGraph.ts` (hand-written Mermaid through `runMermaidPipeline`) with agent figures scripted by `heroScript.ts`.
 
 ---
 
@@ -361,7 +363,7 @@ UI: `components/editor/RepoDiagramGenerator.tsx`.
 | **Export** | `lib/diagram/export/svgExport.ts`, toolbar actions | PNG/SVG/JSON/Mermaid |
 | **MCP** | `mcp-server/src/tools/*` | generate, update, validate, layout, template, export, checkpoints, list-nodes |
 | **Admin** | `app/admin`, admin-auth | Passcode + rate limits |
-| **Landing demo** | InteractiveLandingDemo | Preset load-balancer playground |
+| **Landing** | `components/landing/live/LiveLanding.tsx` | Live-map landing; hero map in `LiveMapHero.tsx` |
 
 ---
 
@@ -406,7 +408,7 @@ A **live project is a canvas** (`UserCanvas`) linked to coding agents: `UserCanv
 
 - **Mapping:** node `data.codePaths` (repo-relative paths/globs). `lib/diagram/projects/pathMatcher.ts` picks the most specific match (leaf beats group on ties). Set by the agent when it publishes (`componentPaths`); there is no manual editor.
 - **APIs** (`frontend/app/api/projects/[canvasId]/`): `POST`/`DELETE` (owner: make/stop project; stop deletes the agentic project → revokes credentials, clears sessions), `activity` (agent token: session events with file paths only → `AgentSession` rows), `live` (owner: polled snapshot), `diagram` (agent token: `GET` component map, `PUT` Mermaid + `componentPaths` through `runMermaidPipeline`, CAS via `baseUpdatedAt`). Auth helpers: `lib/server/projects/projectCanvas.ts` (agent routes reject browser sessions and require the credential owner to own the canvas).
-- **Editor:** `store/projectLiveStore.ts` polls `live` every 3s while visible and is deliberately separate from `diagramStore` (no undo/autosave writes); it calls `reloadCanvasFromDB` when the server copy is newer and `hasPendingCanvasSave` is false. Overlay: `components/canvas/nodes/LiveActivityBadge.tsx` (editor hosts only; `live-activity-overlay` is filtered from image export). Panel: `components/editor/panels/LiveProjectPanel.tsx` (toolbar radio button / `open-live-project` event).
+- **Editor:** `store/projectLiveStore.ts` polls `live` while visible (2 s while a session is active, 5 s when all are idle — `livePollBaseMs`; the watch page uses the same rate) and is deliberately separate from `diagramStore` (no undo/autosave writes); it calls `reloadCanvasFromDB` when the server copy is newer and `hasPendingCanvasSave` is false. Overlay: `components/canvas/nodes/LiveActivityBadge.tsx` (editor hosts only; `live-activity-overlay` is filtered from image export). Panel: `components/editor/panels/LiveProjectPanel.tsx` (toolbar radio button / `open-live-project` event).
 - **Structure updates:** `PUT …/diagram` merges by default (`lib/diagram/projects/publishGraph.ts` → `lib/diagram/mermaid/mergePreservingLayout.ts`, the same merge the Mermaid code panel uses): existing components keep positions/sizes/data incl. `codePaths`, new leaves are placed off existing ones, removed ones drop, group bounds are recomputed; `relayout: true` (or an empty canvas) takes the fresh Dagre layout. The write is CAS'd on the `updatedAt` it merged from. `structureDiff.ts` computes added/removed/renamed; with `sessionKey` it is stored as `AgentSession.lastChange` and shown as a "New" ring/badge (2 min) plus a per-session summary. `GET …/diagram?format=mermaid` returns the current Mermaid + componentPaths for edit-and-republish.
 - **Agent side:** `archdraw-mcp-server link|unlink|status` (`mcp-server/src/cli/project-link.ts`) pairs a checkout and writes `~/.archdraw/projects.json` (0600, `version: 1`, format owned by `mcp-server/src/lib/project-binding.ts`). The plugin's Claude Code hooks (`plugins/archdraw/hooks/hooks.json` → `scripts/archdraw-project.mjs`, zero-dependency, `node --test plugins/archdraw/scripts/*.test.mjs`) no-op unless linked, resolve worktrees to the main repo's link, send paths only (activity reports go out from a detached `send` process so a slow server neither blocks the agent nor drops the report), and inject the `map`/`publish`/`intent` commands at SessionStart so the token never enters model context.
 - **Agent Atlas (figures):** `components/canvas/AgentAtlasLayer.tsx` draws every live session as a figure on one `<canvas>` over React Flow (editor and watch page; per-frame from refs, no React renders; never exported). Figures stand under their current component, walk along diagram edges (BFS) when it changes, emit code glyphs into a node while editing / out of it while reading, raise a flag for `waiting` (permission) or `done` (your turn), and wait in an Arrivals column until located; an `aim` (task matched to a component) shows a hollow figure and dashed line. Driven by `AgentSession.lastAction`/`lastActionAt`/`aimComponentId` (migration `20261013120000_agent_session_actions`) from hook events `read` (Read/Grep/Glob, throttled 1.5 s), `aim` (UserPromptSubmit matched locally to component names; the prompt never leaves the machine), `wait` (Notification) and `stop`. Session colours are made distinct per snapshot (`assignDistinctColors`). **Names and attention:** each session gets a distinct short name (`AgentSession.name`, `sessionNameFor`/`pickSessionName`, returned by `POST …/activity`); the hook shows it at SessionStart (`systemMessage`, `sessionTitle`) and keeps the terminal title in step via Claude Code's `terminalSequence` (`● Otter needs you` / `✓ Otter · your turn`; `idle_prompt` notifications are not permission requests and send nothing). `components/canvas/NeedsYouQueue.tsx` (editor + watch page) lists sessions needing the user via `attentionQueue` (permission first, longest waiting first) with optional browser notifications. **Construction sites:** an edit of source code no component owns sets `AgentSession.siteArea` (outermost uncovered folder, `lib/diagram/projects/constructionSite.ts`) and `siteAnchorId` (component with the nearest code); the atlas draws a dashed plot beside the anchor and the star works there; a mapped edit clears it and a published diagram that covers it settles it onto the new component (`PUT …/diagram`). Watchers get the site without its path. **Coverage:** `mappedHits`/`unmappedHits` count edited source files on/off the map; `mapCoverage` shows "map covers N%" in the panel and watch header. Columns from migration `20261014090000_agent_session_names_sites`. A node an agent just added renders under construction (`.live-construction`). Demo/QA driver: `node frontend/scripts/demo-live-agents.mjs --agents 6 [--api URL]` (uses the local link).
@@ -463,7 +465,7 @@ When changing sizing, update `lib/diagram/nodes/__tests__/nodeSizing.test.ts`.
 | Repo quality | `lib/repo-diagram/*`, `lib/repo-diagram/agents/*` |
 | Persist / tabs | `diagramStore.ts`, `lib/server/db.ts` |
 | Auth | `lib/server/auth.ts`, `components/providers/AuthProvider.tsx` |
-| Landing demo spacing | `InteractiveLandingDemo.tsx` |
+| Landing hero map | `components/landing/live/LiveMapHero.tsx`, `heroGraph.ts` |
 
 ---
 

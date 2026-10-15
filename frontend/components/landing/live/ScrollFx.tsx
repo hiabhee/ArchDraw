@@ -118,7 +118,7 @@ export function WordRise({ text, className, italic }: { text: string; className?
   const ref = useRef<HTMLSpanElement>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.95', 'start 0.55'] });
-  const words = text.split(' ');
+  const words = text.split(' ').filter(Boolean);
   const all = italic ? [...words.map((w) => ({ w, em: false })), ...italic.split(' ').map((w) => ({ w, em: true }))] : words.map((w) => ({ w, em: false }));
   return (
     <span ref={ref} className={className}>
