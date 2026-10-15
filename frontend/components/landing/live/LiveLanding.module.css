@@ -53,6 +53,8 @@
 .sectionHead { max-width: 760px; margin-bottom: 56px; }
 
 /* Sky: a faint star field and chart rings behind the hero and final call. */
+.skyLayer { position: absolute; z-index: -1; inset: 0; pointer-events: none; }
+.shelfLayer { position: absolute; z-index: 0; inset: 0 0 auto; height: 0; }
 .sky {
   position: absolute;
   z-index: -1;
@@ -87,10 +89,15 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr);
+  grid-template-rows: 1fr auto;
   align-items: end;
   gap: 24px 56px;
 }
-.eyebrow { grid-column: 1 / -1; margin-bottom: 4px; color: var(--ink-soft); }
+/* The eyebrow sits right above the headline; the taller aside spans both rows,
+   so the headline no longer sinks below an empty band. */
+.eyebrow { grid-column: 1; grid-row: 1; margin-bottom: 4px; color: var(--ink-soft); }
+.heroTitle { grid-column: 1; grid-row: 2; }
+.heroAside { grid-column: 2; grid-row: 1 / span 2; }
 .liveDot { width: 7px; height: 7px; border-radius: 50%; background: #5fe0a8; box-shadow: 0 0 12px #5fe0a8; animation: blink 1.8s ease-in-out infinite; }
 .heroTitle { font-size: clamp(3.2rem, 6.3vw, 6.4rem); line-height: .96; }
 .heroTitle em { display: block; color: var(--attention); font-style: italic; }
@@ -150,9 +157,12 @@
 .heroAside { position: relative; z-index: 1; display: grid; gap: 22px; padding-bottom: 10px; }
 .heroLead { margin: 0; color: var(--ink-soft); font-size: 17px; line-height: 1.6; text-wrap: pretty; }
 .ctaRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
-.ghostLink { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: 14px; font-weight: 500; transition: color 150ms ease; }
-.ghostLink:hover { color: var(--ink); }
 .fineprint { margin: 0; color: var(--ld-muted); font-size: 13px; line-height: 1.55; }
+.fineprintLink { color: var(--ink-soft); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; white-space: nowrap; transition: color 150ms ease; }
+.fineprintLink:hover { color: var(--ink); }
+/* The headline fills the first screen; the live map below it reveals on scroll. */
+/* Centred in the screen below the fixed 56px nav (cancels the hero's 132px top padding). */
+.heroFold { margin-top: -76px; min-height: calc(100vh - 56px); min-height: calc(100svh - 56px); display: flex; flex-direction: column; justify-content: center; }
 .heroStage { position: relative; width: min(1440px, calc(100% - 48px)); margin: 92px auto 0; }
 .heroStage > :not(:first-child) { position: relative; z-index: 1; }
 
@@ -206,49 +216,10 @@
 .problem { padding: 150px 0 120px; }
 .split { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 40px 72px; align-items: start; }
 .problemBody { display: grid; gap: 34px; padding-top: 6px; }
-.tabsCompare { display: grid; gap: 22px; }
-.tabsLabel { margin: 0 0 9px; color: var(--ld-muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
-.tabStrip {
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 5px 5px 0;
-  background: #0a0b0d;
-}
-.tab {
-  display: inline-flex;
-  flex: 1 1 0;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: 7px 7px 0 0;
-  padding: 9px 10px 10px;
-  color: var(--ld-muted);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tab[data-tone='hidden'] { position: relative; color: var(--ld-muted); }
-.tab[data-tone='hidden']::after { position: absolute; top: 7px; right: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--attention); opacity: .35; content: ''; }
-.tab[data-tone='attention'] { flex: 0 0 auto; border-color: rgba(245, 165, 36, .35); background: rgba(245, 165, 36, .1); color: var(--ink); }
-.tab[data-tone='done'] { flex: 0 0 auto; color: var(--ink); }
-.tabDot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--attention); box-shadow: 0 0 10px var(--attention); animation: blink 1.4s ease-in-out infinite; }
 
 /* How it works */
 .how { padding: 120px 0; border-top: 1px solid var(--line); }
 .howGrid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 56px; align-items: start; }
-.steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.step { display: grid; grid-template-columns: 56px 1fr; gap: 18px; padding: 26px 0; border-top: 1px solid var(--line); }
-.steps > :last-child .step { border-bottom: 1px solid var(--line); }
-.stepN { color: var(--attention); font-family: var(--font-display); font-size: 30px; font-style: italic; line-height: 1; }
-.step h3 { margin: 0 0 8px; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
-.step p { margin: 0; color: var(--ld-muted); font-size: 15px; line-height: 1.6; }
 
 .terminal {
   position: sticky;
@@ -365,6 +336,8 @@
 
 @media (max-width: 1024px) {
   .heroTop, .split, .howGrid { grid-template-columns: minmax(0, 1fr); }
+  .heroTop { grid-template-rows: none; }
+  .eyebrow, .heroTitle, .heroAside { grid-column: auto; grid-row: auto; }
   .heroAside { padding-top: 34px; }
   .terminal { position: relative; top: 0; }
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -378,16 +351,16 @@
   .heroTitle { font-size: clamp(2.3rem, 11.2vw, 3.2rem); }
   .heroStage { width: calc(100% - 16px); margin-top: 44px; }
   .hero { padding-top: 104px; }
+  .heroFold { margin-top: 0; min-height: 0; }
   .problem, .how, .features, .privacy, .who, .faq { padding: 84px 0; }
   .final { padding: 110px 0; }
   .bento { grid-template-columns: minmax(0, 1fr); }
   .cellWide { grid-column: span 1; }
-  .tab:nth-child(n + 4) { display: none; }
   .lead { font-size: 17px; }
   .command[data-size='lg'] { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tLine { opacity: 1; transform: none; }
-  .terminal[data-play] .tLine, .liveDot, .tabDot, .wirePath { animation: none; }
+  .terminal[data-play] .tLine, .liveDot, .wirePath { animation: none; }
   .card:hover { transform: none; }
 }

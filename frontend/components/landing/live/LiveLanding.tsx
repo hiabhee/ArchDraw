@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
-import { ArrowDown } from 'lucide-react';
 import { LandingBootstrap } from '@/components/landing/LandingBootstrap';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { LandingReveal } from '@/components/landing/LandingReveal';
@@ -11,6 +10,7 @@ import { CopyCommand } from './CopyCommand';
 import { HeadlineWire } from './HeadlineWire';
 import { HeroSouvenirs } from './HeroSouvenirs';
 import { PlayOnView } from './PlayOnView';
+import { MorphingTabs, Parallax, ScrollProgress, ScrollSteps, ScrollTilt, WordRise } from './ScrollFx';
 import {
   AimVignette, ConstructionVignette, CoverageVignette, LevelsVignette, NeedsYouVignette, WatchLinkVignette,
 } from './Vignettes';
@@ -138,31 +138,18 @@ const FAQ_JSON_LD = {
   ],
 };
 
-function TabStrip({ tabs, label }: { tabs: { title: string; tone?: 'attention' | 'done' | 'plain' | 'hidden'; color?: string }[]; label: string }) {
-  return (
-    <div className={styles.tabStrip} aria-label={label}>
-      {tabs.map((tab, i) => (
-        <span key={i} className={styles.tab} data-tone={tab.tone ?? 'plain'}>
-          {tab.tone === 'attention' && <i className={styles.tabDot} />}
-          {tab.tone === 'done' && <b style={{ color: tab.color }}>✓</b>}
-          {tab.title}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 export default async function LiveLanding() {
   const heroGraphs = await buildHeroGraphs();
   return (
     <div className={`${styles.landing} ${display.variable} ${body.variable} ${mono.variable}`}>
       <LandingNav tone="dark" />
+      <ScrollProgress />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }} />
       <main>
         {/* ── Hero ─────────────────────────────────────────── */}
         <section id="start" className={styles.hero} aria-labelledby="hero-title">
-          <div className={styles.sky} aria-hidden="true" />
-          <div className={styles.shell}>
+          <Parallax speed={-90} className={styles.skyLayer}><div className={styles.sky} aria-hidden="true" /></Parallax>
+          <div className={`${styles.shell} ${styles.heroFold}`}>
             <LandingReveal className={styles.heroTop} distance={18}>
               <p className={styles.eyebrow}><span className={styles.liveDot} /> Live maps for Claude Code · free, no account</p>
               <h1 id="hero-title" className={styles.heroTitle}>
@@ -181,21 +168,22 @@ export default async function LiveLanding() {
               </h1>
               <div className={styles.heroAside}>
                 <p className={styles.heroLead}>
-                  ArchDraw draws a live map of your codebase and puts every Claude Code session on it: where each one is working,
-                  what it&apos;s changing, and who has been waiting on you.
+                  A live map of your codebase with every Claude Code session on it.
                 </p>
                 <div className={styles.ctaRow}>
                   <span data-wire-to><CopyCommand size="lg" track="landing_copy_hero" /></span>
-                  <a href="#how" className={styles.ghostLink} data-track="landing_how">How it works <ArrowDown size={14} aria-hidden="true" /></a>
                 </div>
-                <p className={styles.fineprint}>Run it in your repo. Works on private code: only names and paths leave your machine.</p>
+                <p className={styles.fineprint}>
+                  Only file names and paths leave your machine.<br />
+                  Or <Link href="/editor" className={styles.fineprintLink} data-track="landing_hero_editor">draw a diagram in the browser →</Link>
+                </p>
               </div>
               <HeadlineWire />
             </LandingReveal>
           </div>
-          <LandingReveal className={styles.heroStage} delay={0.1} distance={24}>
-            <HeroSouvenirs />
-            <LiveMapHero graphs={heroGraphs} />
+          <LandingReveal className={styles.heroStage} amount={0.02} duration={0.4} blur={false} distance={24}>
+            <Parallax speed={36} className={styles.shelfLayer}><HeroSouvenirs /></Parallax>
+            <ScrollTilt><LiveMapHero graphs={heroGraphs} /></ScrollTilt>
             <ul className={styles.legend} aria-label="How to read the map">
               <li><span className={styles.lgStar} /> working</li>
               <li><span className={styles.lgHollow} /> heading there</li>
@@ -218,26 +206,16 @@ export default async function LiveLanding() {
                 You started six sessions to go faster. Then you spent the afternoon cycling through tabs, looking for the one
                 that has been waiting eleven minutes for a yes.
               </p>
-              <div className={styles.tabsCompare}>
-                <div>
-                  <p className={styles.tabsLabel}>Your terminal today</p>
-                  <TabStrip
-                    label="Six terminal tabs, all titled claude"
-                    tabs={[{ title: 'claude' }, { title: 'claude' }, { title: 'claude', tone: 'hidden' }, { title: 'claude' }, { title: 'claude' }, { title: 'claude' }]}
-                  />
-                </div>
-                <div>
-                  <p className={styles.tabsLabel}>With ArchDraw</p>
-                  <TabStrip
-                    label="Terminal tabs named after each session"
-                    tabs={[
-                      { title: 'Otter needs you', tone: 'attention' },
-                      { title: 'Fox · your turn', tone: 'done', color: '#ff8fc8' },
-                      { title: 'Owl' }, { title: 'Lynx' }, { title: 'Heron' }, { title: 'Gecko' },
-                    ]}
-                  />
-                </div>
-              </div>
+              <MorphingTabs
+                tabs={[
+                  { before: 'claude', after: 'Otter needs you', tone: 'attention' },
+                  { before: 'claude', after: 'Fox · your turn', tone: 'done', color: '#ec4899' },
+                  { before: 'claude', after: 'Owl' },
+                  { before: 'claude', after: 'Lynx' },
+                  { before: 'claude', after: 'Heron' },
+                  { before: 'claude', after: 'Gecko' },
+                ]}
+              />
               <p className={styles.note}>Every session gets a name, a star on the map and a terminal title that tells you when it’s blocked.</p>
             </div>
           </LandingReveal>
@@ -251,19 +229,7 @@ export default async function LiveLanding() {
               <h2 id="how-title" className={styles.h2}>Three minutes to <em>a live map.</em></h2>
             </LandingReveal>
             <div className={styles.howGrid}>
-              <ol className={styles.steps}>
-                {STEPS.map((step) => (
-                  <LandingReveal key={step.n}>
-                    <li className={styles.step}>
-                      <span className={styles.stepN}>{step.n}</span>
-                      <div>
-                        <h3>{step.title}</h3>
-                        <p>{step.body}</p>
-                      </div>
-                    </li>
-                  </LandingReveal>
-                ))}
-              </ol>
+              <ScrollSteps steps={STEPS} />
               <PlayOnView className={styles.terminal}>
                 <div className={styles.terminalBar} aria-hidden="true"><i /><i /><i /><span>zsh — acme-shop</span></div>
                 <pre className={styles.terminalBody} aria-label="Example output of npx archdraw-live">
@@ -389,14 +355,14 @@ export default async function LiveLanding() {
 
         {/* ── Final call ───────────────────────────────────── */}
         <section className={styles.final} aria-labelledby="final-title">
-          <div className={styles.sky} aria-hidden="true" />
-          <LandingReveal className={`${styles.shell} ${styles.finalInner}`}>
-            <h2 id="final-title" className={styles.finalTitle}>Open the map.<br /><em>Then start the agents.</em></h2>
+          <Parallax speed={-70} className={styles.skyLayer}><div className={styles.sky} aria-hidden="true" /></Parallax>
+          <div className={`${styles.shell} ${styles.finalInner}`}>
+            <h2 id="final-title" className={styles.finalTitle}><WordRise text="Open the map." /><br /><WordRise text="" italic="Then start the agents." /></h2>
             <CopyCommand size="lg" track="landing_copy_final" />
             <p className={styles.fineprint}>
               Free. No account to start. Needs Node 18 or later and Claude Code.
             </p>
-          </LandingReveal>
+          </div>
         </section>
       </main>
       <Footer tone="dark" />
