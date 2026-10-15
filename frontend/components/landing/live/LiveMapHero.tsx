@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import ReactFlow, { Background, BackgroundVariant, ReactFlowProvider, getRectOfNodes, useReactFlow, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
+import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
@@ -10,7 +12,7 @@ import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
 import { MapLevelToggle } from '@/components/canvas/MapLevelToggle';
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
-import { buildNodeActivity, mapCoverage, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { buildNodeActivity, mapCoverage, reuseNodeActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
 import { assignEdgeColors } from '@/lib/theme/edgeColors';
 import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
@@ -52,7 +54,7 @@ function useScriptedSessions(graphs: HeroGraphs, root: React.RefObject<HTMLDivEl
       const sessions = sessionsAt(t, now, graphs.change);
       useProjectLiveStore.setState({
         level: 'overview',
-        nodeActivity: buildNodeActivity(sessions, now),
+        nodeActivity: reuseNodeActivity(useProjectLiveStore.getState().nodeActivity, buildNodeActivity(sessions, now)),
         snapshot: {
           canvasId: 'landing-hero',
           canvasName: 'acme-shop',
@@ -122,6 +124,7 @@ function HeroCanvas({ graphs }: { graphs: HeroGraphs }) {
     planKey: `landing:${mapped ? 'mapped' : 'base'}`,
   }), [nodes, edges, mapped]);
   const labels = useMemo(() => new Map(nodes.map((n) => [n.id, String((n.data as { label?: unknown })?.label ?? n.id)])), [nodes]);
+  const hoverFocus = useHoverFocus(nodes, edges);
   const coverage = mapCoverage(sessions);
   const active = sessions.filter((s) => s.status !== 'ended');
 
@@ -157,7 +160,8 @@ function HeroCanvas({ graphs }: { graphs: HeroGraphs }) {
         </span>
       </header>
       <div className={styles.scroll}>
-      <div className={styles.canvas} data-hero-canvas>
+      <div className={`${styles.canvas}${hoverFocus.css ? ` ${SELECTION_FOCUS_CLASS}` : ''}`} data-hero-canvas>
+        {hoverFocus.css && <style>{hoverFocus.css}</style>}
         <CanvasHostProvider value={host}>
           <DiagramGeometryProvider nodes={nodes} edges={edges}>
             <ReactFlow
@@ -165,6 +169,8 @@ function HeroCanvas({ graphs }: { graphs: HeroGraphs }) {
               edges={edges}
               nodeTypes={NODE_TYPES}
               edgeTypes={EDGE_TYPES}
+              onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
+              onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
               nodesDraggable={false}
               nodesConnectable={false}
               elementsSelectable={false}

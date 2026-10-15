@@ -12,6 +12,8 @@ import ReactFlow, {
   type Node,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
+import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
 import { useRouter } from 'next/navigation';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
 import { assignEdgeColors } from '@/lib/theme/edgeColors';
@@ -20,7 +22,7 @@ import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeomet
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme/appTheme';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
-import { buildNodeActivity, mapCoverage, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { buildNodeActivity, livePollBaseMs, mapCoverage, reuseNodeActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
 import { DetailMapEmpty, MapLevelToggle } from '@/components/canvas/MapLevelToggle';
@@ -35,7 +37,6 @@ import '@/components/canvas/nodes/nodeStyles.css';
  * editor's diagram store.
  */
 
-const POLL_MS = 2_000;
 const NO_NODES: Node[] = [];
 const NO_EDGES: Edge[] = [];
 const MAX_BACKOFF_MS = 30_000;
@@ -209,7 +210,7 @@ function Viewer({ token }: { token: string }) {
     setServerTime(body.serverTime);
     // Badges and figures read the shared live store; this page has no editor using it.
     useProjectLiveStore.setState({
-      nodeActivity: buildNodeActivity(body.sessions, body.serverTime),
+      nodeActivity: reuseNodeActivity(useProjectLiveStore.getState().nodeActivity, buildNodeActivity(body.sessions, body.serverTime)),
       snapshot: {
         canvasId: token,
         canvasName: body.canvasName,
@@ -252,7 +253,8 @@ function Viewer({ token }: { token: string }) {
         failures = Math.min(failures + 1, 4);
         setError(err instanceof Error ? err.message : 'Live updates paused. Retrying…');
       }
-      timer = setTimeout(run, Math.min(POLL_MS * 2 ** failures, MAX_BACKOFF_MS));
+      const baseMs = livePollBaseMs(useProjectLiveStore.getState().snapshot?.sessions ?? []);
+      timer = setTimeout(run, Math.min(baseMs * 2 ** failures, MAX_BACKOFF_MS));
     };
     const onVisible = () => {
       if (document.visibilityState === 'visible') { clearTimeout(timer); void run(); }
@@ -276,6 +278,7 @@ function Viewer({ token }: { token: string }) {
   const shown = level === 'detail' ? detail : graph;
   const edges = useMemo(() => assignEdgeColors(shown?.edges ?? NO_EDGES, isDark), [shown, isDark]);
   const nodes = shown?.nodes ?? NO_NODES;
+  const hoverFocus = useHoverFocus(nodes, edges);
   const labels = useMemo(() => new Map(nodes.map((n) => [n.id, String((n.data as { label?: unknown })?.label ?? n.id)])), [nodes]);
   const host = useMemo<CanvasHost>(() => ({
     readOnly: true,
@@ -405,7 +408,8 @@ function Viewer({ token }: { token: string }) {
       ) : !graph ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading live project…</div>
       ) : (
-        <div key={level} className="h-full w-full pt-12">
+        <div key={level} className={`h-full w-full pt-12${hoverFocus.css ? ` ${SELECTION_FOCUS_CLASS}` : ''}`}>
+          {hoverFocus.css && <style>{hoverFocus.css}</style>}
           <CanvasHostProvider value={host}>
             <DiagramGeometryProvider nodes={nodes} edges={edges}>
               <ReactFlow
@@ -413,6 +417,8 @@ function Viewer({ token }: { token: string }) {
                 edges={edges}
                 nodeTypes={NODE_TYPES}
                 edgeTypes={EDGE_TYPES}
+                onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
+                onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
                 nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={false}
