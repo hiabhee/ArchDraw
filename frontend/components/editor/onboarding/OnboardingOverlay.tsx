@@ -135,24 +135,11 @@ function OnboardingOverlayInner() {
 
   const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
 
-  // All steps allow click-through so users can interact with the real UI
-  // The step card itself still captures its own clicks
+  // All steps allow click-through so users can interact with the real UI.
+  // The step card is the dialog (not modal: the real UI stays usable).
 
   return (
     <>
-      {/* Invisible full-screen layer — just for keyboard capture, always non-blocking */}
-      <div
-        role="dialog"
-        aria-label="Onboarding guide"
-        aria-modal="true"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9998,
-          pointerEvents: 'none',
-        }}
-      />
-
       {/* Spotlight — provides the dark overlay via box-shadow */}
       {step.targetSelector && (
         <SpotlightHighlight
