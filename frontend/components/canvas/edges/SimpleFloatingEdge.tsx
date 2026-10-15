@@ -581,7 +581,9 @@ export default function SimpleFloatingEdge({
         fill="none"
         strokeDasharray={sketch && route.status === 'ok' ? undefined : strokeStyle.strokeDasharray}
         className="react-flow__edge-path"
-        style={sketch && route.status === 'ok' ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : strokeStyle}
+        // Inline `none` for solid edges: React Flow's `.animated` rule would otherwise dash every edge,
+        // hiding the solid (call) vs dashed (async) distinction.
+        style={sketch && route.status === 'ok' ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : { ...strokeStyle, strokeDasharray: strokeStyle.strokeDasharray ?? 'none' }}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}

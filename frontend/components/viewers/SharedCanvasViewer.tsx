@@ -14,6 +14,8 @@ import ReactFlow, {
   type Node,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
+import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
 import { Download, Sun, Moon, MoveHorizontal, MoveVertical, Loader2, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
@@ -221,6 +223,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     () => assignEdgeColors(laidOutEdges ?? edges, isDark),
     [laidOutEdges, edges, isDark],
   );
+  const hoverFocus = useHoverFocus(displayedNodes, displayedEdges);
 
   const canvasHost = useMemo<CanvasHost>(() => ({
     readOnly: true,
@@ -437,7 +440,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
         </div>
       )}
 
-      <div className="w-full h-full pt-12">
+      <div className={`w-full h-full pt-12${hoverFocus.css ? ` ${SELECTION_FOCUS_CLASS}` : ''}`}>
+        {hoverFocus.css && <style>{hoverFocus.css}</style>}
         <CanvasHostProvider value={canvasHost}>
         <DiagramGeometryProvider nodes={nodes} edges={displayedEdges}>
         <ReactFlow
@@ -445,6 +449,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           edges={displayedEdges}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
+          onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
+          onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={true}

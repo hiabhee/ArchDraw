@@ -2,7 +2,7 @@
 
 import ReactFlow, {
   Background, BackgroundVariant,
-  useReactFlow, ReactFlowProvider, useViewport,
+  useReactFlow, ReactFlowProvider, useViewport, useStore,
   SelectionMode, ConnectionLineType,
   ConnectionMode,
   type OnSelectionChangeParams,
@@ -57,6 +57,7 @@ import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
 import { buildHighLevelGraph } from '@/lib/diagram/geometry/highLevelView';
 import { computeSelectionFocus, selectionFocusCss, SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
+import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
 import { CanvasHostProvider, EDITOR_HOST, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 
 // Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
@@ -769,6 +770,11 @@ function CanvasInner() {
     const focus = computeSelectionFocus(selectedNodeIds, nodes, edges);
     return focus ? selectionFocusCss(focus) : null;
   }, [projection, selectedNodeIds, nodes, edges]);
+  // With nothing selected, hovering a component focuses its connections the same way
+  // (off while drawing a connection, so every target stays visible).
+  const isConnecting = useStore((s) => s.connectionNodeId !== null);
+  const hoverFocus = useHoverFocus(visibleNodes, visibleEdges, !selectionFocusStyle && !isConnecting);
+  const focusStyle = selectionFocusStyle ?? hoverFocus.css;
   const wasHighLevel = useRef(false);
   useEffect(() => {
     // Leaving the summary: frame the full diagram again.
@@ -807,7 +813,7 @@ function CanvasInner() {
         !canvasBackground.bgColor && 'bg-[var(--arch-canvas-bg)]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
         isSketch && sketchFontClass,
-        selectionFocusStyle && SELECTION_FOCUS_CLASS,
+        focusStyle && SELECTION_FOCUS_CLASS,
       )}
       data-render-style={diagramRenderStyle}
       data-color-theme={diagramStyleTheme}
@@ -825,7 +831,7 @@ function CanvasInner() {
         } : {}),
       }}
     >
-      {selectionFocusStyle && <style>{selectionFocusStyle}</style>}
+      {focusStyle && <style>{focusStyle}</style>}
       <CanvasHostProvider value={canvasHost}>
       <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
@@ -842,6 +848,8 @@ function CanvasInner() {
         onNodeDrag={projection ? undefined : onNodeDrag}
         onNodeDragStop={detailView ? undefined : highLevel ? onHighLevelDragStop : onNodeDragStop}
         onPaneClick={onPaneClick}
+        onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
+        onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
         onSelectionChange={projection ? undefined : onSelectionChange}
         onNodeContextMenu={projection ? undefined : onNodeContextMenu}
         onPaneContextMenu={projection ? undefined : onPaneContextMenu}
