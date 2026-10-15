@@ -382,6 +382,8 @@ export function Toolbar() {
           <CanvasBackgroundControls />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
+            {/* Live projects keep the bar for the map; the pen stays in More options. */}
+            {!isLiveProject && (
             <Button
               variant="ghost"
               size="icon"
@@ -396,6 +398,7 @@ export function Toolbar() {
             >
               <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
+            )}
 
             <LayoutToggleButton />
 

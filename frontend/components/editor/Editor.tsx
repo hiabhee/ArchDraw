@@ -33,7 +33,6 @@ import { COMPONENT_TYPES } from '@/components/editor/modals/CreateComponentModal
 import type { CreateComponentData, ComponentToEdit } from '@/components/editor/modals/CreateComponentModal';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { CanvasSkeleton } from '@/components/canvas/CanvasSkeleton';
-import { getUserTier } from '@/lib/quotas/userQuotas';
 import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
 const CommandPalette = dynamic(() => import('@/components/editor/CommandPalette').then(m => ({ default: m.CommandPalette })), { ssr: false });
@@ -79,7 +78,6 @@ export default function EditorPage() {
     markPipelineError: state.markPipelineError,
   })));
   const { user } = useAuthStore();
-  const _tier = getUserTier(user?.id);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editComponent, setEditComponent] = useState<ComponentToEdit | null>(null);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
@@ -98,7 +96,6 @@ export default function EditorPage() {
     }
     return null;
   });
-  const [_lastSize, setLastSize] = useState<'small' | 'medium' | 'large'>('medium');
 
   const isSequenceDiagram = !!sequenceDiagrams[activeCanvasId];
   const isMobile = useIsMobile();
@@ -444,7 +441,6 @@ export default function EditorPage() {
     const resolvedDetailLevel = typeof detailLevelOrSize === 'number' ? detailLevelOrSize : detailLevelOrSize === 'small' ? 1 : detailLevelOrSize === 'medium' ? 2 : 3;
     const detailLevel = resolvedDetailLevel;
     const diagramSize = detailLevel === 1 ? 'small' : detailLevel === 2 ? 'medium' : 'large';
-    setLastSize(diagramSize);
 
     const canvasName = isGitHubRepoUrl(description)
       ? `${extractRepoName(description)} Architecture`
