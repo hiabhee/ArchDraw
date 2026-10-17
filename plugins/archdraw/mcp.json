@@ -6,7 +6,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@hiabhee/archdraw-mcp-server@1.0.5"
+        "@hiabhee/archdraw-mcp-server@1.0.6"
       ],
       "env": {
         "API_BASE_URL": "https://archdraw.hiabhee.online"

@@ -103,7 +103,7 @@ claude mcp add --scope user --transport http archdraw https://archdraw.hiabhee.o
 The local stdio package requires API_BASE_URL (there is no default; without it, diagram generation and layout fail):
 
 \`\`\`sh
-codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.5
+codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.6
 \`\`\`
 
 Install the reusable diagram skill:
@@ -121,7 +121,7 @@ The local MCP process runs over stdio JSON-RPC. Diagram generation and layout re
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.5"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.6"],
       "env": { "API_BASE_URL": "https://archdraw.hiabhee.online" }
     }
   }
