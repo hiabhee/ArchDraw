@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './LiveLanding.module.css';
 
-interface Wire { d: string; label: { x: number; y: number }; end: { x: number; y: number } }
+interface Wire { d: string; label: { x: number; y: number } | null; end: { x: number; y: number } }
+
+const PILL_W = 72;
+const PILL_CLEARANCE = 16;
 
 /**
  * An orthogonal canvas edge from the selected headline's right handle to the
@@ -25,9 +28,9 @@ export function HeadlineWire() {
       const box = host.getBoundingClientRect();
       const a = from.getBoundingClientRect();
       const b = to.getBoundingClientRect();
-      const fx = a.right - box.left + 10;
+      const fx = a.right - box.left + 18;
       const fy = a.top + a.height / 2 - box.top;
-      const tx = b.left - box.left - 4;
+      const tx = b.left - box.left - 10;
       const ty = b.top + b.height / 2 - box.top;
       if (tx - fx < 40) return setWire(null);
       const mx = Math.round(fx + (tx - fx) / 2);
@@ -35,7 +38,8 @@ export function HeadlineWire() {
       const dir = ty < fy ? -1 : 1;
       setWire({
         d: `M${fx},${fy} H${mx - r} Q${mx},${fy} ${mx},${fy + dir * r} V${ty - dir * r} Q${mx},${ty} ${mx + r},${ty} H${tx}`,
-        label: { x: mx, y: (fy + ty) / 2 },
+        // The pill needs clear space on both sides of the vertical leg.
+        label: tx - fx >= PILL_W + 2 * PILL_CLEARANCE ? { x: mx, y: (fy + ty) / 2 } : null,
         end: { x: tx, y: ty },
       });
     };
@@ -52,10 +56,12 @@ export function HeadlineWire() {
         <>
           <path d={wire.d} className={styles.wirePath} />
           <path d={`M${wire.end.x - 8},${wire.end.y - 4.5} L${wire.end.x},${wire.end.y} L${wire.end.x - 8},${wire.end.y + 4.5} Z`} className={styles.wireHead} />
-          <g transform={`translate(${wire.label.x},${wire.label.y})`}>
-            <rect x={-36} y={-10} width={72} height={20} rx={10} className={styles.wirePill} />
-            <text y={4} textAnchor="middle" className={styles.wireLabel}>find out</text>
-          </g>
+          {wire.label && (
+            <g transform={`translate(${wire.label.x},${wire.label.y})`}>
+              <rect x={-PILL_W / 2} y={-10} width={PILL_W} height={20} rx={10} className={styles.wirePill} />
+              <text y={4} textAnchor="middle" className={styles.wireLabel}>find out</text>
+            </g>
+          )}
         </>
       )}
     </svg>
