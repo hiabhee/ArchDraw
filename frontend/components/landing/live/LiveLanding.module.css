@@ -91,7 +91,8 @@
   grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr);
   grid-template-rows: 1fr auto;
   align-items: end;
-  gap: 24px 56px;
+  /* Wide column gap: room for the "find out" wire between headline and command. */
+  gap: 24px 104px;
 }
 /* The eyebrow sits right above the headline; the taller aside spans both rows,
    so the headline no longer sinks below an empty band. */
@@ -99,7 +100,7 @@
 .heroTitle { grid-column: 1; grid-row: 2; }
 .heroAside { grid-column: 2; grid-row: 1 / span 2; }
 .liveDot { width: 7px; height: 7px; border-radius: 50%; background: #5fe0a8; box-shadow: 0 0 12px #5fe0a8; animation: blink 1.8s ease-in-out infinite; }
-.heroTitle { font-size: clamp(3.2rem, 6.3vw, 6.4rem); line-height: .96; }
+.heroTitle { font-size: clamp(3.2rem, 5.8vw, 5.8rem); line-height: .96; }
 .heroTitle em { display: block; color: var(--attention); font-style: italic; }
 /* The question as a selected canvas node: hairline frame, corner handles, a tag. */
 .selected { position: relative; display: inline-block; padding: 0 .12em .04em .04em; white-space: nowrap; }
