@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   findUnique: vi.fn(),
   sessionUpsert: vi.fn(),
   detailUpsert: vi.fn(async () => ({ updatedAt: new Date(3000) })),
+  historyCreateMany: vi.fn(async () => ({ count: 0 })),
 }));
 vi.mock('@/lib/server/projects/projectCanvas', () => ({
   authorizeAgentForCanvas: m.authorize,
@@ -21,6 +22,7 @@ vi.mock('@/lib/server/prisma', () => ({
     userCanvas: { updateMany: m.updateMany, findUnique: m.findUnique },
     agentSession: { upsert: m.sessionUpsert, findMany: m.sessionFindMany, update: m.sessionUpdate },
     projectDetailMap: { upsert: m.detailUpsert },
+    componentActivity: { createMany: m.historyCreateMany },
   },
 }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
@@ -171,6 +173,9 @@ describe('/api/projects/[canvasId]/diagram', () => {
     const upsert = m.sessionUpsert.mock.calls[0][0];
     expect(upsert.where.canvasId_sessionKey).toEqual({ canvasId: 'c1', sessionKey: 'sess' });
     expect(upsert.update.lastChange.added).toEqual([{ id: 'queue', label: 'Queue' }]);
+    // The component's history starts with the session that added it.
+    const [history] = m.historyCreateMany.mock.calls[0] as unknown as [{ data: Array<Record<string, unknown>> }];
+    expect(history.data).toEqual([expect.objectContaining({ canvasId: 'c1', componentId: 'queue', sessionKey: 'sess', kind: 'added' })]);
   });
 
   it('does not record a session change when nothing structural changed', async () => {

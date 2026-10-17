@@ -27,6 +27,7 @@ import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
 import { DetailMapEmpty, MapLevelToggle } from '@/components/canvas/MapLevelToggle';
 import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
+import { ComponentHistoryCard } from '@/components/canvas/ComponentHistoryCard';
 import { SignInButtons } from '@/components/auth/SignInButtons';
 import { useAuthStore } from '@/store/authStore';
 import '@/components/canvas/nodes/nodeStyles.css';
@@ -269,11 +270,14 @@ function Viewer({ token }: { token: string }) {
   }, [poll]);
   // Every visit starts on the overview; the shared live store is cleared on leave.
   useEffect(() => {
-    useProjectLiveStore.setState({ level: 'overview' });
+    useProjectLiveStore.setState({ level: 'overview', historyComponentId: null });
     return () => {
-      useProjectLiveStore.setState({ nodeActivity: {}, snapshot: null, focusedSessionKey: null, level: 'overview' });
+      useProjectLiveStore.setState({ nodeActivity: {}, snapshot: null, focusedSessionKey: null, level: 'overview', historyComponentId: null });
     };
   }, []);
+
+  const openNodeHistory = useCallback((_event: React.MouseEvent, node: Node) => useProjectLiveStore.getState().openHistory(node.id), []);
+  const closeHistory = useCallback(() => useProjectLiveStore.getState().openHistory(null), []);
 
   const shown = level === 'detail' ? detail : graph;
   const edges = useMemo(() => assignEdgeColors(shown?.edges ?? NO_EDGES, isDark), [shown, isDark]);
@@ -419,6 +423,8 @@ function Viewer({ token }: { token: string }) {
                 edgeTypes={EDGE_TYPES}
                 onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
                 onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
+                onNodeClick={openNodeHistory}
+                onPaneClick={closeHistory}
                 nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={false}
@@ -447,6 +453,7 @@ function Viewer({ token }: { token: string }) {
                 <SVGEdgeMarkerDefs />
                 <AgentAtlasLayer />
                 <NeedsYouQueue className="!top-3" />
+                <ComponentHistoryCard historyUrl={`/api/live/${encodeURIComponent(token)}/history`} />
               </ReactFlow>
             </DiagramGeometryProvider>
           </CanvasHostProvider>

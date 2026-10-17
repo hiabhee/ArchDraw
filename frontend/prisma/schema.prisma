@@ -228,6 +228,7 @@ model UserCanvas {
   agenticProject   AgenticProject? @relation(fields: [agenticProjectId], references: [id], onDelete: SetNull)
   agentSessions    AgentSession[]
   detailMap        ProjectDetailMap?
+  componentHistory ComponentActivity[]
 
   @@index([userId])
   @@map("user_canvases")
@@ -244,6 +245,34 @@ model ProjectDetailMap {
   canvas    UserCanvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
 
   @@map("project_detail_maps")
+}
+
+/// History of a live project's components: one row per work bout (a session's
+/// run of edits on one component) or per component a session added. Kept
+/// longer than sessions so a component's history outlives them.
+model ComponentActivity {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  canvasId          String   @map("canvas_id")
+  componentId       String   @map("component_id")
+  /// Part of the detailed map the files belong to, when one is drawn.
+  detailComponentId String?  @map("detail_component_id")
+  sessionKey        String   @map("session_key")
+  sessionName       String?  @map("session_name")
+  /// edit | added
+  kind              String
+  /// What the session said it was doing (`intent`), if it said.
+  intent            String?
+  /// Repository-relative paths edited in this bout (most recent last, capped).
+  files             Json     @default("[]")
+  edits             Int      @default(0)
+  startedAt         DateTime @default(now()) @map("started_at")
+  lastAt            DateTime @default(now()) @map("last_at")
+
+  canvas UserCanvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+
+  @@index([canvasId, componentId, lastAt(sort: Desc)])
+  @@index([canvasId, sessionKey, lastAt(sort: Desc)])
+  @@map("component_activity")
 }
 
 /// One coding-agent session (e.g. a Claude Code session) reporting activity on a project canvas.

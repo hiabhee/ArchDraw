@@ -15,6 +15,7 @@ import { createComponentMatcher, getCodePaths, type CodePathNode } from '@/lib/d
 import { pickSessionName } from '@/lib/server/projects/liveSessions';
 import { publishGraph } from '@/lib/diagram/projects/publishGraph';
 import { isEmptyChange, summarizeChange } from '@/lib/diagram/projects/structureDiff';
+import { recordAddedComponents } from '@/lib/server/projects/componentHistory';
 
 export const runtime = 'nodejs';
 
@@ -206,7 +207,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const change = result.change as unknown as Prisma.InputJsonObject;
       // The diagram is already saved: a failure here (e.g. a race with the
       // session's activity report) must not tell the agent to publish again.
-      await prisma.agentSession.upsert({
+      const publisher = await prisma.agentSession.upsert({
         where: { canvasId_sessionKey: { canvasId: agent.canvas.id, sessionKey: body.sessionKey } },
         create: {
           canvasId: agent.canvas.id,
@@ -216,7 +217,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           lastChange: change,
         },
         update: { lastChange: change, lastSeenAt: new Date(now), status: 'active' },
-      }).catch((error: unknown) => logger.warn('Project diagram PUT: could not record session change', error));
+        select: { name: true },
+      }).catch((error: unknown) => {
+        logger.warn('Project diagram PUT: could not record session change', error);
+        return null;
+      });
+      await recordAddedComponents(
+        { canvasId: agent.canvas.id, sessionKey: body.sessionKey, sessionName: publisher?.name ?? null },
+        result.change.added.map((c) => c.id),
+        new Date(now),
+      );
     }
 
     return NextResponse.json({
