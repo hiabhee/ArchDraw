@@ -219,7 +219,7 @@ if (Date.now() < redisRateLimitDownUntil) {
         heading: 'Set up ArchDraw in Codex',
         body:
           'Codex supports local MCP servers and discovers installed skills from its skills directory. Copy the complete archdraw-diagram skill directory to ~/.codex/skills/archdraw-diagram/, then add the ArchDraw MCP server. Restart Codex after installing the skill or changing MCP configuration.',
-        code: `codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.5
+        code: `codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.6
 codex mcp list`,
         bullets: [
           'The ArchDraw skill supplies architecture-specific guidance; the MCP server provides the diagram actions.',
@@ -466,7 +466,7 @@ show the affected dependencies and data flows, and clearly separate facts from a
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.5"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.6"],
       "env": {
         "API_BASE_URL": "https://archdraw.hiabhee.online"
       }
