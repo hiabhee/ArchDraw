@@ -104,4 +104,44 @@ describe('areas in data-flow order', () => {
     const shuffled = LOOPY.replace(/  subgraph Training\["Training"\]\n    train\("Train"\)\n  end\n/, '') + '\n  subgraph Training["Training"]\n    train("Train")\n  end';
     expect(await areaXOrder(shuffled, ['Ingest', 'Training', 'Inference', 'Analysis'])).toEqual(['Ingest', 'Training', 'Inference', 'Analysis']);
   });
+
+  it('keeps a data area in the flow when the spacing repair runs', async () => {
+    const shop = `graph LR
+  subgraph clients["Clients"]
+    web["Web app"]
+    mobile["Mobile app"]
+  end
+  subgraph api["API"]
+    gateway["API gateway"]
+    auth["Auth"]
+    orders["Orders"]
+    payments["Payments"]
+  end
+  subgraph workers["Workers"]
+    email["Email worker"]
+    search["Search indexer"]
+  end
+  subgraph data["Data and services"]
+    postgres[("Postgres")]
+    redis[("Redis")]
+    stripe["Stripe"]
+  end
+  web -->|HTTPS| gateway
+  mobile -->|HTTPS| gateway
+  gateway --> auth
+  gateway --> orders
+  gateway --> payments
+  auth -->|sessions| redis
+  orders -.->|jobs| email
+  orders -.->|index| search
+  orders -->|writes| postgres
+  payments -->|charges| stripe
+  search -->|reads| postgres`;
+    const result = await runMermaidPipeline(shop, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+    if (!result.success) throw new Error('pipeline failed');
+    const box = new Map((result.data.nodes as unknown as LaidOut[]).filter((n) => !n.parentNode).map((n) => [n.id, n.position]));
+    // Without flowAreas on the repair pass, Data became a sidecar lane above API.
+    expect(box.get('data')!.x).toBeGreaterThan(box.get('workers')!.x);
+    expect(box.get('data')!.y).toBeGreaterThanOrEqual(box.get('api')!.y);
+  });
 });
