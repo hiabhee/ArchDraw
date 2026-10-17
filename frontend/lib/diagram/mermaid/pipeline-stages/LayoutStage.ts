@@ -166,9 +166,9 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     if (best?.geometry.quality.hardViolations) {
       // Two bounded Dagre spacing repairs. Route optimization then reallocates
       // the automatic edges around the new channels; fixed paths stay fixed.
-      evaluate({ nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 24 } });
+      evaluate({ nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 24, ...flowAreas } });
       if (best?.geometry.quality.hardViolations) {
-        evaluate({ nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 32 } });
+        evaluate({ nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 32, ...flowAreas } });
       }
     }
     // Preserve the original parent-before-child order expected by React Flow.
