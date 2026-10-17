@@ -20,6 +20,7 @@ import { GuideLines } from '@/components/canvas/GuideLines';
 import { GroupBackgroundLayer } from '@/components/canvas/GroupBackgroundLayer';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
 import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
+import { ComponentHistoryCard } from '@/components/canvas/ComponentHistoryCard';
 import { DetailMapEmpty } from '@/components/canvas/MapLevelToggle';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { ContextMenu, type ContextMenuState } from '@/components/editor/ContextMenu';
@@ -572,6 +573,7 @@ function CanvasInner() {
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
     setContextMenu(null);
+    useProjectLiveStore.getState().openHistory(null);
     if (isMobile) {
       window.dispatchEvent(new CustomEvent('pane-click-mobile-close'));
     }
@@ -742,6 +744,11 @@ function CanvasInner() {
   // detailed map. Otherwise the map is still loading.
   const detailUpdatedAt = useProjectLiveStore((s) => (s.canvasId === activeCanvasId ? s.snapshot?.detailUpdatedAt : undefined));
   const detailPending = projectLevel === 'detail' && !detailMap;
+  // On a live project, clicking a component opens its history (who worked on it and why).
+  const isLiveProject = useProjectLiveStore((s) => s.canvasId === activeCanvasId && Boolean(s.snapshot?.isProject));
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    useProjectLiveStore.getState().openHistory(node.id);
+  }, []);
   const detailMissing = detailPending && detailUpdatedAt === null;
   // Boxes of the detailed map can be moved for a better look; nothing is saved.
   const onDetailNodesChange = useCallback((changes: NodeChange[]) => {
@@ -848,6 +855,7 @@ function CanvasInner() {
         onNodeDrag={projection ? undefined : onNodeDrag}
         onNodeDragStop={detailView ? undefined : highLevel ? onHighLevelDragStop : onNodeDragStop}
         onPaneClick={onPaneClick}
+        onNodeClick={isLiveProject && (!highLevel || detailView) ? onNodeClick : undefined}
         onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
         onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
         onSelectionChange={projection ? undefined : onSelectionChange}
@@ -920,6 +928,9 @@ function CanvasInner() {
         <GuideLines />
         {(!highLevel || detailView) && <AgentAtlasLayer />}
         {(!highLevel || detailView) && <NeedsYouQueue className="!top-20" />}
+        {isLiveProject && activeCanvasId && (!highLevel || detailView) && (
+          <ComponentHistoryCard historyUrl={`/api/projects/${encodeURIComponent(activeCanvasId)}/history`} className="!top-16" />
+        )}
       </ReactFlow>
       {detailPending && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/40">

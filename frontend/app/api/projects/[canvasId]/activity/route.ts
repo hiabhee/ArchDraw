@@ -10,6 +10,8 @@ import { actionForEvent, mergeTouched, mergeUnmapped, parseTouched, statusForEve
 import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
 import { isSourcePath, siteAnchorFor, siteAreaFor } from '@/lib/diagram/projects/constructionSite';
 import { pickSessionName } from '@/lib/server/projects/liveSessions';
+import { groupEditsByComponent } from '@/lib/diagram/projects/componentHistory';
+import { pruneComponentHistory, recordEditBouts } from '@/lib/server/projects/componentHistory';
 
 export const runtime = 'nodejs';
 
@@ -91,13 +93,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Where on the detailed map: the most specific part that owns the file.
     let detailComponentId: string | null | undefined;
-    if (locatedAt) {
+    let detailOf: ((path: string) => string | null) | undefined;
+    if (locatedAt || isEdit) {
       const detail = await detailQuery;
       const detailNodes = (Array.isArray(detail?.nodes) ? detail.nodes : []) as unknown as CodePathNode[];
       if (detailNodes.length > 0) {
         const detailMatcher = createComponentMatcher(detailNodes);
+        detailOf = (path) => detailMatcher.match(path) || null;
         const located = Object.keys(mapped).at(-1);
-        detailComponentId = (located && detailMatcher.match(located)) || null;
+        if (locatedAt) detailComponentId = (located && detailOf(located)) || null;
       }
     }
 
@@ -165,7 +169,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           ...siteFields,
           ...actionFields,
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, intent: true },
       });
     };
     let session;
@@ -174,6 +178,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } catch (error) {
       if ((error as { code?: string })?.code !== 'P2002') throw error;
       session = await writeSession();
+    }
+
+    // Component history: who worked on what, and why (edits on the map only).
+    if (isEdit && Object.keys(mapped).length > 0) {
+      await recordEditBouts(
+        { canvasId: agent.canvas.id, sessionKey: body.sessionKey, sessionName: session.name, intent: session.intent },
+        groupEditsByComponent(mapped, detailOf),
+        now,
+      );
     }
 
     if (body.event === 'start' && body.repoName && isAutoCanvasName(agent.canvas.name)) {
@@ -188,6 +201,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await prisma.agentSession.deleteMany({
         where: { canvasId: agent.canvas.id, lastSeenAt: { lt: new Date(now.getTime() - SESSION_RETENTION_MS) } },
       });
+      await pruneComponentHistory(agent.canvas.id, now);
     }
 
     return NextResponse.json({ ok: true, sessionId: session.id, name: session.name, mapped, unmapped });

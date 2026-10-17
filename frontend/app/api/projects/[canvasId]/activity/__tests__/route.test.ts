@@ -10,13 +10,17 @@ const m = vi.hoisted(() => ({
   deleteMany: vi.fn(),
   executeRaw: vi.fn(),
   detailFindUnique: vi.fn(),
+  historyFindFirst: vi.fn(),
+  historyCreate: vi.fn(),
+  historyUpdate: vi.fn(),
+  historyDeleteMany: vi.fn(),
 }));
 vi.mock('@/lib/server/projects/projectCanvas', () => ({
   authorizeAgentForCanvas: m.authorize,
   readJsonBody: async (request: Request) => ({ tooLarge: false, value: await request.json().catch(() => null) }),
 }));
 vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
-vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, findMany: m.findMany, upsert: m.upsert, deleteMany: m.deleteMany }, projectDetailMap: { findUnique: m.detailFindUnique }, $executeRaw: m.executeRaw } }));
+vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, findMany: m.findMany, upsert: m.upsert, deleteMany: m.deleteMany }, projectDetailMap: { findUnique: m.detailFindUnique }, componentActivity: { findFirst: m.historyFindFirst, create: m.historyCreate, update: m.historyUpdate, deleteMany: m.historyDeleteMany }, $executeRaw: m.executeRaw } }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
 
 import { POST } from '../route';
@@ -49,6 +53,39 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     m.upsert.mockResolvedValue({ id: 's1', name: 'Otter' });
     m.deleteMany.mockResolvedValue({ count: 0 });
     m.detailFindUnique.mockResolvedValue(null);
+    m.historyFindFirst.mockResolvedValue(null);
+    m.historyCreate.mockResolvedValue({});
+    m.historyUpdate.mockResolvedValue({});
+    m.historyDeleteMany.mockResolvedValue({ count: 0 });
+  });
+
+  it('records one work bout per component, extending the session\'s current bout', async () => {
+    m.upsert.mockResolvedValue({ id: 's1', name: 'Otter', intent: 'Add refund retries' });
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/lib/server/auth.ts', 'frontend/app/api/a.ts', 'docs/x.md'] }), params);
+    expect(m.historyCreate).toHaveBeenCalledTimes(2);
+    expect(m.historyCreate.mock.calls.map((c) => c[0].data)).toEqual([
+      expect.objectContaining({ componentId: 'auth', sessionKey: 'k', sessionName: 'Otter', kind: 'edit', intent: 'Add refund retries', files: ['frontend/lib/server/auth.ts'], edits: 1 }),
+      expect.objectContaining({ componentId: 'api', files: ['frontend/app/api/a.ts'] }),
+    ]);
+
+    m.historyFindFirst.mockResolvedValue({ id: 'bout1', files: ['frontend/lib/server/auth.ts'] });
+    await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/lib/server/auth.ts'] }), params);
+    expect(m.historyUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'bout1' },
+      data: expect.objectContaining({ files: ['frontend/lib/server/auth.ts'], edits: { increment: 1 } }),
+    }));
+
+    // Reads are not work on a component.
+    vi.clearAllMocks();
+    await POST(req({ sessionKey: 'k', event: 'read', files: ['frontend/lib/server/auth.ts'] }), params);
+    expect(m.historyCreate).not.toHaveBeenCalled();
+    expect(m.historyUpdate).not.toHaveBeenCalled();
+  });
+
+  it('still reports activity when history cannot be written', async () => {
+    m.historyCreate.mockRejectedValue(new Error('db down'));
+    const res = await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/lib/server/auth.ts'] }), params);
+    expect(res.status).toBe(200);
   });
 
   it('retries once when a concurrent report created the session first', async () => {

@@ -24,6 +24,9 @@ interface ProjectLiveState {
   level: MapLevel;
   /** Detailed map, fetched while it is shown. */
   detail: DetailMapGraph | null;
+  /** Component whose history card is open (clicked on the map). */
+  historyComponentId: string | null;
+  openHistory: (componentId: string | null) => void;
   setLevel: (level: MapLevel) => void;
   start: (canvasId: string) => void;
   stop: () => void;
@@ -78,11 +81,13 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
   error: null,
   level: 'overview',
   detail: null,
+  historyComponentId: null,
 
   // A view preference (never on the diagram undo stack); fetches the map at once.
   setLevel: (level) => {
     if (get().level === level) return;
-    set({ level });
+    // Ids differ between the maps: a card open on one has nothing on the other.
+    set({ level, historyComponentId: null });
     if (level === 'detail') void get().refresh();
   },
 
@@ -91,7 +96,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
     get().stop();
     failures = 0;
     // Every project opens on its overview.
-    set({ canvasId, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null, level: 'overview', detail: null });
+    set({ canvasId, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null, level: 'overview', detail: null, historyComponentId: null });
     void get().refresh();
   },
 
@@ -99,7 +104,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
     clearTimeout(timer);
     controller?.abort();
     controller = undefined;
-    set({ canvasId: null, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null, level: 'overview', detail: null });
+    set({ canvasId: null, snapshot: null, nodeActivity: {}, focusedSessionKey: null, error: null, level: 'overview', detail: null, historyComponentId: null });
   },
 
   refresh: async () => {
@@ -131,6 +136,7 @@ export const useProjectLiveStore = create<ProjectLiveState>()((set, get) => ({
   },
 
   setFocusedSession: (sessionKey) => set({ focusedSessionKey: sessionKey }),
+  openHistory: (componentId) => set({ historyComponentId: componentId }),
 }));
 
 if (typeof document !== 'undefined') {
