@@ -580,7 +580,9 @@ export default function SimpleFloatingEdge({
         data-geometry-status={route.status}
         fill="none"
         strokeDasharray={sketch && route.status === 'ok' ? undefined : strokeStyle.strokeDasharray}
-        className="react-flow__edge-path"
+        // Only dashed edges flow (globals.css): moving a solid edge's dash
+        // offset shows nothing but repaints the edge layer every frame.
+        className={!(sketch && route.status === 'ok') && strokeStyle.strokeDasharray && strokeStyle.strokeDasharray !== 'none' ? 'react-flow__edge-path arch-edge-flow' : 'react-flow__edge-path'}
         // Inline `none` for solid edges: React Flow's `.animated` rule would otherwise dash every edge,
         // hiding the solid (call) vs dashed (async) distinction.
         style={sketch && route.status === 'ok' ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : { ...strokeStyle, strokeDasharray: strokeStyle.strokeDasharray ?? 'none' }}

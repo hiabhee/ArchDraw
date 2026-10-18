@@ -509,23 +509,23 @@ body {
   user-select: none;
 }
 
-/* Edge label background transparency */
-.react-flow__edgelabel > div {
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
 /* Dark mode: lighter edges for visibility */
 .dark .react-flow__edge-path {
   opacity: 0.75;
 }
 
-.react-flow__edge.animated .react-flow__edge-path {
+/* Only dashed (async) edges flow. React Flow animates every path of an
+   animated edge; on solid edges and arrowheads that motion is invisible but
+   repaints the whole edge layer every frame, which lags large maps. */
+.react-flow .react-flow__edge.animated path {
+  animation: none;
+}
+.react-flow .react-flow__edge.animated .react-flow__edge-path.arch-edge-flow {
   animation: edgeFlow 1s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .react-flow__edge.animated .react-flow__edge-path {
+  .react-flow .react-flow__edge.animated .react-flow__edge-path.arch-edge-flow {
     animation: none;
   }
 }
