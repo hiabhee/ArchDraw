@@ -23,7 +23,7 @@ const DARK_NAV_LINKS = [
   { label: 'Docs', href: '/docs', track: 'nav_docs' },
 ];
 
-export function LandingNav({ outfitClassName, tone = 'light' }: { outfitClassName?: string; tone?: 'light' | 'dark' }) {
+export function LandingNav({ outfitClassName, tone = 'dark' }: { outfitClassName?: string; tone?: 'light' | 'dark' }) {
   const pathname = usePathname();
   const { user, initialized } = useAuthStore();
   const isAuthenticated = initialized && Boolean(user && user.id !== 'guest');

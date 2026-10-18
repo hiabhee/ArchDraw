@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { ThemeProvider as NextThemesProvider, useTheme as useNextTheme } from 'next-themes';
+import { Toaster } from 'sonner';
 import { useDiagramStore } from '@/store/diagramStore';
 import { registerThemeSetter } from '@/lib/theme/themeBridge';
 
@@ -39,4 +40,10 @@ export function ThemeProvider({
       {children}
     </NextThemesProvider>
   );
+}
+
+/** Toasts in the app theme (dark unless the visitor chose light). */
+export function ThemedToaster() {
+  const { resolvedTheme } = useNextTheme();
+  return <Toaster position="bottom-right" theme={resolvedTheme === 'light' ? 'light' : 'dark'} richColors />;
 }

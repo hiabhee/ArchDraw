@@ -351,15 +351,15 @@ const NAV_GROUPS = [
 ];
 
 // Inline code only — `pre > code` blocks keep their own styling.
-const CODE_INLINE = '[&_:not(pre)>code]:rounded [&_:not(pre)>code]:bg-[#eef1ec] [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.85em] [&_:not(pre)>code]:text-[#16211f]';
+const CODE_INLINE = '[&_:not(pre)>code]:rounded [&_:not(pre)>code]:bg-surface-panel [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.85em] [&_:not(pre)>code]:text-text-primary';
 
 function CodeBlock({ value }: { value: string }) {
   return (
-    <div className="relative mt-3 rounded-xl border border-[#dfe4df] bg-[#f6f7f3]">
+    <div className="relative mt-3 rounded-xl border border-border-default bg-surface-page">
       <div className="absolute right-2 top-2">
-        <CopyButton value={value} className="border-[#dfe4df] bg-white text-[#51605a] hover:bg-[#eef1ec]" />
+        <CopyButton value={value} className="border-border-default bg-surface-card text-text-secondary hover:bg-surface-panel" />
       </div>
-      <pre className="overflow-x-auto py-3.5 pl-4 pr-24 font-mono text-xs leading-6 text-[#283731]"><code>{value}</code></pre>
+      <pre className="overflow-x-auto py-3.5 pl-4 pr-24 font-mono text-xs leading-6 text-text-primary"><code>{value}</code></pre>
     </div>
   );
 }
@@ -367,10 +367,10 @@ function CodeBlock({ value }: { value: string }) {
 function NoticeBox({ kind, text }: Notice) {
   const tone =
     kind === 'WARNING'
-      ? 'border-[#f2c9c4] bg-[#fdf2f1] text-[#7a2e26]'
+      ? 'border-red-500/30 bg-red-500/10 text-red-300'
       : kind === 'CAUTION'
-        ? 'border-[#f0dcb0] bg-[#fdf8ec] text-[#6b4f12]'
-        : 'border-[#cfe5f7] bg-[#f1f8ff] text-[#38617d]';
+        ? 'border-warning/30 bg-warning-bg text-warning'
+        : 'border-brand/30 bg-brand-bg text-text-secondary';
   return (
     <div className={`mt-5 rounded-xl border p-4 text-sm leading-6 ${tone}`}>
       <strong>{kind}:</strong> {text}
@@ -380,7 +380,7 @@ function NoticeBox({ kind, text }: Notice) {
 
 function Steps({ steps }: { steps: Step[] }) {
   return (
-    <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm leading-6 text-[#51605a] marker:font-semibold marker:text-[#16211f]">
+    <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm leading-6 text-text-secondary marker:font-semibold marker:text-text-primary">
       {steps.map((step, i) => (
         <li key={i} className="pl-1">
           {step.text}
@@ -393,8 +393,8 @@ function Steps({ steps }: { steps: Step[] }) {
 
 function Section({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: ReactNode }) {
   return (
-    <section id={id} className="mt-16 scroll-mt-24 border-t border-[#dfe4df] pt-12">
-      <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">{eyebrow}</p>
+    <section id={id} className="mt-16 scroll-mt-24 border-t border-border-default pt-12">
+      <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-brand-text">{eyebrow}</p>
       <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em]">{title}</h2>
       {children}
     </section>
@@ -403,14 +403,14 @@ function Section({ id, eyebrow, title, children }: { id: string; eyebrow: string
 
 function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   return (
-    <div className="mt-6 overflow-x-auto rounded-xl border border-[#dfe4df] bg-white">
+    <div className="mt-6 overflow-x-auto rounded-xl border border-border-default bg-surface-card">
       <table className="w-full text-left text-xs">
-        <thead className="border-b border-[#dfe4df] bg-[#f6f7f3] font-mono text-[10px] uppercase tracking-[.1em] text-[#65706c]">
+        <thead className="border-b border-border-default bg-surface-page font-mono text-[10px] uppercase tracking-[.1em] text-text-secondary">
           <tr>{head.map((h) => <th key={h} className="px-4 py-3 font-bold">{h}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-[#dfe4df] text-[#51605a]">
+        <tbody className="divide-y divide-border-default text-text-secondary">
           {rows.map((row, i) => (
-            <tr key={i}>{row.map((cell, j) => <td key={j} className={`px-4 py-3 align-top leading-5 ${j === 0 ? 'font-semibold text-[#16211f]' : ''}`}>{cell}</td>)}</tr>
+            <tr key={i}>{row.map((cell, j) => <td key={j} className={`px-4 py-3 align-top leading-5 ${j === 0 ? 'font-semibold text-text-primary' : ''}`}>{cell}</td>)}</tr>
           ))}
         </tbody>
       </table>
@@ -418,11 +418,11 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   );
 }
 
-const P = 'mt-4 text-[15px] leading-7 text-[#51605a]';
+const P = 'mt-4 text-[15px] leading-7 text-text-secondary';
 
 export default function ConnectAgentsPage() {
   return (
-    <div className="min-h-screen bg-[#fbfcfa] text-[#16211f]">
+    <div className="min-h-screen bg-surface-page text-text-primary">
       <LandingNav />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
 
@@ -430,12 +430,12 @@ export default function ConnectAgentsPage() {
         <div className="grid gap-10 py-10 lg:grid-cols-[220px_minmax(0,720px)_180px] lg:gap-14">
           <aside className="hidden lg:block">
             <nav className="sticky top-20 max-h-[calc(100vh-6rem)] space-y-7 overflow-y-auto pb-6" aria-label="Documentation navigation">
-              <Link href="/docs" className="mb-6 flex items-center gap-2 text-sm font-bold tracking-tight text-[#16211f]"><BookOpen size={16} className="text-[#1686f5]" /> Docs home</Link>
+              <Link href="/docs" className="mb-6 flex items-center gap-2 text-sm font-bold tracking-tight text-text-primary"><BookOpen size={16} className="text-brand-text" /> Docs home</Link>
               {NAV_GROUPS.map((group) => (
                 <div key={group.label}>
-                  <p className="mb-2 px-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-[#8b9691]">{group.label}</p>
+                  <p className="mb-2 px-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-text-muted">{group.label}</p>
                   <div className="space-y-0.5">
-                    {group.links.map((link) => <a key={link.href} href={link.href} className="block rounded-md px-3 py-1.5 text-sm text-[#65706c] transition-colors hover:bg-white hover:text-[#16211f]">{link.label}</a>)}
+                    {group.links.map((link) => <a key={link.href} href={link.href} className="block rounded-md px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-surface-card hover:text-text-primary">{link.label}</a>)}
                   </div>
                 </div>
               ))}
@@ -443,7 +443,7 @@ export default function ConnectAgentsPage() {
           </aside>
 
           <article className={`min-w-0 ${CODE_INLINE}`}>
-            <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-[#4786bf]">
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[.12em] text-brand-text">
               <Link href="/docs" className="hover:underline">Docs</Link> / Connect a coding agent
             </p>
             <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em]">Connect ArchDraw to a coding agent.</h1>
@@ -453,7 +453,7 @@ export default function ConnectAgentsPage() {
 
             <Table
               head={['Client', 'Recommended method']}
-              rows={[...CLIENTS.map((c) => [<a key={c.id} href={`#${c.id}`} className="text-[#075aaf] underline underline-offset-2">{c.name}</a>, c.method]), [<a key="other" href="#other-clients" className="text-[#075aaf] underline underline-offset-2">Other MCP clients</a>, 'Remote or local']]}
+              rows={[...CLIENTS.map((c) => [<a key={c.id} href={`#${c.id}`} className="text-brand-text underline underline-offset-2">{c.name}</a>, c.method]), [<a key="other" href="#other-clients" className="text-brand-text underline underline-offset-2">Other MCP clients</a>, 'Remote or local']]}
             />
 
             <Section id="connection-type" eyebrow="Before you start" title="Select a connection type.">
@@ -469,7 +469,7 @@ export default function ConnectAgentsPage() {
 
             <section id="requirements" className="mt-12 scroll-mt-24">
               <h3 className="text-xl font-semibold tracking-[-.02em]">Requirements</h3>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-[#51605a]">
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-text-secondary">
                 <li>Network access to <code>archdraw.hiabhee.online</code>. This is necessary for the two connection types.</li>
                 <li>For the local connection only: Node.js 18 or later. To examine your version, type <code>node --version</code>.</li>
                 <li>You do not need an ArchDraw account or an API key.</li>
@@ -488,11 +488,11 @@ export default function ConnectAgentsPage() {
                   <div key={method.title} className="mt-8">
                     <h3 className="text-lg font-semibold tracking-[-.02em]">{method.title}</h3>
                     <Steps steps={method.steps} />
-                    {method.after && <div className="mt-4 text-sm leading-6 text-[#51605a]">{method.after}</div>}
+                    {method.after && <div className="mt-4 text-sm leading-6 text-text-secondary">{method.after}</div>}
                     {method.notice && <NoticeBox {...method.notice} />}
                   </div>
                 ))}
-                <div className="mt-8 rounded-xl border border-[#dfe4df] bg-white p-5">
+                <div className="mt-8 rounded-xl border border-border-default bg-surface-card p-5">
                   <h3 className="text-sm font-bold">Verify the connection</h3>
                   <Steps steps={client.verify} />
                 </div>
@@ -520,19 +520,19 @@ export default function ConnectAgentsPage() {
                   { text: 'When the CLI asks, select your agent.' },
                 ]}
               />
-              <p className="mt-4 text-sm leading-6 text-[#51605a]">To install the skill for all projects, add <code>-g</code> to the command. To update the skill, type <code>npx skills update archdraw-diagram</code>.</p>
+              <p className="mt-4 text-sm leading-6 text-text-secondary">To install the skill for all projects, add <code>-g</code> to the command. To update the skill, type <code>npx skills update archdraw-diagram</code>.</p>
             </Section>
 
             <section id="first-diagram" className="mt-12 scroll-mt-24">
               <h3 className="text-xl font-semibold tracking-[-.02em]">Make your first diagram</h3>
-              <p className="mt-4 text-sm leading-6 text-[#51605a]">Type a request to your agent. For example:</p>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-[#51605a]">
+              <p className="mt-4 text-sm leading-6 text-text-secondary">Type a request to your agent. For example:</p>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-text-secondary">
                 <li>&quot;Inspect this repository and draw its architecture. Use evidence from the code. Mark the parts that are not certain.&quot;</li>
                 <li>&quot;Draw a web client, an API gateway, a Node API, and a Postgres database.&quot;</li>
                 <li>&quot;Add a Redis cache between the API and Postgres.&quot;</li>
                 <li>&quot;Change the layout to top-down.&quot;</li>
               </ul>
-              <p className="mt-4 text-sm leading-6 text-[#51605a]">The agent replies with two links. <strong>shareUrl</strong> is a read-only preview. Anyone with the link can see it. <strong>diagramUrl</strong> opens the diagram in the ArchDraw editor.</p>
+              <p className="mt-4 text-sm leading-6 text-text-secondary">The agent replies with two links. <strong>shareUrl</strong> is a read-only preview. Anyone with the link can see it. <strong>diagramUrl</strong> opens the diagram in the ArchDraw editor.</p>
             </section>
 
             <section id="tools" className="mt-12 scroll-mt-24">
@@ -542,14 +542,14 @@ export default function ConnectAgentsPage() {
 
             <Section id="privacy" eyebrow="Reference" title="Data and privacy.">
               <p className={P}>Read this section before you connect ArchDraw.</p>
-              <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-6 text-[#51605a]">
-                <li><strong className="text-[#16211f]">Data that the tools send:</strong> The tools send the diagram content that the agent gives them. This includes component names, labels, connections, and Mermaid text. The tools do not read your source files. Your agent reads your files and decides what to put in the diagram.</li>
-                <li><strong className="text-[#16211f]">Preview links:</strong> Each new diagram gets a preview link by default. Anyone with the link can see the diagram. The link expires after 7 days. To prevent a link, tell the agent to keep the diagram private. The agent then sets <code>publish: false</code>.</li>
-                <li><strong className="text-[#16211f]">Working sessions:</strong> The remote server keeps the current diagram and its checkpoints for 24 hours. Then it deletes them. The local server keeps them in memory until the process stops.</li>
-                <li><strong className="text-[#16211f]">IP address:</strong> The server uses your IP address only for rate limits.</li>
+              <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-6 text-text-secondary">
+                <li><strong className="text-text-primary">Data that the tools send:</strong> The tools send the diagram content that the agent gives them. This includes component names, labels, connections, and Mermaid text. The tools do not read your source files. Your agent reads your files and decides what to put in the diagram.</li>
+                <li><strong className="text-text-primary">Preview links:</strong> Each new diagram gets a preview link by default. Anyone with the link can see the diagram. The link expires after 7 days. To prevent a link, tell the agent to keep the diagram private. The agent then sets <code>publish: false</code>.</li>
+                <li><strong className="text-text-primary">Working sessions:</strong> The remote server keeps the current diagram and its checkpoints for 24 hours. Then it deletes them. The local server keeps them in memory until the process stops.</li>
+                <li><strong className="text-text-primary">IP address:</strong> The server uses your IP address only for rate limits.</li>
               </ul>
               <NoticeBox kind="WARNING" text="Do not put passwords, API keys, or other secrets in diagram labels. Anyone with the preview link can see the labels." />
-              <p className="mt-4 text-sm leading-6 text-[#51605a]">Refer to the <Link href="/privacy" className="font-semibold text-[#075aaf] underline underline-offset-2">privacy policy</Link> and the <Link href="/terms" className="font-semibold text-[#075aaf] underline underline-offset-2">terms</Link>.</p>
+              <p className="mt-4 text-sm leading-6 text-text-secondary">Refer to the <Link href="/privacy" className="font-semibold text-brand-text underline underline-offset-2">privacy policy</Link> and the <Link href="/terms" className="font-semibold text-brand-text underline underline-offset-2">terms</Link>.</p>
             </Section>
 
             <section id="limits" className="mt-12 scroll-mt-24">
@@ -559,26 +559,26 @@ export default function ConnectAgentsPage() {
 
             <Section id="troubleshooting" eyebrow="Reference" title="Troubleshooting.">
               <Table head={['Problem', 'Possible cause', 'Corrective action']} rows={TROUBLESHOOTING} />
-              <p className="mt-4 text-sm leading-6 text-[#51605a]">To report a problem, open an issue on <a href="https://github.com/hiabhee/ArchDraw/issues" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#075aaf] underline underline-offset-2">GitHub</a>.</p>
+              <p className="mt-4 text-sm leading-6 text-text-secondary">To report a problem, open an issue on <a href="https://github.com/hiabhee/ArchDraw/issues" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-text underline underline-offset-2">GitHub</a>.</p>
             </Section>
 
             <Section id="self-hosted" eyebrow="Reference" title="Self-hosted ArchDraw.">
               <p className={P}>You can connect the tools to your own ArchDraw deployment.</p>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-[#51605a]">
-                <li><strong className="text-[#16211f]">Remote connection:</strong> Use <code>https://&lt;your-domain&gt;/api/mcp</code> as the URL.</li>
-                <li><strong className="text-[#16211f]">Local connection:</strong> Set <code>API_BASE_URL</code> to <code>https://&lt;your-domain&gt;</code>.</li>
-                <li><strong className="text-[#16211f]">Claude Code plugin:</strong> Change the <code>url</code> in <code>plugins/archdraw/.mcp.json</code>.</li>
-                <li><strong className="text-[#16211f]">Codex plugin:</strong> Change <code>API_BASE_URL</code> in <code>plugins/archdraw/mcp.json</code>.</li>
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-text-secondary">
+                <li><strong className="text-text-primary">Remote connection:</strong> Use <code>https://&lt;your-domain&gt;/api/mcp</code> as the URL.</li>
+                <li><strong className="text-text-primary">Local connection:</strong> Set <code>API_BASE_URL</code> to <code>https://&lt;your-domain&gt;</code>.</li>
+                <li><strong className="text-text-primary">Claude Code plugin:</strong> Change the <code>url</code> in <code>plugins/archdraw/.mcp.json</code>.</li>
+                <li><strong className="text-text-primary">Codex plugin:</strong> Change <code>API_BASE_URL</code> in <code>plugins/archdraw/mcp.json</code>.</li>
               </ul>
             </Section>
           </article>
 
           <aside className="hidden xl:block">
-            <div className="sticky top-20 border-l border-[#dfe4df] pl-5">
-              <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-[#8b9691]">On this page</p>
+            <div className="sticky top-20 border-l border-border-default pl-5">
+              <p className="mb-3 font-mono text-[10px] font-bold uppercase tracking-[.13em] text-text-muted">On this page</p>
               <div className="space-y-2 text-xs">
                 {[['#connection-type', 'Connection type'], ['#claude-code', 'Clients'], ['#skill', 'Skill'], ['#tools', 'Tools'], ['#privacy', 'Privacy'], ['#troubleshooting', 'Troubleshooting']].map(([href, label]) => (
-                  <a key={href} className="block text-[#65706c] hover:text-[#075aaf]" href={href}>{label}</a>
+                  <a key={href} className="block text-text-secondary hover:text-brand-text" href={href}>{label}</a>
                 ))}
               </div>
             </div>

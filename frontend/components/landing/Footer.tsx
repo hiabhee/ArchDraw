@@ -35,7 +35,7 @@ const COLUMNS = [
   },
 ];
 
-export function Footer({ tone = 'light' }: FooterProps) {
+export function Footer({ tone = 'dark' }: FooterProps) {
   const isDark = tone === 'dark';
   const footerText = isDark ? 'text-[#a4adbc]' : 'text-[#575752]';
   const footerMuted = isDark ? 'text-[#778397]' : 'text-[#8a8f98]';

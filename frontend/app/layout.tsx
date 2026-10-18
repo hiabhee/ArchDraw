@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { AnalyticsProvider } from '@/components/providers/AnalyticsProvider';
-import { Toaster } from 'sonner';
-import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import { ThemedToaster, ThemeProvider } from '@/components/providers/ThemeProvider';
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -172,7 +171,7 @@ export default function RootLayout({
             <AnalyticsProvider>
               {children}
             </AnalyticsProvider>
-            <Toaster position="bottom-right" theme="light" richColors />
+            <ThemedToaster />
           </AuthProvider>
         </ThemeProvider>
         <Analytics />

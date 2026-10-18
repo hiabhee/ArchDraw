@@ -204,56 +204,56 @@
   }
 
   .dark, :where(.dark, .dark *) {
-    /* ── Dark Drafting Table: deep desaturated blue-gray, no pure black ── */
-    --background: 222 30% 8%;
-    --foreground: 0 0% 89%;
+    /* ── Night chart (same palette as the landing): near-black paper, bone ink ── */
+    --background: 220 15% 4%;
+    --foreground: 43 20% 91%;
 
     /* ── Node surfaces: slightly lighter than canvas, distinct from background ── */
-    --card: 217 33% 14%;
-    --card-foreground: 0 0% 89%;
-    --popover: 217 33% 14%;
-    --popover-foreground: 0 0% 89%;
+    --card: 220 7% 9%;
+    --card-foreground: 43 20% 91%;
+    --popover: 220 7% 9%;
+    --popover-foreground: 43 20% 91%;
 
-    /* ── Primary: soft off-white for contrast ── */
-    --primary: 0 0% 88%;
-    --primary-foreground: 222 30% 8%;
+    /* ── Primary: bone ink ── */
+    --primary: 43 20% 91%;
+    --primary-foreground: 220 15% 4%;
 
     /* ── Secondary UI surfaces: darker offset for depth ── */
-    --secondary: 217 30% 18%;
+    --secondary: 220 5% 14%;
     --secondary-foreground: 0 0% 85%;
 
     /* ── Muted: subtle ── */
-    --muted: 217 25% 18%;
-    --muted-foreground: 215 15% 60%;
+    --muted: 220 5% 13%;
+    --muted-foreground: 40 3% 57%;
 
     /* ── Accent: hover surfaces ── */
-    --accent: 217 30% 22%;
+    --accent: 220 5% 17%;
     --accent-foreground: 0 0% 85%;
 
     /* ── Destructive: muted red ── */
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    /* ── Borders: visible, defining shape (hsl 215 25% 35% = #64748B range) ── */
-    --border: 215 25% 35%;
-    --input: 215 25% 25%;
-    --ring: 0 0% 88%;
+    /* ── Borders: visible, defining shape, warm neutral ── */
+    --border: 40 4% 26%;
+    --input: 40 3% 19%;
+    --ring: 43 20% 91%;
 
     --radius: 10px;
 
     /* ── Sidebar: darker offset ── */
-    --sidebar: 217 33% 11%;
+    --sidebar: 220 12% 6%;
     --sidebar-foreground: 0 0% 85%;
-    --sidebar-primary: 0 0% 88%;
-    --sidebar-primary-foreground: 222 30% 8%;
-    --sidebar-accent: 217 30% 18%;
+    --sidebar-primary: 43 20% 91%;
+    --sidebar-primary-foreground: 220 15% 4%;
+    --sidebar-accent: 220 5% 14%;
     --sidebar-accent-foreground: 0 0% 85%;
-    --sidebar-border: 215 25% 28%;
-    --sidebar-ring: 0 0% 88%;
+    --sidebar-border: 40 4% 18%;
+    --sidebar-ring: 43 20% 91%;
 
     /* ── Canvas: deepest level ── */
-    --canvas-bg: 222 30% 8%;
-    --grid-color: 217 20% 28%;
+    --canvas-bg: 220 15% 4%;
+    --grid-color: 40 3% 22%;
 
     /* ── Semantic accents (desaturated for dark) ── */
     --accent-blue: 210 60% 55%;
@@ -261,14 +261,14 @@
     --accent-green: 145 20% 46%;
 
     /* ── Semantic design tokens (gray neutral + blue accent) ── */
-    --surface-page: #090b0d;
-    --surface-panel: #121620;
-    --surface-card: #1e2235;
-    --border-default: #202327;
-    --border-strong: #3f444c;
-    --text-primary: #f7f8f8;
-    --text-secondary: #d0d6e0;
-    --text-muted: #8a8f98;
+    --surface-page: #07080a;
+    --surface-panel: #0c0e11;
+    --surface-card: #131518;
+    --border-default: #1f2124;
+    --border-strong: #3a3c40;
+    --text-primary: #ece9e2;
+    --text-secondary: #c9c5bc;
+    --text-muted: #94918a;
     --brand: #1E90FF;
     --brand-hover: #4dabf7;
     --brand-bg: rgba(30, 144, 255, 0.12);
@@ -288,11 +288,11 @@
     --overlay-spotlight: hsl(0 0% 0% / 0.75);
 
     /* ── Shadows: dark-mode paper stacking (overrides @theme light values) ── */
-    --shadow-1: 0 1px 0 hsl(215 25% 28% / 0.4), 0 1px 3px hsl(0 0% 0% / 0.3);
-    --shadow-2: 0 1px 0 hsl(215 25% 28% / 0.45), 0 2px 4px hsl(0 0% 0% / 0.35), 0 4px 8px hsl(0 0% 0% / 0.15);
-    --shadow-3: 0 1px 0 hsl(215 25% 26% / 0.5), 0 3px 6px hsl(0 0% 0% / 0.35), 0 6px 14px hsl(0 0% 0% / 0.2);
-    --shadow-4: 0 1px 0 hsl(215 25% 24% / 0.5), 0 4px 10px hsl(0 0% 0% / 0.4), 0 8px 24px hsl(0 0% 0% / 0.25);
-    --shadow-5: 0 1px 0 hsl(215 25% 22% / 0.5), 0 6px 16px hsl(0 0% 0% / 0.45), 0 12px 36px hsl(0 0% 0% / 0.3);
+    --shadow-1: 0 1px 0 hsl(40 4% 28% / 0.4), 0 1px 3px hsl(0 0% 0% / 0.3);
+    --shadow-2: 0 1px 0 hsl(40 4% 28% / 0.45), 0 2px 4px hsl(0 0% 0% / 0.35), 0 4px 8px hsl(0 0% 0% / 0.15);
+    --shadow-3: 0 1px 0 hsl(40 4% 26% / 0.5), 0 3px 6px hsl(0 0% 0% / 0.35), 0 6px 14px hsl(0 0% 0% / 0.2);
+    --shadow-4: 0 1px 0 hsl(40 4% 24% / 0.5), 0 4px 10px hsl(0 0% 0% / 0.4), 0 8px 24px hsl(0 0% 0% / 0.25);
+    --shadow-5: 0 1px 0 hsl(40 4% 22% / 0.5), 0 6px 16px hsl(0 0% 0% / 0.45), 0 12px 36px hsl(0 0% 0% / 0.3);
   }
 }
 
@@ -654,30 +654,30 @@ body {
 /* Dark mode: structured offsets for paper stacking */
 .dark .shadow-soft-1 {
   box-shadow:
-    0 1px 0 hsl(215 25% 28% / 0.4),
+    0 1px 0 hsl(40 4% 28% / 0.4),
     0 1px 3px hsl(0 0% 0% / 0.3);
 }
 .dark .shadow-soft-2 {
   box-shadow:
-    0 1px 0 hsl(215 25% 28% / 0.45),
+    0 1px 0 hsl(40 4% 28% / 0.45),
     0 2px 4px hsl(0 0% 0% / 0.35),
     0 4px 8px hsl(0 0% 0% / 0.15);
 }
 .dark .shadow-soft-3 {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.5),
+    0 1px 0 hsl(40 4% 26% / 0.5),
     0 3px 6px hsl(0 0% 0% / 0.35),
     0 6px 14px hsl(0 0% 0% / 0.2);
 }
 .dark .shadow-soft-4 {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.5),
+    0 1px 0 hsl(40 4% 24% / 0.5),
     0 4px 10px hsl(0 0% 0% / 0.4),
     0 8px 24px hsl(0 0% 0% / 0.25);
 }
 .dark .shadow-soft-5 {
   box-shadow:
-    0 1px 0 hsl(215 25% 22% / 0.5),
+    0 1px 0 hsl(40 4% 22% / 0.5),
     0 6px 16px hsl(0 0% 0% / 0.45),
     0 12px 36px hsl(0 0% 0% / 0.3);
 }
@@ -696,9 +696,9 @@ body {
 
 .dark .floating-panel {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 4px 16px hsl(0 0% 0% / 0.35);
-  border: 1px solid hsl(215 25% 30% / 0.5);
+  border: 1px solid hsl(40 4% 30% / 0.5);
 }
 
 .floating-panel:hover {
@@ -707,7 +707,7 @@ body {
 
 .dark .floating-panel:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 6px 24px hsl(0 0% 0% / 0.4);
 }
 
@@ -724,9 +724,9 @@ body {
 
 .dark .floating-toolbar {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3);
-  border: 1px solid hsl(215 25% 30% / 0.5);
+  border: 1px solid hsl(40 4% 30% / 0.5);
 }
 
 .floating-icon-toolbar {
@@ -742,9 +742,9 @@ body {
 
 .dark .floating-icon-toolbar {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3);
-  border: 1px solid hsl(215 25% 28% / 0.4);
+  border: 1px solid hsl(40 4% 28% / 0.4);
 }
 
 .floating-icon-btn {
@@ -784,9 +784,9 @@ body {
 
 .dark .floating-right-panel {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 4px 16px hsl(0 0% 0% / 0.35);
-  border: 1px solid hsl(215 25% 30% / 0.5);
+  border: 1px solid hsl(40 4% 30% / 0.5);
 }
 
 .floating-bottom-bar {
@@ -799,9 +799,9 @@ body {
 
 .dark .floating-bottom-bar {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 4px 16px hsl(0 0% 0% / 0.3);
-  border: 1px solid hsl(215 25% 30% / 0.5);
+  border: 1px solid hsl(40 4% 30% / 0.5);
 }
 
 .floating-pill-btn {
@@ -817,7 +817,7 @@ body {
 
 .dark .floating-pill-btn {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 2px 8px hsl(0 0% 0% / 0.25);
 }
 
@@ -828,7 +828,7 @@ body {
 
 .dark .floating-pill-btn:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 4px 12px hsl(0 0% 0% / 0.3);
 }
 
@@ -846,9 +846,9 @@ body {
 
 .dark .solid-panel {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3);
-  border: 1px solid hsl(215 25% 30% / 0.5);
+  border: 1px solid hsl(40 4% 30% / 0.5);
 }
 
 .solid-panel:hover {
@@ -857,7 +857,7 @@ body {
 
 .dark .solid-panel:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 4px 16px hsl(0 0% 0% / 0.35);
 }
 
@@ -948,9 +948,9 @@ body {
 
 .dark .solid-dropdown-content {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 8px 32px hsl(0 0% 0% / 0.4);
-  border: 1px solid hsl(215 25% 28% / 0.4);
+  border: 1px solid hsl(40 4% 28% / 0.4);
 }
 
 .solid-dropdown-item {
@@ -986,9 +986,9 @@ body {
 .dark [data-radix-popper-content-wrapper] .radix-select-content,
 .dark [data-side^="bottom"] .radix-select-content {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 8px 32px hsl(0 0% 0% / 0.4) !important;
-  border: 1px solid hsl(215 25% 28% / 0.4) !important;
+  border: 1px solid hsl(40 4% 28% / 0.4) !important;
 }
 
 .radix-dialog-content,
@@ -1002,9 +1002,9 @@ body {
 .dark .radix-dialog-content,
 .dark [data-radix-dialog-content] {
   box-shadow:
-    0 1px 0 hsl(215 25% 22% / 0.4),
+    0 1px 0 hsl(40 4% 22% / 0.4),
     0 12px 48px hsl(0 0% 0% / 0.45) !important;
-  border: 1px solid hsl(215 25% 26% / 0.4) !important;
+  border: 1px solid hsl(40 4% 26% / 0.4) !important;
 }
 
 /* Focus mode — neutral dim */
@@ -1049,7 +1049,7 @@ body {
 
 .dark .floating-slider::-webkit-slider-thumb {
   box-shadow:
-    0 1px 0 hsl(215 25% 28% / 0.4),
+    0 1px 0 hsl(40 4% 28% / 0.4),
     0 2px 8px hsl(0 0% 0% / 0.3);
 }
 
@@ -1060,7 +1060,7 @@ body {
 
 .dark .floating-slider::-webkit-slider-thumb:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 4px 12px hsl(0 0% 0% / 0.35);
 }
 
@@ -1076,7 +1076,7 @@ body {
 
 .dark .floating-slider::-moz-range-thumb {
   box-shadow:
-    0 1px 0 hsl(215 25% 28% / 0.4),
+    0 1px 0 hsl(40 4% 28% / 0.4),
     0 2px 8px hsl(0 0% 0% / 0.3);
 }
 
@@ -1170,7 +1170,7 @@ body {
 
 .dark .soft-btn {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 2px 8px hsl(0 0% 0% / 0.25);
 }
 
@@ -1181,7 +1181,7 @@ body {
 
 .dark .soft-btn:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 4px 12px hsl(0 0% 0% / 0.3);
 }
 .soft-btn:active {
@@ -1197,7 +1197,7 @@ body {
 
 .dark .soft-card {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3);
 }
 
@@ -1208,7 +1208,7 @@ body {
 
 .dark .soft-card:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 6px 20px hsl(0 0% 0% / 0.35);
 }
 
@@ -1236,9 +1236,9 @@ body {
 
 .dark .react-flow__minimap {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3) !important;
-  border: 1px solid hsl(215 25% 28% / 0.4) !important;
+  border: 1px solid hsl(40 4% 28% / 0.4) !important;
 }
 
 .react-flow__controls {
@@ -1251,9 +1251,9 @@ body {
 
 .dark .react-flow__controls {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3) !important;
-  border: 1px solid hsl(215 25% 28% / 0.4) !important;
+  border: 1px solid hsl(40 4% 28% / 0.4) !important;
 }
 
 .react-flow__controls button {
@@ -1383,7 +1383,7 @@ body {
 
 .dark .archdraw-card {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.4),
+    0 1px 0 hsl(40 4% 26% / 0.4),
     0 3px 12px hsl(0 0% 0% / 0.3);
 }
 
@@ -1394,7 +1394,7 @@ body {
 
 .dark .archdraw-card:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 6px 20px hsl(0 0% 0% / 0.35);
 }
 
@@ -1408,7 +1408,7 @@ body {
   background: hsl(var(--primary));
   color: hsl(var(--background));
   box-shadow:
-    0 1px 0 hsl(215 25% 30% / 0.3),
+    0 1px 0 hsl(40 4% 30% / 0.3),
     0 2px 8px hsl(0 0% 0% / 0.3);
 }
 
@@ -1421,7 +1421,7 @@ body {
 .dark .archdraw-cta-btn:hover {
   background: hsl(var(--primary) / 0.95);
   box-shadow:
-    0 1px 0 hsl(215 25% 28% / 0.3),
+    0 1px 0 hsl(40 4% 28% / 0.3),
     0 4px 12px hsl(0 0% 0% / 0.35);
 }
 
@@ -1432,7 +1432,7 @@ body {
 
 .dark .archdraw-cta-btn:active {
   box-shadow:
-    0 1px 0 hsl(215 25% 26% / 0.3),
+    0 1px 0 hsl(40 4% 26% / 0.3),
     0 1px 4px hsl(0 0% 0% / 0.25);
 }
 
@@ -1503,7 +1503,7 @@ body {
 }
 .dark .canvas-card:hover {
   box-shadow:
-    0 1px 0 hsl(215 25% 22% / 0.4),
+    0 1px 0 hsl(40 4% 22% / 0.4),
     0 14px 36px hsl(0 0% 0% / 0.3) !important;
 }
 
@@ -1544,7 +1544,7 @@ body {
 }
 .dark .preview-popover {
   box-shadow:
-    0 1px 0 hsl(215 25% 24% / 0.4),
+    0 1px 0 hsl(40 4% 24% / 0.4),
     0 8px 32px hsl(0 0% 0% / 0.4);
 }
 

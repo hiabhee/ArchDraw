@@ -79,17 +79,17 @@ const FAQ_JSON_LD = {
 
 function FeatureCard({ icon: Icon, title, desc }: { icon: ComponentType<{ className?: string }>; title: string; desc: string }) {
   return (
-    <div className="rounded-xl border border-[#e4e4df] bg-white p-5">
-      <Icon className="w-4 h-4 text-[#1E90FF] mb-3" />
-      <h3 className="text-sm font-bold text-[#1c1c1a] mb-1.5">{title}</h3>
-      <p className="text-xs text-[#5a6066] leading-relaxed">{desc}</p>
+    <div className="rounded-xl border border-border-default bg-surface-card p-5">
+      <Icon className="w-4 h-4 text-brand-text mb-3" />
+      <h3 className="text-sm font-bold text-text-primary mb-1.5">{title}</h3>
+      <p className="text-xs text-text-secondary leading-relaxed">{desc}</p>
     </div>
   );
 }
 
 export default function McpPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f7f5] text-[#1c1c1a]">
+    <div className="min-h-screen flex flex-col bg-surface-page text-text-primary">
       <LandingNav />
 
       <main className="flex-1 max-w-[980px] w-full mx-auto px-6 pt-24 pb-16">
@@ -99,16 +99,16 @@ export default function McpPage() {
         />
 
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mb-5 bg-white border border-[#e4e4df] text-[#5a6066]">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium mb-5 bg-surface-card border border-border-default text-text-secondary">
             <Terminal className="w-3 h-3" />
             MCP · Model Context Protocol
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-6 text-[#1c1c1a]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-6 text-text-primary" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', letterSpacing: '-0.03em' }}>
             What is an MCP server for diagramming?
           </h1>
 
-          <p className="text-sm sm:text-base text-[#5a6066] leading-relaxed mb-4">
+          <p className="text-sm sm:text-base text-text-secondary leading-relaxed mb-4">
             An MCP server for diagramming lets AI agents like Claude, Codex, and Cursor make, change,
             and lay out architecture diagrams. ArchDraw has one. The agent does not only describe the
             diagram. It adds nodes, connects edges, calculates the layout, and validates the graph
