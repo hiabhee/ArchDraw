@@ -49,7 +49,7 @@ for (const url of DISCOVERY_URLS) {
 
 // 2. Every DOC_SECTION must be in sitemap + graph (tested by importing those routes)
 // We simulate by ensuring DOC_SECTIONS length matches expected graph nodes count
-assert(DOC_SECTIONS.length === 8, `DOC_SECTIONS has 8 entries (got ${DOC_SECTIONS.length})`);
+assert(DOC_SECTIONS.length === 9, `DOC_SECTIONS has 9 entries (got ${DOC_SECTIONS.length})`);
 
 // 3. Every blog must be representable — check blogs import works
 assert(blogs.length > 0, `blogs non-empty (${blogs.length})`);
