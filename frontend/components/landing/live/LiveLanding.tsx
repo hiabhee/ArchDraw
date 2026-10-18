@@ -174,6 +174,7 @@ export default async function LiveLanding() {
                   <span data-wire-to><CopyCommand size="lg" track="landing_copy_hero" /></span>
                 </div>
                 <p className={styles.fineprint}>
+                  No credit card required.<br />
                   Only file names and paths leave your machine.<br />
                   Or <Link href="/editor" className={styles.fineprintLink} data-track="landing_hero_editor">draw a diagram in the browser →</Link>
                 </p>
