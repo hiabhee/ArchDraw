@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   findUnique: vi.fn(),
   sessionUpsert: vi.fn(),
   detailUpsert: vi.fn(async () => ({ updatedAt: new Date(3000) })),
+  detailFindUnique: vi.fn(async () => null as unknown),
   historyCreateMany: vi.fn(async () => ({ count: 0 })),
 }));
 vi.mock('@/lib/server/projects/projectCanvas', () => ({
@@ -21,7 +22,7 @@ vi.mock('@/lib/server/prisma', () => ({
   default: {
     userCanvas: { updateMany: m.updateMany, findUnique: m.findUnique },
     agentSession: { upsert: m.sessionUpsert, findMany: m.sessionFindMany, update: m.sessionUpdate },
-    projectDetailMap: { upsert: m.detailUpsert },
+    projectDetailMap: { upsert: m.detailUpsert, findUnique: m.detailFindUnique },
     componentActivity: { createMany: m.historyCreateMany },
   },
 }));
@@ -67,6 +68,30 @@ describe('/api/projects/[canvasId]/diagram', () => {
         { id: 'web', label: 'Web', codePaths: [], parentId: 'g' },
       ],
     });
+  });
+
+  it('GET gives agents the flows, who is working where now, and with ?detail=1 the detailed map parts', async () => {
+    const now = Date.now();
+    m.authorize.mockResolvedValue({
+      canvas: { ...canvas, edges: [{ id: 'e1', source: 'web', target: 'g', label: 'uploads' }, { id: 'e2', source: 'g', target: 'web' }] },
+      principal: { userId: 'u1', credentialId: 'cred' },
+    });
+    m.sessionFindMany.mockResolvedValue([
+      { id: 's1', sessionKey: 'k1', name: 'Otter', label: 'repo', branch: null, status: 'active', intent: 'Adding retry to uploads', currentComponentId: 'web', touched: {}, unmappedPaths: [], startedAt: new Date(now - 60_000), lastSeenAt: new Date(now - 5_000), lastChange: null, lastAction: 'edit', lastActionAt: new Date(now - 5_000), aimComponentId: null, siteArea: null, siteAnchorId: null, mappedHits: 0, unmappedHits: 0, detailComponentId: 'web__form' },
+      { id: 's2', sessionKey: 'k2', name: 'Fox', label: 'repo', branch: null, status: 'ended', intent: null, currentComponentId: 'g', touched: {}, unmappedPaths: ['secret/x.ts'], startedAt: new Date(now - 60_000), lastSeenAt: new Date(now - 5_000), lastChange: null, lastAction: 'done', lastActionAt: null, aimComponentId: null, siteArea: null, siteAnchorId: null, mappedHits: 0, unmappedHits: 0, detailComponentId: null },
+    ] as never);
+    m.detailFindUnique.mockResolvedValue({ nodes: [{ id: 'web__form', type: 'shapeNode', parentId: 'web', data: { label: 'Upload form', codePaths: ['web/form.tsx'] } }], edges: [] });
+
+    const plain = await (await GET(new NextRequest('http://localhost/api/projects/c1/diagram'), params)).json();
+    expect(plain.flows).toEqual([{ from: 'web', to: 'g', label: 'uploads' }, { from: 'g', to: 'web' }]);
+    expect(plain.working).toEqual([{ sessionKey: 'k1', name: 'Otter', componentId: 'web', detailComponentId: 'web__form', intent: 'Adding retry to uploads', activity: 'writing code…' }]);
+    expect(plain.parts).toBeUndefined();
+    expect(JSON.stringify(plain)).not.toContain('secret/x.ts');
+    expect(m.detailFindUnique).not.toHaveBeenCalled();
+
+    const withDetail = await (await GET(new NextRequest('http://localhost/api/projects/c1/diagram?detail=1'), params)).json();
+    expect(withDetail.parts).toEqual([{ id: 'web__form', label: 'Upload form', type: 'shapeNode', parentId: 'web', codePaths: ['web/form.tsx'] }]);
+    expect(withDetail.partFlows).toEqual([]);
   });
 
   it('stores the detailed map separately and leaves the overview canvas alone', async () => {

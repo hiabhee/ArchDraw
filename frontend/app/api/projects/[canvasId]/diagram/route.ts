@@ -6,13 +6,15 @@ import prisma from '@/lib/server/prisma';
 import { type Prisma } from '@/src/generated/prisma/client';
 import { getUserQuotas, getUserTier } from '@/lib/quotas/userQuotas';
 import { isTextNode } from '@/lib/diagram/mermaid/textNodes';
+import { overviewSizeWarning } from '@/lib/diagram/projects/overviewSize';
 import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { checkRateLimitWithFallback } from '@/lib/server/redis';
 import { authorizeAgentForCanvas, readJsonBody } from '@/lib/server/projects/projectCanvas';
 import { createComponentMatcher, getCodePaths, type CodePathNode } from '@/lib/diagram/projects/pathMatcher';
-import { pickSessionName } from '@/lib/server/projects/liveSessions';
+import { pickSessionName, queryLiveSessions, toLiveSession } from '@/lib/server/projects/liveSessions';
+import { ACTIVITY_LABEL, sessionActivity } from '@/lib/diagram/projects/liveActivity';
 import { publishGraph } from '@/lib/diagram/projects/publishGraph';
 import { isEmptyChange, summarizeChange } from '@/lib/diagram/projects/structureDiff';
 import { recordAddedComponents } from '@/lib/server/projects/componentHistory';
@@ -33,9 +35,28 @@ function storedGraph(canvas: { nodes: unknown; edges: unknown }) {
   };
 }
 
+function componentView(nodes: StoredNode[]) {
+  return nodes.map((node) => ({
+    id: node.id,
+    label: typeof node.data?.label === 'string' ? node.data.label : node.id,
+    type: node.type ?? null,
+    parentId: node.parentId ?? node.parentNode ?? null,
+    codePaths: getCodePaths(node),
+  }));
+}
+
+/** Calls and data flow between components: what moves where. */
+function flowView(edges: Edge[]) {
+  return edges.map((edge) => {
+    const label = typeof edge.label === 'string' ? edge.label : typeof edge.data?.label === 'string' ? edge.data.label : null;
+    return { from: edge.source, to: edge.target, ...(label ? { label } : {}) };
+  });
+}
+
 /**
  * Agent view of the project diagram. Default: compact component → code-path
- * map. `?format=mermaid[&direction=LR|TD]`: the current diagram as Mermaid plus
+ * map with the flows between components and the sessions working now
+ * (`?detail=1` adds the detailed map's parts). `?format=mermaid[&direction=LR|TD]`: the current diagram as Mermaid plus
  * its componentPaths, so an agent can edit it and publish it back.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ canvasId: string }> }) {
@@ -56,15 +77,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ ...base, mermaid: reactFlowToMermaid(nodes, edges, direction), componentPaths });
     }
 
+    // `?detail=1`: also the detailed map's parts, so an agent can be pointed at
+    // the module it needs. Sessions working now are always included (no paths).
+    const wantDetail = request.nextUrl.searchParams.get('detail') === '1';
+    const now = Date.now();
+    const [detail, sessionRows] = await Promise.all([
+      wantDetail ? prisma.projectDetailMap.findUnique({ where: { canvasId: agent.canvas.id }, select: { nodes: true, edges: true } }) : null,
+      queryLiveSessions(agent.canvas.id, now),
+    ]);
+    const working = sessionRows
+      .map((row) => toLiveSession(row, now))
+      .filter((s) => s.status === 'active')
+      .map((s) => ({
+        sessionKey: s.sessionKey,
+        name: s.name,
+        componentId: s.currentComponentId,
+        detailComponentId: s.detailComponentId,
+        intent: s.intent,
+        activity: ACTIVITY_LABEL[sessionActivity(s, now)],
+      }));
+
     return NextResponse.json({
       ...base,
-      components: componentNodes.map((node) => ({
-        id: node.id,
-        label: typeof node.data?.label === 'string' ? node.data.label : node.id,
-        type: node.type ?? null,
-        parentId: node.parentId ?? node.parentNode ?? null,
-        codePaths: getCodePaths(node),
-      })),
+      components: componentView(componentNodes),
+      flows: flowView(edges),
+      working,
+      ...(detail
+        ? (() => {
+            const graph = storedGraph(detail);
+            return {
+              parts: componentView((graph.nodes as unknown as StoredNode[]).filter((node) => !isTextNode(node as never))),
+              partFlows: flowView(graph.edges),
+            };
+          })()
+        : {}),
     });
   } catch (error) {
     logger.error('Project diagram GET error:', error);
@@ -160,6 +206,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (result.unknownPathIds.length > 0) {
       warnings = [...warnings, `componentPaths ids not in the diagram: ${result.unknownPathIds.slice(0, 10).join(', ')}`];
     }
+    const sizeWarning = overviewSizeWarning(result.nodes as unknown as { id: string; type?: string }[]);
+    if (sizeWarning) warnings = [...warnings, sizeWarning];
 
     const { maxNodesPerCanvas } = getUserQuotas(getUserTier(agent.canvas.userId));
     const componentCount = result.nodes.filter((n) => !isTextNode(n)).length;
