@@ -18,6 +18,25 @@ type ThemeSetter = (theme: 'dark' | 'light') => void;
 
 let registeredSetter: ThemeSetter | null = null;
 
+// The resolved app theme, published by ThemeProvider. The diagram store
+// subscribes when it loads, so the root layout never imports the store.
+let appIsDark: boolean | null = null;
+const appThemeListeners = new Set<(isDark: boolean) => void>();
+
+export function publishAppTheme(isDark: boolean): void {
+  appIsDark = isDark;
+  appThemeListeners.forEach((listener) => listener(isDark));
+}
+
+/** Calls `listener` with the current app theme (once known) and on every change. */
+export function onAppTheme(listener: (isDark: boolean) => void): () => void {
+  appThemeListeners.add(listener);
+  if (appIsDark !== null) listener(appIsDark);
+  return () => {
+    appThemeListeners.delete(listener);
+  };
+}
+
 export function registerThemeSetter(setter: ThemeSetter | null): void {
   registeredSetter = setter;
 }
