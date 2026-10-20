@@ -49,7 +49,8 @@ export function NeedsYouQueue({ className = '' }: { className?: string }) {
     if (s.site) return `new ${s.site.label}`;
     const id = s.currentComponentId ?? s.aimComponentId;
     const label = id ? (nodeInternals.get(id)?.data as { label?: unknown } | undefined)?.label : null;
-    return typeof label === 'string' ? label : null;
+    // Labels may carry a detail line (`Name<br/>detail`): the name is enough here.
+    return typeof label === 'string' ? label.split(/<br\s*\/?>/i)[0].trim() || null : null;
   };
 
   // Desktop notification when a session newly needs the user and this tab is hidden.
@@ -113,17 +114,17 @@ export function NeedsYouQueue({ className = '' }: { className?: string }) {
               onClick={() => setFocused(isFocused ? null : s.sessionKey)}
               aria-pressed={isFocused}
               title={`${s.name}: ${item.reason === 'waiting' ? 'waiting for your permission' : 'finished its turn'} — look for the terminal titled "${item.reason === 'waiting' ? `● ${s.name} needs you` : `✓ ${s.name} · your turn`}"`}
-              className={`inline-flex max-w-[15rem] items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors ${
+              className={`inline-flex min-w-0 max-w-[20rem] items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 transition-colors ${
                 isFocused ? 'border-foreground/40 bg-foreground/[0.07]' : 'border-border/70 hover:bg-foreground/[0.05]'
               }`}
             >
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />
-              <span className="font-semibold">{s.name}</span>
-              <span className={item.reason === 'waiting' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}>
+              <span className="shrink-0 font-semibold">{s.name}</span>
+              <span className={`shrink-0 ${item.reason === 'waiting' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
                 {item.reason === 'waiting' ? 'permission' : 'your turn'}
               </span>
-              {place && <span className="truncate text-muted-foreground">· {place}</span>}
-              <span className="shrink-0 tabular-nums text-muted-foreground">{waited(serverNow - item.since)}</span>
+              {place && <span className="min-w-0 truncate text-muted-foreground" title={place}>· {place}</span>}
+              <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">{waited(serverNow - item.since)}</span>
             </button>
           );
         })}

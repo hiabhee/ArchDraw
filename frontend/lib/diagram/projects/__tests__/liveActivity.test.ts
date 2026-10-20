@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ACTIVITY_LABEL,
+  READ_RECENT_MS,
+  RUN_RECENT_MS,
+  actionForEvent,
+  sessionActivity,
   ENDED_AFTER_MS,
   IDLE_AFTER_MS,
   MAX_UNMAPPED_PATHS,
@@ -226,5 +231,41 @@ describe('sessionsForLevel', () => {
   });
   it('puts sessions on their part of the detailed map, else on their component box', () => {
     expect(sessionsForLevel(sessions, 'detail').map((s) => s.currentComponentId)).toEqual(['model__trainer', 'api']);
+  });
+});
+
+describe('sessionActivity', () => {
+  const at = 1_000_000;
+  const s = (lastAction: string | null, ago: number, status: 'active' | 'idle' | 'ended' = 'active') => ({ status, lastAction, lastActionAt: lastAction ? at - ago : null });
+
+  it('names what the session is doing right now', () => {
+    expect(sessionActivity(s('read', 5_000), at)).toBe('reading');
+    expect(sessionActivity(s('run', 60_000), at)).toBe('running');
+    expect(sessionActivity(s('edit', 5_000), at)).toBe('writing');
+    expect(sessionActivity(s('start', 2_000), at)).toBe('starting');
+    expect(ACTIVITY_LABEL.reading).toBe('reading files…');
+    expect(ACTIVITY_LABEL.running).toBe('running commands…');
+    expect(ACTIVITY_LABEL.writing).toBe('writing code…');
+  });
+
+  it('falls back to thinking once the last action is old, and keeps a long command running for minutes', () => {
+    expect(sessionActivity(s('read', READ_RECENT_MS + 1), at)).toBe('thinking');
+    expect(sessionActivity(s('edit', 31_000), at)).toBe('thinking');
+    expect(sessionActivity(s('run', RUN_RECENT_MS - 1), at)).toBe('running');
+    expect(sessionActivity(s('run', RUN_RECENT_MS + 1), at)).toBe('thinking');
+    expect(sessionActivity(s(null, 0), at)).toBe('thinking');
+  });
+
+  it('puts the user first: permission, then their turn; idle and ended win over stale actions', () => {
+    expect(sessionActivity(s('waiting', 3_600_000), at)).toBe('waiting');
+    expect(sessionActivity(s('done', 60_000, 'idle'), at)).toBe('done');
+    expect(sessionActivity(s('done', 3_600_000, 'idle'), at)).toBe('idle');
+    expect(sessionActivity(s('run', 1_000, 'idle'), at)).toBe('idle');
+    expect(sessionActivity(s('waiting', 1_000, 'ended'), at)).toBe('ended');
+  });
+
+  it('maps the new events: run changes the action, task only carries the task', () => {
+    expect(actionForEvent('run')).toBe('run');
+    expect(actionForEvent('task')).toBeNull();
   });
 });

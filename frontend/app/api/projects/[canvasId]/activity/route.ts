@@ -17,12 +17,13 @@ export const runtime = 'nodejs';
 
 /**
  * Coding-agent activity for a project canvas. Receives repository-relative
- * file paths only — never file contents, diffs or prompts.
+ * file paths, the kind of action and the agent's own one-line task — never
+ * file contents, diffs, commands or prompts.
  */
 const activitySchema = z.object({
   sessionKey: z.string().trim().min(1).max(200),
-  /** read: the agent read/searched files (moves its figure, does not count as an edit). aim: componentIds the task points at. wait: asked for permission. */
-  event: z.enum(['start', 'read', 'edit', 'aim', 'wait', 'stop', 'end']),
+  /** read: the agent read/searched files (moves its figure, does not count as an edit). run: started a shell command (never its text). task: moved to another to-do item, sent as `intent`. aim: componentIds the task points at. wait: asked for permission. */
+  event: z.enum(['start', 'read', 'run', 'edit', 'task', 'aim', 'wait', 'stop', 'end']),
   files: z.array(z.string().max(1024)).max(50).optional(),
   componentIds: z.array(z.string().max(200)).max(50).optional(),
   label: z.string().trim().max(120).optional(),

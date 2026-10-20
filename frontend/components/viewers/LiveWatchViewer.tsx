@@ -22,7 +22,7 @@ import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeomet
 import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme/appTheme';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
-import { buildNodeActivity, livePollBaseMs, mapCoverage, reuseNodeActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { ACTIVITY_LABEL, buildNodeActivity, livePollBaseMs, mapCoverage, reuseNodeActivity, sessionActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
 import { DetailMapEmpty, MapLevelToggle } from '@/components/canvas/MapLevelToggle';
@@ -59,7 +59,6 @@ interface WatchResponse {
   detail?: { nodes: Node[]; edges: Edge[]; updatedAt: number };
 }
 
-const STATUS_LABEL: Record<LiveAgentSession['status'], string> = { active: 'working', idle: 'idle', ended: 'ended' };
 
 function normalizeNodes(raw: Node[]): Node[] {
   return raw.map((node) => ({
@@ -332,17 +331,19 @@ function Viewer({ token }: { token: string }) {
           {sessions.slice(0, 8).map((s) => {
             const focused = focusedSessionKey === s.sessionKey;
             const where = s.site ? 'new code' : s.currentComponentId ? labels.get(s.currentComponentId) : null;
+            const activity = sessionActivity(s, serverTime);
             return (
               <button
                 key={s.id}
                 onClick={() => setFocusedSession(focused ? null : s.sessionKey)}
                 aria-pressed={focused}
-                title={[s.name, s.branch, STATUS_LABEL[s.status], where ? `on ${where}` : null, s.intent, timeAgo(s.lastSeenAt, serverTime)].filter(Boolean).join(' · ')}
-                className={`inline-flex max-w-[16rem] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${focused ? 'border-foreground/40 bg-foreground/[0.06]' : 'border-border/70 hover:bg-foreground/[0.04]'} ${s.status === 'ended' ? 'opacity-50' : ''}`}
+                title={[s.name, s.branch, ACTIVITY_LABEL[activity], where ? `on ${where}` : null, s.intent, timeAgo(s.lastSeenAt, serverTime)].filter(Boolean).join(' · ')}
+                className={`inline-flex max-w-[22rem] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${focused ? 'border-foreground/40 bg-foreground/[0.06]' : 'border-border/70 hover:bg-foreground/[0.04]'} ${s.status === 'ended' ? 'opacity-50' : ''}`}
               >
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />
-                <span className="truncate font-medium">{s.name}</span>
+                <span className="shrink-0 font-medium">{s.name}</span>
                 {where && <span className="truncate text-muted-foreground">· {where}</span>}
+                {s.status === 'active' && <span className="shrink-0 text-muted-foreground" style={activity === 'writing' || activity === 'running' ? { color: s.color } : undefined}>· {ACTIVITY_LABEL[activity]}</span>}
               </button>
             );
           })}

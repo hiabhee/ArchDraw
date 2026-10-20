@@ -185,6 +185,22 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     expect(m.upsert.mock.calls[1][0].update.status).toBe('ended');
   });
 
+  it('records a running command as the action without moving the session, and a new task as its intent', async () => {
+    m.findUnique.mockResolvedValue({ touched: {}, unmappedPaths: [], currentComponentId: 'auth', name: 'Otter' });
+    const run = await POST(req({ sessionKey: 'k', event: 'run' }), params);
+    expect(run.status).toBe(200);
+    const runUpdate = m.upsert.mock.calls[0][0].update;
+    expect(runUpdate.lastAction).toBe('run');
+    expect(runUpdate.currentComponentId).toBe('auth');
+    expect(runUpdate.touched).toEqual({});
+
+    await POST(req({ sessionKey: 'k', event: 'task', intent: 'Adding retry to the uploader' }), params);
+    const taskUpdate = m.upsert.mock.calls[1][0].update;
+    expect(taskUpdate.intent).toBe('Adding retry to the uploader');
+    expect(taskUpdate.lastAction).toBeUndefined();
+    expect(taskUpdate.status).toBe('active');
+  });
+
   it('gives a new session a name no live session on the canvas uses, and returns it', async () => {
     const { sessionNameFor } = await import('@/lib/diagram/projects/liveActivity');
     const preferred = sessionNameFor('k');

@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useStoreApi, type Edge, type Node } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
-import { RECENT_EDIT_MS, sessionsForLevel, type LiveAgentSession, type LiveSite } from '@/lib/diagram/projects/liveActivity';
+import { ACTIVITY_LABEL, sessionActivity, sessionsForLevel, type LiveAgentSession, type LiveSite } from '@/lib/diagram/projects/liveActivity';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { useDiagramGeometryPlan } from '@/components/canvas/edges/DiagramGeometryProvider';
 import type { DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
@@ -49,11 +49,12 @@ interface Particle {
 }
 
 const GLYPHS = ['{ }', '=>', 'fn', '</>', '( )', ';', '[ ]', '++', '&&', '::'];
+/** Rising from the star while it runs a shell command. */
+const RUN_GLYPHS = ['>_', '$', '>_', '…'];
 const WALK_SPEED_PX = 320; // screen px per second
 const MAX_WALK_MS = 2400;
-const READ_RECENT_MS = 20_000;
-const DONE_FLAG_MS = 10 * 60_000;
-const ARRIVAL_MS = 9_000;
+/** The task line under a name tag, in characters. */
+const TASK_CHARS = 46;
 /** Below this zoom only stars show; tags stay for agents that need the user. */
 const TAG_MIN_ZOOM = 0.45;
 const SITE_W = 150;
@@ -126,30 +127,31 @@ function shortName(s: LiveAgentSession): string {
   return s.name.length > 18 ? `${s.name.slice(0, 17)}…` : s.name;
 }
 
-type Mood = 'arriving' | 'editing' | 'working' | 'reading' | 'waiting' | 'done' | 'idle' | 'aiming';
+type Mood = 'arriving' | 'editing' | 'working' | 'reading' | 'running' | 'waiting' | 'done' | 'idle' | 'aiming';
+
+const MOOD_FOR_ACTIVITY = {
+  starting: 'arriving',
+  reading: 'reading',
+  running: 'running',
+  writing: 'editing',
+  thinking: 'working',
+  waiting: 'waiting',
+  done: 'done',
+  idle: 'idle',
+  ended: 'idle',
+} as const satisfies Record<ReturnType<typeof sessionActivity>, Mood>;
 
 function moodOf(s: LiveAgentSession, now: number, located: boolean, aiming: boolean): Mood {
-  const age = s.lastActionAt != null ? now - s.lastActionAt : Infinity;
-  if (s.lastAction === 'waiting' && s.status !== 'ended') return 'waiting';
-  if (s.lastAction === 'done' && age < DONE_FLAG_MS) return 'done';
-  if (s.status === 'idle') return 'idle';
-  if (s.lastAction === 'edit' && age < RECENT_EDIT_MS) return 'editing';
-  if (s.lastAction === 'read' && age < READ_RECENT_MS) return 'reading';
-  if (!located && aiming) return 'aiming';
-  if (s.lastAction === 'start' && age < ARRIVAL_MS) return 'arriving';
-  return 'working';
+  const mood = MOOD_FOR_ACTIVITY[sessionActivity(s, now)];
+  // Not yet on its component but heading for one: a hollow figure on the way.
+  if (!located && aiming && (mood === 'working' || mood === 'arriving')) return 'aiming';
+  return mood;
 }
 
-const MOOD_LABEL: Record<Mood, string> = {
-  arriving: 'arriving',
-  editing: 'editing',
-  working: 'working',
-  reading: 'reading',
-  waiting: 'needs you',
-  done: 'your turn',
-  idle: 'idle',
-  aiming: 'heading',
-};
+/** What the tag says: the same words as the live panel ("reading files…"). */
+function moodLabel(s: LiveAgentSession, mood: Mood, now: number): string {
+  return mood === 'aiming' ? 'heading' : ACTIVITY_LABEL[sessionActivity(s, now)];
+}
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -461,10 +463,23 @@ export function AgentAtlasLayer() {
         ctx.restore();
       }
 
-      // Code particles: into the node while editing, out of it while reading.
+      // Code particles: into the node while editing, out of it while reading,
+      // up from the star while a command runs.
       for (const p of placed) {
         const w = p.w;
         const walking = (w as Walker & { walking?: boolean }).walking;
+        if (!reduceMotion && !walking && p.mood === 'running' && now >= w.nextParticleAt) {
+          // A command running: prompt glyphs rise from the star.
+          const hand = { x: w.pos.x + w.slot.x / zoom, y: w.pos.y + (w.slot.y - 22 * scale) / zoom };
+          w.particles.push({
+            from: hand,
+            to: { x: hand.x + ((Math.random() - 0.5) * 30 * scale) / zoom, y: hand.y - (38 * scale) / zoom },
+            born: now,
+            life: 1400,
+            glyph: RUN_GLYPHS[Math.floor(Math.random() * RUN_GLYPHS.length)],
+          });
+          w.nextParticleAt = now + 650 + Math.random() * 200;
+        }
         if (!reduceMotion && p.rect && !walking && (p.mood === 'editing' || p.mood === 'reading') && now >= w.nextParticleAt) {
           const inside = { x: p.rect.x + p.rect.w * (0.2 + Math.random() * 0.6), y: p.rect.y + p.rect.h * (0.25 + Math.random() * 0.5) };
           const hand = { x: w.pos.x + w.slot.x / zoom, y: w.pos.y + (w.slot.y - 22 * scale) / zoom };
@@ -573,8 +588,9 @@ export function AgentAtlasLayer() {
           ctx.fillText('z', x + 7 * scale, y - 26 * scale - (tSec % 2) * 3 * scale);
         }
 
-        // Name tag below the star: "<branch> · <mood>". Zoomed far out the
-        // map shows only stars; agents that need the user keep a compact tag.
+        // Name tag below the star: "<name> · reading files…", and under it the
+        // step the agent is on ("Adding retry to the uploader"). Zoomed far out
+        // the map shows only stars; agents that need the user keep a compact tag.
         const needsUser = p.mood === 'waiting' || p.mood === 'done';
         const showTag = zoom >= TAG_MIN_ZOOM || needsUser || focused === p.s.sessionKey;
         if (showTag) {
@@ -583,7 +599,7 @@ export function AgentAtlasLayer() {
           const label = compact ? '' : shortName(p.s);
           const state = p.mood === 'aiming' && p.aimRect
             ? `→ ${String((nodes.get(p.s.aimComponentId!)?.data as { label?: unknown })?.label ?? '').slice(0, 24)}?`
-            : MOOD_LABEL[p.mood];
+            : moodLabel(p.s, p.mood, now);
           const stateText = label ? ` · ${state}` : state;
           ctx.font = `600 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
           const lw = label ? ctx.measureText(label).width : 0;
@@ -618,10 +634,28 @@ export function AgentAtlasLayer() {
             ctx.font = `600 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
             ctx.fillText(label, tagX + 8 * ts + dot, tagY + th / 2 + 0.5);
           }
-          const urgent = needsUser || p.mood === 'editing';
+          const urgent = needsUser || p.mood === 'editing' || p.mood === 'running';
           ctx.fillStyle = urgent ? (p.mood === 'waiting' ? '#d97706' : p.s.color) : muted;
           ctx.font = `500 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
           ctx.fillText(stateText, tagX + 8 * ts + dot + lw, tagY + th / 2 + 0.5);
+
+          // Stacked tags (several agents on one component) stay one line each.
+          const task = !compact && !crowded && !faded ? p.s.intent?.trim() : null;
+          if (task) {
+            const text = task.length > TASK_CHARS ? `${task.slice(0, TASK_CHARS - 1).trimEnd()}…` : task;
+            ctx.font = `450 ${10 * ts}px ui-sans-serif, system-ui, sans-serif`;
+            const taskW = ctx.measureText(text).width + 14 * ts;
+            const taskH = 16 * ts;
+            const taskY = tagY + th + 3 * ts;
+            ctx.fillStyle = tagBg;
+            ctx.globalAlpha *= 0.9;
+            roundRect(ctx, x - taskW / 2, taskY, taskW, taskH, 6 * ts);
+            ctx.fill();
+            ctx.globalAlpha = focused && focused !== p.s.sessionKey ? 0.35 : 1;
+            ctx.fillStyle = ink;
+            ctx.textAlign = 'center';
+            ctx.fillText(text, x, taskY + taskH / 2 + 0.5);
+          }
         }
         ctx.restore();
       }

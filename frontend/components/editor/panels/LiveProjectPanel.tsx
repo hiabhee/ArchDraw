@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
 import { approveAgentPairing, makeCanvasProject, unlinkCanvasProject } from '@/lib/client/api-client';
-import { RECENT_EDIT_MS, mapCoverage, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { ACTIVITY_LABEL, mapCoverage, sessionActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
 import { getCodePaths } from '@/lib/diagram/projects/pathMatcher';
 import { summarizeChange } from '@/lib/diagram/projects/structureDiff';
 import { useAuthStore } from '@/store/authStore';
@@ -47,7 +47,7 @@ export function LiveProjectPanel() {
   const isProject = Boolean(activeCanvas?.agenticProjectId);
 
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   // Poll live activity only while the active canvas is a project.
@@ -65,36 +65,30 @@ export function LiveProjectPanel() {
         return;
       }
       setOpen(true);
-      setCollapsed(false);
+      setExpanded(true);
     };
     window.addEventListener(OPEN_LIVE_PROJECT_EVENT, handler);
     return () => window.removeEventListener(OPEN_LIVE_PROJECT_EVENT, handler);
   }, [user]);
 
-  // Project canvases always show the (collapsible) panel.
+  // Project canvases always show the rail; its list opens beside it.
   const visible = open || isProject;
 
   return (
     <>
-      {visible && activeCanvasId && (
+      {visible && activeCanvasId && (isProject ? (
+        <div className="absolute left-3 top-1/2 z-30 -translate-y-1/2" role="region" aria-label="Live project">
+          <ProjectView canvasId={activeCanvasId} expanded={expanded} onExpandedChange={setExpanded} />
+        </div>
+      ) : (
         <div
-          className={`absolute left-3 bottom-28 z-30 rounded-xl border border-border bg-surface-panel/95 text-text-primary shadow-[0_8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur ${
-            isProject && collapsed ? 'w-auto' : 'w-[min(288px,calc(100vw-24px))]'
-          }`}
+          className="absolute left-3 bottom-28 z-30 w-[min(288px,calc(100vw-24px))] rounded-xl border border-border bg-surface-panel/95 text-text-primary shadow-[0_8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur"
           role="region"
           aria-label="Live project"
         >
-          {isProject ? (
-            <ProjectView
-              canvasId={activeCanvasId}
-              collapsed={collapsed}
-              onToggleCollapsed={() => setCollapsed((c) => !c)}
-            />
-          ) : (
-            <MakeProjectView canvasId={activeCanvasId} onClose={() => setOpen(false)} />
-          )}
+          <MakeProjectView canvasId={activeCanvasId} onClose={() => setOpen(false)} />
         </div>
-      )}
+      ))}
       {upgradeOpen && (
         <UpgradeModal
           isOpen
@@ -229,13 +223,6 @@ function LinkCommand() {
 }
 
 
-/** What the session is doing, as one lowercase word. */
-function sessionVerb(s: LiveAgentSession, now: number) {
-  if (s.status === 'ended') return 'ended';
-  if (s.status === 'idle') return 'idle';
-  const lastEdit = s.currentComponentId ? s.touched[s.currentComponentId]?.lastAt : undefined;
-  return lastEdit !== undefined && now - lastEdit < RECENT_EDIT_MS ? 'editing' : 'working';
-}
 
 function Avatar({ session, size = 'md' }: { session: LiveAgentSession; size?: 'sm' | 'md' }) {
   const handle = session.name;
@@ -258,14 +245,18 @@ function Avatar({ session, size = 'md' }: { session: LiveAgentSession; size?: 's
   );
 }
 
+/** Most avatars the rail shows before "+n" (the rest are in the list). */
+const RAIL_AVATARS = 5;
+
 function ProjectView({
   canvasId,
-  collapsed,
-  onToggleCollapsed,
+  expanded,
+  onExpandedChange,
 }: {
   canvasId: string;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  /** The session list beside the rail. */
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
 }) {
   const snapshot = useProjectLiveStore((s) => s.snapshot);
   const error = useProjectLiveStore((s) => s.error);
@@ -293,6 +284,17 @@ function ProjectView({
     () => Array.from(new Set(sessions.filter((s) => s.status !== 'ended').flatMap((s) => s.unmappedPaths))).slice(0, 8),
     [sessions],
   );
+  // Working sessions first, then the idle ones that may come back; ended ones only in the list.
+  const railSessions = [...current, ...earlier.filter((s) => s.status === 'idle')];
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onExpandedChange(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded, onExpandedChange]);
 
   const handleUnlink = async () => {
     try {
@@ -304,10 +306,15 @@ function ProjectView({
     }
   };
 
+  const describe = (s: LiveAgentSession) => {
+    const where = s.site ? `New: ${s.site.label}` : s.currentComponentId ? labels.get(s.currentComponentId) ?? s.currentComponentId : null;
+    const activity = sessionActivity(s, now);
+    return { where, activity, busy: activity === 'writing' || activity === 'running', task: s.status !== 'ended' ? s.intent : null };
+  };
+
   const row = (s: LiveAgentSession) => {
     const focused = focusedSessionKey === s.sessionKey;
-    const where = s.site ? `New: ${s.site.label}` : s.currentComponentId ? labels.get(s.currentComponentId) ?? s.currentComponentId : null;
-    const verb = sessionVerb(s, now);
+    const { where, activity, busy, task } = describe(s);
     const note = s.intent ?? (s.lastChange ? summarizeChange(s.lastChange) : null);
     return (
       <li key={s.id}>
@@ -328,10 +335,11 @@ function ProjectView({
               <span className="shrink-0 font-semibold text-text-primary/80">{s.name}</span>
               {s.branch && <span className="truncate font-mono">{s.branch}</span>}
               <span aria-hidden>·</span>
-              <span className={verb === 'editing' ? 'text-text-primary' : ''} style={verb === 'editing' ? { color: s.color } : undefined}>
-                {verb}
+              <span className={`shrink-0 ${busy ? 'text-text-primary' : ''}`} style={busy ? { color: s.color } : undefined}>
+                {ACTIVITY_LABEL[activity]}
               </span>
             </span>
+            {task && <span className="mt-0.5 block truncate text-[11px] leading-tight text-text-secondary">{task}</span>}
           </span>
           <span className="shrink-0 self-start pt-0.5 text-[10px] tabular-nums text-text-muted/80">{timeAgo(s.lastSeenAt, now)}</span>
         </button>
@@ -339,37 +347,94 @@ function ProjectView({
     );
   };
 
-  return (
-    <div>
-      <button
-        onClick={onToggleCollapsed}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5"
-        aria-expanded={!collapsed}
-        aria-label={`Live project: ${current.length} session${current.length === 1 ? '' : 's'} working`}
-      >
-        <span className="relative flex h-1.5 w-1.5">
-          {current.length > 0 && <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500 opacity-60 motion-reduce:hidden" />}
-          <span className={`relative h-1.5 w-1.5 rounded-full ${current.length > 0 ? 'bg-emerald-500' : 'bg-text-muted/40'}`} />
-        </span>
-        <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-text-primary">Live</span>
-        <span className="flex items-center -space-x-1.5">
-          {current.slice(0, 4).map((s) => (
-            <span key={s.id} className="rounded-full ring-2 ring-surface-panel">
-              <Avatar session={s} size="sm" />
-            </span>
-          ))}
-          {current.length > 4 && (
-            <span className="relative inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-text-primary/10 px-1 text-[9px] font-semibold tabular-nums ring-2 ring-surface-panel">
-              +{current.length - 4}
-            </span>
-          )}
-        </span>
-        {!collapsed && current.length === 0 && <span className="text-[11px] text-text-muted">quiet</span>}
-        <ChevronDown className={`ml-auto h-3.5 w-3.5 text-text-muted transition-transform ${collapsed ? 'rotate-180' : ''}`} aria-hidden />
-      </button>
+  const statusText = current.length > 0 ? `${current.length} working` : 'quiet';
 
-      {!collapsed && (
-        <>
+  return (
+    <div className="relative">
+      {/* The rail: who is here, at a glance; everything else is one click away. */}
+      <div className="flex w-11 flex-col items-center gap-1 rounded-2xl border border-border bg-surface-panel/95 py-1.5 text-text-primary shadow-[0_8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur">
+        <button
+          onClick={() => onExpandedChange(!expanded)}
+          aria-expanded={expanded}
+          aria-label={`Live project: ${statusText}. ${expanded ? 'Hide' : 'Show'} sessions`}
+          title={`Live · ${statusText}`}
+          className={`flex h-8 w-8 flex-col items-center justify-center gap-[3px] rounded-xl transition-colors ${expanded ? 'bg-text-primary/[0.08]' : 'hover:bg-text-primary/[0.05]'}`}
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            {current.length > 0 && <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500 opacity-60 motion-reduce:hidden" />}
+            <span className={`relative h-1.5 w-1.5 rounded-full ${current.length > 0 ? 'bg-emerald-500' : 'bg-text-muted/40'}`} />
+          </span>
+          <span className="text-[7.5px] font-bold uppercase tracking-[0.12em] text-text-muted">Live</span>
+        </button>
+
+        {railSessions.length > 0 && <span className="my-0.5 h-px w-5 bg-border" aria-hidden />}
+        {railSessions.slice(0, RAIL_AVATARS).map((s) => {
+          const focused = focusedSessionKey === s.sessionKey;
+          const { where, activity, busy, task } = describe(s);
+          return (
+            <div key={s.id} className="group relative">
+              <button
+                onClick={() => setFocusedSession(focused ? null : s.sessionKey)}
+                aria-pressed={focused}
+                aria-label={[s.name, ACTIVITY_LABEL[activity], where ? `on ${where}` : null, task].filter(Boolean).join(', ')}
+                className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${focused ? 'bg-text-primary/[0.08]' : 'hover:bg-text-primary/[0.05]'}`}
+              >
+                <Avatar session={s} />
+              </button>
+              {/* Hover card beside the rail. */}
+              <div className="pointer-events-none absolute left-full top-1/2 z-10 ml-2.5 hidden w-max max-w-[240px] -translate-y-1/2 rounded-xl border border-border bg-surface-panel px-3 py-2 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.35)] group-hover:block group-focus-within:block">
+                <p className="truncate text-[12px] font-medium leading-tight">{where ?? 'Not on the map yet'}</p>
+                <p className="mt-0.5 text-[10.5px] leading-tight text-text-muted">
+                  <span className="font-semibold text-text-primary/80">{s.name}</span>
+                  {' · '}
+                  <span style={busy ? { color: s.color } : undefined}>{ACTIVITY_LABEL[activity]}</span>
+                </p>
+                {task && <p className="mt-1 text-[11px] leading-snug text-text-secondary">{task}</p>}
+              </div>
+            </div>
+          );
+        })}
+        {railSessions.length > RAIL_AVATARS && (
+          <button
+            onClick={() => onExpandedChange(true)}
+            className="flex h-6 w-8 items-center justify-center rounded-lg text-[10px] font-semibold tabular-nums text-text-muted hover:bg-text-primary/[0.05] hover:text-text-primary"
+            aria-label={`${railSessions.length - RAIL_AVATARS} more sessions`}
+          >
+            +{railSessions.length - RAIL_AVATARS}
+          </button>
+        )}
+
+        {unmapped.length > 0 && (
+          <button
+            onClick={() => { onExpandedChange(true); setShowUnmapped(true); }}
+            title={`${unmapped.length} edited file${unmapped.length === 1 ? '' : 's'} not on the map`}
+            aria-label={`${unmapped.length} files not on the map`}
+            className="flex h-7 w-8 items-center justify-center gap-1 rounded-lg text-[10px] tabular-nums text-text-muted hover:bg-text-primary/[0.05] hover:text-text-primary"
+          >
+            <span className="h-1.5 w-1.5 rotate-45 border border-current" aria-hidden />
+            {unmapped.length}
+          </button>
+        )}
+
+        <span className="my-0.5 h-px w-5 bg-border" aria-hidden />
+        <IconAction label={linkedCheckouts > 0 ? 'Link another checkout' : 'Link a checkout'} onClick={() => { onExpandedChange(true); setShowConnect(true); }}>
+          <Plus className="h-3.5 w-3.5" />
+        </IconAction>
+        {snapshot?.watchPath && <CopyWatchLink path={snapshot.watchPath} />}
+        <IconAction label="Stop live project" onClick={() => setConfirmUnlink(true)} danger>
+          <Power className="h-3.5 w-3.5" />
+        </IconAction>
+      </div>
+
+      {expanded && (
+        <div className="absolute left-full top-1/2 ml-2 w-[min(280px,calc(100vw-80px))] -translate-y-1/2 rounded-xl border border-border bg-surface-panel/95 text-text-primary shadow-[0_8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur">
+          <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Live</span>
+            <span className="text-[11px] text-text-muted">{statusText}</span>
+            <button onClick={() => onExpandedChange(false)} aria-label="Hide sessions" className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-text-primary/[0.06] hover:text-text-primary">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <div className="max-h-[50vh] overflow-y-auto px-1.5 pb-1.5">
             {error && <p className="px-2 pb-1.5 text-[11px] text-destructive">Paused: {error}</p>}
 
@@ -431,25 +496,16 @@ function ProjectView({
               onDone={() => setShowConnect(false)}
             />
           ) : (
-            <div className="flex items-center gap-1 border-t border-border/60 px-2 py-1.5">
-              <span className="flex-1 px-1 text-[10.5px] text-text-muted">
-                {linkedCheckouts > 0 ? `${linkedCheckouts} checkout${linkedCheckouts === 1 ? '' : 's'} linked` : 'No checkout linked'}
-                {coverage && (
-                  <span title={`${coverage.percent}% of the ${coverage.total} files agents edited are on a component. Low? Ask Claude to re-map the project.`}>
-                    {' '}· map covers {coverage.percent}%
-                  </span>
-                )}
-              </span>
-              <IconAction label={linkedCheckouts > 0 ? 'Link another checkout' : 'Link a checkout'} onClick={() => setShowConnect(true)}>
-                <Plus className="h-3.5 w-3.5" />
-              </IconAction>
-              {snapshot?.watchPath && <CopyWatchLink path={snapshot.watchPath} />}
-              <IconAction label="Stop live project" onClick={() => setConfirmUnlink(true)} danger>
-                <Power className="h-3.5 w-3.5" />
-              </IconAction>
-            </div>
+            <p className="border-t border-border/60 px-3 py-2 text-[10.5px] text-text-muted">
+              {linkedCheckouts > 0 ? `${linkedCheckouts} checkout${linkedCheckouts === 1 ? '' : 's'} linked` : 'No checkout linked'}
+              {coverage && (
+                <span title={`${coverage.percent}% of the ${coverage.total} files agents edited are on a component. Low? Ask Claude to re-map the project.`}>
+                  {' '}· map covers {coverage.percent}%
+                </span>
+              )}
+            </p>
           )}
-        </>
+        </div>
       )}
 
       <ConfirmDialog

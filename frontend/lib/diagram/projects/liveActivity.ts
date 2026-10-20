@@ -7,23 +7,26 @@ import type { StructureChange } from './structureDiff';
 
 export type AgentSessionStatus = 'active' | 'idle' | 'ended';
 
-export type ActivityEvent = 'start' | 'read' | 'edit' | 'aim' | 'wait' | 'stop' | 'end';
+/** `run`: a shell command started (never its text). `task`: the agent moved to another to-do item (carries it as `intent`). */
+export type ActivityEvent = 'start' | 'read' | 'run' | 'edit' | 'task' | 'aim' | 'wait' | 'stop' | 'end';
 
 /**
- * What a session did last; drives its figure on the canvas. `waiting`: asked
- * for permission; `done`: finished its turn (the user's move).
+ * What a session did last; drives its figure on the canvas. `run`: started a
+ * shell command; `waiting`: asked for permission; `done`: finished its turn
+ * (the user's move).
  */
-export type SessionAction = 'start' | 'read' | 'edit' | 'waiting' | 'done';
+export type SessionAction = 'start' | 'read' | 'run' | 'edit' | 'waiting' | 'done';
 
 const ACTION_FOR_EVENT: Partial<Record<ActivityEvent, SessionAction>> = {
   start: 'start',
   read: 'read',
+  run: 'run',
   edit: 'edit',
   wait: 'waiting',
   stop: 'done',
 };
 
-/** Null when the event does not change the action (aim, end). */
+/** Null when the event does not change the action (task, aim, end). */
 export function actionForEvent(event: ActivityEvent): SessionAction | null {
   return ACTION_FOR_EVENT[event] ?? null;
 }
@@ -60,6 +63,46 @@ export function deriveSessionStatus(
 }
 
 /** Status a session is stored with after receiving `event`. */
+/** A read this recent still shows as "reading files…". */
+export const READ_RECENT_MS = 20_000;
+/** Commands can run for minutes (tests, builds): "running commands…" until the next action. */
+export const RUN_RECENT_MS = 3 * 60 * 1000;
+/** "Your turn" stays up this long after a session finished. */
+export const DONE_RECENT_MS = 10 * 60 * 1000;
+/** A session this fresh shows as "starting…". */
+export const START_RECENT_MS = 9_000;
+
+/** What a session is doing right now, in the words the map and panels show. */
+export type SessionActivity = 'starting' | 'reading' | 'running' | 'writing' | 'thinking' | 'waiting' | 'done' | 'idle' | 'ended';
+
+export const ACTIVITY_LABEL: Record<SessionActivity, string> = {
+  starting: 'starting…',
+  reading: 'reading files…',
+  running: 'running commands…',
+  writing: 'writing code…',
+  thinking: 'thinking…',
+  waiting: 'needs you',
+  done: 'your turn',
+  idle: 'idle',
+  ended: 'ended',
+};
+
+export function sessionActivity(
+  s: { status: AgentSessionStatus; lastAction?: SessionAction | string | null; lastActionAt?: number | null },
+  now: number,
+): SessionActivity {
+  if (s.status === 'ended') return 'ended';
+  const age = s.lastActionAt != null ? now - s.lastActionAt : Infinity;
+  if (s.lastAction === 'waiting') return 'waiting';
+  if (s.lastAction === 'done' && age < DONE_RECENT_MS) return 'done';
+  if (s.status === 'idle') return 'idle';
+  if (s.lastAction === 'edit' && age < RECENT_EDIT_MS) return 'writing';
+  if (s.lastAction === 'read' && age < READ_RECENT_MS) return 'reading';
+  if (s.lastAction === 'run' && age < RUN_RECENT_MS) return 'running';
+  if (s.lastAction === 'start' && age < START_RECENT_MS) return 'starting';
+  return 'thinking';
+}
+
 export function statusForEvent(event: ActivityEvent): AgentSessionStatus {
   if (event === 'end') return 'ended';
   if (event === 'stop') return 'idle';

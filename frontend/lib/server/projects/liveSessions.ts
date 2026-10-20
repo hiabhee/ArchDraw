@@ -12,7 +12,7 @@ import {
   type SessionAction,
 } from '@/lib/diagram/projects/liveActivity';
 
-const ACTIONS = new Set<SessionAction>(['start', 'read', 'edit', 'waiting', 'done']);
+const ACTIONS = new Set<SessionAction>(['start', 'read', 'run', 'edit', 'waiting', 'done']);
 
 /** Sessions seen within this window are returned (ended ones included, for context). */
 export const LIVE_WINDOW_MS = 6 * 60 * 60 * 1000;
