@@ -24,7 +24,9 @@ test('adds every hook once, keeps other settings and hooks, and is idempotent', 
     assert.equal(ours.length, 1, event);
   }
   assert.ok(settings.hooks.Stop.some((g) => g.hooks.some((h) => h.command === 'say done')));
-  assert.equal(settings.hooks.PostToolUse.at(-1).matcher, 'Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob');
+  assert.equal(settings.hooks.PostToolUse.at(-1).matcher, 'Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob|TodoWrite|TaskCreate|TaskUpdate');
+  // Shell commands report that they start (not what they run).
+  assert.equal(settings.hooks.PreToolUse.at(-1).matcher, 'Bash');
   assert.ok(existsSync(join(e.ARCHDRAW_HOME, 'hooks', 'archdraw-project.mjs')));
   assert.ok(existsSync(join(e.CLAUDE_CONFIG_DIR, 'settings.json.archdraw-backup')));
 });

@@ -73,6 +73,8 @@ notifications.
   component covers, and the connections between them.
 - With `--map` (or if you answer yes): Claude's diagrams (overview and detailed) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
 - While Claude Code runs: the session id, branch, and the repository-relative path of
-  each file the session reads or edits; when it waits for permission or finishes.
+  each file the session reads or edits; that it is running a shell command (not the
+  command); the step it is on, from its own to-do list ("Adding retry to the
+  uploader"); when it waits for permission or finishes.
   A task is matched to a component name locally; only the component id is sent.
-- Never: file contents, diffs, prompts or your git remote.
+- Never: file contents, diffs, prompts, commands or their output, or your git remote.

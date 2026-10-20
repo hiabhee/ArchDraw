@@ -18,10 +18,10 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { scanRepository } from '../lib/scan.mjs';
+import { listFiles, scanRepository } from '../lib/scan.mjs';
 import { bindingFilePath, getBinding, removeBinding, saveBinding } from '../lib/binding.mjs';
 import { installClaudeHooks } from '../lib/claudeHooks.mjs';
-import { detailPrompt, mappingPrompt, parseMapping, runClaudeMapping } from '../lib/mapWithClaude.mjs';
+import { detailPrompt, mapAndCheck, mappingPrompt, readMermaid } from '../lib/mapWithClaude.mjs';
 import { createInterface } from 'node:readline/promises';
 
 const DEFAULT_API = 'https://archdraw.hiabhee.online';
@@ -150,6 +150,24 @@ async function ask(question) {
   }
 }
 
+/** Progress line while Claude reads, and a note when its answer goes back for fixes. */
+function checkedRun(tty) {
+  return {
+    onTick: (seconds) => { if (tty) process.stdout.write(`\r  ${dim(`reading… ${seconds}s`)}   `); },
+    onRepair: (problems) => {
+      if (tty) process.stdout.write('\r\x1b[2K');
+      console.log(dim(`Checked the map against your code: ${problems.length} problem${problems.length === 1 ? '' : 's'} (for example: ${problems[0]}). Asking Claude to fix them.`));
+    },
+  };
+}
+
+/** What the check still found after Claude's second try (the map is published anyway). */
+function reportLeftovers(problems) {
+  if (!problems.length) return;
+  warn(`The map still has ${problems.length} issue${problems.length === 1 ? '' : 's'} it could not fix:`);
+  for (const problem of problems.slice(0, 5)) console.log(dim(`  - ${problem}`));
+}
+
 /** Claude reads the code and publishes an accurate map (replaces the folder-based one). */
 async function mapWithClaude(root, binding, scan) {
   if (!hasCommand('claude')) {
@@ -158,19 +176,14 @@ async function mapWithClaude(root, binding, scan) {
   }
   console.log(dim('Claude is reading your code (read-only) to draw the map. You can watch it on the live map.'));
   const tty = process.stdout.isTTY;
-  const result = await runClaudeMapping(root, mappingPrompt(scan), {
-    onTick: (seconds) => { if (tty) process.stdout.write(`\r  ${dim(`reading… ${seconds}s`)}   `); },
-  });
+  const result = await mapAndCheck(root, mappingPrompt(scan), listFiles(root), checkedRun(tty));
   if (tty) process.stdout.write('\r\x1b[2K');
   if (!result.ok) {
-    warn(`${result.reason} The folder-based map stays.`);
+    warn(`${result.reason} The folder-based map stays; try \`npx archdraw-live --map\` again.`);
     return false;
   }
-  const mapping = parseMapping(result.text);
-  if (!mapping) {
-    warn('Claude answered without a usable diagram. The folder-based map stays; try `npx archdraw-live --map` again.');
-    return false;
-  }
+  const { mapping } = result;
+  reportLeftovers(result.problems);
   const res = await request(`${binding.apiBase}/api/projects/${encodeURIComponent(binding.canvasId)}/diagram`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${binding.token}`, 'Content-Type': 'application/json' },
@@ -202,15 +215,18 @@ async function mapDetailWithClaude(root, binding) {
   }
   console.log(dim('Now the detailed map: Claude opens each component up into its modules and files. The overview is ready to look at meanwhile.'));
   const tty = process.stdout.isTTY;
-  const result = await runClaudeMapping(root, detailPrompt(overview.body), {
-    onTick: (seconds) => { if (tty) process.stdout.write(`\r  ${dim(`reading… ${seconds}s`)}   `); },
+  const { nodes, areas } = readMermaid(overview.body.mermaid);
+  const result = await mapAndCheck(root, detailPrompt(overview.body), listFiles(root), {
+    ...checkedRun(tty),
+    requiredIds: [...areas.keys(), ...nodes.keys()],
   });
   if (tty) process.stdout.write('\r\x1b[2K');
-  const mapping = result.ok ? parseMapping(result.text) : null;
-  if (!mapping) {
-    warn(`${result.ok ? 'Claude answered without a usable diagram.' : result.reason} Try again with ${bold('npx archdraw-live --detail')}.`);
+  if (!result.ok) {
+    warn(`${result.reason} Try again with ${bold('npx archdraw-live --detail')}.`);
     return false;
   }
+  const { mapping } = result;
+  reportLeftovers(result.problems);
   const res = await request(diagramUrl, {
     method: 'PUT',
     headers,

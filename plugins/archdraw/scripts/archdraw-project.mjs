@@ -5,15 +5,19 @@
 //   map                       Print the project's component → code-path map
 //   mermaid [--out DIR] [--direction LR|TD]
 //                             Current diagram as Mermaid (+ paths.json with --out) to edit and republish
-//   publish --mermaid FILE [--paths FILE] [--session ID] [--relayout]
+//   publish --mermaid FILE [--paths FILE] [--session ID] [--relayout] [--level detail]
 //                             Update the project diagram. Keeps the user's layout: existing
 //                             components stay put, new ones are placed, removed ones dropped.
+//                             --level detail publishes the detailed map (always a fresh layout).
 //   intent --session ID TEXT  Tell the canvas what this session is working on
+//   guide [--session ID]      How to change or re-map the diagram (kept out of the session start note)
 //   send CWD PAYLOAD          (internal) deliver one activity report in the background
 //
 // Reads the link written by `npx archdraw-live` or `archdraw-mcp-server link` from ~/.archdraw/projects.json
-// (ARCHDRAW_HOME overrides). Sends repository-relative file paths only — never
-// file contents, diffs or prompts. Unlinked repositories: every command is a no-op.
+// (ARCHDRAW_HOME overrides). Sends repository-relative file paths, the kind of
+// action (reading, running a command, editing) and the agent's in-progress
+// to-do item — never file contents, diffs, commands or prompts. Unlinked
+// repositories: every command is a no-op.
 
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -26,6 +30,10 @@ import { fileURLToPath } from 'node:url';
 const REQUEST_TIMEOUT_MS = 10_000;
 const START_MAP_TIMEOUT_MS = 4_000;
 const NUDGE_TIMEOUT_MS = 3_000;
+/** A prompt refreshes the cached map (who works where) when it is older than this… */
+const MAP_REFRESH_MS = 60_000;
+/** …but never holds the prompt longer than this. */
+const PROMPT_MAP_TIMEOUT_MS = 1_200;
 const BACKGROUND_TIMEOUT_MS = 15_000;
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 
@@ -102,9 +110,33 @@ async function api(binding, path, init = {}) {
 const EVENTS = { SessionStart: 'start', Notification: 'wait', Stop: 'stop', SessionEnd: 'end' };
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob']);
+const TASK_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate']);
+const MAX_TASK_CHARS = 120;
+
+/**
+ * The step the agent is on, in its own words: the in-progress item of its
+ * to-do list (`activeForm`, e.g. "Adding retry to the uploader"). Written by
+ * the agent, never the user's prompt. Null when nothing is in progress.
+ */
+export function currentTask(input) {
+  const toolInput = input.tool_input || {};
+  let text = null;
+  if (Array.isArray(toolInput.todos)) {
+    const doing = toolInput.todos.find((t) => t && t.status === 'in_progress');
+    text = doing ? doing.activeForm || doing.content : null;
+  } else if (toolInput.status === 'in_progress') {
+    text = toolInput.activeForm || toolInput.subject || null;
+  }
+  if (typeof text !== 'string') return null;
+  const clean = text.replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return clean ? clean.slice(0, MAX_TASK_CHARS) : null;
+}
 
 function eventFor(input) {
+  // A shell command is starting: only that fact is sent, never the command.
+  if (input.hook_event_name === 'PreToolUse') return input.tool_name === 'Bash' ? 'run' : null;
   if (input.hook_event_name === 'PostToolUse') {
+    if (TASK_TOOLS.has(input.tool_name)) return currentTask(input) ? 'task' : null;
     // Older matchers sent edits without tool_name; treat unknown tools as edits.
     if (READ_TOOLS.has(input.tool_name)) return 'read';
     return !input.tool_name || EDIT_TOOLS.has(input.tool_name) ? 'edit' : null;
@@ -117,6 +149,7 @@ export function buildActivity(input, binding) {
   if (!event || !input.session_id) return null;
   const cwd = input.cwd || process.cwd();
   const payload = { sessionKey: String(input.session_id), event };
+  if (event === 'task') payload.intent = currentTask(input);
   if (event === 'edit' || event === 'read') {
     const toolInput = input.tool_input || {};
     // Read/Edit carry a file; Grep/Glob a directory or file to search in.
@@ -135,28 +168,45 @@ export function buildActivity(input, binding) {
   return payload;
 }
 
+// The start note is re-read on every API call of the session, so it stays
+// short: what is reported, the CLI, and where the code is. How to change or
+// re-map the diagram lives in `guide`, read only when needed.
 function startContext(binding, sessionId, map, name) {
   const node = `node "${SCRIPT_PATH}"`;
-  const url = projectUrl(binding);
   const components = map?.components?.length ?? 0;
   const mapped = map?.components?.filter((c) => c.codePaths?.length).length ?? 0;
   // Unknown is not empty: never ask for a fresh mapping because a request was slow.
   const summary = map ? `${components} components, ${mapped} mapped to code` : 'component map not loaded yet';
   return [
-    `ArchDraw live project: this repository is linked to ${url} (${summary}).`,
-    'File paths you edit are reported to it automatically (paths only), so the user can see which component each session is working on.',
-    `Your ArchDraw session id: ${sessionId}`,
-    ...(name ? [`On the map this session is "${name}". If the user asks which session this is, say ${name}.`] : []),
-    `- Component map: ${node} map`,
-    `- Change the architecture (you added, removed, renamed or moved a component): ${node} mermaid --out <tmp dir>, edit <tmp dir>/diagram.mmd and <tmp dir>/paths.json ({"<nodeId>": ["repo/path", "dir/**"]}), then ${node} publish --session ${sessionId} --mermaid <tmp dir>/diagram.mmd --paths <tmp dir>/paths.json. Keep existing node ids; the user's layout is preserved.`,
-    `- When you start a distinct piece of work, share it in one line: ${node} intent --session ${sessionId} "<what you are doing>"`,
-    `- If the user asks you to map, re-map or improve the ArchDraw diagram: read the code (README, manifests, entry points, main folders), then write diagram.mmd as graph LR with one subgraph per area, 6–20 components named for what they do (1–4 plain words, stable snake_case ids, [("…")] for data stores, external services as their own nodes) and edges for real calls or data flow, and paths.json mapping every component id to the folders/files it owns so all source code is covered. Publish it with ${node} publish --session ${sessionId} --mermaid <file> --paths <file> --relayout.`,
+    `ArchDraw: this repository is linked to ${projectUrl(binding)} (${summary}). File paths you read and edit, the kind of action and your in-progress to-do item are reported there (never file contents, commands or prompts).`,
+    `ArchDraw session id: ${sessionId}${name ? `; on the map this session is "${name}" (say ${name} if asked which session this is)` : ''}.`,
+    `ArchDraw CLI: ${node} <command>: \`map\` (components and their code), \`intent --session ${sessionId} "<text>"\` (share a new piece of work in one line), \`guide\` (read before changing or re-mapping the diagram). Change the diagram only when you add, remove, rename or move a component.`,
     !map
-      ? `Run the map command before changing the diagram; the project may already be mapped.`
+      ? 'Run `map` before changing the diagram; the project may already be mapped.'
       : mapped === 0
-        ? 'The project has no code-mapped components yet: offer to map this codebase into it (graph LR, one subgraph per area, stable ids).'
-        : 'Update the diagram only for real architectural changes, not for every file.',
+        ? 'No component is mapped to code yet: offer to map this codebase (run `guide` first).'
+        : architectureContext(map),
   ].join('\n');
+}
+
+/** How to change or re-map the diagram: printed by `guide`, not sent at session start. */
+export function diagramGuide(sessionId = '<session id>') {
+  const node = `node "${SCRIPT_PATH}"`;
+  return [
+    `Change the architecture (you added, removed, renamed or moved a component): ${node} mermaid --out <tmp dir>, edit <tmp dir>/diagram.mmd and <tmp dir>/paths.json ({"<nodeId>": ["repo/path", "dir/**"]}), then ${node} publish --session ${sessionId} --mermaid <tmp dir>/diagram.mmd --paths <tmp dir>/paths.json. Keep existing node ids; the user's layout is preserved.`,
+    '',
+    'Map, re-map or improve the diagram: analyse the code before drawing. Find what runs (manifests, run/deploy files, entry points), follow imports and calls from each entry point, and grep the boundaries between parts (HTTP routes and their callers, queue publish/consume, database and cache clients, third-party SDKs). Draw an edge only for a call or data flow you found in the code, pointing the way data moves. The map has two levels; publish both:',
+    `1. Overview (the canvas): graph LR, 3–6 subgraphs, one per stage in data-flow order, plus one External subgraph for third-party services. 8–16 components in total (merge small helpers into the component they serve), stable snake_case ids, each labelled "Name<br/>detail" (1–3 words, then at most 5 words on what it is built with or does). Each real data store is its own [("…")] node in the stage that writes it. Main flows only, about 1.5 edges per component. paths.json maps every component id to the folders/files it owns; Glob each path to check it exists and that together they cover all source code. Publish: ${node} publish --session ${sessionId} --mermaid <file> --paths <file> --relayout.`,
+    `2. Detailed map: the same areas and every overview component as a nested subgraph with the SAME id and label, holding its 2–6 main parts (ids <component>__<part>, labelled "Name<br/>file · tech"); a component with one obvious part stays a plain node with its overview id. 25–60 parts in total, edges for the real calls between parts. paths.json maps each part id and every component id. Publish: ${node} publish --level detail --session ${sessionId} --mermaid <file> --paths <file>.`,
+    'Never publish the fine-grained map as the overview: the Overview toggle would show the detailed map.',
+  ].join('\n');
+}
+
+const NOT_A_COMPONENT = /(^|\/)(__tests__|__mocks__|tests?|fixtures|scripts|docs|eval-results)\/|\.(test|spec)\.[cm]?[jt]sx?$|\.(md|mdx|txt|json|ya?ml|toml|lock|snap|csv)$/i;
+
+/** Files that can be a new component: source code, not tests, scripts, docs or data. */
+export function couldBeComponent(path) {
+  return !NOT_A_COMPONENT.test(path);
 }
 
 /** Top two path segments: the unit we nudge about once per session. */
@@ -191,7 +241,7 @@ export function takeNewAreas(sessionId, paths) {
 function unmappedContext(sessionId, paths) {
   return [
     `ArchDraw: ${paths.join(', ')} is not part of any component on the linked architecture diagram.`,
-    'If this is a new component or module (not a helper inside an existing one), update the diagram with the ArchDraw `mermaid` → `publish` commands from your session start note, passing --session ' + sessionId + '. Otherwise ignore this.',
+    `If this is a new component or module (not a helper inside an existing one), update the diagram: run the ArchDraw CLI's \`guide --session ${sessionId}\` for the steps. Otherwise ignore this.`,
   ].join(' ');
 }
 
@@ -200,10 +250,24 @@ function sessionStatePath(sessionId, kind) {
 }
 
 /** Component names for this session, so prompts can be matched without sending them. */
+/** The project's map for this session (components, flows, parts, who works where), kept in the temp directory. */
 function cacheMap(sessionId, map) {
-  const components = (map?.components ?? []).map((c) => ({ id: c.id, label: String(c.label ?? c.id) }));
+  if (!map) return;
+  const view = (list) => (Array.isArray(list) ? list : []).map((c) => ({
+    id: c.id,
+    label: String(c.label ?? c.id),
+    parentId: c.parentId ?? null,
+    codePaths: Array.isArray(c.codePaths) ? c.codePaths.slice(0, 12) : [],
+  }));
+  const cached = {
+    fetchedAt: Date.now(),
+    components: view(map.components),
+    flows: Array.isArray(map.flows) ? map.flows : [],
+    parts: view(map.parts),
+    working: Array.isArray(map.working) ? map.working : [],
+  };
   try {
-    writeFileSync(sessionStatePath(sessionId, 'map'), JSON.stringify(components));
+    writeFileSync(sessionStatePath(sessionId, 'map'), JSON.stringify(cached));
   } catch {
     // best effort
   }
@@ -211,10 +275,87 @@ function cacheMap(sessionId, map) {
 
 function readCachedMap(sessionId) {
   try {
-    return JSON.parse(readFileSync(sessionStatePath(sessionId, 'map'), 'utf8'));
+    const cached = JSON.parse(readFileSync(sessionStatePath(sessionId, 'map'), 'utf8'));
+    // Older hooks cached a bare component list.
+    return Array.isArray(cached) ? { fetchedAt: 0, components: cached, flows: [], parts: [], working: [] } : cached;
   } catch {
-    return [];
+    return { fetchedAt: 0, components: [], flows: [], parts: [], working: [] };
   }
+}
+
+/** A component's name: its label without the detail line (`Name<br/>detail`). */
+export function nameOf(label) {
+  return String(label ?? '').split(/<br\s*\/?>/i)[0].replace(/\s+/g, ' ').trim();
+}
+
+function detailOf(label) {
+  return String(label ?? '').split(/<br\s*\/?>/i).slice(1).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+const MAX_ARCHITECTURE_CHARS = 3000;
+const MAX_DETAIL_CHARS = 40;
+
+/** `src/api/**` → `src/api/`: the same folder in fewer tokens. */
+function shortPath(path) {
+  return String(path).replace(/\/\*\*(\/\*)?$/, '/');
+}
+
+/**
+ * Where the code is, as compact text for the session start note: each area's
+ * components with the folders and files they own. Components without code,
+ * ids and flows are left out — the note is re-read on every API call, and
+ * `map` has the rest.
+ */
+export function architectureContext(map, maxChars = MAX_ARCHITECTURE_CHARS) {
+  const components = map?.components ?? [];
+  if (!components.some((c) => c.codePaths?.length)) return null;
+  const byId = new Map(components.map((c) => [c.id, c]));
+  const line = (c, indent) => {
+    const detail = detailOf(c.label).slice(0, MAX_DETAIL_CHARS);
+    return `${indent}${nameOf(c.label)}${detail ? ` (${detail})` : ''}: ${c.codePaths.map(shortPath).join(', ')}`;
+  };
+  const lines = ['Where the code is (ArchDraw map):'];
+  for (const top of components.filter((c) => !c.parentId || !byId.has(c.parentId))) {
+    const inside = components.filter((c) => c.parentId === top.id && c.codePaths?.length);
+    if (top.codePaths?.length && inside.length === 0) lines.push(line(top, ''));
+    else if (inside.length) {
+      lines.push(`${nameOf(top.label)}${top.codePaths?.length ? `: ${top.codePaths.map(shortPath).join(', ')}` : ''}`);
+      for (const c of inside) lines.push(line(c, '  '));
+    }
+  }
+  const text = lines.join('\n');
+  return text.length <= maxChars ? text : `${text.slice(0, maxChars).replace(/\n[^\n]*$/, '')}\n… (more: run \`map\`)`;
+}
+
+/**
+ * What the start note does not already say about the component a task is
+ * about: its parts on the detailed map (file-level code), its neighbours, and
+ * who else is working there right now. Null when there is nothing to add, so
+ * a prompt never costs context for a repeat of the start note. Built locally
+ * from the cached map; the prompt never leaves the machine.
+ */
+export function taskContext(componentId, map, sessionKey) {
+  const byId = new Map((map?.components ?? []).map((c) => [c.id, c]));
+  const component = byId.get(componentId);
+  if (!component) return null;
+  const inside = (map.components ?? []).filter((c) => c.parentId === component.id);
+  const parts = (map.parts ?? []).filter((p) => p.parentId === component.id && p.codePaths?.length);
+  const here = (map.working ?? []).filter((w) => w.sessionKey !== sessionKey && (w.componentId === component.id || inside.some((c) => c.id === w.componentId)));
+  if (parts.length === 0 && here.length === 0) return null;
+
+  const name = (id) => nameOf(byId.get(id)?.label ?? id);
+  const lines = [`ArchDraw: this task looks like it is about "${nameOf(component.label)}". If that is wrong, ignore this note.`];
+  if (parts.length) {
+    lines.push(`Its parts: ${parts.slice(0, 10).map((p) => `${nameOf(p.label)} (${p.codePaths.map(shortPath).join(', ')})`).join('; ')}`);
+    const neighbours = (map.flows ?? [])
+      .filter((f) => f.from === component.id || f.to === component.id)
+      .map((f) => (f.from === component.id ? `→ ${name(f.to)}` : `← ${name(f.from)}`));
+    if (neighbours.length) lines.push(`Connects: ${neighbours.slice(0, 8).join(', ')}`);
+  }
+  for (const w of here) {
+    lines.push(`${w.name} (another session) is working here now${w.activity ? `, ${w.activity}` : ''}${w.intent ? `: ${w.intent}` : ''}. Avoid editing the same files at the same time.`);
+  }
+  return lines.join('\n');
 }
 
 const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'this', 'that', 'fix', 'add', 'update', 'make', 'please', 'can', 'you', 'all']);
@@ -236,7 +377,7 @@ export function matchPromptToComponent(prompt, components) {
   const said = new Set(words(prompt));
   let best = null;
   for (const component of components) {
-    const labelWords = [...new Set(words(component.label))];
+    const labelWords = [...new Set(words(nameOf(component.label)))];
     if (labelWords.length === 0) continue;
     const hits = labelWords.filter((w) => said.has(w)).length;
     if (hits !== labelWords.length) continue;
@@ -247,9 +388,9 @@ export function matchPromptToComponent(prompt, components) {
 
 const READ_THROTTLE_MS = 1500;
 
-/** Reads arrive in bursts (Grep after Grep): report at most one per window. */
-function shouldSendRead(sessionId, now = Date.now()) {
-  const file = sessionStatePath(sessionId, 'read');
+/** Reads and commands arrive in bursts (Grep after Grep): report at most one of each per window. */
+function shouldSendRead(sessionId, now = Date.now(), kind = 'read') {
+  const file = sessionStatePath(sessionId, kind);
   try {
     const last = Number(readFileSync(file, 'utf8'));
     if (Number.isFinite(last) && now - last < READ_THROTTLE_MS) return false;
@@ -301,6 +442,7 @@ export function titleStateFor(input, lastState) {
       return 'done';
     case 'UserPromptSubmit':
       return 'working';
+    case 'PreToolUse':
     case 'PostToolUse':
       // Back to work after the user answered a permission prompt.
       return lastState === 'waiting' ? 'working' : null;
@@ -337,9 +479,26 @@ async function runHook() {
   }
 
   if (input.hook_event_name === 'UserPromptSubmit') {
-    // Point the figure at the component the task is about. The prompt stays here.
-    const componentId = sessionId ? matchPromptToComponent(input.prompt ?? '', readCachedMap(sessionId)) : null;
-    if (componentId) sendInBackground(cwd, { sessionKey: sessionId, event: 'aim', componentIds: [componentId] });
+    // Point the figure at the component the task is about, and brief the agent
+    // on it from the map. The prompt stays here; only the component id is sent.
+    if (sessionId) {
+      let map = readCachedMap(sessionId);
+      if (Date.now() - (map.fetchedAt ?? 0) > MAP_REFRESH_MS) {
+        const fresh = await api(binding, '/diagram?detail=1', { timeoutMs: PROMPT_MAP_TIMEOUT_MS }).then((r) => (r.ok ? r.body : null)).catch(() => null);
+        if (fresh) {
+          cacheMap(sessionId, fresh);
+          map = readCachedMap(sessionId);
+        }
+      }
+      const prompt = input.prompt ?? '';
+      const partHit = matchPromptToComponent(prompt, map.parts ?? []);
+      const componentId = matchPromptToComponent(prompt, map.components ?? []) ?? (map.parts ?? []).find((p) => p.id === partHit)?.parentId ?? null;
+      if (componentId) {
+        sendInBackground(cwd, { sessionKey: sessionId, event: 'aim', componentIds: [componentId] });
+        const brief = taskContext(componentId, map, sessionId);
+        if (brief) output.hookSpecificOutput = { hookEventName: 'UserPromptSubmit', additionalContext: brief };
+      }
+    }
     write();
     return;
   }
@@ -354,16 +513,24 @@ async function runHook() {
     write();
     return;
   }
-  if (payload.event === 'read' && !shouldSendRead(payload.sessionKey)) {
+  if ((payload.event === 'read' || payload.event === 'run') && !shouldSendRead(payload.sessionKey, Date.now(), payload.event)) {
     write();
     return;
+  }
+  // The to-do list is rewritten often; send the task only when it changes.
+  if (payload.event === 'task') {
+    if (readState(payload.sessionKey, 'task') === payload.intent) {
+      write();
+      return;
+    }
+    writeState(payload.sessionKey, 'task', payload.intent);
   }
 
   if (payload.event === 'start') {
     // Registered in the foreground (briefly) so the terminal can show the
     // session's name on the map; a slow server falls back to the background.
     const [map, started] = await Promise.all([
-      api(binding, '/diagram', { timeoutMs: START_MAP_TIMEOUT_MS }).then((r) => (r.ok ? r.body : null)).catch(() => null),
+      api(binding, '/diagram?detail=1', { timeoutMs: START_MAP_TIMEOUT_MS }).then((r) => (r.ok ? r.body : null)).catch(() => null),
       api(binding, '/activity', { method: 'POST', body: JSON.stringify(payload), timeoutMs: START_MAP_TIMEOUT_MS }).catch(() => null),
     ]);
     if (!started?.ok) sendInBackground(cwd, payload);
@@ -398,7 +565,7 @@ async function runHook() {
     write();
     return;
   }
-  const unmapped = activity.ok && Array.isArray(activity.body.unmapped) ? activity.body.unmapped : [];
+  const unmapped = activity.ok && Array.isArray(activity.body.unmapped) ? activity.body.unmapped.filter(couldBeComponent) : [];
   if (unmapped.length > 0 && takeNewAreas(payload.sessionKey, unmapped).length > 0) {
     output.hookSpecificOutput = { hookEventName: 'PostToolUse', additionalContext: unmappedContext(payload.sessionKey, unmapped) };
   }
@@ -478,6 +645,7 @@ async function runPublish(argv) {
   if (f.paths) body.componentPaths = JSON.parse(readFileSync(f.paths, 'utf8'));
   if (f.session) body.sessionKey = f.session;
   if (f.relayout) body.relayout = true;
+  if (f.level === 'detail') body.level = 'detail';
   if (f['base-updated-at']) body.baseUpdatedAt = Number(f['base-updated-at']);
   let res = await api(binding, '/diagram', { method: 'PUT', body: JSON.stringify(body), timeoutMs: 60_000 });
   // The user may have moved something meanwhile: the merge is recomputed on retry.
@@ -491,6 +659,10 @@ async function runPublish(argv) {
       `${res.body.componentCount} components, ${res.body.mappedCount} mapped to code: ${url}\n` +
       (res.body.warnings?.length ? `Warnings:\n- ${res.body.warnings.join('\n- ')}\n` : ''),
   );
+}
+
+async function runGuide(argv) {
+  process.stdout.write(`${diagramGuide(flags(argv).session)}\n`);
 }
 
 async function runIntent(argv) {
@@ -509,9 +681,9 @@ async function runIntent(argv) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH;
 if (isMain) {
   const [command, ...rest] = process.argv.slice(2);
-  const run = { hook: runHook, send: runSend, map: runMap, mermaid: runMermaid, publish: runPublish, intent: runIntent }[command];
+  const run = { hook: runHook, send: runSend, map: runMap, mermaid: runMermaid, publish: runPublish, intent: runIntent, guide: runGuide }[command];
   if (!run) {
-    console.error('Usage: archdraw-project.mjs hook | map | mermaid [--out DIR] | publish --mermaid FILE [--paths FILE] [--session ID] [--relayout] | intent --session ID TEXT');
+    console.error('Usage: archdraw-project.mjs hook | map | mermaid [--out DIR] | publish --mermaid FILE [--paths FILE] [--session ID] [--relayout] [--level detail] | intent --session ID TEXT | guide [--session ID]');
     process.exit(2);
   }
   run(rest).catch((error) => {

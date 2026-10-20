@@ -7,7 +7,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { areaOf, buildActivity, loadBinding, matchPromptToComponent, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
+import { architectureContext, areaOf, buildActivity, couldBeComponent, currentTask, diagramGuide, loadBinding, nameOf, taskContext, matchPromptToComponent, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./archdraw-project.mjs', import.meta.url));
 
@@ -83,7 +83,7 @@ test('hook posts paths only and injects session context on start', async () => {
     req.on('end', () => {
       requests.push({ method: req.method, url: req.url, auth: req.headers.authorization, body: body ? JSON.parse(body) : null });
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(req.url.endsWith('/diagram') ? { components: [{ id: 'a', codePaths: [] }] } : { ok: true }));
+      res.end(JSON.stringify(req.url.split('?')[0].endsWith('/diagram') ? { components: [{ id: 'a', codePaths: [] }] } : { ok: true }));
     });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -94,7 +94,7 @@ test('hook posts paths only and injects session context on start', async () => {
   assert.equal(start.code, 0);
   const context = JSON.parse(start.out).hookSpecificOutput.additionalContext;
   assert.match(context, /session id: sess-1234/);
-  assert.match(context, /no code-mapped components/);
+  assert.match(context, /No component is mapped to code yet/);
   assert.doesNotMatch(context, /adp_t/);
 
   mkdirSync(join(repo, 'src'), { recursive: true });
@@ -136,7 +136,7 @@ test('a slow server still records the session and never claims an empty map', as
       requests.push({ url: req.url, body: body ? JSON.parse(body) : null });
       res.setHeader('content-type', 'application/json');
       // Slower than the hook's map budget, well within the background budget.
-      setTimeout(() => res.end(JSON.stringify(req.url.endsWith('/diagram') ? { components: [] } : { ok: true })), 4_500);
+      setTimeout(() => res.end(JSON.stringify(req.url.split('?')[0].endsWith('/diagram') ? { components: [] } : { ok: true })), 4_500);
     });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -147,7 +147,7 @@ test('a slow server still records the session and never claims an empty map', as
   assert.ok(Date.now() - started < 6_000);
   const context = JSON.parse(start.out).hookSpecificOutput.additionalContext;
   assert.match(context, /component map not loaded yet/);
-  assert.doesNotMatch(context, /no code-mapped components/);
+  assert.doesNotMatch(context, /No component is mapped/);
 
   await waitFor(() => requests.some((r) => r.url === '/api/projects/c1/activity' && r.body?.event === 'start'), 8_000);
   server.closeAllConnections();
@@ -212,7 +212,19 @@ test('a new unmapped file nudges the agent once per area; edits never do', async
   assert.equal((await write('services/billing/util.ts')).out, '');
   assert.equal((await write('workers/email.ts', 'Edit')).out, '');
   assert.notEqual((await write('workers/email.ts')).out, '');
+  // Tests, scripts, docs and data files are never new components.
+  for (const file of ['frontend/scripts/eval/tasks.json', 'api/__tests__/x.test.ts', 'docs/guide.md', 'tools/scripts/run.ts']) {
+    assert.equal((await write(file)).out, '', file);
+  }
   server.close();
+});
+
+test('couldBeComponent keeps source files and drops tests, scripts, docs and data', () => {
+  assert.equal(couldBeComponent('services/billing/index.ts'), true);
+  assert.equal(couldBeComponent('src/descriptions.py'), true);
+  assert.equal(couldBeComponent('lib/a.test.ts'), false);
+  assert.equal(couldBeComponent('frontend/scripts/eval/run.ts'), false);
+  assert.equal(couldBeComponent('config/app.yml'), false);
 });
 
 test('mermaid --out writes the diagram and paths; publish sends session and relayout', async () => {
@@ -295,7 +307,7 @@ test('a prompt sends only the matched component id, never the text', async () =>
     req.on('end', () => {
       requests.push({ url: req.url, body: body ? JSON.parse(body) : null });
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(req.url.endsWith('/diagram') ? { components: [{ id: 'group', label: 'Group Node', codePaths: [] }] } : { ok: true }));
+      res.end(JSON.stringify(req.url.split('?')[0].endsWith('/diagram') ? { components: [{ id: 'group', label: 'Group Node', codePaths: [] }] } : { ok: true }));
     });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -315,7 +327,7 @@ test('a prompt sends only the matched component id, never the text', async () =>
 
 test('a session gets its map name in the terminal: message, session title and window title that follows its state', async () => {
   const repo = makeRepo();
-  const { server, requests, apiBase } = await stubServer((req) => [200, req.url.endsWith('/diagram') ? { components: [] } : { ok: true, name: 'Otter' }]);
+  const { server, requests, apiBase } = await stubServer((req) => [200, req.url.split('?')[0].endsWith('/diagram') ? { components: [] } : { ok: true, name: 'Otter' }]);
   const env = { ARCHDRAW_HOME: makeHome({ [repo]: binding(apiBase) }) };
   const session = `title-${Date.now()}`;
 
@@ -337,4 +349,88 @@ test('a session gets its map name in the terminal: message, session title and wi
   await waitFor(() => requests.filter((r) => r.body?.event === 'stop').length >= 1);
   server.close();
   assert.equal(requests.filter((r) => r.body?.event === 'wait').length, 1, 'idle prompts are not permission requests');
+});
+
+test('a shell command reports that it runs, never what it runs', () => {
+  const b = { ...binding(), checkoutRoot: '/r' };
+  const run = buildActivity({ hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: 's1', cwd: '/r', tool_input: { command: 'npm test -- --secret=x' } }, b);
+  assert.deepEqual(run, { sessionKey: 's1', event: 'run' });
+  assert.doesNotMatch(JSON.stringify(run), /npm|secret/);
+  // Other tools before use send nothing.
+  assert.equal(buildActivity({ hook_event_name: 'PreToolUse', tool_name: 'Read', session_id: 's1', cwd: '/r', tool_input: {} }, b), null);
+});
+
+test('the to-do item in progress is the task line; nothing in progress sends nothing', () => {
+  const b = { ...binding(), checkoutRoot: '/r' };
+  const todos = [
+    { content: 'Write the tests', status: 'completed', activeForm: 'Writing the tests' },
+    { content: 'Add retry to the uploader', status: 'in_progress', activeForm: 'Adding retry to the uploader' },
+    { content: 'Update docs', status: 'pending', activeForm: 'Updating docs' },
+  ];
+  assert.deepEqual(
+    buildActivity({ hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', session_id: 's1', cwd: '/r', tool_input: { todos } }, b),
+    { sessionKey: 's1', event: 'task', intent: 'Adding retry to the uploader' },
+  );
+  assert.equal(buildActivity({ hook_event_name: 'PostToolUse', tool_name: 'TodoWrite', session_id: 's1', cwd: '/r', tool_input: { todos: todos.map((t) => ({ ...t, status: 'completed' })) } }, b), null);
+  assert.equal(currentTask({ tool_input: { taskId: '3', status: 'in_progress', activeForm: 'Fixing the\nlogin  bug' } }), 'Fixing the login bug');
+  assert.equal(currentTask({ tool_input: { todos: [{ content: 'x'.repeat(300), status: 'in_progress' }] } }).length, 120);
+});
+
+const SHOP = {
+  components: [
+    { id: 'serve', label: 'Serving', parentId: null, codePaths: [] },
+    { id: 'api', label: 'REST API<br/>Express · JWT', parentId: 'serve', codePaths: ['src/api/**'] },
+    { id: 'worker', label: 'Resizer', parentId: 'serve', codePaths: ['src/worker/**'] },
+    { id: 'stripe', label: 'Stripe', parentId: null, codePaths: [] },
+  ],
+  flows: [{ from: 'api', to: 'worker', label: 'resize jobs' }, { from: 'api', to: 'stripe' }],
+  parts: [{ id: 'api__upload', label: 'Upload route', parentId: 'api', codePaths: ['src/api/upload.ts'] }],
+  working: [
+    { sessionKey: 'other', name: 'Otter', componentId: 'api', intent: 'Adding retry to uploads', activity: 'writing code…' },
+    { sessionKey: 'me', name: 'Lynx', componentId: 'api', intent: null, activity: 'reading files…' },
+  ],
+};
+
+test('the architecture summary lists areas and components with their code, compactly', () => {
+  const text = architectureContext(SHOP);
+  assert.match(text, /^Where the code is/);
+  assert.match(text, /Serving\n  REST API \(Express · JWT\): src\/api\/\n  Resizer: src\/worker\//);
+  // No code, ids or flows: the note is re-read on every API call.
+  assert.doesNotMatch(text, /Stripe|\[api\]|→/);
+  assert.equal(architectureContext({ components: [{ id: 'a', label: 'A', codePaths: [] }] }), null);
+  assert.ok(architectureContext(SHOP, 60).length <= 100);
+  assert.equal(nameOf('Scene prep<br/>rasterio'), 'Scene prep');
+});
+
+test('a task brief adds only what the start note lacks: parts, neighbours, other sessions', () => {
+  const text = taskContext('api', SHOP, 'me');
+  assert.match(text, /about "REST API"/);
+  assert.match(text, /Its parts: Upload route \(src\/api\/upload\.ts\)/);
+  assert.match(text, /Connects: → Resizer, → Stripe/);
+  assert.match(text, /Otter \(another session\) is working here now, writing code…: Adding retry to uploads/);
+  assert.doesNotMatch(text, /Lynx|Its code/);
+  assert.equal(taskContext('nope', SHOP, 'me'), null);
+  // Nothing beyond the start note: no brief at all.
+  assert.equal(taskContext('worker', SHOP, 'me'), null);
+});
+
+test('guide holds the diagram change and re-map steps the start note leaves out', () => {
+  const text = diagramGuide('sess-9');
+  assert.match(text, /mermaid --out/);
+  assert.match(text, /publish --session sess-9 .*--relayout/);
+  // Two levels: a small overview, the fine-grained map at the detailed level.
+  assert.match(text, /8–16 components/);
+  assert.match(text, /publish --level detail --session sess-9/);
+});
+
+test('publish --level detail sends the detailed map level', async () => {
+  const repo = makeRepo();
+  const { server, requests, apiBase } = await stubServer(() => [200, { summary: 'Detailed map', mode: 'fresh', componentCount: 30, mappedCount: 30, warnings: [] }]);
+  const env = { ARCHDRAW_HOME: makeHome({ [repo]: binding(apiBase) }) };
+  const file = join(realpathSync(mkdtempSync(join(tmpdir(), 'ad-detail-'))), 'detail.mmd');
+  writeFileSync(file, 'graph LR\n  api__routes["Routes"]\n');
+  const published = await runCli(['publish', '--level', 'detail', '--session', 's1', '--mermaid', file], { cwd: repo, env });
+  assert.equal(published.code, 0, published.err);
+  assert.equal(requests[0].body.level, 'detail');
+  server.close();
 });

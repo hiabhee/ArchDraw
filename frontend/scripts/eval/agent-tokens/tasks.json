@@ -1,0 +1,74 @@
+{
+  "$comment": "Benchmark tasks for `npm run eval:agent-tokens`. Each task runs from a clean worktree of `base`. `targets` are regexes for the files the right answer lives in (used to count calls before Claude first touches one). A run passes when every `answer` regex matches the final reply (case-insensitive) and `check` (run in the worktree after the agent, with `hiddenTest` written first) exits 0. `kind` says what the task probes; `misleading` tasks name a component the prompt matcher picks wrongly on purpose.",
+  "repos": {
+    "archdraw": {
+      "base": "HEAD",
+      "tasks": [
+        {
+          "id": "locate-handle-offsets",
+          "kind": "locate-documented",
+          "prompt": "Which function computes the ±16px handle slot offsets when one side of a node has both incoming and outgoing edges? Reply with the file path and the function name only. Do not change any files.",
+          "targets": ["handleSlotOrder|diagram/edges\""],
+          "answer": ["handleSlotOrder|diagram/edges\"", "computeDynamicSlotOffsets"]
+        },
+        {
+          "id": "locate-quickstart-body",
+          "kind": "locate-undocumented",
+          "prompt": "What is the largest request body the public quick start endpoint for new live projects accepts? Reply with the size and the file it is set in. Do not change any files.",
+          "targets": ["api/projects/quickstart"],
+          "answer": ["512", "quickstart/route\\.ts"]
+        },
+        {
+          "id": "locate-glob-matcher",
+          "kind": "locate-undocumented",
+          "prompt": "Live projects match edited file paths against each component's code path globs. Where is the glob matching implemented, and how does it avoid slow backtracking regexes? Reply in two sentences with the file path. Do not change any files.",
+          "targets": ["diagram/projects(/pathMatcher\\.ts)?\"|pathMatcher"],
+          "answer": ["pathMatcher\\.ts"]
+        },
+        {
+          "id": "locate-admin-login-limit",
+          "kind": "locate-matched",
+          "prompt": "How many admin login attempts are allowed per IP before the admin login is rate limited, and over what window? Reply with the numbers and the file. Do not change any files.",
+          "targets": ["api/admin/login"],
+          "answer": ["\\b5\\b", "15"]
+        },
+        {
+          "id": "locate-svg-export",
+          "kind": "misleading",
+          "prompt": "When a user exports a diagram as SVG from the editor, which function builds the SVG markup? Reply with the function name and its file. Do not change any files.",
+          "targets": ["diagram/export"],
+          "answer": ["generatePureSVG"]
+        },
+        {
+          "id": "edit-idle-timeout",
+          "kind": "edit-small",
+          "prompt": "A live agent session is shown as idle after 2 minutes without activity. Change that to 3 minutes and update any tests that depend on it. Run the affected tests.",
+          "targets": ["diagram/projects(/liveActivity\\.ts)?\"|liveActivity"],
+          "hiddenTest": {
+            "path": "frontend/lib/diagram/projects/__tests__/zzEvalIdle.test.ts",
+            "content": "import { describe, expect, it } from 'vitest';\nimport { IDLE_AFTER_MS } from '../liveActivity';\n\ndescribe('eval: idle timeout', () => {\n  it('is 3 minutes', () => {\n    expect(IDLE_AFTER_MS).toBe(3 * 60 * 1000);\n  });\n});\n"
+          },
+          "check": "cd frontend && npx vitest --run lib/diagram/projects"
+        },
+        {
+          "id": "edit-trailing-slash",
+          "kind": "edit-small",
+          "prompt": "Component code paths in live projects are normalized before matching. Make that normalization also drop trailing slashes, so 'frontend/lib/' becomes 'frontend/lib', and add a test for it. Run the affected tests.",
+          "targets": ["diagram/projects(/pathMatcher\\.ts)?\"|pathMatcher"],
+          "hiddenTest": {
+            "path": "frontend/lib/diagram/projects/__tests__/zzEvalSlash.test.ts",
+            "content": "import { describe, expect, it } from 'vitest';\nimport { normalizeRepoPath } from '../pathMatcher';\n\ndescribe('eval: trailing slash', () => {\n  it('drops trailing slashes', () => {\n    expect(normalizeRepoPath('frontend/lib/')).toBe('frontend/lib');\n    expect(normalizeRepoPath('./frontend/lib//')).toBe('frontend/lib');\n  });\n});\n"
+          },
+          "check": "cd frontend && npx vitest --run lib/diagram/projects"
+        },
+        {
+          "id": "explain-conflict-flow",
+          "kind": "cross-component",
+          "prompt": "When two tabs save the same canvas and the server rejects the stale write, what happens end to end? Name the server check, the client code that handles it, and the function that loads the server's copy. Reply in at most 5 sentences. Do not change any files.",
+          "targets": ["store/diagram/persistence|dbSave", "api/user/canvases"],
+          "answer": ["CANVAS_CONFLICT|409", "reloadCanvasFromDB"]
+        }
+      ]
+    }
+  }
+}

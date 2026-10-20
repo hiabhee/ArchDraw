@@ -10,7 +10,8 @@ import { archdrawHome } from './binding.mjs';
 
 export const HOOK_EVENTS = [
   ['SessionStart', null],
-  ['PostToolUse', 'Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob'],
+  ['PreToolUse', 'Bash'],
+  ['PostToolUse', 'Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob|TodoWrite|TaskCreate|TaskUpdate'],
   ['UserPromptSubmit', null],
   ['Notification', null],
   ['Stop', null],
