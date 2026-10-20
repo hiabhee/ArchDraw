@@ -37,6 +37,25 @@ describe('computeSelectionFocus', () => {
     expect(focus.nodeIds.has('backend')).toBe(true);
   });
 
+  it('with flow, keeps the whole path through the node: upstream to the start, downstream to the end', () => {
+    const focus = computeSelectionFocus(['db'], nodes, edges, { flow: true })!;
+    // Upstream db ← api ← client, downstream db → other.
+    expect([...focus.edgeIds].sort()).toEqual(['e1', 'e2', 'e4']);
+    for (const id of ['client', 'api', 'db', 'other']) expect(focus.nodeIds.has(id)).toBe(true);
+    // Sibling branches of api never touch db's flow.
+    for (const id of ['cache', 'worker', 'queue']) expect(focus.nodeIds.has(id)).toBe(false);
+    expect(focus.edgeIds.has('e3')).toBe(false);
+    expect(focus.edgeIds.has('e5')).toBe(false);
+  });
+
+  it('with flow, follows a branch to its end and stops on a loop', () => {
+    const loop = [...edges, edge('e7', 'queue', 'api')];
+    const focus = computeSelectionFocus(['worker'], nodes, loop, { flow: true })!;
+    // worker → queue → api → (db → other, cache, worker); upstream api ← client, api ← queue.
+    expect([...focus.edgeIds].sort()).toEqual(['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7']);
+    expect(focus.nodeIds.has('other')).toBe(true);
+  });
+
   it('treats a selected group as everything inside it', () => {
     const focus = computeSelectionFocus(['backend'], nodes, edges)!;
     expect([...focus.edgeIds].sort()).toEqual(['e5', 'e6']);

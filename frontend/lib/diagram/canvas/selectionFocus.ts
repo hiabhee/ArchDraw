@@ -3,8 +3,10 @@ import type { Edge, Node } from 'reactflow';
 /**
  * Selection focus: with nodes selected, the selection, its first-degree
  * neighbours (incoming and outgoing) and the edges between them stay fully
- * visible; everything else is dimmed. Pure view state — applied as CSS, never
- * written into the graph.
+ * visible; everything else is dimmed. With `flow`, the whole path through the
+ * selection stays visible instead: everything downstream (following edges
+ * forward to the end) and everything upstream (following them back to the
+ * start). Pure view state — applied as CSS, never written into the graph.
  */
 export interface SelectionFocus {
   nodeIds: ReadonlySet<string>;
@@ -22,6 +24,7 @@ export function computeSelectionFocus(
   selectedIds: readonly string[],
   nodes: readonly Node[],
   edges: readonly Edge[],
+  { flow = false }: { flow?: boolean } = {},
 ): SelectionFocus | null {
   if (selectedIds.length === 0) return null;
   const byId = new Map(nodes.map((node) => [node.id, node]));
@@ -47,11 +50,35 @@ export function computeSelectionFocus(
 
   const nodeIds = new Set(focused);
   const edgeIds = new Set<string>();
-  for (const edge of edges) {
-    if (!focused.has(edge.source) && !focused.has(edge.target)) continue;
-    edgeIds.add(edge.id);
-    nodeIds.add(edge.source);
-    nodeIds.add(edge.target);
+  if (flow) {
+    // Downstream and upstream separately: walking both ways from every node
+    // reached would light up sibling branches that never touch the focus.
+    for (const [from, to] of [['source', 'target'], ['target', 'source']] as const) {
+      const reached = new Set(focused);
+      const queue = [...focused];
+      const out = new Map<string, Edge[]>();
+      for (const edge of edges) {
+        const list = out.get(edge[from]) ?? [];
+        list.push(edge);
+        out.set(edge[from], list);
+      }
+      while (queue.length) {
+        for (const edge of out.get(queue.shift()!) ?? []) {
+          edgeIds.add(edge.id);
+          if (reached.has(edge[to])) continue;
+          reached.add(edge[to]);
+          queue.push(edge[to]);
+        }
+      }
+      for (const id of reached) nodeIds.add(id);
+    }
+  } else {
+    for (const edge of edges) {
+      if (!focused.has(edge.source) && !focused.has(edge.target)) continue;
+      edgeIds.add(edge.id);
+      nodeIds.add(edge.source);
+      nodeIds.add(edge.target);
+    }
   }
 
   // Keep the containers of every visible node, so neighbours keep their context.
