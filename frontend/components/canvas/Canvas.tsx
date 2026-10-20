@@ -2,7 +2,7 @@
 
 import ReactFlow, {
   Background, BackgroundVariant,
-  useReactFlow, ReactFlowProvider, useViewport, useStore,
+  useReactFlow, ReactFlowProvider, useViewport, useStore, useStoreApi,
   SelectionMode, ConnectionLineType,
   ConnectionMode,
   type OnSelectionChangeParams,
@@ -23,6 +23,7 @@ import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
 import { ComponentHistoryCard } from '@/components/canvas/ComponentHistoryCard';
 import { DetailMapEmpty } from '@/components/canvas/MapLevelToggle';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
+import { anyNodeInView } from '@/lib/diagram/canvas/nodesInView';
 import { ContextMenu, type ContextMenuState } from '@/components/editor/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/canvas/CometTrailCanvas';
@@ -180,6 +181,33 @@ function writeHighLevelPositions(canvasId: string | null, positions: Record<stri
   } catch {
     // storage unavailable: the arrangement just isn't remembered
   }
+}
+
+/** Only very large diagrams are culled to the viewport (see `onlyRenderVisibleElements`). */
+const CULL_NODES_ABOVE = 400;
+
+/**
+ * The "lines" grid, kept in its own component: it follows every pan/zoom
+ * frame, which must not re-render the whole canvas.
+ */
+function LinesBackground({ gap, color, opacity }: { gap: number; color: string; opacity: number }) {
+  const { x, y, zoom } = useViewport();
+  return (
+    <div
+      className="archdraw-lines-background"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 0,
+        backgroundColor: 'transparent',
+        backgroundImage: `linear-gradient(to right, ${color} 1px, transparent 1px), linear-gradient(to bottom, ${color} 1px, transparent 1px)`,
+        backgroundSize: `${gap * zoom}px ${gap * zoom}px`,
+        backgroundPosition: `${x}px ${y}px`,
+        opacity,
+        pointerEvents: 'none',
+      }}
+    />
+  );
 }
 
 function CanvasInner() {
@@ -788,9 +816,23 @@ function CanvasInner() {
     if (wasHighLevel.current && !highLevel) requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }));
     wasHighLevel.current = Boolean(highLevel);
   }, [highLevel, reactFlowInstance]);
+  // React Flow fits only on its first render, which shows the copy saved in
+  // this browser. The server copy that replaces it (on open, or when an agent
+  // re-lays out a live project) can sit entirely off screen: frame it then.
+  // A view that shows any part of the diagram is never moved.
+  const rfStore = useStoreApi();
+  useEffect(() => {
+    if (visibleNodes.length === 0) return;
+    // After React Flow has measured the new boxes.
+    const timer = setTimeout(() => {
+      const { width, height, transform, nodeInternals } = rfStore.getState();
+      if (!width || !height || nodeInternals.size === 0) return;
+      if (!anyNodeInView(nodeInternals.values(), transform, { width, height })) reactFlowInstance.fitView({ padding: 0.16, duration: 300 });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [visibleNodes, rfStore, reactFlowInstance]);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
-  const viewport = useViewport();
   const themeVars = useMemo(
     () => resolveCanvasTokens({ renderStyleId: diagramRenderStyle, colorThemeId: diagramStyleTheme, isDark }).cssVars,
     [diagramStyleTheme, diagramRenderStyle, isDark],
@@ -867,7 +909,9 @@ function CanvasInner() {
         deleteKeyCode={projection ? null : undefined}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
-        onlyRenderVisibleElements
+        // Culling remounts nodes as they cross the screen edge (re-measuring
+        // handles and sizes), which costs more than it saves below a few hundred.
+        onlyRenderVisibleElements={visibleNodes.length > CULL_NODES_ABOVE}
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
         fitView
@@ -909,19 +953,10 @@ function CanvasInner() {
           />
         )}
         {canvasBackground.variant === 'lines' && showGrid && (
-          <div
-            className="archdraw-lines-background"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 0,
-              backgroundColor: 'transparent',
-              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px)`,
-              backgroundSize: `${canvasBackground.gap * viewport.zoom}px ${canvasBackground.gap * viewport.zoom}px`,
-              backgroundPosition: `${viewport.x}px ${viewport.y}px`,
-              opacity: isDark ? 0.25 : 1,
-              pointerEvents: 'none',
-            }}
+          <LinesBackground
+            gap={canvasBackground.gap}
+            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')}
+            opacity={isDark ? 0.25 : 1}
           />
         )}
         <SVGEdgeMarkerDefs />
