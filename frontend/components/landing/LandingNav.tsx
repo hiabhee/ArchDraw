@@ -30,6 +30,8 @@ export function LandingNav({ outfitClassName, tone = 'dark' }: { outfitClassName
   const isDark = tone === 'dark';
   const navLinks = isDark ? DARK_NAV_LINKS : NAV_LINKS;
   const startHref = isDark ? (pathname === '/' ? '#start' : '/#start') : startCtaHref(pathname);
+  // On the landing the hero command is the one filled button; the nav's stays outlined.
+  const quietCta = isDark && pathname === '/';
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -99,7 +101,7 @@ export function LandingNav({ outfitClassName, tone = 'dark' }: { outfitClassName
               <a
                 href={startHref}
                 data-track="nav_get_started"
-                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${isDark ? 'bg-[#ece9e2] text-[#0b0b0c] hover:bg-white active:bg-[#d9d5cc]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
+                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${quietCta ? 'border border-white/[0.18] text-[#ece9e2] hover:bg-white/[0.07]' : isDark ? 'bg-[#ece9e2] text-[#0b0b0c] hover:bg-white active:bg-[#d9d5cc]' : 'text-white bg-brand hover:bg-[#1a7acc] active:bg-[#1668a8]'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
               >
                 {isDark ? 'Get started' : START_CTA_LABEL}
                 <ArrowRight className="w-3.5 h-3.5" />

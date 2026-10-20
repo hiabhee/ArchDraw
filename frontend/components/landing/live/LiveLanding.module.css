@@ -159,6 +159,23 @@
 .heroLead { margin: 0; color: var(--ink-soft); font-size: 17px; line-height: 1.6; text-wrap: pretty; }
 .ctaRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
 .fineprint { margin: 0; color: var(--ld-muted); font-size: 13px; line-height: 1.55; }
+/* Proof under the command: what makes it safe to try, one fact a line. */
+.proof { display: grid; gap: 7px; margin: 0; padding: 0; color: var(--ink-soft); font-size: 13.5px; line-height: 1.45; list-style: none; }
+.proof li { position: relative; padding-left: 22px; }
+.proof li::before {
+  position: absolute;
+  top: .32em;
+  left: 2px;
+  width: 9px;
+  height: 5px;
+  border-bottom: 1.5px solid #5fe0a8;
+  border-left: 1.5px solid #5fe0a8;
+  transform: rotate(-45deg);
+  content: '';
+}
+/* The hero rises in on CSS alone and is never hidden: it is the largest paint. */
+.heroRise { animation: heroRise .7s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes heroRise { from { transform: translateY(14px); } }
 .fineprintLink { color: var(--ink-soft); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; white-space: nowrap; transition: color 150ms ease; }
 .fineprintLink:hover { color: var(--ink); }
 /* The headline fills the first screen; the live map below it reveals on scroll. */
@@ -361,6 +378,7 @@
   .command[data-size='lg'] { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .heroRise { animation: none; }
   .tLine { opacity: 1; transform: none; }
   .terminal[data-play] .tLine, .liveDot, .wirePath { animation: none; }
   .card:hover { transform: none; }

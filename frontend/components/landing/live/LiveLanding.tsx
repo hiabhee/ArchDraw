@@ -4,7 +4,7 @@ import { LandingBootstrap } from '@/components/landing/LandingBootstrap';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { LandingReveal } from '@/components/landing/LandingReveal';
 import { Footer } from '@/components/landing/Footer';
-import { LiveMapHero } from './LiveMapHero';
+import { LazyLiveMapHero } from './LazyLiveMapHero';
 import { buildHeroGraphs } from './heroGraph';
 import { CopyCommand } from './CopyCommand';
 import { HeadlineWire } from './HeadlineWire';
@@ -27,7 +27,7 @@ export const LIVE_FAQS = [
   },
   {
     question: 'Does it work on private repositories?',
-    answer: 'Yes. The scan and the mapping run on your machine, so the code never has to be public. ArchDraw only receives component names, folder paths and which files each session touches.',
+    answer: 'Yes. The scan and the mapping run on your machine, so the code never has to be public. ArchDraw only receives component names, folder paths, which files each session touches, and what it is doing (reading, running a command, writing, with the step it is on in the agent’s own words).',
   },
   {
     question: 'Which coding agents does it follow?',
@@ -150,41 +150,45 @@ export default async function LiveLanding() {
         <section id="start" className={styles.hero} aria-labelledby="hero-title">
           <Parallax speed={-90} className={styles.skyLayer}><div className={styles.sky} aria-hidden="true" /></Parallax>
           <div className={`${styles.shell} ${styles.heroFold}`}>
-            <LandingReveal className={styles.heroTop} distance={18}>
-              <p className={styles.eyebrow}><span className={styles.liveDot} /> Live maps for Claude Code · free, no account</p>
+            {/* Static on purpose: the headline is the page's largest paint, so it
+                never waits for JavaScript (a CSS rise moves it, never hides it). */}
+            <div className={`${styles.heroTop} ${styles.heroRise}`}>
+              <p className={styles.eyebrow}><span className={styles.liveDot} /> Live maps for Claude Code</p>
               <h1 id="hero-title" className={styles.heroTitle}>
-                Six agents are coding.{' '}
+                See which Claude Code agent{' '}
                 <em>
-                  {/* The question, drawn as a selected node on the canvas. */}
+                  {/* The outcome, drawn as a selected node on the canvas. */}
                   <span className={styles.selected} data-wire-from>
-                    Which one needs you?
+                    needs you.
                     <i className={styles.handle} data-at="tl" aria-hidden="true" />
                     <i className={styles.handle} data-at="tr" aria-hidden="true" />
                     <i className={styles.handle} data-at="bl" aria-hidden="true" />
                     <i className={styles.handle} data-at="br" aria-hidden="true" />
-                    <span className={styles.selTag} aria-hidden="true"><i /> Otter · needs you</span>
+                    <span className={styles.selTag} aria-hidden="true"><i /> Otter · waiting 11m</span>
                   </span>
                 </em>
               </h1>
               <div className={styles.heroAside}>
                 <p className={styles.heroLead}>
-                  A live map of your codebase with every Claude Code session on it.
+                  A live map of your codebase with every Claude Code session on it. See where each one works, what it is
+                  doing, and which one is blocked.
                 </p>
                 <div className={styles.ctaRow}>
                   <span data-wire-to><CopyCommand size="lg" track="landing_copy_hero" /></span>
                 </div>
-                <p className={styles.fineprint}>
-                  No credit card required.<br />
-                  Only file names and paths leave your machine.<br />
-                  Or <Link href="/editor" className={styles.fineprintLink} data-track="landing_hero_editor">draw a diagram in the browser →</Link>
-                </p>
+                <ul className={styles.proof} aria-label="Why it is safe to try">
+                  <li>Free. No account, no credit card.</li>
+                  <li>Your code, commands and prompts stay on your machine.</li>
+                  <li>Read-only: it never changes your code.</li>
+                  <li>Our source is public on GitHub.</li>
+                </ul>
               </div>
               <HeadlineWire />
-            </LandingReveal>
+            </div>
           </div>
           <LandingReveal className={styles.heroStage} amount={0.02} duration={0.4} blur={false} distance={24}>
             <Parallax speed={36} className={styles.shelfLayer}><HeroSouvenirs /></Parallax>
-            <ScrollTilt><LiveMapHero graphs={heroGraphs} /></ScrollTilt>
+            <ScrollTilt><LazyLiveMapHero graphs={heroGraphs} /></ScrollTilt>
             <ul className={styles.legend} aria-label="How to read the map">
               <li><span className={styles.lgStar} /> working</li>
               <li><span className={styles.lgHollow} /> heading there</li>
@@ -281,13 +285,15 @@ export default async function LiveLanding() {
                 <ul>
                   <li>Component names and the folders they own</li>
                   <li>Which files each session reads or edits</li>
-                  <li>Session status: working, waiting, done</li>
+                  <li>What it is doing: reading, running a command, writing, waiting, done</li>
+                  <li>The step it is on, from the agent’s own to-do list</li>
                 </ul>
               </div>
               <div className={styles.ledgerCol}>
                 <h3><span className={styles.ledgerMark} data-tone="kept" /> Stays on your machine</h3>
                 <ul>
                   <li>File contents and diffs</li>
+                  <li>The commands it runs and their output</li>
                   <li>Your prompts, matched to the map locally</li>
                   <li>Your agent token, kept in <code>~/.archdraw</code>, outside the repo and out of Claude’s context</li>
                 </ul>
@@ -299,33 +305,6 @@ export default async function LiveLanding() {
                 <code className={styles.inlineCmd}><span>$</span> npx archdraw-live stop</code>
                 <p className={styles.ledgerSmall}>disconnects the repo.</p>
               </div>
-            </div>
-          </LandingReveal>
-        </section>
-
-        {/* ── Who it's for ─────────────────────────────────── */}
-        <section className={styles.who} aria-labelledby="who-title">
-          <LandingReveal className={styles.shell}>
-            <div className={styles.sectionHead}>
-              <p className={styles.kicker}>Made for</p>
-              <h2 id="who-title" className={styles.h2}>However you <em>build with agents.</em></h2>
-            </div>
-            <div className={styles.whoGrid}>
-              <article>
-                <span className={styles.whoIndex}>i.</span>
-                <h3>You run agents in parallel</h3>
-                <p>Five sessions, three worktrees, one screen. See all of them at once and answer the one that’s blocked first.</p>
-              </article>
-              <article>
-                <span className={styles.whoIndex}>ii.</span>
-                <h3>You build by prompting</h3>
-                <p>You don’t read every diff. The map shows what is being built and where, in boxes and arrows you can follow.</p>
-              </article>
-              <article>
-                <span className={styles.whoIndex}>iii.</span>
-                <h3>You’re new to a codebase</h3>
-                <p>A real architecture map in minutes, drawn from the code, with every box tied to the files it owns.</p>
-              </article>
             </div>
           </LandingReveal>
         </section>

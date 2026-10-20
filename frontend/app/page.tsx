@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: 'https://archdraw.hiabhee.online/',
-    title: 'Six agents are coding. Which one needs you?',
+    title: 'See which Claude Code agent needs you.',
     description:
       'ArchDraw puts every Claude Code session on a live map of your codebase. One command, no account.',
     siteName: 'ArchDraw',
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Six agents are coding. Which one needs you?',
+    title: 'See which Claude Code agent needs you.',
     description:
       'ArchDraw puts every Claude Code session on a live map of your codebase. One command, no account.',
     images: ['/api/og/home'],
