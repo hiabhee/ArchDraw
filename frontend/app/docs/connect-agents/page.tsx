@@ -13,7 +13,7 @@ const PAGE_URL = 'https://archdraw.hiabhee.online/docs/connect-agents';
 const REMOTE_URL = 'https://archdraw.hiabhee.online/api/mcp';
 const API_BASE = 'https://archdraw.hiabhee.online';
 // Keep in sync with the pin in plugins/archdraw/mcp.json.
-const NPM_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.7';
+const NPM_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.8';
 
 export const metadata: Metadata = {
   title: 'Connect a Coding Agent | ArchDraw Docs',
@@ -288,18 +288,10 @@ const CLIENTS: Client[] = [
 ];
 
 const TOOLS = [
-  { name: 'read_me', desc: 'Gives the reference guide for the agent. The agent calls it first.' },
   { name: 'generate_diagram', desc: 'Makes a diagram from Mermaid text or from nodes and edges.' },
   { name: 'update_diagram', desc: 'Adds, removes, or changes nodes and edges in the current diagram.' },
   { name: 'get_diagram_state', desc: 'Gives the nodes and edges of the current diagram.' },
-  { name: 'validate_diagram', desc: 'Finds structural problems and gives recommendations.' },
-  { name: 'fix_layout', desc: 'Calculates the layout again with the ArchDraw editor pipeline (Mermaid → Dagre).' },
   { name: 'apply_template', desc: 'Loads an architecture template.' },
-  { name: 'list_templates', desc: 'Gives the list of templates.' },
-  { name: 'list_node_types', desc: 'Gives the list of component types in the ArchDraw library.' },
-  { name: 'save_checkpoint', desc: 'Saves the current diagram with a name.' },
-  { name: 'load_checkpoint', desc: 'Restores a saved diagram.' },
-  { name: 'export_diagram', desc: 'Exports the diagram as JSON, PNG, or SVG.' },
 ];
 
 const LIMITS = [
@@ -476,7 +468,7 @@ export default function ConnectAgentsPage() {
               </ul>
               <NoticeBox
                 kind="CAUTION"
-                text={<>For the local connection, you must set <code>API_BASE_URL={API_BASE}</code>. If you do not set it, the server starts and shows its tools, but <code>generate_diagram</code>, <code>fix_layout</code>, and preview links do not operate.</>}
+                text={<>For the local connection, you must set <code>API_BASE_URL={API_BASE}</code>. If you do not set it, the server starts and shows its tools, but <code>generate_diagram</code>, <code>apply_template</code>, and preview links do not operate.</>}
               />
               <NoticeBox kind="NOTE" text={<>Each local procedure on this page pins version <code>{NPM_PACKAGE.split('@').pop()}</code>. A pinned version does not change without your action. To update, change the version number in your configuration.</>} />
             </section>

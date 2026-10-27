@@ -4,7 +4,7 @@ import type { CommunicationType, TierType } from '../types/index.js';
  * Canonical MCP constants — the single source of truth for the tier palette,
  * tier ordering, communication styles, and fallback positions.
  *
- * This palette matches the tool contract (index.ts descriptions + read_me) and
+ * This palette matches the tool contract (tool descriptions in server.ts) and
  * is deliberately kept in one place so generate / update / layout / templates /
  * validation never drift from each other. If a color must change, change it
  * here and in the corresponding frontend theme documentation.

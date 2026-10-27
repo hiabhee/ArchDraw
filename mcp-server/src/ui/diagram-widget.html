@@ -73,6 +73,7 @@
       <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
       <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
       <button type="button" class="wide" id="zoom-fit">Fit</button>
+      <button type="button" class="wide" id="download">Download PNG</button>
       <button type="button" class="wide" id="fullscreen" hidden>Expand</button>
     </div>
     </div>
@@ -189,11 +190,94 @@
         svg.addEventListener('dblclick', (event) => zoomAt(1.6, ...fraction(event.clientX, event.clientY)));
       }
 
+      // Hosts size the inline frame from these reports; without them the frame
+      // can stay zero-height. Mirrors the ext-apps SDK's autoResize.
+      let reportedWidth = 0;
+      let reportedHeight = 0;
+      let sizeQueued = false;
+      function reportSize() {
+        if (sizeQueued || displayMode === 'fullscreen') return;
+        sizeQueued = true;
+        requestAnimationFrame(() => {
+          sizeQueued = false;
+          const root = document.documentElement;
+          const previous = root.style.height;
+          root.style.height = 'max-content';
+          const height = Math.ceil(root.getBoundingClientRect().height);
+          root.style.height = previous;
+          const width = Math.ceil(window.innerWidth);
+          if (width === reportedWidth && height === reportedHeight) return;
+          reportedWidth = width;
+          reportedHeight = height;
+          notify('ui/notifications/size-changed', { width, height });
+        });
+      }
+
       function setDisplayMode(mode) {
         displayMode = mode === 'fullscreen' ? 'fullscreen' : 'inline';
         document.body.classList.toggle('fullscreen', displayMode === 'fullscreen');
         $('fullscreen').textContent = displayMode === 'fullscreen' ? 'Exit' : 'Expand';
+        reportedHeight = 0;
+        reportSize();
         requestAnimationFrame(fitView);
+      }
+
+      // The whole diagram (not the current zoom) as a 3× PNG on a white page.
+      const EXPORT_STYLE = '.edge{fill:none;stroke-width:1.5}.edge-label{fill:#687080;font-size:10px}.group-label{fill:#687080;font-size:12px;font-weight:650}.node-title{fill:#192333;font-size:12px;font-weight:650}.node-subtitle{fill:#596579;font-size:9px}text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}';
+      function renderPng() {
+        const scale = Math.min(3, 8000 / Math.max(content.w, content.h));
+        const clone = activeSvg.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clone.setAttribute('viewBox', `${content.x} ${content.y} ${content.w} ${content.h}`);
+        clone.setAttribute('width', String(Math.round(content.w * scale)));
+        clone.setAttribute('height', String(Math.round(content.h * scale)));
+        clone.removeAttribute('class');
+        for (const element of clone.querySelectorAll('[fill^="var("]')) element.setAttribute('fill', '#ffffff');
+        const style = svgElement('style', {}, EXPORT_STYLE);
+        const page = svgElement('rect', { x: content.x, y: content.y, width: content.w, height: content.h, fill: '#ffffff' });
+        clone.insertBefore(page, clone.firstChild);
+        clone.insertBefore(style, clone.firstChild);
+        const source = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+        return new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => {
+            const output = document.createElement('canvas');
+            output.width = Math.round(content.w * scale);
+            output.height = Math.round(content.h * scale);
+            output.getContext('2d').drawImage(image, 0, 0, output.width, output.height);
+            resolve(output.toDataURL('image/png'));
+          };
+          image.onerror = () => reject(new Error('Could not draw the image.'));
+          image.src = source;
+        });
+      }
+
+      function fileName() {
+        const base = String($('title').textContent || 'archdraw-diagram').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        return `${base || 'archdraw-diagram'}.png`;
+      }
+
+      async function downloadPng() {
+        if (!activeSvg || !content) return;
+        const button = $('download');
+        button.disabled = true;
+        try {
+          const dataUrl = await renderPng();
+          const name = fileName();
+          try {
+            const result = await request('ui/download-file', {
+              contents: [{ type: 'resource', resource: { uri: `file:///${name}`, mimeType: 'image/png', blob: dataUrl.split(',')[1] } }],
+            });
+            if (result.isError) throw new Error('The chat did not save the file.');
+          } catch {
+            // Hosts without ui/download-file: a plain link download, if the frame allows it.
+            Object.assign(document.createElement('a'), { href: dataUrl, download: name }).click();
+          }
+        } catch (error) {
+          $('counts').textContent = error instanceof Error ? error.message : 'Could not download the image.';
+        } finally {
+          button.disabled = false;
+        }
       }
 
       function request(method, params) {
@@ -364,6 +448,7 @@
       $('zoom-in').addEventListener('click', () => zoomAt(1.4));
       $('zoom-out').addEventListener('click', () => zoomAt(1 / 1.4));
       $('zoom-fit').addEventListener('click', fitView);
+      $('download').addEventListener('click', downloadPng);
       $('fullscreen').addEventListener('click', async () => {
         try {
           const result = await request('ui/request-display-mode', { mode: displayMode === 'fullscreen' ? 'inline' : 'fullscreen' });
@@ -406,8 +491,12 @@
         const context = result.hostContext || {};
         // Offer Expand only when the host says it can go fullscreen.
         $('fullscreen').hidden = !(context.availableDisplayModes || []).includes('fullscreen');
-        if (context.displayMode) setDisplayMode(context.displayMode);
         notify('ui/notifications/initialized', {});
+        if (context.displayMode) setDisplayMode(context.displayMode);
+        reportSize();
+        const sizeObserver = new ResizeObserver(reportSize);
+        sizeObserver.observe(document.documentElement);
+        sizeObserver.observe(document.body);
       }).catch(() => {
         $('status').textContent = 'Use the chat composer to ask ArchDraw for another diagram.';
       });

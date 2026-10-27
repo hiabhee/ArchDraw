@@ -11,7 +11,7 @@ This document uses ASD-STE100 Simplified Technical English.
 | Connection type | Value | Use it when |
 | --- | --- | --- |
 | **Remote (HTTP)** | `https://archdraw.hiabhee.online/api/mcp` | The client can connect to a remote MCP server. This is the recommended type. You do not install this package. |
-| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.0.7` | The client can only start a local process. |
+| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.0.8` | The client can only start a local process. |
 
 For the steps for each client (Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and others), refer to the [connection guide](https://archdraw.hiabhee.online/docs/connect-agents).
 
@@ -31,7 +31,7 @@ Most clients use this format:
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.7"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.8"],
       "env": {
         "API_BASE_URL": "https://archdraw.hiabhee.online"
       }
@@ -40,7 +40,7 @@ Most clients use this format:
 }
 ```
 
-> **CAUTION:** You must set `API_BASE_URL`. If you do not set it, the server starts and shows its tools, but `generate_diagram`, `fix_layout`, and preview links do not operate.
+> **CAUTION:** You must set `API_BASE_URL`. If you do not set it, the server starts and shows its tools, but `generate_diagram`, `apply_template`, and preview links do not operate.
 
 ### Environment variables
 
@@ -56,7 +56,7 @@ A live project is an ArchDraw canvas that shows which coding-agent session works
 2. In the repository, run:
 
    ```bash
-   npx -y @hiabhee/archdraw-mcp-server@1.0.7 link --api https://archdraw.hiabhee.online
+   npx -y @hiabhee/archdraw-mcp-server@1.0.8 link --api https://archdraw.hiabhee.online
    ```
 
 3. In the editor, select **Live project → Connect an agent** and enter the code that the command shows.
@@ -75,18 +75,10 @@ The ArchDraw plugin for Claude Code uses this link to report the files that each
 
 | Tool | Function |
 | --- | --- |
-| `read_me` | Gives the reference guide for the agent. The agent calls it first. |
 | `generate_diagram` | Makes a diagram from Mermaid text or from nodes and edges. |
 | `update_diagram` | Adds, removes, or changes nodes and edges in the current diagram. |
 | `get_diagram_state` | Gives the nodes and edges of the current diagram. |
-| `validate_diagram` | Finds structural problems and gives recommendations. |
-| `fix_layout` | Calculates the layout again with the ArchDraw editor pipeline. |
 | `apply_template` | Loads an architecture template. |
-| `list_templates` | Gives the list of templates. |
-| `list_node_types` | Gives the list of component types in the ArchDraw library. |
-| `save_checkpoint` | Saves the current diagram with a name. |
-| `load_checkpoint` | Restores a saved diagram. |
-| `export_diagram` | Exports the diagram as JSON, PNG, or SVG. |
 
 ## Data and privacy
 

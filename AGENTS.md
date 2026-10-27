@@ -361,7 +361,7 @@ UI: `components/editor/RepoDiagramGenerator.tsx`.
 | **Auth** | better-auth (`lib/server/auth.ts`, AuthProvider) | Google / GitHub OAuth (email+password disabled) |
 | **Share / embed** | ShareModal, SharedCanvasViewer, embed routes | Domain allowlist |
 | **Export** | `lib/diagram/export/svgExport.ts`, toolbar actions | PNG/SVG/JSON/Mermaid |
-| **MCP** | `mcp-server/src/tools/*` | generate, update, validate, layout, template, export, checkpoints, list-nodes |
+| **MCP** | `mcp-server/src/tools/*` | generate, update, get state, template |
 | **Admin** | `app/admin`, admin-auth | Passcode + rate limits |
 | **Landing** | `components/landing/live/LiveLanding.tsx` | Live-map landing; hero map in `LiveMapHero.tsx` |
 
@@ -377,9 +377,9 @@ Canonical MCP constants (tier colors/order, comm styles, fallback positions): `m
 
 Tools (under `mcp-server/src/tools/`):
 
-`generate-diagram`, `update-diagram`, `validate-diagram`, `fix-layout`, `apply-template`, `export-diagram`, `list-nodes`, `save-checkpoint`, `load-checkpoint`, `read-me`.
+`generate-diagram`, `update-diagram`, `apply-template`, plus `get_diagram_state` (in `server.ts`). Four tools only: `read_me`, `validate_diagram`, `fix_layout`, `list_node_types`, `list_templates`, checkpoints and `export_diagram` were removed in 1.0.8 (their work is covered by `generate_diagram` and the preview's Download PNG).
 
-`generate_diagram` is Mermaid-first: pass `mermaid` (graph LR/TD, subgraphs) to run the web pipeline via `/api/diagram/load`; JSON `nodes`/`edges` is still accepted but is converted to Mermaid (`structuredInputToMermaid`) and runs the same pipeline. `fix_layout` also uses the web pipeline. (The old ELK runner and `elkjs` were removed; `elkPositions` stays in tool outputs for compatibility: `fix_layout` fills it with pipeline positions, `generate_diagram` returns it empty.) Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
+`generate_diagram` is Mermaid-first: pass `mermaid` (graph LR/TD, subgraphs) to run the web pipeline via `/api/diagram/load`; JSON `nodes`/`edges` is still accepted but is converted to Mermaid (`structuredInputToMermaid`) and runs the same pipeline. (The old ELK runner and `elkjs` were removed; `elkPositions` stays in `generate_diagram` output for compatibility and is always empty.) Prefer keeping tool contracts stable; change frontend pipelines carefully when tools depend on them.
 
 **Preview links are on by default.** `generate_diagram`, `apply_template` (and `update_diagram` for already-published diagrams) return `shareUrl` (read-only preview) and `diagramUrl` (editor) in the same response — `publish` defaults to `true`; `publish:false` is the private opt-out. Tool text puts the link block first via `formatPreviewLinks` (`mcp-server/src/lib/preview-links.ts`) with an explicit "show these links to the user" line, because text-only agents can't render the widget. A failed publish returns the diagram plus `linkError`; it must never fail the generation.
 

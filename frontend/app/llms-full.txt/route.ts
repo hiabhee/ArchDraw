@@ -103,7 +103,7 @@ claude mcp add --scope user --transport http archdraw https://archdraw.hiabhee.o
 The local stdio package requires API_BASE_URL (there is no default; without it, diagram generation and layout fail):
 
 \`\`\`sh
-codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.7
+codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.8
 \`\`\`
 
 Install the reusable diagram skill:
@@ -121,7 +121,7 @@ The local MCP process runs over stdio JSON-RPC. Diagram generation and layout re
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.7"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.8"],
       "env": { "API_BASE_URL": "https://archdraw.hiabhee.online" }
     }
   }
@@ -162,7 +162,7 @@ Preferred: "Generate a messaging architecture. Order nodes in LR flow. Web clien
 
 An MCP server for diagramming is a local bridge that lets AI assistants read, edit, and lay out architecture diagrams programmatically via stdio JSON-RPC instead of producing text you translate manually.
 
-Capabilities: generate-diagram, update-diagram, validate-diagram, fix-layout, apply-template, export-diagram, list-nodes, save/load-checkpoint, read-me, list_templates, get_diagram_state.
+Capabilities: generate_diagram, update_diagram, get_diagram_state, apply_template.
 
 FAQ: works with MCP-compatible clients such as Claude Code and Cursor. The process runs locally over stdin/stdout, and calls the configured ArchDraw API for diagram generation and layout.
 

@@ -59,7 +59,7 @@ describe('hosted (stateless HTTP) mode', () => {
   });
 
   it('refuses stateful calls without a workingSessionId instead of sharing a default session', async () => {
-    const result = await callTool(memoryStore(), vi.fn(), 'validate_diagram', {});
+    const result = await callTool(memoryStore(), vi.fn(), 'update_diagram', {});
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/workingSessionId/);
   });

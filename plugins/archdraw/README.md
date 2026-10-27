@@ -28,7 +28,7 @@ Requirements: network access to `archdraw.hiabhee.online`. Claude needs nothing 
 
 - **Hooks (optional live projects)** — report which files each Claude Code session reads and edits to a linked ArchDraw project canvas, so each session appears as a figure working on the diagram. Inactive until you link a repository (see below).
 - **Skill `archdraw`** — tells the agent when and how to use the ArchDraw tools, to prefer Mermaid input, and to always show you the preview link.
-- **MCP server `archdraw`** with these tools: `generate_diagram`, `update_diagram`, `validate_diagram`, `fix_layout`, `apply_template`, `list_templates`, `list_node_types`, `get_diagram_state`, `save_checkpoint`, `load_checkpoint`, `export_diagram`, `read_me`.
+- **MCP server `archdraw`** with these tools: `generate_diagram`, `update_diagram`, `get_diagram_state`, `apply_template`.
 
 Try: "Draw the architecture of this repo", "Add a Redis cache in front of the API", "Switch the layout to top-down", or "Start from the chatgpt template".
 
@@ -46,7 +46,7 @@ Try: "Draw the architecture of this repo", "Add a Redis cache in front of the AP
 Please read this before installing.
 
 - **Connects to (Claude):** the hosted ArchDraw MCP server at `https://archdraw.hiabhee.online/api/mcp` over HTTPS. Nothing is installed or run on your machine.
-- **Runs (Codex):** `npx -y @hiabhee/archdraw-mcp-server@1.0.7`, which downloads that exact, pinned version of the same open-source server ([source](https://github.com/hiabhee/ArchDraw/tree/main/mcp-server)) from the public npm registry and runs it locally over stdio.
+- **Runs (Codex):** `npx -y @hiabhee/archdraw-mcp-server@1.0.8`, which downloads that exact, pinned version of the same open-source server ([source](https://github.com/hiabhee/ArchDraw/tree/main/mcp-server)) from the public npm registry and runs it locally over stdio.
 - **Sends:** the diagram content the agent passes to the tools — component names, labels, connections, and the Mermaid text — to `https://archdraw.hiabhee.online` (`/api/mcp` for Claude; `/api/diagram/load`, `/api/diagram/session/<id>`, `/api/diagram/export` for Codex) to lay out, publish, sync, and export diagrams. The hosted server sees your IP address, which it uses only for rate limiting. It does not read your source files itself, send credentials, or collect telemetry. Whatever the agent puts in a diagram is what is sent, so avoid putting secrets in diagram labels.
 - **Publishes by default:** each generated diagram is saved as a preview link on ArchDraw so you can see it. Links are unguessable, viewable by anyone who has the URL, and expire after 7 days. Ask the agent to keep a diagram private (the tools' `publish: false`) and no link is created; the diagram then stays only in its working session.
 - **Stores:** the current diagram and any checkpoints for a working session. On the hosted server they are kept for 24 hours under an unguessable working-session ID, then deleted; with the local Codex server they live in memory and are discarded when the session ends.

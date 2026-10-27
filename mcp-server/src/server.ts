@@ -8,28 +8,16 @@ import {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { generateDiagram } from './tools/generate-diagram.js';
-import { fixLayout } from './tools/fix-layout.js';
-import { listNodeTypes } from './tools/list-nodes.js';
-import { applyTemplate, getAvailableTemplates } from './tools/apply-template.js';
-import { getReadMe } from './tools/read-me.js';
+import { applyTemplate } from './tools/apply-template.js';
 import { clearDiagramState, getDiagramState, hasDiagramState, setDiagramState, type DiagramState } from './lib/diagram-state.js';
 import { clearCheckpoints, exportCheckpoints, importCheckpoints, type Checkpoint } from './lib/checkpoints.js';
 import { runWithMcpContext, type McpRequestContext } from './lib/http.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { validateDiagram } from './tools/validate-diagram.js';
 import { updateDiagram } from './tools/update-diagram.js';
-import { saveCheckpoint } from './tools/save-checkpoint.js';
-import { loadCheckpoint } from './tools/load-checkpoint.js';
-import { exportDiagram } from './tools/export-diagram.js';
 import {
   GenerateDiagramInputSchema,
-  FixLayoutInputSchema,
-  ListNodeTypesInputSchema,
   ApplyTemplateInputSchema,
   UpdateDiagramInputSchema,
-  SaveCheckpointInputSchema,
-  LoadCheckpointInputSchema,
-  ExportDiagramInputSchema,
 } from './lib/schema.js';
 import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI } from './ui/diagram-widget.js';
 import { formatPreviewLinks } from './lib/preview-links.js';
@@ -80,14 +68,13 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
 **WORKFLOW**:
 1. Identify the user’s actual domain and constraints
 2. Model only supported components and relationships
-3. Optionally call list_node_types to find icon names
-4. Design the Mermaid graph: groups (subgraphs) first, then children inside them
-5. Design edges: use correct communicationType, audit Auth Service edges, verify no security bypass
-6. **EDGE AUDIT (mandatory)**: Before calling this tool, scan every edge you planned:
+3. Design the Mermaid graph: groups (subgraphs) first, then children inside them
+4. Design edges: use correct communicationType, audit Auth Service edges, verify no security bypass
+5. **EDGE AUDIT (mandatory)**: Before calling this tool, scan every edge you planned:
    - Does any edge have a client-tier node as the TARGET? DELETE IT (unless both source and target are client tier)
    - Does any single node receive >45% of all edges? That node is a hub -- redistribute connections
    - Do all edges flow LEFT->RIGHT (lower tier -> higher tier)? If not, fix direction.
-7. Call this tool
+6. Call this tool
 
 **NODE FIELDS (JSON mode)**:
 - id (required): snake_case unique ID
@@ -222,112 +209,6 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
     },
   },
   {
-    name: 'fix_layout',
-    title: 'Lay out an ArchDraw diagram',
-    annotations: { title: 'Lay out an ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
-    description: `Apply the same Mermaid → Dagre auto-layout pipeline used by the ArchDraw editor.
-
-**USE WHEN**: User provides nodes/edges that need automatic positioning
-**INPUT**: Nodes with their tier assignments, plus edges between them
-**OUTPUT**: Returns nodes with x,y positions computed by the editor pipeline
-
-This tool does NOT generate or modify nodes/edges - it only computes optimal positions.
-
-**INPUT**:
-- nodes: Array of nodes (id, label, layer/tier required)
-- edges: Array of connections between nodes
-- direction: Layout direction (RIGHT is default, means left-to-right)`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        nodes: {
-          type: 'array',
-          description: 'Array of nodes with layer assignments',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Unique node identifier' },
-              label: { type: 'string', description: 'Node label/name' },
-              layer: { type: 'string', description: 'Tier layer: client, edge, compute, async, data, observe, external' },
-              width: { type: 'number', default: 180, description: 'Node width' },
-              height: { type: 'number', default: 70, description: 'Node height' },
-            },
-            required: ['id', 'label', 'layer'],
-          },
-        },
-        edges: {
-          type: 'array',
-          description: 'Array of edges connecting the nodes',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Unique edge identifier' },
-              source: { type: 'string', description: 'Source node ID' },
-              target: { type: 'string', description: 'Target node ID' },
-              communicationType: {
-                type: 'string',
-                enum: ['sync', 'async', 'stream', 'event', 'dep'],
-                default: 'sync',
-                description: 'Communication type between nodes',
-              },
-            },
-            required: ['source', 'target'],
-          },
-        },
-        direction: {
-          type: 'string',
-          enum: ['RIGHT', 'DOWN', 'LEFT', 'UP'],
-          default: 'RIGHT',
-          description: 'Layout direction',
-        },
-      },
-      required: ['nodes'],
-    },
-  },
-  {
-    name: 'list_node_types',
-    title: 'List ArchDraw component types',
-    annotations: { title: 'List ArchDraw component types', readOnlyHint: true, openWorldHint: false },
-    description: `List all available pre-made component types from the ArchDraw component library.
-
-**USE WHEN**: You want to see what components are available before generating a diagram
-**OUTPUT**: Categorized list of 150+ component types with their icons and descriptions
-
-**FILTERING**:
-- category: Filter by category name (e.g., "AI / ML", "Data Storage", "Compute", "Messaging & Events")
-- search: Search by label, description, or category
-- limit: Max results (default 50, max 200)
-
-**CATEGORIES INCLUDE**:
-- Client & Entry (CDN, Load Balancer, API Gateway)
-- Compute (API Server, Auth Service, Workers, Containers)
-- AI / ML (LLM Models, Vector DB, Embedding Service, RAG)
-- Data Storage (PostgreSQL, MongoDB, Redis, S3)
-- Messaging & Events (Kafka, RabbitMQ, SQS)
-- Observability (Prometheus, Grafana, ELK Stack)
-- External Services (Stripe, Twilio, SendGrid)`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        category: {
-          type: 'string',
-          description: 'Filter by category name (e.g., "AI / ML", "Data Storage", "Compute")',
-        },
-        search: {
-          type: 'string',
-          description: 'Search by label, description, or category',
-        },
-        limit: {
-          type: 'number',
-          default: 50,
-          minimum: 1,
-          maximum: 200,
-          description: 'Maximum number of results',
-        },
-      },
-    },
-  },
-  {
     name: 'apply_template',
     title: 'Apply an ArchDraw template',
     annotations: { title: 'Apply an ArchDraw template', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -387,28 +268,6 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
       ui: { resourceUri: DIAGRAM_WIDGET_URI },
       'openai/toolInvocation/invoking': 'Loading template…',
       'openai/toolInvocation/invoked': 'Diagram preview ready',
-    },
-  },
-  {
-    name: 'list_templates',
-    title: 'List ArchDraw templates',
-    annotations: { title: 'List ArchDraw templates', readOnlyHint: true, openWorldHint: false },
-    description: 'List all available architecture templates with their descriptions',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'read_me',
-    title: 'Read the ArchDraw guide',
-    annotations: { title: 'Read the ArchDraw guide', readOnlyHint: true, openWorldHint: false },
-    description: `Returns a compact LLM-optimized reference guide for ArchDraw — tiers, node types, 
-edge communication types, layout rules, and best practices. Call this FIRST before generating 
-any diagram to produce accurate, professional output.`,
-    inputSchema: {
-      type: 'object',
-      properties: {},
     },
   },
   {
@@ -492,78 +351,9 @@ add edges, remove edges, or update node properties — without regenerating the 
       },
     },
   },
-  {
-    name: 'validate_diagram',
-    title: 'Validate an ArchDraw diagram',
-    annotations: { title: 'Validate an ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
-    description: `Analyses the current diagram and returns a list of structural issues 
-and improvement suggestions. Use after generating to catch problems before rendering.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-      },
-    },
-  },
-  {
-    name: 'save_checkpoint',
-    title: 'Save an ArchDraw checkpoint',
-    annotations: { title: 'Save an ArchDraw checkpoint', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    description: `Saves the current diagram state with a named label so it can be restored later. 
-Useful for multi-turn workflows: save before a major change, restore if needed.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-        name: { type: 'string', description: 'Checkpoint name (e.g. "before-refactor")' },
-        description: { type: 'string', description: 'Optional description' },
-      },
-      required: ['name'],
-    },
-  },
-  {
-    name: 'load_checkpoint',
-    title: 'Restore an ArchDraw checkpoint',
-    annotations: { title: 'Restore an ArchDraw checkpoint', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
-    description: `Restores a previously saved diagram state by name.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-        name: { type: 'string', description: 'Checkpoint name to restore' },
-        listAvailable: { type: 'boolean', description: 'If true, list all checkpoints without restoring' },
-      },
-      required: ['name'],
-    },
-  },
-  {
-    name: 'export_diagram',
-    title: 'Export an ArchDraw diagram',
-    annotations: { title: 'Export an ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
-    description: `Export the current diagram in various formats.
-
-**USE WHEN**: User wants to save or download the diagram
-**OUTPUT**: Returns the diagram data or instructions for image export
-
-**FORMATS**:
-- json: Returns raw nodes and edges as JSON (recommended for saving)
-- png: Returns instructions to export as PNG from the editor
-- svg: Returns instructions to export as SVG from the editor
-
-**REQUIREMENT**: You must have a diagram loaded (generate or apply a template first).`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-        sessionId: { type: 'string', description: 'Session ID from a previous diagram operation. Omit to use the most recent session.' },
-        format: { type: 'string', enum: ['json', 'png', 'svg'], default: 'json', description: 'Export format' },
-      },
-      required: [],
-    },
-  },
 ];
 
-export const SERVER_VERSION = '1.0.7';
+export const SERVER_VERSION = '1.0.8';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
@@ -591,10 +381,6 @@ const STATEFUL_TOOLS = new Set([
   'apply_template',
   'get_diagram_state',
   'update_diagram',
-  'validate_diagram',
-  'save_checkpoint',
-  'load_checkpoint',
-  'export_diagram',
 ]);
 const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'get_diagram_state']);
 const WORKING_SESSION_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -675,32 +461,6 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       };
     }
 
-    case 'fix_layout': {
-      const input = FixLayoutInputSchema.parse(args);
-      const result = await fixLayout(input);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'list_node_types': {
-      const input = ListNodeTypesInputSchema.parse(args ?? {});
-      const result = await listNodeTypes(input);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
     case 'apply_template': {
       const input = ApplyTemplateInputSchema.parse(args);
       const result = await applyTemplate(input);
@@ -730,30 +490,6 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
         content: [{ type: 'text' as const, text }],
-      };
-    }
-
-    case 'list_templates': {
-      const templates = getAvailableTemplates();
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({ templates }, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'read_me': {
-      const readmeContent = getReadMe();
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: readmeContent,
-          },
-        ],
       };
     }
 
@@ -820,57 +556,6 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
         : '';
       return {
         content: [{ type: 'text' as const, text: `${linkBlock}${details}` }],
-      };
-    }
-
-    case 'validate_diagram': {
-      const result = await validateDiagram(workingSession);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'save_checkpoint': {
-      const input = SaveCheckpointInputSchema.parse(args);
-      const result = await saveCheckpoint(input, workingSession);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'load_checkpoint': {
-      const input = LoadCheckpointInputSchema.parse(args);
-      const result = await loadCheckpoint(input, workingSession);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'export_diagram': {
-      const input = ExportDiagramInputSchema.parse(args);
-      const result = await exportDiagram(input, workingSession);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
       };
     }
 

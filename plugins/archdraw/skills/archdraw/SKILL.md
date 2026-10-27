@@ -13,15 +13,14 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 - Include the user's original request in `userPrompt` when available. Pass named technologies through `techStack` and explicitly requested special requirements through `customFeatures`.
 - Use subgraphs to group tiers or trust boundaries when they make the system easier to read. Keep labels concise and add communication labels for asynchronous, event, or streaming edges.
 - Before generation, audit the planned edges: avoid arrows into client-tier nodes except between client-tier nodes; prevent one node from becoming an unjustified hub; and keep the flow consistent with the intended architecture rather than adding layers by habit.
-- Call `list_node_types` when the user asks for a specific component icon or when choosing from ArchDraw's component library would improve the result.
-- Keep the `workingSessionId` returned by `generate_diagram` / `apply_template` and pass it on every later call about that diagram (`update_diagram`, `get_diagram_state`, `validate_diagram`, checkpoints, `export_diagram`). The hosted server requires it.
+- Keep the `workingSessionId` returned by `generate_diagram` / `apply_template` and pass it on every later call about that diagram (`update_diagram`, `get_diagram_state`). The hosted server requires it.
 
 ## Refine and validate
 
 - Call `get_diagram_state` before editing an existing diagram if its current state is not already available.
-- Use `update_diagram` for targeted edits, then `validate_diagram` to check the result. Use `fix_layout` when positions or direction need to change; it runs the editor's Mermaid-to-Dagre layout path.
-- Use `list_templates` and `apply_template` when the user wants a template. Save a checkpoint before a substantial experiment and use `load_checkpoint` to restore it if needed.
-- Use `export_diagram` when the user asks for an export and follow the tool's supported format options.
+- Use `update_diagram` for targeted edits. To change the layout direction or restructure the diagram, call `generate_diagram` again with revised Mermaid; it lays the diagram out with the editor's Mermaid-to-Dagre path.
+- Use `apply_template` when the user wants a template (its description lists the template ids).
+- For an image, point the user to the preview's Download PNG button or the editor link's export.
 
 ## Preview links (always share them)
 

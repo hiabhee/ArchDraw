@@ -70,29 +70,6 @@ export const GenerateDiagramInputSchema = z.object({
   publish: z.boolean().optional().default(true).describe('Create a preview link (default). Links are unguessable, view-by-link and expire after 7 days. Set false only when the user asks to keep the diagram private.'),
 });
 
-export const FixLayoutInputSchema = z.object({
-  nodes: z.array(z.object({
-    id: z.string(),
-    label: z.string(),
-    layer: z.string(),
-    width: z.number().default(180),
-    height: z.number().default(70),
-  })).min(1).describe('Array of nodes with their layer assignments'),
-  edges: z.array(z.object({
-    id: z.string(),
-    source: z.string(),
-    target: z.string(),
-    communicationType: z.enum(['sync', 'async', 'stream', 'event', 'dep']).default('sync'),
-  })).describe('Array of edges connecting the nodes'),
-  direction: z.enum(['RIGHT', 'DOWN', 'LEFT', 'UP']).default('RIGHT').describe('Layout direction'),
-});
-
-export const ListNodeTypesInputSchema = z.object({
-  category: z.string().optional().describe('Filter by category name'),
-  search: z.string().optional().describe('Search by label or description'),
-  limit: z.number().int().min(1).max(200).default(50).describe('Maximum number of results'),
-});
-
 export const ApplyTemplateInputSchema = z.object({
   templateId: z.string().min(1).describe('Template identifier'),
   publish: z.boolean().optional().default(true).describe('Create a preview link (default). Set false only when the user asks to keep the diagram private.'),
@@ -109,8 +86,6 @@ export const ApplyTemplateInputSchema = z.object({
 });
 
 export type GenerateDiagramInput = z.infer<typeof GenerateDiagramInputSchema>;
-export type FixLayoutInput = z.infer<typeof FixLayoutInputSchema>;
-export type ListNodeTypesInput = z.infer<typeof ListNodeTypesInputSchema>;
 export type ApplyTemplateInput = z.infer<typeof ApplyTemplateInputSchema>;
 
 export const UpdateDiagramInputSchema = z.object({
@@ -151,26 +126,8 @@ export const UpdateDiagramInputSchema = z.object({
   })).optional(),
 });
 
-export const SaveCheckpointInputSchema = z.object({
-  name: z.string().min(1).describe('Name for the checkpoint'),
-  description: z.string().optional().describe('Optional description'),
-});
-
-export const LoadCheckpointInputSchema = z.object({
-  name: z.string().min(1).describe('Checkpoint name to restore'),
-  listAvailable: z.boolean().optional().default(false).describe('If true, list all checkpoints without restoring'),
-});
-
 export type UpdateDiagramInput = z.infer<typeof UpdateDiagramInputSchema>;
-export type SaveCheckpointInput = z.infer<typeof SaveCheckpointInputSchema>;
-export type LoadCheckpointInput = z.infer<typeof LoadCheckpointInputSchema>;
 
-export const ExportDiagramInputSchema = z.object({
-  sessionId: z.string().optional().describe('Session ID from a previous diagram generation. Omit to use the most recent session.'),
-  format: z.enum(['json', 'png', 'svg']).default('json').describe('Export format: json (diagram data), png/svg (export instructions)'),
-});
-
-export type ExportDiagramInput = z.infer<typeof ExportDiagramInputSchema>;
 
 export const GenerateDiagramOutputSchema = z.object({
   success: z.boolean(),
@@ -228,38 +185,6 @@ export const GenerateDiagramOutputSchema = z.object({
   }).optional(),
   message: z.string().optional(),
   errors: z.array(z.string()).optional(),
-});
-
-export const FixLayoutOutputSchema = z.object({
-  success: z.boolean(),
-  elkPositions: z.array(z.object({
-    id: z.string(),
-    x: z.number(),
-    y: z.number(),
-    width: z.number(),
-    height: z.number(),
-  })),
-  metadata: z.object({
-    nodeCount: z.number(),
-    edgeCount: z.number(),
-    layoutAlgorithm: z.string(),
-    direction: z.string(),
-  }),
-  errors: z.array(z.string()).optional(),
-});
-
-export const ListNodeTypesOutputSchema = z.object({
-  categories: z.array(z.object({
-    name: z.string(),
-    count: z.number(),
-    nodes: z.array(z.object({
-      id: z.string(),
-      label: z.string(),
-      icon: z.string(),
-      description: z.string(),
-    })),
-  })),
-  totalCount: z.number(),
 });
 
 export const ApplyTemplateOutputSchema = z.object({

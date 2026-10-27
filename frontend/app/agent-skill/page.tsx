@@ -7,7 +7,7 @@ import { LandingNav } from '@/components/landing/LandingNav';
 
 const SKILL_COMMAND = 'npx skills add hiabhee/archdraw-skill --skill archdraw-diagram';
 // Keep the pin in sync with plugins/archdraw/mcp.json.
-const MCP_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.7';
+const MCP_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.8';
 const REMOTE_MCP_URL = 'https://archdraw.hiabhee.online/api/mcp';
 const CODEX_COMMAND = `codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y ${MCP_PACKAGE}`;
 const CLAUDE_COMMAND = `claude mcp add --scope user --transport http archdraw ${REMOTE_MCP_URL}`;
@@ -149,7 +149,7 @@ export default function AgentSkillPage() {
             <section id="verify" className="mt-14 scroll-mt-24 border-t border-border pt-10">
               <p className="font-mono text-[10px] font-bold uppercase tracking-[.14em] text-accent-text">02 · Verify</p>
               <h2 className="mt-3 text-2xl font-semibold tracking-[-.035em]">Check that the tools loaded.</h2>
-              <p className="mt-3 text-sm leading-6 text-text-secondary">Restart your coding agent after adding the server. Then check its MCP list or ask it to list the ArchDraw tools. You should see tools such as <code className="rounded bg-surface-panel px-1 py-0.5 font-mono text-xs">generate_diagram</code>, <code className="rounded bg-surface-panel px-1 py-0.5 font-mono text-xs">update_diagram</code>, and <code className="rounded bg-surface-panel px-1 py-0.5 font-mono text-xs">list_node_types</code>.</p>
+              <p className="mt-3 text-sm leading-6 text-text-secondary">Restart your coding agent after adding the server. Then check its MCP list or ask it to list the ArchDraw tools. You should see tools such as <code className="rounded bg-surface-panel px-1 py-0.5 font-mono text-xs">generate_diagram</code>, <code className="rounded bg-surface-panel px-1 py-0.5 font-mono text-xs">update_diagram</code>, and <code className="rounded bg-surface-panel px-1 py-0.5 font-mono text-xs">apply_template</code>.</p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-border bg-surface-card p-4"><p className="text-xs font-semibold">Codex</p><code className="mt-2 block font-mono text-xs text-text-secondary">codex mcp list</code><p className="mt-2 text-xs text-text-muted">In the Codex TUI, open <code className="font-mono">/mcp</code>.</p></div>
                 <div className="rounded-xl border border-border bg-surface-card p-4"><p className="text-xs font-semibold">Claude Code</p><code className="mt-2 block font-mono text-xs text-text-secondary">claude mcp list</code><p className="mt-2 text-xs text-text-muted">Inside Claude Code, use <code className="font-mono">/mcp</code>.</p></div>
