@@ -7,7 +7,7 @@ import { LandingNav } from '@/components/landing/LandingNav';
 
 const SKILL_COMMAND = 'npx skills add hiabhee/archdraw-skill --skill archdraw-diagram';
 // Keep the pin in sync with plugins/archdraw/mcp.json.
-const MCP_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.6';
+const MCP_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.7';
 const REMOTE_MCP_URL = 'https://archdraw.hiabhee.online/api/mcp';
 const CODEX_COMMAND = `codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y ${MCP_PACKAGE}`;
 const CLAUDE_COMMAND = `claude mcp add --scope user --transport http archdraw ${REMOTE_MCP_URL}`;

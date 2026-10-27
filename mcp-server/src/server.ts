@@ -38,9 +38,10 @@ const TOOLS: Tool[] = [
   {
     name: 'generate_diagram',
     title: 'Generate an ArchDraw diagram',
+    annotations: { title: 'Generate an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: `Generate a rich architecture diagram with groups, labeled edges, and visual hierarchy. Compatible chat clients display the result as an inline interactive preview; text-only clients receive a concise summary and the ArchDraw site link.
 
-**ALWAYS show the returned preview link (shareUrl) and edit link (diagramUrl) to the user in your reply** — the diagram is visual and the link is the only way users of text-only clients can see it. Links are created by default in the same response (no extra call needed); they are unguessable, view-by-link, and expire after 7 days.
+Include the returned preview link (shareUrl) and edit link (diagramUrl) in your reply: in clients without the inline preview, the links are how the user sees the diagram. Links are created by default in the same response (no extra call needed); they are unguessable, view-by-link, and expire after 7 days.
 
 **INPUT MODES — choose ONE**:
 
@@ -214,7 +215,6 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
       },
       required: ['success', 'nodes', 'edges', 'workingSessionId', 'metadata'],
     },
-    annotations: { title: 'Generate an ArchDraw diagram', openWorldHint: true },
     _meta: {
       ui: { resourceUri: DIAGRAM_WIDGET_URI },
       'openai/toolInvocation/invoking': 'Generating diagram…',
@@ -223,6 +223,8 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
   },
   {
     name: 'fix_layout',
+    title: 'Lay out an ArchDraw diagram',
+    annotations: { title: 'Lay out an ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
     description: `Apply the same Mermaid → Dagre auto-layout pipeline used by the ArchDraw editor.
 
 **USE WHEN**: User provides nodes/edges that need automatic positioning
@@ -284,6 +286,8 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
   },
   {
     name: 'list_node_types',
+    title: 'List ArchDraw component types',
+    annotations: { title: 'List ArchDraw component types', readOnlyHint: true, openWorldHint: false },
     description: `List all available pre-made component types from the ArchDraw component library.
 
 **USE WHEN**: You want to see what components are available before generating a diagram
@@ -326,10 +330,11 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
   {
     name: 'apply_template',
     title: 'Apply an ArchDraw template',
+    annotations: { title: 'Apply an ArchDraw template', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: `Apply a pre-built architecture template with pre-defined nodes and edges. Compatible chat clients display the result as an inline preview.
 
 **USE WHEN**: User wants a common architecture pattern (e-commerce, chat app, rideshare, etc.)
-**OUTPUT**: Full diagram with positioned nodes and edges, plus a preview link (shareUrl) and edit link (diagramUrl) created by default. ALWAYS show those links to the user. Pass publish:false only if the user asks to keep it private.
+**OUTPUT**: Full diagram with positioned nodes and edges, plus a preview link (shareUrl) and edit link (diagramUrl) created by default. Include those links in your reply. Pass publish:false only if the user asks to keep it private.
 
 **AVAILABLE TEMPLATES**:
 - archflow: ArchDraw's own architecture (modern SaaS)
@@ -386,6 +391,8 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
   },
   {
     name: 'list_templates',
+    title: 'List ArchDraw templates',
+    annotations: { title: 'List ArchDraw templates', readOnlyHint: true, openWorldHint: false },
     description: 'List all available architecture templates with their descriptions',
     inputSchema: {
       type: 'object',
@@ -394,6 +401,8 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
   },
   {
     name: 'read_me',
+    title: 'Read the ArchDraw guide',
+    annotations: { title: 'Read the ArchDraw guide', readOnlyHint: true, openWorldHint: false },
     description: `Returns a compact LLM-optimized reference guide for ArchDraw — tiers, node types, 
 edge communication types, layout rules, and best practices. Call this FIRST before generating 
 any diagram to produce accurate, professional output.`,
@@ -404,6 +413,8 @@ any diagram to produce accurate, professional output.`,
   },
   {
     name: 'get_diagram_state',
+    title: 'Read the current ArchDraw diagram',
+    annotations: { title: 'Read the current ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
     description: `Returns the current diagram's nodes and edges as structured JSON. 
 Call this before update_diagram to read what's on the canvas. 
 Optionally pass a sessionId to load that diagram first (e.g. a link the user opened).`,
@@ -417,6 +428,8 @@ Optionally pass a sessionId to load that diagram first (e.g. a link the user ope
   },
   {
     name: 'update_diagram',
+    title: 'Update an ArchDraw diagram',
+    annotations: { title: 'Update an ArchDraw diagram', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     description: `Surgically modifies an existing diagram. Add nodes, remove nodes, 
 add edges, remove edges, or update node properties — without regenerating the whole diagram.`,
     inputSchema: {
@@ -481,6 +494,8 @@ add edges, remove edges, or update node properties — without regenerating the 
   },
   {
     name: 'validate_diagram',
+    title: 'Validate an ArchDraw diagram',
+    annotations: { title: 'Validate an ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
     description: `Analyses the current diagram and returns a list of structural issues 
 and improvement suggestions. Use after generating to catch problems before rendering.`,
     inputSchema: {
@@ -492,6 +507,8 @@ and improvement suggestions. Use after generating to catch problems before rende
   },
   {
     name: 'save_checkpoint',
+    title: 'Save an ArchDraw checkpoint',
+    annotations: { title: 'Save an ArchDraw checkpoint', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: `Saves the current diagram state with a named label so it can be restored later. 
 Useful for multi-turn workflows: save before a major change, restore if needed.`,
     inputSchema: {
@@ -506,6 +523,8 @@ Useful for multi-turn workflows: save before a major change, restore if needed.`
   },
   {
     name: 'load_checkpoint',
+    title: 'Restore an ArchDraw checkpoint',
+    annotations: { title: 'Restore an ArchDraw checkpoint', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     description: `Restores a previously saved diagram state by name.`,
     inputSchema: {
       type: 'object',
@@ -519,6 +538,8 @@ Useful for multi-turn workflows: save before a major change, restore if needed.`
   },
   {
     name: 'export_diagram',
+    title: 'Export an ArchDraw diagram',
+    annotations: { title: 'Export an ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
     description: `Export the current diagram in various formats.
 
 **USE WHEN**: User wants to save or download the diagram
@@ -542,7 +563,7 @@ Useful for multi-turn workflows: save before a major change, restore if needed.`
   },
 ];
 
-export const SERVER_VERSION = '1.0.6';
+export const SERVER_VERSION = '1.0.7';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {

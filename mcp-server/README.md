@@ -11,7 +11,7 @@ This document uses ASD-STE100 Simplified Technical English.
 | Connection type | Value | Use it when |
 | --- | --- | --- |
 | **Remote (HTTP)** | `https://archdraw.hiabhee.online/api/mcp` | The client can connect to a remote MCP server. This is the recommended type. You do not install this package. |
-| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.0.6` | The client can only start a local process. |
+| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.0.7` | The client can only start a local process. |
 
 For the steps for each client (Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and others), refer to the [connection guide](https://archdraw.hiabhee.online/docs/connect-agents).
 
@@ -31,7 +31,7 @@ Most clients use this format:
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.6"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.7"],
       "env": {
         "API_BASE_URL": "https://archdraw.hiabhee.online"
       }
@@ -56,7 +56,7 @@ A live project is an ArchDraw canvas that shows which coding-agent session works
 2. In the repository, run:
 
    ```bash
-   npx -y @hiabhee/archdraw-mcp-server@1.0.6 link --api https://archdraw.hiabhee.online
+   npx -y @hiabhee/archdraw-mcp-server@1.0.7 link --api https://archdraw.hiabhee.online
    ```
 
 3. In the editor, select **Live project → Connect an agent** and enter the code that the command shows.

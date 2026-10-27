@@ -19,8 +19,17 @@
     .open { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: #1167b1; font-size: 12px; font-weight: 600; text-decoration: none; }
     .open:hover { text-decoration: underline; }
     a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid #1e90ff; outline-offset: 2px; }
-    .canvas { min-height: 190px; max-height: 440px; overflow: auto; background: var(--color-background-secondary, #f8fafc); }
-    svg { display: block; width: 100%; min-width: 360px; height: auto; max-height: 440px; }
+    .stage { position: relative; }
+    .canvas { height: 380px; overflow: hidden; background: var(--color-background-secondary, #f8fafc); touch-action: none; }
+    .canvas svg { display: block; width: 100%; height: 100%; cursor: grab; user-select: none; }
+    .canvas svg.panning { cursor: grabbing; }
+    .zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
+    .zoom button { width: 30px; height: 30px; padding: 0; border: 1px solid var(--color-border-primary, #d9dde5); background: var(--color-background-primary, #fff); color: var(--color-text-primary, #20242c); font-size: 15px; font-weight: 600; line-height: 1; cursor: pointer; }
+    .zoom button.wide { width: auto; padding: 0 9px; font-size: 11px; }
+    body.fullscreen { padding: 0; }
+    body.fullscreen .card { border-radius: 0; }
+    body.fullscreen .canvas { height: calc(100vh - 54px); }
+    body.fullscreen .actions, body.fullscreen .warnings { display: none; }
     .empty { display: grid; min-height: 190px; place-items: center; padding: 24px; color: var(--color-text-secondary, #687080); font-size: 13px; text-align: center; }
     .warnings { padding: 8px 14px; border-top: 1px solid var(--color-border-primary, #d9dde5); color: #96610a; font-size: 11px; }
     .actions { padding: 12px 14px 14px; border-top: 1px solid var(--color-border-primary, #d9dde5); }
@@ -58,7 +67,15 @@
       </div>
       <a class="open" id="open-link" hidden target="_blank" rel="noopener noreferrer"><span id="open-label">Open in ArchDraw</span><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h8v8M13 3 6 10M12 9v4H3V4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     </header>
+    <div class="stage">
     <main class="canvas" id="canvas"><div class="empty" id="empty">Loading the diagram preview…</div></main>
+    <div class="zoom" id="zoom" hidden>
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" class="wide" id="zoom-fit">Fit</button>
+      <button type="button" class="wide" id="fullscreen" hidden>Expand</button>
+    </div>
+    </div>
     <div class="warnings" id="warnings" hidden></div>
     <form class="actions" id="generate-form">
       <label for="prompt">Create another diagram in this chat</label>
@@ -85,6 +102,99 @@
         return element;
       };
       const safeColor = (value, fallback) => /^#[0-9a-f]{3,8}$/i.test(value || '') ? value : fallback;
+
+      // Viewport: zoom and pan by rewriting the SVG viewBox. `content` is the
+      // diagram's bounds, `base` the fitted view, `view` the current one.
+      const MIN_ZOOM = 0.5;
+      const MAX_ZOOM = 8;
+      let activeSvg = null;
+      let content = null;
+      let base = null;
+      let view = null;
+      let displayMode = 'inline';
+
+      function applyView() {
+        if (activeSvg && view) activeSvg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+      }
+
+      function fitView() {
+        if (!activeSvg || !content) return;
+        const width = activeSvg.clientWidth || 640;
+        const height = activeSvg.clientHeight || 380;
+        const scale = Math.max(content.w / width, content.h / height);
+        const w = width * scale;
+        const h = height * scale;
+        base = { x: content.x - (w - content.w) / 2, y: content.y - (h - content.h) / 2, w, h };
+        view = { ...base };
+        applyView();
+      }
+
+      // Zoom by `factor` (> 1 zooms in) around a point given as fractions of the canvas.
+      function zoomAt(factor, fx = 0.5, fy = 0.5) {
+        if (!view || !base) return;
+        const zoom = base.w / (view.w / factor);
+        if (zoom < MIN_ZOOM || zoom > MAX_ZOOM) return;
+        const w = view.w / factor;
+        const h = view.h / factor;
+        view = { x: view.x + (view.w - w) * fx, y: view.y + (view.h - h) * fy, w, h };
+        applyView();
+      }
+
+      function attachViewport(svg) {
+        const pointers = new Map();
+        let pinchDistance = 0;
+        const fraction = (x, y) => {
+          const rect = svg.getBoundingClientRect();
+          return [(x - rect.left) / rect.width, (y - rect.top) / rect.height];
+        };
+        svg.addEventListener('wheel', (event) => {
+          // Inline, a plain scroll keeps scrolling the chat; pinch (ctrl) or ⌘ zooms.
+          if (displayMode !== 'fullscreen' && !event.ctrlKey && !event.metaKey) return;
+          event.preventDefault();
+          if (event.ctrlKey || event.metaKey) {
+            zoomAt(Math.exp(-event.deltaY * 0.01), ...fraction(event.clientX, event.clientY));
+          } else if (view) {
+            const rect = svg.getBoundingClientRect();
+            view = { ...view, x: view.x + event.deltaX * view.w / rect.width, y: view.y + event.deltaY * view.h / rect.height };
+            applyView();
+          }
+        }, { passive: false });
+        svg.addEventListener('pointerdown', (event) => {
+          svg.setPointerCapture(event.pointerId);
+          pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          svg.classList.add('panning');
+        });
+        svg.addEventListener('pointermove', (event) => {
+          const previous = pointers.get(event.pointerId);
+          if (!previous || !view) return;
+          pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          if (pointers.size === 2) {
+            const [a, b] = [...pointers.values()];
+            const distance = Math.hypot(a.x - b.x, a.y - b.y);
+            if (pinchDistance) zoomAt(distance / pinchDistance, ...fraction((a.x + b.x) / 2, (a.y + b.y) / 2));
+            pinchDistance = distance;
+            return;
+          }
+          const rect = svg.getBoundingClientRect();
+          view = { ...view, x: view.x - (event.clientX - previous.x) * view.w / rect.width, y: view.y - (event.clientY - previous.y) * view.h / rect.height };
+          applyView();
+        });
+        const release = (event) => {
+          pointers.delete(event.pointerId);
+          pinchDistance = 0;
+          if (!pointers.size) svg.classList.remove('panning');
+        };
+        svg.addEventListener('pointerup', release);
+        svg.addEventListener('pointercancel', release);
+        svg.addEventListener('dblclick', (event) => zoomAt(1.6, ...fraction(event.clientX, event.clientY)));
+      }
+
+      function setDisplayMode(mode) {
+        displayMode = mode === 'fullscreen' ? 'fullscreen' : 'inline';
+        document.body.classList.toggle('fullscreen', displayMode === 'fullscreen');
+        $('fullscreen').textContent = displayMode === 'fullscreen' ? 'Exit' : 'Expand';
+        requestAnimationFrame(fitView);
+      }
 
       function request(method, params) {
         const id = ++requestId;
@@ -141,7 +251,8 @@
         const minY = Math.min(0, ...boxes.map((box) => box.y)) - 28;
         const maxX = Math.max(...boxes.map((box) => box.x + box.width)) + 28;
         const maxY = Math.max(...boxes.map((box) => box.y + box.height)) + 28;
-        const svg = svgElement('svg', { viewBox: `${minX} ${minY} ${Math.max(320, maxX - minX)} ${Math.max(180, maxY - minY)}`, role: 'img', 'aria-label': 'Generated architecture diagram' });
+        content = { x: minX, y: minY, w: Math.max(320, maxX - minX), h: Math.max(180, maxY - minY) };
+        const svg = svgElement('svg', { viewBox: `${content.x} ${content.y} ${content.w} ${content.h}`, role: 'img', 'aria-label': 'Generated architecture diagram' });
         const defs = svgElement('defs');
         const marker = svgElement('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
         marker.append(svgElement('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#1e90ff' }));
@@ -152,7 +263,7 @@
         for (const box of boxes.filter(({ node }) => node.data?.isGroup)) {
           const group = svgElement('g');
           group.append(svgElement('rect', { x: box.x, y: box.y, width: box.width, height: box.height, rx: 12, fill: safeColor(box.node.data?.groupColor, '#edf2f8'), 'fill-opacity': 0.58, stroke: '#c8d1de', 'stroke-dasharray': '5 4' }));
-          group.append(svgElement('text', { x: box.x + 12, y: box.y + 20, class: 'group-label' }, escapeText(box.node.data?.groupLabel || box.node.data?.label || 'Group'));
+          group.append(svgElement('text', { x: box.x + 12, y: box.y + 20, class: 'group-label' }, escapeText(box.node.data?.groupLabel || box.node.data?.label || 'Group')));
           svg.append(group);
         }
 
@@ -209,6 +320,10 @@
           svg.append(group);
         }
         canvas.replaceChildren(svg);
+        activeSvg = svg;
+        attachViewport(svg);
+        fitView();
+        $('zoom').hidden = false;
         const visible = nodes.filter((node) => !node.data?.isGroup).length;
         const groups = nodes.length - visible;
         $('counts').textContent = `${visible} component${visible === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}${groups ? ` · ${groups} group${groups === 1 ? '' : 's'}` : ''}`;
@@ -243,7 +358,21 @@
           if (result) render(result);
         }
         if (message.method === 'ui/notifications/tool-cancelled') $('counts').textContent = 'Generation cancelled';
+        if (message.method === 'ui/notifications/host-context-changed' && message.params?.displayMode) setDisplayMode(message.params.displayMode);
       });
+
+      $('zoom-in').addEventListener('click', () => zoomAt(1.4));
+      $('zoom-out').addEventListener('click', () => zoomAt(1 / 1.4));
+      $('zoom-fit').addEventListener('click', fitView);
+      $('fullscreen').addEventListener('click', async () => {
+        try {
+          const result = await request('ui/request-display-mode', { mode: displayMode === 'fullscreen' ? 'inline' : 'fullscreen' });
+          setDisplayMode(result.mode);
+        } catch {
+          $('fullscreen').hidden = true;
+        }
+      });
+      new ResizeObserver(() => fitView()).observe(canvas);
 
       $('generate-form').addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -273,7 +402,13 @@
         appInfo: { name: 'ArchDraw diagram preview', version: '1.0.0' },
         appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
         protocolVersion: '2026-01-26',
-      }).then(() => notify('ui/notifications/initialized', {})).catch(() => {
+      }).then((result) => {
+        const context = result.hostContext || {};
+        // Offer Expand only when the host says it can go fullscreen.
+        $('fullscreen').hidden = !(context.availableDisplayModes || []).includes('fullscreen');
+        if (context.displayMode) setDisplayMode(context.displayMode);
+        notify('ui/notifications/initialized', {});
+      }).catch(() => {
         $('status').textContent = 'Use the chat composer to ask ArchDraw for another diagram.';
       });
     })();
