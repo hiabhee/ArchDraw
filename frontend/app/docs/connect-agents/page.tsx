@@ -13,7 +13,7 @@ const PAGE_URL = 'https://archdraw.hiabhee.online/docs/connect-agents';
 const REMOTE_URL = 'https://archdraw.hiabhee.online/api/mcp';
 const API_BASE = 'https://archdraw.hiabhee.online';
 // Keep in sync with the pin in plugins/archdraw/mcp.json.
-const NPM_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.8';
+const NPM_PACKAGE = '@hiabhee/archdraw-mcp-server@1.0.9';
 
 export const metadata: Metadata = {
   title: 'Connect a Coding Agent | ArchDraw Docs',

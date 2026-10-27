@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
 import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
+import { generatePureSVG } from '@/lib/diagram/export/svgExport';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { getUserTier, canAccessFeature } from '@/lib/quotas/userQuotas';
 import { getSessionFromRequest, logUsage } from '@/lib/server/quotaCheck';
@@ -28,6 +29,8 @@ const LOAD_RATE_LIMITS = {
 } as const;
 type LoadRequestKind = keyof typeof LOAD_RATE_LIMITS;
 
+const PREVIEW_BACKGROUND = '#fdfdfc';
+
 async function rateLimitResponse(req: NextRequest, userId: string | undefined, kind: LoadRequestKind) {
   const limit = userId ? LOAD_RATE_LIMITS[kind].user : LOAD_RATE_LIMITS[kind].anonymous;
   const who = userId ? `user:${userId}` : `ip:${getClientIP(req)}`;
@@ -46,6 +49,8 @@ const PostSchema = z.object({
   label: z.string().optional(),
   mermaid: z.string().optional(),
   dryRun: z.boolean().optional().default(false),
+  /** Also return the diagram drawn as the share page draws it (MCP inline preview). */
+  preview: z.boolean().optional().default(false),
   publish: z.boolean().optional().default(false),
   source: z.string().optional(),
   accessType: z.string().optional(),
@@ -131,8 +136,14 @@ export async function POST(req: NextRequest) {
       warnings = pipelineResult.data.warnings;
     }
 
+    // Light Studio style, as the share page shows it; vector icons only, so the
+    // SVG renders inside an <img> without fetching anything.
+    const previewSvg = body.preview
+      ? generatePureSVG(nodes, edges, false, PREVIEW_BACKGROUND, /graph\s+(TD|TB|BT)\b/i.test(body.mermaid ?? '') ? 'TD' : 'LR', 'studio-minimal', 'studio-minimal')
+      : undefined;
+
     if (body.dryRun) {
-      return NextResponse.json({ nodes, edges, warnings });
+      return NextResponse.json({ nodes, edges, warnings, ...(previewSvg ? { previewSvg } : {}) });
     }
 
     if (body.source === 'mcp' && !body.publish) {
@@ -160,7 +171,7 @@ export async function POST(req: NextRequest) {
       accessType: body.accessType,
     });
 
-    return NextResponse.json({ sessionId: shared.id, nodes, edges, warnings, ...(mcpUpdateToken ? { updateToken: mcpUpdateToken, revision: 1 } : {}) });
+    return NextResponse.json({ sessionId: shared.id, nodes, edges, warnings, ...(previewSvg ? { previewSvg } : {}), ...(mcpUpdateToken ? { updateToken: mcpUpdateToken, revision: 1 } : {}) });
   } catch (error) {
     logger.error('POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

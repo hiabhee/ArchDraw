@@ -19,7 +19,7 @@ import {
   ApplyTemplateInputSchema,
   UpdateDiagramInputSchema,
 } from './lib/schema.js';
-import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI } from './ui/diagram-widget.js';
+import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI, PREVIEW_SVG_META_KEY } from './ui/diagram-widget.js';
 import { formatPreviewLinks } from './lib/preview-links.js';
 
 const TOOLS: Tool[] = [
@@ -353,7 +353,7 @@ add edges, remove edges, or update node properties — without regenerating the 
   },
 ];
 
-export const SERVER_VERSION = '1.0.8';
+export const SERVER_VERSION = '1.0.9';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
@@ -386,6 +386,12 @@ const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'g
 const WORKING_SESSION_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ToolArgs = Record<string, unknown> | undefined;
+
+// The drawn diagram goes to the inline preview in _meta, which hosts keep out
+// of the model's context (it is tens of KB of SVG).
+function previewMeta(previewSvg: string | undefined) {
+  return previewSvg ? { _meta: { [PREVIEW_SVG_META_KEY]: previewSvg } } : {};
+}
 
 function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true };
@@ -458,6 +464,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
         content: [{ type: 'text' as const, text }],
+        ...previewMeta(result.previewSvg),
       };
     }
 
@@ -490,6 +497,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
         content: [{ type: 'text' as const, text }],
+        ...previewMeta(result.previewSvg),
       };
     }
 
