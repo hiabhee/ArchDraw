@@ -238,4 +238,32 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     expect(m.upsert.mock.calls[1][0].create.siteArea).toBeUndefined();
     expect(m.upsert.mock.calls[1][0].create.unmappedHits).toBe(0);
   });
+  it('books the growth in reported tokens on the component the session is at', async () => {
+    m.findUnique.mockResolvedValue({
+      touched: {}, unmappedPaths: [], currentComponentId: 'auth', name: 'Otter',
+      usage: { input: 10, output: 100, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 1000 },
+      usageByComponent: { auth: { input: 10, output: 100, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 1000 } },
+    });
+    const res = await POST(req({ sessionKey: 'k', event: 'stop', model: 'claude-opus-5-5', usage: { input: 15, output: 160, cacheRead: 1500 } }), params);
+    expect(res.status).toBe(200);
+    const { update, create } = m.upsert.mock.calls[0][0];
+    expect(update.model).toBe('claude-opus-5-5');
+    expect(update.usage).toMatchObject({ input: 15, output: 160, cacheRead: 1500 });
+    expect(update.usageByComponent.auth).toEqual({ input: 15, output: 160, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 1500 });
+    expect(create.usageByComponent.auth.output).toBe(160);
+  });
+
+  it('puts tokens spent before any component on the unplaced bucket, and ignores events without usage', async () => {
+    await POST(req({ sessionKey: 'k', event: 'stop', usage: { output: 50 } }), params);
+    expect(m.upsert.mock.calls[0][0].update.usageByComponent._unplaced.output).toBe(50);
+    await POST(req({ sessionKey: 'k', event: 'read' }), params);
+    expect(m.upsert.mock.calls[1][0].update.usage).toBeUndefined();
+    expect(m.upsert.mock.calls[1][0].update.usageByComponent).toBeUndefined();
+  });
+
+  it('rejects negative or oversized counts and odd model strings', async () => {
+    expect((await POST(req({ sessionKey: 'k', event: 'stop', usage: { output: -1 } }), params)).status).toBe(400);
+    expect((await POST(req({ sessionKey: 'k', event: 'stop', usage: { output: 1e20 } }), params)).status).toBe(400);
+    expect((await POST(req({ sessionKey: 'k', event: 'stop', model: 'x y<script>' }), params)).status).toBe(400);
+  });
 });

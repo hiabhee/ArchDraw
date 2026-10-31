@@ -5,6 +5,8 @@ import { Panel, useStore } from 'reactflow';
 import { Bell, BellOff } from 'lucide-react';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { attentionQueue, type AttentionItem } from '@/lib/diagram/projects/liveActivity';
+import { highSpendSessions, sessionCostUsd } from '@/lib/diagram/projects/sessionInsights';
+import { formatUsd } from '@/lib/diagram/projects/sessionUsage';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 
 /**
@@ -43,6 +45,12 @@ export function NeedsYouQueue({ className = '' }: { className?: string }) {
   const seen = useRef(new Map<string, string>());
 
   const queue = useMemo(() => (snapshot ? attentionQueue(snapshot.sessions, snapshot.serverTime) : []), [snapshot]);
+  // Sessions whose estimated spend stands out: a loop or a runaway task shows here before the bill does.
+  const costly = useMemo(() => {
+    if (!snapshot) return [];
+    const keys = highSpendSessions(snapshot.sessions);
+    return snapshot.sessions.filter((s) => keys.has(s.sessionKey));
+  }, [snapshot]);
 
   const where = (item: AttentionItem) => {
     const s = item.session;
@@ -89,7 +97,7 @@ export function NeedsYouQueue({ className = '' }: { className?: string }) {
     try { localStorage.setItem(NOTIFY_KEY, on ? 'on' : 'off'); } catch { /* private mode */ }
   };
 
-  if (!showLiveActivity || queue.length === 0) return null;
+  if (!showLiveActivity || (queue.length === 0 && costly.length === 0)) return null;
   // Waits use the server clock; the snapshot refreshes every couple of seconds.
   const serverNow = snapshot?.serverTime ?? 0;
   const waiting = queue.filter((i) => i.reason === 'waiting').length;
@@ -101,9 +109,11 @@ export function NeedsYouQueue({ className = '' }: { className?: string }) {
         aria-label="Agent sessions that need you"
         className="flex max-w-[min(92vw,760px)] flex-wrap items-center gap-1.5 rounded-2xl border border-border/70 bg-background/90 px-2 py-1.5 text-[11.5px] shadow-lg backdrop-blur"
       >
-        <span className={`px-1.5 font-semibold ${waiting ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
-          Needs you · {queue.length}
-        </span>
+        {queue.length > 0 && (
+          <span className={`px-1.5 font-semibold ${waiting ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
+            Needs you · {queue.length}
+          </span>
+        )}
         {queue.slice(0, MAX_SHOWN).map((item) => {
           const s = item.session;
           const isFocused = focused === s.sessionKey;
@@ -129,6 +139,19 @@ export function NeedsYouQueue({ className = '' }: { className?: string }) {
           );
         })}
         {queue.length > MAX_SHOWN && <span className="px-1 text-muted-foreground">+{queue.length - MAX_SHOWN}</span>}
+        {costly.map((s) => (
+          <button
+            key={`spend-${s.sessionKey}`}
+            onClick={() => setFocused(focused === s.sessionKey ? null : s.sessionKey)}
+            aria-pressed={focused === s.sessionKey}
+            title={`${s.name} has used about ${formatUsd(sessionCostUsd(s) ?? 0)} (estimate, list prices). Check it is not stuck in a loop.`}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/50 px-2.5 py-1 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+          >
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden />
+            <span className="font-semibold">{s.name}</span>
+            <span>high spend ≈{formatUsd(sessionCostUsd(s) ?? 0)}</span>
+          </button>
+        ))}
         <button
           onClick={() => void toggleNotify()}
           title={notify ? 'Desktop notifications on (click to turn off)' : 'Notify me when an agent needs me'}

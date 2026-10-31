@@ -23,6 +23,7 @@
     "eval:golden": "tsx scripts/eval/gen-golden.ts",
     "eval:test": "vitest --run scripts/eval/__tests__/score.test.ts",
     "eval:agent-tokens": "tsx scripts/eval/agent-tokens/run.ts",
+    "e2e:live": "tsx scripts/e2e/live-flow.mts",
     "lint:tutorials": "tsx scripts/lint-tutorials.ts",
     "lint:tutorials:strict": "tsx scripts/lint-tutorials.ts --strict",
     "perf:quick": "tsx scripts/perf/benchmark.ts --skip-build --runs 15",

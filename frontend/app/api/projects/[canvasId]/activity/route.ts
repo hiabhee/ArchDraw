@@ -12,6 +12,7 @@ import { isSourcePath, siteAnchorFor, siteAreaFor } from '@/lib/diagram/projects
 import { pickSessionName } from '@/lib/server/projects/liveSessions';
 import { groupEditsByComponent } from '@/lib/diagram/projects/componentHistory';
 import { pruneComponentHistory, recordEditBouts } from '@/lib/server/projects/componentHistory';
+import { addToComponent, diffUsage, emptyUsage, isEmptyUsage, parseUsage, parseUsageByComponent } from '@/lib/diagram/projects/sessionUsage';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +21,8 @@ export const runtime = 'nodejs';
  * file paths, the kind of action and the agent's own one-line task — never
  * file contents, diffs, commands or prompts.
  */
+const tokenCount = z.number().int().min(0).max(1e13);
+
 const activitySchema = z.object({
   sessionKey: z.string().trim().min(1).max(200),
   /** read: the agent read/searched files (moves its figure, does not count as an edit). run: started a shell command (never its text). task: moved to another to-do item, sent as `intent`. aim: componentIds the task points at. wait: asked for permission. */
@@ -29,6 +32,15 @@ const activitySchema = z.object({
   label: z.string().trim().max(120).optional(),
   branch: z.string().trim().max(255).optional(),
   intent: z.string().trim().max(280).optional(),
+  /**
+   * Token counts so far in this session (cumulative), read from its local transcript, and the model that
+   * produced them. Counts only; the server turns the growth into spend per component.
+   */
+  usage: z
+    .object({ input: tokenCount, output: tokenCount, cacheWrite5m: tokenCount, cacheWrite1h: tokenCount, cacheRead: tokenCount })
+    .partial()
+    .optional(),
+  model: z.string().trim().max(80).regex(/^[\w.:@/-]+$/).optional(),
   /** Folder name of the linked repository; names an auto-named project canvas. */
   repoName: z.string().trim().min(1).max(120).regex(/^[^\u0000-\u001f]+$/).optional(),
 });
@@ -114,7 +126,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const writeSession = async () => {
       const existing = await prisma.agentSession.findUnique({
         where: key,
-        select: { touched: true, unmappedPaths: true, currentComponentId: true, name: true },
+        select: { touched: true, unmappedPaths: true, currentComponentId: true, name: true, usage: true, usageByComponent: true },
       });
       const name = existing?.name ?? (await pickSessionName(agent.canvas.id, body.sessionKey, now.getTime()));
       // An edit on the map leaves any site; an edit of new code moves to (or stays at) its site.
@@ -130,10 +142,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const unmappedPaths = isRead ? mergeUnmapped(existing?.unmappedPaths, []) : mergeUnmapped(existing?.unmappedPaths, unmapped);
       const currentComponentId = locatedAt ?? existing?.currentComponentId ?? null;
       const status = statusForEvent(body.event);
+      // Tokens spent since the last report belong to the component the session is at now.
+      const reported = parseUsage(body.usage);
+      const usageFields = (() => {
+        if (!reported) return body.model ? { model: body.model } : {};
+        const delta = diffUsage(reported, parseUsage(existing?.usage) ?? emptyUsage());
+        const byComponent = isEmptyUsage(delta)
+          ? parseUsageByComponent(existing?.usageByComponent)
+          : addToComponent(parseUsageByComponent(existing?.usageByComponent), currentComponentId, delta);
+        return {
+          usage: reported as unknown as Prisma.InputJsonObject,
+          usageByComponent: byComponent as unknown as Prisma.InputJsonObject,
+          ...(body.model ? { model: body.model } : {}),
+        };
+      })();
       const actionFields = {
         ...(detailComponentId !== undefined ? { detailComponentId } : {}),
         ...(action ? { lastAction: action, lastActionAt: now } : {}),
         ...(aimComponentId ? { aimComponentId } : {}),
+        ...usageFields,
       };
 
       return prisma.agentSession.upsert({

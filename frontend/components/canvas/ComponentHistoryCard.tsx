@@ -6,6 +6,8 @@ import { X } from 'lucide-react';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { componentScope, summarizeFiles, type ComponentHistoryEntry } from '@/lib/diagram/projects/componentHistory';
 import { sessionColor } from '@/lib/diagram/projects/liveActivity';
+import { componentSpend } from '@/lib/diagram/projects/sessionInsights';
+import { formatTokens, formatUsd } from '@/lib/diagram/projects/sessionUsage';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 
 /**
@@ -101,6 +103,20 @@ export function ComponentHistoryCard({ historyUrl, className = '' }: {
     return at !== null && scope.has(at);
   }), [snapshot, level, scope]);
 
+  // What agents' tokens cost while they were at this component (or anywhere in this area).
+  const spent = useMemo(() => {
+    const by = componentSpend(snapshot?.sessions ?? []);
+    let tokens = 0;
+    let usd: number | null = null;
+    for (const id of scope) {
+      const entry = by[id];
+      if (!entry) continue;
+      tokens += entry.tokens;
+      if (entry.usd != null) usd = (usd ?? 0) + entry.usd;
+    }
+    return tokens > 0 ? { tokens, usd } : null;
+  }, [snapshot, scope]);
+
   if (!showLiveActivity || !componentId || !node) return null;
 
   const title = labelOf(node.data, componentId);
@@ -125,6 +141,11 @@ export function ComponentHistoryCard({ historyUrl, className = '' }: {
               {sessionCount > 0 && ` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
             </p>
             <h2 className="truncate text-[14px] font-semibold text-foreground" title={title}>{title}</h2>
+            {spent && (
+              <p className="mt-0.5 text-[11px] text-muted-foreground" title="Tokens agents used while working here, mostly cached context. Dollars are an estimate at list prices.">
+                {spent.usd != null ? `≈${formatUsd(spent.usd)} · ` : ''}{formatTokens(spent.tokens)} tokens spent here
+              </p>
+            )}
           </div>
           <button
             onClick={() => openHistory(null)}

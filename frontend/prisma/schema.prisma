@@ -305,6 +305,10 @@ model AgentSession {
   /// Edited source files that were / were not on a component (map coverage).
   mappedHits         Int      @default(0) @map("mapped_hits")
   unmappedHits       Int      @default(0) @map("unmapped_hits")
+  /// Model the session runs on, its cumulative token counts and the same counts by the component it was at (counts only, from the session's local transcript).
+  model              String?
+  usage              Json     @default("{}")
+  usageByComponent   Json     @default("{}") @map("usage_by_component")
   startedAt          DateTime @default(now()) @map("started_at")
   lastSeenAt         DateTime @default(now()) @map("last_seen_at")
 

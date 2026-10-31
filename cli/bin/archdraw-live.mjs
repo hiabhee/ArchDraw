@@ -127,7 +127,9 @@ function nextSteps(binding, opened) {
   if (opened) console.log(dim(`  ${binding.watchUrl ?? url}`));
   console.log('');
   console.log(`${bold('Next:')} start Claude Code in this folder${hasCommand('claude') ? ` (run ${bold('claude')})` : ''}. Each session appears as a star`);
-  console.log('that moves to the part of the code it is working on. Run several at once to see them all.');
+  console.log('that moves to the part of the code it is working on.');
+  console.log(`To see several at once, open another terminal in this folder and run ${bold('claude')} again.`);
+  console.log(dim('Claude Code sessions that were already open may need a restart before they show up.'));
   if (!hasCommand('claude')) {
     console.log('');
     warn(`Claude Code isn't installed yet: ${bold('npm install -g @anthropic-ai/claude-code')}`);
@@ -139,12 +141,12 @@ function nextSteps(binding, opened) {
   console.log(dim('Tip: ask Claude "improve the ArchDraw diagram of this repo" for a sharper map.'));
 }
 
-async function ask(question) {
+async function ask(question, defaultYes = true) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = (await rl.question(question)).trim().toLowerCase();
-    return answer === '' || answer === 'y' || answer === 'yes';
+    return answer === '' ? defaultYes : answer === 'y' || answer === 'yes';
   } finally {
     rl.close();
   }
@@ -335,7 +337,7 @@ async function setup(flags) {
   console.log('');
   console.log(dim('This first map is a quick guess from your folder names.'));
   const improve = flags.map || (!flags['no-map'] && hasCommand('claude')
-    && await ask(`${bold('Let Claude read your code and draw an accurate map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [Y/n] `));
+    && await ask(`${bold('Let Claude read your code and draw an accurate map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [y/N] `, false));
   if (improve) await mapAll(root, binding, result, flags);
   else console.log(dim(`Later: ${bold('npx archdraw-live --map')}`));
   nextSteps(binding, opened);

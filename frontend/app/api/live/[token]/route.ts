@@ -71,7 +71,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const session = toLiveSession(row, now);
       // Watchers see where new code is being built, not its folder path.
       const site = session.site ? { ...session.site, key: createHash('sha256').update(session.site.key).digest('base64url').slice(0, 12), label: 'new code' } : null;
-      return { ...session, unmappedPaths: [], site };
+      // Spend is the owner's business: watchers get neither tokens nor model.
+      return { ...session, unmappedPaths: [], site, model: null, usage: undefined, usageByComponent: {} };
     }));
 
     return NextResponse.json(

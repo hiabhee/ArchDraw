@@ -77,4 +77,5 @@ notifications.
   command); the step it is on, from its own to-do list ("Adding retry to the
   uploader"); when it waits for permission or finishes.
   A task is matched to a component name locally; only the component id is sent.
+  The session's token counts (input, output, cache) and its model name, read on your machine from the session's own transcript file; never the transcript's content. They feed the spend figures in your editor (not shown on watch links).
 - Never: file contents, diffs, prompts, commands or their output, or your git remote.

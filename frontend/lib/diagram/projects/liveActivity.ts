@@ -1,4 +1,5 @@
 import type { StructureChange } from './structureDiff';
+import type { TokenUsage, UsageByComponent } from './sessionUsage';
 
 /**
  * Pure helpers for live agent activity on a project canvas: merging edit
@@ -238,6 +239,11 @@ export interface LiveAgentSession {
   unmappedHits: number;
   /** Part of the detailed map the session is at (null: its component). */
   detailComponentId: string | null;
+  /** Model the session runs on and the tokens it has used so far (absent before the first report). */
+  model?: string | null;
+  usage?: TokenUsage;
+  /** Tokens by the component the session was at when it spent them. */
+  usageByComponent?: UsageByComponent;
 }
 
 /** Below this many edited files a coverage figure means little. */
@@ -327,6 +333,8 @@ export function sessionsForLevel<T extends Pick<LiveAgentSession, 'currentCompon
 
 export interface NodeSessionMark {
   sessionKey: string;
+  /** Short session name ("Otter"); absent in older snapshots. */
+  name?: string;
   label: string;
   color: string;
   status: AgentSessionStatus;
@@ -338,8 +346,24 @@ export interface NodeLiveActivity {
   sessions: NodeSessionMark[];
   /** Edited by an active session within RECENT_EDIT_MS. */
   recent: boolean;
+  /** Two or more working sessions edited it within IDLE_AFTER_MS: they may be stepping on each other. */
+  contested?: boolean;
   /** Session that added this component to the diagram within RECENT_CHANGE_MS. */
   addedBy?: { sessionKey: string; label: string; color: string };
+}
+
+/** Components that two or more working sessions edited within the last couple of minutes, with those sessions. */
+export function collisions(sessions: readonly LiveAgentSession[], now: number): Map<string, LiveAgentSession[]> {
+  const byNode = new Map<string, LiveAgentSession[]>();
+  for (const session of sessions) {
+    if (session.status !== 'active') continue;
+    for (const [nodeId, entry] of Object.entries(session.touched)) {
+      if (now - entry.lastAt >= IDLE_AFTER_MS) continue;
+      byNode.set(nodeId, [...(byNode.get(nodeId) ?? []), session]);
+    }
+  }
+  for (const [nodeId, list] of byNode) if (list.length < 2) byNode.delete(nodeId);
+  return byNode;
 }
 
 /**
@@ -355,6 +379,7 @@ export function buildNodeActivity(sessions: readonly LiveAgentSession[], now: nu
     for (const [nodeId, entry] of Object.entries(session.touched)) {
       (byNode[nodeId] ??= []).push({
         sessionKey: session.sessionKey,
+        name: session.name,
         label: session.label,
         color: session.color,
         status: session.status,
@@ -368,9 +393,11 @@ export function buildNodeActivity(sessions: readonly LiveAgentSession[], now: nu
   const result: Record<string, NodeLiveActivity> = {};
   for (const [nodeId, marks] of Object.entries(byNode)) {
     marks.sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.lastAt - a.lastAt);
+    const editing = marks.filter((m) => m.status === 'active' && now - m.lastAt < IDLE_AFTER_MS).length;
     result[nodeId] = {
       sessions: marks.map(({ lastAt: _lastAt, ...mark }) => mark),
       recent: recent.has(nodeId),
+      ...(editing >= 2 ? { contested: true } : {}),
     };
   }
 
@@ -388,11 +415,11 @@ export function buildNodeActivity(sessions: readonly LiveAgentSession[], now: nu
 }
 
 function sameActivity(a: NodeLiveActivity, b: NodeLiveActivity): boolean {
-  if (a.recent !== b.recent || a.sessions.length !== b.sessions.length) return false;
+  if (a.recent !== b.recent || Boolean(a.contested) !== Boolean(b.contested) || a.sessions.length !== b.sessions.length) return false;
   if (a.addedBy?.sessionKey !== b.addedBy?.sessionKey || a.addedBy?.label !== b.addedBy?.label || a.addedBy?.color !== b.addedBy?.color) return false;
   return a.sessions.every((m, i) => {
     const n = b.sessions[i];
-    return m.sessionKey === n.sessionKey && m.label === n.label && m.color === n.color && m.status === n.status && m.isCurrent === n.isCurrent;
+    return m.sessionKey === n.sessionKey && m.name === n.name && m.label === n.label && m.color === n.color && m.status === n.status && m.isCurrent === n.isCurrent;
   });
 }
 

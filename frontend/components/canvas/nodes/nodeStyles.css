@@ -1517,6 +1517,18 @@
 .live-activity-dot--idle {
   opacity: 0.5;
 }
+.live-activity-clash {
+  margin-right: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #fff;
+  background: #d97706;
+  box-shadow: 0 0 0 2px var(--surface-page, #fff);
+}
 .live-activity-more {
   margin-left: 3px;
   font-size: 9px;

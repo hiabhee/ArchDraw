@@ -1,6 +1,7 @@
 import prisma from '@/lib/server/prisma';
 import { parseStructureChange } from '@/lib/diagram/projects/structureDiff';
 import { siteLabel } from '@/lib/diagram/projects/constructionSite';
+import { parseUsage, parseUsageByComponent } from '@/lib/diagram/projects/sessionUsage';
 import {
   ENDED_AFTER_MS,
   deriveSessionStatus,
@@ -51,6 +52,9 @@ export function toLiveSession(row: SessionRow, now: number): LiveAgentSession {
     mappedHits: row.mappedHits,
     unmappedHits: row.unmappedHits,
     detailComponentId: row.detailComponentId ?? null,
+    model: row.model ?? null,
+    usage: parseUsage(row.usage) ?? undefined,
+    usageByComponent: parseUsageByComponent(row.usageByComponent),
   };
 }
 

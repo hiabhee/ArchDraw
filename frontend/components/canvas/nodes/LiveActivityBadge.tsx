@@ -28,7 +28,9 @@ function LiveActivityBadgeComponent({ nodeId }: { nodeId: string }) {
   const { addedBy } = activity;
   const lead = focused ?? here[0] ?? activity.sessions[0];
   const ringColor = lead?.color ?? addedBy?.color;
+  const editors = activity.sessions.filter((s) => s.status === 'active').map((s) => s.name ?? s.label);
   const title = [
+    ...(activity.contested ? [`${editors.join(' and ')} are both editing here: they may overwrite each other or repeat work`] : []),
     ...(addedBy ? [`Added by ${addedBy.label}`] : []),
     ...activity.sessions.map(
       (s) => `${s.label} — ${s.isCurrent ? 'working here' : s.status === 'active' ? 'edited here' : s.status}`,
@@ -57,6 +59,7 @@ function LiveActivityBadgeComponent({ nodeId }: { nodeId: string }) {
         </div>
       )}
       <div className="live-activity-overlay live-activity-badge nodrag nopan" title={title} role="status" aria-label={title}>
+        {activity.contested && <span className="live-activity-clash">{editors.length} editing</span>}
         {addedBy && (
           <span className="live-activity-new" style={{ backgroundColor: addedBy.color }}>
             New

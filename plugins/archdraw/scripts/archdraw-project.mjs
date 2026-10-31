@@ -20,7 +20,7 @@
 // repositories: every command is a no-op.
 
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -166,6 +166,130 @@ export function buildActivity(input, binding) {
     payload.repoName = basename(binding.repoRoot || binding.checkoutRoot);
   }
   return payload;
+}
+
+// ── Token usage ──────────────────────────────────────────────────────────
+// The session's own transcript records the tokens of every model response. The
+// hook reads them here, on this machine, and sends only the running totals and
+// the model name: never the transcript's content.
+
+const USAGE_ZERO = { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
+const USAGE_KEYS = Object.keys(USAGE_ZERO);
+/** Events that carry the session's token totals (not every read: parsing the transcript is not free). */
+const USAGE_EVENTS = new Set(['stop', 'wait', 'task']);
+const READ_CHUNK_BYTES = 4 * 1024 * 1024;
+
+/** Counts of one transcript message's `usage`, or null when it has none. */
+export function messageUsage(usage) {
+  if (!usage || typeof usage !== 'object') return null;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : 0);
+  const split = usage.cache_creation && typeof usage.cache_creation === 'object' ? usage.cache_creation : null;
+  const written = n(usage.cache_creation_input_tokens);
+  return {
+    input: n(usage.input_tokens),
+    output: n(usage.output_tokens),
+    // Without the split, a cache write is the 5-minute kind.
+    cacheWrite5m: split ? n(split.ephemeral_5m_input_tokens) : written,
+    cacheWrite1h: split ? n(split.ephemeral_1h_input_tokens) : 0,
+    cacheRead: n(usage.cache_read_input_tokens),
+  };
+}
+
+function addCounts(a, b) {
+  const out = {};
+  for (const key of USAGE_KEYS) out[key] = (a[key] ?? 0) + (b[key] ?? 0);
+  return out;
+}
+
+function maxCounts(a, b) {
+  const out = {};
+  for (const key of USAGE_KEYS) out[key] = Math.max(a[key] ?? 0, b[key] ?? 0);
+  return out;
+}
+
+/**
+ * Totals for a transcript, read from where the last call stopped. A streamed
+ * response is written as several lines with the same message id: they count
+ * once (the latest, largest). `state` is what this returned last time
+ * ({ offset, totals, lastId, last, model }); pass null on the first call.
+ * Returns { usage, model, state } or null when the file cannot be read.
+ */
+export function readTranscriptUsage(path, state) {
+  let fd;
+  try {
+    if (typeof path !== 'string' || !path.endsWith('.jsonl')) return null;
+    const size = statSync(path).size;
+    let { offset = 0, totals = { ...USAGE_ZERO }, lastId = null, last = { ...USAGE_ZERO }, model = null } = state ?? {};
+    // A shorter file is a different transcript: start over.
+    if (size < offset) ({ offset, totals, lastId, last } = { offset: 0, totals: { ...USAGE_ZERO }, lastId: null, last: { ...USAGE_ZERO } });
+    fd = openSync(path, 'r');
+    let carry = Buffer.alloc(0);
+    let position = offset;
+    let consumed = offset;
+    while (position < size) {
+      const chunk = Buffer.alloc(Math.min(READ_CHUNK_BYTES, size - position));
+      const read = readSync(fd, chunk, 0, chunk.length, position);
+      if (read <= 0) break;
+      position += read;
+      let data = Buffer.concat([carry, chunk.subarray(0, read)]);
+      const end = data.lastIndexOf(0x0a);
+      if (end < 0) {
+        carry = data;
+        continue;
+      }
+      carry = data.subarray(end + 1);
+      data = data.subarray(0, end);
+      consumed = position - carry.length;
+      for (const line of data.toString('utf8').split('\n')) {
+        if (!line.includes('"usage"')) continue;
+        let entry;
+        try {
+          entry = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        const message = entry?.message;
+        const counts = entry?.type === 'assistant' ? messageUsage(message?.usage) : null;
+        if (!counts) continue;
+        if (typeof message.model === 'string' && !message.model.startsWith('<')) model = message.model;
+        const id = typeof message.id === 'string' ? message.id : null;
+        if (id && id === lastId) last = maxCounts(last, counts);
+        else {
+          totals = addCounts(totals, last);
+          lastId = id;
+          last = counts;
+        }
+      }
+    }
+    return { usage: addCounts(totals, last), model, state: { offset: consumed, totals, lastId, last, model } };
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // already closed
+      }
+    }
+  }
+}
+
+/** Adds the session's token totals to a report. Best effort: no transcript, no usage. */
+function attachUsage(payload, input) {
+  if (!USAGE_EVENTS.has(payload.event) || !input.transcript_path) return;
+  let state = null;
+  try {
+    state = JSON.parse(readState(payload.sessionKey, 'usage') ?? 'null');
+  } catch {
+    // start from the beginning of the transcript
+  }
+  const result = readTranscriptUsage(String(input.transcript_path), state);
+  if (!result) return;
+  writeState(payload.sessionKey, 'usage', JSON.stringify(result.state));
+  if (USAGE_KEYS.every((key) => result.usage[key] === 0)) return;
+  payload.usage = result.usage;
+  if (result.model) payload.model = result.model.slice(0, 80);
 }
 
 // The start note is re-read on every API call of the session, so it stays
@@ -525,6 +649,8 @@ async function runHook() {
     }
     writeState(payload.sessionKey, 'task', payload.intent);
   }
+
+  attachUsage(payload, input);
 
   if (payload.event === 'start') {
     // Registered in the foreground (briefly) so the terminal can show the

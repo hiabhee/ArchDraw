@@ -6,7 +6,9 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
 import { approveAgentPairing, makeCanvasProject, unlinkCanvasProject } from '@/lib/client/api-client';
-import { ACTIVITY_LABEL, mapCoverage, sessionActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { ACTIVITY_LABEL, collisions, mapCoverage, sessionActivity, type LiveAgentSession } from '@/lib/diagram/projects/liveActivity';
+import { sessionCostUsd } from '@/lib/diagram/projects/sessionInsights';
+import { addUsage, emptyUsage, formatTokens, formatUsd, totalTokens } from '@/lib/diagram/projects/sessionUsage';
 import { getCodePaths } from '@/lib/diagram/projects/pathMatcher';
 import { summarizeChange } from '@/lib/diagram/projects/structureDiff';
 import { useAuthStore } from '@/store/authStore';
@@ -274,6 +276,21 @@ function ProjectView({
   const earlier = sessions.filter((s) => s.status !== 'active');
   const linkedCheckouts = snapshot?.linkedCheckouts ?? 0;
   const coverage = useMemo(() => mapCoverage(sessions), [sessions]);
+  // Rework risk and money: who shares a component right now, and what the sessions in view have used.
+  const clashes = useMemo(() => [...collisions(sessions, now).entries()], [sessions, now]);
+  const spend = useMemo(() => {
+    let tokens = 0;
+    let usd: number | null = null;
+    let reporting = 0;
+    for (const s of sessions) {
+      if (!s.usage) continue;
+      reporting += 1;
+      tokens += totalTokens(addUsage(emptyUsage(), s.usage));
+      const cost = sessionCostUsd(s);
+      if (cost != null) usd = (usd ?? 0) + cost;
+    }
+    return reporting > 0 ? { tokens, usd, reporting } : null;
+  }, [sessions]);
   const labels = useMemo(() => {
     const map = new Map<string, string>();
     for (const n of nodes) map.set(n.id, String((n.data as { label?: unknown })?.label ?? n.id));
@@ -341,7 +358,14 @@ function ProjectView({
             </span>
             {task && <span className="mt-0.5 block truncate text-[11px] leading-tight text-text-secondary">{task}</span>}
           </span>
-          <span className="shrink-0 self-start pt-0.5 text-[10px] tabular-nums text-text-muted/80">{timeAgo(s.lastSeenAt, now)}</span>
+          <span className="shrink-0 self-start pt-0.5 text-right text-[10px] tabular-nums text-text-muted/80">
+            {timeAgo(s.lastSeenAt, now)}
+            {s.usage && (
+              <span className="block" title={`${formatTokens(totalTokens(s.usage))} tokens, mostly cached context. The dollar figure is an estimate at list prices.`}>
+                {sessionCostUsd(s) != null ? `≈${formatUsd(sessionCostUsd(s)!)}` : `${formatTokens(totalTokens(s.usage))} tok`}
+              </span>
+            )}
+          </span>
         </button>
       </li>
     );
@@ -438,6 +462,12 @@ function ProjectView({
           <div className="max-h-[50vh] overflow-y-auto px-1.5 pb-1.5">
             {error && <p className="px-2 pb-1.5 text-[11px] text-destructive">Paused: {error}</p>}
 
+            {clashes.map(([nodeId, list]) => (
+              <p key={nodeId} className="px-2 pb-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+                {list.map((x) => x.name).join(' and ')} are both editing {labels.get(nodeId)?.split(/<br\s*\/?>/i)[0] ?? nodeId}. They may overwrite each other.
+              </p>
+            ))}
+
             {sessions.length === 0 ? (
               <p className="px-2 pb-2 text-[11.5px] leading-relaxed text-text-muted">
                 {linkedCheckouts > 0
@@ -498,6 +528,11 @@ function ProjectView({
           ) : (
             <p className="border-t border-border/60 px-3 py-2 text-[10.5px] text-text-muted">
               {linkedCheckouts > 0 ? `${linkedCheckouts} checkout${linkedCheckouts === 1 ? '' : 's'} linked` : 'No checkout linked'}
+              {spend && (
+                <span title={`${formatTokens(spend.tokens)} tokens across ${spend.reporting} session${spend.reporting === 1 ? '' : 's'} in the last few hours, mostly cached context. Dollars are an estimate at list prices; your plan may bill differently.`}>
+                  {' '}· {spend.usd != null ? `≈${formatUsd(spend.usd)}` : `${formatTokens(spend.tokens)} tokens`} used
+                </span>
+              )}
               {coverage && (
                 <span title={`${coverage.percent}% of the ${coverage.total} files agents edited are on a component. Low? Ask Claude to re-map the project.`}>
                   {' '}· map covers {coverage.percent}%

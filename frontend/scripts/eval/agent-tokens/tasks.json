@@ -7,43 +7,68 @@
         {
           "id": "locate-handle-offsets",
           "kind": "locate-documented",
-          "prompt": "Which function computes the ±16px handle slot offsets when one side of a node has both incoming and outgoing edges? Reply with the file path and the function name only. Do not change any files.",
-          "targets": ["handleSlotOrder|diagram/edges\""],
-          "answer": ["handleSlotOrder|diagram/edges\"", "computeDynamicSlotOffsets"]
+          "prompt": "Which function computes the \u00b116px handle slot offsets when one side of a node has both incoming and outgoing edges? Reply with the file path and the function name only. Do not change any files.",
+          "targets": [
+            "handleSlotOrder|diagram/edges\""
+          ],
+          "answer": [
+            "handleSlotOrder|diagram/edges\"",
+            "computeDynamicSlotOffsets"
+          ]
         },
         {
           "id": "locate-quickstart-body",
           "kind": "locate-undocumented",
           "prompt": "What is the largest request body the public quick start endpoint for new live projects accepts? Reply with the size and the file it is set in. Do not change any files.",
-          "targets": ["api/projects/quickstart"],
-          "answer": ["512", "quickstart/route\\.ts"]
+          "targets": [
+            "api/projects/quickstart"
+          ],
+          "answer": [
+            "512",
+            "quickstart/route\\.ts"
+          ]
         },
         {
           "id": "locate-glob-matcher",
           "kind": "locate-undocumented",
           "prompt": "Live projects match edited file paths against each component's code path globs. Where is the glob matching implemented, and how does it avoid slow backtracking regexes? Reply in two sentences with the file path. Do not change any files.",
-          "targets": ["diagram/projects(/pathMatcher\\.ts)?\"|pathMatcher"],
-          "answer": ["pathMatcher\\.ts"]
+          "targets": [
+            "diagram/projects(/pathMatcher\\.ts)?\"|pathMatcher"
+          ],
+          "answer": [
+            "pathMatcher\\.ts"
+          ]
         },
         {
           "id": "locate-admin-login-limit",
           "kind": "locate-matched",
           "prompt": "How many admin login attempts are allowed per IP before the admin login is rate limited, and over what window? Reply with the numbers and the file. Do not change any files.",
-          "targets": ["api/admin/login"],
-          "answer": ["\\b5\\b", "15"]
+          "targets": [
+            "api/admin/login"
+          ],
+          "answer": [
+            "\\b5\\b",
+            "15"
+          ]
         },
         {
           "id": "locate-svg-export",
           "kind": "misleading",
           "prompt": "When a user exports a diagram as SVG from the editor, which function builds the SVG markup? Reply with the function name and its file. Do not change any files.",
-          "targets": ["diagram/export"],
-          "answer": ["generatePureSVG"]
+          "targets": [
+            "diagram/export"
+          ],
+          "answer": [
+            "generatePureSVG"
+          ]
         },
         {
           "id": "edit-idle-timeout",
           "kind": "edit-small",
           "prompt": "A live agent session is shown as idle after 2 minutes without activity. Change that to 3 minutes and update any tests that depend on it. Run the affected tests.",
-          "targets": ["diagram/projects(/liveActivity\\.ts)?\"|liveActivity"],
+          "targets": [
+            "diagram/projects(/liveActivity\\.ts)?\"|liveActivity"
+          ],
           "hiddenTest": {
             "path": "frontend/lib/diagram/projects/__tests__/zzEvalIdle.test.ts",
             "content": "import { describe, expect, it } from 'vitest';\nimport { IDLE_AFTER_MS } from '../liveActivity';\n\ndescribe('eval: idle timeout', () => {\n  it('is 3 minutes', () => {\n    expect(IDLE_AFTER_MS).toBe(3 * 60 * 1000);\n  });\n});\n"
@@ -54,7 +79,9 @@
           "id": "edit-trailing-slash",
           "kind": "edit-small",
           "prompt": "Component code paths in live projects are normalized before matching. Make that normalization also drop trailing slashes, so 'frontend/lib/' becomes 'frontend/lib', and add a test for it. Run the affected tests.",
-          "targets": ["diagram/projects(/pathMatcher\\.ts)?\"|pathMatcher"],
+          "targets": [
+            "diagram/projects(/pathMatcher\\.ts)?\"|pathMatcher"
+          ],
           "hiddenTest": {
             "path": "frontend/lib/diagram/projects/__tests__/zzEvalSlash.test.ts",
             "content": "import { describe, expect, it } from 'vitest';\nimport { normalizeRepoPath } from '../pathMatcher';\n\ndescribe('eval: trailing slash', () => {\n  it('drops trailing slashes', () => {\n    expect(normalizeRepoPath('frontend/lib/')).toBe('frontend/lib');\n    expect(normalizeRepoPath('./frontend/lib//')).toBe('frontend/lib');\n  });\n});\n"
@@ -65,8 +92,236 @@
           "id": "explain-conflict-flow",
           "kind": "cross-component",
           "prompt": "When two tabs save the same canvas and the server rejects the stale write, what happens end to end? Name the server check, the client code that handles it, and the function that loads the server's copy. Reply in at most 5 sentences. Do not change any files.",
-          "targets": ["store/diagram/persistence|dbSave", "api/user/canvases"],
-          "answer": ["CANVAS_CONFLICT|409", "reloadCanvasFromDB"]
+          "targets": [
+            "store/diagram/persistence|dbSave",
+            "api/user/canvases"
+          ],
+          "answer": [
+            "CANVAS_CONFLICT|409",
+            "reloadCanvasFromDB"
+          ]
+        },
+        {
+          "id": "flow-prompt-to-canvas",
+          "kind": "cross-component",
+          "prompt": "Trace what happens after a user submits a prompt in the editor until the diagram appears on the canvas: the client function that calls the API, the server route, the orchestrator and the pipeline entry point, and the store function that puts the result on the canvas. Name each file and function. Reply in at most 8 sentences. Do not change any files.",
+          "targets": [
+            "lib/ai/generationService",
+            "app/api/generate-diagram",
+            "services/orchestrator",
+            "pipeline-v2"
+          ],
+          "answer": [
+            "generationService",
+            "generate-diagram",
+            "orchestrator",
+            "runAiMermaidPipelineV2|pipeline-v2",
+            "importDiagram"
+          ]
+        },
+        {
+          "id": "place-guest-quota",
+          "kind": "cross-component",
+          "prompt": "I want to change how many AI generations a guest may run per hour. In which file is that limit defined, and which file and function enforces it before a generation starts? Reply in at most 4 sentences. Do not change any files.",
+          "targets": [
+            "quotas/userQuotas",
+            "server/quotaCheck"
+          ],
+          "answer": [
+            "userQuotas",
+            "quotaCheck",
+            "checkAIGenerationQuota|checkGuestQuotaViaDB"
+          ]
+        },
+        {
+          "id": "flow-share-expiry",
+          "kind": "cross-component",
+          "prompt": "Shared diagram links expire. Where is the default expiry set, and what removes expired shares? Name the files and the database model. Reply in at most 4 sentences. Do not change any files.",
+          "targets": [
+            "prisma/schema",
+            "cron/cleanup-expired-shares"
+          ],
+          "answer": [
+            "schema\\.prisma",
+            "SharedCanvas",
+            "cleanup-expired-shares"
+          ]
+        },
+        {
+          "id": "place-new-shape",
+          "kind": "cross-component",
+          "prompt": "I want to add a new node silhouette called 'trapezoid'. List the files and functions where it must be registered so it is a valid shape type, is drawn on the canvas, gets sized, and is drawn identically in SVG export. Reply in at most 8 sentences. Do not change any files.",
+          "targets": [
+            "nodes/shapeRegistry",
+            "shapeGeometry",
+            "nodes/nodeSizing",
+            "nodes/ShapeNode"
+          ],
+          "answer": [
+            "shapeRegistry",
+            "shapeGeometry|getShapePrimitives",
+            "nodeSizing",
+            "ShapeNode",
+            "svgExport|renderNodes|export/svg"
+          ]
+        },
+        {
+          "id": "place-cache-bust",
+          "kind": "cross-component",
+          "prompt": "I changed how repo diagrams are built and need previously cached results to stop being served. What exactly must I change, in which file, and which caches does that cover? Reply in at most 5 sentences. Do not change any files.",
+          "targets": [
+            "services/pipelineVersion",
+            "services/diagramCache",
+            "repoDiagramRedisCache"
+          ],
+          "answer": [
+            "pipelineVersion",
+            "PIPELINE_VERSION",
+            "diagramCache|repoDiagramRedisCache"
+          ]
+        },
+        {
+          "id": "flow-live-badge",
+          "kind": "cross-component",
+          "prompt": "When a Claude Code session edits a file in a linked repository, how does a badge end up on the matching component in the editor? Trace it from the hook to the canvas overlay and name each file or function. Reply in at most 8 sentences. Do not change any files.",
+          "targets": [
+            "archdraw-project",
+            "activity/route",
+            "liveSessions",
+            "projectLiveStore",
+            "LiveActivityBadge"
+          ],
+          "answer": [
+            "archdraw-project|hook",
+            "activity",
+            "toLiveSession|liveSessions|live/route",
+            "projectLiveStore",
+            "buildNodeActivity|LiveActivityBadge"
+          ]
+        },
+        {
+          "id": "flow-credit-refund",
+          "kind": "cross-component",
+          "prompt": "If an AI generation fails after credits were reserved for it, what gives the credits back, and where is it called from? Name the file and function for both the reserve and the refund. Reply in at most 4 sentences. Do not change any files.",
+          "targets": [
+            "server/credits",
+            "api/generate-diagram"
+          ],
+          "answer": [
+            "reserveCredits",
+            "refundCredits",
+            "credits\\.ts|server/credits",
+            "generate-diagram"
+          ]
+        }
+      ]
+    },
+    "gloc": {
+      "base": "HEAD",
+      "path": "/Users/abhisheksureshjamdade/code/GLOC",
+      "tasks": [
+        {
+          "id": "locate-gloc-hotspot",
+          "kind": "locate-undocumented",
+          "prompt": "Which function computes the Getis-Ord hotspot statistic, and what is its default neighbourhood radius in cells? Reply with the file path, function name and radius only. Do not change any files.",
+          "targets": [
+            "change_detection/patterns"
+          ],
+          "answer": [
+            "patterns\\.py",
+            "getis_ord",
+            "\\b2\\b"
+          ]
+        },
+        {
+          "id": "locate-gloc-cloud-frac",
+          "kind": "locate-undocumented",
+          "prompt": "What is the maximum cloud plus shadow fraction over the glacier domain that a Sentinel-2 scene may have in the Chhota Shigri config? Reply with the value and the config file only. Do not change any files.",
+          "targets": [
+            "configs/chhota_shigri"
+          ],
+          "answer": [
+            "0\\.02",
+            "chhota_shigri\\.yaml"
+          ]
+        },
+        {
+          "id": "locate-gloc-terminus",
+          "kind": "locate-undocumented",
+          "prompt": "Which function finds the glacier terminus along the centerline, and how many metres of gap does it tolerate by default? Reply with file, function and number only. Do not change any files.",
+          "targets": [
+            "change_detection/change"
+          ],
+          "answer": [
+            "change\\.py",
+            "terminus_position",
+            "\\b100\\b"
+          ]
+        },
+        {
+          "id": "locate-gloc-ece",
+          "kind": "locate-undocumented",
+          "prompt": "Where is expected calibration error computed and how many bins does it use by default? Reply with file, function and number only. Do not change any files.",
+          "targets": [
+            "validation/calibration"
+          ],
+          "answer": [
+            "calibration\\.py",
+            "\\bece\\b",
+            "\\b15\\b"
+          ]
+        },
+        {
+          "id": "flow-gloc-prob-to-terminus",
+          "kind": "cross-component",
+          "prompt": "Trace how a per-scene glacier probability becomes the cleaned yearly mask and then a terminus retreat number. Name each source file and function in order. Reply in at most 6 sentences. Do not change any files.",
+          "targets": [
+            "inference/ensemble",
+            "postprocessing/mask",
+            "change_detection/change"
+          ],
+          "answer": [
+            "ensemble",
+            "clean_mask|postprocessing/mask|mask\\.py",
+            "terminus_table|terminus_position|change\\.py"
+          ]
+        },
+        {
+          "id": "place-gloc-snow-screen",
+          "kind": "cross-component",
+          "prompt": "I want to reject Sentinel-2 scenes that are mostly snow-covered before a scene is picked for a year. In which file and function would you add that rule, and which config file holds the neighbouring thresholds? Reply in at most 4 sentences. Do not change any files.",
+          "targets": [
+            "data/sentinel2",
+            "configs/chhota_shigri"
+          ],
+          "answer": [
+            "sentinel2\\.py",
+            "screen_scl|select_year|select_ensemble",
+            "chhota_shigri\\.yaml"
+          ]
+        },
+        {
+          "id": "place-gloc-new-metric",
+          "kind": "cross-component",
+          "prompt": "I want to add a Dice score to the accuracy numbers reported for the yearly masks. Where is the metrics function defined, and which files call it so the new number would be reported? Reply in at most 4 sentences. Do not change any files.",
+          "targets": [
+            "validation/metrics",
+            "inference/ensemble"
+          ],
+          "answer": [
+            "metrics\\.py",
+            "binary_metrics",
+            "ensemble\\.py|site_validation\\.py|run\\.py"
+          ]
+        },
+        {
+          "id": "edit-gloc-ece-bins",
+          "kind": "edit-small",
+          "prompt": "Change the default number of calibration bins for the expected calibration error from 15 to 20 and update anything in the repo that documents or depends on that default.",
+          "targets": [
+            "validation/calibration"
+          ],
+          "check": "grep -q 'def ece(p, y, bins=20)' src/validation/calibration.py"
         }
       ]
     }

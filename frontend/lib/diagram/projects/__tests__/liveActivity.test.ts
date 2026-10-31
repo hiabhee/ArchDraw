@@ -10,6 +10,7 @@ import {
   MAX_UNMAPPED_PATHS,
   RECENT_CHANGE_MS,
   buildNodeActivity,
+  collisions,
   deriveSessionStatus,
   mergeTouched,
   mergeUnmapped,
@@ -267,5 +268,39 @@ describe('sessionActivity', () => {
   it('maps the new events: run changes the action, task only carries the task', () => {
     expect(actionForEvent('run')).toBe('run');
     expect(actionForEvent('task')).toBeNull();
+  });
+});
+
+describe('collisions and contested nodes', () => {
+  const NOW = 1_000_000;
+  const worker = (key: string, over: Partial<LiveAgentSession> = {}): LiveAgentSession => ({
+    id: key, sessionKey: key, name: key, label: 'repo', branch: null, status: 'active', intent: null,
+    currentComponentId: null, touched: {}, unmappedPaths: [], startedAt: 0, lastSeenAt: NOW, color: '#fff',
+    lastChange: null, lastAction: 'edit', lastActionAt: NOW, aimComponentId: null, site: null,
+    mappedHits: 0, unmappedHits: 0, detailComponentId: null, ...over,
+  });
+  const edited = (lastAt: number) => ({ api: { count: 1, lastAt } });
+
+  it('flags a component two working sessions edited recently', () => {
+    const list = [worker('a', { touched: edited(NOW - 10_000) }), worker('b', { touched: edited(NOW - 20_000) })];
+    const found = collisions(list, NOW);
+    expect([...found.keys()]).toEqual(['api']);
+    expect(found.get('api')!.map((s) => s.sessionKey)).toEqual(['a', 'b']);
+    expect(buildNodeActivity(list, NOW).api.contested).toBe(true);
+  });
+
+  it('ignores old edits, idle sessions and a lone editor', () => {
+    const old = [worker('a', { touched: edited(NOW - 10_000) }), worker('b', { touched: edited(NOW - 10 * 60_000) })];
+    expect(collisions(old, NOW).size).toBe(0);
+    expect(buildNodeActivity(old, NOW).api.contested).toBeUndefined();
+    expect(collisions([worker('a', { touched: edited(NOW) }), worker('b', { status: 'idle', touched: edited(NOW) })], NOW).size).toBe(0);
+  });
+
+  it('carries the session name on each mark and treats a changed contest as a change', () => {
+    const a = buildNodeActivity([worker('a', { touched: edited(NOW) })], NOW);
+    expect(a.api.sessions[0].name).toBe('a');
+    const b = buildNodeActivity([worker('a', { touched: edited(NOW) }), worker('b', { touched: edited(NOW) })], NOW);
+    expect(reuseNodeActivity(a, { api: { ...a.api, contested: true } }).api).not.toBe(a.api);
+    expect(b.api.contested).toBe(true);
   });
 });

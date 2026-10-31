@@ -2,12 +2,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { architectureContext, areaOf, buildActivity, couldBeComponent, currentTask, diagramGuide, loadBinding, nameOf, taskContext, matchPromptToComponent, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
+import { architectureContext, areaOf, buildActivity, messageUsage, readTranscriptUsage, couldBeComponent, currentTask, diagramGuide, loadBinding, nameOf, taskContext, matchPromptToComponent, repoRoots, sessionLabel, toRepoPath } from './archdraw-project.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./archdraw-project.mjs', import.meta.url));
 
@@ -433,4 +433,42 @@ test('publish --level detail sends the detailed map level', async () => {
   assert.equal(published.code, 0, published.err);
   assert.equal(requests[0].body.level, 'detail');
   server.close();
+});
+
+const usageLine = (id, over = {}, model = 'claude-opus-5-5') => `${JSON.stringify({
+  type: 'assistant',
+  message: { id, model, usage: { input_tokens: 2, output_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000, cache_creation: { ephemeral_5m_input_tokens: 40, ephemeral_1h_input_tokens: 60 }, ...over } },
+})}\n`;
+
+test('messageUsage splits cache writes by lifetime and ignores bad numbers', () => {
+  assert.deepEqual(messageUsage({ input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 }), { input: 1, output: 2, cacheWrite5m: 4, cacheWrite1h: 0, cacheRead: 3 });
+  assert.deepEqual(messageUsage({ input_tokens: -5, output_tokens: 'x', cache_creation: { ephemeral_1h_input_tokens: 7 } }), { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 7, cacheRead: 0 });
+  assert.equal(messageUsage(null), null);
+});
+
+test('readTranscriptUsage counts a streamed message once, reads only new lines and sends no content', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ad-tr-'));
+  const file = join(dir, 's.jsonl');
+  // Same id three times (streaming), then another message; plus lines that are not usage.
+  writeFileSync(file, `${JSON.stringify({ type: 'user', message: { content: 'secret prompt' } })}\n${usageLine('m1', { output_tokens: 4 })}${usageLine('m1', { output_tokens: 10 })}${usageLine('m1', { output_tokens: 10 })}${usageLine('m2', { output_tokens: 6 }, 'claude-sonnet-5-5')}`);
+  const first = readTranscriptUsage(file, null);
+  assert.deepEqual(first.usage, { input: 4, output: 16, cacheWrite5m: 80, cacheWrite1h: 120, cacheRead: 2000 });
+  assert.equal(first.model, 'claude-sonnet-5-5');
+  assert.ok(!JSON.stringify(first).includes('secret'));
+
+  // A half-written line is left for next time; the rest is added without re-reading.
+  const partial = usageLine('m3', { output_tokens: 5 });
+  appendFileSync(file, partial.slice(0, 40));
+  const second = readTranscriptUsage(file, first.state);
+  assert.deepEqual(second.usage, first.usage);
+  appendFileSync(file, partial.slice(40));
+  const third = readTranscriptUsage(file, second.state);
+  assert.equal(third.usage.output, 21);
+  assert.equal(third.usage.input, 6);
+
+  // A shorter file is a new transcript.
+  writeFileSync(file, usageLine('n1', { output_tokens: 1 }));
+  assert.equal(readTranscriptUsage(file, third.state).usage.output, 1);
+  assert.equal(readTranscriptUsage(join(dir, 'missing.jsonl'), null), null);
+  assert.equal(readTranscriptUsage('/etc/passwd', null), null);
 });
