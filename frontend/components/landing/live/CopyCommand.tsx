@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import styles from './LiveLanding.module.css';
 
-export const START_COMMAND = 'npx archdraw-live';
+export const START_COMMAND = 'npx -y archdraw-live';
 
 /** The one command, as a copy button. Tracked so the landing funnel can count copies. */
 export function CopyCommand({ size = 'md', track }: { size?: 'md' | 'lg'; track: string }) {

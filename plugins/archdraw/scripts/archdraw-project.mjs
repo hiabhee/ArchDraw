@@ -734,7 +734,7 @@ function flags(argv) {
 function requireBinding() {
   const binding = loadBinding(process.cwd());
   if (!binding) {
-    console.error('This repository is not linked to an ArchDraw project. Run: npx archdraw-live');
+    console.error('This repository is not linked to an ArchDraw project. Run: npx -y archdraw-live');
     process.exit(2);
   }
   return binding;

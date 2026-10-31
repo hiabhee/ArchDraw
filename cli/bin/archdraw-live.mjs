@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // archdraw-live — see your coding agents work on a live map of your codebase.
 //
-//   npx archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
-//   npx archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
-//   npx archdraw-live --detail     redraw only the detailed map
-//   npx archdraw-live update       switch to the newest release
-//   npx archdraw-live status       where this repository's live map is
-//   npx archdraw-live stop         disconnect this repository
+//   npx -y archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
+//   npx -y archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
+//   npx -y archdraw-live --detail     redraw only the detailed map
+//   npx -y archdraw-live update       switch to the newest release
+//   npx -y archdraw-live status       where this repository's live map is
+//   npx -y archdraw-live stop         disconnect this repository
 //
 // The map is drawn by your own Claude Code, nothing else. What leaves this
 // machine: component names and repository-relative paths
@@ -23,7 +23,6 @@ import { bindingFilePath, getBinding, removeBinding, saveBinding } from '../lib/
 import { installClaudeHooks } from '../lib/claudeHooks.mjs';
 import { isNewer, latestVersion, runVersion, updateCheckDisabled } from '../lib/update.mjs';
 import { detailPrompt, mapAndCheck, mappingPrompt, readMermaid } from '../lib/mapWithClaude.mjs';
-import { createInterface } from 'node:readline/promises';
 
 const DEFAULT_API = 'https://archdraw.hiabhee.online';
 const VERSION = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')).version;
@@ -142,17 +141,6 @@ function nextSteps(binding, opened) {
   console.log(dim('Tip: ask Claude "improve the ArchDraw diagram of this repo" for a sharper map.'));
 }
 
-async function ask(question, defaultYes = true) {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const answer = (await rl.question(question)).trim().toLowerCase();
-    return answer === '' ? defaultYes : answer === 'y' || answer === 'yes';
-  } finally {
-    rl.close();
-  }
-}
-
 /** Progress line while Claude reads, and a note when its answer goes back for fixes. */
 function checkedRun(tty) {
   return {
@@ -174,7 +162,7 @@ function reportLeftovers(problems) {
 /** Claude reads the code and publishes the map. */
 async function mapWithClaude(root, binding) {
   if (!hasCommand('claude')) {
-    warn(`Claude Code isn't installed, so the map stays empty. Install it, then run ${bold('npx archdraw-live --map')}: ${bold('npm install -g @anthropic-ai/claude-code')}`);
+    warn(`Claude Code isn't installed, so the map stays empty. Install it, then run ${bold('npx -y archdraw-live --map')}: ${bold('npm install -g @anthropic-ai/claude-code')}`);
     return false;
   }
   console.log(dim('Claude is reading your code (read-only) to draw the map. You can watch it on the live map.'));
@@ -182,7 +170,7 @@ async function mapWithClaude(root, binding) {
   const result = await mapAndCheck(root, mappingPrompt(), listFiles(root), checkedRun(tty));
   if (tty) process.stdout.write('\r\x1b[2K');
   if (!result.ok) {
-    warn(`${result.reason} Try \`npx archdraw-live --map\` again.`);
+    warn(`${result.reason} Try \`npx -y archdraw-live --map\` again.`);
     return false;
   }
   const { mapping } = result;
@@ -193,7 +181,7 @@ async function mapWithClaude(root, binding) {
     body: JSON.stringify({ mermaid: mapping.mermaid, componentPaths: mapping.componentPaths, relayout: true }),
   });
   if (!res.ok) {
-    warn(`ArchDraw couldn't use Claude's diagram (${res.body.error || res.status}). Try \`npx archdraw-live --map\` again.`);
+    warn(`ArchDraw couldn't use Claude's diagram (${res.body.error || res.status}). Try \`npx -y archdraw-live --map\` again.`);
     return false;
   }
   ok(`Claude mapped ${bold(res.body.componentCount)} components ${dim('(the live map has updated)')}`);
@@ -225,7 +213,7 @@ async function mapDetailWithClaude(root, binding) {
   });
   if (tty) process.stdout.write('\r\x1b[2K');
   if (!result.ok) {
-    warn(`${result.reason} Try again with ${bold('npx archdraw-live --detail')}.`);
+    warn(`${result.reason} Try again with ${bold('npx -y archdraw-live --detail')}.`);
     return false;
   }
   const { mapping } = result;
@@ -236,7 +224,7 @@ async function mapDetailWithClaude(root, binding) {
     body: JSON.stringify({ level: 'detail', mermaid: mapping.mermaid, componentPaths: mapping.componentPaths }),
   });
   if (!res.ok) {
-    warn(`ArchDraw couldn't use the detailed map (${res.body.error || res.status}). Try again with ${bold('npx archdraw-live --detail')}.`);
+    warn(`ArchDraw couldn't use the detailed map (${res.body.error || res.status}). Try again with ${bold('npx -y archdraw-live --detail')}.`);
     return false;
   }
   ok(`Detailed map: ${bold(res.body.componentCount)} parts ${dim('(switch to "Detailed" at the top of the live map)')}`);
@@ -268,7 +256,7 @@ async function setup(flags) {
   }
 
   if (flags.detail) {
-    if (!existing) fail(`This repository isn't connected yet. Run ${bold('npx archdraw-live')} first.`);
+    if (!existing) fail(`This repository isn't connected yet. Run ${bold('npx -y archdraw-live')} first.`);
     await mapDetailWithClaude(root, existing);
     return;
   }
@@ -280,9 +268,9 @@ async function setup(flags) {
     return;
   }
 
+  // Running the command is the consent: Claude draws the map unless --no-map (or CI, where nobody is watching).
   const canClaude = hasCommand('claude');
-  const draw = flags.map || (!flags['no-map'] && canClaude
-    && await ask(`${bold('Let Claude read your code and draw the map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [Y/n] `, true));
+  const draw = Boolean(flags.map) || (!flags['no-map'] && canClaude && !process.env.CI);
 
   console.log(`Setting up a live map for ${bold(repoName)}…`);
 
@@ -311,8 +299,10 @@ async function setup(flags) {
   connectHooks();
   const opened = flags['no-open'] ? false : openBrowser(liveUrl(binding));
   console.log('');
-  if (draw) await mapAll(root, binding, flags);
-  else if (canClaude) console.log(dim(`The map stays empty until Claude draws it: ${bold('npx archdraw-live --map')}`));
+  if (draw) {
+    console.log(dim('Claude (your Claude account, read-only) now reads your code and draws the map: 1–3 minutes, then the detailed map. Skip it with --no-map.'));
+    await mapAll(root, binding, flags);
+  } else if (canClaude) console.log(dim(`The map stays empty until Claude draws it: ${bold('npx -y archdraw-live --map')}`));
   nextSteps(binding, opened);
 }
 
@@ -335,14 +325,14 @@ async function update() {
     return;
   }
   if (runVersion(latest, ['--version'], { stdio: 'ignore' }) !== 0) fail(`Couldn't download ${latest}. Try again in a minute.`);
-  ok(`Updated ${VERSION} → ${latest}. The next ${bold('npx archdraw-live')} runs it.`);
+  ok(`Updated ${VERSION} → ${latest}. The next ${bold('npx -y archdraw-live')} runs it.`);
 }
 
 function status() {
   const root = repoRoot(process.cwd());
   const binding = getBinding(root);
   if (!binding) {
-    console.log(`${basename(root)} is not connected. Run ${bold('npx archdraw-live')} to set it up.`);
+    console.log(`${basename(root)} is not connected. Run ${bold('npx -y archdraw-live')} to set it up.`);
     process.exitCode = 1;
     return;
   }
@@ -361,12 +351,12 @@ function stop() {
 
 const HELP = `${bold('archdraw-live')} ${VERSION} — watch your coding agents on a live map of your codebase
 
-  npx archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
-  npx archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
-  npx archdraw-live --detail     redraw only the detailed map (each component's modules and files)
-  npx archdraw-live update       switch to the newest release (it also checks on every run)
-  npx archdraw-live status       show this repository's live map link
-  npx archdraw-live stop         disconnect this repository
+  npx -y archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
+  npx -y archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
+  npx -y archdraw-live --detail     redraw only the detailed map (each component's modules and files)
+  npx -y archdraw-live update       switch to the newest release (it also checks on every run)
+  npx -y archdraw-live status       show this repository's live map link
+  npx -y archdraw-live stop         disconnect this repository
 
 Options: --api <url> (default ${DEFAULT_API}), --no-open, --no-map (set up without drawing the map), --no-detail (overview only)
 Sent: component names, folder paths, and which files each session reads or edits. Never code or prompts.`;

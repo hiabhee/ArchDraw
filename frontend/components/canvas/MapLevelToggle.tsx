@@ -46,7 +46,7 @@ export function MapLevelToggle({
         'Detailed',
         hasDetail
           ? 'Each component opened up into its modules and files (view only)'
-          : 'Not drawn yet: run npx archdraw-live --detail in your repository',
+          : 'Not drawn yet: run npx -y archdraw-live --detail in your repository',
       )}
     </div>
   );
@@ -60,7 +60,7 @@ export function DetailMapEmpty() {
       <p className="mt-1.5 text-muted-foreground">
         Claude draws it from your code, right after the overview. To draw it now, run this in your repository:
       </p>
-      <code className="mt-3 block rounded-lg bg-muted px-3 py-2 font-mono text-xs text-foreground">npx archdraw-live --detail</code>
+      <code className="mt-3 block rounded-lg bg-muted px-3 py-2 font-mono text-xs text-foreground">npx -y archdraw-live --detail</code>
     </div>
   );
 }

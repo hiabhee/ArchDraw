@@ -4,11 +4,13 @@ See your coding agents work on a live map of your codebase. Run one command in
 your project folder:
 
 ```bash
-npx archdraw-live
+npx -y archdraw-live
 ```
 
-It connects Claude Code, opens the live map in your browser and asks to let your
-own Claude read the code and draw the architecture diagram (nothing else draws it). No account is needed. Then start Claude Code
+The `-y` makes npm download the tool without asking "Ok to proceed?".
+
+It connects Claude Code, opens the live map in your browser and lets your own
+Claude read the code and draw the architecture diagram (nothing else draws it). No account is needed. Then start Claude Code
 (`claude`) in the same folder: each session appears as a star that moves to the
 component it is working on, and raises a flag when it needs you.
 
@@ -19,23 +21,23 @@ nobody signs in to are deleted after 30 days without activity.
 
 | Command | What it does |
 |---|---|
-| `npx archdraw-live` | Set up (or reopen) this repository's live map |
-| `npx archdraw-live --map` | Let Claude Code read the code and (re)draw the map (overview, then the detailed map) |
-| `npx archdraw-live --detail` | Redraw only the detailed map |
-| `npx archdraw-live update` | Switch to the newest release (every run also checks, see below) |
-| `npx archdraw-live status` | Show this repository's live map link |
-| `npx archdraw-live stop` | Disconnect this repository |
+| `npx -y archdraw-live` | Set up (or reopen) this repository's live map |
+| `npx -y archdraw-live --map` | Let Claude Code read the code and (re)draw the map (overview, then the detailed map) |
+| `npx -y archdraw-live --detail` | Redraw only the detailed map |
+| `npx -y archdraw-live update` | Switch to the newest release (every run also checks, see below) |
+| `npx -y archdraw-live status` | Show this repository's live map link |
+| `npx -y archdraw-live stop` | Disconnect this repository |
 
 Options: `--api <url>` (another ArchDraw server), `--no-open`, `--no-map` (set up without drawing the map), `--no-detail` (overview only).
 
 ## The map
 
-Claude alone draws it; the live map is empty until it has. Right after setup the
-command asks to let Claude draw it: it runs your own Claude
+Claude alone draws it; the live map is empty until it has. Setup does this
+right away, without a question: it runs your own Claude
 Code (`claude -p` with read-only tools: Read, Grep, Glob) in the repository, which
 reads the code and answers with a diagram and the folders each component owns.
 It takes about a minute and uses your Claude account. Run it any time with
-`npx archdraw-live --map`, or ask Claude in a session to "re-map the ArchDraw diagram".
+`npx -y archdraw-live --map`, or ask Claude in a session to "re-map the ArchDraw diagram".
 
 Claude draws two maps, switched with **Overview | Detailed** at the top of the live map:
 
@@ -44,7 +46,7 @@ Claude draws two maps, switched with **Overview | Detailed** at the top of the l
   ("aligned scenes"), and each data store as its own box.
 - **Detailed**: every component opened up into its modules, classes and key files, with the
   calls and data flow between them. Claude draws it right after the overview (a minute or
-  two more); redraw it with `npx archdraw-live --detail`. Agents show up on the part they
+  two more); redraw it with `npx -y archdraw-live --detail`. Agents show up on the part they
   are working in.
 
 ## Which session needs you
@@ -60,7 +62,7 @@ notifications.
 `npx` reuses a copy it has already downloaded, so on every run the command asks the npm
 registry for the newest version and, if yours is older, restarts itself on the newest one
 ("Updating archdraw-live 0.3.1 → 0.3.2…"). Re-running also refreshes the hook script in
-`~/.archdraw/hooks/`. `npx archdraw-live update` does the same on demand. Set
+`~/.archdraw/hooks/`. `npx -y archdraw-live update` does the same on demand. Set
 `ARCHDRAW_NO_UPDATE_CHECK=1` to turn the check off (it is also skipped in CI). The only
 request is a public GET to `registry.npmjs.org`; nothing about you or your repository is sent.
 Copies older than 0.3.2 don't have this check; run `npx -y archdraw-live@latest` once.
@@ -79,7 +81,7 @@ Copies older than 0.3.2 don't have this check; run `npx -y archdraw-live@latest`
 ## What is sent to ArchDraw
 
 - At setup: the repository folder name.
-- When Claude draws the map (`--map`, or if you answer yes): Claude's diagrams (overview and detailed) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
+- When Claude draws the map (right after setup, or with `--map`): Claude's diagrams (overview and detailed) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
 - While Claude Code runs: the session id, branch, and the repository-relative path of
   each file the session reads or edits; that it is running a shell command (not the
   command); the step it is on, from its own to-do list ("Adding retry to the

@@ -43,7 +43,7 @@ export const LIVE_FAQS = [
   },
   {
     question: 'How do I disconnect a repository?',
-    answer: 'Run npx archdraw-live stop in it. Sessions there stop reporting right away.',
+    answer: 'Run npx -y archdraw-live stop in it. Sessions there stop reporting right away.',
   },
 ];
 
@@ -83,11 +83,11 @@ const FEATURES = [
 ];
 
 const TERMINAL: { text: string; kind?: 'cmd' | 'ok' | 'dim' | 'ask' | 'bold' }[] = [
-  { text: '~/code/acme-shop $ npx archdraw-live', kind: 'cmd' },
+  { text: '~/code/acme-shop $ npx -y archdraw-live', kind: 'cmd' },
   { text: 'Setting up a live map for acme-shop…' },
   { text: '✓ Project created (link saved in ~/.archdraw/projects.json, outside your repo)', kind: 'ok' },
   { text: '✓ Claude Code connected (hooks in ~/.claude/settings.json)', kind: 'ok' },
-  { text: 'Let Claude read your code and draw the map? [Y/n] y', kind: 'ask' },
+  { text: 'Claude (your Claude account, read-only) now reads your code and draws the map: 1–3 minutes, then the detailed map. Skip it with --no-map.', kind: 'dim' },
   { text: 'Claude is reading your code (read-only) to draw the map.', kind: 'dim' },
   { text: '✓ Claude mapped 14 components (the live map has updated)', kind: 'ok' },
   { text: '✓ Detailed map: 46 parts (switch to "Detailed" at the top of the live map)', kind: 'ok' },
@@ -103,7 +103,7 @@ const STEPS = [
   {
     n: '02',
     title: 'Let Claude draw the real map',
-    body: 'Say yes and your own Claude Code reads the repository, read-only. The overview lands in one to three minutes; the detailed map follows.',
+    body: 'Your own Claude Code reads the repository, read-only, right after setup. The overview lands in one to three minutes; the detailed map follows.',
   },
   {
     n: '03',
@@ -236,7 +236,7 @@ export default async function LiveLanding() {
               <ScrollSteps steps={STEPS} />
               <PlayOnView className={styles.terminal}>
                 <div className={styles.terminalBar} aria-hidden="true"><i /><i /><i /><span>zsh — acme-shop</span></div>
-                <pre className={styles.terminalBody} aria-label="Example output of npx archdraw-live">
+                <pre className={styles.terminalBody} aria-label="Example output of npx -y archdraw-live">
                   {TERMINAL.map((line, i) => (
                     <span key={i} className={styles.tLine} data-kind={line.kind} style={{ animationDelay: `${0.25 + i * 0.32}s` }}>
                       {line.text}
@@ -301,7 +301,7 @@ export default async function LiveLanding() {
                 <p>Don’t take our word for it.</p>
                 <code className={styles.inlineCmd}><span>$</span> cat ~/.archdraw/hooks/archdraw-project.mjs</code>
                 <p className={styles.ledgerSmall}>the hook that reports to ArchDraw is one plain file you can read.</p>
-                <code className={styles.inlineCmd}><span>$</span> npx archdraw-live stop</code>
+                <code className={styles.inlineCmd}><span>$</span> npx -y archdraw-live stop</code>
                 <p className={styles.ledgerSmall}>disconnects the repo.</p>
               </div>
             </div>
