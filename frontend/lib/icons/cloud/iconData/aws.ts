@@ -1,7 +1,7 @@
 /**
  * AWS icon set — `serviceKey → SVG path data` (24×24 viewBox, single fill).
  * Starter set covering the AWS services in `dictionaries.ts`. Paths reuse the
- * existing hand-drawn glyphs already shipped in `components/icons/AWSIcon.tsx`
+ * existing hand-drawn glyphs already shipped in the removed `AWSIcon.tsx`
  * so AWS rendering is pixel-identical to today. Loaded lazily on first AWS
  * toggle activation.
  */

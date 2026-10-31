@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 
 async function groupTops(mermaid: string) {
-  const result: any = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
-  const top = (id: string) => (result.data.nodes as any[]).find(n => n.id === id).position.y as number;
+  const result = (await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' })) as unknown as { data: { nodes: unknown[] } };
+  const top = (id: string) => (result.data.nodes as Array<{ id: string; position: { y: number } }>).find(n => n.id === id)!.position.y as number;
   return { top };
 }
 
