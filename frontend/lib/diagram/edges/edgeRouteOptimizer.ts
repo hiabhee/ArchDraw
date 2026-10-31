@@ -47,31 +47,41 @@ const properCross = (a: RenderedEdgePath, b: RenderedEdgePath) => getRenderedPat
 
 type Pt = { x: number; y: number };
 
-/** Length two axis-aligned legs share when both end at `end` and run the same way into it. */
-function sharedLeg(endA: Pt, prevA: Pt, endB: Pt, prevB: Pt): number {
-  if (Math.hypot(endA.x - endB.x, endA.y - endB.y) > 1) return 0;
-  const horizontal = Math.abs(prevA.y - endA.y) < 0.5 && Math.abs(prevB.y - endB.y) < 0.5
-    && Math.sign(endA.x - prevA.x) === Math.sign(endB.x - prevB.x);
-  const vertical = Math.abs(prevA.x - endA.x) < 0.5 && Math.abs(prevB.x - endB.x) < 0.5
-    && Math.sign(endA.y - prevA.y) === Math.sign(endB.y - prevB.y);
-  if (!horizontal && !vertical) return 0;
-  return Math.min(Math.hypot(endA.x - prevA.x, endA.y - prevA.y), Math.hypot(endB.x - prevB.x, endB.y - prevB.y));
+const samePoint = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) <= 1;
+/** Anchors this close are one point: a near-aligned link is snapped to a straight line (< 8px) and so starts a few px off its siblings. */
+const sameAnchor = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) < 8;
+
+/**
+ * Length two routes share while they run together from the same point: each leg
+ * both start on, axis-aligned in the same direction, counts for the shorter of
+ * the two; the run ends where either route turns away or the legs end apart.
+ */
+function sharedRun(wa: readonly Pt[], wb: readonly Pt[]): number {
+  let total = 0;
+  for (let i = 1; i < Math.min(wa.length, wb.length); i++) {
+    const a0 = wa[i - 1], a1 = wa[i], b0 = wb[i - 1], b1 = wb[i];
+    if (!sameAnchor(a0, b0)) break;
+    const horizontal = Math.abs(a0.y - a1.y) < 0.5 && Math.abs(b0.y - b1.y) < 0.5 && Math.sign(a1.x - a0.x) === Math.sign(b1.x - b0.x);
+    const vertical = Math.abs(a0.x - a1.x) < 0.5 && Math.abs(b0.x - b1.x) < 0.5 && Math.sign(a1.y - a0.y) === Math.sign(b1.y - b0.y);
+    if (!horizontal && !vertical) break;
+    total += Math.min(Math.hypot(a1.x - a0.x, a1.y - a0.y), Math.hypot(b1.x - b0.x, b1.y - b0.y));
+    if (!samePoint(a1, b1)) break;
+  }
+  return total;
 }
 
 /**
- * Edges into the same point may share their last leg (a fan-in trunk ending in
- * one arrow), and edges out of the same point their first leg. That is a merge,
- * not an overlap: without this, one of two mirrored edges is pushed into a side
- * lane and the pair loses its symmetry.
+ * Edges out of the same point share their whole common trunk, and edges into
+ * the same point their whole common run into it (a fan-out or fan-in bus ending
+ * in separate arrows). That is a merge, not an overlap: without this, the
+ * third edge of a fan-out is pushed into a side lane and hooks into its target.
  */
 function sharedTerminalLegs(a: EdgeRouteResult, b: EdgeRouteResult): number {
   const wa = a.waypoints, wb = b.waypoints;
   if (wa.length < 2 || wb.length < 2) return 0;
   // Same start and same end (parallel edges between one pair): they must stay apart.
-  const same = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) <= 1;
-  if (same(wa[0], wb[0]) && same(wa[wa.length - 1], wb[wb.length - 1])) return 0;
-  return sharedLeg(wa[wa.length - 1], wa[wa.length - 2], wb[wb.length - 1], wb[wb.length - 2])
-    + sharedLeg(wa[0], wa[1], wb[0], wb[1]);
+  if (samePoint(wa[0], wb[0]) && samePoint(wa[wa.length - 1], wb[wb.length - 1])) return 0;
+  return sharedRun(wa, wb) + sharedRun([...wa].reverse(), [...wb].reverse());
 }
 
 /** Parallel segments closer than this run on top of each other. */

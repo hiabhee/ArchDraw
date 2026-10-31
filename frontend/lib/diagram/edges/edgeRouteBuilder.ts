@@ -728,6 +728,47 @@ export function buildLanePath(
   return [sh, s, { x: lane, y: s.y }, { x: lane, y: t.y }, t, th]
 }
 
+/**
+ * Where the vertical channel of a left-to-right Z route should run so that every
+ * edge of a fan shares it: edges into one node meet in one channel (the middle
+ * of the gap between the rightmost source and the target), edges out of one node
+ * leave through one (the middle of the gap before the nearest target). Without
+ * this each edge picks the middle of its own two anchors, so sources of
+ * different widths stagger their channels and the merge looks uneven.
+ * Returns null when the edge is not part of a fan or the fan does not face it.
+ */
+function fanChannelX(
+  edge: Edge,
+  nodes: Node[],
+  edges: Edge[],
+  sh: { x: number; y: number },
+  th: { x: number; y: number },
+  sourceRect: ObstacleRect,
+  targetRect: ObstacleRect,
+  renderStyleId?: string,
+  iconMode?: NodeIconMode,
+): number | null {
+  const byId = (id: string) => nodes.find(node => node.id === id)
+  const rectOf = (id: string) => { const node = byId(id); return node ? getNodeRect(node, nodes, renderStyleId, iconMode) : null }
+  const sourceGap = sh.x - (sourceRect.x + sourceRect.w)
+  const targetGap = th.x - targetRect.x
+
+  const sources = [...new Set(edges.filter(e => e.target === edge.target && e.source !== e.target).map(e => e.source))]
+  const targets = [...new Set(edges.filter(e => e.source === edge.source && e.source !== e.target).map(e => e.target))]
+  const fanIn = sources.length > 1
+  const fanOut = targets.length > 1
+  if (!fanIn && !fanOut) return null
+
+  if (fanOut && (!fanIn || targets.length >= sources.length)) {
+    const lefts = targets.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + targetGap)
+    if (lefts.length !== targets.length || lefts.some(x => x <= sh.x)) return null
+    return (sh.x + Math.min(...lefts)) / 2
+  }
+  const rights = sources.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + r.w + sourceGap)
+  if (rights.length !== sources.length || rights.some(x => x >= th.x)) return null
+  return (Math.max(...rights) + th.x) / 2
+}
+
 export function computeEdgeRoute(
   edge: Edge,
   nodes: Node[],
@@ -1143,8 +1184,17 @@ export function computeEdgeRoute(
     const parallelLaneOffset = routeOptions.laneOffset ?? (parallelEdges.length > 1
       ? (parallelIndex - (parallelEdges.length - 1) / 2) * 28
       : 0)
+    // Edges of one fan share a channel (see fanChannelX); bidirectional lanes keep their own offset.
+    let channelOffset = 0
+    if (
+      edgeOffset === 0 && sourcePosition === Position.Right && targetPosition === Position.Left &&
+      sh.x < th.x && Math.abs(sh.y - th.y) >= 8
+    ) {
+      const channelX = fanChannelX(edge, nodes, edges, sh, th, sourceRect, targetRect, renderStyleId, iconMode)
+      if (channelX !== null && channelX > sh.x && channelX < th.x) channelOffset = channelX - (sh.x + th.x) / 2
+    }
     const directRoute = computeDirectWaypoints(
-      sh, th, sourcePosition, targetPosition, edgeOffset,
+      sh, th, sourcePosition, targetPosition, edgeOffset + channelOffset,
       nodeRectParam, sourceRect, targetRect,
       curveRadius,
       Boolean(
@@ -1192,7 +1242,13 @@ export function computeEdgeRoute(
     }
     let validation = routeStatus(result.waypoints, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
     if (parallelLaneOffset !== 0) {
-      const lanePath = buildLanePath(sh, th, sourcePosition, targetPosition, parallelLaneOffset, Math.max(24, curveRadius + 8))
+      // A left-to-right link between different nodes keeps its simple Z and moves its vertical
+      // channel, so edges that would share a channel spread into parallel lanes. Parallel edges
+      // (same two nodes) keep the stubbed lane path, which separates them end to end.
+      const shiftsChannel = parallelEdges.length <= 1 && sourcePosition === Position.Right && targetPosition === Position.Left && sh.x < th.x
+      const lanePath = shiftsChannel
+        ? buildDefaultOrthogonalWaypoints(sh, th, sourcePosition, targetPosition, edgeOffset + channelOffset + parallelLaneOffset)
+        : buildLanePath(sh, th, sourcePosition, targetPosition, parallelLaneOffset, Math.max(24, curveRadius + 8))
       const laneStatus = routeStatus(lanePath, nodes, validationExcludedIds, { source: sourceRect, target: targetRect })
       if (laneStatus.status === 'ok') {
         waypoints = lanePath

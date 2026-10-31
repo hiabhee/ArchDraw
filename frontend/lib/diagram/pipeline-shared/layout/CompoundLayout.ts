@@ -406,11 +406,13 @@ function orderUnlinkedSiblingsByNeighbours(
  * crosses a group boundary (a service and the external API it calls) land at
  * slightly different cross-axis heights and the edge is drawn off-level.
  * Nudge one endpoint so their centers line up, when that keeps it inside its
- * group's current frame and clear of its neighbours. Offsets beyond
+ * group's current frame and clear of its neighbours. Only one-to-one links are
+ * straightened: a node in a fan-out or fan-in is placed by symmetry (centered
+ * on its branches) and must never be pulled onto one of them. Offsets beyond
  * MAX_CROSS_GROUP_ALIGN are deliberate lanes and are left alone; a node that is
  * already level with another cross-group neighbour is never moved.
  */
-const MAX_CROSS_GROUP_ALIGN = 140;
+const MAX_CROSS_GROUP_ALIGN = 64;
 const ALIGN_CLEARANCE = 16;
 
 function alignCrossGroupEdges(
@@ -427,11 +429,20 @@ function alignCrossGroupEdges(
     const dims = size(id);
     return horizontalFlow ? position.y + dims.height / 2 : position.x + dims.width / 2;
   };
+  const outDegree = new Map<string, Set<string>>();
+  const inDegree = new Map<string, Set<string>>();
+  for (const edge of params.edges) {
+    if (edge.source === edge.target) continue;
+    outDegree.set(edge.source, (outDegree.get(edge.source) ?? new Set()).add(edge.target));
+    inDegree.set(edge.target, (inDegree.get(edge.target) ?? new Set()).add(edge.source));
+  }
   const crossing = params.edges.filter(edge =>
     edge.source !== edge.target &&
     !groupIds.has(edge.source) && !groupIds.has(edge.target) &&
     positions.has(edge.source) && positions.has(edge.target) &&
-    parentOf.get(edge.source) !== parentOf.get(edge.target));
+    parentOf.get(edge.source) !== parentOf.get(edge.target) &&
+    (outDegree.get(edge.source)?.size ?? 0) === 1 &&
+    (inDegree.get(edge.target)?.size ?? 0) === 1);
 
   const level = new Set<string>();
   for (const edge of crossing) {
@@ -478,6 +489,132 @@ function alignCrossGroupEdges(
     if (Math.abs(delta) < 0.5 || Math.abs(delta) > MAX_CROSS_GROUP_ALIGN) continue;
     if (fits(edge.target, delta)) shift(edge.target, delta);
     else if (fits(edge.source, -delta)) shift(edge.source, -delta);
+  }
+}
+
+/**
+ * Groups stacked in one column are ordered by the dagre pass without looking at
+ * where their neighbours ended up, so two groups can be stacked against the
+ * order of what feeds them: the edges into the upper group then must cross the
+ * edges into the lower one, however they are routed. Swap two neighbouring
+ * groups of a column when that strictly lowers the number of forced crossings
+ * (pairs of outside neighbours, per side, that appear in the opposite vertical
+ * order to their groups). The column keeps the same extent: the groups are
+ * re-stacked in the new order with the gaps they had.
+ */
+function orderColumnGroupsByNeighbours(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+): void {
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const rects = (id: string) => groupRect(id, positions, parentOf, dimsById);
+  const crossOf = (id: string) => {
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) return undefined;
+    return horizontalFlow ? position.y + dims.height / 2 : position.x + dims.width / 2;
+  };
+  const alongOf = (id: string) => {
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) return undefined;
+    return horizontalFlow ? position.x + dims.width / 2 : position.y + dims.height / 2;
+  };
+
+  // Groups that share a parent (or the root).
+  const byParent = new Map<string, string[]>();
+  for (const id of groupIds) {
+    if (!positions.has(id)) continue;
+    const key = parentOf.get(id) ?? '';
+    byParent.set(key, [...(byParent.get(key) ?? []), id]);
+  }
+
+  for (const siblings of byParent.values()) {
+    if (siblings.length < 2) continue;
+    // Columns: groups whose extent along the flow overlaps by more than half.
+    const alongRange = (id: string) => {
+      const rect = rects(id);
+      return horizontalFlow ? [rect.x, rect.x + rect.width] : [rect.y, rect.y + rect.height];
+    };
+    const columns: string[][] = [];
+    for (const id of [...siblings].sort((a, b) => alongRange(a)[0] - alongRange(b)[0])) {
+      const [lo, hi] = alongRange(id);
+      const column = columns.find(members => {
+        const [mlo, mhi] = alongRange(members[0]);
+        return Math.min(hi, mhi) - Math.max(lo, mlo) > 0.5 * Math.min(hi - lo, mhi - mlo);
+      });
+      if (column) column.push(id);
+      else columns.push([id]);
+    }
+
+    for (const column of columns) {
+      if (column.length < 2) continue;
+      const crossStart = (id: string) => (horizontalFlow ? rects(id).y : rects(id).x);
+      const crossSize = (id: string) => (horizontalFlow ? rects(id).height : rects(id).width);
+      const order = [...column].sort((a, b) => crossStart(a) - crossStart(b));
+      const originalStart = crossStart(order[0]);
+      const gaps = order.slice(1).map((id, i) => crossStart(id) - (crossStart(order[i]) + crossSize(order[i])));
+
+      const members = new Map(order.map(id => [id, descendantsOf(id, parentOf)]));
+      // Outside neighbours of a group, on the left and right of it along the flow.
+      const neighbours = (id: string, others: string[]) => {
+        const inside = members.get(id)!;
+        const skip = new Set(others.flatMap(other => [...members.get(other)!]));
+        const left = new Set<string>();
+        const right = new Set<string>();
+        for (const edge of params.edges) {
+          if (edge.source === edge.target) continue;
+          const sourceIn = inside.has(edge.source);
+          const targetIn = inside.has(edge.target);
+          if (sourceIn === targetIn) continue;
+          const outside = sourceIn ? edge.target : edge.source;
+          if (skip.has(outside) || groupIds.has(outside)) continue;
+          const groupAlong = alongOf(id) ?? rects(id).x;
+          const outsideAlong = alongOf(outside);
+          if (outsideAlong === undefined || crossOf(outside) === undefined) continue;
+          (outsideAlong < groupAlong ? left : right).add(outside);
+        }
+        return { left: [...left].map(crossOf) as number[], right: [...right].map(crossOf) as number[] };
+      };
+      // Forced crossings if `upper` sits above `lower`.
+      const crossings = (upper: string, lower: string) => {
+        const a = neighbours(upper, [lower]);
+        const b = neighbours(lower, [upper]);
+        let count = 0;
+        for (const side of ['left', 'right'] as const) {
+          for (const x of a[side]) for (const y of b[side]) if (x > y + 1) count++;
+        }
+        return count;
+      };
+
+      let changed = false;
+      for (let pass = 0; pass < order.length; pass++) {
+        let swapped = false;
+        for (let i = 0; i + 1 < order.length; i++) {
+          if (crossings(order[i + 1], order[i]) < crossings(order[i], order[i + 1])) {
+            [order[i], order[i + 1]] = [order[i + 1], order[i]];
+            swapped = true;
+            changed = true;
+          }
+        }
+        if (!swapped) break;
+      }
+      if (!changed) continue;
+
+      // Re-stack in the new order, same start and same gaps.
+      const sizes = new Map(order.map(id => [id, crossSize(id)]));
+      let cursor = originalStart;
+      order.forEach((id, i) => {
+        const delta = cursor - crossStart(id);
+        if (Math.abs(delta) > 0.5) {
+          moveLayoutSubtree(id, horizontalFlow ? { x: 0, y: delta } : { x: delta, y: 0 }, positions, parentOf);
+        }
+        cursor += sizes.get(id)! + (gaps[i] ?? 0);
+      });
+    }
   }
 }
 
@@ -1027,6 +1164,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       Math.max(32, Math.min(72, (ctx.nodeSep || defaults.nodeSep || 110) / 2)),
     );
 
+    orderColumnGroupsByNeighbours(result.positions, params, parentOf, dimsById);
     orderUnlinkedSiblingsByNeighbours(result.positions, params, childrenByParent, dimsById);
     alignCrossGroupEdges(result.positions, params, parentOf, dimsById);
 

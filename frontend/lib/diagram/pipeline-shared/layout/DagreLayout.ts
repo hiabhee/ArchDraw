@@ -17,6 +17,7 @@ import {
 } from './LayoutEngine';
 import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
 import { layoutCompoundTwoPhase } from './CompoundLayout';
+import { symmetrizeFans } from './symmetry';
 import logger from '@/lib/logger';
 
 function toDagreRankDir(direction: RankDirection): string {
@@ -55,7 +56,7 @@ export class DagreLayoutEngine implements LayoutEngine {
     const compound = layoutCompoundTwoPhase(params);
     if (compound) {
       logger.debug('[dagre] layout path: two-phase compound', { nodes: params.nodes.length });
-      return compound;
+      return symmetrizeFans(compound, params);
     }
     logger.debug('[dagre] layout path: flat compound', { nodes: params.nodes.length });
 
@@ -288,7 +289,7 @@ export class DagreLayoutEngine implements LayoutEngine {
       })
       .filter((e): e is PositionedEdge => e !== null);
 
-    return { nodes: positionedNodes, edges: positionedEdges, warnings };
+    return symmetrizeFans({ nodes: positionedNodes, edges: positionedEdges, warnings }, params);
   }
 
   async layout(params: LayoutParams): Promise<LayoutResult> {
