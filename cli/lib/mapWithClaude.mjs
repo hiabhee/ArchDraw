@@ -1,8 +1,7 @@
 // Ask the user's own Claude Code (`claude -p`, read-only tools) to read the
-// repository and draw an accurate architecture map. The folder scan is only a
-// starting point; Claude analyses what the code does and how the parts talk,
-// and backs every edge with the code that proves it. The answer is checked
-// against the repository (`checkMapping`) and sent back once with the problems
+// repository and draw an accurate architecture map. Claude alone draws it: it
+// analyses what the code does and how the parts talk, and backs every edge
+// with the code that proves it. The answer is checked against the repository (`checkMapping`) and sent back once with the problems
 // found (`repairPrompt`). Runs on this machine with the user's Claude
 // account; only the resulting diagram and paths are sent, never the evidence.
 
@@ -49,7 +48,7 @@ const JSON_BLOCK = (ids) => [
   '   `"api -> jobs_queue": "src/api/upload.ts:42 enqueues resize job"`.',
 ];
 
-export function mappingPrompt(scan) {
+export function mappingPrompt() {
   return [
     'Map the architecture of the repository in the current directory for ArchDraw, a live architecture diagram that shows coding agents on the component they work on.',
     READ_ONLY,
@@ -72,11 +71,6 @@ export function mappingPrompt(scan) {
     '   first component it starts, not to every stage. Label the edges of the main flow with what moves, 1–3 words:',
     '   `scene_prep -->|"scene tiles"| model`. Leave obvious edges unlabelled.',
     ...JSON_BLOCK('component id'),
-    '',
-    'A quick folder scan found this. It is a rough starting point drawn from folder names and imports, not the truth: improve on it freely.',
-    '```mermaid',
-    scan.mermaid.trim(),
-    '```',
   ].join('\n');
 }
 

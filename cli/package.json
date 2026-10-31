@@ -1,6 +1,6 @@
 {
   "name": "archdraw-live",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "See your coding agents work on a live architecture map of your codebase. One command, no account.",
   "type": "module",
   "bin": {

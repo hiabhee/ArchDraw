@@ -35,6 +35,15 @@ describe('POST /api/projects/quickstart', () => {
     expect(input.edges).toHaveLength(1);
   });
 
+  it('creates an empty project when no diagram is sent (the user\'s own Claude draws it)', async () => {
+    const res = await post({ repoName: 'shop' });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ canvasId: 'c1', token: 'adp_x', componentCount: 0 });
+    const input = m.create.mock.calls[0][0];
+    expect(input.nodes).toEqual([]);
+    expect(input.edges).toEqual([]);
+  });
+
   it('rejects bad payloads and rate-limits per IP', async () => {
     expect((await post({ repoName: '', mermaid })).status).toBe(400);
     m.rate.mockResolvedValue({ allowed: false });

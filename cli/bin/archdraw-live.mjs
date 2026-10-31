@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 // archdraw-live — see your coding agents work on a live map of your codebase.
 //
-//   npx archdraw-live              map this repository, connect Claude Code, open the live map
-//   npx archdraw-live --dry-run    show the diagram that would be sent, send nothing
-//   npx archdraw-live --rescan     rebuild the diagram from the folders (keeps your layout)
-//   npx archdraw-live --map        let Claude Code read the code and draw an accurate map (overview, then detailed)
+//   npx archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
+//   npx archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
 //   npx archdraw-live --detail     redraw only the detailed map
 //   npx archdraw-live status       where this repository's live map is
 //   npx archdraw-live stop         disconnect this repository
 //
-// What leaves this machine: component names and repository-relative paths
+// The map is drawn by your own Claude Code, nothing else. What leaves this
+// machine: component names and repository-relative paths
 // (folder globs), then — from Claude Code hooks — which files each session
 // reads or edits. Never file contents, diffs or prompts.
 
@@ -18,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { listFiles, scanRepository } from '../lib/scan.mjs';
+import { listFiles } from '../lib/files.mjs';
 import { bindingFilePath, getBinding, removeBinding, saveBinding } from '../lib/binding.mjs';
 import { installClaudeHooks } from '../lib/claudeHooks.mjs';
 import { detailPrompt, mapAndCheck, mappingPrompt, readMermaid } from '../lib/mapWithClaude.mjs';
@@ -170,18 +169,18 @@ function reportLeftovers(problems) {
   for (const problem of problems.slice(0, 5)) console.log(dim(`  - ${problem}`));
 }
 
-/** Claude reads the code and publishes an accurate map (replaces the folder-based one). */
-async function mapWithClaude(root, binding, scan) {
+/** Claude reads the code and publishes the map. */
+async function mapWithClaude(root, binding) {
   if (!hasCommand('claude')) {
-    warn(`Claude Code isn't installed, so the map stays folder-based. Install it: ${bold('npm install -g @anthropic-ai/claude-code')}`);
+    warn(`Claude Code isn't installed, so the map stays empty. Install it, then run ${bold('npx archdraw-live --map')}: ${bold('npm install -g @anthropic-ai/claude-code')}`);
     return false;
   }
   console.log(dim('Claude is reading your code (read-only) to draw the map. You can watch it on the live map.'));
   const tty = process.stdout.isTTY;
-  const result = await mapAndCheck(root, mappingPrompt(scan), listFiles(root), checkedRun(tty));
+  const result = await mapAndCheck(root, mappingPrompt(), listFiles(root), checkedRun(tty));
   if (tty) process.stdout.write('\r\x1b[2K');
   if (!result.ok) {
-    warn(`${result.reason} The folder-based map stays; try \`npx archdraw-live --map\` again.`);
+    warn(`${result.reason} Try \`npx archdraw-live --map\` again.`);
     return false;
   }
   const { mapping } = result;
@@ -192,7 +191,7 @@ async function mapWithClaude(root, binding, scan) {
     body: JSON.stringify({ mermaid: mapping.mermaid, componentPaths: mapping.componentPaths, relayout: true }),
   });
   if (!res.ok) {
-    warn(`ArchDraw couldn't use Claude's diagram (${res.body.error || res.status}). The folder-based map stays.`);
+    warn(`ArchDraw couldn't use Claude's diagram (${res.body.error || res.status}). Try \`npx archdraw-live --map\` again.`);
     return false;
   }
   ok(`Claude mapped ${bold(res.body.componentCount)} components ${dim('(the live map has updated)')}`);
@@ -243,14 +242,10 @@ async function mapDetailWithClaude(root, binding) {
 }
 
 /** Overview first (always), then the detailed map unless --no-detail. */
-async function mapAll(root, binding, scan, flags) {
-  const mapped = await mapWithClaude(root, binding, scan);
+async function mapAll(root, binding, flags) {
+  const mapped = await mapWithClaude(root, binding);
   if (mapped && !flags['no-detail']) await mapDetailWithClaude(root, binding);
   return mapped;
-}
-
-function printScan(result) {
-  ok(`Mapped ${bold(result.components.length)} components${result.externals.length ? ` and ${result.externals.length} services` : ''} from ${result.fileCount} files ${dim('(on this machine)')}`);
 }
 
 async function setup(flags) {
@@ -263,20 +258,10 @@ async function setup(flags) {
   const repoName = basename(root);
   const existing = getBinding(root);
 
-  if (flags['dry-run']) {
-    const result = scanRepository(root, { repoName });
-    printScan(result);
-    console.log('');
-    console.log(dim('This is everything that would be sent (names and paths, no code):'));
-    console.log(result.mermaid);
-    console.log(JSON.stringify(result.componentPaths, null, 2));
-    return;
-  }
-
   if (existing && flags.map) {
     connectHooks();
     if (!flags['no-open']) openBrowser(liveUrl(existing));
-    await mapAll(root, existing, scanRepository(root, { repoName }), flags);
+    await mapAll(root, existing, flags);
     return;
   }
 
@@ -286,7 +271,7 @@ async function setup(flags) {
     return;
   }
 
-  if (existing && !flags.rescan) {
+  if (existing) {
     console.log(`${bold(repoName)} is already connected.`);
     connectHooks();
     nextSteps(existing, flags['no-open'] ? false : openBrowser(liveUrl(existing)));
@@ -294,26 +279,11 @@ async function setup(flags) {
   }
 
   console.log(`Setting up a live map for ${bold(repoName)}…`);
-  const result = scanRepository(root, { repoName });
-  printScan(result);
-
-  if (existing) {
-    const res = await request(`${existing.apiBase}/api/projects/${encodeURIComponent(existing.canvasId)}/diagram`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${existing.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mermaid: result.mermaid, componentPaths: result.componentPaths }),
-    });
-    if (!res.ok) fail(res.status === 401 ? 'This project was stopped or deleted. Run `npx archdraw-live stop`, then run this again.' : res.body.error || `Update failed (${res.status}).`);
-    ok(`Diagram updated ${dim(`(${res.body.summary ?? 'layout kept'})`)}`);
-    connectHooks();
-    nextSteps(existing, flags['no-open'] ? false : openBrowser(liveUrl(existing)));
-    return;
-  }
 
   const res = await request(`${base}/api/projects/quickstart`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'User-Agent': `archdraw-live/${VERSION}` },
-    body: JSON.stringify({ repoName, mermaid: result.mermaid, componentPaths: result.componentPaths }),
+    body: JSON.stringify({ repoName }),
   });
   if (!res.ok) fail(res.body.error || `ArchDraw could not create the project (${res.status}).`);
   const { canvasId, agenticProjectId, workspaceId, token, watchPath, claimSecret } = res.body;
@@ -335,11 +305,11 @@ async function setup(flags) {
   connectHooks();
   const opened = flags['no-open'] ? false : openBrowser(liveUrl(binding));
   console.log('');
-  console.log(dim('This first map is a quick guess from your folder names.'));
-  const improve = flags.map || (!flags['no-map'] && hasCommand('claude')
-    && await ask(`${bold('Let Claude read your code and draw an accurate map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [y/N] `, false));
-  if (improve) await mapAll(root, binding, result, flags);
-  else console.log(dim(`Later: ${bold('npx archdraw-live --map')}`));
+  const canClaude = hasCommand('claude');
+  const draw = flags.map || (!flags['no-map'] && canClaude
+    && await ask(`${bold('Let Claude read your code and draw the map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [Y/n] `, true));
+  if (draw) await mapAll(root, binding, flags);
+  else if (canClaude) console.log(dim(`The map stays empty until Claude draws it: ${bold('npx archdraw-live --map')}`));
   nextSteps(binding, opened);
 }
 
@@ -366,15 +336,13 @@ function stop() {
 
 const HELP = `${bold('archdraw-live')} ${VERSION} — watch your coding agents on a live map of your codebase
 
-  npx archdraw-live              map this repository, connect Claude Code, open the live map
-  npx archdraw-live --dry-run    print what would be sent (names and paths), send nothing
-  npx archdraw-live --rescan     rebuild the diagram from the folders (keeps your layout)
-  npx archdraw-live --map        let Claude Code read the code and draw an accurate map (overview, then detailed)
+  npx archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
+  npx archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
   npx archdraw-live --detail     redraw only the detailed map (each component's modules and files)
   npx archdraw-live status       show this repository's live map link
   npx archdraw-live stop         disconnect this repository
 
-Options: --api <url> (default ${DEFAULT_API}), --no-open, --no-map (skip the Claude question), --no-detail (overview only)
+Options: --api <url> (default ${DEFAULT_API}), --no-open, --no-map (set up without drawing the map), --no-detail (overview only)
 Sent: component names, folder paths, and which files each session reads or edits. Never code or prompts.`;
 
 const flags = parseArgs(process.argv.slice(2));

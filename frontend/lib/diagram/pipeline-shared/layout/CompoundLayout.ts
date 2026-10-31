@@ -401,6 +401,86 @@ function orderUnlinkedSiblingsByNeighbours(
   }
 }
 
+/**
+ * Each group is laid out on its own, so two nodes joined by an edge that
+ * crosses a group boundary (a service and the external API it calls) land at
+ * slightly different cross-axis heights and the edge is drawn off-level.
+ * Nudge one endpoint so their centers line up, when that keeps it inside its
+ * group's current frame and clear of its neighbours. Offsets beyond
+ * MAX_CROSS_GROUP_ALIGN are deliberate lanes and are left alone; a node that is
+ * already level with another cross-group neighbour is never moved.
+ */
+const MAX_CROSS_GROUP_ALIGN = 140;
+const ALIGN_CLEARANCE = 16;
+
+function alignCrossGroupEdges(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+): void {
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const size = (id: string) => dimsById.get(id)!;
+  const center = (id: string) => {
+    const position = positions.get(id)!;
+    const dims = size(id);
+    return horizontalFlow ? position.y + dims.height / 2 : position.x + dims.width / 2;
+  };
+  const crossing = params.edges.filter(edge =>
+    edge.source !== edge.target &&
+    !groupIds.has(edge.source) && !groupIds.has(edge.target) &&
+    positions.has(edge.source) && positions.has(edge.target) &&
+    parentOf.get(edge.source) !== parentOf.get(edge.target));
+
+  const level = new Set<string>();
+  for (const edge of crossing) {
+    if (Math.abs(center(edge.source) - center(edge.target)) < 0.5) {
+      level.add(edge.source);
+      level.add(edge.target);
+    }
+  }
+
+  const moved = new Set<string>();
+  const fits = (id: string, delta: number): boolean => {
+    if (level.has(id) || moved.has(id)) return false;
+    const position = positions.get(id)!;
+    const dims = size(id);
+    const next = horizontalFlow ? { x: position.x, y: position.y + delta } : { x: position.x + delta, y: position.y };
+    const rect = { x: next.x, y: next.y, width: dims.width, height: dims.height };
+    const parentId = parentOf.get(id);
+    if (parentId) {
+      const frame = groupRect(parentId, positions, parentOf, dimsById);
+      const top = horizontalFlow ? frame.y + SUBGRAPH_PADDING_TOP : frame.y + SUBGRAPH_PADDING_X;
+      const bottom = horizontalFlow ? frame.y + frame.height - SUBGRAPH_PADDING_BOTTOM : frame.x + frame.width - SUBGRAPH_PADDING_X;
+      const low = horizontalFlow ? rect.y : rect.x;
+      const high = low + (horizontalFlow ? rect.height : rect.width);
+      if (low < top || high > bottom) return false;
+    }
+    for (const other of positions.keys()) {
+      if (other === id || other === parentId || parentOf.get(other) !== parentId) continue;
+      const otherRect = rootRect(other, groupIds, positions, parentOf, dimsById);
+      if (rectsOverlap(
+        { x: rect.x - ALIGN_CLEARANCE, y: rect.y - ALIGN_CLEARANCE, width: rect.width + 2 * ALIGN_CLEARANCE, height: rect.height + 2 * ALIGN_CLEARANCE },
+        otherRect,
+      )) return false;
+    }
+    return true;
+  };
+  const shift = (id: string, delta: number) => {
+    const position = positions.get(id)!;
+    positions.set(id, horizontalFlow ? { x: position.x, y: position.y + delta } : { x: position.x + delta, y: position.y });
+    moved.add(id);
+  };
+
+  for (const edge of crossing) {
+    const delta = center(edge.source) - center(edge.target);
+    if (Math.abs(delta) < 0.5 || Math.abs(delta) > MAX_CROSS_GROUP_ALIGN) continue;
+    if (fits(edge.target, delta)) shift(edge.target, delta);
+    else if (fits(edge.source, -delta)) shift(edge.source, -delta);
+  }
+}
+
 /** Move standalone infrastructure next to the core group that consumes it. */
 function placeRootInfrastructureNodes(
   positions: Map<string, { x: number; y: number }>,
@@ -948,6 +1028,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
     );
 
     orderUnlinkedSiblingsByNeighbours(result.positions, params, childrenByParent, dimsById);
+    alignCrossGroupEdges(result.positions, params, parentOf, dimsById);
 
     // Root offset: keeps absolute coordinates clear of (0,0) and gives the
     // diagram a small margin on the canvas.

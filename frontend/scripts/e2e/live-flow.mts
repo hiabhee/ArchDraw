@@ -6,7 +6,8 @@
  *
  *   npx tsx scripts/e2e/live-flow.mts [--api http://localhost:3100] [--keep]
  *
- * Checks, in order: setup creates a project and installs the hooks; a session
+ * Checks, in order: setup creates an empty project (Claude draws the map, so a
+ * fixed diagram is published in its place) and installs the hooks; a session
  * start is registered; an edit lands on the right component; a Stop report
  * carries token counts read from a transcript (and is not double counted);
  * two sessions on one component are flagged as contested; the public watch
@@ -144,10 +145,25 @@ async function main() {
   canvasOwner = canvas?.userId ?? null;
   check(Boolean(canvas && isAnonymousUserId(canvas.userId)), 'project belongs to a placeholder user (no account needed)');
 
-  const mapRes = await fetch(`${API}/api/projects/${binding.canvasId}/diagram`, { headers: { Authorization: `Bearer ${binding.token}` } });
-  const map = (await mapRes.json()) as { components?: Array<{ id: string; codePaths?: string[] }> };
+  const diagramUrl = `${API}/api/projects/${binding.canvasId}/diagram`;
+  const authHeaders = { Authorization: `Bearer ${binding.token}`, 'Content-Type': 'application/json' };
+  const empty = (await (await fetch(diagramUrl, { headers: authHeaders })).json()) as { components?: unknown[] };
+  check((empty.components?.length ?? 0) === 0, 'setup alone draws nothing: the map is Claude\'s job', `got ${empty.components?.length ?? 0}`);
+
+  // Stands in for the `claude -p` mapping step (it needs a Claude account): publish a fixed diagram the same way the CLI does.
+  const published = await fetch(diagramUrl, {
+    method: 'PUT',
+    headers: authHeaders,
+    body: JSON.stringify({
+      mermaid: 'graph LR\n  web["Web"] --> api["API"]\n  api --> db[("Database")]\n',
+      componentPaths: { web: ['web/**'], api: ['api/**'], db: ['db/**'] },
+      relayout: true,
+    }),
+  });
+  check(published.ok, 'a diagram published with the project token lands on the map', `status ${published.status}`);
+  const map = (await (await fetch(diagramUrl, { headers: authHeaders })).json()) as { components?: Array<{ id: string; codePaths?: string[] }> };
   const apiComponent = map.components?.find((c) => c.codePaths?.some((p) => p.startsWith('api')));
-  check((map.components?.length ?? 0) >= 2, 'the folder scan produced components', `got ${map.components?.length ?? 0}`);
+  check((map.components?.length ?? 0) >= 3, 'the published diagram has its components', `got ${map.components?.length ?? 0}`);
   check(Boolean(apiComponent), 'a component owns the api/ folder');
   if (!apiComponent) return;
 

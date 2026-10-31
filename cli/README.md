@@ -7,8 +7,8 @@ your project folder:
 npx archdraw-live
 ```
 
-It maps the repository into an architecture diagram, connects Claude Code and
-opens the live map in your browser. No account is needed. Then start Claude Code
+It connects Claude Code, opens the live map in your browser and asks to let your
+own Claude read the code and draw the architecture diagram (nothing else draws it). No account is needed. Then start Claude Code
 (`claude`) in the same folder: each session appears as a star that moves to the
 component it is working on, and raises a flag when it needs you.
 
@@ -20,19 +20,17 @@ nobody signs in to are deleted after 30 days without activity.
 | Command | What it does |
 |---|---|
 | `npx archdraw-live` | Set up (or reopen) this repository's live map |
-| `npx archdraw-live --dry-run` | Print exactly what would be sent, send nothing |
-| `npx archdraw-live --rescan` | Rebuild the diagram from the folders; your layout is kept |
-| `npx archdraw-live --map` | Let Claude Code read the code and draw an accurate map (overview, then the detailed map) |
+| `npx archdraw-live --map` | Let Claude Code read the code and (re)draw the map (overview, then the detailed map) |
 | `npx archdraw-live --detail` | Redraw only the detailed map |
 | `npx archdraw-live status` | Show this repository's live map link |
 | `npx archdraw-live stop` | Disconnect this repository |
 
-Options: `--api <url>` (another ArchDraw server), `--no-open`, `--no-detail` (overview only).
+Options: `--api <url>` (another ArchDraw server), `--no-open`, `--no-map` (set up without drawing the map), `--no-detail` (overview only).
 
-## An accurate map
+## The map
 
-The first map is a one-second guess from folder names and imports. Right after
-setup the command offers to let Claude draw the real one: it runs your own Claude
+Claude alone draws it; the live map is empty until it has. Right after setup the
+command asks to let Claude draw it: it runs your own Claude
 Code (`claude -p` with read-only tools: Read, Grep, Glob) in the repository, which
 reads the code and answers with a diagram and the folders each component owns.
 It takes about a minute and uses your Claude account. Run it any time with
@@ -58,8 +56,8 @@ notifications.
 
 ## What it does on your machine
 
-- Reads the file list (`git ls-files`, respecting `.gitignore`) and, to find imports
-  between folders, the first 64 KB of source files. Code never leaves the machine.
+- Reads the file list (`git ls-files`, respecting `.gitignore`) to check Claude's map
+  against your files. Code never leaves the machine.
 - Saves the project link (an access token for this one project) in
   `~/.archdraw/projects.json` (mode 0600), outside your repository.
 - Copies a small hook script to `~/.archdraw/hooks/` and adds hooks for it to
@@ -69,9 +67,8 @@ notifications.
 
 ## What is sent to ArchDraw
 
-- At setup: the repository folder name, component names, the folder paths each
-  component covers, and the connections between them.
-- With `--map` (or if you answer yes): Claude's diagrams (overview and detailed) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
+- At setup: the repository folder name.
+- When Claude draws the map (`--map`, or if you answer yes): Claude's diagrams (overview and detailed) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
 - While Claude Code runs: the session id, branch, and the repository-relative path of
   each file the session reads or edits; that it is running a shell command (not the
   command); the step it is on, from its own to-do list ("Adding retry to the

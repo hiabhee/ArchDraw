@@ -27,7 +27,7 @@ export const LIVE_FAQS = [
   },
   {
     question: 'Does it work on private repositories?',
-    answer: 'Yes. The scan and the mapping run on your machine, so the code never has to be public. ArchDraw only receives component names, folder paths, which files each session touches, and what it is doing (reading, running a command, writing, with the step it is on in the agent’s own words).',
+    answer: 'Yes. The mapping runs on your machine, so the code never has to be public. ArchDraw only receives component names, folder paths, which files each session touches, and what it is doing (reading, running a command, writing, with the step it is on in the agent’s own words).',
   },
   {
     question: 'Which coding agents does it follow?',
@@ -35,7 +35,7 @@ export const LIVE_FAQS = [
   },
   {
     question: 'Does mapping use my Claude plan?',
-    answer: 'Yes. The map is drawn by your own Claude Code with read-only tools (Read, Grep, Glob). The overview takes one to three minutes, the detailed map a little longer. You can skip it and keep the folder-based map.',
+    answer: 'Yes. The map is drawn by your own Claude Code with read-only tools (Read, Grep, Glob). The overview takes one to three minutes, the detailed map a little longer. You can skip it, but the map stays empty until you run it.',
   },
   {
     question: 'Will it slow my agents down?',
@@ -85,10 +85,9 @@ const FEATURES = [
 const TERMINAL: { text: string; kind?: 'cmd' | 'ok' | 'dim' | 'ask' | 'bold' }[] = [
   { text: '~/code/acme-shop $ npx archdraw-live', kind: 'cmd' },
   { text: 'Setting up a live map for acme-shop…' },
-  { text: '✓ Mapped 9 components and 3 services from 412 files (on this machine)', kind: 'ok' },
   { text: '✓ Project created (link saved in ~/.archdraw/projects.json, outside your repo)', kind: 'ok' },
   { text: '✓ Claude Code connected (hooks in ~/.claude/settings.json)', kind: 'ok' },
-  { text: 'Let Claude read your code and draw an accurate map? [Y/n] y', kind: 'ask' },
+  { text: 'Let Claude read your code and draw the map? [Y/n] y', kind: 'ask' },
   { text: 'Claude is reading your code (read-only) to draw the map.', kind: 'dim' },
   { text: '✓ Claude mapped 14 components (the live map has updated)', kind: 'ok' },
   { text: '✓ Detailed map: 46 parts (switch to "Detailed" at the top of the live map)', kind: 'ok' },
@@ -99,7 +98,7 @@ const STEPS = [
   {
     n: '01',
     title: 'Run one command in your repo',
-    body: 'It reads folder names and imports on your machine, sends only names and paths, connects Claude Code and opens your live map. No account, no config file.',
+    body: 'It connects Claude Code and opens your live map. Nothing is sent but the repository’s folder name. No account, no config file.',
   },
   {
     n: '02',
@@ -300,8 +299,8 @@ export default async function LiveLanding() {
               </div>
               <div className={styles.ledgerProof}>
                 <p>Don’t take our word for it.</p>
-                <code className={styles.inlineCmd}><span>$</span> npx archdraw-live --dry-run</code>
-                <p className={styles.ledgerSmall}>prints exactly what would be sent, and sends nothing.</p>
+                <code className={styles.inlineCmd}><span>$</span> cat ~/.archdraw/hooks/archdraw-project.mjs</code>
+                <p className={styles.ledgerSmall}>the hook that reports to ArchDraw is one plain file you can read.</p>
                 <code className={styles.inlineCmd}><span>$</span> npx archdraw-live stop</code>
                 <p className={styles.ledgerSmall}>disconnects the repo.</p>
               </div>

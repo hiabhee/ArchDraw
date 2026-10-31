@@ -24,8 +24,8 @@ const pathList = z.array(z.string().trim().min(1).max(512)).max(50);
 const quickstartSchema = z.object({
   /** Repository folder name; becomes the canvas name. */
   repoName: z.string().trim().min(1).max(100),
-  /** Diagram the CLI derived from the repository layout (paths only, no code). */
-  mermaid: z.string().min(1).max(200_000),
+  /** Optional starting diagram (paths only, no code). Omitted: the canvas starts empty and the user's own Claude draws it. */
+  mermaid: z.string().min(1).max(200_000).optional(),
   componentPaths: z.record(z.string(), pathList).optional(),
   repositoryRemote: z.string().trim().max(2048).optional().nullable(),
   branch: z.string().trim().max(255).optional().nullable(),
@@ -51,18 +51,24 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data;
 
-    const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
-    if (!isDomainSuccess(pipeline)) {
-      return NextResponse.json({ error: 'Could not lay out the diagram', warnings: pipeline.warnings }, { status: 400 });
+    let nodes: Node[] = [];
+    let edges: Edge[] = [];
+    if (body.mermaid) {
+      const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+      if (!isDomainSuccess(pipeline)) {
+        return NextResponse.json({ error: 'Could not lay out the diagram', warnings: pipeline.warnings }, { status: 400 });
+      }
+      const graph = publishGraph({
+        existingNodes: [],
+        laidOut: { nodes: pipeline.data.nodes as unknown as Node[], edges: pipeline.data.edges as unknown as Edge[] },
+        componentPaths: body.componentPaths,
+        relayout: true,
+        now: Date.now(),
+      });
+      nodes = graph.nodes;
+      edges = graph.edges;
     }
-    const graph = publishGraph({
-      existingNodes: [],
-      laidOut: { nodes: pipeline.data.nodes as unknown as Node[], edges: pipeline.data.edges as unknown as Edge[] },
-      componentPaths: body.componentPaths,
-      relayout: true,
-      now: Date.now(),
-    });
-    const componentCount = graph.nodes.filter((n) => !isTextNode(n)).length;
+    const componentCount = nodes.filter((n) => !isTextNode(n)).length;
     const { maxNodesPerCanvas } = getUserQuotas('authenticated');
     if (componentCount > maxNodesPerCanvas) {
       return NextResponse.json({ error: `Diagram too large. Maximum ${maxNodesPerCanvas} nodes allowed.`, code: 'CANVAS_SIZE_EXCEEDED' }, { status: 400 });
@@ -70,8 +76,8 @@ export async function POST(request: NextRequest) {
 
     const project = await createAnonymousProject({
       name: body.repoName,
-      nodes: graph.nodes,
-      edges: graph.edges,
+      nodes,
+      edges,
       repositoryRemote: normalizeRepositoryRemote(body.repositoryRemote) ?? null,
       branch: body.branch,
     });

@@ -32,10 +32,10 @@ test('rejects answers without both blocks or with broken JSON', () => {
   assert.equal(parseMapping('```mermaid\ngraph LR\n a-->b\n```\n```json\n{ nope\n```'), null);
 });
 
-test('the prompt is read-only and carries the folder scan as a starting point', () => {
-  const prompt = mappingPrompt({ mermaid: 'graph LR\n  c_api["API"]\n' });
+test('the prompt is read-only and asks Claude to draw the map from the code alone', () => {
+  const prompt = mappingPrompt();
   assert.match(prompt, /Do not modify anything/);
-  assert.match(prompt, /c_api\["API"\]/);
+  assert.doesNotMatch(prompt, /folder scan/);
 });
 
 test('runs Claude in the repository with read-only tools and returns its answer', async () => {
@@ -58,7 +58,7 @@ test('reports a missing Claude install', async () => {
 });
 
 test('the overview prompt asks for detail lines, labelled flows and separate data stores', () => {
-  const prompt = mappingPrompt({ mermaid: 'graph LR\n  a --> b' });
+  const prompt = mappingPrompt();
   assert.match(prompt, /<br\/>/);
   assert.match(prompt, /-->\|"/);
   assert.match(prompt, /data store/i);
@@ -201,7 +201,7 @@ test('keeps the first answer when the retry is worse or unusable, and skips the 
 });
 
 test('prompts ask Claude to analyse the code and prove every edge', () => {
-  for (const prompt of [mappingPrompt({ mermaid: 'graph LR' }), detailPrompt({ mermaid: 'graph LR', componentPaths: {} })]) {
+  for (const prompt of [mappingPrompt(), detailPrompt({ mermaid: 'graph LR', componentPaths: {} })]) {
     assert.match(prompt, /Step 1 — Find what runs/);
     assert.match(prompt, /Step 2 — Trace the code/);
     assert.match(prompt, /no edges from names or guesses/);
