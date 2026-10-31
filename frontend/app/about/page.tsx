@@ -53,7 +53,7 @@ export default function AboutPage() {
           <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-.045em] text-text-primary">From generated map to working design surface.</h2>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-text-secondary">ArchDraw combines AI-assisted generation with a React Flow canvas. You can arrange a diagram, change its direction, work with groups and templates, round-trip Mermaid, and share or export the result when it is ready.</p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/#generate" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover">Generate a diagram <ArrowRight size={16} /></Link>
+            <Link href="/#start" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover">Generate a diagram <ArrowRight size={16} /></Link>
             <Link href="/docs" className="inline-flex items-center gap-2 rounded-lg border border-border-default bg-surface-card px-4 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-panel">Read the documentation</Link>
           </div>
         </section>

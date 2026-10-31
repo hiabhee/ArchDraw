@@ -67,6 +67,13 @@ To maintain design system integrity, all UI components, dashboard chrome element
 - **A guard enforces it:** `frontend/lib/theme/__tests__/designSystemGuard.test.ts` counts raw hex values and raw Tailwind palette classes (`bg-slate-500`) per area of `components/` and `app/`, and fails if an area uses more than its baseline. When you replace some with tokens, lower that area's number in the test. Never raise one: add the color to `globals.css` first.
 - **Not covered, on purpose:** `lib/theme` (canvas themes, SVG/PNG export, chart colors): exported images cannot use CSS variables.
 
+### Motion
+
+- **One vocabulary.** `app/globals.css` defines `--ease-out` (entrances, hovers, anything the user triggers), `--ease-in-out` (state changes, ambient loops) and `--dur-fast/base/slow` (150 / 220 / 480ms). Every Tailwind `transition*` utility already defaults to the out curve at 220ms, so write `transition`, not a custom curve. In CSS use `var(--ease-out)`; framer-motion uses `[0.16, 1, 0.3, 1]`.
+- **Animate only what composites:** opacity and transform. Never `transition-all` (it animates layout and drops frames): use `transition`, `transition-colors` or `transition-transform`. Keep `transition-all` only where width or height must animate (progress bars), with a comment.
+- **Blur is for small text only.** Animating a `filter` on a large layer drops frames; `LandingReveal` has `blur` off by default.
+- **Reduced motion is handled globally** (`globals.css`: no glide, no decorative movement; spinners keep turning). Anchor links glide and land below the fixed nav (`scroll-padding-top`).
+
 ### Color palette tokens
 
 Always use these semantic classes rather than ad-hoc hex values (`#5e6ad2`, `#828fff`, etc.) or raw HSL bindings (`hsl(var(--card))`).

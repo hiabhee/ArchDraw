@@ -119,7 +119,7 @@ export function TemplateModal({ onClose }: Props) {
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-200"
+              className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition duration-200"
             >
               <X className="w-4 h-4" />
             </button>
@@ -201,7 +201,7 @@ function TemplateRow({
   return (
     <div
       onClick={handleClick}
-      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 border border-transparent ${
+      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition duration-200 border border-transparent ${
         disabled && !isLoading
           ? 'opacity-40 pointer-events-none'
           : isLocked
@@ -245,7 +245,7 @@ function TemplateRow({
           handleClick();
         }}
         disabled={disabled}
-        className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition-all duration-200 ${
+        className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition duration-200 ${
           isLocked
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
             : 'bg-brand hover:bg-[#4dabf7] active:scale-98 text-white'

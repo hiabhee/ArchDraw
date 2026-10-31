@@ -49,7 +49,7 @@ export default function BlogsPage() {
             <Link
               key={post.slug}
               href={`/blogs/${post.slug}`}
-              className="group relative block rounded-xl p-5 transition-all duration-200 border border-border-default bg-surface-card hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(28,28,26,0.06)] flex flex-col justify-between min-h-[220px]"
+              className="group relative block rounded-xl p-5 transition duration-200 border border-border-default bg-surface-card hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(28,28,26,0.06)] flex flex-col justify-between min-h-[220px]"
             >
               <div>
                 <div className="flex items-center justify-between mb-3">

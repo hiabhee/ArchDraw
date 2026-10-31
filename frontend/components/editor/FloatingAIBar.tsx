@@ -241,7 +241,7 @@ export function FloatingAIBar({
               type="button"
               onClick={handleRegenerate}
               disabled={isGenerating}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border/10 bg-muted/20 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-all text-[10px] font-semibold cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border/10 bg-muted/20 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition text-[10px] font-semibold cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               title="Regenerate diagram"
             >
               {isGenerating ? (
@@ -271,7 +271,7 @@ export function FloatingAIBar({
                     });
                   }
                 }}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer active:scale-95 ${
                   detailLevel === level
                     ? 'bg-brand/20 text-brand-text shadow-sm'
                     : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
@@ -316,7 +316,7 @@ export function FloatingAIBar({
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-              className={`flex items-center gap-2 w-full rounded-3xl border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
+              className={`flex items-center gap-2 w-full rounded-3xl border bg-card shadow-soft-3 px-2 py-1 transition duration-200 ${
                 isFirstTime && isCanvasEmpty 
                   ? 'shiny-input-glow border-brand/70 focus-within:border-primary/50' 
                   : 'border-border/40 focus-within:border-primary/50'

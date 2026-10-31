@@ -167,7 +167,7 @@ export function IntroCardFlow({
 
       <div className="relative w-full max-w-lg mx-4">
         <div
-          className="rounded-2xl p-8 transition-all duration-500"
+          className="rounded-2xl p-8 transition duration-500"
           style={{
             background: 'linear-gradient(135deg, #0f2747 0%, #0a1929 100%)',
             border: '1px solid rgba(0, 112, 224, 0.3)',
@@ -190,7 +190,7 @@ export function IntroCardFlow({
               {cards.map((_, i) => (
                 <div
                   key={i}
-                  className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                  className="w-1.5 h-1.5 rounded-full transition duration-300"
                   style={{
                     background: i === currentIndex ? tutorialColor : 'rgba(0,0,0,0.15)',
                     transform: i === currentIndex ? 'scale(1.3)' : 'scale(1)',
@@ -202,7 +202,7 @@ export function IntroCardFlow({
 
           <div className="min-h-[280px] flex flex-col">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300"
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6 transition duration-300"
               style={{
                 background: `${tutorialColor}10`,
                 border: `1px solid ${tutorialColor}20`,
@@ -213,7 +213,7 @@ export function IntroCardFlow({
             </div>
 
             <h2
-              className="text-2xl font-bold text-white mb-4 transition-all duration-300"
+              className="text-2xl font-bold text-white mb-4 transition duration-300"
               style={{ letterSpacing: '-0.03em', lineHeight: 1.2 }}
             >
               {card.title}
@@ -291,7 +291,7 @@ export function IntroCardFlow({
                     goNext();
                   }
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition duration-200"
                 style={{ 
                   background: tutorialColor,
                   boxShadow: `0 4px 14px ${tutorialColor}40`,

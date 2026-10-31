@@ -146,7 +146,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
-            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-brand-bg transition-all"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-brand-bg transition"
             title="Copy Code"
             aria-label="Copy code"
           >
@@ -154,7 +154,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
           </button>
           <button
             onClick={onClose}
-            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-brand-bg transition-all"
+            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-brand-bg transition"
             title="Close Panel"
             aria-label="Close panel"
           >

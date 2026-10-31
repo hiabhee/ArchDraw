@@ -51,7 +51,7 @@ export default function PricingPage() {
                 <li key={item} className="flex items-center gap-2.5"><span className="w-5 h-5 rounded-full bg-success-bg grid place-items-center"><Check className="w-3 h-3 text-success" strokeWidth={3} /></span>{item}</li>
               ))}
             </ul>
-            <Link href="/#generate" className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3.5 rounded-lg transition-colors">Map your codebase →</Link>
+            <Link href="/#start" className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3.5 rounded-lg transition-colors">Map your codebase →</Link>
             <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-text-muted"><Lock className="w-3 h-3" />No credit card · Quotas reset hourly/daily</p>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-4 text-xs">

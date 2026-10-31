@@ -1,5 +1,5 @@
 export const START_CTA_LABEL = 'Generate diagram';
-export const START_CTA_HASH = '#generate';
+export const START_CTA_HASH = '#start';
 export const FEATURED_REPO_URL = 'https://github.com/hiabhee/ArchDraw';
 
 export function startCtaHref(pathname: string): string {

@@ -374,7 +374,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
                   aria-pressed={active}
                   title={`${label} layout`}
                   aria-label={`${label} layout`}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all disabled:opacity-60 ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition disabled:opacity-60 ${
                     active
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -393,7 +393,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
             aria-pressed={isDark}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
@@ -405,7 +405,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           </button>
           <button
             onClick={() => fitView({ padding: 0.15, duration: 300 })}
-            className="w-8 h-8 rounded-lg hidden sm:flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
+            className="w-8 h-8 rounded-lg hidden sm:flex items-center justify-center transition duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
             title="Fit diagram to screen"
             aria-label="Fit diagram to screen"
           >

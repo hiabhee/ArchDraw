@@ -88,7 +88,7 @@ export function CreateComponentModal({
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-brand/60 transition-all"
+            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-brand/60 transition"
           >
             <X className="w-4 h-4" />
           </button>
@@ -227,7 +227,7 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
             if (nameError) setNameError(validateName(e.target.value));
           }}
           placeholder="Auth Service, API Gateway, Payment…"
-          className={`w-full px-4 py-3 text-sm bg-background rounded-xl outline-none transition-all ${nameError
+          className={`w-full px-4 py-3 text-sm bg-background rounded-xl outline-none transition ${nameError
             ? 'ring-2 ring-destructive/50'
             : 'focus:ring-2 focus:ring-ring/30'
             }`}
@@ -252,7 +252,7 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
                 key={type.id}
                 type="button"
                 onClick={() => setSelectedType(type.id)}
-                className={`group relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl transition-all ${isSelected
+                className={`group relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl transition ${isSelected
                   ? 'bg-primary/10'
                   : 'hover:bg-brand/50'
                   }`}
@@ -302,7 +302,7 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
           onChange={(e) => setDescription(e.target.value.slice(0, 80))}
           placeholder="What does this component do?"
           maxLength={80}
-          className="w-full px-4 py-2.5 text-sm bg-background rounded-xl outline-none focus:ring-2 focus:ring-ring/30 transition-all"
+          className="w-full px-4 py-2.5 text-sm bg-background rounded-xl outline-none focus:ring-2 focus:ring-ring/30 transition"
         />
         <div className="flex justify-end">
           <span className="text-[10px] text-muted-foreground/60">{description.length}/80</span>
@@ -313,14 +313,14 @@ function ModalContent({ onClose, onCreate, onUpdate, existingNames, editComponen
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-brand/50 rounded-xl transition-all"
+          className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-brand/50 rounded-xl transition"
         >
           Cancel
         </button>
         <button
           onClick={handleSubmit}
           disabled={!isValid || isCreating}
-          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${isValid && !isCreating
+          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition ${isValid && !isCreating
             ? 'bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0'
             : 'bg-muted text-muted-foreground cursor-not-allowed'
             }`}

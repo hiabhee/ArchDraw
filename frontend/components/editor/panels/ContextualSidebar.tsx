@@ -66,14 +66,14 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
         <div className="flex gap-2">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand hover:bg-brand/80 text-xs font-medium transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand hover:bg-brand/80 text-xs font-medium transition"
           >
             <Pencil className="w-3.5 h-3.5" />
             Edit
           </button>
           <button
             onClick={() => { removeNode(nodeId); onClose(); }}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-medium transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-medium transition"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete
@@ -91,7 +91,7 @@ export function ContextualSidebar({ nodeId, onClose }: ContextualSidebarProps) {
               <textarea
                 value={node.data.description || ''}
                 onChange={(e) => updateNodeData(nodeId, { description: e.target.value })}
-                className="w-full p-3 rounded-xl bg-brand/50 border border-border text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                className="w-full p-3 rounded-xl bg-brand/50 border border-border text-sm outline-none focus:ring-2 focus:ring-primary/20 transition resize-none"
                 rows={3}
                 placeholder="What does this service do?"
               />

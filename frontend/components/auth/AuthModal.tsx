@@ -71,7 +71,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full min-h-[48px] py-3.5 px-4 text-sm font-medium rounded-2xl transition-all hover:bg-accent flex items-center justify-center gap-3 disabled:opacity-50"
+          className="w-full min-h-[48px] py-3.5 px-4 text-sm font-medium rounded-2xl transition hover:bg-accent flex items-center justify-center gap-3 disabled:opacity-50"
           style={{ background: 'var(--surface-page)', color: 'var(--text-primary)' }}
         >
           {loading ? (

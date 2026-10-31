@@ -110,7 +110,7 @@ export function CompletionCardFlow({
           <div className="space-y-2">
             <button
               onClick={onGoToCanvas}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition duration-200 flex items-center justify-center gap-2"
               style={{ background: tutorialColor, boxShadow: `0 4px 14px ${tutorialColor}30` }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
@@ -121,7 +121,7 @@ export function CompletionCardFlow({
             {nextTutorialTitle && onNext && (
               <button
                 onClick={onNext}
-                className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition duration-200 flex items-center justify-center gap-2"
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
@@ -133,7 +133,7 @@ export function CompletionCardFlow({
             {!nextTutorialTitle && (
               <Link
                 href="/tutorials"
-                className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition duration-200 flex items-center justify-center gap-2"
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
                 Browse all tutorials
@@ -192,7 +192,7 @@ export function CompletionCardFlow({
 
       <div className="relative w-full max-w-lg mx-4">
         <div
-          className="rounded-2xl p-8 transition-all duration-500"
+          className="rounded-2xl p-8 transition duration-500"
           style={{
             background: 'white',
             border: '1px solid rgba(0,0,0,0.08)',
@@ -213,7 +213,7 @@ export function CompletionCardFlow({
               {cards.map((_, i) => (
                 <div
                   key={i}
-                  className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                  className="w-1.5 h-1.5 rounded-full transition duration-300"
                   style={{
                     background: i === currentIndex ? tutorialColor : 'rgba(0,0,0,0.1)',
                     transform: i === currentIndex ? 'scale(1.3)' : 'scale(1)',

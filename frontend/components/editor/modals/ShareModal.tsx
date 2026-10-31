@@ -194,7 +194,7 @@ export function ShareModal({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-lg hover:bg-accent text-text-secondary transition-all duration-150"
+              className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-lg hover:bg-accent text-text-secondary transition duration-150"
             >
               <X className="w-5 h-5" />
             </button>
@@ -256,7 +256,7 @@ export function ShareModal({
               <button
                 onClick={handleInvite}
                 disabled={!validateEmail(inviteEmail)}
-                className="min-h-[44px] px-5 py-[10px] text-[14px] font-medium text-white bg-brand rounded-full hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                className="min-h-[44px] px-5 py-[10px] text-[14px] font-medium text-white bg-brand rounded-full hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed transition duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
               >
                 Invite
               </button>
@@ -287,11 +287,11 @@ export function ShareModal({
                     });
                   }
                 }}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-150 ${
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition duration-150 ${
                   accessMode === 'invited' ? 'bg-brand/10 border border-brand/30' : 'hover:bg-accent'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition duration-150 ${
                   accessMode === 'invited' ? 'bg-brand' : 'bg-surface-page'
                 }`}>
                   {accessMode === 'invited' ? (
@@ -324,11 +324,11 @@ export function ShareModal({
                     });
                   }
                 }}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-150 ${
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition duration-150 ${
                   accessMode === 'link' ? 'bg-brand/10 border border-brand/30' : 'hover:bg-accent'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition duration-150 ${
                   accessMode === 'link' ? 'bg-brand' : 'bg-surface-page'
                 }`}>
                   {accessMode === 'link' ? (
@@ -366,7 +366,7 @@ export function ShareModal({
                         });
                       }
                     }}
-                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-sm transition-all duration-150 ${
+                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-sm transition duration-150 ${
                       linkPerm === 'can view' ? 'bg-brand text-white font-medium' : 'bg-surface-page text-text-secondary hover:bg-accent'
                     }`}
                   >
@@ -388,7 +388,7 @@ export function ShareModal({
                         });
                       }
                     }}
-                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-sm transition-all duration-150 ${
+                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-sm transition duration-150 ${
                       linkPerm === 'can edit' ? 'bg-brand text-white font-medium' : 'bg-surface-page text-text-secondary hover:bg-accent'
                     }`}
                   >
@@ -418,7 +418,7 @@ export function ShareModal({
                 {people.map((person) => (
                   <div
                     key={person.id}
-                    className="group flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-accent transition-all duration-150"
+                    className="group flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-accent transition duration-150"
                   >
                     {/* Avatar */}
                     {person.avatar ? (
@@ -454,7 +454,7 @@ export function ShareModal({
                       <div className="relative">
                         <button
                           onClick={() => setShowRoleDropdown(showRoleDropdown === person.id ? null : person.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 text-[13px] rounded-sm hover:bg-accent transition-all duration-150 text-text-secondary"
+                          className="flex items-center gap-1 px-2.5 py-1 text-[13px] rounded-sm hover:bg-accent transition duration-150 text-text-secondary"
                         >
                           {person.role}
                           <ChevronDown className="w-3 h-3" />
@@ -490,7 +490,7 @@ export function ShareModal({
                       <button
                         onClick={() => handleRemove(person.id)}
                         aria-label={`Remove ${person.name}`}
-                        className="min-w-[36px] min-h-[36px] p-1.5 rounded-sm hover:bg-destructive/10 text-text-muted hover:text-destructive transition-all duration-150 opacity-60 sm:opacity-0 sm:group-hover:opacity-100"
+                        className="min-w-[36px] min-h-[36px] p-1.5 rounded-sm hover:bg-destructive/10 text-text-muted hover:text-destructive transition duration-150 opacity-60 sm:opacity-0 sm:group-hover:opacity-100"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -517,7 +517,7 @@ export function ShareModal({
             <button
               onClick={() => handleCopyLink(shareUrl)}
               disabled={copied}
-              className={`min-h-[44px] flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-[14px] font-medium transition-all duration-150
+              className={`min-h-[44px] flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-[14px] font-medium transition duration-150
                 ${copied
                   ? 'bg-success-bg text-success cursor-default'
                   : 'bg-brand text-white hover:bg-brand-hover'

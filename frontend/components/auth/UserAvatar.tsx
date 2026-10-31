@@ -10,8 +10,6 @@ import {
   Shield, 
   Bell, 
   CreditCard,
-  ChevronRight,
-  Camera,
   Sparkles,
   Palette,
   Zap,
@@ -24,7 +22,6 @@ import {
   Bot,
   Clock,
   Link2,
-  Lock,
   Mail,
   Search,
   LayoutGrid,
@@ -231,7 +228,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                     });
                   }
                 }}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl transition-all ${
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl transition ${
                   activeTab === tab.id ? 'bg-brand/10 text-brand-text font-medium' : 'hover:bg-surface-page'
                 }`}
                 style={{ 
@@ -341,7 +338,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
             <div className="space-y-6">
               <div>
                 <SectionTitle>Profile</SectionTitle>
-                <SectionDesc>Manage your public profile</SectionDesc>
+                <SectionDesc>Your name and photo come from your sign-in provider. Editing profile details is coming soon.</SectionDesc>
               </div>
 
               <div className="flex items-center gap-4">
@@ -349,13 +346,10 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                   <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl text-primary-foreground font-semibold" style={{ background: 'hsl(var(--primary))' }}>
                     {initials}
                   </div>
-                  <button className="absolute bottom-0 right-0 p-2 rounded-full bg-surface-panel shadow-md">
-                    <Camera className="w-3 h-3" style={{ color: 'var(--text-primary)' }} />
-                  </button>
                 </div>
                 <div>
                   <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Profile photo</p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Click to upload</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Comes from your sign-in provider</p>
                 </div>
               </div>
 
@@ -365,6 +359,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
+                  disabled
                   placeholder="Your name"
                   className="w-full px-4 py-3 text-sm rounded-2xl outline-none"
                   style={{ background: 'var(--surface-page)', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: 'var(--text-primary)' }}
@@ -376,6 +371,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
+                  disabled
                   placeholder="Tell us about yourself..."
                   rows={3}
                   className="w-full px-4 py-3 text-sm rounded-2xl outline-none resize-none"
@@ -389,13 +385,14 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                   type="url"
                   value={portfolio}
                   onChange={(e) => setPortfolio(e.target.value)}
+                  disabled
                   placeholder="https://yourportfolio.com"
                   className="w-full px-4 py-3 text-sm rounded-2xl outline-none"
                   style={{ background: 'var(--surface-page)', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: 'var(--text-primary)' }}
                 />
               </div>
 
-              <button className="w-full py-3 text-sm font-medium text-white rounded-2xl hover:opacity-90" style={{ background: 'var(--brand)', boxShadow: '0 4px 12px rgba(0, 112, 224, 0.3)' }}>
+              <button disabled aria-disabled="true" title="Profile editing is coming soon" className="w-full py-3 text-sm font-medium text-white rounded-2xl opacity-50 cursor-not-allowed" style={{ background: 'var(--brand)', boxShadow: '0 4px 12px rgba(0, 112, 224, 0.3)' }}>
                 Save changes
               </button>
 
@@ -534,27 +531,13 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
               </div>
 
               <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
-                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-surface-page transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Lock className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-                    <div className="text-left">
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Change password</p>
-                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Update your account password</p>
-                    </div>
+                <div className="flex items-start gap-3 p-3">
+                  <Shield className="w-4 h-4 mt-0.5" style={{ color: 'var(--text-secondary)' }} />
+                  <div className="text-left">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Sign-in is handled by Google or GitHub</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>ArchDraw has no password of its own. Manage your password and two-factor authentication with your provider.</p>
                   </div>
-                  <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-                </button>
-                
-                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-surface-page transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Shield className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-                    <div className="text-left">
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Two-factor authentication</p>
-                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Add an extra layer of security</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-                </button>
+                </div>
               </div>
             </div>
           )}

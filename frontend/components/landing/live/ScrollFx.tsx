@@ -10,7 +10,8 @@ import styles from './ScrollFx.module.css';
  * visitors who prefer reduced motion.
  */
 
-const SPRING = { stiffness: 120, damping: 26, mass: 0.4 };
+// Near-critically damped: tracks the scroll closely, no wobble, no sluggish catch-up.
+const SPRING = { stiffness: 140, damping: 24, mass: 0.5 };
 
 /** Thin amber bar under the nav that fills as the page scrolls. */
 export function ScrollProgress() {

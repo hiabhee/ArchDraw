@@ -51,7 +51,7 @@ export function UpgradeModal({
               </div>
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-150"
+                className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition duration-150"
               >
                 <X className="w-4 h-4" />
               </button>

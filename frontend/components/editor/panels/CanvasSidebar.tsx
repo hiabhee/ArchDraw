@@ -165,7 +165,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                   <DropdownMenu open={contextMenuId === canvas.id} onOpenChange={(open) => !open && setContextMenuId(null)}>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <button
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-brand transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-brand transition"
                         onClick={(e) => {
                           e.stopPropagation();
                           setContextMenuId(canvas.id);

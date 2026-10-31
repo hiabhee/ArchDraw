@@ -556,7 +556,7 @@ export function CommandPalette() {
                         data-index={idx}
                         onClick={() => handleItemClick(item)}
                         disabled={!!loadingTemplateId}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl transition-all duration-150 ${
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl transition duration-150 ${
                           idx === selectedIndex 
                             ? 'bg-accent' 
                             : 'hover:bg-accent'

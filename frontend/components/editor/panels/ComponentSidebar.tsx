@@ -117,7 +117,7 @@ function SidebarButton({ icon, label, active, onClick }: SidebarButtonProps) {
         onClick={onClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200"
+        className="w-11 h-11 rounded-xl flex items-center justify-center transition duration-200"
         style={{
           background: active ? 'hsl(var(--accent))' : 'transparent',
         }}
@@ -270,7 +270,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
                 <button
                   key={section.key}
                   onClick={() => setActiveSection(section.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition ${
                     activeSection === section.key ? 'bg-brand text-foreground' : 'text-muted-foreground'
                   }`}
                 >
@@ -290,7 +290,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
                 {customComponents.map((comp) => (
                   <div
                     key={comp.id}
-                    className="group flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all cursor-grab hover:bg-brand text-foreground"
+                    className="group flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition cursor-grab hover:bg-brand text-foreground"
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData('application/archdraw', JSON.stringify(comp));
@@ -317,7 +317,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
             {filteredComponents.map((comp) => (
               <div
                 key={comp.id}
-                className="group flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all cursor-grab hover:bg-brand text-foreground"
+                className="group flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition cursor-grab hover:bg-brand text-foreground"
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData('application/archdraw', JSON.stringify(comp));

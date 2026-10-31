@@ -11,11 +11,11 @@ type LandingRevealProps = {
   /** Share of the element that must be on screen before it reveals. */
   amount?: number;
   duration?: number;
-  /** Blur while revealing; costly on very large elements. */
+  /** Blur while revealing. Off by default: animating a filter on a large layer drops frames; use it on small text only. */
   blur?: boolean;
 };
 
-export function LandingReveal({ children, className, delay = 0, distance = 22, amount = 0.18, duration = 0.62, blur = true }: LandingRevealProps) {
+export function LandingReveal({ children, className, delay = 0, distance = 22, amount = 0.18, duration = 0.7, blur = false }: LandingRevealProps) {
   const reduceMotion = useReducedMotion();
 
   return (

@@ -197,7 +197,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
               </div>
               <button
                 onClick={onClose}
-                className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition-all"
+                className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -316,14 +316,14 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-brand/60 rounded-xl transition-all"
+                  className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-brand/60 rounded-xl transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => loadDiagram(summary.ndjson)}
-                  className="px-5 py-2.5 text-xs font-medium text-white bg-primary rounded-xl hover:bg-primary/95 transition-all shadow-md flex items-center gap-2"
+                  className="px-5 py-2.5 text-xs font-medium text-white bg-primary rounded-xl hover:bg-primary/95 transition shadow-md flex items-center gap-2"
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
                   View Diagram
@@ -360,7 +360,7 @@ export function RepoDiagramGenerator({ onClose }: Props) {
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition-all"
+              className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition"
             >
               <X className="w-4 h-4" />
             </button>
@@ -418,14 +418,14 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 type="button"
                 onClick={onClose}
                 disabled={isLoading}
-                className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-brand/60 rounded-xl transition-all"
+                className="px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-brand/60 rounded-xl transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading || !repoUrl.trim()}
-                className="px-5 py-2.5 text-xs font-medium text-white bg-primary rounded-xl hover:bg-primary/95 transition-all shadow-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 text-xs font-medium text-white bg-primary rounded-xl hover:bg-primary/95 transition shadow-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
