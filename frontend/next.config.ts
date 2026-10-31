@@ -77,6 +77,7 @@ const nextConfig: NextConfig = {
   // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
   // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion
   experimental: {
+    agentUpgrade: 'security',
     optimizePackageImports: [
       'lucide-react',
       'zustand',
