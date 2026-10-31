@@ -262,8 +262,9 @@
   line-height: 1.9;
   white-space: pre-wrap;
 }
-.tLine { display: block; opacity: 0; transform: translateY(3px); }
-.terminal[data-play] .tLine { animation: lineIn 320ms ease-out forwards; }
+.tLine { display: block; }
+/* Visible by default (no script, reduced motion); once the terminal scrolls into view each line animates in from hidden, held hidden through its delay by `both`. */
+.terminal[data-play] .tLine { animation: lineIn 320ms ease-out both; }
 .tLine[data-kind='cmd'] { color: var(--ink); font-weight: 600; }
 .tLine[data-kind='ok'] { color: #8fe9be; }
 .tLine[data-kind='dim'] { color: var(--ld-muted); }
@@ -349,7 +350,7 @@
 .finalTitle { font-size: clamp(3rem, 6.4vw, 6rem); line-height: .98; }
 
 @keyframes blink { 50% { opacity: .3; } }
-@keyframes lineIn { to { opacity: 1; transform: none; } }
+@keyframes lineIn { from { opacity: 0; transform: translateY(3px); } }
 @keyframes cursor { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 
 @media (max-width: 1024px) {

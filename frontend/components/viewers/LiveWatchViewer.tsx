@@ -309,10 +309,15 @@ function Viewer({ token }: { token: string }) {
     <div className={`${isDark ? 'dark' : ''} relative w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground`}>
       <header className="absolute inset-x-0 top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/60 bg-background/85 px-4 py-2.5 backdrop-blur">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden />
-            Live
-          </span>
+          {/* Nothing is known until the first snapshot arrives: do not claim "Live" or "no sessions" before then. */}
+          {graph ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden />
+              Live
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Connecting…</span>
+          )}
           <h1 className="truncate text-sm font-semibold">{name || 'Live project'}</h1>
           <span className="shrink-0 text-xs text-muted-foreground">· view only</span>
           <MapLevelToggle level={level} onChange={setLevel} hasDetail={detailUpdatedAt != null} className="ml-1 shrink-0" />
@@ -327,7 +332,7 @@ function Viewer({ token }: { token: string }) {
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" aria-label="Agent sessions">
-          {sessions.length === 0 && <span className="text-xs text-muted-foreground">No agent sessions in the last few hours.</span>}
+          {graph && sessions.length === 0 && <span className="text-xs text-muted-foreground">No agent sessions in the last few hours.</span>}
           {sessions.slice(0, 8).map((s) => {
             const focused = focusedSessionKey === s.sessionKey;
             const where = s.site ? 'new code' : s.currentComponentId ? labels.get(s.currentComponentId) : null;
@@ -349,14 +354,14 @@ function Viewer({ token }: { token: string }) {
           })}
           {sessions.length > 8 && <span className="text-[11px] text-muted-foreground">+{sessions.length - 8} more</span>}
         </div>
-        <span className="text-[11px] tabular-nums text-muted-foreground">
+        {graph && <span className="text-[11px] tabular-nums text-muted-foreground">
           {working.length} active
           {coverage && (
             <span title={`${coverage.percent}% of the ${coverage.total} files agents edited are on a component of this map`}>
               {' '}· map covers {coverage.percent}%
             </span>
           )}
-        </span>
+        </span>}
       </header>
 
       {error && (

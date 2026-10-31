@@ -601,14 +601,14 @@ export function AgentAtlasLayer() {
             ? `→ ${String((nodes.get(p.s.aimComponentId!)?.data as { label?: unknown })?.label ?? '').slice(0, 24)}?`
             : moodLabel(p.s, p.mood, now);
           const stateText = label ? ` · ${state}` : state;
-          ctx.font = `600 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
+          ctx.font = `600 ${12 * ts}px ui-sans-serif, system-ui, sans-serif`;
           const lw = label ? ctx.measureText(label).width : 0;
-          ctx.font = `500 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
+          ctx.font = `500 ${12 * ts}px ui-sans-serif, system-ui, sans-serif`;
           const sw = ctx.measureText(stateText).width;
           const crowded = !compact && p.key !== 'dock' && p.total > 1;
           const dot = crowded ? 10 * ts : 0;
           const tw = lw + sw + 16 * ts + dot;
-          const th = 18 * ts;
+          const th = 20 * ts;
           // Several agents at one component: stack their tags in a column under
           // the group (a colour dot links each tag to its star) so none overlap.
           const tagX = crowded ? base.x - tw / 2 : x - tw / 2;
@@ -631,21 +631,21 @@ export function AgentAtlasLayer() {
           }
           if (label) {
             ctx.fillStyle = ink;
-            ctx.font = `600 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
+            ctx.font = `600 ${12 * ts}px ui-sans-serif, system-ui, sans-serif`;
             ctx.fillText(label, tagX + 8 * ts + dot, tagY + th / 2 + 0.5);
           }
           const urgent = needsUser || p.mood === 'editing' || p.mood === 'running';
           ctx.fillStyle = urgent ? (p.mood === 'waiting' ? '#d97706' : p.s.color) : muted;
-          ctx.font = `500 ${10.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
+          ctx.font = `500 ${12 * ts}px ui-sans-serif, system-ui, sans-serif`;
           ctx.fillText(stateText, tagX + 8 * ts + dot + lw, tagY + th / 2 + 0.5);
 
           // Stacked tags (several agents on one component) stay one line each.
           const task = !compact && !crowded && !faded ? p.s.intent?.trim() : null;
           if (task) {
             const text = task.length > TASK_CHARS ? `${task.slice(0, TASK_CHARS - 1).trimEnd()}…` : task;
-            ctx.font = `450 ${10 * ts}px ui-sans-serif, system-ui, sans-serif`;
+            ctx.font = `450 ${11.5 * ts}px ui-sans-serif, system-ui, sans-serif`;
             const taskW = ctx.measureText(text).width + 14 * ts;
-            const taskH = 16 * ts;
+            const taskH = 18 * ts;
             const taskY = tagY + th + 3 * ts;
             ctx.fillStyle = tagBg;
             ctx.globalAlpha *= 0.9;

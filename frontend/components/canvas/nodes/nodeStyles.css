@@ -1521,7 +1521,7 @@
   margin-right: 4px;
   padding: 1px 5px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -1531,7 +1531,7 @@
 }
 .live-activity-more {
   margin-left: 3px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1622,10 +1622,8 @@
   border-radius: 4px;
   background: var(--live-color);
   color: #fff;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   line-height: 1.4;
 }
 @media (prefers-reduced-motion: reduce) {
