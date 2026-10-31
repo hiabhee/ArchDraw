@@ -70,6 +70,8 @@ const env = {
   ARCHDRAW_HOME: home,
   CLAUDE_CONFIG_DIR: claudeDir,
   NO_COLOR: '1',
+  // Run the checkout's CLI as it is, not whatever the registry calls latest.
+  ARCHDRAW_NO_UPDATE_CHECK: '1',
   // Never let the sandbox's hooks talk to a real project.
   ARCHDRAW_API: API,
 };

@@ -4,6 +4,7 @@
 //   npx archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
 //   npx archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
 //   npx archdraw-live --detail     redraw only the detailed map
+//   npx archdraw-live update       switch to the newest release
 //   npx archdraw-live status       where this repository's live map is
 //   npx archdraw-live stop         disconnect this repository
 //
@@ -20,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { listFiles } from '../lib/files.mjs';
 import { bindingFilePath, getBinding, removeBinding, saveBinding } from '../lib/binding.mjs';
 import { installClaudeHooks } from '../lib/claudeHooks.mjs';
+import { isNewer, latestVersion, runVersion, updateCheckDisabled } from '../lib/update.mjs';
 import { detailPrompt, mapAndCheck, mappingPrompt, readMermaid } from '../lib/mapWithClaude.mjs';
 import { createInterface } from 'node:readline/promises';
 
@@ -278,6 +280,10 @@ async function setup(flags) {
     return;
   }
 
+  const canClaude = hasCommand('claude');
+  const draw = flags.map || (!flags['no-map'] && canClaude
+    && await ask(`${bold('Let Claude read your code and draw the map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [Y/n] `, true));
+
   console.log(`Setting up a live map for ${bold(repoName)}…`);
 
   const res = await request(`${base}/api/projects/quickstart`, {
@@ -305,12 +311,31 @@ async function setup(flags) {
   connectHooks();
   const opened = flags['no-open'] ? false : openBrowser(liveUrl(binding));
   console.log('');
-  const canClaude = hasCommand('claude');
-  const draw = flags.map || (!flags['no-map'] && canClaude
-    && await ask(`${bold('Let Claude read your code and draw the map?')} The overview takes 1–3 minutes, then a detailed map follows. Uses your Claude account. [Y/n] `, true));
   if (draw) await mapAll(root, binding, flags);
   else if (canClaude) console.log(dim(`The map stays empty until Claude draws it: ${bold('npx archdraw-live --map')}`));
   nextSteps(binding, opened);
+}
+
+/** npx reuses a cached copy, so ask the registry and re-launch on the newest release when this one is old. */
+async function useLatest(args) {
+  if (updateCheckDisabled()) return;
+  const latest = await latestVersion();
+  if (!latest || !isNewer(latest, VERSION)) return;
+  console.log(dim(`Updating archdraw-live ${VERSION} → ${latest}…`));
+  const status = runVersion(latest, args);
+  if (status !== null) process.exit(status);
+  warn(`Couldn't start ${latest}; continuing with ${VERSION}.`);
+}
+
+async function update() {
+  const latest = await latestVersion({ timeoutMs: 8000 });
+  if (!latest) fail("Couldn't reach the npm registry. Check your connection and try again.");
+  if (!isNewer(latest, VERSION)) {
+    ok(`archdraw-live ${VERSION} is the latest.`);
+    return;
+  }
+  if (runVersion(latest, ['--version'], { stdio: 'ignore' }) !== 0) fail(`Couldn't download ${latest}. Try again in a minute.`);
+  ok(`Updated ${VERSION} → ${latest}. The next ${bold('npx archdraw-live')} runs it.`);
 }
 
 function status() {
@@ -339,6 +364,7 @@ const HELP = `${bold('archdraw-live')} ${VERSION} — watch your coding agents o
   npx archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
   npx archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
   npx archdraw-live --detail     redraw only the detailed map (each component's modules and files)
+  npx archdraw-live update       switch to the newest release (it also checks on every run)
   npx archdraw-live status       show this repository's live map link
   npx archdraw-live stop         disconnect this repository
 
@@ -351,8 +377,11 @@ if (flags.help || command === 'help') console.log(HELP);
 else if (flags.version) console.log(VERSION);
 else if (command === 'status') status();
 else if (command === 'stop') stop();
-else if (!command) await setup(flags).catch((error) => fail(error instanceof Error ? error.message : String(error)));
-else {
+else if (command === 'update') await update();
+else if (!command) {
+  await useLatest(process.argv.slice(2));
+  await setup(flags).catch((error) => fail(error instanceof Error ? error.message : String(error)));
+} else {
   console.error(HELP);
   process.exit(2);
 }

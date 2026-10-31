@@ -22,6 +22,7 @@ nobody signs in to are deleted after 30 days without activity.
 | `npx archdraw-live` | Set up (or reopen) this repository's live map |
 | `npx archdraw-live --map` | Let Claude Code read the code and (re)draw the map (overview, then the detailed map) |
 | `npx archdraw-live --detail` | Redraw only the detailed map |
+| `npx archdraw-live update` | Switch to the newest release (every run also checks, see below) |
 | `npx archdraw-live status` | Show this repository's live map link |
 | `npx archdraw-live stop` | Disconnect this repository |
 
@@ -53,6 +54,16 @@ session's terminal title and in the **Needs you** list on the map, longest
 waiting first. The terminal title changes to `● Otter needs you` when that
 session is waiting for your permission. Turn on the bell in the list for desktop
 notifications.
+
+## Staying up to date
+
+`npx` reuses a copy it has already downloaded, so on every run the command asks the npm
+registry for the newest version and, if yours is older, restarts itself on the newest one
+("Updating archdraw-live 0.3.1 → 0.3.2…"). Re-running also refreshes the hook script in
+`~/.archdraw/hooks/`. `npx archdraw-live update` does the same on demand. Set
+`ARCHDRAW_NO_UPDATE_CHECK=1` to turn the check off (it is also skipped in CI). The only
+request is a public GET to `registry.npmjs.org`; nothing about you or your repository is sent.
+Copies older than 0.3.2 don't have this check; run `npx -y archdraw-live@latest` once.
 
 ## What it does on your machine
 
