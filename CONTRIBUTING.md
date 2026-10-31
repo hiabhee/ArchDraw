@@ -60,6 +60,13 @@ Several top-level folders are configuration for AI coding assistants, not produc
 
 To maintain design system integrity, all UI components, dashboard chrome elements, navigation shells, inputs, buttons, and landing page elements must use the centralized Tailwind CSS v4 custom color classes.
 
+### One palette, one guard
+
+- **Where colors live:** `frontend/app/globals.css`. The dark theme and the landing page share one night palette (`--night-page`, `--night-panel`, `--night-card`, `--night-line`, `--night-ink`, `--night-muted`, ...) and two signal colors (`--signal-attention` for "needs you", `--signal-star` for a working agent). Landing CSS modules read these; they never redefine them.
+- **Brand blue** has three jobs, each its own token, all passing WCAG AA: `bg-brand` is a fill under white text (4.78:1), `text-brand-text` is the blue for text and links (7.8:1 on the night surfaces, 4.5:1+ on light), and `hover:bg-brand-hover` is darker, never lighter. Borders and rings use `border-brand` / `ring-brand`, tints `bg-brand/10`. Never a raw `#1E90FF`.
+- **A guard enforces it:** `frontend/lib/theme/__tests__/designSystemGuard.test.ts` counts raw hex values and raw Tailwind palette classes (`bg-slate-500`) per area of `components/` and `app/`, and fails if an area uses more than its baseline. When you replace some with tokens, lower that area's number in the test. Never raise one: add the color to `globals.css` first.
+- **Not covered, on purpose:** `lib/theme` (canvas themes, SVG/PNG export, chart colors): exported images cannot use CSS variables.
+
 ### Color palette tokens
 
 Always use these semantic classes rather than ad-hoc hex values (`#5e6ad2`, `#828fff`, etc.) or raw HSL bindings (`hsl(var(--card))`).

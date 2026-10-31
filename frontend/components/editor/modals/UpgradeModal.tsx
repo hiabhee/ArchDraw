@@ -39,7 +39,7 @@ export function UpgradeModal({
           <div className="px-6 py-5 border-b border-border/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center bg-gradient-to-br from-[#1E90FF] to-[#4dabf7] shadow-sm">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br from-brand to-[#4dabf7] shadow-sm">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -51,7 +51,7 @@ export function UpgradeModal({
               </div>
               <button
                 onClick={onClose}
-                className="p-2 rounded-[10px] hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-150"
+                className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-150"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -85,7 +85,7 @@ export function UpgradeModal({
 
             <a
               href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'contact@archdraw.ai'}?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AThank%20you!`}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-[12px] border border-border/50 hover:border-border hover:bg-secondary/50 transition-all duration-150 text-foreground"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border border-border/50 hover:border-border hover:bg-secondary/50 transition-all duration-150 text-foreground"
             >
               <Sparkles className="w-4 h-4" />
               Contact for Pro Plan

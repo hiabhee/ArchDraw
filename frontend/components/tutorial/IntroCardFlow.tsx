@@ -170,8 +170,8 @@ export function IntroCardFlow({
           className="rounded-2xl p-8 transition-all duration-500"
           style={{
             background: 'linear-gradient(135deg, #0f2747 0%, #0a1929 100%)',
-            border: '1px solid rgba(30, 144, 255, 0.3)',
-            boxShadow: '0 25px 50px -12px rgba(30, 144, 255, 0.4), 0 0 40px rgba(30, 144, 255, 0.2)',
+            border: '1px solid rgba(0, 112, 224, 0.3)',
+            boxShadow: '0 25px 50px -12px rgba(0, 112, 224, 0.4), 0 0 40px rgba(0, 112, 224, 0.2)',
             transform: `translateX(${currentIndex === 0 ? 0 : currentIndex > 0 ? -10 : 10}px)`,
             opacity: 1,
           }}
@@ -239,15 +239,15 @@ export function IntroCardFlow({
             )}
           </div>
 
-          <div className="flex items-center justify-between mt-8 pt-6" style={{ borderTop: '1px solid rgba(30, 144, 255, 0.2)' }}>
+          <div className="flex items-center justify-between mt-8 pt-6" style={{ borderTop: '1px solid rgba(0, 112, 224, 0.2)' }}>
             <div className="flex items-center gap-2">
               {currentIndex > 0 && (
                 <button
                   onClick={goPrev}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-blue-200 hover:text-white transition-colors"
-                  style={{ background: 'rgba(30, 144, 255, 0.2)' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(30, 144, 255, 0.35)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(30, 144, 255, 0.2)'; }}
+                  style={{ background: 'rgba(0, 112, 224, 0.2)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 112, 224, 0.35)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 112, 224, 0.2)'; }}
                 >
                   <ChevronLeft className="w-4 h-4" />
                   Back
@@ -322,8 +322,8 @@ export function IntroCardFlow({
         </div>
 
         <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-2 text-xs text-blue-200/70">
-          <kbd className="px-2 py-1 rounded" style={{ background: 'rgba(30, 144, 255, 0.2)' }}>←</kbd>
-          <kbd className="px-2 py-1 rounded" style={{ background: 'rgba(30, 144, 255, 0.2)' }}>→</kbd>
+          <kbd className="px-2 py-1 rounded" style={{ background: 'rgba(0, 112, 224, 0.2)' }}>←</kbd>
+          <kbd className="px-2 py-1 rounded" style={{ background: 'rgba(0, 112, 224, 0.2)' }}>→</kbd>
           <span className="ml-1">to navigate</span>
         </div>
       </div>

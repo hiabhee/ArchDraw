@@ -1,14 +1,14 @@
 /* 404 / error pages in the landing's night chart: near-black paper, bone
    ink, a star in colour, amber for the spot that is off the map. */
 .page {
-  --page: #07080a;
-  --ink: #ece9e2;
+  --page: var(--night-page);
+  --ink: var(--night-ink);
   --ink-soft: rgba(236, 233, 226, .72);
-  --muted: #94918a;
+  --muted: var(--night-muted);
   --line: rgba(236, 233, 226, .1);
   --line-strong: rgba(236, 233, 226, .18);
-  --attention: #f5a524;
-  --star: #7cb4ff;
+  --attention: var(--signal-attention);
+  --star: var(--signal-star);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -62,7 +62,7 @@
 .inner { display: grid; justify-items: center; gap: 28px; width: min(680px, 100%); text-align: center; }
 
 .chart { width: min(420px, 100%); height: auto; overflow: visible; }
-.node { fill: #0c0e11; stroke: var(--line-strong); stroke-width: 1; }
+.node { fill: var(--night-panel); stroke: var(--line-strong); stroke-width: 1; }
 .nodeLabel { fill: var(--ink-soft); font-family: var(--font-mono), ui-monospace, monospace; font-size: 11px; }
 .edge { fill: none; stroke: rgba(236, 233, 226, .3); stroke-width: 1.25; }
 .wire { fill: none; stroke: var(--attention); stroke-width: 1.25; stroke-dasharray: 4 5; animation: flow 1.6s linear infinite; }

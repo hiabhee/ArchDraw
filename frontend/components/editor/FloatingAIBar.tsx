@@ -273,7 +273,7 @@ export function FloatingAIBar({
                 }}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
                   detailLevel === level
-                    ? 'bg-[#1E90FF]/20 text-[#1E90FF] shadow-sm'
+                    ? 'bg-brand/20 text-brand-text shadow-sm'
                     : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
                 }`}
                 title={level === 1 ? 'Simple — only core components' : level === 2 ? 'Moderate — balanced detail' : 'Detailed — full architecture depth'}
@@ -300,7 +300,7 @@ export function FloatingAIBar({
               }}
               className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition-[background,border-color,color] text-[10px] font-semibold cursor-pointer active:scale-95 ${
                 showCodeDerived 
-                  ? 'bg-[#1E90FF]/15 text-[#1E90FF] border-[#1E90FF]/30' 
+                  ? 'bg-brand/15 text-brand-text border-brand/30' 
                   : 'bg-muted/20 border-border/10 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
               }`}
             >
@@ -316,9 +316,9 @@ export function FloatingAIBar({
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-              className={`flex items-center gap-2 w-full rounded-[16px] border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
+              className={`flex items-center gap-2 w-full rounded-3xl border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
                 isFirstTime && isCanvasEmpty 
-                  ? 'shiny-input-glow border-[#1E90FF]/70 focus-within:border-primary/50' 
+                  ? 'shiny-input-glow border-brand/70 focus-within:border-primary/50' 
                   : 'border-border/40 focus-within:border-primary/50'
               } ${isCanvasEmpty ? 'py-3' : ''}`}
         >
@@ -358,7 +358,7 @@ export function FloatingAIBar({
               onClick={handleGenerate}
               disabled={!input.trim() || isGenerating}
               aria-label={isGenerating ? 'Generating' : 'Generate diagram'}
-              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-[#1E90FF] text-white hover:bg-[#4dabf7] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-brand text-white hover:bg-[#4dabf7] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 animate-spin" />

@@ -47,7 +47,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       <div
         className="relative w-full max-w-sm p-6 sm:p-8"
         style={{
-          background: 'white',
+          background: 'var(--surface-panel)',
           borderRadius: 20,
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.1)'
         }}
@@ -55,24 +55,24 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         <button
           onClick={() => onOpenChange(false)}
           aria-label="Close"
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors hover:bg-gray-100"
-          style={{ color: '#6B6B6B' }}
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors hover:bg-accent"
+          style={{ color: 'var(--text-secondary)' }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
 
-        <h2 className="text-2xl font-bold text-[#1A1A1A] mb-1 pr-8">Sign in to ArchDraw</h2>
-        <p className="text-sm mb-6 sm:mb-8" style={{ color: '#6B6B6B' }}>
+        <h2 className="text-2xl font-bold text-text-primary mb-1 pr-8">Sign in to ArchDraw</h2>
+        <p className="text-sm mb-6 sm:mb-8" style={{ color: 'var(--text-secondary)' }}>
           Export diagrams and sync across devices
         </p>
 
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full min-h-[48px] py-3.5 px-4 text-sm font-medium rounded-[14px] transition-all hover:bg-gray-50 flex items-center justify-center gap-3 disabled:opacity-50"
-          style={{ background: '#F8F8F8', color: '#1A1A1A' }}
+          className="w-full min-h-[48px] py-3.5 px-4 text-sm font-medium rounded-2xl transition-all hover:bg-accent flex items-center justify-center gap-3 disabled:opacity-50"
+          style={{ background: 'var(--surface-page)', color: 'var(--text-primary)' }}
         >
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -88,7 +88,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         </button>
 
         {error && (
-          <p className="text-xs text-center mt-4" style={{ color: '#E5484D' }}>{error}</p>
+          <p className="text-xs text-center mt-4" style={{ color: 'hsl(var(--destructive))' }}>{error}</p>
         )}
       </div>
     </div>

@@ -1,15 +1,15 @@
 /* Live-projects landing. A night chart: near-black paper, bone ink, agent
    stars in colour, amber reserved for "needs you". */
 .landing {
-  --page: #07080a;
-  --panel: #0c0e11;
-  --ink: #ece9e2;
+  --page: var(--night-page);
+  --panel: var(--night-panel);
+  --ink: var(--night-ink);
   --ink-soft: rgba(236, 233, 226, .72);
-  --ld-muted: #94918a;
+  --ld-muted: var(--night-muted);
   --line: rgba(236, 233, 226, .08);
   --line-strong: rgba(236, 233, 226, .15);
-  --attention: #f5a524;
-  --star: #7cb4ff;
+  --attention: var(--signal-attention);
+  --star: var(--signal-star);
   position: relative;
   isolation: isolate;
   min-height: 100vh;

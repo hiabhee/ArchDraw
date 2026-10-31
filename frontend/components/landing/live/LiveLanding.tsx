@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import { body, display, mono } from '../fonts';
 import { LandingBootstrap } from '@/components/landing/LandingBootstrap';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { LandingReveal } from '@/components/landing/LandingReveal';
@@ -16,9 +16,6 @@ import {
 } from './Vignettes';
 import styles from './LiveLanding.module.css';
 
-const display = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], variable: '--font-display', display: 'swap' });
-const body = Geist({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
-const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const LIVE_FAQS = [
   {
@@ -140,8 +137,8 @@ const FAQ_JSON_LD = {
 export default async function LiveLanding() {
   const heroGraphs = await buildHeroGraphs();
   return (
-    <div className={`${styles.landing} ${display.variable} ${body.variable} ${mono.variable}`}>
-      <LandingNav tone="dark" />
+    <div className={`dark ${styles.landing} ${display.variable} ${body.variable} ${mono.variable}`}>
+      <LandingNav />
       <ScrollProgress />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }} />
       <main>
@@ -344,7 +341,7 @@ export default async function LiveLanding() {
           </div>
         </section>
       </main>
-      <Footer tone="dark" />
+      <Footer />
       <LandingBootstrap />
     </div>
   );

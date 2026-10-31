@@ -117,7 +117,7 @@ function SidebarButton({ icon, label, active, onClick }: SidebarButtonProps) {
         onClick={onClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="w-11 h-11 rounded-[12px] flex items-center justify-center transition-all duration-200"
+        className="w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200"
         style={{
           background: active ? 'hsl(var(--accent))' : 'transparent',
         }}
@@ -125,7 +125,7 @@ function SidebarButton({ icon, label, active, onClick }: SidebarButtonProps) {
         {icon}
       </button>
       {isHovered && (
-        <div className="absolute left-full ml-2 px-3 py-1.5 rounded-[8px] text-xs font-medium whitespace-nowrap pointer-events-none bg-popover text-popover-foreground">
+        <div className="absolute left-full ml-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap pointer-events-none bg-popover text-popover-foreground">
           {label}
         </div>
       )}
@@ -244,7 +244,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
             <button
               onClick={() => setIsExpanded(false)}
               aria-label="Collapse components panel"
-              className="min-w-[44px] min-h-[44px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center rounded-[10px] transition-colors hover:bg-brand-bg text-muted-foreground"
+              className="min-w-[44px] min-h-[44px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center rounded-lg transition-colors hover:bg-brand-bg text-muted-foreground"
             >
               <PanelLeft className="w-4 h-4" />
             </button>
@@ -270,7 +270,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
                 <button
                   key={section.key}
                   onClick={() => setActiveSection(section.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[10px] text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                     activeSection === section.key ? 'bg-brand text-foreground' : 'text-muted-foreground'
                   }`}
                 >
@@ -290,7 +290,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
                 {customComponents.map((comp) => (
                   <div
                     key={comp.id}
-                    className="group flex items-center gap-2 px-2 py-2 rounded-[10px] text-sm transition-all cursor-grab hover:bg-brand text-foreground"
+                    className="group flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all cursor-grab hover:bg-brand text-foreground"
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData('application/archdraw', JSON.stringify(comp));
@@ -303,7 +303,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
                     onClick={() => handleAdd(comp)}
                   >
                     <div
-                      className="w-7 h-7 rounded-[8px] flex items-center justify-center text-white text-xs font-medium"
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-medium"
                       style={{ background: comp.color }}
                     >
                       {comp.label.charAt(0)}
@@ -317,7 +317,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
             {filteredComponents.map((comp) => (
               <div
                 key={comp.id}
-                className="group flex items-center gap-2 px-2 py-2 rounded-[10px] text-sm transition-all cursor-grab hover:bg-brand text-foreground"
+                className="group flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all cursor-grab hover:bg-brand text-foreground"
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData('application/archdraw', JSON.stringify(comp));
@@ -330,7 +330,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
                 onClick={() => handleAdd(comp)}
               >
                 <div
-                  className="w-7 h-7 rounded-[8px] flex items-center justify-center text-white text-xs font-medium"
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-medium"
                   style={{ background: comp.color }}
                 >
                   {comp.label.charAt(0)}
@@ -346,7 +346,7 @@ export function ComponentSidebar({ onOpenCreateModal }: ComponentSidebarProps) {
           {/* Footer */}
           <div className="p-3 border-t border-border">
             <Button
-              className="w-full justify-center gap-2 h-10 rounded-[12px] text-sm font-medium bg-brand text-foreground"
+              className="w-full justify-center gap-2 h-10 rounded-xl text-sm font-medium bg-brand text-foreground"
               style={{ border: 'none' }}
               onClick={() => { setShowCreateModal(true); }}
             >

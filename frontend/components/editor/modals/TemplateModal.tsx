@@ -248,7 +248,7 @@ function TemplateRow({
         className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition-all duration-200 ${
           isLocked
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
-            : 'bg-[#1E90FF] hover:bg-[#4dabf7] active:scale-98 text-white'
+            : 'bg-brand hover:bg-[#4dabf7] active:scale-98 text-white'
         }`}
       >
         {isLocked ? 'Sign in' : isLoading ? 'Laying out…' : 'Load'}

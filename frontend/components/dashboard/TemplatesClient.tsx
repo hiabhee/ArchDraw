@@ -36,7 +36,7 @@ function TemplateCard({
     >
       <div className="flex items-start justify-between mb-3">
         <div
-          className="w-12 h-12 rounded-[14px] flex items-center justify-center text-2xl"
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl"
           style={{ background: 'linear-gradient(135deg, #595959, #8A8A8A)' }}
         >
           {icon}
@@ -48,7 +48,7 @@ function TemplateCard({
         {tags.slice(0, 3).map((tag) => (
           <span
             key={tag}
-            className="px-2 py-0.5 rounded-[6px] text-xs bg-muted text-muted-foreground"
+            className="px-2 py-0.5 rounded-sm text-xs bg-muted text-muted-foreground"
           >
             {tag}
           </span>

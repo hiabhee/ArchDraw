@@ -21,7 +21,7 @@ function SidebarItem({ icon: Icon, label, active, onClick, badge }: SidebarItemP
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 cursor-pointer ${
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-200 cursor-pointer ${
         active
           ? 'bg-brand-bg text-brand-text shadow-sm'
           : 'text-text-secondary hover:bg-brand-bg hover:text-brand-text'
@@ -57,7 +57,7 @@ function CollapsibleGroup({
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 text-text-primary hover:bg-brand-bg hover:text-brand-text group cursor-pointer"
+        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-200 text-text-primary hover:bg-brand-bg hover:text-brand-text group cursor-pointer"
       >
         <Icon className="w-5 h-5" />
         <span className="text-xs font-semibold flex-1 text-left tracking-wider uppercase opacity-60">
@@ -78,7 +78,7 @@ function SubmenuItem({ label, active, onClick }: { label: string; active?: boole
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2 rounded-[12px] transition-all duration-200 cursor-pointer ${
+      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
         active
           ? 'bg-brand-bg text-brand-text shadow-sm'
           : 'text-text-muted hover:bg-brand-bg hover:text-brand-text'

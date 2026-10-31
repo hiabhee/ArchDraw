@@ -1,12 +1,9 @@
 import type { ReactNode } from 'react';
-import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import { body, display, mono } from './fonts';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
 import styles from './StatusPage.module.css';
 
-const display = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], variable: '--font-display', display: 'swap' });
-const body = Geist({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
-const mono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 /** A five-point star centred on (cx, cy), like the agent stars on the map. */
 function starPoints(cx: number, cy: number, r: number) {
@@ -46,7 +43,7 @@ export function StatusPage({ code, kicker, title, lead, actions, footnote }: {
   footnote?: ReactNode;
 }) {
   return (
-    <div className={`${styles.page} ${display.variable} ${body.variable} ${mono.variable}`}>
+    <div className={`dark ${styles.page} ${display.variable} ${body.variable} ${mono.variable}`}>
       <div className={styles.sky} aria-hidden="true" />
       <LandingNav />
       <main className={styles.main}>

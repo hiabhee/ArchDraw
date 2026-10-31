@@ -31,7 +31,7 @@
 .mmTitle { color: var(--ld-muted); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
 .item code { display: grid; color: var(--ink-soft); font-family: var(--font-mono); font-size: 11px; line-height: 1.6; white-space: pre; }
 .item code b { color: #82aaff; font-weight: 600; }
-.question { fill: #f5a524; font-family: var(--font-display), serif; font-size: 40px; font-style: italic; }
+.question { fill: var(--attention); font-family: var(--font-display), serif; font-size: 40px; font-style: italic; }
 
 @keyframes float { 50% { translate: 0 -5px; } }
 

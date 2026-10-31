@@ -214,7 +214,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                 {!searchQuery && (
                   <button
                     onClick={() => handleNewCanvas()}
-                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-[#1E90FF] hover:bg-[#4dabf7] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-brand hover:bg-[#4dabf7] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Create Canvas</span>
@@ -227,7 +227,7 @@ export function DashboardClient(_props: DashboardClientProps) {
           {/* Long New Canvas Button */}
           <button
             onClick={() => handleNewCanvas()}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-[#1E90FF]/40 bg-[#1E90FF]/5 hover:bg-[#1E90FF]/10 hover:border-[#1E90FF] text-[#1E90FF] text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-brand/40 bg-brand/5 hover:bg-brand/10 hover:border-brand text-brand-text text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
           >
             <Plus className="w-4 h-4" />
             <span>New Canvas</span>
@@ -263,7 +263,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                     </div>
                     <button
                       onClick={item.onClick}
-                      className="px-3 py-1 bg-surface-page hover:bg-[#1E90FF] hover:text-white border border-border-default hover:border-[#1E90FF] text-[10px] font-semibold rounded-lg text-text-primary transition-all cursor-pointer select-none shrink-0"
+                      className="px-3 py-1 bg-surface-page hover:bg-brand hover:text-white border border-border-default hover:border-brand text-[10px] font-semibold rounded-lg text-text-primary transition-all cursor-pointer select-none shrink-0"
                     >
                       {item.action}
                     </button>
@@ -291,7 +291,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
-                    className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
+                    className="h-full bg-brand rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(((quotaData?.canvases.current ?? totalCanvases) / (tier === 'guest' ? 1 : 5)) * 100, 100)}%` }}
                   />
                 </div>
@@ -308,7 +308,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
-                    className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
+                    className="h-full bg-brand rounded-full transition-all duration-500"
                     style={{ width: `${quotaData?.aiGenerations.unlimited ? 100 : Math.min(((quotaData?.aiGenerations.used ?? 0) / aiLimit) * 100, 100)}%` }}
                   />
                 </div>
@@ -327,7 +327,7 @@ export function DashboardClient(_props: DashboardClientProps) {
 
           {/* Guest Upgrade Banner */}
           {tier === 'guest' && (
-            <div className="border border-[#1E90FF]/30 rounded-xl p-5 bg-[#1E90FF]/5 space-y-4">
+            <div className="border border-brand/30 rounded-xl p-5 bg-brand/5 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-text-primary">Unlock the Full Experience</h3>
                 <p className="text-[11px] text-text-muted mt-0.5">Sign in for free to get more features.</p>

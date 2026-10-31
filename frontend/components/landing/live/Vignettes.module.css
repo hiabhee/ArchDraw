@@ -26,7 +26,7 @@
 .group { fill: rgba(255, 255, 255, .02); stroke: rgba(255, 255, 255, .1); }
 .groupText { fill: rgba(236, 233, 226, .45); font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .12em; }
 .part { fill: #14161b; stroke: rgba(255, 255, 255, .09); }
-.partActive { fill: #14161b; stroke: #7cb4ff; filter: drop-shadow(0 0 6px rgba(124, 180, 255, .5)); }
+.partActive { fill: #14161b; stroke: var(--star); filter: drop-shadow(0 0 6px rgba(124, 180, 255, .5)); }
 .partText { fill: rgba(236, 233, 226, .78); font-family: var(--font-mono); font-size: 9.5px; }
 
 .aimLine { fill: none; stroke: #62dcf0; stroke-width: 1.4; stroke-dasharray: 4 5; animation: march .9s linear infinite; }
@@ -96,7 +96,7 @@
 .coverageNum { color: var(--ink); font-family: var(--font-display); font-size: 40px; font-weight: 400; line-height: 1; animation: cover 6s ease-in-out infinite; counter-reset: cover var(--cover); }
 .coverageNum::after { content: counter(cover) '%'; }
 .meter { overflow: hidden; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .07); }
-.meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5fe0a8, #7cb4ff); animation: meter 6s ease-in-out infinite; transform-origin: left; }
+.meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5fe0a8, var(--star)); animation: meter 6s ease-in-out infinite; transform-origin: left; }
 .coverageNote { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ld-muted); font-size: 12.5px; }
 
 @keyframes cover { 0%, 30% { --cover: 97; } 45%, 80% { --cover: 88; } 95%, 100% { --cover: 97; } }

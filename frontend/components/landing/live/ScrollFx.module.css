@@ -5,7 +5,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #f5a524, #ffcf7a);
+  background: linear-gradient(90deg, var(--attention), #ffcf7a);
   box-shadow: 0 0 12px rgba(245, 165, 36, .6);
   transform-origin: 0 50%;
   pointer-events: none;
@@ -63,7 +63,7 @@
 /* Steps with a filling rail */
 .steps { position: relative; display: grid; margin: 0; padding: 0 0 0 28px; list-style: none; }
 .rail { position: absolute; top: 30px; bottom: 30px; left: 0; width: 2px; border-radius: 1px; background: var(--line); }
-.rail i { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, #f5a524, #7cb4ff); transform-origin: 50% 0; }
+.rail i { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, var(--attention), var(--star)); transform-origin: 50% 0; }
 .step {
   display: grid;
   grid-template-columns: 56px 1fr;
