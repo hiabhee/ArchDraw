@@ -462,7 +462,8 @@ export default function SimpleFloatingEdge({
       }
     }
     const resolved = labelLayout;
-    if (resolved && localLabelT === null) {
+    // A label the user placed (`labelT`) is read straight from the edge: the plan is not rebuilt while it is dragged.
+    if (resolved && localLabelT === null && typeof data?.labelT !== 'number') {
       // The shared label planner routes without React Flow's measured handle
       // centers. Keep its collision-aware position along the edge, but sample
       // the path we actually render so the pill is centered on the visible wire.

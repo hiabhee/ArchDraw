@@ -95,7 +95,8 @@ export function DiagramGeometryProvider({
     return result;
   }, [measuredNodes, edges]);
   const isDragging = nodes.some((node) => (node as Node & { dragging?: boolean }).dragging === true);
-  const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors }), [direction, renderStyleId, iconMode, handleAnchors]);
+  // A label drag rewrites `labelT` on every pointer move; keep it out of the plan key so the other edges are not re-planned (and flicker to their fallback routes) mid-drag.
+  const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true }), [direction, renderStyleId, iconMode, handleAnchors]);
   const geometryKey = useMemo(() => geometrySnapshotKey(measuredNodes, edges, options), [measuredNodes, edges, options]);
   useEffect(() => {
     if (isDragging) return;
