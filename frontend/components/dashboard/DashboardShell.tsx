@@ -8,6 +8,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
 import { UserAvatar, SettingsPanel } from '@/components/auth/UserAvatar';
 import { RecentCanvases } from './RecentCanvases';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 interface SidebarItemProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -196,13 +197,7 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
           {/* Drawer Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 px-1">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center bg-brand"
-              >
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-                </svg>
-              </div>
+              <BrandMark size={32} />
               <div>
                 <span className="font-semibold text-text-primary block leading-tight">ArchDraw</span>
                 <span className="text-[10px] text-text-muted">Workspace</span>
@@ -309,13 +304,7 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
         >
           {/* Logo & Title */}
           <div className="flex items-center gap-3 px-2 mb-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-brand"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-              </svg>
-            </div>
+            <BrandMark size={32} />
             <div>
               <span className="font-semibold text-text-primary block leading-tight">ArchDraw</span>
               <span className="text-[10px] text-text-muted">Workspace</span>
