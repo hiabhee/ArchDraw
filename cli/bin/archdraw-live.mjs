@@ -47,7 +47,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (!arg.startsWith('--')) out._.push(arg);
     else if (arg.includes('=')) out[arg.slice(2, arg.indexOf('='))] = arg.slice(arg.indexOf('=') + 1);
-    else if (['api'].includes(arg.slice(2))) out[arg.slice(2)] = argv[++i];
+    else if (['api', 'query'].includes(arg.slice(2))) out[arg.slice(2)] = argv[++i];
     else out[arg.slice(2)] = true;
   }
   return out;
@@ -160,14 +160,14 @@ function reportLeftovers(problems) {
 }
 
 /** Claude reads the code and publishes the map. */
-async function mapWithClaude(root, binding) {
+async function mapWithClaude(root, binding, query) {
   if (!hasCommand('claude')) {
     warn(`Claude Code isn't installed, so the map stays empty. Install it, then run ${bold('npx -y archdraw-live --map')}: ${bold('npm install -g @anthropic-ai/claude-code')}`);
     return false;
   }
   console.log(dim('Claude is reading your code (read-only) to draw the map. You can watch it on the live map.'));
   const tty = process.stdout.isTTY;
-  const result = await mapAndCheck(root, mappingPrompt(), listFiles(root), checkedRun(tty));
+  const result = await mapAndCheck(root, mappingPrompt(query), listFiles(root), checkedRun(tty));
   if (tty) process.stdout.write('\r\x1b[2K');
   if (!result.ok) {
     warn(`${result.reason} Try \`npx -y archdraw-live --map\` again.`);
@@ -192,7 +192,7 @@ async function mapWithClaude(root, binding) {
  * The detailed map: Claude opens each overview component up into its
  * modules and files. Shown with the Overview | Detailed switch on the map.
  */
-async function mapDetailWithClaude(root, binding) {
+async function mapDetailWithClaude(root, binding, query) {
   if (!hasCommand('claude')) {
     warn(`Claude Code isn't installed. Install it to draw the detailed map: ${bold('npm install -g @anthropic-ai/claude-code')}`);
     return false;
@@ -207,7 +207,7 @@ async function mapDetailWithClaude(root, binding) {
   console.log(dim('Now the detailed map: Claude opens each component up into its modules and files. The overview is ready to look at meanwhile.'));
   const tty = process.stdout.isTTY;
   const { nodes, areas } = readMermaid(overview.body.mermaid);
-  const result = await mapAndCheck(root, detailPrompt(overview.body), listFiles(root), {
+  const result = await mapAndCheck(root, detailPrompt(overview.body, query), listFiles(root), {
     ...checkedRun(tty),
     requiredIds: [...areas.keys(), ...nodes.keys()],
   });
@@ -233,8 +233,8 @@ async function mapDetailWithClaude(root, binding) {
 
 /** Overview first (always), then the detailed map unless --no-detail. */
 async function mapAll(root, binding, flags) {
-  const mapped = await mapWithClaude(root, binding);
-  if (mapped && !flags['no-detail']) await mapDetailWithClaude(root, binding);
+  const mapped = await mapWithClaude(root, binding, flags.query);
+  if (mapped && !flags['no-detail']) await mapDetailWithClaude(root, binding, flags.query);
   return mapped;
 }
 
@@ -358,7 +358,7 @@ const HELP = `${bold('archdraw-live')} ${VERSION} — watch your coding agents o
   npx -y archdraw-live status       show this repository's live map link
   npx -y archdraw-live stop         disconnect this repository
 
-Options: --api <url> (default ${DEFAULT_API}), --no-open, --no-map (set up without drawing the map), --no-detail (overview only)
+Options: --api <url> (default ${DEFAULT_API}), --query <text> (custom prompt for the AI), --no-open, --no-map (set up without drawing the map), --no-detail (overview only)
 Sent: component names, folder paths, and which files each session reads or edits. Never code or prompts.`;
 
 const flags = parseArgs(process.argv.slice(2));

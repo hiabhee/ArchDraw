@@ -48,7 +48,7 @@ const JSON_BLOCK = (ids) => [
   '   `"api -> jobs_queue": "src/api/upload.ts:42 enqueues resize job"`.',
 ];
 
-export function mappingPrompt() {
+export function mappingPrompt(query) {
   return [
     'Map the architecture of the repository in the current directory for ArchDraw, a live architecture diagram that shows coding agents on the component they work on.',
     READ_ONLY,
@@ -70,8 +70,10 @@ export function mappingPrompt() {
     '   so most of them run left to right. At most one direction between two components. An orchestrator or runner connects to the',
     '   first component it starts, not to every stage. Label the edges of the main flow with what moves, 1–3 words:',
     '   `scene_prep -->|"scene tiles"| model`. Leave obvious edges unlabelled.',
+    '   LAYOUT & TIDINESS: Minimize edge crossings. Use subgraphs to create clear "lanes" of flow. Prefer edges that follow the general flow (L->R) and avoid backtracking or crossing through other components.',
+    query ? `User query: ${query}` : null,
     ...JSON_BLOCK('component id'),
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 /**
@@ -79,7 +81,7 @@ export function mappingPrompt() {
  * parts. Keeps the overview's ids (areas and components become nested
  * boxes), so agents shown on a component stay on its box.
  */
-export function detailPrompt(overview) {
+export function detailPrompt(overview, query) {
   return [
     'Draw the detailed architecture map of the repository in the current directory for ArchDraw.',
     READ_ONLY,
@@ -97,6 +99,8 @@ export function detailPrompt(overview) {
     '   25–60 parts in total. Keep the overview areas in the same order. Edges: the real calls and data flow between parts',
     '   (also across components), at most about 1.5 per part, pointing the way data moves (producer → consumer), at most one',
     '   direction between two parts, labelled with what moves when it is not obvious: `a -->|"masks"| b`.',
+    '   LAYOUT & TIDINESS: Minimize edge crossings. Prefer edges that follow the general flow (L->R) and avoid backtracking or crossing through other components.',
+    query ? `User query: ${query}` : null,
     ...JSON_BLOCK('part id AND every component id (parts are more specific than their component)'),
     '',
     'Overview map:',
@@ -107,7 +111,7 @@ export function detailPrompt(overview) {
     '```json',
     JSON.stringify(overview.componentPaths ?? {}, null, 2),
     '```',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 /** The same task again, with the previous answer and what is wrong with it. */
