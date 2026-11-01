@@ -1,3 +1,5 @@
+import { LiveMapShot } from '../LiveMapShot';
+
 import Link from 'next/link';
 import { body, display, mono } from '../fonts';
 import { LandingBootstrap } from '@/components/landing/LandingBootstrap';
@@ -49,6 +51,12 @@ const FEATURES = [
     title: 'Who needs you, in order',
     body: 'Permission requests first, longest wait first. The terminal tab says it too, and browser notifications are one click away.',
     art: <NeedsYouVignette />,
+    wide: true,
+  },
+  {
+    title: 'The Live Map',
+    body: 'Watch your agents walk the codebase in real-time. See where they are, what they are editing, and when they are blocked.',
+    art: <LiveMapShot />,
     wide: true,
   },
   {
