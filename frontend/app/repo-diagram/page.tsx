@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, GitBranch, Workflow, Layers, ShieldCheck, ScanSearch, Network } from 'lucide-react';
+import { BrandMark } from '@/components/ui/BrandMark';
 export const metadata = {
   title: 'How to generate an architecture diagram from a GitHub repo with AI',
   description:
@@ -97,11 +98,7 @@ function Header() {
     >
       <div className="max-w-[980px] mx-auto px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[hsl(var(--foreground))]">
-            <svg className="w-3.5 h-3.5 text-[hsl(var(--background))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-            </svg>
-          </div>
+          <BrandMark size={28} />
           <span className="font-semibold text-sm text-[hsl(var(--foreground))] tracking-tight">ArchDraw</span>
         </Link>
         <nav className="flex items-center gap-4 text-xs font-semibold">

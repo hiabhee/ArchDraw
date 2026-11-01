@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 /** The site nav: night palette (the landing's), built only from the shared tokens. */
 const NAV_LINKS = [
@@ -16,12 +16,8 @@ const NAV_LINKS = [
 ];
 
 export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
-  const pathname = usePathname();
   const { user, initialized } = useAuthStore();
   const isAuthenticated = initialized && Boolean(user && user.id !== 'guest');
-  const startHref = pathname === '/' ? '#start' : '/#start';
-  // On the landing the hero command is the one filled button; the nav's stays outlined.
-  const quietCta = pathname === '/';
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -45,13 +41,7 @@ export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
       <div className="max-w-[1280px] mx-auto px-6 h-full flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className={`w-7 h-7 rounded-lg bg-text-primary shadow-[0_0_18px_color-mix(in_oklab,var(--text-primary)_25%,transparent)] flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105`}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--surface-page)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
+            <BrandMark size={28} className="shadow-[0_0_18px_color-mix(in_oklab,var(--text-primary)_25%,transparent)] flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105" />
             <span className={`text-sm font-bold text-text-primary tracking-tight ${outfitClassName ?? ''}`}>
               ArchDraw
             </span>
@@ -87,14 +77,6 @@ export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
                 className={`text-sm text-text-secondary hover:text-text-primary px-4 py-1.5 rounded-lg border border-text-primary/[0.12] bg-text-primary/[0.03] hover:bg-text-primary/[0.07] transition-[color,background-color,border-color] duration-150 font-medium`}
               >
                 Sign in
-              </a>
-              <a
-                href={startHref}
-                data-track="nav_get_started"
-                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${quietCta ? 'border border-text-primary/[0.18] text-text-primary hover:bg-text-primary/[0.07]' : 'bg-text-primary text-surface-page hover:bg-white active:bg-text-secondary'} px-4 py-1.5 rounded-lg transition-colors duration-150 whitespace-nowrap`}
-              >
-                Get started
-                <ArrowRight className="w-3.5 h-3.5" />
               </a>
             </>
           )}
@@ -140,13 +122,6 @@ export function LandingNav({ outfitClassName }: { outfitClassName?: string }) {
                   className={`text-sm text-text-secondary hover:text-text-primary py-3 transition-colors font-medium`}
                 >
                   Sign in
-                </a>
-                <a
-                  href={startHref}
-                  onClick={() => setMenuOpen(false)}
-                  className={`text-sm font-semibold text-center bg-text-primary text-surface-page hover:bg-white px-4 py-3 rounded-lg transition-colors`}
-                >
-                  Get started
                 </a>
               </>
             )}

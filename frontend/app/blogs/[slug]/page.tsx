@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Clock, Tag, ArrowLeft, Calendar } from 'lucide-react';
 import { blogs } from '@/data/blogs';
 import { BlogDemo } from '@/components/landing/BlogDemo';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 interface BlogDetailProps {
   params: Promise<{
@@ -50,13 +51,7 @@ function BlogDocsHeader({ activeTab }: { activeTab: 'docs' | 'blogs' }) {
         <div className="flex items-center gap-6">
           {/* Logo & Brand */}
           <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center bg-[hsl(var(--foreground))]"
-            >
-              <svg className="w-3.5 h-3.5 text-[hsl(var(--background))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-              </svg>
-            </div>
+            <BrandMark size={28} />
             <span className="font-semibold text-sm text-[hsl(var(--foreground))] tracking-tight">ArchDraw</span>
           </Link>
 
