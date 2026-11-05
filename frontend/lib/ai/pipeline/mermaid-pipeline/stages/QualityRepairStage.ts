@@ -30,6 +30,8 @@ export async function repairDiagramQuality(data: AiPipelineData, context: Pipeli
     const mermaidCode = repaired.mermaidCode.replace(/^(\s*)(?:graph|flowchart)\s+(?:TD|TB|LR)\b/m, `$1${direction}`);
     const materialized = await runMermaidPipeline(mermaidCode, {
       diagramKind: inferDiagramKind(data.prompt),
+      layoutProfile: 'studio-minimal',
+      areaOrder: 'flow',
       pruneOrphans: false,
     });
     if (!isDomainSuccess(materialized) || !materialized.data.nodes.length) return successResult(attempted, ['[QUALITY_REPAIR_RETAINED] Retained the original diagram because the quality revision failed or did not safely improve it.']);

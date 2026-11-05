@@ -1,7 +1,7 @@
 import type { Direction } from '@/lib/diagram/pipeline-shared/reactflow/types';
 import type { Node, Edge } from 'reactflow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
-import { runMermaidPipeline } from './pipeline';
+import { runMermaidPipeline, type MermaidLayoutProfile } from './pipeline';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { resolveShapeNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { ensureDiagramHeading } from './diagramHeading';
@@ -28,6 +28,16 @@ export interface RelayoutOptions {
   title?: string;
   /** Applies an appearance-specific spacing profile without changing topology. */
   renderStyleId?: DiagramRenderStyleId;
+  /** `zones`: hub-and-zones placement (clients left, data above, chains below); `flow` (default): rank columns. */
+  layoutStyle?: 'flow' | 'zones';
+  /** Fold a long flow into rows when that fits the screen far better (live project maps). */
+  foldLongFlows?: boolean;
+  /** Lay out some groups the other way when that fits the screen clearly better (default on). */
+  mixGroupDirections?: boolean;
+  /** Spacing profile for live project maps (the same one the agent's publish uses). */
+  layoutProfile?: MermaidLayoutProfile;
+  /** Areas in data-flow order (the same one the agent's publish uses). */
+  areaOrder?: 'flow';
 }
 
 // Templates and editor entry points often request layout more than once for
@@ -105,7 +115,7 @@ export async function layoutDiagramViaMermaid(
   if (!byEdges) { byEdges = new WeakMap(); relayoutCache.set(nodes, byEdges); }
   let byOptions = byEdges.get(edges);
   if (!byOptions) { byOptions = new Map(); byEdges.set(edges, byOptions); }
-  const cacheKey = JSON.stringify([direction, options.title ?? '', options.renderStyleId ?? '']);
+  const cacheKey = JSON.stringify([direction, options.title ?? '', options.renderStyleId ?? '', options.layoutStyle ?? 'flow', options.foldLongFlows ?? false, options.mixGroupDirections ?? true, options.layoutProfile ?? '', options.areaOrder ?? '']);
   const cachedLayout = byOptions.get(cacheKey);
   if (cachedLayout) return cachedLayout;
 
@@ -157,8 +167,13 @@ export async function layoutDiagramViaMermaid(
     }
     const mermaid = reactFlowToMermaid(layoutNodes, orderedLayoutEdges, direction);
     const result = await runMermaidPipeline(mermaid, {
-      layoutProfile: options.renderStyleId === 'studio-minimal' || options.renderStyleId === 'studio-metallic' ? 'studio-minimal' : undefined,
+      layoutProfile: options.layoutProfile
+        ?? (options.renderStyleId === 'studio-minimal' || options.renderStyleId === 'studio-metallic' ? 'studio-minimal' : undefined),
       edgeSemantics,
+      layoutStyle: options.layoutStyle,
+      foldLongFlows: options.foldLongFlows,
+      mixGroupDirections: options.mixGroupDirections,
+      areaOrder: options.areaOrder,
     });
 
     if (!isDomainSuccess(result)) {

@@ -4,33 +4,53 @@ import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { measureLayoutAesthetics } from '../layout/layoutAesthetics';
 
 /**
- * Every shipped template, laid out the way the app lays it out, is held to a
- * floor: straight one-to-one links must stay straight (the symmetry pass moves
- * whole chains, never one end of a link), and a fan that can be centered is.
- * Floors are the values measured when the pass shipped; raise them as the
- * layout improves, never lower them.
+ * Every shipped template, in both directions, laid out the way the app lays it
+ * out and held to two ratchets:
+ *
+ * - `STRAIGHT_FLOOR`: the share of one-to-one links that run dead straight.
+ * - `FAN_CEILING`: the largest miss, in px, between a fan's parent and the mean
+ *   of its branches (fans that skip columns are not branches; see
+ *   `layoutAesthetics.ts`).
+ *
+ * Values are the ones measured when this shipped. Raise a floor or lower a
+ * ceiling as the layout improves, never the other way. Templates with no entry
+ * use the defaults.
  */
-const STRAIGHT_FLOOR: Record<string, number> = {
-  chatgpt: 1,
-  instagram: 0.8, // media flows rewired through the CDN and worker for accuracy
-  video_streaming: 1,
-  netflix: 0.7,
-  rideshare: 1,
-  fintech_payments: 1,
-  microservices: 1,
-  layered: 1,
-  food_delivery: 1,
-  clean_architecture: 1,
+const DEFAULT_STRAIGHT_FLOOR = 1;
+const DEFAULT_FAN_CEILING = 10;
+
+const STRAIGHT_FLOOR: Record<string, number> = {};
+
+/** Key: `${template id}:${LR|TD}`. Every template not listed here must be within the default. */
+const FAN_CEILING: Record<string, number> = {
+  // Dense and flat (56 nodes): interlocking fans that cannot all be centred.
+  'archdraw_self:LR': 350,
+  'archdraw_self:TD': 535,
+  // A triangle of mutual fans (controller → model + view, model → view) cannot
+  // centre all three at once; this is the best the solver finds.
+  'repo_to_diagram:LR': 65,
+  'repo_to_diagram:TD': 115,
+  'mvc:LR': 65,
+  'mvc:TD': 115,
+  // Accuracy fixes: Netflix clients call the API gateway directly (not through Open Connect),
+  // and Search's index no longer "syncs" back to the DB. Both leave fans no layout can centre.
+  'netflix:LR': 155,
+  'netflix:TD': 285,
+  'search:LR': 60,
+  'search:TD': 112,
 };
 
-describe('layout aesthetics across the shipped templates', () => {
-  it('keeps one-to-one links straight and never leaves a fan further off-center than before', async () => {
+describe('layout aesthetics across every shipped template', () => {
+  it('keeps one-to-one links straight and fans centred within their ratchet', async () => {
     for (const template of TEMPLATES) {
-      const laid = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR');
-      const score = measureLayoutAesthetics(laid.nodes, laid.edges, 'LR');
-      const floor = STRAIGHT_FLOOR[template.id];
-      if (floor !== undefined) expect(score.straightEdgeRatio, `${template.id} straight links`).toBeGreaterThanOrEqual(floor);
-      expect(Number.isFinite(score.fanCenteringError)).toBe(true);
+      for (const direction of ['LR', 'TD'] as const) {
+        // Folding wraps a long flow into rows and splits fans across them on purpose; this measures the symmetry engine's own layout.
+        const laid = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { foldLongFlows: false });
+        const score = measureLayoutAesthetics(laid.nodes, laid.edges, direction);
+        const label = `${template.id} ${direction}`;
+        expect(score.straightEdgeRatio, `${label} straight links`).toBeGreaterThanOrEqual(STRAIGHT_FLOOR[template.id] ?? DEFAULT_STRAIGHT_FLOOR);
+        expect(score.fanCenteringError, `${label} fan centring (px)`).toBeLessThanOrEqual(FAN_CEILING[`${template.id}:${direction}`] ?? DEFAULT_FAN_CEILING);
+      }
     }
-  }, 120_000);
+  }, 300_000);
 });

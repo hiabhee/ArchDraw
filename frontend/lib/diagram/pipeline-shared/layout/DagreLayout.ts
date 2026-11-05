@@ -17,6 +17,7 @@ import {
 } from './LayoutEngine';
 import { SUBGRAPH_PADDING_X, SUBGRAPH_PADDING_TOP, SUBGRAPH_PADDING_BOTTOM } from './layoutConstants';
 import { layoutCompoundTwoPhase } from './CompoundLayout';
+import { settleLayout } from './columnSpacing';
 import { symmetrizeFans } from './symmetry';
 import logger from '@/lib/logger';
 
@@ -56,7 +57,7 @@ export class DagreLayoutEngine implements LayoutEngine {
     const compound = layoutCompoundTwoPhase(params);
     if (compound) {
       logger.debug('[dagre] layout path: two-phase compound', { nodes: params.nodes.length });
-      return symmetrizeFans(compound, params);
+      return params.options?.settle === false ? compound : settleLayout(compound, params, symmetrizeFans);
     }
     logger.debug('[dagre] layout path: flat compound', { nodes: params.nodes.length });
 
@@ -169,7 +170,7 @@ export class DagreLayoutEngine implements LayoutEngine {
     });
 
     const rankEdges = selectAcyclicLayoutEdges(
-      aggregateLayoutEdges(layoutEdges.filter((edge): edge is LayoutEdge => edge !== null)),
+      aggregateLayoutEdges(layoutEdges.filter((edge): edge is LayoutEdge => edge !== null), params.direction),
       params.direction,
       params.nodes.map(node => node.id),
     );
@@ -289,7 +290,8 @@ export class DagreLayoutEngine implements LayoutEngine {
       })
       .filter((e): e is PositionedEdge => e !== null);
 
-    return symmetrizeFans({ nodes: positionedNodes, edges: positionedEdges, warnings }, params);
+    const laidOut = { nodes: positionedNodes, edges: positionedEdges, warnings };
+    return params.options?.settle === false ? laidOut : settleLayout(laidOut, params, symmetrizeFans);
   }
 
   async layout(params: LayoutParams): Promise<LayoutResult> {

@@ -33,7 +33,7 @@ describe('layoutDiagramViaMermaid', () => {
     expect(encoded.every(id => /^layout_[a-f0-9]+$/.test(id))).toBe(true);
   });
 
-  it('gives Studio Minimal a wider editorial rank rhythm without changing the default profile', async () => {
+  it('packs Studio Minimal cards closer than the default profile so a fitted map stays readable', async () => {
     const nodes: Node[] = [node('client', 'Client'), node('api', 'API'), node('data', 'Data')];
     const edges: Edge[] = [
       { id: 'e1', source: 'client', target: 'api' } as Edge,
@@ -51,7 +51,7 @@ describe('layoutDiagramViaMermaid', () => {
       return target.position.x - (source.position.x + (source.width ?? 0));
     };
 
-    expect(gapAfter(studio, 'client', 'api')).toBeGreaterThan(gapAfter(standard, 'client', 'api'));
+    expect(gapAfter(studio, 'client', 'api')).toBeLessThan(gapAfter(standard, 'client', 'api'));
   });
 
   it('sizes an outer group to contain nested group children (LR)', async () => {

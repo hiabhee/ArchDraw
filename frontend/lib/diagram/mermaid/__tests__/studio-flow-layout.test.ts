@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runMermaidPipeline } from '../pipeline';
+import { STUDIO_CARD_HEIGHT, STUDIO_CARD_WIDTH_WITH_ICON } from '@/lib/diagram/nodes/studioMetrics';
 
 // Shape of an agent-published project map: sources in an External group feed
 // an ingestion group that fans into a pipeline.
@@ -29,7 +30,7 @@ const MAP = `graph LR
 type LaidOut = { id: string; parentNode?: string; position: { x: number; y: number }; width?: number; height?: number; style?: { width?: number } };
 
 async function layout(profile?: 'studio-minimal') {
-  const result = await runMermaidPipeline(MAP, { layoutProfile: profile });
+  const result = await runMermaidPipeline(MAP, { layoutProfile: profile, foldLongFlows: false });
   if (!result.success) throw new Error('pipeline failed');
   const nodes = result.data.nodes as unknown as LaidOut[];
   return { nodes, byId: new Map(nodes.map((node) => [node.id, node])) };
@@ -41,8 +42,8 @@ describe('studio-minimal project layout', () => {
     for (const node of nodes.filter((n) => n.parentNode)) {
       const group = byId.get(node.parentNode!)!;
       const groupWidth = group.width ?? group.style?.width ?? 0;
-      expect(node.width).toBe(200);
-      expect(node.height).toBeGreaterThanOrEqual(64);
+      expect(node.width).toBe(STUDIO_CARD_WIDTH_WITH_ICON);
+      expect(node.height).toBeGreaterThanOrEqual(STUDIO_CARD_HEIGHT);
       expect(node.position.x).toBeGreaterThanOrEqual(28);
       expect(groupWidth - node.position.x - node.width!).toBeGreaterThanOrEqual(28);
     }
@@ -87,7 +88,7 @@ const LOOPY = `graph LR
   analyse --> train`;
 
 async function areaXOrder(mermaid: string, areaOrder?: 'flow' | string[]) {
-  const result = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder });
+  const result = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder, foldLongFlows: false });
   if (!result.success) throw new Error('pipeline failed');
   return (result.data.nodes as unknown as LaidOut[])
     .filter((n) => !n.parentNode && ['Ingest', 'Training', 'Inference', 'Analysis'].includes(n.id))
@@ -137,7 +138,7 @@ describe('areas in data-flow order', () => {
   orders -->|writes| postgres
   payments -->|charges| stripe
   search -->|reads| postgres`;
-    const result = await runMermaidPipeline(shop, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+    const result = await runMermaidPipeline(shop, { layoutProfile: 'studio-minimal', areaOrder: 'flow', foldLongFlows: false });
     if (!result.success) throw new Error('pipeline failed');
     const box = new Map((result.data.nodes as unknown as LaidOut[]).filter((n) => !n.parentNode).map((n) => [n.id, n.position]));
     // Without flowAreas on the repair pass, Data became a sidecar lane above API.
