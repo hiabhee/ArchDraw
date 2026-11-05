@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, useState, type ReactNode } from 'react';
 import { useStore, type Edge, type Node, type ReactFlowState } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
-import { computeDiagramGeometryPreview, computeDiagramGeometryPlan, geometrySnapshotKey, type DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
+import { computeDiagramGeometryPlan, geometrySnapshotKey, type DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
 import { computeDiagramGeometryInWorker } from '@/lib/diagram/geometry/diagramGeometryWorkerClient';
 import type { EdgeRouteHandleAnchors } from '@/lib/diagram/edges/edgeRouteBuilder';
 
@@ -14,6 +14,16 @@ class DiagramGeometryStore {
   edges = new Map<string, EdgeGeometrySnapshot>();
   allListeners = new Set<() => void>();
   edgeListeners = new Map<string, Set<() => void>>();
+  dragging = false;
+  draggingListeners = new Set<() => void>();
+  subscribeDragging = (listener: () => void) => { this.draggingListeners.add(listener); return () => this.draggingListeners.delete(listener); };
+  getDragging = () => this.dragging;
+  /** Flips once per drag, so edges re-render at drag start and end, not every frame. */
+  setDragging(value: boolean) {
+    if (value === this.dragging) return;
+    this.dragging = value;
+    this.draggingListeners.forEach(listener => listener());
+  }
   subscribeAll = (listener: () => void) => { this.allListeners.add(listener); return () => this.allListeners.delete(listener); };
   subscribeEdge = (id: string, listener: () => void) => {
     const listeners = this.edgeListeners.get(id) ?? new Set<() => void>(); listeners.add(listener); this.edgeListeners.set(id, listeners);
@@ -37,6 +47,12 @@ class DiagramGeometryStore {
 }
 const geometryStore = new DiagramGeometryStore();
 const DiagramGeometryContext = createContext(geometryStore);
+
+/** True while a node is being dragged. Changes only at drag start and end. */
+export function useDiagramDragging(): boolean {
+  const store = useContext(DiagramGeometryContext);
+  return useSyncExternalStore(store.subscribeDragging, store.getDragging, store.getDragging);
+}
 const settledPlans = new Map<string, DiagramGeometryPlan>();
 const settledPlanListeners = new Map<string, Set<() => void>>();
 function subscribeToSettledPlan(key: string, listener: () => void): () => void {
@@ -117,14 +133,14 @@ export function DiagramGeometryProvider({
     return () => clearTimeout(timer);
   }, [isDragging, geometryKey, measuredNodes, edges, options, planStoreKey]);
 
+  // During a drag the diagram keeps the last plan it had, instead of rebuilding
+  // a preview for every pointer move.
   const plan = useMemo(() => {
     if (workerPlan?.key === geometryKey) return workerPlan;
     if (settledPlan?.key === geometryKey) return settledPlan;
-    // A moving node invalidates the snapshot continuously; don't pollute the
-    // settled-plan LRU with pointer-move states. Drag-stop publishes one cached
-    // final snapshot once React Flow clears its dragging flag.
-    if (isDragging && settledPlan) {
-      return computeDiagramGeometryPreview(settledPlan, measuredNodes, edges, options);
+    if (isDragging) {
+      const held = settledPlan ?? geometryStore.plan;
+      if (held) return held;
     }
     // Let the canvas paint nodes immediately while the route plan is built in
     // a worker. Edges use their existing deterministic route fallback.
@@ -134,9 +150,10 @@ export function DiagramGeometryProvider({
       quality: { hardViolations: 0, crossings: 0, weightedCrossings: 0, unexplainedPrivateOverlapLength: 0,
         criticalPathDisconnectCount: 0, bendCount: 0, totalPathLength: 0, area: 0 }, provisional: true,
     };
-  }, [measuredNodes, edges, options, isDragging, settledPlan, workerPlan, geometryKey]);
+  }, [isDragging, settledPlan, workerPlan, geometryKey]);
 
   useEffect(() => { geometryStore.set(plan); }, [plan]);
+  useEffect(() => { geometryStore.setDragging(isDragging); }, [isDragging]);
 
   // Only hard issues (an edge through a node, colliding nodes) interrupt the
   // user. Soft ones are mostly ordinary crossings, which any dense
