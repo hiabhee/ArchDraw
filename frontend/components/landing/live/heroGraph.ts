@@ -52,7 +52,7 @@ export interface HeroGraph { nodes: Node[]; edges: Edge[] }
 export interface HeroGraphs { base: HeroGraph; mapped: HeroGraph; change: StructureChange }
 
 async function layout(mermaid: string): Promise<HeroGraph> {
-  const result = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+  const result = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-live', areaOrder: 'flow', foldLongFlows: true });
   if (!isDomainSuccess(result)) throw new Error('Landing hero diagram failed to lay out');
   return { nodes: result.data.nodes as unknown as Node[], edges: result.data.edges as unknown as Edge[] };
 }

@@ -42,6 +42,24 @@
         "value": "inter",
         "createdAt": "2026-10-02T13:00:29.693Z",
         "reason": "User confirmed Inter as the shared Precision and Studio diagram typeface."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/components/landing/live/LiveLanding.module.css"
+        ],
+        "createdAt": "2026-11-01T06:01:32.769Z",
+        "reason": "intentional design: status flag triangles"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "frontend/components/landing/live/LiveLanding.module.css"
+        ],
+        "createdAt": "2026-11-01T06:01:38.611Z",
+        "reason": "intentional design: status flag triangles"
       }
     ]
   }

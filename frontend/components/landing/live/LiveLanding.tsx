@@ -9,8 +9,6 @@ import { Footer } from '@/components/landing/Footer';
 import { LazyLiveMapHero } from './LazyLiveMapHero';
 import { buildHeroGraphs } from './heroGraph';
 import { CopyCommand } from './CopyCommand';
-import { HeadlineWire } from './HeadlineWire';
-import { HeroSouvenirs } from './HeroSouvenirs';
 import { PlayOnView } from './PlayOnView';
 import { MorphingTabs, Parallax, ScrollProgress, ScrollSteps, ScrollTilt, WordRise } from './ScrollFx';
 import {
@@ -34,7 +32,7 @@ export const LIVE_FAQS = [
   },
   {
     question: 'Does mapping use my Claude plan?',
-    answer: 'Yes. The map is drawn by your own Claude Code with read-only tools (Read, Grep, Glob). The overview takes one to three minutes, the detailed map a little longer. You can skip it, but the map stays empty until you run it.',
+    answer: 'Yes. The map is drawn by your own Claude Code with read-only tools (Read, Grep, Glob). The overview takes one to three minutes. The detailed map is drawn only when you ask for it, from the Detailed button. You can skip the overview too, but the map stays empty until you run it.',
   },
   {
     question: 'Will it slow my agents down?',
@@ -92,7 +90,7 @@ const TERMINAL: { text: string; kind?: 'cmd' | 'ok' | 'dim' | 'ask' | 'bold' }[]
   { text: 'Setting up a live map for acme-shop…' },
   { text: '✓ Project created (link saved in ~/.archdraw/projects.json, outside your repo)', kind: 'ok' },
   { text: '✓ Claude Code connected (hooks in ~/.claude/settings.json)', kind: 'ok' },
-  { text: 'Claude (your Claude account, read-only) now reads your code and draws the map: 1–3 minutes, then the detailed map. Skip it with --no-map.', kind: 'dim' },
+  { text: 'Claude (your Claude account, read-only) now reads your code and draws the overview: 1–3 minutes. Skip it with --no-map.', kind: 'dim' },
   { text: 'Claude is reading your code (read-only) to draw the map.', kind: 'dim' },
   { text: '✓ Claude mapped 14 components (the live map has updated)', kind: 'ok' },
   { text: '✓ Detailed map: 46 parts (switch to "Detailed" at the top of the live map)', kind: 'ok' },
@@ -108,7 +106,7 @@ const STEPS = [
   {
     n: '02',
     title: 'Let Claude draw the real map',
-    body: 'Your own Claude Code reads the repository, read-only, right after setup. The overview lands in one to three minutes; the detailed map follows.',
+    body: 'Your own Claude Code reads the repository, read-only, right after setup. The overview lands in one to three minutes. The detailed map is drawn on request.',
   },
   {
     n: '03',
@@ -153,52 +151,46 @@ export default async function LiveLanding() {
         {/* ── Hero ─────────────────────────────────────────── */}
         <section id="start" className={styles.hero} aria-labelledby="hero-title">
           <Parallax speed={-90} className={styles.skyLayer}><div className={styles.sky} aria-hidden="true" /></Parallax>
-          <div className={`${styles.shell} ${styles.heroFold}`}>
-            {/* Static on purpose: the headline is the page's largest paint, so it
-                never waits for JavaScript (a CSS rise moves it, never hides it). */}
-            <div className={`${styles.heroTop} ${styles.heroRise}`}>
-              <p className={styles.eyebrow}><span className={styles.liveDot} /> Live maps for Claude Code</p>
-              <h1 id="hero-title" className={styles.heroTitle}>
-                See which Claude Code agent{' '}
-                <em>
-                  {/* The outcome, drawn as a selected node on the canvas. */}
-                  <span className={styles.selected} data-wire-from>
-                    needs you.
-                    <i className={styles.handle} data-at="tl" aria-hidden="true" />
-                    <i className={styles.handle} data-at="tr" aria-hidden="true" />
-                    <i className={styles.handle} data-at="bl" aria-hidden="true" />
-                    <i className={styles.handle} data-at="br" aria-hidden="true" />
-                    <span className={styles.selTag} aria-hidden="true"><i /> Otter · waiting 11m</span>
-                  </span>
-                </em>
-              </h1>
-              <div className={styles.heroAside}>
-                <p className={styles.heroLead}>
-                  A live map of your codebase with every Claude Code session on it. See where each one works, what it is
-                  doing, and which one is blocked.
-                </p>
-                <div className={styles.ctaRow}>
-                  <span data-wire-to><CopyCommand size="lg" track="landing_copy_hero" /></span>
-                </div>
-                <ul className={styles.proof} aria-label="Why it is safe to try">
-                  <li>Free. No account, no credit card.</li>
-                  <li>Your code, commands and prompts stay on your machine.</li>
-                  <li>Read-only: it never changes your code.</li>
-                  <li>Our source is public on GitHub.</li>
-                </ul>
-              </div>
-              <HeadlineWire />
+          {/* Static on purpose: the headline is the page's largest paint, so it
+              never waits for JavaScript (a CSS rise moves it, never hides it). */}
+          <div className={`${styles.shell} ${styles.heroTop} ${styles.heroRise}`}>
+            <h1 id="hero-title" className={styles.heroTitle}>
+              See which Claude Code agent{' '}
+              <em>
+                {/* The outcome, drawn as a selected node on the canvas. */}
+                <span className={styles.selected}>
+                  needs you.
+                  <i className={styles.handle} data-at="tl" aria-hidden="true" />
+                  <i className={styles.handle} data-at="tr" aria-hidden="true" />
+                  <i className={styles.handle} data-at="bl" aria-hidden="true" />
+                  <i className={styles.handle} data-at="br" aria-hidden="true" />
+                </span>
+              </em>
+            </h1>
+            <p className={styles.heroLead}>
+              A live map of your codebase with every Claude Code session on it. See where each one works, what it is
+              doing, and which one is blocked.
+            </p>
+            <div className={styles.ctaRow}>
+              <CopyCommand size="lg" track="landing_copy_hero" />
             </div>
+            <p className={styles.fineprint}>Free. No account. Read-only.</p>
           </div>
           <LandingReveal className={styles.heroStage} amount={0.02} duration={0.4} blur={false} distance={24}>
-            <Parallax speed={36} className={styles.shelfLayer}><HeroSouvenirs /></Parallax>
             <ScrollTilt><LazyLiveMapHero graphs={heroGraphs} /></ScrollTilt>
             <ul className={styles.legend} aria-label="How to read the map">
+              <li><span className={styles.liveDot} /> live</li>
               <li><span className={styles.lgStar} /> working</li>
               <li><span className={styles.lgHollow} /> heading there</li>
               <li><span className={styles.lgFlag} data-tone="attention" /> needs permission</li>
               <li><span className={styles.lgFlag} /> finished, your turn</li>
               <li><span className={styles.lgPlot} /> new code, not on the map yet</li>
+            </ul>
+            <ul className={styles.proof} aria-label="Why it is safe to try">
+              <li>Free. No account, no credit card.</li>
+              <li>Your code, commands and prompts stay on your machine.</li>
+              <li>Read-only: it never changes your code.</li>
+              <li>Our source is public on GitHub.</li>
             </ul>
           </LandingReveal>
         </section>

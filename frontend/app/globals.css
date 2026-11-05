@@ -333,6 +333,8 @@
 
 /* Anchor links glide, and land below the fixed 56px nav instead of under it. */
 html {
+  /* framer-motion's useScroll measures targets against the page scroller and warns when it is static. */
+  position: relative;
   scroll-behavior: smooth;
   scroll-padding-top: 4.5rem;
 }
