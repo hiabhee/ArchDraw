@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     let nodes: Node[] = [];
     let edges: Edge[] = [];
     if (body.mermaid) {
-      const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+      const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-live', areaOrder: 'flow', foldLongFlows: true });
       if (!isDomainSuccess(pipeline)) {
         return NextResponse.json({ error: 'Could not lay out the diagram', warnings: pipeline.warnings }, { status: 400 });
       }

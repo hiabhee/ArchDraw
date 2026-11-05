@@ -181,7 +181,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     let warnings: string[] = [];
     let result;
     if (body.mermaid) {
-      const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+      const pipeline = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-live', areaOrder: 'flow', foldLongFlows: true });
       if (!isDomainSuccess(pipeline)) {
         return NextResponse.json({ error: 'Failed to parse Mermaid code', warnings: pipeline.warnings }, { status: 400 });
       }
@@ -307,8 +307,9 @@ async function publishDetailMap(agent: AgentCanvas, body: z.infer<typeof putSche
     .sort((a, b) => a.position.x - b.position.x)
     .map((node) => node.id);
   const pipeline = await runMermaidPipeline(body.mermaid, {
-    layoutProfile: 'studio-minimal',
+    layoutProfile: 'studio-live',
     areaOrder: overviewAreas.length > 1 ? overviewAreas : 'flow',
+    foldLongFlows: true,
   });
   if (!isDomainSuccess(pipeline)) {
     return NextResponse.json({ error: 'Failed to parse Mermaid code', warnings: pipeline.warnings }, { status: 400 });

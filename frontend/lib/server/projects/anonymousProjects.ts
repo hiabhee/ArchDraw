@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { Edge, Node } from 'reactflow';
 import prisma from '@/lib/server/prisma';
 import { hashAgenticSecret } from '@/lib/server/agentic-auth';
-import { getUserQuotas, getUserTier } from '@/lib/quotas/userQuotas';
+import { getMaxProjects } from '@/lib/server/billing/plan';
 import { createAgenticProject } from '@/lib/server/projects/agenticProjects';
 import { createClaimSecret, createWatchToken, verifyClaimSecret } from '@/lib/server/projects/watchLink';
 import { ANONYMOUS_USER_PREFIX, isAnonymousUserId } from '@/lib/server/projects/anonymousUser';
@@ -108,7 +108,7 @@ export async function claimAnonymousProject(userId: string, canvasId: string, cl
     return { ok: false, status: 403, code: 'INVALID_CLAIM', error: 'This link cannot save the project. Run the command again from your repository.' };
   }
 
-  const { maxProjects } = getUserQuotas(getUserTier(userId));
+  const maxProjects = await getMaxProjects(userId);
   const existing = await prisma.userCanvas.count({ where: { userId, agenticProjectId: { not: null } } });
   if (existing >= maxProjects) {
     return {

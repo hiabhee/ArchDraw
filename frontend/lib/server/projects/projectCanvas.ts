@@ -1,5 +1,5 @@
 import { auth } from '@/lib/server/auth';
-import { getAgenticPrincipal } from '@/lib/server/agentic-auth';
+import { findAgenticCredential, markAgenticCredentialUsed } from '@/lib/server/agentic-auth';
 import prisma from '@/lib/server/prisma';
 
 /**
@@ -62,12 +62,20 @@ export async function getOwnedCanvas(request: Request, canvasId: string) {
  * canvas owner. Browser sessions are rejected — these routes are agent-only.
  */
 export async function authorizeAgentForCanvas(request: Request, canvasId: string) {
-  if (!request.headers.get('authorization')) return null;
-  const canvas = await prisma.userCanvas.findUnique({ where: { id: canvasId }, select: agentCanvasSelect });
-  if (!canvas?.agenticProjectId) return null;
-  const principal = await getAgenticPrincipal(request, canvas.agenticProjectId);
-  if (!principal?.credentialId || principal.userId !== canvas.userId) return null;
-  return { canvas, principal };
+  const authorization = request.headers.get('authorization');
+  if (!authorization) return null;
+  const match = authorization.match(/^Bearer\s+(adp_[A-Za-z0-9_-]{43})$/);
+  if (!match) return null;
+  // The canvas and the credential are independent lookups: run them together
+  // (one round trip) and check they belong to the same project afterwards.
+  const [canvas, credential] = await Promise.all([
+    prisma.userCanvas.findUnique({ where: { id: canvasId }, select: agentCanvasSelect }),
+    findAgenticCredential(match[1]),
+  ]);
+  if (!canvas?.agenticProjectId || !credential) return null;
+  if (credential.projectId !== canvas.agenticProjectId || credential.ownerId !== canvas.userId) return null;
+  if (!(await markAgenticCredentialUsed(credential, Date.now()))) return null;
+  return { canvas, principal: { userId: credential.ownerId, credentialId: credential.id } };
 }
 
 /**

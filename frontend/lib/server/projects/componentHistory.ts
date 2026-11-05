@@ -17,25 +17,57 @@ interface SessionRef {
   sessionName: string | null;
 }
 
+export type OpenEditBouts = Map<string, { id: string; files: unknown }>;
+
+const boutKey = (componentId: string, detailComponentId: string | null) =>
+  `${componentId}\u0000${detailComponentId ?? ''}`;
+
 /**
- * Extend the session's current bout on each component, or start one. Best
- * effort: history must never fail an activity report.
+ * The open (still-extendable) edit bout of each component in the report, in one
+ * query. Starts without waiting, so it can overlap the session lookup. Returns
+ * null on failure: history is best effort and never fails the report.
  */
-export async function recordEditBouts(session: SessionRef & { intent: string | null }, groups: readonly EditGroup[], now: Date) {
-  for (const group of groups) {
+export async function readOpenEditBouts(
+  canvasId: string,
+  sessionKey: string,
+  componentIds: readonly string[],
+  now: Date,
+): Promise<OpenEditBouts | null> {
+  try {
+    const open = await prisma.componentActivity.findMany({
+      where: {
+        canvasId,
+        sessionKey,
+        kind: 'edit',
+        componentId: { in: [...componentIds] },
+        lastAt: { gte: new Date(now.getTime() - BOUT_GAP_MS) },
+      },
+      orderBy: { lastAt: 'desc' },
+      select: { id: true, componentId: true, detailComponentId: true, files: true },
+    });
+    const bouts: OpenEditBouts = new Map();
+    for (const row of open) {
+      const key = boutKey(row.componentId, row.detailComponentId);
+      if (!bouts.has(key)) bouts.set(key, { id: row.id, files: row.files });
+    }
+    return bouts;
+  } catch (error) {
+    logger.warn('Component history: could not read open edit bouts', error);
+    return null;
+  }
+}
+
+/** Extend each component's open bout, or start one. Writes in parallel: one row per component. */
+export async function writeEditBouts(
+  openBouts: OpenEditBouts | null,
+  session: SessionRef & { intent: string | null },
+  groups: readonly EditGroup[],
+  now: Date,
+) {
+  if (!openBouts || groups.length === 0) return;
+  await Promise.all(groups.map(async (group) => {
     try {
-      const current = await prisma.componentActivity.findFirst({
-        where: {
-          canvasId: session.canvasId,
-          sessionKey: session.sessionKey,
-          componentId: group.componentId,
-          detailComponentId: group.detailComponentId,
-          kind: 'edit',
-          lastAt: { gte: new Date(now.getTime() - BOUT_GAP_MS) },
-        },
-        orderBy: { lastAt: 'desc' },
-        select: { id: true, files: true },
-      });
+      const current = openBouts.get(boutKey(group.componentId, group.detailComponentId));
       if (current) {
         await prisma.componentActivity.update({
           where: { id: current.id },
@@ -67,7 +99,14 @@ export async function recordEditBouts(session: SessionRef & { intent: string | n
     } catch (error) {
       logger.warn('Component history: could not record an edit bout', error);
     }
-  }
+  }));
+}
+
+/** Read then write, for callers that have nothing else to overlap. */
+export async function recordEditBouts(session: SessionRef & { intent: string | null }, groups: readonly EditGroup[], now: Date) {
+  if (groups.length === 0) return;
+  const open = await readOpenEditBouts(session.canvasId, session.sessionKey, groups.map((g) => g.componentId), now);
+  await writeEditBouts(open, session, groups, now);
 }
 
 /** Components a session put on the map (published diagram change). */

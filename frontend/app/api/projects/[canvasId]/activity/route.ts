@@ -11,10 +11,20 @@ import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
 import { isSourcePath, siteAnchorFor, siteAreaFor } from '@/lib/diagram/projects/constructionSite';
 import { pickSessionName } from '@/lib/server/projects/liveSessions';
 import { groupEditsByComponent } from '@/lib/diagram/projects/componentHistory';
-import { pruneComponentHistory, recordEditBouts } from '@/lib/server/projects/componentHistory';
+import { pruneComponentHistory, readOpenEditBouts, writeEditBouts } from '@/lib/server/projects/componentHistory';
 import { addToComponent, diffUsage, emptyUsage, isEmptyUsage, parseUsage, parseUsageByComponent } from '@/lib/diagram/projects/sessionUsage';
 
 export const runtime = 'nodejs';
+
+/** Retry an upsert once when a concurrent request created the same session row first. */
+async function upsertWithRetry<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if ((error as { code?: string })?.code !== 'P2002') throw error;
+    return run();
+  }
+}
 
 /**
  * Coding-agent activity for a project canvas. Receives repository-relative
@@ -119,11 +129,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const now = new Date();
+    const editGroups = isEdit && Object.keys(mapped).length > 0 ? groupEditsByComponent(mapped, detailOf) : [];
     const key = { canvasId_sessionKey: { canvasId: agent.canvas.id, sessionKey: body.sessionKey } };
     // Read-modify-write of one session row. A session's start and first edit
     // can arrive together (hooks deliver in the background): both may try to
     // create the row, so a unique-key race retries once against the winner.
     const writeSession = async () => {
+      // Starts now and overlaps the session lookup: it needs only the canvas and the session key.
+      const openBoutsRead = editGroups.length > 0
+        ? readOpenEditBouts(agent.canvas.id, body.sessionKey, editGroups.map((g) => g.componentId), now)
+        : Promise.resolve(null);
       const existing = await prisma.agentSession.findUnique({
         where: key,
         select: { touched: true, unmappedPaths: true, currentComponentId: true, name: true, usage: true, usageByComponent: true },
@@ -163,7 +178,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ...usageFields,
       };
 
-      return prisma.agentSession.upsert({
+      const upsertRow = () => prisma.agentSession.upsert({
         where: key,
         create: {
           canvasId: agent.canvas.id,
@@ -199,38 +214,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
         select: { id: true, name: true, intent: true },
       });
-    };
-    let session;
-    try {
-      session = await writeSession();
-    } catch (error) {
-      if ((error as { code?: string })?.code !== 'P2002') throw error;
-      session = await writeSession();
-    }
+      // A unique-key race on create retries the upsert alone, never the bout writes below.
+      const row = await upsertWithRetry(upsertRow);
 
-    // Component history: who worked on what, and why (edits on the map only).
-    if (isEdit && Object.keys(mapped).length > 0) {
-      await recordEditBouts(
-        { canvasId: agent.canvas.id, sessionKey: body.sessionKey, sessionName: session.name, intent: session.intent },
-        groupEditsByComponent(mapped, detailOf),
+      // Component history: who worked on what, and why (edits on the map only).
+      // Written after the session row is saved, so a failed report never leaves counts behind.
+      await writeEditBouts(
+        await openBoutsRead,
+        { canvasId: agent.canvas.id, sessionKey: body.sessionKey, sessionName: row.name, intent: row.intent },
+        editGroups,
         now,
       );
-    }
+      return row;
+    };
+    const session = await writeSession();
 
+    const cleanup: Promise<unknown>[] = [];
     if (body.event === 'start' && body.repoName && isAutoCanvasName(agent.canvas.name)) {
       // Name the canvas after its repository. Raw SQL so updated_at stays put:
       // bumping it would turn an edit the user is saving into a false conflict.
       // The editor picks the name up from the live snapshot.
-      await prisma.$executeRaw`UPDATE user_canvases SET name = ${body.repoName} WHERE id = ${agent.canvas.id} AND name = ${agent.canvas.name}`;
+      cleanup.push(prisma.$executeRaw`UPDATE user_canvases SET name = ${body.repoName} WHERE id = ${agent.canvas.id} AND name = ${agent.canvas.name}`);
     }
-
     if (body.event === 'start') {
       // Each agent session adds a row; drop old ones so the table stays bounded.
-      await prisma.agentSession.deleteMany({
+      cleanup.push(prisma.agentSession.deleteMany({
         where: { canvasId: agent.canvas.id, lastSeenAt: { lt: new Date(now.getTime() - SESSION_RETENTION_MS) } },
-      });
-      await pruneComponentHistory(agent.canvas.id, now);
+      }));
+      cleanup.push(pruneComponentHistory(agent.canvas.id, now));
     }
+    await Promise.all(cleanup);
 
     return NextResponse.json({ ok: true, sessionId: session.id, name: session.name, mapped, unmapped });
   } catch (error) {

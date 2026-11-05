@@ -24,10 +24,17 @@ import type { DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry
 type Point = { x: number; y: number };
 type Rect = { x: number; y: number; w: number; h: number };
 
+/** Easing: Exponential Out (fast start, soft settle) */
+const expoOut = (t: number) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+/** Spring: Simplified bounce effect */
+const spring = (t: number) => 1 - Math.exp(-15 * t) * Math.cos(12 * t);
+
 interface Walker {
   key: string;
   /** Current anchor in flow coordinates (follows `path`). */
   pos: Point;
+  /** The position where the current segment started. */
+  segmentStartPos: Point;
   path: Point[];
   /** What the walker is heading to: a node id, `aim:<id>` or `dock`. */
   targetKey: string | null;
@@ -38,6 +45,14 @@ interface Walker {
   nextParticleAt: number;
   seenAt: number;
   enteredAt: number;
+  /** Progress along the current path segment (0 to 1). */
+  progress: number;
+  /** Timing for the current segment. */
+  segmentStart: number;
+  /** Time when the agent can move to the next waypoint (pause beat). */
+  pauseUntil: number;
+  /** Current offset for the 'settle' spring effect. */
+  settleOffset: number;
 }
 
 interface Particle {
@@ -325,7 +340,23 @@ export function AgentAtlasLayer() {
         let w = walkers.get(s.sessionKey);
         if (!w) {
           const start = key === 'dock' ? { x: anchor.x - 220 / Math.max(zoom, 0.05), y: anchor.y } : anchor;
-          w = { key: s.sessionKey, pos: start, path: [anchor], targetKey: key, fromNodeId: atSite ? s.site!.anchorId : currentRect ? s.currentComponentId : null, slot, particles: [], nextParticleAt: 0, seenAt: now, enteredAt: now };
+          w = {
+            key,
+            pos: start,
+            segmentStartPos: start,
+            path: [anchor],
+            targetKey: key,
+            fromNodeId: atSite ? s.site!.anchorId : currentRect ? s.currentComponentId : null,
+            slot,
+            particles: [],
+            nextParticleAt: 0,
+            seenAt: now,
+            enteredAt: now,
+            progress: 1,
+            segmentStart: now,
+            pauseUntil: 0,
+            settleOffset: 0,
+          };
           walkers.set(s.sessionKey, w);
         }
         if (w.targetKey !== key) {
@@ -349,27 +380,43 @@ export function AgentAtlasLayer() {
       }
       for (const key of [...walkers.keys()]) if (!sessions.some((s) => s.sessionKey === key)) walkers.delete(key);
 
-      // Move along paths at a steady on-screen speed (sped up on long trips).
+      // Move along paths with premium easing and rhythmic beats.
       for (const { w } of placed) {
-        if (reduceMotion) { w.pos = w.path[w.path.length - 1]; w.path = [w.pos]; continue; }
-        let remaining = w.path.reduce((acc, p, i) => acc + Math.hypot(p.x - (i ? w.path[i - 1].x : w.pos.x), p.y - (i ? w.path[i - 1].y : w.pos.y)), 0) * zoom;
-        const speed = Math.max(WALK_SPEED_PX, remaining / (MAX_WALK_MS / 1000));
-        let budget = (speed * dt) / 1000 / zoom;
-        while (budget > 0 && w.path.length) {
-          const next = w.path[0];
-          const d = Math.hypot(next.x - w.pos.x, next.y - w.pos.y);
-          if (d <= budget) {
-            w.pos = { ...next };
-            budget -= d;
-            if (w.path.length > 1) w.path.shift(); else break;
-          } else {
-            w.pos = { x: w.pos.x + ((next.x - w.pos.x) / d) * budget, y: w.pos.y + ((next.y - w.pos.y) / d) * budget };
-            budget = 0;
-          }
+        if (reduceMotion) { w.pos = w.path[w.path.length - 1]; w.path = [w.pos]; w.settleOffset = 0; continue; }
+
+        if (now < w.pauseUntil) {
+          (w as Walker & { walking?: boolean }).walking = false;
+          w.settleOffset *= 0.9;
+          continue;
         }
-        remaining = Math.hypot(w.path[w.path.length - 1].x - w.pos.x, w.path[w.path.length - 1].y - w.pos.y);
-        (w as Walker & { walking?: boolean }).walking = w.path.length > 1 || remaining > 1;
+
+        if (w.path.length > 0) {
+          const next = w.path[0];
+          const duration = 400;
+          const elapsed = now - w.segmentStart;
+          w.progress = Math.min(1, elapsed / duration);
+
+          const t = expoOut(w.progress);
+          w.pos = {
+            x: w.segmentStartPos.x + (next.x - w.segmentStartPos.x) * t,
+            y: w.segmentStartPos.y + (next.y - w.segmentStartPos.y) * t,
+          };
+
+          if (w.progress === 1) {
+            w.path.shift();
+            w.segmentStartPos = w.pos;
+            w.segmentStart = now;
+            w.progress = 0;
+            w.pauseUntil = now + 150;
+          }
+          (w as Walker & { walking?: boolean }).walking = true;
+        } else {
+          const t = (now - w.enteredAt) / 1000;
+          w.settleOffset = spring(t) * 4 * scale;
+          (w as Walker & { walking?: boolean }).walking = false;
+        }
       }
+
 
       // Construction sites: a dashed, hatched plot tied to its anchor component.
       const drawnSites = new Set<string>();
@@ -439,15 +486,30 @@ export function AgentAtlasLayer() {
       for (const p of placed) {
         if (p.mood !== 'aiming' || !p.aimRect) continue;
         const a = toScreen(p.w.pos);
-        const b = toScreen(center(p.aimRect));
+        const b = toScreen(center(p.aimRect!));
         ctx.save();
         ctx.setLineDash([5, 6]);
         ctx.strokeStyle = p.s.color;
         ctx.globalAlpha = 0.55;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(a.x + p.w.slot.x, a.y + p.w.slot.y - 14 * scale);
-        ctx.lineTo(b.x, b.y);
+
+        // Use shortest path to avoid cutting through nodes
+        const fromId = p.w.fromNodeId;
+        const toId = p.s.aimComponentId;
+        const route = fromId && toId ? shortestPath(fromId, toId, edges) : null;
+
+        if (route) {
+          const points = route.map(id => {
+            const r = nodeRect(nodes.get(id));
+            return r ? toScreen(center(r)) : null;
+          }).filter((p): p is Point => p !== null);
+          ctx.moveTo(a.x + p.w.slot.x, a.y + p.w.slot.y - 14 * scale);
+          for (const pt of points) ctx.lineTo(pt.x, pt.y);
+        } else {
+          ctx.moveTo(a.x + p.w.slot.x, a.y + p.w.slot.y - 14 * scale);
+          ctx.lineTo(b.x, b.y);
+        }
         ctx.stroke();
         ctx.restore();
       }
@@ -550,7 +612,8 @@ export function AgentAtlasLayer() {
         } else {
           ctx.save();
           ctx.shadowColor = p.s.color;
-          ctx.shadowBlur = faded ? 0 : 10 * scale;
+          const pulse = !faded ? (Math.sin(tSec * 3) * 5 + 15) * scale : 0;
+          ctx.shadowBlur = pulse;
           ctx.fill();
           ctx.restore();
         }
@@ -598,7 +661,7 @@ export function AgentAtlasLayer() {
           const ts = compact ? 0.85 : Math.min(Math.max(zoom, 0.85), 1.1);
           const label = compact ? '' : shortName(p.s);
           const state = p.mood === 'aiming' && p.aimRect
-            ? `→ ${String((nodes.get(p.s.aimComponentId!)?.data as { label?: unknown })?.label ?? '').slice(0, 24)}?`
+            ? `🎯 ${String((nodes.get(p.s.aimComponentId!)?.data as { label?: unknown })?.label ?? '').slice(0, 24)}`
             : moodLabel(p.s, p.mood, now);
           const stateText = label ? ` · ${state}` : state;
           ctx.font = `600 ${12 * ts}px ui-sans-serif, system-ui, sans-serif`;

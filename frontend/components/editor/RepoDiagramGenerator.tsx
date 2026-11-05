@@ -68,10 +68,12 @@ export function RepoDiagramGenerator({ onClose }: Props) {
       return;
     }
 
+    // Import replaces the diagram: a live project's map moves to a new tab instead.
+    if (!useDiagramStore.getState().openTabIfLiveProject()) return;
     importDiagram(parsed.nodes, parsed.edges);
     useDiagramStore.getState().setDiagramViewMode('overview');
     const repoName = extractRepoName(repoUrl);
-    renameCanvas(activeCanvasId, `${repoName} Architecture`);
+    renameCanvas(useDiagramStore.getState().activeCanvasId, `${repoName} Architecture`);
     setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
     toast.success(`Loaded: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
     onClose();
