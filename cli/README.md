@@ -22,13 +22,13 @@ nobody signs in to are deleted after 30 days without activity.
 | Command | What it does |
 |---|---|
 | `npx -y archdraw-live` | Set up (or reopen) this repository's live map |
-| `npx -y archdraw-live --map` | Let Claude Code read the code and (re)draw the map (overview, then the detailed map) |
-| `npx -y archdraw-live --detail` | Redraw only the detailed map |
+| `npx -y archdraw-live --map` | Let Claude Code read the code and (re)draw the overview map |
+| `npx -y archdraw-live --detail` | Draw the detailed map (on demand: the Detailed button shows this command) |
 | `npx -y archdraw-live update` | Switch to the newest release (every run also checks, see below) |
 | `npx -y archdraw-live status` | Show this repository's live map link |
 | `npx -y archdraw-live stop` | Disconnect this repository |
 
-Options: `--api <url>` (another ArchDraw server), `--no-open`, `--no-map` (set up without drawing the map), `--no-detail` (overview only).
+Options: `--api <url>` (another ArchDraw server), `--no-open`, `--no-map` (set up without drawing the map).
 
 ## The map
 
@@ -45,7 +45,7 @@ Claude draws two maps, switched with **Overview | Detailed** at the top of the l
   built with or does ("Scene prep · rasterio · s2cloudless"), arrows labelled with what moves
   ("aligned scenes"), and each data store as its own box.
 - **Detailed**: every component opened up into its modules, classes and key files, with the
-  calls and data flow between them. Claude draws it right after the overview (a minute or
+  calls and data flow between them. Claude draws it on request (a minute or
   two more); redraw it with `npx -y archdraw-live --detail`. Agents show up on the part they
   are working in.
 
@@ -81,7 +81,7 @@ Copies older than 0.3.2 don't have this check; run `npx -y archdraw-live@latest`
 ## What is sent to ArchDraw
 
 - At setup: the repository folder name.
-- When Claude draws the map (right after setup, or with `--map`): Claude's diagrams (overview and detailed) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
+- When Claude draws the map (right after setup, or with `--map`): Claude's diagrams (the overview, and the detailed map when you ask for it) and their component → file map. Claude reads the code on your machine; the code is not sent to ArchDraw.
 - While Claude Code runs: the session id, branch, and the repository-relative path of
   each file the session reads or edits; that it is running a shell command (not the
   command); the step it is on, from its own to-do list ("Adding retry to the

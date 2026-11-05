@@ -2,8 +2,8 @@
 // archdraw-live — see your coding agents work on a live map of your codebase.
 //
 //   npx -y archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
-//   npx -y archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
-//   npx -y archdraw-live --detail     redraw only the detailed map
+//   npx -y archdraw-live --map        let Claude Code read the code and (re)draw the overview map
+//   npx -y archdraw-live --detail     draw the detailed map (on demand: the Detailed button asks for this)
 //   npx -y archdraw-live update       switch to the newest release
 //   npx -y archdraw-live status       where this repository's live map is
 //   npx -y archdraw-live stop         disconnect this repository
@@ -231,11 +231,9 @@ async function mapDetailWithClaude(root, binding, query) {
   return true;
 }
 
-/** Overview first (always), then the detailed map unless --no-detail. */
+/** The overview only. The detailed map is drawn on demand with --detail. */
 async function mapAll(root, binding, flags) {
-  const mapped = await mapWithClaude(root, binding, flags.query);
-  if (mapped && !flags['no-detail']) await mapDetailWithClaude(root, binding, flags.query);
-  return mapped;
+  return mapWithClaude(root, binding, flags.query);
 }
 
 async function setup(flags) {
@@ -300,7 +298,7 @@ async function setup(flags) {
   const opened = flags['no-open'] ? false : openBrowser(liveUrl(binding));
   console.log('');
   if (draw) {
-    console.log(dim('Claude (your Claude account, read-only) now reads your code and draws the map: 1–3 minutes, then the detailed map. Skip it with --no-map.'));
+    console.log(dim('Claude (your Claude account, read-only) now reads your code and draws the overview: 1–3 minutes. Skip it with --no-map. The detailed map is drawn only when you ask for it.'));
     await mapAll(root, binding, flags);
   } else if (canClaude) console.log(dim(`The map stays empty until Claude draws it: ${bold('npx -y archdraw-live --map')}`));
   nextSteps(binding, opened);
@@ -352,13 +350,13 @@ function stop() {
 const HELP = `${bold('archdraw-live')} ${VERSION} — watch your coding agents on a live map of your codebase
 
   npx -y archdraw-live              set up the live map, connect Claude Code, let Claude draw the map
-  npx -y archdraw-live --map        let Claude Code read the code and (re)draw the map (overview, then detailed)
-  npx -y archdraw-live --detail     redraw only the detailed map (each component's modules and files)
+  npx -y archdraw-live --map        let Claude Code read the code and (re)draw the overview
+  npx -y archdraw-live --detail     draw the detailed map: each component's modules and files (on demand)
   npx -y archdraw-live update       switch to the newest release (it also checks on every run)
   npx -y archdraw-live status       show this repository's live map link
   npx -y archdraw-live stop         disconnect this repository
 
-Options: --api <url> (default ${DEFAULT_API}), --query <text> (custom prompt for the AI), --no-open, --no-map (set up without drawing the map), --no-detail (overview only)
+Options: --api <url> (default ${DEFAULT_API}), --query <text> (custom prompt for the AI), --no-open, --no-map (set up without drawing the map)
 Sent: component names, folder paths, and which files each session reads or edits. Never code or prompts.`;
 
 const flags = parseArgs(process.argv.slice(2));
