@@ -160,7 +160,7 @@ export const FONTS = {
   display: 'var(--font-instrument-serif), Georgia, serif',
   titleSize: 13.5,
   titleWeight: 600,
-  subtitleSize: 10.5,
+  subtitleSize: 12.5,
   subtitleWeight: 400,
 };
 

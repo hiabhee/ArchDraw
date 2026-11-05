@@ -1256,7 +1256,7 @@
 
 [data-render-style='sketch'] .react-flow__edge-text {
   font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 11.5px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
   letter-spacing: 0.01em !important;
 }
@@ -1277,7 +1277,7 @@
 [data-render-style='sketch'] .edge-label-pill {
   border-radius: 6px !important;
   font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
   padding: 3px 8px !important;
   line-height: 1.3 !important;
@@ -1383,6 +1383,13 @@
   color: var(--arch-title, #f4f4f5) !important;
 }
 
+/* On the saturated dark fills the muted subtitle grey loses contrast; use the title ink, a little softer. */
+.dark [data-render-style='neubrutalism'] .node-subtitle,
+.dark [data-render-style='neubrutalism'] .shape-node .node-subtitle {
+  color: var(--arch-title) !important;
+  opacity: 0.86;
+}
+
 [data-render-style='neubrutalism'] .node-subtitle,
 [data-render-style='neubrutalism'] .shape-node .node-subtitle {
   font-family: var(--arch-font-subtitle) !important;
@@ -1396,7 +1403,7 @@
 
 [data-render-style='neubrutalism'] .react-flow__edge-text {
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.01em !important;
 }
@@ -1406,7 +1413,7 @@
 [data-render-style='neubrutalism'] .edge-label-pill {
   border-radius: 6px !important;
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   padding: 3px 8px !important;
   background: var(--arch-node-fill, #ffffff) !important;
@@ -1453,8 +1460,13 @@
   background: var(--arch-node-fill, #ffffff) !important;
 }
 
-[data-render-style='neubrutalism'] .node-icon-box {
-  background: transparent !important;
+/* The fill is a saturated concern colour and the icon carries that same hue, so a
+   bare icon vanishes into the card. A solid chip behind it keeps the icon readable. */
+[data-render-style='neubrutalism'] .node-icon-box,
+[data-render-style='neubrutalism'] .node-icon-slot {
+  background: var(--arch-brutal-chip) !important;
+  border: 2px solid var(--arch-node-stroke);
+  border-radius: 8px;
   box-shadow: none !important;
 }
 
@@ -1648,4 +1660,14 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .live-presence-avatar--live::after { animation: none; }
+}
+
+/* Studio cards carry larger text so a fitted map stays readable. */
+/* Sizes mirror STUDIO_TITLE_PX / STUDIO_SUBTITLE_PX in lib/diagram/nodes/studioMetrics.ts. */
+[data-render-style^='studio'] .node-title { font-size: 23px; }
+[data-render-style^='studio'] .node-subtitle { font-size: 15.5px; }
+
+/* Text tool armed: the pane takes the text cursor so a click reads as "place text here". */
+.react-flow.arch-tool-text .react-flow__pane {
+  cursor: text;
 }

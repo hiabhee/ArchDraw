@@ -175,7 +175,6 @@ export class RoughStrokeRenderer implements StrokeRenderer {
 
   renderArrowhead(tip: Point, angle: number, color: string, seed: number): string {
     const gen = rough.generator();
-    // Hand-drawn arrowhead — slightly larger & wobbly via rough polygon
     const size = 12;
     const spread = 6.5;
     const cos = Math.cos(angle);
@@ -190,34 +189,35 @@ export class RoughStrokeRenderer implements StrokeRenderer {
     const rightX = backX - normalX * spread;
     const rightY = backY - normalY * spread;
 
-    // Hand-drawn triangle via rough polygon — single wobble, solid fill.
-    // Using rough polygon gives the sketchy offset border instead of perfect geometry.
+    // An open chevron drawn in two strokes, the way an arrow is sketched by hand:
+    // a filled rough triangle read as a smudge, especially at small sizes. The tip
+    // vertex is preserved so it stays sharp.
     try {
-      const pts: [number, number][] = [
-        [tip.x, tip.y],
-        [leftX, leftY],
-        [rightX, rightY],
-      ];
-      const opts: Record<string, unknown> = {
-        seed,
-        roughness: 1.75,
-        bowing: 1.2,
-        stroke: color,
-        strokeWidth: 1.35,
-        fill: color,
-        fillStyle: 'solid',
-        fillWeight: 1,
-        disableMultiStroke: true,
-      };
-      const drawable = gen.toPaths(gen.polygon(pts, opts));
+      const drawable = gen.toPaths(
+        gen.linearPath(
+          [
+            [leftX, leftY],
+            [tip.x, tip.y],
+            [rightX, rightY],
+          ],
+          {
+            seed,
+            roughness: 1.1,
+            bowing: 0.8,
+            stroke: color,
+            strokeWidth: 2.1,
+            preserveVertices: true,
+            disableMultiStroke: true,
+          },
+        ),
+      );
       if (drawable.length > 0) {
         return this.toMarkup(drawable);
       }
     } catch {
       // fall through to crisp fallback
     }
-    const points = `${tip.x},${tip.y} ${leftX},${leftY} ${rightX},${rightY}`;
-    return `<polygon points="${points}" fill="${color}" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" />`;
+    return `<polyline points="${leftX},${leftY} ${tip.x},${tip.y} ${rightX},${rightY}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`;
   }
 }
 

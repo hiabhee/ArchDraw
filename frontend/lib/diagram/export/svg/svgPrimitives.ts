@@ -36,3 +36,12 @@ export function hexToRgba(hex: string, alpha: number): string {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
+
+/**
+ * A CSS font stack for an SVG `font-family="…"` attribute. Stacks such as
+ * `"Space Grotesk", "Inter"` carry double quotes of their own, which end the
+ * attribute early and make the whole file invalid XML.
+ */
+export function svgFontFamily(stack: string): string {
+  return stack.replace(/"/g, "'");
+}
