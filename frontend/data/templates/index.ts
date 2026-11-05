@@ -24,6 +24,7 @@ import { chatSystemNodes, chatSystemEdges } from './chat-system';
 import { notificationNodes, notificationEdges } from './notification';
 import { searchNodes, searchEdges } from './search';
 import { requestResponseNodes, requestResponseEdges } from './request-response';
+import { claudeCodeNodes, claudeCodeEdges } from './claude-code';
 
 export interface Template {
   id: string;
@@ -150,6 +151,15 @@ export const TEMPLATES: Template[] = [
     icon: '🤖',
     nodes: chatgptNodes,
     edges: chatgptEdges,
+  }),
+  template({
+    id: 'claude_code',
+    name: 'Claude Code Architecture',
+    description: 'Terminal coding agent: CLI → agent loop → context (CLAUDE.md, skills, compaction) → Anthropic API, with tool calls routed through permissions and hooks to file, Bash, search, web, subagent and MCP tools.',
+    tags: ['AI', 'Agent', 'LLM', 'Claude', 'MCP', 'Developer Tools'],
+    icon: '🧑‍💻',
+    nodes: claudeCodeNodes,
+    edges: claudeCodeEdges,
   }),
   template({
     id: 'instagram',
