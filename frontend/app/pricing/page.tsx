@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
 import { Check, Lock, Sparkles } from 'lucide-react';
+import { UpgradeToPro } from '@/components/billing/UpgradeToPro';
 
 export const metadata: Metadata = {
   title: 'Pricing — ArchDraw',
@@ -54,6 +55,7 @@ export default function PricingPage() {
             <Link href="/#start" className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-brand hover:bg-brand-hover px-6 py-3.5 rounded-lg transition-colors">Map your codebase →</Link>
             <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-text-muted"><Lock className="w-3 h-3" />No credit card · Quotas reset hourly/daily</p>
           </div>
+          <UpgradeToPro />
           <div className="mt-6 grid grid-cols-2 gap-4 text-xs">
             <div className="bg-surface-card border border-border-default rounded-xl p-4"><div className="font-bold">Guest</div><p className="text-text-secondary mt-1">3 generations/hour, 1 canvas, 50 nodes</p></div>
             <div className="bg-surface-card border border-border-default rounded-xl p-4"><div className="font-bold">Signed-in</div><p className="text-text-secondary mt-1">10/day, 5 canvases, 150 nodes, share/SVG</p></div>
