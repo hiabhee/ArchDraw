@@ -26,7 +26,7 @@ export const rideshareNodes: Node[] = [
   
   // Data Layer (Col 5)
   { id: 'rs_db', type: 'systemNode', position: { x: 2100, y: 280 }, data: { label: 'Database', category: 'Data Layer', color: '#334155', icon: 'Database' } },
-  { id: 'rs_cache', type: 'systemNode', position: { x: 2100, y: 460 }, data: { label: 'Cache', category: 'Data Layer', color: '#334155', icon: 'Layers' } },
+  { id: 'rs_cache', type: 'systemNode', position: { x: 2100, y: 460 }, data: { label: 'Geo Cache (Redis)', category: 'Data Layer', color: '#334155', icon: 'Layers' } },
 ];
 
 const E = (id: string, source: string, target: string, label: string, animated: boolean = true): Edge => ({
@@ -43,8 +43,7 @@ export const rideshareEdges: Edge[] = [
   E('rs_e2', 'rs_apigw', 'rs_usersvc', 'Authenticate'),
   E('rs_e3', 'rs_usersvc', 'rs_db', 'Validate User'),
   E('rs_e4', 'rs_apigw', 'rs_match', 'Find Driver'),
-  E('rs_e5', 'rs_match', 'rs_cache', 'Check Cache'),
-  E('rs_e6', 'rs_cache', 'rs_db', 'Cache Miss'),
+  E('rs_e5', 'rs_match', 'rs_cache', 'Nearby Drivers (geo)'),
   E('rs_e7', 'rs_match', 'rs_driver_svc', 'Get Drivers'),
   E('rs_e8', 'rs_driver_svc', 'rs_db', 'Query Drivers'),
   E('rs_e9', 'rs_match', 'rs_ride', 'Create Ride'),
@@ -56,8 +55,8 @@ export const rideshareEdges: Edge[] = [
   // Real-Time Flow - Driver Location Updates
   E('rs_e12', 'rs_driver', 'rs_ws', 'Location Update'),
   E('rs_e13', 'rs_ws', 'rs_locsvc', 'Process Location'),
-  E('rs_e14', 'rs_locsvc', 'rs_match', 'Update Position'),
-  E('rs_e15', 'rs_match', 'rs_cache', 'Update Cache'),
+  E('rs_e14', 'rs_locsvc', 'rs_cache', 'Update Geo Index'),
+  E('rs_e15', 'rs_match', 'rs_ws', 'Ride Offer to Driver'),
   
   // Async Flow - Post-Ride Processing
   E('rs_e16', 'rs_ride', 'rs_mq', 'Ride Completed'),
@@ -66,7 +65,6 @@ export const rideshareEdges: Edge[] = [
   E('rs_e19', 'rs_worker', 'rs_billing', 'Process Payment'),
   
   // User Service Connections
-  E('rs_e20', 'rs_apigw', 'rs_usersvc', 'Auth Check'),
   E('rs_e21', 'rs_driver_svc', 'rs_usersvc', 'Validate Driver'),
   E('rs_e22', 'rs_ride', 'rs_usersvc', 'Get User Data'),
 ];

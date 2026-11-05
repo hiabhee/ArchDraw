@@ -56,7 +56,7 @@ export const repoToDiagramNodes: Node[] = [
   node('rd_relanalyst', 'Relationship Analyst', 'LLM edges + user journeys', 'external', '#0f766e', 'GitMerge', 1280, 460),
 
   // Verification & finalization (no LLM)
-  node('rd_verify', 'Verifier', 'Evidence checks · drops hallucinations', 'compute', '#0d9488', 'Shield', 1600, 250),
+  node('rd_verify', 'Verify + Docs Review', 'Evidence checks · README re-check', 'compute', '#0d9488', 'Shield', 1600, 250),
   node('rd_finalize', 'Finalization', 'Node/edge caps · confidence · review notes', 'compute', '#0d9488', 'Layers', 1600, 460),
 ];
 

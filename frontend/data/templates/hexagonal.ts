@@ -48,8 +48,8 @@ export const hexagonalEdges: Edge[] = [
   edge('hex_e1', 'hex_adapter_rest', 'hex_port_in', 'via HTTP'),
   edge('hex_e2', 'hex_adapter_cli', 'hex_port_in', 'via CLI'),
   edge('hex_e3', 'hex_port_in', 'hex_core', 'uses port'),
-  edge('hex_e4', 'hex_core', 'hex_port_out', 'emits'),
+  edge('hex_e4', 'hex_core', 'hex_port_out', 'calls'),
   edge('hex_e5', 'hex_port_out', 'hex_adapter_db', 'persists'),
   edge('hex_e6', 'hex_port_out', 'hex_adapter_queue', 'publishes', 'async'),
-  edge('hex_e7', 'hex_port_out', 'hex_adapter_cache', 'caches', 'async'),
+  edge('hex_e7', 'hex_port_out', 'hex_adapter_cache', 'caches'),
 ];

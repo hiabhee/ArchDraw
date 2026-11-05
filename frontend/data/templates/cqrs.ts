@@ -7,7 +7,7 @@ export const cqrsNodes: Node[] = [
   n('cqrs_command','Command API','Writes','compute','#0d9488','Edit',640,140),
   n('cqrs_query','Query API','Reads','compute','#0d9488','Search',640,460),
   n('cqrs_write_db','Write DB','Postgres','data','#334155','Database',960,140),
-  n('cqrs_bus','Event Bus','Sync','async','#b45309','MessagesSquare',1120,220),
+  n('cqrs_bus','Event Bus','Domain events','async','#b45309','MessagesSquare',1120,220),
   n('cqrs_read_db','Read DB','Materialized','data','#334155','Layers',1280,460),
 ];
 export const cqrsEdges: Edge[] = [

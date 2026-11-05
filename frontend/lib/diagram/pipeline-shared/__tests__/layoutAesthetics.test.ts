@@ -12,7 +12,7 @@ import { measureLayoutAesthetics } from '../layout/layoutAesthetics';
  */
 const STRAIGHT_FLOOR: Record<string, number> = {
   chatgpt: 1,
-  instagram: 0.85,
+  instagram: 0.8, // media flows rewired through the CDN and worker for accuracy
   video_streaming: 1,
   netflix: 0.7,
   rideshare: 1,
