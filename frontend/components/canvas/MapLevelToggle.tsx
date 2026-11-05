@@ -56,9 +56,9 @@ export function MapLevelToggle({
 export function DetailMapEmpty() {
   return (
     <div className="pointer-events-auto mx-4 max-w-sm rounded-2xl border border-border/70 bg-background/95 p-5 text-sm shadow-xl backdrop-blur">
-      <p className="font-semibold text-foreground">No detailed map yet</p>
+      <p className="font-semibold text-foreground">The detailed map isn't drawn yet</p>
       <p className="mt-1.5 text-muted-foreground">
-        Claude draws it from your code, right after the overview. To draw it now, run this in your repository:
+        It opens each component up into its modules and files, so it is drawn on request. Run this in your repository and Claude draws it from your code:
       </p>
       <code className="mt-3 block rounded-lg bg-muted px-3 py-2 font-mono text-xs text-foreground">npx -y archdraw-live --detail</code>
     </div>

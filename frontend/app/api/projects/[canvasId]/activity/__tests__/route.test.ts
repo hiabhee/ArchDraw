@@ -10,7 +10,7 @@ const m = vi.hoisted(() => ({
   deleteMany: vi.fn(),
   executeRaw: vi.fn(),
   detailFindUnique: vi.fn(),
-  historyFindFirst: vi.fn(),
+  historyFindMany: vi.fn(),
   historyCreate: vi.fn(),
   historyUpdate: vi.fn(),
   historyDeleteMany: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('@/lib/server/projects/projectCanvas', () => ({
   readJsonBody: async (request: Request) => ({ tooLarge: false, value: await request.json().catch(() => null) }),
 }));
 vi.mock('@/lib/server/redis', () => ({ checkRateLimitWithFallback: m.rate }));
-vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, findMany: m.findMany, upsert: m.upsert, deleteMany: m.deleteMany }, projectDetailMap: { findUnique: m.detailFindUnique }, componentActivity: { findFirst: m.historyFindFirst, create: m.historyCreate, update: m.historyUpdate, deleteMany: m.historyDeleteMany }, $executeRaw: m.executeRaw } }));
+vi.mock('@/lib/server/prisma', () => ({ default: { agentSession: { findUnique: m.findUnique, findMany: m.findMany, upsert: m.upsert, deleteMany: m.deleteMany }, projectDetailMap: { findUnique: m.detailFindUnique }, componentActivity: { findMany: m.historyFindMany, create: m.historyCreate, update: m.historyUpdate, deleteMany: m.historyDeleteMany }, $executeRaw: m.executeRaw } }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
 
 import { POST } from '../route';
@@ -53,7 +53,7 @@ describe('POST /api/projects/[canvasId]/activity', () => {
     m.upsert.mockResolvedValue({ id: 's1', name: 'Otter' });
     m.deleteMany.mockResolvedValue({ count: 0 });
     m.detailFindUnique.mockResolvedValue(null);
-    m.historyFindFirst.mockResolvedValue(null);
+    m.historyFindMany.mockResolvedValue([]);
     m.historyCreate.mockResolvedValue({});
     m.historyUpdate.mockResolvedValue({});
     m.historyDeleteMany.mockResolvedValue({ count: 0 });
@@ -68,7 +68,7 @@ describe('POST /api/projects/[canvasId]/activity', () => {
       expect.objectContaining({ componentId: 'api', files: ['frontend/app/api/a.ts'] }),
     ]);
 
-    m.historyFindFirst.mockResolvedValue({ id: 'bout1', files: ['frontend/lib/server/auth.ts'] });
+    m.historyFindMany.mockResolvedValue([{ id: 'bout1', componentId: 'auth', detailComponentId: null, files: ['frontend/lib/server/auth.ts'] }]);
     await POST(req({ sessionKey: 'k', event: 'edit', files: ['frontend/lib/server/auth.ts'] }), params);
     expect(m.historyUpdate).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'bout1' },

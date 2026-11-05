@@ -17,6 +17,8 @@ const m = vi.hoisted(() => {
 vi.mock('@/lib/server/prisma', () => ({
   default: {
     userCanvas: { findUnique: m.findCanvas, count: m.countProjects },
+    // The claimer's plan: no subscription, so the free project cap applies.
+    subscription: { findUnique: vi.fn().mockResolvedValue(null) },
     $transaction: m.transaction,
   },
 }));
