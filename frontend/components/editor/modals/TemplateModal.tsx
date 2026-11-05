@@ -48,6 +48,7 @@ export function TemplateModal({ onClose }: Props) {
     const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR', {
       title: t.name,
       renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+      layoutStyle: useDiagramStore.getState().diagramLayoutStyle,
     });
     if (!result.success) {
       toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
@@ -60,9 +61,14 @@ export function TemplateModal({ onClose }: Props) {
     setLoadingId(t.id);
     try {
       const { nodes: ln, edges: le } = await layoutTemplate(t);
-      setActiveLayoutPresetId('layered-lr');
-      if (nodes.length > 0) {
-        addCanvas();
+      const store = useDiagramStore.getState();
+      // A live project's map is never replaced in place (its agents stay with it).
+      if (store.nodes.length > 0 || store.isActiveCanvasLiveProject()) {
+        const before = store.activeCanvasId;
+        store.addCanvas();
+        // addCanvas keeps the active id when it refuses (canvas limit): never overwrite then.
+        if (useDiagramStore.getState().activeCanvasId === before) return;
+        setActiveLayoutPresetId('layered-lr');
         setTimeout(() => {
           const { activeCanvasId } = useDiagramStore.getState();
           useDiagramStore.getState().renameCanvas(activeCanvasId, t.name);

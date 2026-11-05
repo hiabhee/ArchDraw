@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { MapLevelToggle } from '@/components/canvas/MapLevelToggle';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
-import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
+import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Type, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/editor/toolbar/ExportControls';
-import { LayoutToggleButton } from '@/components/editor/toolbar/LayoutControls';
+import { LayoutStyleButton, LayoutToggleButton } from '@/components/editor/toolbar/LayoutControls';
 import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
 export function Toolbar() {
@@ -50,6 +50,8 @@ export function Toolbar() {
     sequenceDiagrams,
     isPenModeActive,
     setPenModeActive,
+    activeTool,
+    setActiveTool,
     diagramViewMode,
     setDiagramViewMode,
   } = useDiagramStore(
@@ -72,6 +74,8 @@ export function Toolbar() {
       sequenceDiagrams: s.sequenceDiagrams,
       isPenModeActive: s.isPenModeActive,
       setPenModeActive: s.setPenModeActive,
+      activeTool: s.activeTool,
+      setActiveTool: s.setActiveTool,
       diagramViewMode: s.diagramViewMode,
       setDiagramViewMode: s.setDiagramViewMode,
     })),
@@ -142,6 +146,8 @@ export function Toolbar() {
       try {
         const data = JSON.parse(reader.result as string);
         if (Array.isArray(data.nodes) && Array.isArray(data.edges)) {
+          // Import replaces the diagram: a live project's map moves to a new tab instead.
+          if (!useDiagramStore.getState().openTabIfLiveProject()) return;
           importDiagram(data.nodes, data.edges, { preserveTopology: true });
           toast.success('Diagram imported');
         }
@@ -250,7 +256,8 @@ export function Toolbar() {
   }, [isGuest]);
 
   const handleClear = () => {
-    if (nodes.length === 0) return;
+    // A live project's map is published by its agents; clearing it would wipe it.
+    if (nodes.length === 0 || isLiveProject) return;
     if (window.confirm('Clear all nodes and edges from the canvas?')) {
       clearDiagram();
       toast.success('Canvas cleared');
@@ -382,6 +389,24 @@ export function Toolbar() {
           <CanvasBackgroundControls />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
+            {/* Text tool: click the canvas to place a label. Hidden on live maps and the high-level summary (view-only). */}
+            {!isLiveProject && diagramViewMode !== 'overview' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setActiveTool(activeTool === 'text' ? 'select' : 'text')}
+              aria-pressed={activeTool === 'text'}
+              className={`!w-8 sm:!w-9 !h-8 sm:!h-9 ${
+                activeTool === 'text'
+                  ? 'text-brand-text bg-brand/15 ring-1 ring-brand/40'
+                  : ''
+              }`}
+              title={activeTool === 'text' ? 'Text tool on: click the canvas (Esc to cancel)' : 'Text tool (T): click the canvas to place text'}
+              aria-label={activeTool === 'text' ? 'Cancel text tool' : 'Text tool'}
+            >
+              <Type className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
+            </Button>
+            )}
             {/* Live projects keep the bar for the map; the pen stays in More options. */}
             {!isLiveProject && (
             <Button
@@ -401,6 +426,7 @@ export function Toolbar() {
             )}
 
             <LayoutToggleButton />
+            <LayoutStyleButton />
 
             {isLiveProject ? (
               <MapLevelToggle level={mapLevel} onChange={setMapLevel} hasDetail={hasDetailMap} />
@@ -600,7 +626,8 @@ export function Toolbar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => { handleClear(); setMoreOpen(false); }}
-                    disabled={nodes.length === 0}
+                    disabled={nodes.length === 0 || isLiveProject}
+                    title={isLiveProject ? 'Live project maps are published by your agents and cannot be cleared' : undefined}
                     className="w-full justify-start gap-2 rounded-none !text-destructive hover:!bg-destructive/10 disabled:opacity-40"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

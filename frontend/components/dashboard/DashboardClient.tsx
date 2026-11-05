@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen, ArrowRight } from 'lucide-react';
+import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -90,7 +90,8 @@ export function DashboardClient(_props: DashboardClientProps) {
       return bTime - aTime;
     });
 
-  const displayCanvases = searchQuery ? sortedCanvases : sortedCanvases.slice(0, 4);
+  // Every canvas, newest first: the account limit is small, so there is nothing to cut off.
+  const displayCanvases = sortedCanvases;
 
   // Dynamic formatting for relative time
   const getRelativeTime = (timestamp?: number) => {
@@ -151,19 +152,21 @@ export function DashboardClient(_props: DashboardClientProps) {
         {/* LEFT COLUMN: Metrics, Chart, and Projects */}
         <div className="space-y-6">
 
+          {/* New Canvas: first, so creating a diagram never means scrolling past the list */}
+          <button
+            onClick={() => handleNewCanvas()}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-brand/40 bg-brand/5 hover:bg-brand/10 hover:border-brand text-brand-text text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Canvas</span>
+          </button>
+
           {/* Projects List */}
           <div className="border border-border-default rounded-xl p-5 bg-surface-panel shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
             <div className="flex items-center justify-between mb-4 px-1">
               <h3 className="text-sm font-semibold text-text-primary">
                 {searchQuery ? 'Matching Diagrams' : 'Recent Diagrams'}
               </h3>
-              <button
-                onClick={() => router.push('/editor')}
-                className="text-xs font-semibold text-brand-text hover:text-brand-hover flex items-center gap-0.5 transition-colors cursor-pointer"
-              >
-                <span>View all</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
             </div>
 
             {displayCanvases.length > 0 ? (
@@ -223,15 +226,6 @@ export function DashboardClient(_props: DashboardClientProps) {
               </div>
             )}
           </div>
-
-          {/* Long New Canvas Button */}
-          <button
-            onClick={() => handleNewCanvas()}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-brand/40 bg-brand/5 hover:bg-brand/10 hover:border-brand text-brand-text text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Canvas</span>
-          </button>
         </div>
 
         {/* RIGHT COLUMN: Checklist and Limits */}
