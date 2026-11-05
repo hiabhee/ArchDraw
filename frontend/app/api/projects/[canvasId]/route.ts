@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import prisma from '@/lib/server/prisma';
-import { getUserQuotas, getUserTier } from '@/lib/quotas/userQuotas';
+import { getMaxProjects } from '@/lib/server/billing/plan';
 import { createAgenticProject, normalizeRepositoryRemote } from '@/lib/server/projects/agenticProjects';
 import { getOwnedCanvas, type ProjectCanvas } from '@/lib/server/projects/projectCanvas';
 
@@ -43,11 +43,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const { maxProjects } = getUserQuotas(getUserTier(userId));
+    const maxProjects = await getMaxProjects(userId);
     const existingProjects = await prisma.userCanvas.count({ where: { userId, agenticProjectId: { not: null } } });
     if (existingProjects >= maxProjects) {
       return NextResponse.json(
-        { error: `Your plan allows ${maxProjects} live project${maxProjects === 1 ? '' : 's'}.`, code: 'PROJECT_LIMIT_EXCEEDED' },
+        { error: `Your plan allows ${maxProjects} live project${maxProjects === 1 ? '' : 's'}. Stop one, or upgrade for more.`, code: 'PROJECT_LIMIT_EXCEEDED' },
         { status: 403 },
       );
     }

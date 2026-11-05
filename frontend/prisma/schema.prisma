@@ -62,6 +62,7 @@ model User {
   agenticProjects        AgenticProject[]
   agenticCredentials     AgenticCredential[]
   agenticPairingRequests AgenticPairingRequest[]
+  subscription           Subscription?
 }
 
 model Verification {
@@ -197,6 +198,31 @@ model TutorialResponseCache {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("tutorial_response_cache")
+}
+
+/// A paid plan from the billing provider (Lemon Squeezy). Written only by the
+/// signature-verified webhook; read by `getUserPlan` to raise limits.
+model Subscription {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String    @unique @map("user_id")
+  provider               String    @default("lemonsqueezy")
+  providerSubscriptionId String    @unique @map("provider_subscription_id")
+  providerCustomerId     String?   @map("provider_customer_id")
+  variantId              String?   @map("variant_id")
+  /// The provider's status: on_trial, active, paused, past_due, unpaid, cancelled, expired.
+  status                 String
+  renewsAt               DateTime? @map("renews_at")
+  /// When access ends after a cancellation.
+  endsAt                 DateTime? @map("ends_at")
+  /// Provider-hosted page to update the card or cancel.
+  portalUrl              String?   @map("portal_url")
+  /// The provider's own updated_at for the last event applied; stale (out-of-order) events are ignored.
+  providerUpdatedAt      DateTime? @map("provider_updated_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
 }
 
 model UsageLog {
