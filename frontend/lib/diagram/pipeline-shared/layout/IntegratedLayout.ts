@@ -1,4 +1,5 @@
 import { DagreLayoutEngine } from './DagreLayout';
+import { layoutZones } from './ZoneLayout';
 import type { LayoutEdge, LayoutEdgeImportance, LayoutParams, LayoutResult, RankDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
 import { isTextNode } from '../textNodes';
@@ -22,6 +23,10 @@ export interface IntegratedLayoutOptions {
     paddingRight?: number;
     /** Top-level groups are flow stages: keep them in rank order (no sidecar lanes). */
     flowAreas?: boolean;
+    /** Hub-and-zones placement (see ZoneLayout); falls back to the flow layout when there is no hub. */
+    zones?: boolean;
+    /** `false` skips the settle passes (see `LayoutOptions.settle`): a quick layout for scoring. */
+    settle?: boolean;
   };
 }
 
@@ -120,7 +125,7 @@ export class IntegratedLayoutEngine {
     const textNodes = objects.nodes.filter(node => isTextNode(node));
     if (textNodes.length === 0) {
       const params = this.toLayoutParams(objects, options);
-      const result = this.dagreEngine.layoutSync(params);
+      const result = this.layoutParams(params);
       return this.fromLayoutResult(objects, result);
     }
 
@@ -131,12 +136,21 @@ export class IntegratedLayoutEngine {
       edges: objects.edges,
     };
     const params = this.toLayoutParams(shapeObjects, options);
-    const result = this.dagreEngine.layoutSync(params);
+    const result = this.layoutParams(params);
     const layouted = this.fromLayoutResult(shapeObjects, result);
     return {
       nodes: [...layouted.nodes, ...textNodes],
       edges: layouted.edges,
     };
+  }
+
+  /** The zones layout when asked for and the graph has a hub; otherwise the flow layout. */
+  private layoutParams(params: LayoutParams): LayoutResult {
+    if (params.options?.zones) {
+      const zoned = layoutZones(params, this.dagreEngine);
+      if (zoned) return zoned;
+    }
+    return this.dagreEngine.layoutSync(params);
   }
 
   private mapDirection(direction: Direction): RankDirection {

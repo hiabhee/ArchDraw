@@ -2,6 +2,9 @@ import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeli
 import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { measureLayoutQuality } from '@/lib/diagram/pipeline-shared/layout/layoutQuality';
 import { applyRfLayout } from '@/lib/diagram/pipeline-shared/layout/IntegratedLayout';
+import { foldCandidates } from '@/lib/diagram/pipeline-shared/layout/foldLongFlows';
+import { measureLayoutAesthetics } from '@/lib/diagram/pipeline-shared/layout/layoutAesthetics';
+import { MIN_MIX_GAIN, searchGroupDirections, type FlowDirection } from '@/lib/diagram/pipeline-shared/layout/groupDirectionSearch';
 import { defaultCompoundLayoutOptions, type RankDirection } from '@/lib/diagram/pipeline-shared/layout/LayoutEngine';
 import { applySubgraphBoundsToRf } from '../recomputeSubgraphBounds';
 import { getCachedDiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
@@ -12,6 +15,34 @@ import {
   semanticEdgeKeyString,
   type EdgeLayoutSemantics,
 } from '../edgeFlowSemantics';
+
+/**
+ * How many folds are routed and compared per layout. Each costs one geometry plan,
+ * which grows quickly with the diagram, and a large diagram is the least likely to
+ * fold cleanly, so fewer are tried the bigger it is.
+ */
+function foldTries(nodeCount: number): number {
+  return nodeCount <= 20 ? 6 : nodeCount <= 40 ? 3 : 1;
+}
+
+/**
+ * A fold (or a mix of directions) may add some weighted crossings over the plain
+ * layout and still be used, in proportion to how much larger it makes the diagram on
+ * screen: a few for a change that merely tidies the shape, more for one that doubles
+ * the text.
+ */
+const FOLD_CROSSING_BASE = 2;
+const FOLD_CROSSING_PER_EXTRA_FIT = 5;
+const FOLD_CROSSING_CAP = 12;
+function foldCrossingAllowance(fitGain: number): number {
+  return Math.min(FOLD_CROSSING_CAP, FOLD_CROSSING_BASE + FOLD_CROSSING_PER_EXTRA_FIT * Math.max(0, fitGain - 1));
+}
+
+/** A diagram with more nodes than this is not searched for a mix of directions (each trial is a layout). */
+const MIX_MAX_NODES = 120;
+
+const isGroupLike = (node: { type?: string; data?: unknown }) =>
+  node.type === 'groupNode' || (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
 
 export interface LayoutStageInput {
   objects: RFObjects;
@@ -56,14 +87,16 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
         };
       }),
     };
-    // Studio Minimal is intentionally an editorial, low-density map: the
-    // primary reading direction gets a generous column rhythm while branches
-    // receive enough vertical room to stay distinct. Other appearances keep
-    // the shared default geometry unchanged.
-    const layoutOptions = _context.metadata.layoutProfile === 'studio-minimal'
+    // Studio: large cards packed close, but not so close that a label pill cannot
+    // sit between two columns: every label reserves its full width on top of
+    // rankSep, which leaves room for the arrowhead and a gap on both sides. A live
+    // project map keeps more room inside a column for the agent tags that hang
+    // below a component. Other appearances keep the shared default geometry.
+    const profile = _context.metadata.layoutProfile;
+    const layoutOptions = profile === 'studio-minimal' || profile === 'studio-live'
       ? {
-          nodeSep: input.direction === 'TD' || input.direction === 'BT' ? 140 : 160,
-          rankSep: 220,
+          nodeSep: profile === 'studio-live' ? 72 : 48,
+          rankSep: 60,
         }
       : undefined;
     const parentById = new Map(semanticObjects.nodes.map(node => [node.id, node.parentNode ?? (node.data as { parentId?: string } | undefined)?.parentId]));
@@ -90,15 +123,91 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     const baseNodeSep = base.nodeSep ?? 110;
     const baseRankSep = base.rankSep ?? 170;
     // Areas given in data-flow order are stages: keep them in rank order.
-    const flowAreas = _context.metadata.areaOrder ? { flowAreas: true } : {};
+    // `zones`: hub-and-zones placement (falls back to the flow layout with no hub).
+    const flowAreas = {
+      ...(_context.metadata.areaOrder ? { flowAreas: true } : {}),
+      ...(_context.metadata.layoutStyle === 'zones' ? { zones: true } : {}),
+    };
     const candidates = [
       { nodes: canonicalNodes, options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
       { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
       { nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 32, ...flowAreas } },
       { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } },
     ];
+    const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
+    const geometryDirection = input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD';
+    const foldDirection = _context.metadata.foldLongFlows === false ? undefined
+      : input.direction === 'LR' ? 'LR' as const
+      : input.direction === 'TD' ? 'TD' as const
+      : undefined;
+
+    const measureCandidate = (laid: RFObjects) => {
+      // Dagre emits absolute child coordinates. Normalize them through the
+      // canonical sizing pass before measuring, otherwise parent offsets are
+      // counted twice and grouped candidates receive incorrect scores.
+      const normalized = applySubgraphBoundsToRf(laid.nodes);
+      const quality = measureLayoutQuality(normalized, laid.edges, qualityDirection);
+      const geometry = getCachedDiagramGeometryPlan(normalized as never, laid.edges as never, { direction: geometryDirection });
+      const labelCollisions = geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
+      return {
+        quality,
+        geometry,
+        // How large the diagram can be drawn on a typical screen (1 = full size).
+        fit: measureLayoutAesthetics(normalized as never, [], geometryDirection).fitScale,
+        candidateScore: [
+          geometry.quality.hardViolations,
+          geometry.quality.criticalPathDisconnectCount,
+          geometry.quality.unexplainedPrivateOverlapLength,
+          geometry.quality.weightedCrossings,
+          labelCollisions,
+          geometry.quality.bendCount,
+          geometry.quality.totalPathLength,
+          quality.area,
+          quality.penalty,
+        ],
+      };
+    };
+    type Measured = ReturnType<typeof measureCandidate>;
+
+    /** Lays the nodes out, then tries folding the result; returns the layout to use and its measure. */
+    const produce = (spec: typeof candidates[number]): { candidate: RFObjects; measured: Measured } => {
+      const laidOut = applyRfLayout(
+        { ...semanticObjects, nodes: spec.nodes } as unknown as Parameters<typeof applyRfLayout>[0],
+        input.direction,
+        spec.options,
+      ) as unknown as RFObjects;
+
+      // A long flow is also tried folded into rows (or lanes) so it fills a 16:9
+      // screen; the fold is used only when routing it is no worse (see FOLD_*), since
+      // the wrap can put an edge across others. Folding happens before scoring, so
+      // the score sees the rows that will be drawn.
+      let candidate = laidOut;
+      let measured = measureCandidate(laidOut);
+      if (foldDirection) {
+        // Best-fitting fold first; the first that routes about as cleanly as the
+        // unfolded layout wins. A few are tried: the best fit is not always the
+        // one whose wrap edges clear every node and label.
+        for (const fold of foldCandidates(laidOut.nodes, { direction: foldDirection, edges: laidOut.edges }).slice(0, foldTries(laidOut.nodes.length))) {
+          const folded = { ...laidOut, nodes: fold.nodes };
+          const foldedMeasure = measureCandidate(folded);
+          const before = measured.geometry.quality;
+          const after = foldedMeasure.geometry.quality;
+          if (
+            after.hardViolations <= before.hardViolations &&
+            after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount &&
+            after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(foldedMeasure.fit / Math.max(measured.fit, 1e-6))
+          ) {
+            candidate = folded;
+            measured = foldedMeasure;
+            break;
+          }
+        }
+      }
+      return { candidate, measured };
+    };
+
     let layouted: RFObjects | undefined;
-    let best: { nodeQuality: ReturnType<typeof measureLayoutQuality>; geometry: ReturnType<typeof getCachedDiagramGeometryPlan> } | undefined;
+    let best: { nodeQuality: ReturnType<typeof measureLayoutQuality>; geometry: ReturnType<typeof getCachedDiagramGeometryPlan>; fit: number } | undefined;
     // Compare two deterministic Dagre orderings in the requested direction.
     // Keep topology, dimensions and groups intact; never delete edges for aesthetics.
     const evaluated = new Set<string>();
@@ -106,20 +215,8 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const signature = `${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
       if (evaluated.has(signature)) return;
       evaluated.add(signature);
-      const candidate = applyRfLayout(
-        { ...semanticObjects, nodes: candidateSpec.nodes } as unknown as Parameters<typeof applyRfLayout>[0],
-        input.direction,
-        candidateSpec.options,
-      ) as unknown as RFObjects;
-      // Dagre emits absolute child coordinates. Normalize them through the
-      // canonical sizing pass before measuring, otherwise parent offsets are
-      // counted twice and grouped candidates receive incorrect scores.
-      const normalized = applySubgraphBoundsToRf(candidate.nodes);
-      const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
-      const quality = measureLayoutQuality(normalized, candidate.edges, qualityDirection);
-      const geometryDirection = input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD';
-      const geometry = getCachedDiagramGeometryPlan(normalized as never, candidate.edges as never, { direction: geometryDirection });
-      const labelCollisions = geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
+      const { candidate, measured } = produce(candidateSpec);
+      const { quality, geometry, candidateScore } = measured;
       const score = (value: typeof best) => value
         ? [
             value.geometry.quality.hardViolations,
@@ -133,24 +230,13 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
             value.nodeQuality.penalty,
           ]
         : Array(9).fill(Infinity);
-      const candidateScore = [
-        geometry.quality.hardViolations,
-        geometry.quality.criticalPathDisconnectCount,
-        geometry.quality.unexplainedPrivateOverlapLength,
-        geometry.quality.weightedCrossings,
-        labelCollisions,
-        geometry.quality.bendCount,
-        geometry.quality.totalPathLength,
-        quality.area,
-        quality.penalty,
-      ];
       const priorScore = score(best);
       const improves = candidateScore.some((value, index) => {
         for (let previous = 0; previous < index; previous++) if (candidateScore[previous] !== priorScore[previous]) return false;
         return value < priorScore[index];
       });
       if (!best || improves) {
-        best = { nodeQuality: quality, geometry };
+        best = { nodeQuality: quality, geometry, fit: measured.fit };
         // Keep Dagre's absolute coordinates for the next sizing stage; the
         // normalized copy is only the coordinate-space-correct scoring view.
         layouted = candidate;
@@ -171,9 +257,73 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
         evaluate({ nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 32, ...flowAreas } });
       }
     }
+
+    // A mix of directions: some groups are laid out the other way (a tall block
+    // instead of a wide one) when that lets the diagram be drawn clearly larger.
+    // Searched on quick layouts, then routed like a fold and used only if it routes
+    // about as cleanly as the best layout so far. The directions are chosen here, not
+    // by the author, so they are removed from the result again (see below).
+    let mixedGroups: ReadonlyMap<string, FlowDirection> | undefined;
+    const otherDirection: FlowDirection | undefined = input.direction === 'LR' ? 'TD' : input.direction === 'TD' ? 'LR' : undefined;
+    if (otherDirection && _context.metadata.mixGroupDirections !== false && best && best.fit < 1 && semanticObjects.nodes.length <= MIX_MAX_NODES) {
+      const hasOwnDirection = (node: { data?: unknown }) => Boolean((node.data as { direction?: string; groupDirection?: string } | undefined)?.direction || (node.data as { groupDirection?: string } | undefined)?.groupDirection);
+      const memberCount = new Map<string, number>();
+      for (const node of canonicalNodes) {
+        let parent = parentById.get(node.id);
+        const seen = new Set<string>();
+        // Count every descendant towards the top-level group it sits in.
+        while (parent && parentById.get(parent) && !seen.has(parent)) { seen.add(parent); parent = parentById.get(parent); }
+        if (parent) memberCount.set(parent, (memberCount.get(parent) ?? 0) + 1);
+      }
+      const topGroups = canonicalNodes
+        .filter(node => isGroupLike(node) && !parentById.get(node.id) && !hasOwnDirection(node))
+        .sort((a, b) => (memberCount.get(b.id) ?? 0) - (memberCount.get(a.id) ?? 0) || a.id.localeCompare(b.id))
+        .map(node => node.id);
+      const withDirections = (assignment: ReadonlyMap<string, FlowDirection>) =>
+        canonicalNodes.map(node => (assignment.has(node.id) ? { ...node, data: { ...node.data, direction: assignment.get(node.id) } } : node));
+      const quick = { ...candidates[0].options, settle: false };
+      const fitOf = (assignment: ReadonlyMap<string, FlowDirection>) => {
+        const laid = applyRfLayout(
+          { ...semanticObjects, nodes: withDirections(assignment) } as unknown as Parameters<typeof applyRfLayout>[0],
+          input.direction,
+          quick,
+        ) as unknown as RFObjects;
+        // The unfolded fit, not the best fold's: a fold has to route cleanly to be used, which
+        // is only known after routing it, so the search scores the shape and the fold is
+        // tried afterwards on the mix it picks (see `produce`).
+        return measureLayoutAesthetics(applySubgraphBoundsToRf(laid.nodes) as never, [], geometryDirection).fitScale;
+      };
+      const found = searchGroupDirections(topGroups, otherDirection, fitOf);
+      if (found) {
+        const { candidate, measured } = produce({ nodes: withDirections(found.assignment), options: candidates[0].options });
+        const before = best.geometry.quality;
+        const after = measured.geometry.quality;
+        if (
+          measured.fit >= best.fit * MIN_MIX_GAIN &&
+          after.hardViolations <= before.hardViolations &&
+          after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount &&
+          after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(measured.fit / Math.max(best.fit, 1e-6))
+        ) {
+          best = { nodeQuality: measured.quality, geometry: measured.geometry, fit: measured.fit };
+          layouted = candidate;
+          mixedGroups = found.assignment;
+        }
+      }
+    }
+
     // Preserve the original parent-before-child order expected by React Flow.
     const positions = new Map(layouted!.nodes.map(n => [n.id, n]));
-    layouted = { nodes: semanticObjects.nodes.map(n => positions.get(n.id)!), edges: semanticObjects.edges };
+    layouted = {
+      nodes: semanticObjects.nodes.map(n => {
+        const laid = positions.get(n.id)!;
+        if (!mixedGroups?.has(n.id)) return laid;
+        // The direction was the layout's choice, not the diagram's: leave it off the node,
+        // so a later layout (another direction, an edit) decides afresh.
+        const { direction: _direction, ...data } = (laid.data ?? {}) as Record<string, unknown>;
+        return { ...laid, data };
+      }),
+      edges: semanticObjects.edges,
+    };
 
     const selectedGeometry = best!.geometry;
     const geometryWarnings = selectedGeometry.status === 'ok'

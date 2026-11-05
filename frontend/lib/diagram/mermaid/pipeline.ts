@@ -45,7 +45,12 @@ export interface GeometrySummary {
   totalPathLength: number;
 }
 
-export type MermaidLayoutProfile = 'studio-minimal';
+/**
+ * 'studio-minimal': Studio cards packed tight (diagrams drawn in the editor).
+ * 'studio-live': the same cards with more room inside a column, because agent
+ * name tags and task lines hang below a component on a live project map.
+ */
+export type MermaidLayoutProfile = 'studio-minimal' | 'studio-live';
 
 export interface MermaidPipelineData {
   originalNodeIds?: string[]
@@ -243,6 +248,12 @@ export async function runMermaidPipeline(
      * in that order. Edges back to an earlier one are feedback (not ranked).
      */
     areaOrder?: 'flow' | readonly string[];
+    /** `zones`: hub-and-zones placement around the most connected component; `flow` (default): rank columns. */
+    layoutStyle?: 'flow' | 'zones';
+    /** Fold a long left-to-right flow into rows when that fits the screen far better (live projects). */
+    foldLongFlows?: boolean;
+    /** Lay out some top-level groups the other way (top-down in a left-to-right diagram, or the reverse) when that fits the screen clearly better. Default on. */
+    mixGroupDirections?: boolean;
   } = {},
 ): Promise<DomainPipelineResult<PipelineResult>> {
   const pipeline = new Pipeline<string, MermaidPipelineData>(

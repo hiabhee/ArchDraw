@@ -11,7 +11,7 @@ export class BuildStage extends BaseStage<MermaidAST, RFObjects> {
 
   async execute(input: MermaidAST, context: PipelineContext): Promise<StageResult<RFObjects>> {
     const built = buildReactFlowObjects(input, {
-      sizing: context.metadata.layoutProfile === 'studio-minimal' ? 'studio' : undefined,
+      sizing: context.metadata.layoutProfile === 'studio-minimal' || context.metadata.layoutProfile === 'studio-live' ? 'studio' : undefined,
     });
     // Areas written in data-flow order: edges back to an earlier area are feedback.
     const areaOrder = context.metadata.areaOrder as 'flow' | readonly string[] | undefined;

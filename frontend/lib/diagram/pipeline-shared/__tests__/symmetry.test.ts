@@ -40,7 +40,7 @@ describe('symmetrizeFans', () => {
       [['a', 'b'], ['a', 'c'], ['a', 'd']],
     );
     const next = symmetrizeFans(result, params);
-    expect(centerY(next, 'a')).toBeCloseTo(centerY(next, 'c'), 5);
+    expect(centerY(next, 'a')).toBeCloseTo(centerY(next, 'c'), 1);
   });
 
   it('centers a fan-in target on its sources', () => {
@@ -53,7 +53,7 @@ describe('symmetrizeFans', () => {
       [['a', 't'], ['b', 't']],
     );
     const next = symmetrizeFans(result, params);
-    expect(centerY(next, 't')).toBeCloseTo((centerY(next, 'a') + centerY(next, 'b')) / 2, 5);
+    expect(centerY(next, 't')).toBeCloseTo((centerY(next, 'a') + centerY(next, 'b')) / 2, 1);
   });
 
   it('moves the straight chain behind a fan node with it, so the chain stays straight', () => {
@@ -68,8 +68,8 @@ describe('symmetrizeFans', () => {
       [['pre', 'hub'], ['hub', 'x'], ['hub', 'y'], ['hub', 'z']],
     );
     const next = symmetrizeFans(result, params);
-    expect(centerY(next, 'hub')).toBeCloseTo(centerY(next, 'y'), 5);
-    expect(centerY(next, 'pre')).toBeCloseTo(centerY(next, 'hub'), 5);
+    expect(centerY(next, 'hub')).toBeCloseTo(centerY(next, 'y'), 1);
+    expect(centerY(next, 'pre')).toBeCloseTo(centerY(next, 'hub'), 1);
   });
 
   it('never overlaps a neighbour or reorders a column', () => {

@@ -4,7 +4,7 @@ import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 type Laid = { id: string; position: { x: number; y: number }; height?: number; parentNode?: string; parentId?: string };
 
 async function layout(mermaid: string) {
-  const result = (await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' })) as unknown as { data: { nodes: unknown[] } };
+  const result = (await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow', foldLongFlows: false })) as unknown as { data: { nodes: unknown[] } };
   const nodes = result.data.nodes as Laid[];
   const byId = new Map(nodes.map(node => [node.id, node]));
   const absolute = (node: Laid): { x: number; y: number } => {

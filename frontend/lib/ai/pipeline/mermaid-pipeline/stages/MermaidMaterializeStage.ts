@@ -64,6 +64,11 @@ export class MermaidMaterializeStage extends BaseStage<MermaidMaterializeInput, 
 
     const materializeOptions = {
       diagramKind: inferDiagramKind(prompt),
+      // Same layout the landing map and live projects use: Studio cards, close
+      // spacing, top-level groups in data-flow order. The editor re-lays out
+      // when the user's render style is not a Studio one.
+      layoutProfile: 'studio-minimal' as const,
+      areaOrder: 'flow' as const,
       // Generated architecture diagrams should not keep disconnected invented
       // infrastructure nodes such as an unused Redis cache. Existing edits
       // retain their nodes because they are user-owned content.

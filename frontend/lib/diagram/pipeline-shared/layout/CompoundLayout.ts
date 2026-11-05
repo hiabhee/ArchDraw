@@ -1,4 +1,5 @@
 import * as dagre from 'dagre';
+import { foreignNodeIds } from './groupDirections';
 import type {
   LayoutEdge,
   LayoutParams,
@@ -353,6 +354,7 @@ function orderUnlinkedSiblingsByNeighbours(
 ): void {
   const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
   const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const foreign = foreignNodeIds(params); // their ranks run along the other axis: not lanes here
   const center = (id: string) => {
     const position = positions.get(id);
     const dims = dimsById.get(id);
@@ -370,6 +372,7 @@ function orderUnlinkedSiblingsByNeighbours(
     const siblings = new Set(children);
     const loose = children.filter(id =>
       !groupIds.has(id) &&
+      !foreign.has(id) &&
       positions.has(id) &&
       !(neighbours.get(id) ?? []).some(other => siblings.has(other)));
     // Lanes: members in the same rank (same column for LR, row for TD).
@@ -423,6 +426,9 @@ function alignCrossGroupEdges(
 ): void {
   const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
   const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  // A node in a group laid out the other way is never nudged: along this axis its own flow
+  // runs, and a nudge squeezes the gap between stacked cards until the edge between them vanishes.
+  const foreign = foreignNodeIds(params);
   const size = (id: string) => dimsById.get(id)!;
   const center = (id: string) => {
     const position = positions.get(id)!;
@@ -454,7 +460,7 @@ function alignCrossGroupEdges(
 
   const moved = new Set<string>();
   const fits = (id: string, delta: number): boolean => {
-    if (level.has(id) || moved.has(id)) return false;
+    if (level.has(id) || moved.has(id) || foreign.has(id)) return false;
     const position = positions.get(id)!;
     const dims = size(id);
     const next = horizontalFlow ? { x: position.x, y: position.y + delta } : { x: position.x + delta, y: position.y };
@@ -466,7 +472,25 @@ function alignCrossGroupEdges(
       const bottom = horizontalFlow ? frame.y + frame.height - SUBGRAPH_PADDING_BOTTOM : frame.x + frame.width - SUBGRAPH_PADDING_X;
       const low = horizontalFlow ? rect.y : rect.x;
       const high = low + (horizontalFlow ? rect.height : rect.width);
-      if (low < top || high > bottom) return false;
+      if (low < top || high > bottom) {
+        // Frames are re-fitted around their children afterwards, so a top-level
+        // group may grow to take the nudge when no sibling group is in the way.
+        // Tight spacing leaves no slack inside a frame, so without this a
+        // cross-group link could never be levelled.
+        if (parentOf.get(parentId)) return false;
+        const grownLow = Math.min(horizontalFlow ? frame.y : frame.x, low - (horizontalFlow ? SUBGRAPH_PADDING_TOP : SUBGRAPH_PADDING_X));
+        const grownHigh = Math.max(horizontalFlow ? frame.y + frame.height : frame.x + frame.width, high + (horizontalFlow ? SUBGRAPH_PADDING_BOTTOM : SUBGRAPH_PADDING_X));
+        const grown = horizontalFlow
+          ? { x: frame.x, y: grownLow, width: frame.width, height: grownHigh - grownLow }
+          : { x: grownLow, y: frame.y, width: grownHigh - grownLow, height: frame.height };
+        for (const other of positions.keys()) {
+          if (other === parentId || parentOf.get(other) !== parentOf.get(parentId)) continue;
+          if (rectsOverlap(
+            { x: grown.x - ALIGN_CLEARANCE, y: grown.y - ALIGN_CLEARANCE, width: grown.width + 2 * ALIGN_CLEARANCE, height: grown.height + 2 * ALIGN_CLEARANCE },
+            rootRect(other, groupIds, positions, parentOf, dimsById),
+          )) return false;
+        }
+      }
     }
     for (const other of positions.keys()) {
       if (other === id || other === parentId || parentOf.get(other) !== parentId) continue;
@@ -951,7 +975,7 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     levelEdges.push({ ...edge, source, target });
   }
   const rankEdges = selectAcyclicLayoutEdges(
-    aggregateLayoutEdges(levelEdges),
+    aggregateLayoutEdges(levelEdges, levelDirection),
     levelDirection,
     members,
   );
