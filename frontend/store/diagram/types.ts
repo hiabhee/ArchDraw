@@ -80,6 +80,10 @@ export interface SetUserProfileOptions {
 export interface HistoryEntry {
   nodes: Node[];
   edges: Edge[];
+  /** Edits sharing a key within the coalesce window collapse into one undo step. */
+  key?: string;
+  /** When the entry was recorded (ms). */
+  at?: number;
 }
 
 export interface DiagramState {
@@ -98,6 +102,14 @@ export interface DiagramState {
 
   getRandomAnimalName: () => string;
   addCanvas: (customName?: string, canvasId?: string) => string;
+  /** True when the active canvas is linked to a live project (its agents keep working on it). */
+  isActiveCanvasLiveProject: () => boolean;
+  /**
+   * Before an action replaces the active canvas's diagram: a live project is
+   * never replaced in place, so this opens a new tab and makes it active.
+   * Returns false when no tab could be opened; the caller must then stop.
+   */
+  openTabIfLiveProject: () => boolean;
   duplicateCanvas: (id: string) => string | undefined;
   removeCanvas: (id: string) => void;
   switchCanvas: (id: string) => void;
@@ -146,6 +158,8 @@ export interface DiagramState {
   diagramViewMode: 'overview' | 'details';
   diagramStyleTheme: string;
   diagramRenderStyle: import('@/lib/theme/renderStyles').DiagramRenderStyleId;
+  /** How a relayout places things: rank columns (`flow`) or around the most connected component (`zones`). */
+  diagramLayoutStyle: 'flow' | 'zones';
   darkMode: boolean;
   sidebarOpen: boolean;
   canvasMode: 'empty' | 'editing' | 'template';
@@ -153,6 +167,8 @@ export interface DiagramState {
   detailLevel: 1 | 2 | 3;
   isPenModeActive: boolean;
   setPenModeActive: (active: boolean) => void;
+  activeTool: 'select' | 'text';
+  setActiveTool: (tool: 'select' | 'text') => void;
   setGuideLines: (lines: GuideLine[]) => void;
   toggleEdgeAnimations: () => void;
   toggleGrid: () => void;
@@ -163,6 +179,7 @@ export interface DiagramState {
   setDiagramViewMode: (mode: 'overview' | 'details') => void;
   setDiagramStyleTheme: (theme: string) => void;
   setDiagramRenderStyle: (style: import('@/lib/theme/renderStyles').DiagramRenderStyleId) => void;
+  setDiagramLayoutStyle: (style: 'flow' | 'zones') => void;
   toggleDarkMode: () => void;
   setSidebarOpen: (open: boolean) => void;
   setCanvasMode: (mode: 'empty' | 'editing' | 'template') => void;
@@ -175,7 +192,8 @@ export interface DiagramState {
   // ── History ───────────────────────────────────────────────────────────────
   past: HistoryEntry[];
   future: HistoryEntry[];
-  pushHistory: () => void;
+  /** Records the current graph as an undo step. A coalesceKey merges a burst of the same edit (typing, drags). */
+  pushHistory: (opts?: { coalesceKey?: string }) => void;
   undo: () => void;
   redo: () => void;
 

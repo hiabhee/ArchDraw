@@ -165,7 +165,15 @@ export const createPersistenceSlice: StateCreator<
         const mergedCanvases = mergeCanvases(localCanvases, dbCanvases);
 
         const openIds = mergedCanvases.map((c) => c.id);
-        const targetCanvas = mergedCanvases.find((c) => c.id === activeCanvasId) || mergedCanvases[0];
+        // Read the active canvas now, after the fetch: the user may have switched
+        // canvases while the list was loading, and that choice must win over the
+        // value captured before the request. Only then fall back to the value the
+        // load started with, and finally to the first canvas.
+        const currentActiveId = get().activeCanvasId;
+        const targetCanvas =
+          mergedCanvases.find((c) => c.id === currentActiveId) ||
+          mergedCanvases.find((c) => c.id === activeCanvasId) ||
+          mergedCanvases[0];
         // Server data — don't echo it straight back as saves.
         withAutoSaveSuppressed(() => set({
           canvases: mergedCanvases,

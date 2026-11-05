@@ -237,6 +237,7 @@ function GroupNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
       <NodeResizer
+        onResizeStart={() => useDiagramStore.getState().pushHistory({ coalesceKey: `resize:${id}` })}
         isVisible={!readOnly && (!!selected || isHovered)}
         minWidth={150}
         minHeight={100}
