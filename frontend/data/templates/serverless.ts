@@ -16,5 +16,6 @@ export const serverlessEdges: Edge[] = [
   e('sls_e3','sls_gateway','sls_lambda','invoke'),
   e('sls_e4','sls_lambda','sls_dynamo','read/write'),
   e('sls_e5','sls_lambda','sls_s3','read/write'),
+  e('sls_e7','sls_cdn','sls_s3','origin fetch'),
   e('sls_e6','sls_eventbridge','sls_lambda','cron', 'event'),
 ];

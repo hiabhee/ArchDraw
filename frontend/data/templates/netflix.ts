@@ -61,10 +61,11 @@ export const netflixEdges: Edge[] = [
   E('e1', 'web', 'dns', 'DNS Query'),
   E('e2', 'mobile', 'dns', 'DNS Query'),
   E('e3', 'smarttv', 'dns', 'DNS Query'),
-  E('e4', 'dns', 'cdn', 'Route to Edge'),
 
-  // Edge to Gateway
-  E('e5', 'cdn', 'gateway', 'API Request'),
+  // API traffic goes to the gateway (Zuul on AWS); Open Connect only serves video
+  E('e5', 'web', 'gateway', 'API Request'),
+  E('e5b', 'mobile', 'gateway', 'API Request'),
+  E('e5c', 'smarttv', 'gateway', 'API Request'),
 
   // Gateway to Services
   E('e6', 'gateway', 'auth', 'Auth Request'),
@@ -80,6 +81,8 @@ export const netflixEdges: Edge[] = [
   E('e14', 'profile', 'mysql', 'Profile DB'),
   E('e15', 'catalog', 'elasticsearch', 'Search'),
   E('e16', 'metadata', 'cassandra', 'Metadata'),
+  E('e16b', 'catalog', 'metadata', 'Title Metadata'),
+  E('e16c', 'billing', 'mysql', 'Subscriptions'),
   E('e17', 'playback', 'orchestrator', 'Orchestrate'),
   E('e18', 'playback', 'redis', 'Session Cache'),
 

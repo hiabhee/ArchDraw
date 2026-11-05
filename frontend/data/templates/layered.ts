@@ -15,5 +15,4 @@ export const layeredEdges: Edge[] = [
   edge('lay_e3', 'lay_business', 'lay_persist', 'uses'),
   edge('lay_e4', 'lay_persist', 'lay_db', 'SQL / Query'),
   edge('lay_e5', 'lay_business', 'lay_external', 'integrates', 'dep'),
-  edge('lay_e6', 'lay_persist', 'lay_external', 'events', 'event'),
 ];

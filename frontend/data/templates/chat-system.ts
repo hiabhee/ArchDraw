@@ -14,9 +14,9 @@ export const chatSystemNodes: Node[] = [
 export const chatSystemEdges: Edge[] = [
   e('chat_e1','chat_client','chat_ws','WS connect','stream'),
   e('chat_e2','chat_ws','chat_presence','presence', 'event'),
-  e('chat_e3','chat_ws','chat_msg','send message'),
+  e('chat_e3','chat_ws','chat_msg','send / deliver','stream'),
   e('chat_e4','chat_msg','chat_history','persist'),
-  e('chat_e5','chat_msg','chat_push','notify','async'),
+  e('chat_e5','chat_msg','chat_push','notify offline','async'),
   e('chat_e6','chat_msg','chat_queue','publish','event'),
   e('chat_e7','chat_queue','chat_search','index','event'),
 ];

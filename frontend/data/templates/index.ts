@@ -228,7 +228,7 @@ export const TEMPLATES: Template[] = [
     id: 'repo_to_diagram',
     name: 'How Repo → Diagram Works',
     description:
-      'The repo-import pipeline itself: GitHub ingestion (tarball + Contents-API fallback), static analysis, deterministic baseline, three LLM agents (classify / extract / relationships), evidence verification, and finalization into a React Flow canvas.',
+      'The repo-import pipeline itself: GitHub ingestion (tarball + Contents-API fallback), static analysis, deterministic baseline, three LLM agents (classify / extract / relationships), evidence verification, a docs review against the README, and finalization into a React Flow canvas.',
     tags: ['Repo Import', 'Pipeline', 'LLM Agents', 'Dagre'],
     icon: '🔎',
     nodes: repoToDiagramNodes,
@@ -246,7 +246,7 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'clean_architecture',
     name: 'Clean Architecture',
-    description: 'Onion/Clean: Entities → Use Cases → Interface Adapters (Controllers/Presenters/Gateways) → Frameworks & External.',
+    description: 'Onion/Clean: dependencies point inward from Frameworks & Drivers (web, DB) through Interface Adapters (Controllers/Presenters/Gateways) to Use Cases and Entities.',
     tags: ['Clean', 'Onion', 'Hexagonal', 'Ports', 'Adapters', 'SOLID'],
     icon: '🧅',
     nodes: cleanArchitectureNodes,
@@ -273,7 +273,7 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'microservices',
     name: 'Microservices',
-    description: 'Client → API Gateway → Auth/User/Order services, each with DB, plus Event Bus.',
+    description: 'Client → API Gateway → Auth/User/Order services; User and Order own their databases and publish to an Event Bus.',
     tags: ['Microservices', 'Monolith', 'API Gateway', 'Service', 'Distributed'],
     icon: '🧩',
     nodes: microservicesNodes,
@@ -282,7 +282,7 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'event_driven',
     name: 'Event-Driven Architecture',
-    description: 'Client → API → Event Store → Event Bus → Inventory/Email/Analytics consumers.',
+    description: 'Client → API → transactional Outbox → Event Bus → OrderCreated consumed by Inventory, Email and Analytics.',
     tags: ['Event-Driven', 'EDA', 'Event', 'Kafka', 'Queue', 'Outbox'],
     icon: '📨',
     nodes: eventDrivenNodes,
@@ -327,7 +327,7 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'url_shortener',
     name: 'URL Shortener',
-    description: 'Bitly clone: Client → LB → API → Cache (Redis) → DB (Cassandra) + Worker.',
+    description: 'Bitly clone: Client → LB → API, Redis cache-aside over Cassandra, and a scheduled expiry job.',
     tags: ['URL Shortener', 'Bitly', 'Shortener', 'Cache', 'Cassandra'],
     icon: '🔗',
     nodes: urlShortenerNodes,
@@ -336,7 +336,7 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'chat_system',
     name: 'Chat System',
-    description: 'Slack-like: Client → WebSocket GW → Presence, Message → History, Push, Search via Kafka.',
+    description: 'Slack-like: Client ⇄ WebSocket GW ⇄ Message service (send + deliver), Presence, History, push for offline users, search via Kafka.',
     tags: ['Chat', 'Slack', 'WebSocket', 'Real-Time', 'Messaging'],
     icon: '💬',
     nodes: chatSystemNodes,
@@ -363,7 +363,7 @@ export const TEMPLATES: Template[] = [
   template({
     id: 'request_response',
     name: 'Request-Response Cycle',
-    description: 'End-to-end HTTP lifecycle: Client → DNS → CDN → LB → Gateway (Auth) → Service → Cache/DB → Service → Gateway → Client. Numbered 1–13 for request, validation, cache/DB lookup, JSON serialization, and 200 OK response; includes edge-cache and async metrics.',
+    description: 'End-to-end HTTP lifecycle: DNS lookup, then Client → CDN → LB → Gateway (Auth) → Service → Cache/DB and back through the CDN. Numbered 1–14 for request, token check, cache/DB lookup, JSON response, and 200 OK.',
     tags: ['HTTP', 'Request-Response', 'REST', 'API Gateway', 'Cache', 'DNS'],
     icon: '🔄',
     nodes: requestResponseNodes,

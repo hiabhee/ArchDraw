@@ -47,10 +47,9 @@ export const requestResponseNodes: Node[] = [
 
 export const requestResponseEdges: Edge[] = [
   // Client → Edge (DNS + CDN + LB)
-  edge('rr_e1', 'rr_client', 'rr_dns', '1. DNS query'),
-  edge('rr_e2', 'rr_dns', 'rr_cdn', '2. Resolve / edge hit?'),
-  edge('rr_e3', 'rr_cdn', 'rr_lb', '3. Miss → forward'),
-  edge('rr_e4', 'rr_client', 'rr_lb', 'HTTP Request (GET /api)'),
+  edge('rr_e1', 'rr_client', 'rr_dns', '1. DNS lookup'),
+  edge('rr_e2', 'rr_client', 'rr_cdn', '2. HTTPS request'),
+  edge('rr_e3', 'rr_cdn', 'rr_lb', '3. Miss → origin'),
   // Gateway ingress + middleware
   edge('rr_e5', 'rr_lb', 'rr_gateway', '4. Forward'),
   edge('rr_e6', 'rr_gateway', 'rr_auth', '5. Verify JWT'),
@@ -64,8 +63,6 @@ export const requestResponseEdges: Edge[] = [
   // Response path (completes the cycle)
   edge('rr_e13', 'rr_service', 'rr_gateway', '11. JSON response'),
   edge('rr_e14', 'rr_gateway', 'rr_lb', '12. 200 OK'),
-  edge('rr_e15', 'rr_lb', 'rr_client', '13. HTTP Response'),
-  // Non-blocking side effects (does not block response)
-  edge('rr_e16', 'rr_gateway', 'rr_cdn', 'cache response', 'event'),
-  edge('rr_e17', 'rr_service', 'rr_gateway', 'metrics / logs', 'event'),
+  edge('rr_e15', 'rr_lb', 'rr_cdn', '13. Response'),
+  edge('rr_e18', 'rr_cdn', 'rr_client', '14. HTTP response (cached if allowed)'),
 ];
