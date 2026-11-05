@@ -16,6 +16,7 @@ import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { LiveActivityBadge } from './LiveActivityBadge';
 import { findNodeById } from '@/store/diagram/derive';
 import { useDiagramStore } from '@/store/diagramStore';
+import { wrapperMatchesSize } from '@/lib/diagram/nodes/wrapperSize';
 import { resolveNodeIconVisibility } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { type ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
@@ -174,22 +175,29 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
   // mismatch (React Flow measured vs grid-snapped) or a stale closure can cause
   // useLayoutEffect to fire every commit and hit "Maximum update depth exceeded".
   // Track the last size we pushed to the store and only push when it truly changes.
-  const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
+  // The wrapper's own size (what React Flow draws, measures and routes edges to). A saved or
+  // reloaded node can carry an older size here while `data` is already current.
+  const wrapperWidth = useDiagramStore((s) => (readOnly ? undefined : findNodeById(s.nodes, id)?.width));
+  const wrapperHeight = useDiagramStore((s) => (readOnly ? undefined : findNodeById(s.nodes, id)?.height));
+  const lastPushedSizeRef = useRef<{ w: number; h: number; ww?: number | null; wh?: number | null } | null>(null);
 
   useLayoutEffect(() => {
     if (readOnly) return;
-    if (storedNodeWidth === width && storedNodeHeight === height) {
+    const wrapperOk = wrapperMatchesSize({ width: wrapperWidth, height: wrapperHeight }, width, height);
+    if (storedNodeWidth === width && storedNodeHeight === height && wrapperOk) {
       lastPushedSizeRef.current = { w: width, h: height };
       return;
     }
+    // Already pushed this size for this very wrapper size: pushing again cannot help (and would loop).
     if (
       lastPushedSizeRef.current &&
       lastPushedSizeRef.current.w === width &&
-      lastPushedSizeRef.current.h === height
+      lastPushedSizeRef.current.h === height &&
+      (wrapperOk || (lastPushedSizeRef.current.ww === wrapperWidth && lastPushedSizeRef.current.wh === wrapperHeight))
     ) {
       return;
     }
-    lastPushedSizeRef.current = { w: width, h: height };
+    lastPushedSizeRef.current = { w: width, h: height, ww: wrapperOk ? undefined : wrapperWidth, wh: wrapperOk ? undefined : wrapperHeight };
     // Defer store write to next microtask so React Flow's internal
     // commit finishes before we trigger a Zustand set(). This breaks the
     // synchronous loop: effect -> set -> render -> effect -> set ...
@@ -198,10 +206,10 @@ function ShapeNodeComponent({ id, data, selected }: NodeProps<ShapeNodeData>) {
       const cur = useDiagramStore.getState().nodes.find((nd) => nd.id === id);
       const curW = (cur?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
       const curH = (cur?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
-      if (curW === width && curH === height) return;
+      if (curW === width && curH === height && wrapperMatchesSize(cur, width, height)) return;
       updateNodeSize(id, { width, height });
     });
-  }, [id, width, height, storedNodeWidth, storedNodeHeight, updateNodeSize, readOnly]);
+  }, [id, width, height, storedNodeWidth, storedNodeHeight, wrapperWidth, wrapperHeight, updateNodeSize, readOnly]);
 
   // updateNodeInternals is a React Flow imperative handle; calling it
   // synchronously on every size change can trigger onNodesChange -> set
