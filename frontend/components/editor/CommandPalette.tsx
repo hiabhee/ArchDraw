@@ -226,6 +226,7 @@ export function CommandPalette() {
       const result = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', {
         title: template.name,
         renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+        layoutStyle: useDiagramStore.getState().diagramLayoutStyle,
       });
       if (!result.success) {
         toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
@@ -236,8 +237,12 @@ export function CommandPalette() {
       const store = useDiagramStore.getState();
       const currentNodes = store.nodes;
 
-      if (currentNodes.length > 0) {
+      // A live project's map is never replaced in place (its agents stay with it).
+      if (currentNodes.length > 0 || store.isActiveCanvasLiveProject()) {
+        const beforeId = store.activeCanvasId;
         store.addCanvas();
+        // addCanvas keeps the active id when it refuses (canvas limit): never overwrite then.
+        if (useDiagramStore.getState().activeCanvasId === beforeId) return;
         // addCanvas switches activeCanvasId synchronously; use timeout to let state propagate before loadTemplate
         setTimeout(() => {
           const live = useDiagramStore.getState();

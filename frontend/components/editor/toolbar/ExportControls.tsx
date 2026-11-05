@@ -35,21 +35,6 @@ export type ExportFormat =
   | 'pdf'
   | 'html-embed';
 
-interface EmbedNode {
-  id: string;
-  width?: number | null;
-  height?: number | null;
-  position: { x: number; y: number };
-  data?: Record<string, unknown>;
-}
-
-interface EmbedEdge {
-  source: string;
-  target: string;
-  data?: Record<string, unknown>;
-  style?: React.CSSProperties;
-}
-
 function resolveSvgCanvasBackground(
   background: CanvasBackgroundConfig,
   showGrid: boolean,
@@ -105,16 +90,6 @@ async function inlineBrandImages(svg: string, required: boolean): Promise<string
     if (dataUrl) result = result.replaceAll(`href="${url}"`, `href="${dataUrl}"`);
   }
   return result;
-}
-
-function escapeXml(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 function svgToDataUri(svg: string): string {
@@ -184,63 +159,48 @@ async function addWatermark(dataUrl: string): Promise<string> {
   });
 }
 
-function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
-  const svgWidth = 1200;
-  const svgHeight = 800;
+type ExportBg = 'dark' | 'light' | 'transparent';
 
-  const nodeMap = new Map<string, { x: number; y: number; width: number; height: number }>();
-  const renderedNodes = nodes.map(node => {
-    const width = node.width || 140;
-    const height = node.height || 72;
-    nodeMap.set(node.id, { x: node.position.x, y: node.position.y, width, height });
-    return {
-      ...node,
-      width,
-      height,
-      color: (node.data?.color as string) || '#6B7280',
-      label: (node.data?.label as string) || node.id,
-    };
-  });
+/** One SVG builder for SVG, PNG, PDF and HTML-embed exports so they always match the canvas. */
+async function buildExportSvg(
+  bgType: ExportBg,
+  element: HTMLElement | null,
+  fallbackNodes: ReturnType<typeof useDiagramStore.getState>['nodes'],
+  requireBrandImages: boolean,
+): Promise<string> {
+  const state = useDiagramStore.getState();
+  const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
+  // Export what the canvas shows: in High-level / Detailed view the instance holds a
+  // projection whose nodes and edges differ from the stored diagram.
+  // Selection is editor chrome, not part of the diagram.
+  const exportNodes = (reactFlowRef.instance?.getNodes() ?? fallbackNodes).map((n) => (n.selected ? { ...n, selected: false } : n));
+  const exportEdges = (reactFlowRef.instance?.getEdges() ?? state.edges).map((e) => (e.selected ? { ...e, selected: false } : e));
+  const isTransparent = bgType === 'transparent';
+  const isDark = isTransparent ? !!state.darkMode : bgType === 'dark';
+  const svgBg = isTransparent
+    ? 'none'
+    : resolveCanvasTokens({
+        renderStyleId: state.diagramRenderStyle,
+        colorThemeId: state.diagramStyleTheme,
+        isDark,
+      }).cssVars['--arch-canvas-bg'];
 
-  const renderedEdges = edges.map(edge => ({
-    source: edge.source,
-    target: edge.target,
-    label: (edge.data?.label as string) || '',
-    color: edge.style?.stroke || '#64748b',
-  }));
+  const { generatePureSVG } = await import('@/lib/diagram/export/svgExport');
+  const svg = generatePureSVG(
+    exportNodes,
+    exportEdges,
+    isDark,
+    svgBg,
+    layoutDirection,
+    state.diagramRenderStyle,
+    state.diagramStyleTheme,
+    state.iconMode,
+    resolveSvgCanvasBackground(state.canvasBackground, state.showGrid, isDark, element),
+  );
+  return inlineBrandImages(svg, requireBrandImages);
+}
 
-  const nodesSVG = renderedNodes.map(node => {
-    const { position: { x, y }, width, height, color, label } = node;
-    return `
-    <g transform="translate(${x}, ${y})" class="node">
-      <rect width="${width}" height="${height}" rx="8" fill="#1e293b" stroke="${color}" stroke-width="2"/>
-      <rect width="${width}" height="4" rx="2" fill="${color}"/>
-      <text x="${width/2}" y="${height/2 + 5}" text-anchor="middle" fill="#f1f5f9" font-family="system-ui,sans-serif" font-size="12" font-weight="500">${escapeXml(label)}</text>
-    </g>`;
-  }).join('');
-
-  const edgesSVG = renderedEdges.map(edge => {
-    const source = nodeMap.get(edge.source);
-    const target = nodeMap.get(edge.target);
-    if (!source || !target) return '';
-
-    const sx = source.x + source.width;
-    const sy = source.y + source.height / 2;
-    const tx = target.x;
-    const ty = target.y + target.height / 2;
-    const mx = (sx + tx) / 2;
-
-    const path = `M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}`;
-    const labelX = (sx + tx) / 2;
-    const labelY = (sy + ty) / 2 - 8;
-
-    return `
-    <g class="edge">
-      <path d="${path}" fill="none" stroke="${edge.color}" stroke-width="2" marker-end="url(#arrowhead)"/>
-      ${edge.label ? `<text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="10">${escapeXml(edge.label)}</text>` : ''}
-    </g>`;
-  }).join('');
-
+function generateEmbedHTML(svg: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -249,34 +209,13 @@ function generateEmbedHTML(nodes: EmbedNode[], edges: EmbedEdge[]): string {
   <title>ArchDraw Diagram</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .container { background: #1e293b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); padding: 20px; max-width: 100%; overflow: auto; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    .title { color: #f1f5f9; font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; }
-    .badge { background: linear-gradient(135deg, #595959, #8A8A8A); color: white; padding: 4px 10px; border-radius: 9999px; font-size: 10px; font-weight: 500; }
-    svg { display: block; }
+    html, body { height: 100%; background: #0f172a; }
+    body { display: flex; align-items: center; justify-content: center; padding: 12px; }
+    svg { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <span class="title">Architecture Diagram</span>
-      <span class="badge">Created with ArchDraw</span>
-    </div>
-    <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
-      <defs>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
-        </marker>
-      </defs>
-      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.5"/>
-      </pattern>
-      <rect width="100%" height="100%" fill="url(#grid)"/>
-      ${edgesSVG}
-      ${nodesSVG}
-    </svg>
-  </div>
+${svg}
 </body>
 </html>`;
 }
@@ -373,15 +312,23 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
     }
 
     if (format === 'html-embed') {
-      const htmlContent = generateEmbedHTML(nodes as EmbedNode[], edges as EmbedEdge[]);
-      const iframeCode = `<iframe \n  src="data:text/html,${encodeURIComponent(htmlContent)}" \n  width="100%" \n  height="600" \n  style="border:none;border-radius:12px;"\n  title="ArchDraw Diagram"\n></iframe>`;
-      await navigator.clipboard.writeText(iframeCode);
-      toast.success('Embed code (iframe) copied to clipboard');
+      try {
+        const svg = await buildExportSvg('dark', document.querySelector('.react-flow') as HTMLElement | null, nodes, false);
+        const htmlContent = generateEmbedHTML(svg);
+        const iframeCode = `<iframe \n  srcdoc="${htmlContent.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" \n  width="100%" \n  height="600" \n  style="border:none;border-radius:12px;"\n  title="ArchDraw Diagram"\n></iframe>`;
+        await navigator.clipboard.writeText(iframeCode);
+        toast.success('Embed code (iframe) copied to clipboard');
+      } catch (err) {
+        logger.error('HTML embed export failed', err);
+        toast.error('Could not copy embed code. Please try again.');
+      }
       return;
     }
 
     const isSvg = format.startsWith('svg-');
-    const bgType = format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
+    const bgType: ExportBg = format === 'pdf'
+      ? (useDiagramStore.getState().darkMode ? 'dark' : 'light')
+      : format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
 
     const { fitView } = useDiagramStore.getState();
     setIsExporting(true);
@@ -393,39 +340,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
       const isTransparent = bgType === 'transparent';
 
       if (isSvg) {
-        const state = useDiagramStore.getState();
-        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
-        const exportNodes = reactFlowRef.instance?.getNodes() ?? state.nodes;
-
-        let svgBg = 'none';
-        if (!isTransparent) {
-          svgBg = resolveCanvasTokens({
-            renderStyleId: state.diagramRenderStyle,
-            colorThemeId: state.diagramStyleTheme,
-            isDark: bgType === 'dark',
-          }).cssVars['--arch-canvas-bg'];
-        }
-
-        const { generatePureSVG } = await import('@/lib/diagram/export/svgExport');
-        const isDarkForSvg = isTransparent ? !!state.darkMode : bgType === 'dark';
-        const svgCanvasBackground = resolveSvgCanvasBackground(
-          state.canvasBackground,
-          state.showGrid,
-          isDarkForSvg,
-          element,
-        );
-        const generatedSvg = generatePureSVG(
-          exportNodes,
-          state.edges,
-          isDarkForSvg,
-          svgBg,
-          layoutDirection,
-          state.diagramRenderStyle,
-          state.diagramStyleTheme,
-          state.iconMode,
-          svgCanvasBackground,
-        );
-        const svgContent = await inlineBrandImages(generatedSvg, false);
+        const svgContent = await buildExportSvg(bgType, element, useDiagramStore.getState().nodes, false);
         downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
         toast.success(isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG');
         analytics.track({
@@ -459,39 +374,14 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
           await new Promise<void>((r) => requestAnimationFrame(() => r()));
         }
 
-        const state = useDiagramStore.getState();
-        const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
-        const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
-
-        let svgBg: string = 'none';
-        if (bgType !== 'transparent') {
-          svgBg = resolveCanvasTokens({
-            renderStyleId: state.diagramRenderStyle,
-            colorThemeId: state.diagramStyleTheme,
-            isDark: bgType === 'dark',
-          }).cssVars['--arch-canvas-bg'];
-        }
-
-        const { generatePureSVG } = await import('@/lib/diagram/export/svgExport');
-        const isDarkForSvg = bgType === 'transparent' ? !!state.darkMode : bgType === 'dark';
-        const svgCanvasBackground = resolveSvgCanvasBackground(
-          state.canvasBackground,
-          state.showGrid,
-          isDarkForSvg,
-          element,
-        );
-        const generatedSvg = generatePureSVG(
-          exportNodes,
-          state.edges,
-          isDarkForSvg,
-          svgBg,
-          layoutDirection,
-          state.diagramRenderStyle,
-          state.diagramStyleTheme,
-          state.iconMode,
-          svgCanvasBackground,
-        );
-        const svgContent = await inlineBrandImages(generatedSvg, true);
+        const svgContent = await buildExportSvg(bgType, element, nodes, true);
+        const svgBg: string = bgType === 'transparent'
+          ? 'none'
+          : resolveCanvasTokens({
+              renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+              colorThemeId: useDiagramStore.getState().diagramStyleTheme,
+              isDark: bgType === 'dark',
+            }).cssVars['--arch-canvas-bg'];
 
         // Parse SVG dimensions from the generated markup (width/height in viewBox)
         const widthMatch = svgContent.match(/width="(\d+(?:\.\d+)?)"/);
