@@ -769,3 +769,22 @@ describe('Flow-aligned sides for downstream targets', () => {
     expect([best.sourceSide, best.targetSide]).toEqual([Position.Bottom, Position.Top]);
   });
 });
+
+describe('buildDefaultOrthogonalWaypoints: same-side routes leave outward', () => {
+  it('runs a top→top route above both handles instead of between them', () => {
+    const wp = buildDefaultOrthogonalWaypoints({ x: 228, y: 64 }, { x: 1772, y: 58 }, Position.Top, Position.Top, 0);
+    // Lane sits 24px above the higher handle, so the edge visibly leaves the nodes.
+    expect(wp[1].y).toBe(58 - 24);
+    expect(wp[2].y).toBe(58 - 24);
+  });
+
+  it('fans parallel top→top edges further out', () => {
+    const wp = buildDefaultOrthogonalWaypoints({ x: 228, y: 64 }, { x: 1772, y: 58 }, Position.Top, Position.Top, 24);
+    expect(wp[1].y).toBe(58 - 24 - 24);
+  });
+
+  it('keeps facing sides on the midpoint lane', () => {
+    const wp = buildDefaultOrthogonalWaypoints({ x: 0, y: 0 }, { x: 200, y: 100 }, Position.Bottom, Position.Top, 0);
+    expect(wp[1].y).toBe(50);
+  });
+});

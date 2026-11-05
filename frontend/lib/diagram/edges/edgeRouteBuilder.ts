@@ -737,6 +737,10 @@ export function buildLanePath(
  * different widths stagger their channels and the merge looks uneven.
  * Returns null when the edge is not part of a fan or the fan does not face it.
  */
+/** Closest a shared trunk sits to the node it hugs (room for the corner radius), and its share of the gap. */
+const FAN_TRUNK_MIN = 32
+const FAN_TRUNK_SHARE = 0.3
+
 function fanChannelX(
   edge: Edge,
   nodes: Node[],
@@ -759,14 +763,19 @@ function fanChannelX(
   const fanOut = targets.length > 1
   if (!fanIn && !fanOut) return null
 
+  // The shared trunk hugs the end that is shared, so that what is left of each edge
+  // (its own stub, where its label and arrowhead live) keeps most of the gap. A trunk
+  // in the middle left each stub about half the gap: shorter than a label pill plus
+  // an arrowhead, so labels ended up touching the marker.
+  const trunkOffset = (gap: number) => Math.min(gap / 2, Math.max(FAN_TRUNK_MIN, gap * FAN_TRUNK_SHARE))
   if (fanOut && (!fanIn || targets.length >= sources.length)) {
     const lefts = targets.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + targetGap)
     if (lefts.length !== targets.length || lefts.some(x => x <= sh.x)) return null
-    return (sh.x + Math.min(...lefts)) / 2
+    return sh.x + trunkOffset(Math.min(...lefts) - sh.x)
   }
   const rights = sources.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + r.w + sourceGap)
   if (rights.length !== sources.length || rights.some(x => x >= th.x)) return null
-  return (Math.max(...rights) + th.x) / 2
+  return th.x - trunkOffset(th.x - Math.max(...rights))
 }
 
 export function computeEdgeRoute(
@@ -1289,4 +1298,23 @@ export function computeEdgeRoute(
     }
   }
   return primary
+}
+
+/**
+ * Whether a route still starts and ends at the given handle centres. A route
+ * planned for older node positions fails this, so it is not drawn for a node
+ * that has since moved.
+ */
+export function routeEndsAt(
+  route: Pick<EdgeRouteResult, 'sourcePoint' | 'targetPoint'>,
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+  tolerance = 1,
+): boolean {
+  return (
+    Math.abs(route.sourcePoint.x - source.x) <= tolerance &&
+    Math.abs(route.sourcePoint.y - source.y) <= tolerance &&
+    Math.abs(route.targetPoint.x - target.x) <= tolerance &&
+    Math.abs(route.targetPoint.y - target.y) <= tolerance
+  );
 }

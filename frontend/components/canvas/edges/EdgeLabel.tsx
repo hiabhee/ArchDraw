@@ -163,7 +163,7 @@ export function EdgeLabel({
     ? {
         background: isDark ? SKETCH_PAPER_DARK : SKETCH_PAPER_TINT,
         color: textColor,
-        fontSize: 11,
+        fontSize: 13,
         borderRadius: 5,
         border: isDark
           ? `1px solid ${SKETCH_PAPER_DARK_BORDER}`
@@ -186,7 +186,7 @@ export function EdgeLabel({
       ? {
           background: 'var(--arch-node-fill, #ffffff)',
           color: textColor,
-          fontSize: 11,
+          fontSize: 12,
           borderRadius: 5,
           border: '1.5px solid var(--arch-node-stroke, #1a1a1a)',
           boxShadow: '2px 2px 0px var(--arch-node-stroke, #1a1a1a)',

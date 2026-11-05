@@ -147,6 +147,27 @@ function laneBetween(sourceCoord: number, targetCoord: number, edgeOffset: numbe
   return lane > lo && lane < hi ? lane : mid;
 }
 
+/** How far a same-side route runs out past the handles before it turns. */
+const SAME_SIDE_STUB = 24
+
+/**
+ * Lane for two handles on the same outward side (top/top, bottom/bottom,
+ * left/left, right/right). The midpoint would lie between the two handles and
+ * hug the node edges; the route leaves outward and runs past the outer one.
+ * Parallel edges (`edgeOffset`) fan further out, never into the nodes.
+ */
+function outwardLane(
+  sourceCoord: number,
+  targetCoord: number,
+  side: Position,
+  edgeOffset: number,
+): number | null {
+  const spread = SAME_SIDE_STUB + Math.abs(edgeOffset);
+  if (side === Position.Top || side === Position.Left) return Math.min(sourceCoord, targetCoord) - spread;
+  if (side === Position.Bottom || side === Position.Right) return Math.max(sourceCoord, targetCoord) + spread;
+  return null;
+}
+
 /**
  * Default orthogonal waypoints for a handler pair (Z or L), matching
  * computeDirectWaypoints in edgeRouteBuilder — no collision detours.
@@ -170,7 +191,8 @@ export function buildDefaultOrthogonalWaypoints(
         { x: target.x, y: target.y },
       ];
     }
-    const mx = laneBetween(source.x, target.x, edgeOffset, facingAlong(sourceSide, targetSide, source.x, target.x));
+    const mx = (sourceSide === targetSide ? outwardLane(source.x, target.x, sourceSide, edgeOffset) : null)
+      ?? laneBetween(source.x, target.x, edgeOffset, facingAlong(sourceSide, targetSide, source.x, target.x));
     return [
       { x: source.x, y: source.y },
       { x: mx, y: source.y },
@@ -185,7 +207,8 @@ export function buildDefaultOrthogonalWaypoints(
         { x: target.x, y: target.y },
       ];
     }
-    const my = laneBetween(source.y, target.y, edgeOffset, facingAlong(sourceSide, targetSide, source.y, target.y));
+    const my = (sourceSide === targetSide ? outwardLane(source.y, target.y, sourceSide, edgeOffset) : null)
+      ?? laneBetween(source.y, target.y, edgeOffset, facingAlong(sourceSide, targetSide, source.y, target.y));
     return [
       { x: source.x, y: source.y },
       { x: source.x, y: my },
