@@ -21,7 +21,8 @@ import {
   BRUTAL_FILL_DARK,
   type DiagramRenderStyleId,
 } from '@/lib/theme/renderStyles';
-import { buildSolidArrowheadPath, escapeXml } from './svgPrimitives';
+import { buildSolidArrowheadPath, escapeXml, svgFontFamily } from './svgPrimitives';
+import { pathEndTangentAngle } from '@/lib/diagram/edges/pathTangent';
 import { getPath } from './edgePaths';
 import { composeEdgeDisplayLabel } from '@/lib/diagram/edges/edgeLabelLayout';
 import type { EdgeRenderData } from './types';
@@ -115,9 +116,9 @@ export function renderEdge(
     const sketchBorder = isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER;
     const paddingX = isSketch ? 7 : 7;
     const paddingY = isSketch ? 2 : 3;
-    const charWidth = isSketch ? 6.2 : 6.0;
+    const charWidth = isSketch ? 6.4 : isBrutal ? 6.6 : 6.0;
     const labelWidth = Math.max(38, labelText.length * charWidth + paddingX * 2);
-    const labelHeight = (isSketch ? 15 : 16) + paddingY * 2;
+    const labelHeight = (isSketch ? 17 : isBrutal ? 17 : 16) + paddingY * 2;
 
     let labelBox = '';
     if (isSketch) {
@@ -170,8 +171,8 @@ export function renderEdge(
         <text
            x="0" y="4"
            fill="${fg}"
-           font-family="${isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif'}"
-           font-size="${isBrutal ? 11 : isSketch ? 11 : 11}"
+           font-family="${svgFontFamily(isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif')}"
+           font-size="${isBrutal ? 12 : isSketch ? 13 : 11}"
            font-weight="${isBrutal ? 600 : 500}"
            text-anchor="middle"
            letter-spacing="${isSketch ? '0' : '0.015em'}"
@@ -203,8 +204,10 @@ export function renderEdge(
   if (d) {
     try {
       const end = { x: targetX, y: targetY };
+      // The path's own end tangent: measuring a rendered element only works in a
+      // browser, and a point a fixed share back misreads a short last run.
       const pathEnd = isSketch ? getPointOnPath(sketchDrawPath, 1) : getPointOnPath(d, 0.98);
-      const angle = Math.atan2(end.y - pathEnd.y, end.x - pathEnd.x);
+      const angle = pathEndTangentAngle(d) ?? Math.atan2(end.y - pathEnd.y, end.x - pathEnd.x);
       arrowheadSVG = isSketch
         ? rough.renderArrowhead(end, angle, strokeColor, seed)
         : `<path data-edge-marker="solid-arrowhead" d="${buildSolidArrowheadPath(end, angle)}" fill="${strokeColor}" stroke="${strokeColor}" stroke-width="0" opacity="${opacity}"/>`;
