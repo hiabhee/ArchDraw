@@ -3,7 +3,7 @@ import type { Node, Edge, MarkerType } from 'reactflow';
 import { componentRegistry, type ComponentDefinition } from '@/lib/component-library/componentRegistry';
 import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
 import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
-import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT, type TextSize } from '@/lib/diagram/nodes/textSizing';
+import { estimateTextNodeSize, type TextSize } from '@/lib/diagram/nodes/textSizing';
 import { shapeForServiceType, type ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
 
 /** Palette id for a blank node that opens inline rename on place. */
@@ -168,7 +168,6 @@ export function createTextLabelNode(
       text,
       fontSize,
       autoStartTextEdit: autoStartEdit,
-      color: TEXT_LABEL_COLOR_LIGHT,
     },
   });
 }

@@ -52,7 +52,9 @@ import type { Node } from 'reactflow';
 import { resolveNodeCollisions } from '@/lib/diagram/geometry/resolveNodeCollisions';
 import { useEdgeColors } from '@/lib/theme/edgeColors';
 import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
-import { createNode, createEdge, createBlankShapeNode } from '@/lib/component-library/factory';
+import { createNode, createEdge, createBlankShapeNode, createTextLabelNode } from '@/lib/component-library/factory';
+import { nodeCentre } from '@/lib/diagram/geometry/nodeBox';
+import { levelNearAlignedNodes } from '@/lib/diagram/geometry/levelNearAligned';
 import { reactFlowRef } from '@/lib/client/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/diagram/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
@@ -216,6 +218,7 @@ function CanvasInner() {
   const edges = useDiagramStore((s) => s.edges);
   const pipelineStatus = useDiagramStore((s) => s.pipelineStatus);
   const isPenModeActive = useDiagramStore((s) => s.isPenModeActive);
+  const activeTool = useDiagramStore((s) => s.activeTool);
   const showGrid = useDiagramStore((s) => s.showGrid);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const diagramStyleTheme = useDiagramStore((s) => s.diagramStyleTheme);
@@ -245,6 +248,8 @@ function CanvasInner() {
 
   const reactFlowInstance = useReactFlow();
   const { onNodeDrag, onNodeDragStop: onNodeDragStopSnap } = useSnapping();
+  // While a node is lined up with another, alignment wins over the grid so edges can line up exactly.
+  const alignmentActive = useDiagramStore((s) => s.guideLines.length > 0);
   useMiddleMousePan();
   useGrouping();
 
@@ -401,6 +406,11 @@ function CanvasInner() {
     };
   }, [reactFlowInstance]);
 
+  // One undo step per drag, recorded at drag start; the moves in between are not recorded.
+  const onNodeDragStart = useCallback(() => {
+    useDiagramStore.getState().pushHistory();
+  }, []);
+
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: Node, draggedNodes: Node[]) => {
       onNodeDragStopSnap(event, node, draggedNodes);
@@ -413,27 +423,22 @@ function CanvasInner() {
       const STRAIGHT_THRESHOLD = 12;
       let autoStraightened = false;
       const straightenMap = new Map<string, { x: number; y: number }>();
+      const draggedIds = new Set(draggedNodes.map((n) => n.id));
       for (const dragged of draggedNodes) {
         const incident = edges.filter((e) => e.source === dragged.id || e.target === dragged.id);
         for (const edge of incident) {
           const otherId = edge.source === dragged.id ? edge.target : edge.source;
+          // Nodes dragged together keep their offset; straightening one would shear the selection.
+          if (draggedIds.has(otherId)) continue;
           const other = store.nodes.find((n) => n.id === otherId);
           if (!other) continue;
-          const dw = dragged.width ?? (dragged.data as { nodeWidth?: number })?.nodeWidth ?? 200;
-          const dh = dragged.height ?? (dragged.data as { nodeHeight?: number })?.nodeHeight ?? 88;
-          const ow = other.width ?? (other.data as { nodeWidth?: number })?.nodeWidth ?? 200;
-          const oh = other.height ?? (other.data as { nodeHeight?: number })?.nodeHeight ?? 88;
-          const dAbsX = (dragged as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? dragged.position.x;
-          const dAbsY = (dragged as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? dragged.position.y;
-          const dCX = dAbsX + dw / 2;
-          const dCY = dAbsY + dh / 2;
-          const oAbsX = (other as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? other.position.x;
-          const oAbsY = (other as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? other.position.y;
-          const oAbsCX = oAbsX + ow / 2;
-          const oAbsCY = oAbsY + oh / 2;
+          // React Flow's own node carries the absolute position and measured size,
+          // which the store copy lacks for nodes inside a group.
+          const dC = nodeCentre(dragged as Node);
+          const oC = nodeCentre(reactFlowRef.instance?.getNode(otherId) ?? other);
           // Determine if edge is primarily horizontal or vertical
-          const dx = oAbsCX - dCX;
-          const dy = oAbsCY - dCY;
+          const dx = oC.x - dC.x;
+          const dy = oC.y - dC.y;
           if (isLR && Math.abs(dx) > Math.abs(dy) && Math.abs(dy) > 0 && Math.abs(dy) < STRAIGHT_THRESHOLD) {
             const cur = straightenMap.get(dragged.id) ?? { x: 0, y: 0 };
             if (cur.y === 0 || Math.abs(dy) < Math.abs(cur.y)) cur.y = dy;
@@ -791,6 +796,57 @@ function CanvasInner() {
 
   /** A view-only projection replaces the editable diagram (high-level summary or detailed map). */
   const projection = detailView ?? highLevel;
+
+  // A card is drawn at its own size, which can differ from the size the layout
+  // assumed (a subtitle that wraps makes it taller), so two nodes lined up by their
+  // tops end up with centres a few px apart and the edge between them kinks. Once
+  // sizes are measured and nothing is being dragged, nodes joined by a nearly level
+  // edge are levelled (see levelNearAligned). It changes nothing when there is
+  // nothing to fix, and a fix needs no further fix, so it settles after one pass.
+  const levelKey = useMemo(
+    () => (projection ? '' : nodes.map((n) => `${n.id}:${Math.round(n.position.x)}:${Math.round(n.position.y)}:${n.width ?? ''}:${n.height ?? ''}`).join('|')),
+    [nodes, projection],
+  );
+  useEffect(() => {
+    if (!levelKey) return;
+    const timer = setTimeout(() => {
+      const store = useDiagramStore.getState();
+      const current = store.nodes;
+      if (current.some((n) => (n as Node & { dragging?: boolean }).dragging)) return;
+      const connected = new Set(store.edges.flatMap((e) => [e.source, e.target]));
+      if (!current.every((n) => !connected.has(n.id) || (n.width && n.height))) return; // still measuring
+      const moves = levelNearAlignedNodes(current, store.edges, store.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR');
+      if (moves.size === 0) return;
+      const next = current.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n));
+      store.setNodes(next);
+      store.recalculateHandles(next);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [levelKey]);
+
+  /**
+   * Pane click. With the text tool armed, a click places a label at the cursor
+   * (top-left, editing at once) and the tool returns to select. Projections are
+   * view-only, so they never place anything.
+   */
+  const onPaneClickOrPlace = useCallback(
+    (event: React.MouseEvent) => {
+      if (activeTool === 'text' && !projection && !suppressPaneClickRef.current) {
+        const pos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+        const node = createTextLabelNode(pos, { autoStartEdit: true });
+        const store = useDiagramStore.getState();
+        store.pushHistory();
+        store.appendNode(node);
+        store.setActiveTool('select');
+        setSelectedNodeId(node.id);
+        setSelectedNodeIds([node.id]);
+        return;
+      }
+      onPaneClick();
+    },
+    [activeTool, projection, reactFlowInstance, onPaneClick, setSelectedNodeId, setSelectedNodeIds]
+  );
+
   const visibleNodes = projection?.nodes ?? nodes;
   const visibleEdges = projection?.edges ?? coloredEdges;
   const canvasHost = useMemo<CanvasHost>(
@@ -884,6 +940,7 @@ function CanvasInner() {
       <CanvasHostProvider value={canvasHost}>
       <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
+        className={activeTool === 'text' ? 'arch-tool-text' : undefined}
         nodes={visibleNodes}
         edges={visibleEdges}
         // The high-level summary is view-only: its nodes are synthetic, so no
@@ -895,8 +952,9 @@ function CanvasInner() {
         onConnectStart={projection ? undefined : onConnectStart}
         onConnectEnd={projection ? undefined : onConnectEnd}
         onNodeDrag={projection ? undefined : onNodeDrag}
+        onNodeDragStart={projection ? undefined : onNodeDragStart}
         onNodeDragStop={detailView ? undefined : highLevel ? onHighLevelDragStop : onNodeDragStop}
-        onPaneClick={onPaneClick}
+        onPaneClick={onPaneClickOrPlace}
         onNodeClick={isLiveProject && (!highLevel || detailView) ? onNodeClick : undefined}
         onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
         onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
@@ -934,7 +992,7 @@ function CanvasInner() {
         connectionRadius={isMobile ? 28 : CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={{ stroke: themeVars['--arch-edge-primary'], strokeWidth: 1.5, strokeDasharray: '6 4' }}
-        snapToGrid={CANVAS_CONFIG.snapToGrid}
+        snapToGrid={CANVAS_CONFIG.snapToGrid && !alignmentActive}
         snapGrid={CANVAS_CONFIG.snapGrid}
         defaultMarkerColor={themeVars['--arch-edge-primary']}
         minZoom={CANVAS_CONFIG.minZoom}

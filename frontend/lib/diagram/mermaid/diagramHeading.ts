@@ -1,5 +1,5 @@
 import type { Node } from 'reactflow';
-import { estimateTextNodeSize, TEXT_LABEL_COLOR_LIGHT } from '@/lib/diagram/nodes/textSizing';
+import { estimateTextNodeSize } from '@/lib/diagram/nodes/textSizing';
 import { isTextNode } from './textNodes';
 
 /** Stable id for the diagram title node emitted by AI / templates. */
@@ -36,7 +36,6 @@ export function createDiagramTitleNode(text: string, id = DIAGRAM_TITLE_ID): Nod
       label: title,
       fontSize: 'heading',
       anchor: 'top',
-      color: TEXT_LABEL_COLOR_LIGHT,
     },
   };
 }

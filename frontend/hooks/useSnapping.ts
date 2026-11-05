@@ -4,6 +4,7 @@ import { useCallback, useRef } from 'react';
 import { Node, NodeDragHandler } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 import { computeAlignmentGuides } from '@/lib/diagram/geometry/alignmentGuides';
+import { nodeSize, nodeTopLeft } from '@/lib/diagram/geometry/nodeBox';
 
 const ALIGN_THRESHOLD = 8;
 
@@ -41,10 +42,8 @@ export function useSnapping() {
             if (draggedNodes && draggedNodes.length > 1) {
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 for (const n of draggedNodes) {
-                    const w = n.width ?? (n.data as { nodeWidth?: number })?.nodeWidth ?? 200;
-                    const h = n.height ?? (n.data as { nodeHeight?: number })?.nodeHeight ?? 88;
-                    const ax = (n as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? n.position.x;
-                    const ay = (n as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? n.position.y;
+                    const { width: w, height: h } = nodeSize(n);
+                    const { x: ax, y: ay } = nodeTopLeft(n);
                     minX = Math.min(minX, ax);
                     minY = Math.min(minY, ay);
                     maxX = Math.max(maxX, ax + w);

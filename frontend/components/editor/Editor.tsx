@@ -15,9 +15,10 @@ import { AnimatePresence } from 'framer-motion';
 import { GenerationProgressDisplay } from '@/components/editor/GenerationProgress';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
-import { createTextLabelNode, createBlankShapeNode } from '@/lib/component-library/factory';
 import type { ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
 import { getViewportCenter } from '@/lib/utils';
+import type { PlacementMemory } from '@/lib/diagram/geometry/quickAddPlacement';
+import { quickAddShape } from '@/lib/client/quickAddShape';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/lib/ai/utils/modelStore';
 import { ErrorBoundary } from '@/components/editor/ErrorBoundary';
@@ -32,6 +33,7 @@ import { generateDiagramFromPrompt, generateDiagramFromRepo, mergeGeneratedNodes
 import { COMPONENT_TYPES } from '@/components/editor/modals/CreateComponentModal';
 import type { CreateComponentData, ComponentToEdit } from '@/components/editor/modals/CreateComponentModal';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 import { CanvasSkeleton } from '@/components/canvas/CanvasSkeleton';
 import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
@@ -127,6 +129,8 @@ export default function EditorPage() {
   // global keydown handler never writes to an orphaned store (symptom:
   // node persisted to localStorage but Canvas never re-renders until refresh).
   const storeRef = useRef(useDiagramStore);
+  // Where the last quick-added node went, so the next one keeps stacking the same way.
+  const quickPlacementRef = useRef<PlacementMemory | null>(null);
   useEffect(() => {
     sidebarOpenRef.current = sidebarOpen;
     canvasSidebarOpenRef.current = canvasSidebarOpen;
@@ -212,13 +216,18 @@ export default function EditorPage() {
         return;
       }
 
-      // t key — add text label at viewport center
-      if (e.key === 't') {
+      // Esc — disarm a tool (text) and return to select.
+      if (e.key === 'Escape' && getStore().activeTool !== 'select') {
         e.preventDefault();
-        const { pushHistory, appendNode } = getStore();
-        const pos = getViewportCenter();
-        pushHistory();
-        appendNode(createTextLabelNode(pos, { autoStartEdit: true }));
+        getStore().setActiveTool('select');
+        return;
+      }
+
+      // t key — toggle the text tool: click the canvas to place a label, then it returns to select.
+      if (e.key === 't' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const store = getStore();
+        store.setActiveTool(store.activeTool === 'text' ? 'select' : 'text');
         return;
       }
 
@@ -226,16 +235,20 @@ export default function EditorPage() {
       const quickShape = QUICK_SHAPE_KEYS[e.key.toLowerCase()];
       if (quickShape && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
-        const { pushHistory, appendNode } = getStore();
-        const pos = getViewportCenter();
-        pushHistory();
-        appendNode(createBlankShapeNode(quickShape, pos));
+        quickPlacementRef.current = quickAddShape({
+          getStore,
+          shape: quickShape,
+          memory: quickPlacementRef.current,
+          viewportCenter: getViewportCenter(),
+        });
         return;
       }
 
       const { undo, redo, deleteSelected } = getStore();
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+      // Shift changes e.key to "Z" (and Caps Lock does too), so compare case-insensitively.
+      const historyKey = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && historyKey === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.metaKey || e.ctrlKey) && (historyKey === 'y' || (historyKey === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         deleteSelected();
       }
@@ -308,6 +321,11 @@ export default function EditorPage() {
       const mermaidSyntax = result.metadata?.mermaidSyntax as string;
       const title = (result.metadata?.title as string) || canvasName;
 
+      // The result replaces the canvas: never write it into a live project's map.
+      if (!useDiagramStore.getState().openTabIfLiveProject()) {
+        markPipelineError('Could not open a new tab for this result. The live map was kept.');
+        return;
+      }
       importSequenceDiagram(mermaidSyntax, title);
 
       const { activeCanvasId } = useDiagramStore.getState();
@@ -353,17 +371,27 @@ export default function EditorPage() {
       const direction = inferDiagramDirection(result);
       const activePresetId = direction ?? 'layered-lr';
       const mermaidDirection = activePresetId === 'layered-tb' ? 'TD' : 'LR';
+      // The server lays out for Studio cards; any other render style needs its own pass.
       const serverLayoutMatches = result.metadata?.layoutEngine === 'mermaid-dagre-v1'
-        && result.metadata?.layoutDirection === mermaidDirection;
+        && result.metadata?.layoutDirection === mermaidDirection
+        && isStudioRenderStyle(store.diagramRenderStyle)
+        && store.diagramLayoutStyle === 'flow';
       const relayouted = serverLayoutMatches
         ? { nodes: processedNodes, edges: processedEdges, success: true, warnings: [] }
         : await layoutDiagramViaMermaid(processedNodes, processedEdges, mermaidDirection, {
             title: canvasName,
             renderStyleId: store.diagramRenderStyle,
+            layoutStyle: store.diagramLayoutStyle,
           });
       // `store` was a snapshot taken before the await — the user may have
       // edited (or another generation may have landed) meanwhile. Re-read the
       // live state so merges and renames never clobber concurrent changes.
+      // Checked after the awaits above: the user may have switched to a live map
+      // while the layout ran. A live map is never written to; the result opens in a new tab.
+      if (!useDiagramStore.getState().openTabIfLiveProject()) {
+        markPipelineError('Could not open a new tab for this result. The live map was kept.');
+        return;
+      }
       const liveStore = useDiagramStore.getState();
       liveStore.setDiagramViewMode('overview');
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
@@ -446,7 +474,10 @@ export default function EditorPage() {
       ? `${extractRepoName(description)} Architecture`
       : generateCanvasName(description);
 
-    renameCanvas(activeCanvasId, canvasName);
+    // startGeneration empties the active canvas, so any generation on a live
+    // project's map would wipe it: the result goes to a new tab instead.
+    if (!useDiagramStore.getState().openTabIfLiveProject()) return;
+    renameCanvas(useDiagramStore.getState().activeCanvasId, canvasName);
 
     // Default horizontal (LR); user can switch to vertical via the layout toggler.
     if (!isGitHubRepoUrl(description)) {
@@ -469,8 +500,12 @@ export default function EditorPage() {
     try {
       if (isGitHubRepoUrl(description)) {
         const parsed = await generateDiagramFromRepo(description, detailLevel, (p) => setProgress(p));
+        // The user may have switched to a live map while the repo was analysed.
+        if (!useDiagramStore.getState().openTabIfLiveProject()) {
+          throw new Error('Could not open a new tab for this result. The live map was kept.');
+        }
         importDiagram(parsed.nodes, parsed.edges);
-        renameCanvas(activeCanvasId, canvasName);
+        renameCanvas(useDiagramStore.getState().activeCanvasId, canvasName);
         setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
         markPipelineDone();
         toast.success(`Generated repo diagram: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
