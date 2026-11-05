@@ -58,6 +58,9 @@ export function dropNoopDimensionChanges(changes: NodeChange[], nodes: Node[]): 
   });
 }
 
+/** Editor flags that toggle on mount/commit; changing them is not a user edit. */
+const INTERNAL_NODE_FLAGS = new Set(['autoStartTextEdit', 'autoStartLabelEdit']);
+
 export const createGraphSlice: StateCreator<
   DiagramState,
   [['zustand/persist', unknown]],
@@ -108,9 +111,9 @@ export const createGraphSlice: StateCreator<
   },
 
   onConnect: (connection) => {
-    get().pushHistory();
     const { source, target, sourceHandle, targetHandle } = connection;
     if (!source || !target) return;
+    get().pushHistory();
 
     const newEdge = createEdge(source, target, '', {
       sourceHandle,
@@ -329,6 +332,14 @@ export const createGraphSlice: StateCreator<
   },
 
   updateNodeData: (id, data) => {
+    // User edits are undoable. Editor flags (autoStart*) are not, and a patch that
+    // changes nothing must not create an empty undo step.
+    const target = get().nodes.find((n) => n.id === id);
+    const changes = !!target && Object.entries(data).some(
+      ([key, value]) => !INTERNAL_NODE_FLAGS.has(key) && (target.data as Record<string, unknown>)?.[key] !== value
+    );
+    if (changes) get().pushHistory({ coalesceKey: `node:${id}` });
+
     // If shape is being changed, recalculate dimensions
     if (data.shape) {
       const node = get().nodes.find((n) => n.id === id);
