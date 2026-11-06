@@ -44,6 +44,8 @@ import {
   BRUTAL_SHADOW_DARK,
   BRUTAL_TITLE_LIGHT,
   BRUTAL_TITLE_DARK,
+  BRUTAL_NODE_INK_DARK,
+  BRUTAL_NODE_INK_SOFT_DARK,
   BRUTAL_SUBTITLE_LIGHT,
   BRUTAL_SUBTITLE_DARK,
   BRUTAL_GROUP_FILL_LIGHT,
@@ -131,6 +133,9 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
             // Solid ground behind an icon: the card fill is a saturated concern colour the icon would vanish into.
             '--arch-brutal-chip': opts.isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT,
             '--arch-title': opts.isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT,
+            // Text on a card (a bright fill in dark mode) differs from text on the canvas, groups and labels.
+            '--arch-node-ink': opts.isDark ? BRUTAL_NODE_INK_DARK : BRUTAL_TITLE_LIGHT,
+            '--arch-node-ink-soft': opts.isDark ? BRUTAL_NODE_INK_SOFT_DARK : BRUTAL_SUBTITLE_LIGHT,
             '--arch-subtitle': opts.isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT,
             '--arch-group-fill': opts.isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT,
             '--arch-group-stroke': opts.isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER,

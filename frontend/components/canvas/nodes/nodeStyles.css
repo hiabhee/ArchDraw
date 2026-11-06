@@ -337,7 +337,7 @@
 }
 
 .node-subtitle {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 400;
   color: var(--node-subtitle-color);
   margin: 0;
@@ -1247,10 +1247,10 @@
 [data-render-style='sketch'] .node-subtitle,
 [data-render-style='sketch'] .shape-node .node-subtitle {
   font-family: var(--font-caveat, "Caveat"), var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   letter-spacing: 0.01em !important;
-  opacity: 0.88;
+  opacity: 0.95;
   transform: none;
 }
 
@@ -1371,39 +1371,39 @@
 [data-render-style='neubrutalism'] .node-title,
 [data-render-style='neubrutalism'] .shape-node .node-title {
   font-family: var(--arch-font-title) !important;
-  font-size: 16px !important;
+  font-size: 18px !important;
   font-weight: 700 !important;
   letter-spacing: -0.02em !important;
-  color: var(--arch-title, #1a1a1a) !important;
+  color: var(--arch-node-ink, var(--arch-title, #1a1a1a)) !important;
   line-height: 1.2 !important;
   transform: none;
 }
 
 .dark [data-render-style='neubrutalism'] .node-title {
-  color: var(--arch-title, #f4f4f5) !important;
+  color: var(--arch-node-ink) !important;
 }
 
-/* On the saturated dark fills the muted subtitle grey loses contrast; use the title ink, a little softer. */
+/* Dark cards are bright fills: near-black ink for the title and a slightly softer one for the subtitle. */
 .dark [data-render-style='neubrutalism'] .node-subtitle,
 .dark [data-render-style='neubrutalism'] .shape-node .node-subtitle {
-  color: var(--arch-title) !important;
-  opacity: 0.86;
+  color: var(--arch-node-ink-soft) !important;
+  opacity: 1;
 }
 
 [data-render-style='neubrutalism'] .node-subtitle,
 [data-render-style='neubrutalism'] .shape-node .node-subtitle {
   font-family: var(--arch-font-subtitle) !important;
-  font-size: 11px !important;
+  font-size: 12.5px !important;
   font-weight: 500 !important;
   letter-spacing: 0.02em !important;
-  color: var(--arch-subtitle, #52525b) !important;
+  color: var(--arch-node-ink-soft, var(--arch-subtitle, #52525b)) !important;
   opacity: 1;
   transform: none;
 }
 
 [data-render-style='neubrutalism'] .react-flow__edge-text {
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 12px !important;
+  font-size: 10px !important;
   font-weight: 600 !important;
   letter-spacing: 0.01em !important;
 }
@@ -1411,11 +1411,11 @@
 /* Neubrutalism edges are thick solid paths — keep the RF path visible. */
 
 [data-render-style='neubrutalism'] .edge-label-pill {
-  border-radius: 6px !important;
+  border-radius: 4px !important;
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 12px !important;
+  font-size: 10px !important;
   font-weight: 600 !important;
-  padding: 3px 8px !important;
+  padding: 2px 6px !important;
   background: var(--arch-node-fill, #ffffff) !important;
   border: 1.5px solid var(--arch-node-stroke, #1a1a1a) !important;
   box-shadow: 2px 2px 0px var(--arch-brutal-shadow, var(--arch-node-stroke, #1a1a1a)) !important;
