@@ -18,13 +18,15 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 ## Refine and validate
 
 - Call `get_diagram_state` before editing an existing diagram if its current state is not already available.
+- Use `draw_on_canvas` when the user wants something drawn with exact control: a whiteboard or sketch, free text, empty cards to write in, notes, shapes, precise placement, or changes the automatic layout cannot make. Positions are canvas pixels (x right, y down, top-left corner; a card is about 200x90, so leave about 60px between neighbours). Operations run in order and all apply or none do; an error names the failing operation. Give an `id` to anything you will refer to again, and use the `canvas` list in the reply to place the next things. Start a new drawing with `{"op":"clear"}`.
+- Use `layout_diagram` to re-arrange a diagram that looks cramped, too wide or too tall, or when the user asks to tidy it, make it top-down or fit a screen. It re-lays out the current diagram (direction, flow or zones, wrapping, per-group direction via `groupDirections`) and changes only positions; follow with `draw_on_canvas` move/align for manual touch-ups.
 - Use `update_diagram` for targeted edits. To change the layout direction or restructure the diagram, call `generate_diagram` again with revised Mermaid; it lays the diagram out with the editor's Mermaid-to-Dagre path.
 - Use `apply_template` when the user wants a template (its description lists the template ids).
 - For an image, point the user to the preview's Download PNG button or the editor link's export.
 
 ## Preview links (always share them)
 
-- A diagram is visual, and in a terminal or IDE the user cannot see it unless you give them the link. `generate_diagram`, `apply_template`, and `update_diagram` return a preview link (`shareUrl`) and an edit link (`diagramUrl`) in the same response — no extra call is needed. **Always put both links in your reply**, near the top.
+- A diagram is visual, and in a terminal or IDE the user cannot see it unless you give them the link. `generate_diagram`, `apply_template`, and `update_diagram` return a preview link (`shareUrl`) and an edit link (`diagramUrl`) in the same response — no extra call is needed. **Always put both links in your reply**, near the top. The reply also has an image link (PNG, hand-drawn by default; add `style: "studio"` to `draw_on_canvas` for a clean look). When the user wants to share the diagram, give them that image link or its Markdown (`![diagram](url)`).
 - Links are unguessable, viewable by anyone who has them, and expire after 7 days. If the user asks to keep a diagram private, pass `publish: false`; then say plainly that no link was created.
 - If the result contains `linkError` instead of links, tell the user the diagram was generated but could not be published, and include the reason.
 - Never put secrets, credentials, or private hostnames in diagram labels. Anyone with the link can read them.

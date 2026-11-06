@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
+import type { Node, Edge } from 'reactflow';
+import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { generatePureSVG } from '@/lib/diagram/export/svgExport';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
@@ -9,6 +11,8 @@ import { getUserTier, canAccessFeature } from '@/lib/quotas/userQuotas';
 import { getSessionFromRequest, logUsage } from '@/lib/server/quotaCheck';
 import { checkRateLimitWithFallback } from '@/lib/server/redis';
 import { getClientIP } from '@/lib/server/ip';
+import { checkRawGraph } from '@/lib/server/rawGraphGuard';
+import { IMAGE_STYLES, renderDiagramSvg } from '@/lib/server/diagramImage';
 
 export const runtime = 'nodejs';
 
@@ -51,6 +55,16 @@ const PostSchema = z.object({
   dryRun: z.boolean().optional().default(false),
   /** Also return the diagram drawn as the share page draws it (MCP inline preview). */
   preview: z.boolean().optional().default(false),
+  /** Look of the returned preview: `sketch` is hand-drawn; omitted is the clean Studio preview. */
+  previewStyle: z.enum(IMAGE_STYLES).optional(),
+  /** Re-lay out the graph sent as nodes/edges with the canonical layout (the MCP layout tool). */
+  layout: z.object({
+    direction: z.enum(['LR', 'TD']).default('LR'),
+    style: z.enum(['flow', 'zones']).default('flow'),
+    foldLongFlows: z.boolean().optional(),
+    mixGroupDirections: z.boolean().optional(),
+    profile: z.enum(['studio-minimal']).optional(),
+  }).optional(),
   publish: z.boolean().optional().default(false),
   source: z.string().optional(),
   accessType: z.string().optional(),
@@ -98,6 +112,8 @@ export async function POST(req: NextRequest) {
       if (limited) return limited;
       const update = McpUpdateSchema.safeParse(raw);
       if (!update.success) return NextResponse.json({ error: 'Invalid MCP update' }, { status: 400 });
+      const unsafe = checkRawGraph(update.data.nodes, update.data.edges);
+      if (unsafe) return NextResponse.json({ error: unsafe }, { status: 400 });
       const existing = await prisma.sharedCanvas.findUnique({ where: { id: update.data.sessionId } });
       if (!existing || existing.mcpUpdateToken !== update.data.updateToken) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -123,6 +139,27 @@ export async function POST(req: NextRequest) {
     let edges = body.edges || [];
     let warnings: string[] = [];
 
+    // A graph sent as JSON (the MCP drawing tool) is stored as is, so it is checked first.
+    if (!body.mermaid && (nodes.length > 0 || edges.length > 0)) {
+      const unsafe = checkRawGraph(nodes, edges);
+      if (unsafe) return NextResponse.json({ error: unsafe }, { status: 400 });
+    }
+
+    if (!body.mermaid && body.layout && nodes.length > 0) {
+      const laid = await layoutDiagramViaMermaid(nodes as Node[], edges as Edge[], body.layout.direction, {
+        layoutStyle: body.layout.style,
+        foldLongFlows: body.layout.foldLongFlows,
+        mixGroupDirections: body.layout.mixGroupDirections,
+        layoutProfile: body.layout.profile,
+      });
+      if (!laid.success) {
+        return NextResponse.json({ error: 'The layout could not be computed for this diagram.', warnings: laid.warnings }, { status: 422 });
+      }
+      nodes = laid.nodes;
+      edges = laid.edges;
+      warnings = laid.warnings;
+    }
+
     if (body.mermaid) {
       const pipelineResult = await runMermaidPipeline(body.mermaid);
       if (!isDomainSuccess(pipelineResult)) {
@@ -138,7 +175,9 @@ export async function POST(req: NextRequest) {
 
     // Light Studio style, as the share page shows it; vector icons only, so the
     // SVG renders inside an <img> without fetching anything.
-    const previewSvg = body.preview
+    const previewSvg = body.preview && body.previewStyle && body.previewStyle !== 'studio'
+      ? renderDiagramSvg(nodes, edges, { style: body.previewStyle, theme: 'light' })
+      : body.preview
       ? generatePureSVG(nodes, edges, false, PREVIEW_BACKGROUND, /graph\s+(TD|TB|BT)\b/i.test(body.mermaid ?? '') ? 'TD' : 'LR', 'studio-minimal', 'studio-minimal')
       : undefined;
 

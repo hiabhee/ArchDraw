@@ -28,7 +28,7 @@ Requirements: network access to `archdraw.hiabhee.online`. Claude needs nothing 
 
 - **Hooks (optional live projects)** — report which files each Claude Code session reads and edits to a linked ArchDraw project canvas, so each session appears as a figure working on the diagram. Inactive until you link a repository (see below).
 - **Skill `archdraw`** — tells the agent when and how to use the ArchDraw tools, to prefer Mermaid input, and to always show you the preview link.
-- **MCP server `archdraw`** with these tools: `generate_diagram`, `update_diagram`, `get_diagram_state`, `apply_template`.
+- **MCP server `archdraw`** with these tools: `generate_diagram`, `update_diagram`, `draw_on_canvas`, `layout_diagram`, `get_diagram_state`, `apply_template`.
 
 Try: "Draw the architecture of this repo", "Add a Redis cache in front of the API", "Switch the layout to top-down", or "Start from the chatgpt template".
 

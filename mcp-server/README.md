@@ -79,11 +79,13 @@ The ArchDraw plugin for Claude Code uses this link to report the files that each
 | `update_diagram` | Adds, removes, or changes nodes and edges in the current diagram. |
 | `get_diagram_state` | Gives the nodes and edges of the current diagram. |
 | `apply_template` | Loads an architecture template. |
+| `draw_on_canvas` | Draws with exact control: places text, blank cards to write in, shapes, notes, components and groups at precise positions, connects them, and restyles, moves, aligns, distributes or removes them. All operations in a call apply, or none do. Works on a blank canvas or on any existing diagram. Takes `style` to match the editor look: `"sketch"` (hand-drawn, the default), `"studio"`, `"studio-metallic"`, `"neubrutalism"` or `"precision"`. |
+| `layout_diagram` | Re-arranges the current diagram with ArchDraw's own layout engine (the editor's layout toggle): `direction` LR/TD, `arrangement` flow/zones, `fold` (wrap long flows for 16:9), `mixDirections`, and `groupDirections` to force particular groups. Only positions and sizes change. Combine with `draw_on_canvas` move/align for manual touch-ups. |
 
 ## Data and privacy
 
 - The server sends the diagram content that the agent gives it to `API_BASE_URL`. This includes component names, labels, connections, and Mermaid text. The server does not read your source files.
-- Each new diagram gets a preview link by default. Anyone with the link can see the diagram. The link expires after 7 days. To prevent a link, tell the agent to keep the diagram private (`publish: false`).
+- Each new diagram gets a preview link by default, and a link to the same diagram as an image (PNG or SVG, hand-drawn or clean) that you can post anywhere. Anyone with a link can see the diagram. The links expire after 7 days. To prevent a link, tell the agent to keep the diagram private (`publish: false`).
 - The local server keeps the working diagram and its checkpoints in memory. It discards them when the process stops.
 
 > **WARNING:** Do not put passwords, API keys, or other secrets in diagram labels.
