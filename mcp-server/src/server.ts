@@ -14,13 +14,19 @@ import { clearCheckpoints, exportCheckpoints, importCheckpoints, type Checkpoint
 import { runWithMcpContext, type McpRequestContext } from './lib/http.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { updateDiagram } from './tools/update-diagram.js';
+import { drawOnCanvas } from './tools/draw-on-canvas.js';
+import { layoutDiagram } from './tools/layout-diagram.js';
 import {
   GenerateDiagramInputSchema,
   ApplyTemplateInputSchema,
   UpdateDiagramInputSchema,
+  DrawOnCanvasInputSchema,
+  LayoutDiagramInputSchema,
+  CARD_SHAPES,
 } from './lib/schema.js';
 import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI, PREVIEW_SVG_META_KEY } from './ui/diagram-widget.js';
-import { formatPreviewLinks } from './lib/preview-links.js';
+import { formatPreviewLinks, imageUrlsFor } from './lib/preview-links.js';
+import type { ReactFlowNode, ReactFlowEdge } from './types/index.js';
 
 const TOOLS: Tool[] = [
   {
@@ -351,6 +357,122 @@ add edges, remove edges, or update node properties — without regenerating the 
       },
     },
   },
+  {
+    name: 'layout_diagram',
+    title: 'Lay out an ArchDraw diagram',
+    annotations: { title: 'Lay out an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: `Re-arranges the current diagram with ArchDraw's own layout engine, the same one as the editor's layout toggle. Use it when a diagram looks cramped, too wide or too tall, or the user asks to "tidy", "re-layout", "make it top-down", or fit a screen. Nothing is added or removed: only positions and sizes change, so ids, labels and connections stay the same. For exact manual placement of particular things use draw_on_canvas (move / align / distribute) instead; the two combine well: lay out, then nudge.
+
+CONTROLS
+- direction: LR (left to right, default) or TD (top down).
+- arrangement: "flow" (ranks follow the data flow, default) or "zones" (clients on the left, data above, chains below).
+- fold: wrap a long flow into rows so it fits a 16:9 screen (default true); false keeps one long row/column.
+- mixDirections: allow groups to run the other way when that fits clearly better (default true); false keeps every group in the main direction.
+- groupDirections: force particular groups, by id, e.g. {"api":"TD"} (the ids are in "canvas" from any earlier call, or get_diagram_state). Named groups are never overridden.
+Works on the current diagram (workingSessionId). The reply lists every node's new position and size, and (published by default) a preview link and shareable image: SHOW THE LINKS to the user.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workingSessionId: { type: 'string', description: 'The workingSessionId from an earlier call about this diagram. Required on the hosted server.' },
+        direction: { type: 'string', enum: ['LR', 'TD'], description: 'Main flow direction. Default LR.' },
+        arrangement: { type: 'string', enum: ['flow', 'zones'], description: 'flow (default) or zones.' },
+        fold: { type: 'boolean', description: 'Wrap a long flow into rows to fit a 16:9 screen. Default true.' },
+        mixDirections: { type: 'boolean', description: 'Let groups run the other way when that fits better. Default true.' },
+        groupDirections: { type: 'object', additionalProperties: { type: 'string', enum: ['LR', 'TD'] }, description: 'Force the direction inside particular groups, by id.' },
+        label: { type: 'string' },
+        publish: { type: 'boolean', description: 'Update the shareable preview link. Default true.' },
+        style: { type: 'string', enum: ['sketch', 'studio', 'studio-metallic', 'neubrutalism', 'precision'], description: 'Look of the preview and shareable image. Default studio.' },
+        expectedRevision: { type: 'number', description: 'Optional: refuse if the published diagram changed since this revision.' },
+      },
+    },
+  },
+  {
+    name: 'draw_on_canvas',
+    title: 'Draw on an ArchDraw canvas',
+    annotations: { title: 'Draw on an ArchDraw canvas', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    description: `Draws on a canvas with exact control: place text, empty cards to write in, shapes, notes, components and groups at precise positions, connect them, restyle, move, align and remove. Use it when the user wants something drawn that generate_diagram's automatic layout cannot give (a whiteboard, a sketch, annotations, a precise arrangement), or to add to / edit any existing diagram.
+
+HOW IT WORKS
+- Coordinates are canvas pixels: x grows right, y grows DOWN, (x, y) is the top-left corner. A typical card is ~200x90, so leave ~60px between neighbours.
+- "ops" run in order. ALL of them apply or NONE do: an error names the failing operation (Operation N) and nothing is drawn, so fix it and resend.
+- Give an "id" to anything you will refer to later (connect, group, update, move...). Otherwise one is generated (text_1, card_2...) and returned in "steps".
+- It works on the current diagram (workingSessionId), including one made by generate_diagram or apply_template. For a NEW canvas start with {"op":"clear"} (or omit workingSessionId on a hosted server). The reply lists every node's position and size ("canvas") and the overall "bounds": use them to place the next things.
+
+OPERATIONS (field "op")
+- text: free text. {text, x, y, size?: small|medium|large|heading, bold?, color?, parent?}. text may be "" (a blank text box).
+- card: a card or shape, the "empty card to write in". {x, y, title?, subtitle?, shape?, width?, height?, color?, fill?, parent?}. Leave title empty for a blank card the user clicks to write in. shape: ${CARD_SHAPES.join(' | ')}.
+- note: a sticky text block. {x, y, title?, body?, titleSize?, bodySize?, width?, height?, parent?}. For longer writing.
+- component: an architecture component. {x, y, label, subtitle?, tier?, icon?, status?, width?, height?, parent?}.
+- group: a labelled frame. {id?, label?, children?: [ids], color?} wraps the children (sized to fit them), or give x, y, width, height for an empty frame to fill later (put things in with parent, or update parent). Groups cannot be nested.
+- connect: an arrow. {from, to, label?, style?: solid|dashed|thick, arrow?: end|both, color?, path?: smooth|step|straight|bezier, fromSide?, toSide?: top|right|bottom|left}. Joins nodes, not groups.
+- update: change a node or connection. {id, text? title? subtitle? body? label? size? bold? color? fill? shape? x? y? width? height? parent? (an id, or null to leave a group) style?}. Only fields that apply to that kind of node are accepted.
+- move: {ids, dx?, dy?} shift, or {ids, x?, y?} put the selection's top-left there.
+- align: {ids, mode: left|center|right|top|middle|bottom}.
+- distribute: {ids, axis: horizontal|vertical, gap?} even spacing (or a fixed gap).
+- remove: {ids}: nodes and/or connections. Removing a group frees its children where they are.
+- clear: empties the canvas and starts a new drawing.
+
+By default the result is published and links are returned (publish:false keeps it in this session): a preview, an edit link, and a shareable IMAGE (PNG, hand-drawn like a whiteboard by default; style:"studio" for a clean look) the user can post anywhere. SHOW THE LINKS to the user, the image first when they want to share it.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workingSessionId: { type: 'string', description: 'The workingSessionId from an earlier call about this canvas. Required on the hosted server for edits; omit it there to start a new canvas.' },
+        label: { type: 'string', description: 'Title for a new canvas.' },
+        publish: { type: 'boolean', description: 'Create / update the shareable preview link. Default true.' },
+        style: { type: 'string', enum: ['sketch', 'studio', 'studio-metallic', 'neubrutalism', 'precision'], description: 'Look of the shareable image and preview, matching the editor render styles: sketch (hand-drawn, like a whiteboard; the default), studio (clean), studio-metallic (satin metal), neubrutalism (bold), precision. Pick the one the user works in.' },
+        expectedRevision: { type: 'number', description: 'Optional: refuse if the published canvas changed since this revision.' },
+        ops: {
+          type: 'array',
+          description: 'Drawing operations, applied in order (1-200). All apply or none do.',
+          minItems: 1,
+          maxItems: 200,
+          items: {
+            type: 'object',
+            properties: {
+              op: { type: 'string', enum: ['text', 'card', 'note', 'component', 'group', 'connect', 'update', 'move', 'align', 'distribute', 'remove', 'clear'] },
+              id: { type: 'string', description: 'text/card/note/component/group/connect: optional id to create; update: the node or connection to change.' },
+              ids: { type: 'array', items: { type: 'string' }, description: 'move / align / distribute / remove: the targets.' },
+              x: { type: 'number', description: 'Left edge in canvas px (move: put the selection here).' },
+              y: { type: 'number', description: 'Top edge in canvas px (y grows downward).' },
+              dx: { type: 'number', description: 'move: shift right by this many px.' },
+              dy: { type: 'number', description: 'move: shift down by this many px.' },
+              width: { type: 'number' },
+              height: { type: 'number' },
+              text: { type: 'string', description: 'text: the text (may be empty).' },
+              title: { type: 'string', description: 'card / note: the title. Empty = a blank card to write in.' },
+              subtitle: { type: 'string' },
+              body: { type: 'string', description: 'note: longer text.' },
+              label: { type: 'string', description: 'component / group / connect label.' },
+              size: { type: 'string', enum: ['small', 'medium', 'large', 'heading'], description: 'text size.' },
+              titleSize: { type: 'string', enum: ['small', 'medium', 'large', 'heading'] },
+              bodySize: { type: 'string', enum: ['small', 'medium', 'large', 'heading'] },
+              bold: { type: 'boolean' },
+              color: { type: 'string', description: '#rrggbb: ink / outline / line / group tint.' },
+              fill: { type: 'string', description: '#rrggbb card background.' },
+              shape: { type: 'string', enum: [...CARD_SHAPES] },
+              tier: { type: 'string', enum: ['client', 'edge', 'compute', 'async', 'data', 'observe', 'external'] },
+              icon: { type: 'string' },
+              status: { type: 'string', enum: ['healthy', 'warning', 'error', 'unknown'] },
+              parent: { type: ['string', 'null'], description: 'The group this belongs to (null in update: leave its group).' },
+              children: { type: 'array', items: { type: 'string' }, description: 'group: node ids to wrap.' },
+              from: { type: 'string', description: 'connect: source node id.' },
+              to: { type: 'string', description: 'connect: target node id.' },
+              style: { type: 'string', enum: ['solid', 'dashed', 'thick'] },
+              arrow: { type: 'string', enum: ['end', 'both'] },
+              path: { type: 'string', enum: ['smooth', 'step', 'straight', 'bezier'] },
+              fromSide: { type: 'string', enum: ['top', 'right', 'bottom', 'left'] },
+              toSide: { type: 'string', enum: ['top', 'right', 'bottom', 'left'] },
+              mode: { type: 'string', enum: ['left', 'center', 'right', 'top', 'middle', 'bottom'], description: 'align.' },
+              axis: { type: 'string', enum: ['horizontal', 'vertical'], description: 'distribute.' },
+              gap: { type: 'number', description: 'distribute: fixed gap in px.' },
+            },
+            required: ['op'],
+          },
+        },
+      },
+      required: ['ops'],
+    },
+  },
 ];
 
 export const SERVER_VERSION = '1.0.9';
@@ -381,8 +503,10 @@ const STATEFUL_TOOLS = new Set([
   'apply_template',
   'get_diagram_state',
   'update_diagram',
+  'draw_on_canvas',
+  'layout_diagram',
 ]);
-const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'get_diagram_state']);
+const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'get_diagram_state', 'draw_on_canvas']);
 const WORKING_SESSION_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ToolArgs = Record<string, unknown> | undefined;
@@ -564,6 +688,73 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
         : '';
       return {
         content: [{ type: 'text' as const, text: `${linkBlock}${details}` }],
+      };
+    }
+
+    case 'draw_on_canvas': {
+      const input = DrawOnCanvasInputSchema.parse(args);
+      const result = await drawOnCanvas(input, workingSession);
+      if (!result.success) {
+        return errorResult(`${result.error ?? 'Could not draw.'}${result.failedOperation !== undefined ? ` (operation index ${result.failedOperation})` : ''}`);
+      }
+      setDiagramState({
+        nodes: result.nodes as unknown as ReactFlowNode[],
+        edges: result.edges as unknown as ReactFlowEdge[],
+        sessionId: result.sessionId,
+        updateToken: result.updateToken,
+        revision: result.revision,
+      }, workingSession);
+      const made = result.steps.flatMap(step => (['text', 'card', 'note', 'component', 'group', 'connect'].includes(step.op) ? step.ids.slice(0, 1).map(id => `${step.op} ${id}`) : []));
+      const linkBlock = result.canvas.length > 0
+        ? `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false, imageStyle: input.style })}\n\n`
+        : '';
+      const summary = `Drew ${input.ops.length} operation(s). Canvas now has ${result.canvas.length} node(s) and ${result.edges.length} connection(s)${result.bounds ? `, spanning x ${result.bounds.x}..${result.bounds.x + result.bounds.width}, y ${result.bounds.y}..${result.bounds.y + result.bounds.height}` : ''}.${made.length ? `\nCreated: ${made.join(', ')}.` : ''}\nworkingSessionId: ${workingSession}`;
+      return {
+        structuredContent: {
+          success: true,
+          workingSessionId: workingSession,
+          steps: result.steps,
+          canvas: result.canvas,
+          ...(result.bounds ? { bounds: result.bounds } : {}),
+          revision: result.revision,
+          ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
+          ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
+          ...(imageUrlsFor(result.shareUrl, input.style) ? { imageUrl: imageUrlsFor(result.shareUrl, input.style)!.png, svgUrl: imageUrlsFor(result.shareUrl, input.style)!.svg } : {}),
+          ...(result.sessionId ? { sessionId: result.sessionId } : {}),
+          ...(result.linkError ? { linkError: result.linkError } : {}),
+        },
+        content: [{ type: 'text' as const, text: `${linkBlock}${summary}\n\nCanvas (id type x,y WxH):\n${result.canvas.slice(0, 120).map(e => `${e.id} ${e.type} ${e.x},${e.y} ${e.width}x${e.height}${e.parent ? ` in ${e.parent}` : ''}${e.text ? ` "${e.text}"` : ''}`).join('\n')}${result.canvas.length > 120 ? `\n…and ${result.canvas.length - 120} more` : ''}` }],
+        ...previewMeta(result.previewSvg),
+      };
+    }
+
+    case 'layout_diagram': {
+      const input = LayoutDiagramInputSchema.parse(args);
+      const result = await layoutDiagram(input, workingSession);
+      if (!result.success) return errorResult(result.error ?? 'Could not lay the diagram out.');
+      setDiagramState({
+        nodes: result.nodes as unknown as ReactFlowNode[],
+        edges: result.edges as unknown as ReactFlowEdge[],
+        sessionId: result.sessionId,
+        updateToken: result.updateToken,
+        revision: result.revision,
+      }, workingSession);
+      const linkBlock = `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false, imageStyle: input.style })}\n\n`;
+      const summary = `Laid out ${result.canvas.length} node(s) ${input.direction === 'LR' ? 'left to right' : 'top down'} (${input.arrangement}). Only positions and sizes changed.${result.message ? `\nNote: ${result.message}` : ''}\nworkingSessionId: ${workingSession}`;
+      return {
+        structuredContent: {
+          success: true,
+          workingSessionId: workingSession,
+          canvas: result.canvas,
+          ...(result.bounds ? { bounds: result.bounds } : {}),
+          revision: result.revision,
+          ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
+          ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
+          ...(imageUrlsFor(result.shareUrl, input.style) ? { imageUrl: imageUrlsFor(result.shareUrl, input.style)!.png } : {}),
+          ...(result.linkError ? { linkError: result.linkError } : {}),
+        },
+        content: [{ type: 'text' as const, text: `${linkBlock}${summary}\n\nCanvas (id type x,y WxH):\n${result.canvas.slice(0, 120).map(e => `${e.id} ${e.type} ${e.x},${e.y} ${e.width}x${e.height}${e.parent ? ` in ${e.parent}` : ''}${e.text ? ` "${e.text}"` : ''}`).join('\n')}${result.canvas.length > 120 ? `\n…and ${result.canvas.length - 120} more` : ''}` }],
+        ...previewMeta(result.previewSvg),
       };
     }
 

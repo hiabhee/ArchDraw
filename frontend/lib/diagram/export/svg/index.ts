@@ -5,14 +5,15 @@ import type { EdgeData } from '@/data/edgeTypes';
 import { type EdgeRouteDirection } from '@/lib/diagram/edges/edgeRouteBuilder';
 import { buildEdgePathGeometry } from '@/lib/diagram/edges/edgePathGeometry';
 import { getCachedDiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
-import { resolveCanvasTokens, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import { buildShadowFilter } from './cssShadow';
+import { resolveCanvasTokens, isStudioRenderStyle, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { DiagramThemeId } from '@/lib/theme/stylingConstants';
 import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import { metallicSurfaceGradientSvgDefs } from '@/lib/theme/renderStyles/studioMetallic';
 import { getEffectiveNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
-import { renderSystemNode, renderTextLabel, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
+import { renderSystemNode, renderTextLabel, renderImageNode, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
 import { renderEdge } from './renderEdges';
 import type { SystemNodeRenderData, EdgeRenderData } from './types';
 import { escapeXml } from './svgPrimitives';
@@ -94,6 +95,9 @@ export function generatePureSVG(
       : `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><path d="M ${gridGap} 0 H 0 V ${gridGap}" fill="none" stroke="${safeGridColor}" stroke-width="1" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.25 : 1}" />`
     : '';
 
+  const studioSurfaceDefs = isStudioRenderStyle(renderStyleId) && aesthetics.render.nodeMaterial !== 'metallic'
+    ? `<defs>${buildShadowFilter('archdraw-studio-shadow', aesthetics.colors.shadow)}</defs>`
+    : '';
   const nodeElements: string[] = [];
   const edgeElements: string[] = [];
   const metallicSurfaceDefs = aesthetics.render.nodeMaterial === 'metallic'
@@ -112,7 +116,9 @@ export function generatePureSVG(
       selected: node.selected,
     };
 
-    if (node.type === 'textLabelNode') {
+    if (node.type === 'imageNode') {
+      nodeElements.push(renderImageNode(nodeData, isDark));
+    } else if (node.type === 'textLabelNode') {
       nodeElements.push(renderTextLabel(nodeData, isDark));
     } else if (node.type === 'annotationNode') {
       nodeElements.push(renderAnnotationNode(nodeData, isDark));
@@ -254,6 +260,7 @@ export function generatePureSVG(
   <metadata id="archdraw-geometry">${geometryMetadata}</metadata>
   ${renderStyleId === 'neubrutalism' ? brutalShadowFilter(isDark) : ''}
   ${metallicSurfaceDefs}
+  ${studioSurfaceDefs}
   ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
   ${backgroundPattern}
   <g id="edges">

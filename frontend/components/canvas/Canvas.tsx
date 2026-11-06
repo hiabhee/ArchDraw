@@ -14,6 +14,10 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useDiagramStore, registerFitViewCallback } from '@/store/diagramStore';
+import { parsePastedImage } from '@/lib/diagram/nodes/pastedImage';
+import { prepareImage } from '@/lib/client/imageDownscale';
+import type { ImageNodeData } from '@/components/canvas/nodes/ImageNode';
+import type { NodeData } from '@/store/diagram/types';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/canvas/GuideLines';
@@ -666,6 +670,68 @@ function CanvasInner() {
     [reactFlowInstance, addNode, setSelectedNodeId, setSelectedNodeIds]
   );
 
+  // Pictures: paste or drop an ArchDraw preview/image link, an image URL or an image file. It lands
+  // as a picture node (a preview link is drawn in the editor's look and keeps its link), at the
+  // viewport centre for a paste and under the cursor for a drop.
+  const placeImage = useCallback((data: ImageNodeData, width: number, height: number, at?: { x: number; y: number }) => {
+    const bounds = document.querySelector('.react-flow')?.getBoundingClientRect();
+    const centre = reactFlowInstance.screenToFlowPosition(at ?? {
+      x: (bounds?.left ?? 0) + (bounds?.width ?? window.innerWidth) / 2,
+      y: (bounds?.top ?? 0) + (bounds?.height ?? window.innerHeight) / 2,
+    });
+    const id = `image-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    addNode({
+      id, type: 'imageNode', position: { x: centre.x - width / 2, y: centre.y - height / 2 },
+      width, height, data,
+    } as unknown as Node<NodeData>);
+    setSelectedNodeId(id);
+    setSelectedNodeIds([id]);
+  }, [reactFlowInstance, addNode, setSelectedNodeId, setSelectedNodeIds]);
+
+  const placeLink = useCallback((text: string, at?: { x: number; y: number }): boolean => {
+    const link = parsePastedImage(text, {
+      renderStyle: useDiagramStore.getState().diagramRenderStyle,
+      dark: document.documentElement.classList.contains('dark'),
+    });
+    if (!link) return false;
+    placeImage(link, 480, link.href ? 300 : 280, at);
+    return true;
+  }, [placeImage]);
+
+  const placeFile = useCallback((file: File, at?: { x: number; y: number }) => {
+    // Any normal image works: it is scaled and re-encoded to fit inside the diagram.
+    const pending = file.size > 1_000_000 ? toast.loading('Preparing image…') : undefined;
+    prepareImage(file)
+      .then(({ src, width, height }) => {
+        const scale = Math.min(1, 480 / width);
+        placeImage({ src }, Math.round(width * scale), Math.round(height * scale) + 8, at);
+      })
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : 'That image could not be added.'))
+      .finally(() => { if (pending !== undefined) toast.dismiss(pending); });
+  }, [placeImage]);
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.closest('input, textarea, select') || target.isContentEditable)) return;
+      if (placeLink(event.clipboardData?.getData('text/plain') ?? '')) {
+        event.preventDefault();
+        return;
+      }
+      const file = Array.from(event.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'));
+      if (!file) return;
+      event.preventDefault();
+      placeFile(file);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [placeLink, placeFile]);
+
+  const onCanvasDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    if (event.dataTransfer?.types.includes('Files')) event.dataTransfer.dropEffect = 'copy';
+  }, []);
+
   // Label editing via `edit-edge-label` custom event (inline on the edge).
   useEffect(() => {
     const handleEditEvent = (e: Event) => {
@@ -797,6 +863,21 @@ function CanvasInner() {
   /** A view-only projection replaces the editable diagram (high-level summary or detailed map). */
   const projection = detailView ?? highLevel;
 
+  const onCanvasDrop = useCallback((event: React.DragEvent) => {
+    if (projection) return;
+    const at = { x: event.clientX, y: event.clientY };
+    const files = Array.from(event.dataTransfer?.files ?? []).filter((f) => f.type.startsWith('image/'));
+    if (files.length) {
+      event.preventDefault();
+      // Several images fan out a little so none hides another.
+      files.slice(0, 8).forEach((file, i) => placeFile(file, { x: at.x + i * 24, y: at.y + i * 24 }));
+      return;
+    }
+    const text = event.dataTransfer?.getData('text/uri-list') || event.dataTransfer?.getData('text/plain') || '';
+    if (text && placeLink(text.split('\n')[0], at)) event.preventDefault();
+  }, [projection, placeFile, placeLink]);
+
+
   // A card is drawn at its own size, which can differ from the size the layout
   // assumed (a subtitle that wraps makes it taller), so two nodes lined up by their
   // tops end up with centres a few px apart and the edge between them kinks. Once
@@ -923,7 +1004,8 @@ function CanvasInner() {
       data-render-style={diagramRenderStyle}
       data-color-theme={diagramStyleTheme}
       data-pipeline={pipelineStatus}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={onCanvasDragOver}
+        onDrop={onCanvasDrop}
         onDoubleClick={projection ? undefined : onPaneDoubleClick}
       style={{
         width: '100%',

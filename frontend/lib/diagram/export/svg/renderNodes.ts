@@ -345,6 +345,22 @@ export function renderSystemNode(
   `.trim();
 }
 
+/** A pasted picture or preview: a framed image with its caption. */
+export function renderImageNode(node: SystemNodeRenderData, isDark: boolean): string {
+  const { x, y, width, height, data } = node;
+  const { src, caption } = data as unknown as { src?: string; caption?: string };
+  const safe = typeof src === 'string' && /^(https?:|data:image\/)/i.test(src) ? src : undefined;
+  const stroke = isDark ? '#475569' : '#cbd5e1';
+  const captionH = caption ? 22 : 0;
+  return `
+    <g transform="translate(${x}, ${y})">
+      <rect width="${width}" height="${height}" rx="8" fill="${isDark ? '#0f172a' : '#ffffff'}" stroke="${stroke}" />
+      ${safe ? `<image href="${escapeXml(safe)}" x="4" y="4" width="${width - 8}" height="${height - 8 - captionH}" preserveAspectRatio="xMidYMid meet" />` : ''}
+      ${caption ? `<text x="10" y="${height - 8}" fill="${isDark ? '#94a3b8' : '#64748b'}" font-family="Inter, system-ui, sans-serif" font-size="11">${escapeXml(caption)}</text>` : ''}
+    </g>
+  `.trim();
+}
+
 export function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
   const { x, y, data } = node;
 
@@ -505,6 +521,7 @@ export function renderGroupNode(
                (data as { label?: string })?.label || '';
 
   const tagText = isDark ? hexToRgba(groupColor, 0.9) : groupColor;
+  const studioZone = isStudioRenderStyle(renderStyleId) && !sketch && !brutal;
 
   let zone = '';
   if (sketch) {
@@ -534,6 +551,14 @@ export function renderGroupNode(
         rx="8" ry="8"
         filter="url(#${shadowId})"
       />`;
+  } else if (studioZone) {
+    // Mirrors GroupNode: a 1px dashed border inside a 16px-radius tinted box.
+    const w = selected ? 1.5 : 1;
+    zone = `
+      <rect x="${w / 2}" y="${w / 2}" width="${width - w}" height="${height - w}" rx="${16 - w / 2}" ry="${16 - w / 2}"
+        fill="${isDark ? hexToRgba(groupColor, 0.10) : hexToRgba(groupColor, 0.055)}"
+        stroke="${selected ? groupColor : isDark ? hexToRgba(groupColor, 0.46) : hexToRgba(groupColor, 0.34)}"
+        stroke-width="${w}" stroke-dasharray="${3 * w} ${3 * w}" />`;
   } else {
     zone = `
       <rect
@@ -549,7 +574,8 @@ export function renderGroupNode(
   return `
     <g transform="translate(${x}, ${y})">
       ${zone}
-      ${label ? `
+      ${label && studioZone ? `
+      <text x="19" y="32" fill="${isDark ? '#cbd5e1' : '#52627a'}" font-family="${svgFontFamily(getRenderStyle(renderStyleId).fonts.title)}" font-size="13" font-weight="600" letter-spacing="0.52">${escapeXml(label)}</text>` : label ? `
       <text
         x="12" y="20"
         fill="${brutal ? brutalBorder : tagText}"
@@ -690,7 +716,7 @@ export function renderShapeNode(
     const iconGlyphY = iconY + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
     return `
       <g transform="translate(${x}, ${y})">
-        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : `<rect x="0" y="0" width="${W}" height="${H}" rx="16" fill="#000" filter="url(#archdraw-studio-shadow)" />`}
         ${body}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
