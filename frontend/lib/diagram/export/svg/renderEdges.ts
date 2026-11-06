@@ -19,6 +19,7 @@ import {
   BRUTAL_BORDER_DARK,
   BRUTAL_FILL_LIGHT,
   BRUTAL_FILL_DARK,
+  isStudioRenderStyle,
   type DiagramRenderStyleId,
 } from '@/lib/theme/renderStyles';
 import { buildSolidArrowheadPath, escapeXml, svgFontFamily } from './svgPrimitives';
@@ -37,6 +38,7 @@ export function renderEdge(
 
   const isSketch = renderStyleId === 'sketch';
   const isBrutal = renderStyleId === 'neubrutalism';
+  const isStudio = isStudioRenderStyle(renderStyleId);
   const edgeType: EdgeType | undefined = data?.edgeType;
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
@@ -116,7 +118,7 @@ export function renderEdge(
     const sketchBorder = isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER;
     const paddingX = isSketch ? 7 : 7;
     const paddingY = isSketch ? 2 : 3;
-    const charWidth = isSketch ? 6.4 : isBrutal ? 6.6 : 6.0;
+    const charWidth = isSketch ? 6.4 : isBrutal ? 6.6 : isStudio ? 5.75 : 6.0;
     const labelWidth = Math.max(38, labelText.length * charWidth + paddingX * 2);
     const labelHeight = (isSketch ? 17 : isBrutal ? 17 : 16) + paddingY * 2;
 
@@ -161,7 +163,7 @@ export function renderEdge(
           fill="${knockout}"
           stroke="${border}"
           stroke-width="1"
-          rx="3"
+          rx="4"
         />`;
     }
 
@@ -172,7 +174,7 @@ export function renderEdge(
            x="0" y="4"
            fill="${fg}"
            font-family="${svgFontFamily(isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif')}"
-           font-size="${isBrutal ? 12 : isSketch ? 13 : 11}"
+           font-size="${isBrutal ? 12 : isSketch ? 13 : isStudio ? 10.5 : 11}"
            font-weight="${isBrutal ? 600 : 500}"
            text-anchor="middle"
            letter-spacing="${isSketch ? '0' : '0.015em'}"
@@ -196,8 +198,9 @@ export function renderEdge(
       stroke="${strokeColor}"
       stroke-width="${strokeWidth}"
       stroke-opacity="${opacity}"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       ${strokeDashAttr}
-      style="opacity: ${opacity}; ${isDark && !isBrutal ? `filter: drop-shadow(0 0 3px ${strokeColor});` : ''}"
     />`.trim();
 
   let arrowheadSVG = '';
