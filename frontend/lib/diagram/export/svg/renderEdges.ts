@@ -25,6 +25,9 @@ import {
 import { buildSolidArrowheadPath, escapeXml, svgFontFamily } from './svgPrimitives';
 import { pathEndTangentAngle } from '@/lib/diagram/edges/pathTangent';
 import { getPath } from './edgePaths';
+import { measureText } from './textMeasure';
+import { mixHex } from '@/lib/theme/mixHex';
+import { edgeThemeInk } from '@/lib/theme/edgeInk';
 import { composeEdgeDisplayLabel } from '@/lib/diagram/edges/edgeLabelLayout';
 import type { EdgeRenderData } from './types';
 
@@ -33,6 +36,10 @@ export function renderEdge(
   isDark: boolean,
   renderStyleId: DiagramRenderStyleId = 'precision',
   aesthetics?: import('@/lib/theme/renderStyles').ResolvedCanvasTokens,
+  /** Counter-scale of the label, as the canvas applies it from the zoom. */
+  labelScale = 1,
+  /** The diagram's background, which the label box knocks out of the edge (the canvas uses its own background). */
+  canvasFill?: string,
 ): string {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, selected, isFloating } = edge;
 
@@ -43,15 +50,7 @@ export function renderEdge(
   const customPathType: PathType | undefined = data?.pathType;
   const pathType = getEffectivePathType(edgeType, customPathType);
 
-  const themeInk = aesthetics ? {
-    primary: aesthetics.colors.edgePrimary,
-    default: aesthetics.colors.edgeDefault,
-    supporting: aesthetics.colors.edgeDefault,
-    dep: aesthetics.colors.edgeDefault,
-    async: aesthetics.colors.edgeAsync,
-    stream: aesthetics.colors.edgePrimary,
-    event: aesthetics.colors.edgeAsync,
-  } : undefined;
+  const themeInk = aesthetics ? edgeThemeInk(aesthetics.colors) : undefined;
   const visual = resolveEdgeVisual(
     data as Record<string, unknown> | undefined,
     isDark,
@@ -108,19 +107,34 @@ export function renderEdge(
     // Sketch labels are warm ink — a hand-picked edge color stays (like the
     // canvas EdgeLabel); precision blends the edge color with slate.
     const customColor = data?.color && /^#[0-9a-fA-F]{6}$/.test(data.color) ? data.color : undefined;
-    const fg = customColor
+    // The canvas label (EdgeLabel): text blended from the edge colour when it is a hex colour, else
+    // slate; the box is the canvas background with a fixed hairline border.
+    const lineColor = /^#[0-9a-fA-F]{6}$/.test(strokeColor ?? '') ? strokeColor : undefined;
+    const plainInk = lineColor
+      ? (isDark ? mixHex(lineColor, '#e2e8f0', 0.55) : mixHex(lineColor, '#334155', 0.45))
+      : (isDark ? '#94a3b8' : '#64748b');
+    const fg = customColor && (isSketch || isBrutal)
       ? customColor
       : isSketch
         ? (isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE)
-        : (strokeColor || (isDark ? '#CBD5E1' : '#64748b'));
-    const knockout = aesthetics?.colors.nodeFill ?? (isDark ? '#0f1117' : '#f8fafc');
-    const border = aesthetics?.colors.nodeStroke ?? (isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)');
+        : isBrutal
+          ? (strokeColor || (isDark ? '#CBD5E1' : '#64748b'))
+          : plainInk;
+    const knockout = canvasFill && canvasFill !== 'none' ? canvasFill : (aesthetics?.colors.nodeFill ?? (isDark ? '#0f1117' : '#f8fafc'));
+    const border = isSketch || isBrutal
+      ? (aesthetics?.colors.nodeStroke ?? (isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)'))
+      : (isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.12)');
     const sketchBorder = isDark ? SKETCH_PAPER_DARK_BORDER : SKETCH_INK_LIGHT_BORDER;
-    const paddingX = isSketch ? 7 : 7;
-    const paddingY = isSketch ? 2 : 3;
-    const charWidth = isSketch ? 6.4 : isBrutal ? 6.6 : isStudio ? 5.75 : 6.0;
-    const labelWidth = Math.max(38, labelText.length * charWidth + paddingX * 2);
-    const labelHeight = (isSketch ? 17 : isBrutal ? 17 : 16) + paddingY * 2;
+    const paddingX = isBrutal ? 6 : 7;
+    const paddingY = isSketch || isBrutal ? 2 : 3;
+    const charWidth = isSketch ? 6.4 : isBrutal ? 6.2 : isStudio ? 5.75 : 6.0;
+    // Sketch and brutal keep their estimates; the clean styles size the box from the measured text
+    // plus padding and the 1px border, as the canvas pill does.
+    const plainFontSize = isStudio ? 10.5 : 11;
+    const labelWidth = isSketch || isBrutal
+      ? Math.max(38, labelText.length * charWidth + paddingX * 2)
+      : Math.max(38, measureText(labelText, 500, plainFontSize, plainFontSize * 0.015) + paddingX * 2 + 2);
+    const labelHeight = (isSketch ? 17 : isBrutal ? 14 : 16) + paddingY * 2;
 
     let labelBox = '';
     if (isSketch) {
@@ -149,7 +163,7 @@ export function renderEdge(
           height="${labelHeight}"
           fill="${isDark ? BRUTAL_FILL_DARK : BRUTAL_FILL_LIGHT}"
           stroke="${isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER}"
-          stroke-width="2.5"
+          stroke-width="1.5"
           rx="4"
         />
         </g>`;
@@ -168,13 +182,13 @@ export function renderEdge(
     }
 
     labelSVG = `
-      <g transform="translate(${labelX}, ${labelY})">
+      <g transform="translate(${labelX}, ${labelY}) scale(${labelScale})">
         ${labelBox}
         <text
            x="0" y="4"
            fill="${fg}"
-           font-family="${svgFontFamily(isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif')}"
-           font-size="${isBrutal ? 12 : isSketch ? 13 : isStudio ? 10.5 : 11}"
+           font-family="${svgFontFamily(isSketch ? getRenderStyle('sketch').fonts.edgeLabel : isBrutal ? getRenderStyle('neubrutalism').fonts.edgeLabel : 'Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif')}"
+           font-size="${isBrutal ? 10 : isSketch ? 13 : isStudio ? 10.5 : 11}"
            font-weight="${isBrutal ? 600 : 500}"
            text-anchor="middle"
            letter-spacing="${isSketch ? '0' : '0.015em'}"

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { mixHex } from '@/lib/theme/mixHex';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDiagramStore } from '@/store/diagramStore';
 import { splitComposedEdgeLabel } from '@/lib/diagram/edges/edgeLabelLayout';
@@ -30,19 +31,6 @@ interface EdgeLabelProps {
    * "req / resp / resp" on the next render.
    */
   responseLabel?: string;
-}
-
-/** Blend two hex colors into a fully opaque color. t = fraction of the first. */
-function mixHex(a: string, b: string, t: number): string {
-  const pa = /^#([0-9a-fA-F]{6})$/.exec(a);
-  const pb = /^#([0-9a-fA-F]{6})$/.exec(b);
-  if (!pa || !pb) return a;
-  const na = parseInt(pa[1], 16);
-  const nb = parseInt(pb[1], 16);
-  const r = Math.round(((na >> 16) & 0xff) * t + ((nb >> 16) & 0xff) * (1 - t));
-  const g = Math.round(((na >> 8) & 0xff) * t + ((nb >> 8) & 0xff) * (1 - t));
-  const bl = Math.round((na & 0xff) * t + (nb & 0xff) * (1 - t));
-  return `rgb(${r}, ${g}, ${bl})`;
 }
 
 export function EdgeLabel({
@@ -186,13 +174,13 @@ export function EdgeLabel({
       ? {
           background: 'var(--arch-node-fill, #ffffff)',
           color: textColor,
-          fontSize: 12,
-          borderRadius: 5,
+          fontSize: 10,
+          borderRadius: 4,
           border: '1.5px solid var(--arch-node-stroke, #1a1a1a)',
           boxShadow: '2px 2px 0px var(--arch-node-stroke, #1a1a1a)',
           fontFamily: 'var(--arch-font-edge-label, monospace)',
           fontWeight: 600,
-          padding: '3px 8px',
+          padding: '2px 6px',
           lineHeight: 1.3,
           textAlign: 'center',
           outline: 'none',

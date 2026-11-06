@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { MarkerType } from 'reactflow';
 import type { Edge } from 'reactflow';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
+import { edgeThemeInk } from '@/lib/theme/edgeInk';
 import { resolveEdgeVisual } from '@/lib/diagram/edges/edgeHierarchy';
 import type { SketchEdgeInk } from '@/lib/theme/renderStyles';
 
@@ -46,15 +47,7 @@ export function useEdgeColors(edges: Edge[]): Edge[] {
   const { edgePrimary, edgeDefault, edgeAsync } = colors;
 
   return useMemo(() => {
-    const themeInk: Partial<SketchEdgeInk> = {
-      primary: edgePrimary,
-      default: edgeDefault,
-      supporting: edgeDefault,
-      dep: edgeDefault,
-      async: edgeAsync,
-      stream: edgePrimary,
-      event: edgePrimary,
-    };
+    const themeInk = edgeThemeInk({ edgePrimary, edgeDefault, edgeAsync });
 
     return edges.map((edge) => {
       const palette = resolveEdgePalette(
@@ -68,7 +61,7 @@ export function useEdgeColors(edges: Edge[]): Edge[] {
         style: {
           ...edge.style,
           stroke: palette.stroke,
-          strokeWidth: palette.strokeWidth ?? 1.25,
+          strokeWidth: renderStyleId === 'neubrutalism' ? (palette.isPrimary ? 3 : 2.75) : palette.strokeWidth ?? 1.25,
           opacity: palette.opacity,
         },
         markerEnd: {
@@ -80,7 +73,7 @@ export function useEdgeColors(edges: Edge[]): Edge[] {
         labelStyle: { ...edge.labelStyle, fill: palette.stroke },
       };
     });
-  }, [edges, isDark, sketch, edgePrimary, edgeDefault, edgeAsync]);
+  }, [edges, isDark, sketch, renderStyleId, edgePrimary, edgeDefault, edgeAsync]);
 }
 
 export function assignEdgeColors(

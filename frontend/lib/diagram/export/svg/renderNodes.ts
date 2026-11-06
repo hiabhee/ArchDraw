@@ -17,7 +17,9 @@ import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/icons/bran
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
-import { STUDIO_SCALE, STUDIO_SUBTITLE_PX, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
+import { getShapeLabelMaxWidth } from '@/lib/diagram/nodes/shapeTextLayout';
+import { STUDIO_ICON_GAP, STUDIO_SCALE, STUDIO_SUBTITLE_PX, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
+import { wrapText } from './textMeasure';
 
 /** A length from the original 64px Studio card, scaled to today's card. */
 const S = (px: number) => Math.round(px * STUDIO_SCALE);
@@ -32,9 +34,9 @@ import {
   BRUTAL_BORDER,
   BRUTAL_BORDER_DARK,
   BRUTAL_TITLE_LIGHT,
-  BRUTAL_TITLE_DARK,
+  BRUTAL_NODE_INK_DARK,
+  BRUTAL_NODE_INK_SOFT_DARK,
   BRUTAL_SUBTITLE_LIGHT,
-  BRUTAL_SUBTITLE_DARK,
   BRUTAL_GROUP_FILL_LIGHT,
   BRUTAL_GROUP_FILL_DARK,
   getBrutalNodeFill,
@@ -233,8 +235,9 @@ export function renderSystemNode(
   if (renderStyleId === 'neubrutalism') {
     const border = isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER;
     const surfFill = getBrutalNodeFill(accentColor, isDark);
-    const nodeTitle = isDark ? BRUTAL_TITLE_DARK : BRUTAL_TITLE_LIGHT;
-    const nodeSubtitle = isDark ? BRUTAL_SUBTITLE_DARK : BRUTAL_SUBTITLE_LIGHT;
+    // Dark cards are bright fills, so their text is near-black (as the canvas card sets it).
+    const nodeTitle = isDark ? BRUTAL_NODE_INK_DARK : BRUTAL_TITLE_LIGHT;
+    const nodeSubtitle = isDark ? BRUTAL_NODE_INK_SOFT_DARK : BRUTAL_SUBTITLE_LIGHT;
     const font = 'Space Grotesk, Inter, system-ui, sans-serif';
     const shadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
     return `
@@ -256,7 +259,7 @@ export function renderSystemNode(
           x="30" y="15"
           fill="${nodeTitle}"
           font-family="${svgFontFamily(font)}"
-          font-size="${studio ? 18.5 : 16.2}"
+          font-size="18"
           font-weight="700"
           letter-spacing="-0.02em"
         >${escapeXml(data.label || 'Service')}</text>
@@ -266,7 +269,7 @@ export function renderSystemNode(
         x="16" y="${height - 13}"
         fill="${nodeSubtitle}"
         font-family="${svgFontFamily(font)}"
-        font-size="11"
+        font-size="12.5"
         font-weight="500"
       >${escapeXml(String(data.subtitle))}</text>` : ''}
       ${showStatus ? `
@@ -633,14 +636,18 @@ export function renderShapeNode(
   });
   // Sketch titles/subtitles are warm ink (brown on paper, chalk on board) —
   // not the precision slate.
+  const brutalCard = renderStyleId === 'neubrutalism';
   const titleColor = studio ? (isDark && selected ? '#111827' : aesthetics.colors.title) : sketch
     ? isDark ? SKETCH_INK_DARK_TITLE : SKETCH_INK_LIGHT_TITLE
+    : brutalCard ? (isDark ? BRUTAL_NODE_INK_DARK : BRUTAL_TITLE_LIGHT)
     : styles.titleColor;
   const subtitleColor = studio ? (isDark && selected ? '#526174' : aesthetics.colors.subtitle) : sketch
     ? isDark ? SKETCH_INK_DARK_SUBTITLE : SKETCH_INK_LIGHT_SUBTITLE
+    : brutalCard ? (isDark ? BRUTAL_NODE_INK_SOFT_DARK : BRUTAL_SUBTITLE_LIGHT)
     : styles.subtitleColor;
   const title = shapeData.label || '';
-  const subtitle = shapeData.sublabel;
+  // Same field order as the canvas card: `sublabel`, then `subtitle`.
+  const subtitle = shapeData.sublabel ?? (shapeData as { subtitle?: string }).subtitle;
 
   const renderer = getStrokeRenderer(sketch ? 'rough' : renderStyleId === 'neubrutalism' ? 'brutalist' : 'crisp');
   const seed = renderer.seedFor(node.id);
@@ -695,9 +702,9 @@ export function renderShapeNode(
   const subtitleY = H / 2 + 12;
   const fontFamily = getRenderStyle(renderStyleId).fonts.title;
   // Sketch subtitles read as penciled secondary text — lighter, smaller, muted.
-  const titleFontSize = sketch ? 18 : studio ? STUDIO_TITLE_PX : 16.2;  // Increased from 14 for better prominence
-  const subtitleFontSize = sketch ? 11 : studio ? STUDIO_SUBTITLE_PX : 10.5;  // Reduced from 11.5 for better hierarchy
-  const subtitleFillOpacity = sketch ? 0.7 : 1;  // Reduced from 0.75 for more subtlety
+  const titleFontSize = sketch ? 18 : studio ? STUDIO_TITLE_PX : brutalCard ? 18 : 16.2;  // Increased from 14 for better prominence
+  const subtitleFontSize = sketch ? 14 : studio ? STUDIO_SUBTITLE_PX : brutalCard ? 12.5 : 11.5;  // as the canvas sets it (nodeStyles.css)
+  const subtitleFillOpacity = sketch ? 0.95 : 1;
 
   if (studio) {
     const showIcon = resolveNodeIconVisibility(iconMode, shapeData.showIcon);
@@ -707,8 +714,27 @@ export function renderShapeNode(
     const contentHeight = STUDIO_ICON_WELL_PX + (title ? S(18) : 0) + (subtitle ? S(14) : 0);
     const iconY = stackIcon ? Math.max(S(4), (H - contentHeight) / 2) : S(8);
     const textX = icon && !stackIcon ? iconX + STUDIO_ICON_WELL_PX + S(8) : W / 2;
-    const titleY = stackIcon ? iconY + STUDIO_ICON_WELL_PX + S(17) : subtitle ? S(29) : S(39);
-    const subtitleY = stackIcon ? titleY + S(14) : S(47);
+    const textAnchor = icon && !stackIcon ? 'start' : 'middle';
+
+    // Text is set exactly as the canvas card sets it: wrapped to the card's text width (the card
+    // minus its padding, and minus the icon beside it), a 1.25 / 1.2 line height, the title's
+    // -0.015em and the subtitle's +0.01em letter spacing, and the whole block centred vertically.
+    const TITLE_SPACING = -0.015 * STUDIO_TITLE_PX;
+    const SUBTITLE_SPACING = 0.01 * STUDIO_SUBTITLE_PX;
+    const TITLE_LINE = STUDIO_TITLE_PX * 1.25;
+    const SUBTITLE_LINE = STUDIO_SUBTITLE_PX * 1.2;
+    // The canvas card's label lane: `getShapeLabelMaxWidth` (88% of the card) less the 4px inset on each side.
+    const textWidth = Math.max(56, getShapeLabelMaxWidth(shape, W, 'title') - 8 - (icon && !stackIcon ? STUDIO_ICON_WELL_PX + STUDIO_ICON_GAP : 0));
+    const titleLines = title ? wrapText(title, textWidth, { weight: 600, px: STUDIO_TITLE_PX, letterSpacing: TITLE_SPACING }) : [];
+    const subtitleLines = subtitle ? wrapText(String(subtitle), textWidth, { weight: 400, px: STUDIO_SUBTITLE_PX, letterSpacing: SUBTITLE_SPACING }) : [];
+    const blockHeight = titleLines.length * TITLE_LINE + (subtitleLines.length ? 1 + subtitleLines.length * SUBTITLE_LINE : 0);
+    const blockTop = stackIcon ? iconY + STUDIO_ICON_WELL_PX + 6 : (H - blockHeight) / 2;
+    // First baseline of a line box: half-leading above the glyphs plus the font's ascent.
+    const baseline = (top: number, line: number, size: number) => top + (line - size * 1.21) / 2 + size * 0.969;
+    const textSvg = [
+      ...titleLines.map((line, i) => `<text x="${textX}" y="${baseline(blockTop + i * TITLE_LINE, TITLE_LINE, STUDIO_TITLE_PX).toFixed(2)}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="600" letter-spacing="${TITLE_SPACING.toFixed(3)}" text-anchor="${textAnchor}">${escapeXml(line)}</text>`),
+      ...subtitleLines.map((line, i) => `<text x="${textX}" y="${baseline(blockTop + titleLines.length * TITLE_LINE + 1 + i * SUBTITLE_LINE, SUBTITLE_LINE, STUDIO_SUBTITLE_PX).toFixed(2)}" fill="${subtitleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_SUBTITLE_PX}" letter-spacing="${SUBTITLE_SPACING.toFixed(3)}" text-anchor="${textAnchor}">${escapeXml(line)}</text>`),
+    ].join('\n        ');
     const iconWell = isDark && selected
       ? `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-opacity="0.4" />`
       : `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" />`;
@@ -721,8 +747,7 @@ export function renderShapeNode(
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
         ${icon ? `${iconWell}<g transform="translate(${iconGlyphX}, ${iconGlyphY})">${icon}</g>` : ''}
-        ${title ? `<text x="${textX}" y="${titleY}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="600" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
-        ${subtitle ? `<text x="${textX}" y="${subtitleY}" fill="${subtitleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_SUBTITLE_PX}" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
+        ${textSvg}
       </g>
     `.trim();
   }
@@ -747,7 +772,7 @@ export function renderShapeNode(
         fill-opacity="${subtitleFillOpacity}"
         font-family="${svgFontFamily(fontFamily)}"
         font-size="${subtitleFontSize}"
-        font-weight="400"
+        font-weight="${sketch ? 600 : 400}"
         text-anchor="middle"
         letter-spacing="${sketch ? '0.01em' : '0'}"
       >${escapeXml(subtitle)}</text>` : ''}
