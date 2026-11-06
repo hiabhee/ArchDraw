@@ -475,7 +475,7 @@ By default the result is published and links are returned (publish:false keeps i
   },
 ];
 
-export const SERVER_VERSION = '1.0.9';
+export const SERVER_VERSION = '1.1.0';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
