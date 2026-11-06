@@ -21,6 +21,13 @@ import {
  * which grows quickly with the diagram, and a large diagram is the least likely to
  * fold cleanly, so fewer are tried the bigger it is.
  */
+/** Wide spacing repairs are only tried when this many edges are still blocked by a card... */
+const EXTENDED_REPAIR_MIN_BLOCKED = 4;
+/** ...and are kept only when they clear at least this many of them... */
+const EXTENDED_REPAIR_MIN_GAIN = 3;
+/** ...without drawing the diagram more than this much smaller on screen (a share of its size). */
+const EXTENDED_REPAIR_MAX_SHRINK = 0.2;
+
 function foldTries(nodeCount: number): number {
   return nodeCount <= 20 ? 6 : nodeCount <= 40 ? 3 : 1;
 }
@@ -255,6 +262,26 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       evaluate({ nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 24, ...flowAreas } });
       if (best?.geometry.quality.hardViolations) {
         evaluate({ nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 32, ...flowAreas } });
+      }
+    }
+    if ((best?.geometry.quality.hardViolations ?? 0) >= EXTENDED_REPAIR_MIN_BLOCKED) {
+      // A dense diagram has long edges that need a clear corridor between columns, which small
+      // gap increases do not open. Wider gaps are tried step by step and kept only if they clear
+      // at least EXTENDED_REPAIR_MIN_GAIN blocked edges and do not shrink the diagram by more than
+      // EXTENDED_REPAIR_MAX_SHRINK: widening costs readability, so a small cleanup or an expensive one
+      // is not worth it. Otherwise the layout stays as it was.
+      const before = { best, layouted };
+      const blockedBefore = best!.geometry.quality.hardViolations;
+      const repairs: Array<[number, number]> = [[48, 64], [72, 112], [96, 160]];
+      for (const [nodeExtra, rankExtra] of repairs) {
+        if (!best?.geometry.quality.hardViolations) break;
+        evaluate({ nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + nodeExtra, rankSep: baseRankSep + rankExtra, ...flowAreas } });
+      }
+      const cleared = blockedBefore - (best?.geometry.quality.hardViolations ?? blockedBefore);
+      const shrink = 1 - (best?.fit ?? 0) / Math.max(before.best!.fit, 1e-6);
+      if (cleared < EXTENDED_REPAIR_MIN_GAIN || shrink > EXTENDED_REPAIR_MAX_SHRINK) {
+        best = before.best;
+        layouted = before.layouted;
       }
     }
 
