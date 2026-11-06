@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { resolveShapeNodeDimensions, getEffectiveNodeDimensions, studioContentNodeSize } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import type { Node } from 'reactflow';
+import { STUDIO_CARD_HEIGHT, STUDIO_CARD_WIDTH, STUDIO_CARD_WIDTH_WITH_ICON } from '@/lib/diagram/nodes/studioMetrics';
+
+const PLAIN = { width: STUDIO_CARD_WIDTH, height: STUDIO_CARD_HEIGHT };
+const WITH_ICON = { width: STUDIO_CARD_WIDTH_WITH_ICON, height: STUDIO_CARD_HEIGHT };
 
 describe('resolveShapeNodeDimensions', () => {
   it('uses 100px height for horizontal pipe with title and subtitle (uniform)', () => {
@@ -67,14 +71,14 @@ describe('resolveShapeNodeDimensions', () => {
     expect(wrappedDims.height).toBe(100);
   });
 
-  it('uses compact 160×64 for Studio Minimal so edges meet handles', () => {
+  it('uses the compact Studio card for Studio Minimal so edges meet handles', () => {
     const node: Node = {
       id: 'n1',
       type: 'shapeNode',
       position: { x: 0, y: 0 },
       data: { label: 'Payment Service', shape: 'rounded-rectangle', nodeWidth: 160, nodeHeight: 100 },
     };
-    expect(getEffectiveNodeDimensions(node, 'studio-minimal')).toEqual({ width: 160, height: 64 });
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal')).toEqual(PLAIN);
     expect(getEffectiveNodeDimensions(node).height).toBe(100);
   });
 
@@ -85,7 +89,7 @@ describe('resolveShapeNodeDimensions', () => {
       'Billing: 0.82 · Technical: 0.13 · Other: 0.05',
       true,
     );
-    expect(short.height).toBe(64);
+    expect(short.height).toBe(STUDIO_CARD_HEIGHT);
     expect(detailed.height).toBeGreaterThan(short.height);
 
     const node: Node = {
@@ -95,23 +99,49 @@ describe('resolveShapeNodeDimensions', () => {
     expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual(detailed);
   });
 
-  it('widens Studio Minimal cards to 200px when an icon is stored', () => {
+  it('widens Studio Minimal cards when an icon is stored', () => {
     const node: Node = {
       id: 'n1',
       type: 'shapeNode',
       position: { x: 0, y: 0 },
       data: { label: 'Ride Service', shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 64 },
     };
-    expect(getEffectiveNodeDimensions(node, 'studio-minimal')).toEqual({ width: 200, height: 64 });
-    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'off')).toEqual({ width: 160, height: 64 });
-    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 200, height: 64 });
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal')).toEqual(WITH_ICON);
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'off')).toEqual(PLAIN);
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual(WITH_ICON);
+  });
+
+  it('maps card widths saved by earlier versions to the current Studio widths', () => {
+    const saved = (nodeWidth: number, showIcon?: boolean): Node => ({
+      id: 'n1',
+      type: 'shapeNode',
+      position: { x: 0, y: 0 },
+      data: { label: 'Ride Service', shape: 'rounded-rectangle', nodeWidth, showIcon },
+    });
+    // The first design: 160 plain, 200 with an icon.
+    expect(getEffectiveNodeDimensions(saved(160), 'studio-minimal')).toEqual(PLAIN);
+    expect(getEffectiveNodeDimensions(saved(200), 'studio-minimal')).toEqual(WITH_ICON);
+    // The 64px design: 192 plain, 240 with an icon.
+    expect(getEffectiveNodeDimensions(saved(192), 'studio-minimal')).toEqual(PLAIN);
+    expect(getEffectiveNodeDimensions(saved(240, true), 'studio-minimal')).toEqual(WITH_ICON);
+  });
+
+  it('reads a saved 240 as the old icon width only when the node shows an icon (it is also today\'s plain width)', () => {
+    const saved = (showIcon: boolean): Node => ({
+      id: 'n1',
+      type: 'shapeNode',
+      position: { x: 0, y: 0 },
+      data: { label: 'Ride Service', shape: 'rounded-rectangle', nodeWidth: 240, showIcon },
+    });
+    expect(getEffectiveNodeDimensions(saved(false), 'studio-minimal')).toEqual(PLAIN);
+    expect(getEffectiveNodeDimensions(saved(true), 'studio-minimal')).toEqual(WITH_ICON);
   });
 
   it('uses content-fit Studio card dimensions for edge anchors instead of stale Dagre size', () => {
     const node: Node = {
-      id: 'system', type: 'systemNode', position: { x: 0, y: 0 }, width: 240, height: 64,
+      id: 'system', type: 'systemNode', position: { x: 0, y: 0 }, width: STUDIO_CARD_WIDTH_WITH_ICON, height: STUDIO_CARD_HEIGHT,
       data: { label: 'Long Service Name' },
     };
-    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual({ width: 200, height: 66 });
+    expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual(studioContentNodeSize('Long Service Name', undefined, true));
   });
 });

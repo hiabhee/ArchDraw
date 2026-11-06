@@ -3,69 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
-import { useDiagramStore } from '@/store/diagramStore';
-import { useTutorialStore } from '@/store/tutorialStore';
-import { saveTutorialProgress as apiSaveTutorialProgress } from '@/lib/client/api-client';
-import { getTutorialById } from '@/data/tutorials';
-import * as engine from '@/lib/tutorial/engine';
 
 const SESSION_REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-
-async function migrateGuestProgress(_userId: string) {
-  const authEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === 'true';
-  if (!authEnabled) return;
-  const { richProgress, completedTutorials } = useTutorialStore.getState();
-  const entries = Object.entries(richProgress);
-  if (entries.length === 0 && completedTutorials.length === 0) return;
-
-  const savedIds = new Set<string>();
-
-  for (const [tutorialId, p] of entries) {
-    if (!p.currentStep || p.currentStep <= 1) continue;
-    savedIds.add(tutorialId);
-    try {
-      await apiSaveTutorialProgress({
-        tutorialId,
-        currentLevel: p.currentLevel,
-        currentStep: p.currentStep,
-        currentPhase: p.currentPhase,
-        completedLevels: p.completedLevels,
-        completedStepIds: p.completedStepIds ?? [],
-        canvasNodes: p.canvasNodes as object,
-        canvasEdges: p.canvasEdges as object,
-        explainCount: p.explainCount,
-      });
-    } catch {
-      // best-effort, never throw
-    }
-  }
-
-  // Ensure finished tutorials reach the DB even if their progress entry is
-  // missing or was reset to step 1 (e.g. partial reset after completion).
-  // Completion is inferred by the final step position + celebration phase,
-  // matching how `startTutorialByDef` re-derives it on restore.
-  for (const tutorialId of completedTutorials) {
-    if (savedIds.has(tutorialId)) continue;
-    const tutorial = getTutorialById(tutorialId);
-    if (!tutorial) continue;
-    const totalSteps = engine.getTotalStepCount(tutorial);
-    try {
-      await apiSaveTutorialProgress({
-        tutorialId,
-        currentLevel: tutorial.levels.length,
-        currentStep: totalSteps,
-        currentPhase: 'celebration',
-        completedLevels: tutorial.levels.map((_, i) => i + 1),
-        completedStepIds: tutorial.levels.flatMap((l) => l.steps.map((s) => s.id)),
-        canvasNodes: [],
-        canvasEdges: [],
-        explainCount: 0,
-      });
-    } catch {
-      // best-effort, never throw
-    }
-  }
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { initialize, user, initialized, refreshSession, sessionExpired } = useAuthStore();
@@ -100,39 +39,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionExpired]);
 
-  // Sync user profile to diagram store
+  // The diagram store syncs the profile itself when it is loaded (store/diagram/authSync.ts).
+  // A guest's tutorial progress moves to the account on sign-in.
   useEffect(() => {
-    if (!initialized) return;
-
-    const { sessionExpired } = useAuthStore.getState();
-
-    if (!user) {
-      prevUserIdRef.current = null;
-      useDiagramStore.getState().setUserProfile(null, { preserveCanvases: sessionExpired });
+    if (!initialized || !user || user.id === 'guest' || user.id === prevUserIdRef.current) {
+      if (!user) prevUserIdRef.current = null;
       return;
     }
-
-    if (user.id === prevUserIdRef.current) return;
     prevUserIdRef.current = user.id;
-
-    const { setUserProfile, loadCanvasesFromDB } = useDiagramStore.getState();
-
-    if (user.id !== 'guest') {
-      setUserProfile({
-        id: user.id,
-        email: user.email ?? undefined,
-        name: user.name ?? undefined,
-        avatar_url: user.image ?? undefined,
-      });
-      loadCanvasesFromDB().catch(() => {});
-      migrateGuestProgress(user.id).catch(() => {});
-    } else {
-      setUserProfile({
-        id: 'guest',
-        email: 'guest@local',
-        name: 'Guest User',
-      });
-    }
+    void import('@/lib/tutorial/migrateGuestProgress')
+      .then(({ migrateGuestProgress }) => migrateGuestProgress())
+      .catch(() => {});
   }, [user, initialized]);
 
   // Periodic session refresh — keeps the session alive and detects expiration

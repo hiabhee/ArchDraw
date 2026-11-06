@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from '@/lib/config';
 import { validateAndFixNodes } from '@/lib/diagram/nodes/nodeValidation';
 import { resolveNodeCollisions } from '@/lib/diagram/geometry/resolveNodeCollisions';
 import { ensureSubgraphBoundsContainChildren } from '@/lib/diagram/mermaid/recomputeSubgraphBounds';
+import { nodeSize } from '@/lib/diagram/geometry/nodeBox';
 import { MAX_GUEST_CANVASES } from '../constants';
 import { normalizeNodes, sanitizeNodes, stripReservedLayerNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges, sanitizeEdges, applyBidirectionalEdgeFixes } from '../helpers/edgeHelpers';
@@ -43,8 +44,7 @@ function normalizeAllCanvases(
       const isVerticalLayout = false; // rehydrate has no stored direction — LR is default
       const nodeById = new Map(resolved.map((n) => [n.id, n as unknown as { id: string; position: { x: number; y: number }; width?: number; height?: number; data?: { nodeWidth?: number; nodeHeight?: number }; parentId?: string; parentNode?: string }]));
       const getWH = (n: { width?: number; height?: number; data?: { nodeWidth?: number; nodeHeight?: number } }) => {
-        const w = n.width ?? n.data?.nodeWidth ?? 200;
-        const h = n.height ?? n.data?.nodeHeight ?? 100;
+        const { width: w, height: h } = nodeSize(n);
         return { w, h };
       };
       const edgesByDelta = [...normalizedEdges]
@@ -245,6 +245,9 @@ export function rehydrateDiagramState(state: DiagramState): void {
       state.iconMode,
     );
   }
+
+  // Saved before the layout style existed, or edited by hand: anything else is the flow layout.
+  if (state.diagramLayoutStyle !== 'zones') state.diagramLayoutStyle = 'flow';
 
   if (!state.canvasBackground) {
     state.canvasBackground = { variant: 'lines', bgColor: null, patternColor: null, gap: 24, size: 1 };

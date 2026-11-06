@@ -53,6 +53,36 @@ describe('optimizeEdgeRoutes', () => {
     expect(first.stats.expandedStates).toBe(0);
   });
 
+  it('routes two mirrored sources into one target symmetrically (shared final leg is a merge)', () => {
+    const nodes = [node('top', 0, 0), node('bottom', 0, 400), node('hub', 600, 200)];
+    const edges = [
+      { id: 'top-hub', source: 'top', target: 'hub', data: {} },
+      { id: 'bottom-hub', source: 'bottom', target: 'hub', data: {} },
+    ] as Edge[];
+    const { routes } = optimizeEdgeRoutes({ nodes, edges, direction: 'LR' });
+    const top = routes.get('top-hub')!.waypoints;
+    const bottom = routes.get('bottom-hub')!.waypoints;
+    expect(top).toHaveLength(bottom.length);
+    // Same bend column, mirrored around the hub's centre line, one arrow at the end.
+    expect(top[1].x).toBeCloseTo(bottom[1].x);
+    expect(top[top.length - 1]).toEqual(bottom[bottom.length - 1]);
+  });
+
+  it('keeps edges off a shared bus when they only run alongside each other', () => {
+    const nodes = [node('a', 0, 0), node('b', 0, 300), node('c', 600, 600), node('d', 600, 900)];
+    const edges = [
+      { id: 'a-c', source: 'a', target: 'c', data: {} },
+      { id: 'b-d', source: 'b', target: 'd', data: {} },
+    ] as Edge[];
+    const { routes } = optimizeEdgeRoutes({ nodes, edges, direction: 'LR' });
+    const vertical = (id: string) => {
+      const w = routes.get(id)!.waypoints;
+      return w.slice(1).flatMap((q, i) => (Math.abs(w[i].x - q.x) < 0.5 && Math.abs(w[i].y - q.y) > 1 ? [w[i].x] : []));
+    };
+    const shared = vertical('a-c').filter((x) => vertical('b-d').some((y) => Math.abs(x - y) <= 3));
+    expect(shared).toEqual([]);
+  });
+
   it('does not evaluate alternate lanes for spatially independent routes', () => {
     const nodes = [
       node('a', 0, 0), node('b', 400, 0),

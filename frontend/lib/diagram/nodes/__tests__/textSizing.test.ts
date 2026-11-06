@@ -4,6 +4,10 @@ import {
   estimateAnnotationNodeSize,
   TEXT_LABEL_FONT_SIZE,
   ANNOTATION_FONT_SIZE,
+  resolveTextLabelColor,
+  TEXT_LABEL_COLOR_DARK,
+  TEXT_LABEL_COLOR_LIGHT,
+  TEXT_LABEL_SWATCHES,
 } from '../textSizing';
 
 describe('estimateTextNodeSize', () => {
@@ -54,5 +58,27 @@ describe('estimateAnnotationNodeSize', () => {
     expect(TEXT_LABEL_FONT_SIZE.small).toBe(24);
     expect(ANNOTATION_FONT_SIZE.heading).toBe(32);
     expect(ANNOTATION_FONT_SIZE.medium).toBe(24);
+  });
+});
+
+describe('resolveTextLabelColor', () => {
+  it('uses theme ink when no color is stored', () => {
+    expect(resolveTextLabelColor(undefined, false)).toBe(TEXT_LABEL_COLOR_LIGHT);
+    expect(resolveTextLabelColor('', true)).toBe(TEXT_LABEL_COLOR_DARK);
+  });
+
+  it('keeps a deliberate color on either theme', () => {
+    expect(resolveTextLabelColor('#f87171', true)).toBe('#f87171');
+    expect(resolveTextLabelColor('#f87171', false)).toBe('#f87171');
+  });
+
+  it('reads legacy black ink as readable light ink on the dark canvas', () => {
+    expect(resolveTextLabelColor('#000000', true)).toBe(TEXT_LABEL_COLOR_DARK);
+    expect(resolveTextLabelColor('#000000', false)).toBe('#000000');
+  });
+
+  it('offers an automatic swatch that follows the theme', () => {
+    const auto = TEXT_LABEL_SWATCHES.find((swatch) => swatch.id === 'ink');
+    expect(auto?.color).toBe('');
   });
 });

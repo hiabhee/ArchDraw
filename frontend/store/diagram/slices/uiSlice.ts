@@ -13,12 +13,14 @@ export type UiSlice = Pick<
   | 'diagramViewMode'
   | 'diagramStyleTheme'
   | 'diagramRenderStyle'
+  | 'diagramLayoutStyle'
   | 'darkMode'
   | 'sidebarOpen'
   | 'canvasMode'
   | 'activeLayoutPresetId'
   | 'detailLevel'
   | 'isPenModeActive'
+  | 'activeTool'
   | 'canvasBackground'
   | 'setGuideLines'
   | 'toggleEdgeAnimations'
@@ -29,12 +31,14 @@ export type UiSlice = Pick<
   | 'setDiagramViewMode'
   | 'setDiagramStyleTheme'
   | 'setDiagramRenderStyle'
+  | 'setDiagramLayoutStyle'
   | 'toggleDarkMode'
   | 'setSidebarOpen'
   | 'setCanvasMode'
   | 'setActiveLayoutPresetId'
   | 'setDetailLevel'
   | 'setPenModeActive'
+  | 'setActiveTool'
   | 'setCanvasBackground'
 >;
 
@@ -54,12 +58,16 @@ export const createUiSlice: StateCreator<
   diagramViewMode: 'details',
   diagramStyleTheme: 'studio-minimal',
   diagramRenderStyle: 'studio-minimal',
-  darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') === 'dark' : false,
+  diagramLayoutStyle: 'flow',
+  // Dark by default; only an explicit light choice turns it off.
+  darkMode: isBrowser ? window.localStorage.getItem('archdraw-theme') !== 'light' : true,
   sidebarOpen: false,
   canvasMode: 'empty',
   activeLayoutPresetId: 'layered-lr',
   detailLevel: 3,
   isPenModeActive: false,
+  // View state (never pushed to undo): 'text' arms click-to-place until a node is placed or Esc.
+  activeTool: 'select',
   canvasBackground: {
     variant: 'lines',
     bgColor: null,
@@ -73,6 +81,7 @@ export const createUiSlice: StateCreator<
   setActiveLayoutPresetId: (id: string) => set({ activeLayoutPresetId: id }),
   setDetailLevel: (level: 1 | 2 | 3) => set({ detailLevel: level }),
   setPenModeActive: (active: boolean) => set({ isPenModeActive: active }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
   toggleGrid: () => set({ showGrid: !get().showGrid }),
   setCanvasBackground: (patch) => set({ canvasBackground: { ...get().canvasBackground, ...patch } }),
   setIconMode: (mode) => set({ iconMode: mode }),
@@ -87,6 +96,8 @@ export const createUiSlice: StateCreator<
   setDiagramViewMode: (mode) => set({ diagramViewMode: mode }),
   setDiagramStyleTheme: (theme) => set({ diagramStyleTheme: theme }),
   setDiagramRenderStyle: (style: DiagramRenderStyleId) => set({ diagramRenderStyle: style }),
+  // A view preference like the render style: never on the undo stack.
+  setDiagramLayoutStyle: (style) => set({ diagramLayoutStyle: style }),
   toggleDarkMode: () => {
     applyThemeChange(!get().darkMode);
   },

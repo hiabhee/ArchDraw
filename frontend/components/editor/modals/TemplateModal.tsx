@@ -48,6 +48,7 @@ export function TemplateModal({ onClose }: Props) {
     const result = await layoutDiagramViaMermaid(t.nodes, t.edges, 'LR', {
       title: t.name,
       renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+      layoutStyle: useDiagramStore.getState().diagramLayoutStyle,
     });
     if (!result.success) {
       toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
@@ -60,9 +61,14 @@ export function TemplateModal({ onClose }: Props) {
     setLoadingId(t.id);
     try {
       const { nodes: ln, edges: le } = await layoutTemplate(t);
-      setActiveLayoutPresetId('layered-lr');
-      if (nodes.length > 0) {
-        addCanvas();
+      const store = useDiagramStore.getState();
+      // A live project's map is never replaced in place (its agents stay with it).
+      if (store.nodes.length > 0 || store.isActiveCanvasLiveProject()) {
+        const before = store.activeCanvasId;
+        store.addCanvas();
+        // addCanvas keeps the active id when it refuses (canvas limit): never overwrite then.
+        if (useDiagramStore.getState().activeCanvasId === before) return;
+        setActiveLayoutPresetId('layered-lr');
         setTimeout(() => {
           const { activeCanvasId } = useDiagramStore.getState();
           useDiagramStore.getState().renameCanvas(activeCanvasId, t.name);
@@ -119,7 +125,7 @@ export function TemplateModal({ onClose }: Props) {
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all duration-200"
+              className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition duration-200"
             >
               <X className="w-4 h-4" />
             </button>
@@ -201,7 +207,7 @@ function TemplateRow({
   return (
     <div
       onClick={handleClick}
-      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 border border-transparent ${
+      className={`group flex items-center gap-4 px-4 py-3 rounded-xl transition duration-200 border border-transparent ${
         disabled && !isLoading
           ? 'opacity-40 pointer-events-none'
           : isLocked
@@ -245,10 +251,10 @@ function TemplateRow({
           handleClick();
         }}
         disabled={disabled}
-        className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition-all duration-200 ${
+        className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-xl shadow-sm hover:shadow transition duration-200 ${
           isLocked
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
-            : 'bg-[#1E90FF] hover:bg-[#4dabf7] active:scale-98 text-white'
+            : 'bg-brand hover:bg-[#4dabf7] active:scale-98 text-white'
         }`}
       >
         {isLocked ? 'Sign in' : isLoading ? 'Laying out…' : 'Load'}

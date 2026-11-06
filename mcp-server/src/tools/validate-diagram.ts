@@ -1,4 +1,3 @@
-import { getDiagramState } from '../lib/diagram-state.js';
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import { TIER_RANK } from '../lib/constants.js';
 import type { TierType } from '../types/index.js';
@@ -236,9 +235,4 @@ export function validateGraph(nodes: ReactFlowNode[], edges: ReactFlowEdge[]): {
     suggestionCount,
     issues,
   };
-}
-
-export async function validateDiagram(workingSession?: string): Promise<ReturnType<typeof validateGraph>> {
-  const state = getDiagramState(workingSession);
-  return validateGraph(state.nodes, state.edges);
 }

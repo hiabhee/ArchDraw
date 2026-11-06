@@ -28,8 +28,30 @@ export const TEXT_LABEL_COLOR_DARK = '#f5f5f5'
 
 const LEGACY_FACTORY_TEXT_LABEL_COLORS = new Set(['#6366f1', '#6366F1'])
 
+/**
+ * Labels created before the ink was theme-aware stored `#000000`, which is
+ * unreadable on the dark canvas. On dark, treat it as the default ink.
+ */
+const LEGACY_BLACK_INK = new Set(['#000000', '#000'])
+
+/**
+ * Color swatches offered by the text-label style bar. `''` means "theme ink"
+ * (no stored color), so the label follows light/dark automatically. The rest
+ * are mid-tones that stay readable on both the light and the night canvas.
+ */
+export const TEXT_LABEL_SWATCHES: ReadonlyArray<{ id: string; label: string; color: string }> = [
+  { id: 'ink', label: 'Automatic', color: '' },
+  { id: 'red', label: 'Red', color: '#f87171' },
+  { id: 'amber', label: 'Amber', color: '#fbbf24' },
+  { id: 'green', label: 'Green', color: '#34d399' },
+  { id: 'blue', label: 'Blue', color: '#60a5fa' },
+  { id: 'violet', label: 'Violet', color: '#a78bfa' },
+]
+
 export function resolveTextLabelColor(color?: string, isDark = false): string {
-  if (color && !LEGACY_FACTORY_TEXT_LABEL_COLORS.has(color)) return color
+  if (color && !LEGACY_FACTORY_TEXT_LABEL_COLORS.has(color)) {
+    if (!(isDark && LEGACY_BLACK_INK.has(color.toLowerCase()))) return color
+  }
   return isDark ? TEXT_LABEL_COLOR_DARK : TEXT_LABEL_COLOR_LIGHT
 }
 

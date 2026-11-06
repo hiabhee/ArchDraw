@@ -25,11 +25,16 @@ const LABEL_MIN_WIDTH_CSS = 32
 
 // ── Neubrutalism / Sketch pill sizing ───────────────────────────────────────
 //
-// Brutal & Sketch now use 11px, 3px 8px padding, 1.5px border + 2px shadow — larger and more readable.
-const BRUTAL_WIDTH_PER_CHAR = 6.2
+// Brutal uses 12px, 3px 8px padding, 1.5px border + 2px shadow. Sketch uses a 13px handwriting
+// face, which reads small, so its pill is a little larger than Precision's.
+const BRUTAL_WIDTH_PER_CHAR = 6.7
 const BRUTAL_HORIZONTAL_PADDING = 16
-const BRUTAL_HEIGHT_CSS = 15
+const BRUTAL_HEIGHT_CSS = 16
 const BRUTAL_MIN_WIDTH_CSS = 38
+const SKETCH_WIDTH_PER_CHAR = 6.2
+const SKETCH_HORIZONTAL_PADDING = 16
+const SKETCH_HEIGHT_CSS = 17
+const SKETCH_MIN_WIDTH_CSS = 36
 /** Max counter-scale factor. Caps zoom-out growth to keep labels small. */
 const LABEL_SAFE_SCALE = 1.5
 const BORDER_RADIUS = 24
@@ -43,13 +48,15 @@ const PARALLEL_LABEL_STACK_GAP = 0
 
 function estimateLabelSize(text: string, renderStyle?: DiagramRenderStyleId): { w: number; h: number } {
   const brutal = renderStyle === 'neubrutalism'
-  const wpc = brutal ? BRUTAL_WIDTH_PER_CHAR : LABEL_WIDTH_PER_CHAR
-  const pad = brutal ? BRUTAL_HORIZONTAL_PADDING : LABEL_HORIZONTAL_PADDING
-  const minW = brutal ? BRUTAL_MIN_WIDTH_CSS : LABEL_MIN_WIDTH_CSS
+  const sketch = renderStyle === 'sketch'
+  const wpc = brutal ? BRUTAL_WIDTH_PER_CHAR : sketch ? SKETCH_WIDTH_PER_CHAR : LABEL_WIDTH_PER_CHAR
+  const pad = brutal ? BRUTAL_HORIZONTAL_PADDING : sketch ? SKETCH_HORIZONTAL_PADDING : LABEL_HORIZONTAL_PADDING
+  const minW = brutal ? BRUTAL_MIN_WIDTH_CSS : sketch ? SKETCH_MIN_WIDTH_CSS : LABEL_MIN_WIDTH_CSS
   const cssWidth = Math.max(minW, text.length * wpc + pad)
+  const heightCss = brutal ? BRUTAL_HEIGHT_CSS : sketch ? SKETCH_HEIGHT_CSS : LABEL_HEIGHT_CSS
   return {
     w: cssWidth * LABEL_SAFE_SCALE,
-    h: (brutal ? BRUTAL_HEIGHT_CSS : LABEL_HEIGHT_CSS) * LABEL_SAFE_SCALE,
+    h: heightCss * LABEL_SAFE_SCALE,
   }
 }
 
@@ -614,31 +621,48 @@ function buildCandidates(
   preferredT: number,
   perpOffset: number,
   /** When set, prefer / search this range first (unique stem). */
-  preferredRange?: { lo: number; hi: number },
-  renderStyle?: DiagramRenderStyleId,
+  preferredRange: { lo: number; hi: number } | undefined,
+  renderStyle: DiagramRenderStyleId | undefined,
+  /** Width of the pill in world px, so it can be kept clear of the arrowhead. */
+  labelWidth: number,
+  /** A label the user dragged stays exactly where they put it. */
+  userPlaced = false,
 ): LabelCandidate[] {
   const mk = (t: number): LabelCandidate => {
     const base = pointAtFraction(segs, t)
     const off = offsetPerpendicular(segs, t, perpOffset)
     return { t, x: base.x + off.x, y: base.y + off.y }
   }
-  const candidates: LabelCandidate[] = [mk(preferredT)]
+  const candidates: LabelCandidate[] = []
   const STEP = 0.01
-  // Keep labels well clear of arrowhead / source tip: at least 22% from ends
-  // and an absolute world-space gap so short horizontals (like the
-  // "consumes event" fan-in in the screenshot) don't sit on the marker.
-  // Label half-width + arrow (26px) + gap needs ~56px for "consumes event".
-  // Neubrutalism's larger pill + shadow needs even more.
+  // Keep the pill clear of both ends, measured from its own edges rather than its
+  // centre: half the pill, plus room for the arrowhead and its handle on the target
+  // end, plus a gap. A fixed share of the edge let a wide pill touch the arrowhead
+  // on a short edge.
   const brutal = renderStyle === 'neubrutalism'
   const totalLen = segs.reduce((s, seg) => s + seg.len, 0)
-  const minDistFromEnds = brutal ? 56 : 48
-  const tMarginCap = brutal ? 0.32 : 0.28
-  const tMarginRaw = totalLen > 1 ? minDistFromEnds / totalLen : 0.22
-  // For very short edges the fractional margin would be huge (>0.5) — clamp
-  // to keep a usable middle, but never below the absolute 48/56px gap.
-  const tMargin = Math.min(tMarginCap, Math.max(0.22, tMarginRaw))
-  const lo = preferredRange ? Math.max(tMargin, preferredRange.lo) : tMargin
-  const hi = preferredRange ? Math.min(1 - tMargin, preferredRange.hi) : 1 - tMargin
+  const half = labelWidth / 2
+  // Measured on the canvas: the arrowhead plus its handle dot take about 24px of the end,
+  // and labels are drawn up to 1.5x larger when zoomed out. Leave a visible stretch of
+  // line between the pill and the arrowhead (about 24px) on top of that.
+  const sourceGap = brutal ? 30 : 24
+  const targetGap = brutal ? 60 : 48
+  const marginOf = (px: number, floor: number) => (totalLen > 1 ? Math.min(0.45, Math.max(floor, (half + px) / totalLen)) : 0.45)
+  // The target end carries the arrowhead and its handle, so it keeps a firmer floor; the
+  // source end may sit closer (a private leg out of a shared trunk needs a label near it).
+  const lo0 = marginOf(sourceGap, 0.06)
+  const hi0 = 1 - marginOf(targetGap, 0.12)
+  // An edge too short for either margin keeps its label in the middle.
+  const [loBound, hiBound] = lo0 <= hi0 ? [lo0, hi0] : [0.5, 0.5]
+  // The unique stem is a preference inside the clearance, never a way around it.
+  let lo = preferredRange ? Math.max(loBound, preferredRange.lo) : loBound
+  let hi = preferredRange ? Math.min(hiBound, preferredRange.hi) : hiBound
+  if (lo > hi) {
+    lo = loBound
+    hi = hiBound
+  }
+  // The preferred spot is the first choice, but never inside the clearance around the ends.
+  candidates.push(mk(userPlaced ? preferredT : Math.min(hi, Math.max(lo, preferredT))))
 
   // Prefer unique-stem samples first, then fall back to the full path so
   // collision resolution can still escape a crowded stem.
@@ -646,7 +670,7 @@ function buildCandidates(
     candidates.push(mk(t))
   }
   if (preferredRange) {
-    for (let t = 0.05; t <= 0.95 + 1e-9; t += STEP) {
+    for (let t = loBound; t <= hiBound + 1e-9; t += STEP) {
       if (t >= lo && t <= hi) continue
       candidates.push(mk(t))
     }
@@ -806,7 +830,7 @@ function computeLayout(
       size: estimateLabelSize(item.label, renderStyle),
       segs,
       basePerp: perpOffset,
-      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle),
+      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number'),
       sortX: preferred.x,
       sortY: preferred.y,
     })

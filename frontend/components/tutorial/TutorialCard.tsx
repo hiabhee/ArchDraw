@@ -238,7 +238,7 @@ export function TutorialCard({ tutorial, showShare = false }: TutorialCardProps)
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
-            <span className="inline-flex items-center gap-1 text-text-primary font-semibold opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200">
+            <span className="inline-flex items-center gap-1 text-text-primary font-semibold opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition duration-200">
               {actionLabel}
               <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
             </span>

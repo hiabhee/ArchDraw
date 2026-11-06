@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "remotion-interactivity": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/remotion-interactivity/SKILL.md",
+      "computedHash": "23d360847e77c6201ac1a9a75fe23ce71070e201b826b363c59ceffd14814330"
+    }
+  }
+}

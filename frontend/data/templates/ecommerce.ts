@@ -7,11 +7,11 @@ export const ecommerceNodes: Node[] = [
   n('ec_gateway','API Gateway','Kong','edge','#0f766e','Webhook',320,300),
   n('ec_auth','Auth Service','JWT','compute','#0d9488','Shield',640,80),
   n('ec_catalog','Catalog','Products','compute','#0d9488','Package',640,220),
-  n('ec_cart','Cart','Redis','data','#334155','ShoppingCart',640,360),
+  n('ec_cart','Cart','Redis','compute','#0d9488','ShoppingCart',640,360),
   n('ec_order','Order Service','Orders','compute','#0d9488','Receipt',640,500),
   n('ec_payment','Payment','Stripe','external','#b45309','CreditCard',960,500),
   n('ec_search','Search','Elasticsearch','data','#334155','Search',960,220),
-  n('ec_inventory','Inventory','Stock','data','#334155','Boxes',960,80),
+  n('ec_inventory','Inventory','Stock levels','compute','#334155','Boxes',960,80),
 ];
 export const ecommerceEdges: Edge[] = [
   e('ec_e1','ec_client','ec_cdn','assets'),

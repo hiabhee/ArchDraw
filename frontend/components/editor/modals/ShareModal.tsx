@@ -178,23 +178,23 @@ export function ShareModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-[520px] sm:mx-4 mx-0 bg-white sm:rounded-[20px] rounded-none shadow-[0_8px_32px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden max-h-[100dvh] sm:max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-[520px] sm:mx-4 mx-0 bg-surface-panel sm:rounded-[20px] rounded-none shadow-[0_8px_32px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden max-h-[100dvh] sm:max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-[#F3F4F6] shrink-0">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-border-default shrink-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-[10px] flex items-center justify-center bg-[#F3F4F6] shrink-0">
-                <Users className="w-5 h-5 text-[#111118]" />
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-surface-page shrink-0">
+                <Users className="w-5 h-5 text-text-primary" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-[18px] sm:text-[20px] font-semibold text-[#111118] leading-tight">Share</h2>
-                <p className="text-[13px] text-[#6B7280] mt-0.5 truncate">Invite people and manage access</p>
+                <h2 className="text-[18px] sm:text-[20px] font-semibold text-text-primary leading-tight">Share</h2>
+                <p className="text-[13px] text-text-secondary mt-0.5 truncate">Invite people and manage access</p>
               </div>
             </div>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-[10px] hover:bg-[#F3F4F6] text-[#6B7280] transition-all duration-150"
+              className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-lg hover:bg-accent text-text-secondary transition duration-150"
             >
               <X className="w-5 h-5" />
             </button>
@@ -207,7 +207,7 @@ export function ShareModal({
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" aria-hidden="true" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" aria-hidden="true" />
                 <label htmlFor="share-invite-email" className="sr-only">Invite by email</label>
                 <input
                   id="share-invite-email"
@@ -221,7 +221,7 @@ export function ShareModal({
                   onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
                   placeholder="Email, name..."
                   aria-label="Invite by email"
-                  className="w-full min-h-[44px] pl-11 pr-4 py-[10px] text-[16px] sm:text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] outline-none text-[#111118] placeholder:text-[#9CA3AF] focus:border-[#111118] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)] transition-[border-color,box-shadow] duration-150"
+                  className="w-full min-h-[44px] pl-11 pr-4 py-[10px] text-[16px] sm:text-[14px] bg-surface-panel border border-border-default rounded-lg outline-none text-text-primary placeholder:text-text-muted focus:border-text-primary focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)] transition-[border-color,box-shadow] duration-150"
                 />
               </div>
 
@@ -229,23 +229,23 @@ export function ShareModal({
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowInviteDropdown(!showInviteDropdown)}
-                  className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1 px-4 py-[10px] text-[14px] bg-white border border-[#E5E7EB] rounded-[10px] hover:bg-[#F9FAFB] transition-all duration-150 text-[#6B7280]"
+                  className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1 px-4 py-[10px] text-[14px] bg-surface-panel border border-border-default rounded-lg hover:bg-accent transition-all duration-150 text-text-secondary"
                 >
                   <span>{invitePermission}</span>
-                  <ChevronDown className="w-4 h-4 text-[#9CA3AF]" />
+                  <ChevronDown className="w-4 h-4 text-text-muted" />
                 </button>
 
                 {showInviteDropdown && (
-                  <div className="absolute top-full right-0 mt-1 w-36 rounded-[10px] overflow-hidden z-10 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-[#E5E7EB]">
+                  <div className="absolute top-full right-0 mt-1 w-36 rounded-lg overflow-hidden z-10 bg-surface-panel shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-border-default">
                     <button
                       onClick={() => { setInvitePermission('can view'); setShowInviteDropdown(false); }}
-                      className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-[#F9FAFB] text-[#111118] transition-colors duration-150"
+                      className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-accent text-text-primary transition-colors duration-150"
                     >
                       can view
                     </button>
                     <button
                       onClick={() => { setInvitePermission('can edit'); setShowInviteDropdown(false); }}
-                      className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-[#F9FAFB] text-[#111118] transition-colors duration-150"
+                      className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-accent text-text-primary transition-colors duration-150"
                     >
                       can edit
                     </button>
@@ -256,18 +256,18 @@ export function ShareModal({
               <button
                 onClick={handleInvite}
                 disabled={!validateEmail(inviteEmail)}
-                className="min-h-[44px] px-5 py-[10px] text-[14px] font-medium text-white bg-[#1E90FF] rounded-[9999px] hover:bg-[#4dabf7] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                className="min-h-[44px] px-5 py-[10px] text-[14px] font-medium text-white bg-brand rounded-full hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed transition duration-150 shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
               >
                 Invite
               </button>
             </div>
           </div>
 
-          <hr className="border-none border-t border-[#F3F4F6] my-5" />
+          <hr className="border-none border-t border-border-default my-5" />
 
           {/* SECTION 2: GENERAL ACCESS */}
           <div className="space-y-3">
-            <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-[0.08em]">General access</label>
+            <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.08em]">General access</label>
 
             <div className="space-y-2">
               {/* Restricted */}
@@ -287,24 +287,24 @@ export function ShareModal({
                     });
                   }
                 }}
-                className={`w-full flex items-center gap-3 p-3 rounded-[10px] transition-all duration-150 ${
-                  accessMode === 'invited' ? 'bg-[#1E90FF]/10 border border-[#1E90FF]/30' : 'hover:bg-[#F9FAFB]'
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition duration-150 ${
+                  accessMode === 'invited' ? 'bg-brand/10 border border-brand/30' : 'hover:bg-accent'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center transition-all duration-150 ${
-                  accessMode === 'invited' ? 'bg-[#1E90FF]' : 'bg-[#F3F4F6]'
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition duration-150 ${
+                  accessMode === 'invited' ? 'bg-brand' : 'bg-surface-page'
                 }`}>
                   {accessMode === 'invited' ? (
                     <Check className="w-5 h-5 text-white" />
                   ) : (
-                    <Users className="w-5 h-5 text-[#6B7280]" />
+                    <Users className="w-5 h-5 text-text-secondary" />
                   )}
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-[14px] font-medium text-[#111118]">Only those invited</p>
-                  <p className="text-[13px] text-[#6B7280]">{people.length} people</p>
+                  <p className="text-[14px] font-medium text-text-primary">Only those invited</p>
+                  <p className="text-[13px] text-text-secondary">{people.length} people</p>
                 </div>
-                <Lock className="w-4 h-4 text-[#9CA3AF]" />
+                <Lock className="w-4 h-4 text-text-muted" />
               </button>
 
               {/* Link access */}
@@ -324,31 +324,31 @@ export function ShareModal({
                     });
                   }
                 }}
-                className={`w-full flex items-center gap-3 p-3 rounded-[10px] transition-all duration-150 ${
-                  accessMode === 'link' ? 'bg-[#1E90FF]/10 border border-[#1E90FF]/30' : 'hover:bg-[#F9FAFB]'
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition duration-150 ${
+                  accessMode === 'link' ? 'bg-brand/10 border border-brand/30' : 'hover:bg-accent'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-[10px] flex items-center justify-center transition-all duration-150 ${
-                  accessMode === 'link' ? 'bg-[#1E90FF]' : 'bg-[#F3F4F6]'
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition duration-150 ${
+                  accessMode === 'link' ? 'bg-brand' : 'bg-surface-page'
                 }`}>
                   {accessMode === 'link' ? (
                     <Check className="w-5 h-5 text-white" />
                   ) : (
-                    <Link2 className="w-5 h-5 text-[#6B7280]" />
+                    <Link2 className="w-5 h-5 text-text-secondary" />
                   )}
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="text-[14px] font-medium text-[#111118]">Link access</p>
-                  <p className="text-[13px] text-[#6B7280]">Anyone with the link</p>
+                  <p className="text-[14px] font-medium text-text-primary">Link access</p>
+                  <p className="text-[13px] text-text-secondary">Anyone with the link</p>
                 </div>
-                <Globe className="w-4 h-4 text-[#9CA3AF]" />
+                <Globe className="w-4 h-4 text-text-muted" />
               </button>
             </div>
 
             {/* Link permission selector */}
             {accessMode === 'link' && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-3 sm:ml-[52px]">
-                <span className="text-[13px] text-[#6B7280]">People with link can:</span>
+                <span className="text-[13px] text-text-secondary">People with link can:</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -366,8 +366,8 @@ export function ShareModal({
                         });
                       }
                     }}
-                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
-                      linkPerm === 'can view' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-sm transition duration-150 ${
+                      linkPerm === 'can view' ? 'bg-brand text-white font-medium' : 'bg-surface-page text-text-secondary hover:bg-accent'
                     }`}
                   >
                     View
@@ -388,8 +388,8 @@ export function ShareModal({
                         });
                       }
                     }}
-                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-[6px] transition-all duration-150 ${
-                      linkPerm === 'can edit' ? 'bg-[#1E90FF] text-white font-medium' : 'bg-[#F3F4F6] text-[#6B7280] hover:bg-[#E5E7EB]'
+                    className={`min-h-[36px] px-3 py-1.5 text-[13px] rounded-sm transition duration-150 ${
+                      linkPerm === 'can edit' ? 'bg-brand text-white font-medium' : 'bg-surface-page text-text-secondary hover:bg-accent'
                     }`}
                   >
                     Edit
@@ -399,26 +399,26 @@ export function ShareModal({
             )}
           </div>
 
-          <hr className="border-none border-t border-[#F3F4F6] my-5" />
+          <hr className="border-none border-t border-border-default my-5" />
 
           {/* SECTION 3: PEOPLE WITH ACCESS */}
           <div className="space-y-3">
-            <label className="text-[11px] font-semibold text-[#6B7280] uppercase tracking-[0.08em]">
+            <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-[0.08em]">
               People with access {people.length > 0 && `(${people.length})`}
             </label>
 
             {people.length === 0 ? (
               <div className="text-center py-8">
-                <Users className="w-8 h-8 mx-auto mb-2 text-[#D1D5DB]" />
-                <p className="text-[14px] text-[#6B7280]">No one has access yet</p>
-                <p className="text-[13px] text-[#9CA3AF] mt-1">Invite people above to share this</p>
+                <Users className="w-8 h-8 mx-auto mb-2 text-text-muted" />
+                <p className="text-[14px] text-text-secondary">No one has access yet</p>
+                <p className="text-[13px] text-text-muted mt-1">Invite people above to share this</p>
               </div>
             ) : (
               <div className="space-y-1">
                 {people.map((person) => (
                   <div
                     key={person.id}
-                    className="group flex items-center gap-3 px-3 py-3 rounded-[10px] hover:bg-[#F9FAFB] transition-all duration-150"
+                    className="group flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-accent transition duration-150"
                   >
                     {/* Avatar */}
                     {person.avatar ? (
@@ -427,56 +427,56 @@ export function ShareModal({
                         <img
                         src={person.avatar}
                         alt={person.name}
-                        className="w-10 h-10 rounded-[9999px] object-cover border-2 border-white"
+                        className="w-10 h-10 rounded-full object-cover border-2 border-surface-panel"
                       />
                       </>
                     ) : (
-                      <div className="w-10 h-10 rounded-[9999px] bg-[#F3F4F6] flex items-center justify-center text-[14px] font-medium text-[#6B7280]">
+                      <div className="w-10 h-10 rounded-full bg-surface-page flex items-center justify-center text-[14px] font-medium text-text-secondary">
                         {getInitials(person.name)}
                       </div>
                     )}
 
                     {/* Name/Email */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-medium text-[#111118] truncate">
+                      <p className="text-[14px] font-medium text-text-primary truncate">
                         {person.name}
                       </p>
-                      <p className="text-[13px] text-[#6B7280] truncate">{person.email}</p>
+                      <p className="text-[13px] text-text-secondary truncate">{person.email}</p>
                     </div>
 
                     {/* Role */}
                     {person.role === 'owner' ? (
-                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-[#DCFCE7]">
-                        <Check className="w-3 h-3 text-[#22C55E]" />
-                        <span className="text-[11px] font-semibold text-[#22C55E]">owner</span>
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-sm bg-success-bg">
+                        <Check className="w-3 h-3 text-success" />
+                        <span className="text-[11px] font-semibold text-success">owner</span>
                       </div>
                     ) : (
                       <div className="relative">
                         <button
                           onClick={() => setShowRoleDropdown(showRoleDropdown === person.id ? null : person.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 text-[13px] rounded-[6px] hover:bg-[#F3F4F6] transition-all duration-150 text-[#6B7280]"
+                          className="flex items-center gap-1 px-2.5 py-1 text-[13px] rounded-sm hover:bg-accent transition duration-150 text-text-secondary"
                         >
                           {person.role}
                           <ChevronDown className="w-3 h-3" />
                         </button>
 
                         {showRoleDropdown === person.id && (
-                          <div className="absolute right-0 mt-1 w-32 rounded-[10px] overflow-hidden z-10 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-[#E5E7EB]">
+                          <div className="absolute right-0 mt-1 w-32 rounded-lg overflow-hidden z-10 bg-surface-panel shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-border-default">
                             <button
                               onClick={() => handleRoleChange(person.id, 'can view')}
-                              className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-[#F9FAFB] text-[#111118] transition-colors duration-150"
+                              className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-accent text-text-primary transition-colors duration-150"
                             >
                               can view
                             </button>
                             <button
                               onClick={() => handleRoleChange(person.id, 'can edit')}
-                              className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-[#F9FAFB] text-[#111118] transition-colors duration-150"
+                              className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-accent text-text-primary transition-colors duration-150"
                             >
                               can edit
                             </button>
                             <button
                               onClick={() => handleRemove(person.id)}
-                              className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-[#FEF2F2] text-[#EF4444] transition-colors duration-150"
+                              className="w-full px-3 py-2.5 text-[14px] text-left hover:bg-destructive/10 text-destructive transition-colors duration-150"
                             >
                               remove
                             </button>
@@ -490,7 +490,7 @@ export function ShareModal({
                       <button
                         onClick={() => handleRemove(person.id)}
                         aria-label={`Remove ${person.name}`}
-                        className="min-w-[36px] min-h-[36px] p-1.5 rounded-[6px] hover:bg-[#FEF2F2] text-[#9CA3AF] hover:text-[#EF4444] transition-all duration-150 opacity-60 sm:opacity-0 sm:group-hover:opacity-100"
+                        className="min-w-[36px] min-h-[36px] p-1.5 rounded-sm hover:bg-destructive/10 text-text-muted hover:text-destructive transition duration-150 opacity-60 sm:opacity-0 sm:group-hover:opacity-100"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -503,24 +503,24 @@ export function ShareModal({
         </div>
 
         {/* SECTION 4: COPY LINK ROW */}
-        <div className="px-4 sm:px-6 py-4 bg-[#F9FAFB] border-t border-[#F3F4F6] shrink-0" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+        <div className="px-4 sm:px-6 py-4 bg-surface-page border-t border-border-default shrink-0" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
           <div className="flex items-center justify-between gap-3">
             {/* Faded URL */}
             <div className="relative flex-1 min-w-0 overflow-hidden">
-              <p className="text-[13px] text-[#9CA3AF] whitespace-nowrap overflow-hidden text-ellipsis">
+              <p className="text-[13px] text-text-muted whitespace-nowrap overflow-hidden text-ellipsis">
                 {shareUrl}
               </p>
-              <div className="absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#F9FAFB] to-transparent pointer-events-none" />
+              <div className="absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface-page to-transparent pointer-events-none" />
             </div>
 
             {/* Copy link button */}
             <button
               onClick={() => handleCopyLink(shareUrl)}
               disabled={copied}
-              className={`min-h-[44px] flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-[9999px] text-[14px] font-medium transition-all duration-150
+              className={`min-h-[44px] flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-[14px] font-medium transition duration-150
                 ${copied
-                  ? 'bg-[#DCFCE7] text-[#22C55E] cursor-default'
-                  : 'bg-[#1E90FF] text-white hover:bg-[#4dabf7]'
+                  ? 'bg-success-bg text-success cursor-default'
+                  : 'bg-brand text-white hover:bg-brand-hover'
                 }`}
             >
               {copied

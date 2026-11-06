@@ -248,6 +248,8 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
   message?: string;
   linkError?: string;
   errors?: string[];
+  /** The diagram drawn by ArchDraw's SVG export, for the inline preview only. */
+  previewSvg?: string;
 }> {
   const errors: string[] = [];
 
@@ -378,6 +380,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
     const API_BASE = getApiBase();
     let updateToken: string | undefined;
     let linkError: string | undefined;
+    let previewSvg: string | undefined;
     // Links are rendered first by the tool handler (formatPreviewLinks).
     const message = `✅ ${template.name} template ready — ${reactFlowNodes.length} nodes, ${reactFlowEdges.length} edges.`;
 
@@ -391,12 +394,13 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
           label: template.name,
-          source: 'mcp', publish: true,
+          source: 'mcp', publish: true, preview: true,
         }),
       });
 
       if (saveResponse.ok) {
-        const saveData = await saveResponse.json() as { sessionId: string; url?: string; updateToken: string };
+        const saveData = await saveResponse.json() as { sessionId: string; url?: string; updateToken: string; previewSvg?: string };
+        previewSvg = saveData.previewSvg;
         const urlPath = saveData.url || `/editor?session=${saveData.sessionId}`;
         diagramUrl = `${API_BASE}${urlPath}`;
         sessionId = saveData.sessionId;
@@ -406,6 +410,20 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       }
     } catch (error) {
       linkError = error instanceof Error ? error.message : 'ArchDraw could not save the preview';
+    }
+
+    // A private template has no publish call to return the drawing; ask for it alone.
+    if (!previewSvg && API_BASE) {
+      try {
+        const previewResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nodes: reactFlowNodes, edges: reactFlowEdges, dryRun: true, preview: true }),
+        });
+        if (previewResponse.ok) previewSvg = ((await previewResponse.json()) as { previewSvg?: string }).previewSvg;
+      } catch {
+        // The preview is optional; the template stands without it.
+      }
     }
 
     return {
@@ -428,6 +446,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
       },
       message,
       errors: errors.length > 0 ? errors : undefined,
+      previewSvg,
     };
 
   } catch (error) {

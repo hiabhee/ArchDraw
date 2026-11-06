@@ -9,6 +9,20 @@ export function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/**
+ * Normalize `#rgb` / `#rrggbb` / `#rrggbbaa` to lowercase `#rrggbb` so it is
+ * safe for `hexToRgba`. Returns null for anything else (named colors, rgb(),
+ * garbage) so callers can fall back instead of rendering `rgba(NaN,…)`.
+ */
+export function toHex6(color: string | null | undefined): string | null {
+  if (typeof color !== 'string') return null;
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(color.trim());
+  if (!m) return null;
+  const hex = m[1].toLowerCase();
+  if (hex.length === 3) return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+  return `#${hex.slice(0, 6)}`;
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

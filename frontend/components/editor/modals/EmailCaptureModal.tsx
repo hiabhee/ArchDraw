@@ -58,7 +58,7 @@ export function EmailCaptureModal({ reason, onClose }: Props) {
               <p className="text-sm font-semibold text-foreground">{copy.title}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{copy.body}</p>
             </div>
-            <button onClick={handleDismiss} className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition-all">
+            <button onClick={handleDismiss} className="p-2 rounded-xl hover:bg-brand/60 text-muted-foreground hover:text-foreground transition">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -67,7 +67,7 @@ export function EmailCaptureModal({ reason, onClose }: Props) {
             <button
               onClick={handleGoogle}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-brand/50 hover:bg-brand rounded-xl transition-all text-sm font-medium text-foreground disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-brand/50 hover:bg-brand rounded-xl transition text-sm font-medium text-foreground disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                 <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">

@@ -737,8 +737,8 @@
         "y": 340
       },
       "data": {
-        "label": "Elk / Integrated",
-        "subtitle": "Optional ELK + canvas presets",
+        "label": "Compound Layout",
+        "subtitle": "Groups · symmetry · column order",
         "shape": "rounded-rectangle",
         "nodeWidth": 260,
         "nodeHeight": 90,
@@ -950,8 +950,8 @@
         "y": 310
       },
       "data": {
-        "label": "Verify",
-        "subtitle": "Verifier + prune",
+        "label": "Verify + Docs Review",
+        "subtitle": "Evidence prune · README re-check",
         "shape": "rounded-rectangle",
         "nodeWidth": 200,
         "nodeHeight": 80,
@@ -1163,8 +1163,8 @@
         "y": 500
       },
       "data": {
-        "label": "Supabase Backend",
-        "groupLabel": "Supabase Backend",
+        "label": "Backend (API routes + Supabase Postgres)",
+        "groupLabel": "Backend (API routes + Supabase Postgres)",
         "isGroup": true,
         "color": "#475569"
       },
@@ -1184,8 +1184,8 @@
         "y": 60
       },
       "data": {
-        "label": "Authentication",
-        "subtitle": "OAuth + RLS",
+        "label": "better-auth",
+        "subtitle": "Google / GitHub OAuth · sessions",
         "shape": "rounded-rectangle",
         "nodeWidth": 260,
         "nodeHeight": 80,
@@ -1209,7 +1209,7 @@
       },
       "data": {
         "label": "PostgreSQL",
-        "subtitle": "Diagrams · profiles · versions",
+        "subtitle": "Prisma · canvases · shares · usage",
         "shape": "cylinder",
         "nodeWidth": 260,
         "nodeHeight": 80,
@@ -1232,16 +1232,16 @@
         "y": 300
       },
       "data": {
-        "label": "Realtime Sync",
-        "subtitle": "Collaboration + presence",
+        "label": "Canvas API",
+        "subtitle": "/api/user/canvases · CAS saves",
         "shape": "rounded-rectangle",
         "nodeWidth": 260,
         "nodeHeight": 80,
         "serviceType": "service",
         "typeId": "service",
         "color": "#475569",
-        "category": "Messaging & Events",
-        "icon": "Radio"
+        "category": "Compute",
+        "icon": "Webhook"
       },
       "width": 260,
       "height": 80,
@@ -1406,7 +1406,7 @@
     {
       "id": "e_webui_ingest",
       "source": "nd_webui",
-      "target": "nd_ingest",
+      "target": "nd_cachecheck",
       "sourceHandle": null,
       "targetHandle": null,
       "type": "simpleFloating",
@@ -1746,9 +1746,9 @@
       "sourceHandle": null,
       "targetHandle": null,
       "type": "simpleFloating",
-      "label": "optional / presets",
+      "label": "grouped diagrams",
       "data": {
-        "label": "optional / presets",
+        "label": "grouped diagrams",
         "connectionType": "sync",
         "edgeVariant": "dashed"
       }
@@ -1774,9 +1774,9 @@
       "sourceHandle": null,
       "targetHandle": null,
       "type": "simpleFloating",
-      "label": "routed edges",
+      "label": "node positions",
       "data": {
-        "label": "routed edges",
+        "label": "node positions",
         "connectionType": "sync",
         "edgeVariant": "solid"
       }
@@ -1839,28 +1839,28 @@
     },
     {
       "id": "e_ingest_cache",
-      "source": "nd_ingest",
-      "target": "nd_cachecheck",
-      "sourceHandle": null,
-      "targetHandle": null,
-      "type": "simpleFloating",
-      "label": "snapshot",
-      "data": {
-        "label": "snapshot",
-        "connectionType": "sync",
-        "edgeVariant": "solid"
-      }
-    },
-    {
-      "id": "e_cache_analysis",
       "source": "nd_cachecheck",
-      "target": "nd_analysis",
+      "target": "nd_ingest",
       "sourceHandle": null,
       "targetHandle": null,
       "type": "simpleFloating",
       "label": "cache miss",
       "data": {
         "label": "cache miss",
+        "connectionType": "sync",
+        "edgeVariant": "solid"
+      }
+    },
+    {
+      "id": "e_cache_analysis",
+      "source": "nd_ingest",
+      "target": "nd_analysis",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "simpleFloating",
+      "label": "snapshot",
+      "data": {
+        "label": "snapshot",
         "connectionType": "sync",
         "edgeVariant": "solid"
       }
@@ -2021,14 +2021,14 @@
     },
     {
       "id": "e_store_db",
-      "source": "nd_store",
+      "source": "nd_realtime",
       "target": "nd_db",
       "sourceHandle": null,
       "targetHandle": null,
       "type": "simpleFloating",
-      "label": "save/load diagrams",
+      "label": "Prisma read/write",
       "data": {
-        "label": "save/load diagrams",
+        "label": "Prisma read/write",
         "connectionType": "sync",
         "edgeVariant": "solid"
       }
@@ -2040,9 +2040,9 @@
       "sourceHandle": null,
       "targetHandle": null,
       "type": "simpleFloating",
-      "label": "realtime presence",
+      "label": "debounced auto-save",
       "data": {
-        "label": "realtime presence",
+        "label": "debounced auto-save",
         "connectionType": "stream",
         "edgeVariant": "solid"
       }

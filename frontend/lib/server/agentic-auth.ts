@@ -16,6 +16,42 @@ export function hashAgenticSecret(secret: string) {
  * credential. A supplied but invalid Authorization header never falls back to
  * a browser cookie.
  */
+const LAST_USED_PRECISION_MS = 60_000;
+
+/**
+ * A live (unrevoked, unexpired) agent credential for a token, or null. Pass
+ * `projectId` to require the credential to belong to that project; leave it out
+ * to look up the project afterwards (lets the caller run both lookups at once).
+ */
+export async function findAgenticCredential(secret: string, projectId?: string) {
+  return prisma.agenticCredential.findFirst({
+    where: {
+      tokenHash: hashAgenticSecret(secret),
+      ...(projectId ? { projectId } : {}),
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true, ownerId: true, projectId: true, lastUsedAt: true },
+  });
+}
+
+/**
+ * Record use of a credential. Hooks call this on every edit; a minute's precision
+ * is plenty and saves a write round trip per request. Returns false when the
+ * credential was revoked or expired in the meantime.
+ */
+export async function markAgenticCredentialUsed(
+  credential: { id: string; lastUsedAt: Date | null },
+  now: number,
+): Promise<boolean> {
+  if (credential.lastUsedAt && now - credential.lastUsedAt.getTime() <= LAST_USED_PRECISION_MS) return true;
+  const marked = await prisma.agenticCredential.updateMany({
+    where: { id: credential.id, revokedAt: null, expiresAt: { gt: new Date(now) } },
+    data: { lastUsedAt: new Date(now) },
+  });
+  return marked.count === 1;
+}
+
 export async function getAgenticPrincipal(
   request: Request,
   projectId: string,
@@ -26,22 +62,9 @@ export async function getAgenticPrincipal(
     const match = authorization.match(/^Bearer\s+(adp_[A-Za-z0-9_-]{43})$/);
     if (!match) return null;
 
-    const credential = await prisma.agenticCredential.findFirst({
-      where: {
-        tokenHash: hashAgenticSecret(match[1]),
-        projectId,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      select: { id: true, ownerId: true },
-    });
+    const credential = await findAgenticCredential(match[1], projectId);
     if (!credential) return null;
-
-    const markedUsed = await prisma.agenticCredential.updateMany({
-      where: { id: credential.id, revokedAt: null, expiresAt: { gt: new Date() } },
-      data: { lastUsedAt: new Date() },
-    });
-    if (markedUsed.count !== 1) return null;
+    if (!(await markAgenticCredentialUsed(credential, Date.now()))) return null;
 
     return { userId: credential.ownerId, credentialId: credential.id };
   }

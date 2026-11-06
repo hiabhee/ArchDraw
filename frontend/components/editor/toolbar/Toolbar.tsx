@@ -1,7 +1,9 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
-import { Trash2, Upload, Undo2, Redo2, Share2, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Moon, Sun } from 'lucide-react';
+import { useRef, useState, useEffect, useMemo } from 'react';
+import { MapLevelToggle } from '@/components/canvas/MapLevelToggle';
+import { useProjectLiveStore } from '@/store/projectLiveStore';
+import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Type, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -13,6 +15,7 @@ import { EmailCaptureModal, type EmailCaptureReason } from '@/components/editor/
 import logger from '@/lib/logger';
 import { analytics } from '@/lib/client/analytics';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
+import { OPEN_LIVE_PROJECT_EVENT } from '@/components/editor/panels/LiveProjectPanel';
 import { getUserTier, canAccessFeature } from '@/lib/quotas/userQuotas';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeToggle } from '@/components/editor/toolbar/ThemeToggle';
@@ -23,8 +26,8 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/editor/toolbar/ExportControls';
-import { LayoutToggleButton } from '@/components/editor/toolbar/LayoutControls';
-import { resolveDiagramPresentation } from '@/lib/diagram/geometry/diagramPresentation';
+import { LayoutStyleButton, LayoutToggleButton } from '@/components/editor/toolbar/LayoutControls';
+import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
 export function Toolbar() {
   const router = useRouter();
@@ -47,6 +50,8 @@ export function Toolbar() {
     sequenceDiagrams,
     isPenModeActive,
     setPenModeActive,
+    activeTool,
+    setActiveTool,
     diagramViewMode,
     setDiagramViewMode,
   } = useDiagramStore(
@@ -69,6 +74,8 @@ export function Toolbar() {
       sequenceDiagrams: s.sequenceDiagrams,
       isPenModeActive: s.isPenModeActive,
       setPenModeActive: s.setPenModeActive,
+      activeTool: s.activeTool,
+      setActiveTool: s.setActiveTool,
       diagramViewMode: s.diagramViewMode,
       setDiagramViewMode: s.setDiagramViewMode,
     })),
@@ -78,7 +85,11 @@ export function Toolbar() {
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
   const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
-  const hiddenInOverview = resolveDiagramPresentation(nodes, edges, 'overview').hiddenEdgeIds.size;
+  const canShowHighLevel = useMemo(() => hasHighLevelView(nodes), [nodes]);
+  // Live projects switch between the overview (this canvas) and the detailed map.
+  const mapLevel = useProjectLiveStore((s) => s.level);
+  const setMapLevel = useProjectLiveStore((s) => s.setLevel);
+  const hasDetailMap = useProjectLiveStore((s) => s.snapshot?.detailUpdatedAt != null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -97,6 +108,7 @@ export function Toolbar() {
   const exportControlsRef = useRef<ExportControlsHandle>(null);
 
   const openGuide = useOnboardingStore((s) => s.open);
+  const isLiveProject = useDiagramStore((s) => Boolean(s.canvases.find((c) => c.id === s.activeCanvasId)?.agenticProjectId));
   const darkMode = useDiagramStore((s) => s.darkMode);
   const toggleDarkMode = useDiagramStore((s) => s.toggleDarkMode);
 
@@ -134,6 +146,8 @@ export function Toolbar() {
       try {
         const data = JSON.parse(reader.result as string);
         if (Array.isArray(data.nodes) && Array.isArray(data.edges)) {
+          // Import replaces the diagram: a live project's map moves to a new tab instead.
+          if (!useDiagramStore.getState().openTabIfLiveProject()) return;
           importDiagram(data.nodes, data.edges, { preserveTopology: true });
           toast.success('Diagram imported');
         }
@@ -242,7 +256,8 @@ export function Toolbar() {
   }, [isGuest]);
 
   const handleClear = () => {
-    if (nodes.length === 0) return;
+    // A live project's map is published by its agents; clearing it would wipe it.
+    if (nodes.length === 0 || isLiveProject) return;
     if (window.confirm('Clear all nodes and edges from the canvas?')) {
       clearDiagram();
       toast.success('Canvas cleared');
@@ -374,6 +389,26 @@ export function Toolbar() {
           <CanvasBackgroundControls />
 
           <span className="!hidden sm:!flex items-center gap-1 sm:gap-2">
+            {/* Text tool: click the canvas to place a label. Hidden on live maps and the high-level summary (view-only). */}
+            {!isLiveProject && diagramViewMode !== 'overview' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setActiveTool(activeTool === 'text' ? 'select' : 'text')}
+              aria-pressed={activeTool === 'text'}
+              className={`!w-8 sm:!w-9 !h-8 sm:!h-9 ${
+                activeTool === 'text'
+                  ? 'text-brand-text bg-brand/15 ring-1 ring-brand/40'
+                  : ''
+              }`}
+              title={activeTool === 'text' ? 'Text tool on: click the canvas (Esc to cancel)' : 'Text tool (T): click the canvas to place text'}
+              aria-label={activeTool === 'text' ? 'Cancel text tool' : 'Text tool'}
+            >
+              <Type className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
+            </Button>
+            )}
+            {/* Live projects keep the bar for the map; the pen stays in More options. */}
+            {!isLiveProject && (
             <Button
               variant="ghost"
               size="icon"
@@ -388,22 +423,31 @@ export function Toolbar() {
             >
               <PenTool className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
+            )}
 
             <LayoutToggleButton />
+            <LayoutStyleButton />
 
+            {isLiveProject ? (
+              <MapLevelToggle level={mapLevel} onChange={setMapLevel} hasDetail={hasDetailMap} />
+            ) : (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setDiagramViewMode(diagramViewMode === 'overview' ? 'details' : 'overview')}
-              title={diagramViewMode === 'overview' ? 'Show all diagram connections' : 'Show the main flow'}
-              aria-label={diagramViewMode === 'overview' ? 'Show details' : 'Show overview'}
+              disabled={!canShowHighLevel && diagramViewMode !== 'overview'}
+              title={!canShowHighLevel
+                ? 'High-level view needs groups: it collapses each group into one component'
+                : diagramViewMode === 'overview'
+                  ? 'Showing each group as one component (view only). Click for the in-depth diagram.'
+                  : 'Showing every component. Click for the high-level view.'}
+              aria-label={diagramViewMode === 'overview' ? 'Show in-depth diagram' : 'Show high-level diagram'}
               aria-pressed={diagramViewMode === 'overview'}
               className="h-8 px-2 text-xs"
             >
-              {diagramViewMode === 'overview'
-                ? `Overview${hiddenInOverview ? ` · ${hiddenInOverview} hidden` : ''}`
-                : 'Details'}
+              {diagramViewMode === 'overview' ? 'High-level' : 'In-depth'}
             </Button>
+            )}
 
             <NodeIconModeToggle />
 
@@ -430,6 +474,17 @@ export function Toolbar() {
               title="Share diagram"
             >
               {isSharing ? <Loader2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 animate-spin" aria-hidden="true" /> : <Share2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIVE_PROJECT_EVENT))}
+              className={`!w-8 sm:!w-9 !h-8 sm:!h-9${isLiveProject ? ' !text-emerald-600' : ''}`}
+              aria-label={isLiveProject ? 'Live project' : 'Make live project'}
+              title={isLiveProject ? 'Live project' : 'Make live project'}
+            >
+              <Radio className="w-3.5 sm:w-4 h-3.5 sm:h-4" aria-hidden="true" />
             </Button>
           </span>
 
@@ -571,7 +626,8 @@ export function Toolbar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => { handleClear(); setMoreOpen(false); }}
-                    disabled={nodes.length === 0}
+                    disabled={nodes.length === 0 || isLiveProject}
+                    title={isLiveProject ? 'Live project maps are published by your agents and cannot be cleared' : undefined}
                     className="w-full justify-start gap-2 rounded-none !text-destructive hover:!bg-destructive/10 disabled:opacity-40"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

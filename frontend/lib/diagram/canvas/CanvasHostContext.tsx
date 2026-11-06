@@ -30,6 +30,8 @@ export interface CanvasHost {
   isDark?: boolean;
   /** Cache key for this host's settled geometry plans. */
   planKey?: string;
+  /** Show live agent-activity badges in a read-only host (the live watch page). */
+  showLiveActivity?: boolean;
 }
 
 // Hosts that don't opt in (tutorial, demos) must never write to the editor.
@@ -72,5 +74,6 @@ export function useCanvasView() {
     iconMode: host.iconMode ?? storeIconMode,
     direction: host.direction ?? storeDirection,
     planKey: host.planKey ?? activeCanvasId ?? 'active-canvas',
+    showLiveActivity: !host.readOnly || host.showLiveActivity === true,
   }), [host, storeRenderStyle, storeColorTheme, storeIconMode, storeDirection, activeCanvasId]);
 }

@@ -14,7 +14,6 @@ export const searchEdges: Edge[] = [
   e('se_e1','se_client','se_api','autocomplete'),
   e('se_e2','se_api','se_trie','lookup'),
   e('se_e3','se_api','se_index','search'),
-  e('se_e4','se_index','se_db','sync','event'),
   e('se_e5','se_db','se_queue','CDC','event'),
   e('se_e6','se_queue','se_worker','consume','event'),
   e('se_e7','se_worker','se_index','reindex','async'),

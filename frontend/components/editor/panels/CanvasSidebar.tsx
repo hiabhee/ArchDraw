@@ -136,7 +136,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                   key={canvas.id}
                   className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     canvas.id === activeCanvasId
-                      ? 'bg-[#1E90FF]/10 text-[#1E90FF]'
+                      ? 'bg-brand/10 text-brand-text'
                       : 'hover:bg-brand'
                   }`}
                   onClick={() => handleCanvasClick(canvas.id)}
@@ -165,7 +165,7 @@ export function CanvasSidebar({ onClose }: CanvasSidebarProps) {
                   <DropdownMenu open={contextMenuId === canvas.id} onOpenChange={(open) => !open && setContextMenuId(null)}>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <button
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-brand transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-brand transition"
                         onClick={(e) => {
                           e.stopPropagation();
                           setContextMenuId(canvas.id);

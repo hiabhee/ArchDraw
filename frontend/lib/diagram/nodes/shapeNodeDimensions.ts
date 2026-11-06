@@ -5,15 +5,38 @@ import { SIZE_M } from '@/lib/theme/stylingConstants';
 import { NODE_CONFIG } from '@/lib/config';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
+import {
+  STUDIO_CARD_HEIGHT,
+  STUDIO_CARD_RADIUS,
+  STUDIO_CARD_WIDTH,
+  STUDIO_CARD_WIDTH_WITH_ICON,
+  STUDIO_ICON_GAP,
+  STUDIO_ICON_GLYPH,
+  STUDIO_ICON_WELL,
+  STUDIO_SUBTITLE_CHAR_PX,
+  STUDIO_SUBTITLE_LINE_PX,
+  STUDIO_TEXT_PAD_X,
+  STUDIO_TEXT_PAD_Y,
+  STUDIO_TITLE_CHAR_PX,
+  STUDIO_TITLE_LINE_PX,
+} from '@/lib/diagram/nodes/studioMetrics';
 
-/** Studio Minimal cards are compact; icons sit beside the title so width grows. */
-export const STUDIO_COMPACT_SHAPE_WIDTH = 160;
-export const STUDIO_COMPACT_SHAPE_WIDTH_WITH_ICON = 200;
-/** 64px card gives the title-scale icon enough breathing room. */
-export const STUDIO_COMPACT_NODE_HEIGHT = 64;
-export const STUDIO_ICON_WELL_PX = 48;
-export const STUDIO_ICON_GLYPH_PX = 36;
-export const STUDIO_CARD_RADIUS_PX = 18;
+/** Studio Minimal cards: sizes come from `studioMetrics` (icons sit beside the title, so the width grows). */
+export const STUDIO_COMPACT_SHAPE_WIDTH = STUDIO_CARD_WIDTH;
+export const STUDIO_COMPACT_SHAPE_WIDTH_WITH_ICON = STUDIO_CARD_WIDTH_WITH_ICON;
+export const STUDIO_COMPACT_NODE_HEIGHT = STUDIO_CARD_HEIGHT;
+export const STUDIO_ICON_WELL_PX = STUDIO_ICON_WELL;
+export const STUDIO_ICON_GLYPH_PX = STUDIO_ICON_GLYPH;
+export const STUDIO_CARD_RADIUS_PX = STUDIO_CARD_RADIUS;
+
+/**
+ * Card widths saved by earlier versions: 160 / 200 (the first design) and 192 / 240
+ * (the 64px design). They map to today's widths. A saved 240 is ambiguous (it was the
+ * old icon width and is now the plain width), so it is read as the old icon width
+ * only when the node shows an icon.
+ */
+const LEGACY_PLAIN_WIDTHS = new Set([160, 192]);
+const LEGACY_ICON_WIDTHS = new Set([200, 240]);
 
 export function studioCompactNodeSize(showIcon?: boolean): { width: number; height: number } {
   return {
@@ -29,7 +52,7 @@ export function studioContentNodeSize(
   showIcon = false,
   width = studioCompactNodeSize(showIcon).width,
 ): { width: number; height: number } {
-  const textWidth = Math.max(56, width - (showIcon ? STUDIO_ICON_WELL_PX + 10 : 0) - 28);
+  const textWidth = Math.max(56, width - (showIcon ? STUDIO_ICON_WELL_PX + STUDIO_ICON_GAP : 0) - STUDIO_TEXT_PAD_X);
   const lineCount = (text: string, averageCharacterWidth: number) =>
     text.split(/\n/).reduce((total, paragraph) => {
       let lines = 1;
@@ -48,9 +71,9 @@ export function studioContentNodeSize(
       }
       return total + lines;
     }, 0);
-  const titleLines = lineCount(label || 'Service', 8);
-  const subtitleLines = subtitle?.trim() ? lineCount(subtitle, 5.8) : 0;
-  const textHeight = titleLines * 21 + subtitleLines * 14 + (subtitleLines ? 2 : 0) + 24;
+  const titleLines = lineCount(label || 'Service', STUDIO_TITLE_CHAR_PX);
+  const subtitleLines = subtitle?.trim() ? lineCount(subtitle, STUDIO_SUBTITLE_CHAR_PX) : 0;
+  const textHeight = titleLines * STUDIO_TITLE_LINE_PX + subtitleLines * STUDIO_SUBTITLE_LINE_PX + (subtitleLines ? 2 : 0) + STUDIO_TEXT_PAD_Y;
   return { width, height: Math.max(STUDIO_COMPACT_NODE_HEIGHT, textHeight) };
 }
 
@@ -108,8 +131,12 @@ export function getEffectiveNodeDimensions(
     if (isStudioCompact(renderStyleId)) {
       if (iconMode) return studioContentNodeSize(String(data.label ?? ''), (data.sublabel ?? data.subtitle) as string | undefined, resolveNodeIconVisibility(iconMode, data.showIcon as boolean | undefined));
       const stored = data.nodeWidth as number | undefined;
-      if (stored === STUDIO_COMPACT_SHAPE_WIDTH_WITH_ICON || stored === STUDIO_COMPACT_SHAPE_WIDTH) {
-        return studioContentNodeSize(String(data.label ?? ''), (data.sublabel ?? data.subtitle) as string | undefined, stored === STUDIO_COMPACT_SHAPE_WIDTH_WITH_ICON, stored);
+      const shows = Boolean(data.showIcon);
+      const storedWithIcon = stored === STUDIO_COMPACT_SHAPE_WIDTH_WITH_ICON
+        || (stored !== undefined && LEGACY_ICON_WIDTHS.has(stored) && (shows || stored !== STUDIO_COMPACT_SHAPE_WIDTH));
+      if (storedWithIcon || stored === STUDIO_COMPACT_SHAPE_WIDTH || (stored !== undefined && LEGACY_PLAIN_WIDTHS.has(stored))) {
+        const width = storedWithIcon ? STUDIO_COMPACT_SHAPE_WIDTH_WITH_ICON : STUDIO_COMPACT_SHAPE_WIDTH;
+        return studioContentNodeSize(String(data.label ?? ''), (data.sublabel ?? data.subtitle) as string | undefined, storedWithIcon, width);
       }
       return studioContentNodeSize(String(data.label ?? ''), (data.sublabel ?? data.subtitle) as string | undefined, Boolean(data.showIcon));
     }

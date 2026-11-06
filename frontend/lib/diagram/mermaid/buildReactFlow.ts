@@ -2,13 +2,18 @@ import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor
 import type { MermaidAST, RFObjects, RFNode, RFEdge } from './types'
 import { NODE_WIDTH, NODE_HEIGHT } from './types'
 import { calculateNodeDimensions } from '../nodes/nodeSizing'
+import { studioContentNodeSize } from '../nodes/shapeNodeDimensions'
 import { resolveCylinderAxis } from '../nodes/cylinderAxis'
 import { estimateTextNodeSize, estimateAnnotationNodeSize } from '../nodes/textSizing'
 import { classifyEdge } from './edgeClassifier'
 import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver'
 const ARROW_MARKER = 'arrowclosed'
 
-export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
+/**
+ * `sizing: 'studio'` sizes shape nodes as Studio cards (what the canvas draws
+ * by default), so layout reserves the space the cards actually take.
+ */
+export function buildReactFlowObjects(ast: MermaidAST, options: { sizing?: 'studio' } = {}): RFObjects {
   const nodes: RFNode[] = []
   const edges: RFEdge[] = []
   const subgraphNodes = new Set(ast.subgraphs.map(s => s.id))
@@ -115,10 +120,12 @@ export function buildReactFlowObjects(ast: MermaidAST): RFObjects {
     const rfShapeRaw = finalShape === 'rounded' ? 'rounded-rectangle' : finalShape
     const rfShape = rfShapeRaw === 'rectangle' ? 'rounded-rectangle' : rfShapeRaw
     const cylinderAxis = rfShape === 'cylinder' ? resolveCylinderAxis({ serviceType, label }) : undefined
-    const { width, height } = calculateNodeDimensions(label, subtitle, {
-      shape: rfShape,
-      cylinderAxis,
-    })
+    const { width, height } = options.sizing === 'studio'
+      ? studioContentNodeSize(label, subtitle, true)
+      : calculateNodeDimensions(label, subtitle, {
+          shape: rfShape,
+          cylinderAxis,
+        })
 
     const meta = SERVICE_TYPE_META[serviceType] || SERVICE_TYPE_META['service']
     const categoryColor = CATEGORY_COLORS[meta.category] || '#3b82f6'

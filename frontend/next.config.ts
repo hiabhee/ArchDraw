@@ -68,11 +68,17 @@ const nextConfig: NextConfig = {
   // Keep build tracing inside the frontend package even when a parent
   // workspace manifest exists outside the repository checkout.
   outputFileTracingRoot: process.cwd(),
+  // Same for the dev watcher: a stray lockfile in a parent folder (e.g. the
+  // home directory) would otherwise make Turbopack watch all of it, and every
+  // write there (~/.claude session logs) recompiles and reloads the page.
+  turbopack: { root: process.cwd() },
   poweredByHeader: false,
   compress: true,
   // Hosted MCP endpoint: load the server package natively so its widget HTML
   // (read via import.meta.url) resolves from node_modules at runtime.
-  serverExternalPackages: ['@hiabhee/archdraw-mcp-server'],
+  serverExternalPackages: ['@hiabhee/archdraw-mcp-server', '@resvg/resvg-js'],
+  // PNG images draw text with these bundled fonts, read from disk at request time.
+  outputFileTracingIncludes: { '/api/diagram/image/[sessionId]': ['./assets/fonts/**'] },
   transpilePackages: [],
   // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
   // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion

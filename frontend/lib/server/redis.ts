@@ -77,6 +77,10 @@ export class RedisRateLimitError extends Error {
   }
 }
 
+/** After a Redis failure, skip it for this long instead of waiting on every request. */
+const REDIS_RETRY_AFTER_MS = 30_000;
+let redisRateLimitDownUntil = 0;
+
 export async function checkRateLimit(
   identifier: string,
   limit: number = 5,
@@ -93,6 +97,11 @@ export async function checkRateLimit(
   // Groq generations and defeated the guest quota entirely. Callers that have
   // a fail-closed fallback (quotaCheck's DB counter) catch this and apply it;
   // callers with no fallback catch this and degrade as they see fit.
+  // A dead or unreachable Redis would otherwise cost every request the full
+  // timeout below. Still throws (callers keep their fail-closed fallbacks).
+  if (Date.now() < redisRateLimitDownUntil) {
+    throw new RedisRateLimitError('Redis rate limit skipped: recently unreachable');
+  }
   const multi = redis.multi();
   multi.zremrangebyscore(key, 0, windowStart);
   multi.zadd(key, { score: now, member: `${now}-${Math.random()}` });
@@ -111,6 +120,7 @@ export async function checkRateLimit(
       timeoutPromise,
     ]);
   } catch (error) {
+    redisRateLimitDownUntil = Date.now() + REDIS_RETRY_AFTER_MS;
     throw new RedisRateLimitError(
       error instanceof Error ? error.message : 'Redis rate limit check failed',
       error,

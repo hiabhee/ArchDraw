@@ -132,10 +132,10 @@ export function StepCard({
           whileHover={!nextDisabled ? { scale: 1.02 } : {}}
           whileTap={!nextDisabled ? { scale: 0.98 } : {}}
           transition={{ duration: 0.15 }}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-5 py-2 text-[13px] font-semibold transition-all ${
+          className={`inline-flex items-center gap-1.5 rounded-lg px-5 py-2 text-[13px] font-semibold transition ${
             nextDisabled
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-brand text-white hover:bg-brand-hover shadow-[0_4px_16px_rgba(30,144,255,0.30)] cursor-pointer'
+              : 'bg-brand text-white hover:bg-brand-hover shadow-[0_4px_16px_rgba(0, 112, 224,0.30)] cursor-pointer'
           }`}
         >
           {isLastStep ? (

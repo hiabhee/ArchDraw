@@ -1256,7 +1256,7 @@
 
 [data-render-style='sketch'] .react-flow__edge-text {
   font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 11.5px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
   letter-spacing: 0.01em !important;
 }
@@ -1277,7 +1277,7 @@
 [data-render-style='sketch'] .edge-label-pill {
   border-radius: 6px !important;
   font-family: var(--font-patrick-hand, "Patrick Hand"), cursive !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
   padding: 3px 8px !important;
   line-height: 1.3 !important;
@@ -1383,6 +1383,13 @@
   color: var(--arch-title, #f4f4f5) !important;
 }
 
+/* On the saturated dark fills the muted subtitle grey loses contrast; use the title ink, a little softer. */
+.dark [data-render-style='neubrutalism'] .node-subtitle,
+.dark [data-render-style='neubrutalism'] .shape-node .node-subtitle {
+  color: var(--arch-title) !important;
+  opacity: 0.86;
+}
+
 [data-render-style='neubrutalism'] .node-subtitle,
 [data-render-style='neubrutalism'] .shape-node .node-subtitle {
   font-family: var(--arch-font-subtitle) !important;
@@ -1396,7 +1403,7 @@
 
 [data-render-style='neubrutalism'] .react-flow__edge-text {
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.01em !important;
 }
@@ -1406,7 +1413,7 @@
 [data-render-style='neubrutalism'] .edge-label-pill {
   border-radius: 6px !important;
   font-family: var(--arch-font-edge-label) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   padding: 3px 8px !important;
   background: var(--arch-node-fill, #ffffff) !important;
@@ -1453,8 +1460,13 @@
   background: var(--arch-node-fill, #ffffff) !important;
 }
 
-[data-render-style='neubrutalism'] .node-icon-box {
-  background: transparent !important;
+/* The fill is a saturated concern colour and the icon carries that same hue, so a
+   bare icon vanishes into the card. A solid chip behind it keeps the icon readable. */
+[data-render-style='neubrutalism'] .node-icon-box,
+[data-render-style='neubrutalism'] .node-icon-slot {
+  background: var(--arch-brutal-chip) !important;
+  border: 2px solid var(--arch-node-stroke);
+  border-radius: 8px;
   box-shadow: none !important;
 }
 
@@ -1492,4 +1504,170 @@
 
 [data-render-style='studio-metallic'] .node-wrapper:not(.selected) .node-card:hover {
   background-image: var(--arch-node-surface-overlay);
+}
+
+/* ── Live project activity overlay (editor only, excluded from exports) ── */
+.live-activity-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  pointer-events: auto;
+}
+.live-activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--surface-page, #fff);
+}
+.live-activity-dot + .live-activity-dot {
+  margin-left: -3px;
+}
+.live-activity-dot--idle {
+  opacity: 0.5;
+}
+.live-activity-clash {
+  margin-right: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #fff;
+  background: #d97706;
+  box-shadow: 0 0 0 2px var(--surface-page, #fff);
+}
+.live-activity-more {
+  margin-left: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #8a8f98);
+}
+.live-activity-ring {
+  position: absolute;
+  inset: -4px;
+  z-index: 0;
+  border-radius: 14px;
+  border: 1px solid var(--live-color);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.live-activity-ring--pulse {
+  animation: live-activity-pulse 2s ease-in-out infinite;
+}
+@keyframes live-activity-pulse {
+  0%, 100% { opacity: 0.75; box-shadow: 0 0 0 0 transparent; }
+  50% { opacity: 0.35; box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-color) 18%, transparent); }
+}
+.live-activity-ring--added {
+  border-style: dashed;
+}
+.live-activity-new {
+  margin-right: 4px;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 2px 4px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--surface-page, #fff);
+}
+/* Node a session is working on right now: solid outline + glow in its colour. */
+.live-activity-ring--here {
+  inset: -5px;
+  border-width: 2px;
+  opacity: 1;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--live-color) 22%, transparent),
+    0 0 22px 2px color-mix(in srgb, var(--live-color) 45%, transparent);
+}
+.live-activity-ring--here.live-activity-ring--pulse {
+  animation: live-activity-here-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-activity-here-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--live-color) 22%, transparent), 0 0 22px 2px color-mix(in srgb, var(--live-color) 45%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--live-color) 10%, transparent), 0 0 34px 6px color-mix(in srgb, var(--live-color) 55%, transparent); }
+}
+/* Touched earlier in the session: a quiet trace only. */
+.live-activity-ring--visited {
+  opacity: 0.35;
+  border-style: dotted;
+}
+/* Just added by an agent: under construction until the change settles. */
+.react-flow__node:has(.live-construction) > * {
+  opacity: 0.55;
+}
+.react-flow__node:has(.live-construction) .live-construction {
+  opacity: 1;
+}
+.live-construction {
+  position: absolute;
+  inset: -4px;
+  z-index: 1;
+  border-radius: 12px;
+  border: 1.5px dashed var(--live-color);
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--live-color) 16%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  background-size: 34px 34px;
+  animation: live-construction-hatch 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes live-construction-hatch {
+  to { background-position: 34px 0; }
+}
+.live-construction-label {
+  position: absolute;
+  top: -9px;
+  left: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--live-color);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-activity-ring--pulse,
+  .live-activity-ring--here.live-activity-ring--pulse,
+  .live-construction { animation: none; }
+}
+
+/* Live panel presence avatars: active sessions breathe in their colour. */
+.live-presence-avatar--live::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 1.5px solid var(--presence);
+  opacity: 0;
+  animation: live-presence-breathe 2.4s ease-out infinite;
+}
+@keyframes live-presence-breathe {
+  0% { opacity: 0.55; transform: scale(0.92); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-presence-avatar--live::after { animation: none; }
+}
+
+/* Studio cards carry larger text so a fitted map stays readable. */
+/* Sizes mirror STUDIO_TITLE_PX / STUDIO_SUBTITLE_PX in lib/diagram/nodes/studioMetrics.ts. */
+[data-render-style^='studio'] .node-title { font-size: 23px; }
+[data-render-style^='studio'] .node-subtitle { font-size: 15.5px; }
+
+/* Text tool armed: the pane takes the text cursor so a click reads as "place text here". */
+.react-flow.arch-tool-text .react-flow__pane {
+  cursor: text;
 }

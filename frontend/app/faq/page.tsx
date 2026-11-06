@@ -32,23 +32,23 @@ const JSON_LD = {
 
 export default function FAQPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f7f5] text-[#1c1c1a]">
+    <div className="min-h-screen flex flex-col bg-surface-page text-text-primary">
       <LandingNav />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       <main className="flex-1 max-w-[760px] w-full mx-auto px-6 pt-24 pb-16">
-        <p className="text-[11px] font-bold tracking-[2px] uppercase text-[#5a6066] mb-3">FAQ</p>
+        <p className="text-[11px] font-bold tracking-[2px] uppercase text-text-secondary mb-3">FAQ</p>
         <h1 className="font-bold tracking-tight leading-[0.95]" style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', fontSize: 'clamp(2rem, 5vw, 3rem)', letterSpacing: '-0.05em' }}>
-          Common <em className="text-[#155e9c] font-normal">questions</em>
+          Common <em className="text-brand-text font-normal">questions</em>
         </h1>
 
         <div className="mt-10 space-y-3">
           {FAQS.map((faq) => (
-            <details key={faq.q} className="group bg-white border border-[#e4e4df] rounded-xl open:shadow-[0_8px_24px_rgba(28,28,26,0.04)]">
+            <details key={faq.q} className="group bg-surface-card border border-border-default rounded-xl open:shadow-[0_8px_24px_rgba(28,28,26,0.04)]">
               <summary className="flex items-center justify-between gap-4 px-5 py-4 text-sm font-semibold cursor-pointer list-none">
                 <span>{faq.q}</span>
-                <span className="shrink-0 text-[#8a8f98] group-open:rotate-180 transition-transform">▾</span>
+                <span className="shrink-0 text-text-muted group-open:rotate-180 transition-transform">▾</span>
               </summary>
-              <div className="px-5 pb-5 text-sm text-[#5a6066] leading-relaxed border-t border-[#e4e4df]/70 pt-3">{faq.a}</div>
+              <div className="px-5 pb-5 text-sm text-text-secondary leading-relaxed border-t border-border-default/70 pt-3">{faq.a}</div>
             </details>
           ))}
         </div>

@@ -11,3 +11,6 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
     self.postMessage({ id, error: error instanceof Error ? error.message : 'Geometry calculation failed' });
   }
 });
+// Tells the client the module graph loaded; a worker that throws while
+// importing never answers and would otherwise leave every request pending.
+self.postMessage({ ready: true });

@@ -7,6 +7,7 @@ import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import {
   computeDynamicSlotOffsets,
   INCOMING_OUTGOING_GAP,
+  inferEdgeSide,
   resolveBidirectionalFacingSides,
   type DynamicSlotOffsets,
 } from '@/lib/diagram/edges/handleSlotOrder';
@@ -295,15 +296,21 @@ export function useHandleSlotLayout(nodeId?: string) {
   const edgeSideCache = useMemo(() => {
     if (!nodeId) return new Map<string, Position>();
     const cache = new Map<string, Position>();
+    // While the plan is being computed, every node re-renders on each
+    // measurement; running the obstacle scorer per incident edge there is
+    // what froze larger diagrams. Face the other node until the plan lands.
+    const provisional = geometryPlan?.provisional === true;
     for (const edge of incidentEdges) {
       const planned = edge.source === nodeId
         ? geometryPlan?.sourceSides.get(edge.id)
         : geometryPlan?.targetSides.get(edge.id);
-      const side = planned ?? resolveScorerSide(edge, nodeId, nodes, edges, direction, renderStyleId, iconMode);
+      const side = planned ?? (provisional
+        ? inferEdgeSide(edge, nodeId, nodePositions)
+        : resolveScorerSide(edge, nodeId, nodes, edges, direction, renderStyleId, iconMode));
       if (side) cache.set(edge.id, side);
     }
     return cache;
-  }, [incidentEdges, nodeId, nodes, edges, direction, renderStyleId, iconMode, geometryPlan]);
+  }, [incidentEdges, nodeId, nodes, edges, direction, renderStyleId, iconMode, geometryPlan, nodePositions]);
 
   const sidePresence = useMemo(() => {
     const map = new Map<Position, { hasIncoming: boolean; hasOutgoing: boolean }>();

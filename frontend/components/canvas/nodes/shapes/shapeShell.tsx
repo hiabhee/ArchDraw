@@ -13,6 +13,7 @@ import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { resolveAutoCloudIcon } from '@/lib/icons/cloud/autoResolution';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import { STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
 import { TechnologyBrandIcon } from '@/components/icons/TechnologyBrandIcon';
 import { getTechnologyBrandSlug } from '@/lib/icons/brandIcons';
@@ -192,7 +193,7 @@ export function Label({
     >
       {showIcon && (
       <div
-        className={isIconBrand ? undefined : horizontalWithIcon ? 'node-icon-box shrink-0' : 'node-icon-box mb-1'}
+        className={isIconBrand ? 'node-icon-slot' : horizontalWithIcon ? 'node-icon-box shrink-0' : 'node-icon-box mb-1'}
         aria-hidden="true"
         style={{
           width: iconSlotSize,
@@ -234,7 +235,7 @@ export function Label({
           <input
             {...labelEdit.inputProps}
             style={{
-              fontSize: sketch ? 18 : brutal ? 16.2 : 16.2,
+              fontSize: sketch ? 18 : studio ? STUDIO_TITLE_PX : 16.2,
               fontWeight: sketch ? 400 : brutal ? 700 : 600,
               fontFamily: sketch
                 ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'

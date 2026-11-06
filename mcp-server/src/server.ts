@@ -8,39 +8,34 @@ import {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { generateDiagram } from './tools/generate-diagram.js';
-import { fixLayout } from './tools/fix-layout.js';
-import { listNodeTypes } from './tools/list-nodes.js';
-import { applyTemplate, getAvailableTemplates } from './tools/apply-template.js';
-import { getReadMe } from './tools/read-me.js';
+import { applyTemplate } from './tools/apply-template.js';
 import { clearDiagramState, getDiagramState, hasDiagramState, setDiagramState, type DiagramState } from './lib/diagram-state.js';
 import { clearCheckpoints, exportCheckpoints, importCheckpoints, type Checkpoint } from './lib/checkpoints.js';
 import { runWithMcpContext, type McpRequestContext } from './lib/http.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { validateDiagram } from './tools/validate-diagram.js';
 import { updateDiagram } from './tools/update-diagram.js';
-import { saveCheckpoint } from './tools/save-checkpoint.js';
-import { loadCheckpoint } from './tools/load-checkpoint.js';
-import { exportDiagram } from './tools/export-diagram.js';
+import { drawOnCanvas } from './tools/draw-on-canvas.js';
+import { layoutDiagram } from './tools/layout-diagram.js';
 import {
   GenerateDiagramInputSchema,
-  FixLayoutInputSchema,
-  ListNodeTypesInputSchema,
   ApplyTemplateInputSchema,
   UpdateDiagramInputSchema,
-  SaveCheckpointInputSchema,
-  LoadCheckpointInputSchema,
-  ExportDiagramInputSchema,
+  DrawOnCanvasInputSchema,
+  LayoutDiagramInputSchema,
+  CARD_SHAPES,
 } from './lib/schema.js';
-import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI } from './ui/diagram-widget.js';
-import { formatPreviewLinks } from './lib/preview-links.js';
+import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI, PREVIEW_SVG_META_KEY } from './ui/diagram-widget.js';
+import { formatPreviewLinks, imageUrlsFor } from './lib/preview-links.js';
+import type { ReactFlowNode, ReactFlowEdge } from './types/index.js';
 
 const TOOLS: Tool[] = [
   {
     name: 'generate_diagram',
     title: 'Generate an ArchDraw diagram',
+    annotations: { title: 'Generate an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: `Generate a rich architecture diagram with groups, labeled edges, and visual hierarchy. Compatible chat clients display the result as an inline interactive preview; text-only clients receive a concise summary and the ArchDraw site link.
 
-**ALWAYS show the returned preview link (shareUrl) and edit link (diagramUrl) to the user in your reply** — the diagram is visual and the link is the only way users of text-only clients can see it. Links are created by default in the same response (no extra call needed); they are unguessable, view-by-link, and expire after 7 days.
+Include the returned preview link (shareUrl) and edit link (diagramUrl) in your reply: in clients without the inline preview, the links are how the user sees the diagram. Links are created by default in the same response (no extra call needed); they are unguessable, view-by-link, and expire after 7 days.
 
 **INPUT MODES — choose ONE**:
 
@@ -79,14 +74,13 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
 **WORKFLOW**:
 1. Identify the user’s actual domain and constraints
 2. Model only supported components and relationships
-3. Optionally call list_node_types to find icon names
-4. Design the Mermaid graph: groups (subgraphs) first, then children inside them
-5. Design edges: use correct communicationType, audit Auth Service edges, verify no security bypass
-6. **EDGE AUDIT (mandatory)**: Before calling this tool, scan every edge you planned:
+3. Design the Mermaid graph: groups (subgraphs) first, then children inside them
+4. Design edges: use correct communicationType, audit Auth Service edges, verify no security bypass
+5. **EDGE AUDIT (mandatory)**: Before calling this tool, scan every edge you planned:
    - Does any edge have a client-tier node as the TARGET? DELETE IT (unless both source and target are client tier)
    - Does any single node receive >45% of all edges? That node is a hub -- redistribute connections
    - Do all edges flow LEFT->RIGHT (lower tier -> higher tier)? If not, fix direction.
-7. Call this tool
+6. Call this tool
 
 **NODE FIELDS (JSON mode)**:
 - id (required): snake_case unique ID
@@ -214,7 +208,6 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
       },
       required: ['success', 'nodes', 'edges', 'workingSessionId', 'metadata'],
     },
-    annotations: { title: 'Generate an ArchDraw diagram', openWorldHint: true },
     _meta: {
       ui: { resourceUri: DIAGRAM_WIDGET_URI },
       'openai/toolInvocation/invoking': 'Generating diagram…',
@@ -222,114 +215,13 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
     },
   },
   {
-    name: 'fix_layout',
-    description: `Apply the same Mermaid → Dagre auto-layout pipeline used by the ArchDraw editor.
-
-**USE WHEN**: User provides nodes/edges that need automatic positioning
-**INPUT**: Nodes with their tier assignments, plus edges between them
-**OUTPUT**: Returns nodes with x,y positions computed by the editor pipeline
-
-This tool does NOT generate or modify nodes/edges - it only computes optimal positions.
-
-**INPUT**:
-- nodes: Array of nodes (id, label, layer/tier required)
-- edges: Array of connections between nodes
-- direction: Layout direction (RIGHT is default, means left-to-right)`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        nodes: {
-          type: 'array',
-          description: 'Array of nodes with layer assignments',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Unique node identifier' },
-              label: { type: 'string', description: 'Node label/name' },
-              layer: { type: 'string', description: 'Tier layer: client, edge, compute, async, data, observe, external' },
-              width: { type: 'number', default: 180, description: 'Node width' },
-              height: { type: 'number', default: 70, description: 'Node height' },
-            },
-            required: ['id', 'label', 'layer'],
-          },
-        },
-        edges: {
-          type: 'array',
-          description: 'Array of edges connecting the nodes',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Unique edge identifier' },
-              source: { type: 'string', description: 'Source node ID' },
-              target: { type: 'string', description: 'Target node ID' },
-              communicationType: {
-                type: 'string',
-                enum: ['sync', 'async', 'stream', 'event', 'dep'],
-                default: 'sync',
-                description: 'Communication type between nodes',
-              },
-            },
-            required: ['source', 'target'],
-          },
-        },
-        direction: {
-          type: 'string',
-          enum: ['RIGHT', 'DOWN', 'LEFT', 'UP'],
-          default: 'RIGHT',
-          description: 'Layout direction',
-        },
-      },
-      required: ['nodes'],
-    },
-  },
-  {
-    name: 'list_node_types',
-    description: `List all available pre-made component types from the ArchDraw component library.
-
-**USE WHEN**: You want to see what components are available before generating a diagram
-**OUTPUT**: Categorized list of 150+ component types with their icons and descriptions
-
-**FILTERING**:
-- category: Filter by category name (e.g., "AI / ML", "Data Storage", "Compute", "Messaging & Events")
-- search: Search by label, description, or category
-- limit: Max results (default 50, max 200)
-
-**CATEGORIES INCLUDE**:
-- Client & Entry (CDN, Load Balancer, API Gateway)
-- Compute (API Server, Auth Service, Workers, Containers)
-- AI / ML (LLM Models, Vector DB, Embedding Service, RAG)
-- Data Storage (PostgreSQL, MongoDB, Redis, S3)
-- Messaging & Events (Kafka, RabbitMQ, SQS)
-- Observability (Prometheus, Grafana, ELK Stack)
-- External Services (Stripe, Twilio, SendGrid)`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        category: {
-          type: 'string',
-          description: 'Filter by category name (e.g., "AI / ML", "Data Storage", "Compute")',
-        },
-        search: {
-          type: 'string',
-          description: 'Search by label, description, or category',
-        },
-        limit: {
-          type: 'number',
-          default: 50,
-          minimum: 1,
-          maximum: 200,
-          description: 'Maximum number of results',
-        },
-      },
-    },
-  },
-  {
     name: 'apply_template',
     title: 'Apply an ArchDraw template',
+    annotations: { title: 'Apply an ArchDraw template', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: `Apply a pre-built architecture template with pre-defined nodes and edges. Compatible chat clients display the result as an inline preview.
 
 **USE WHEN**: User wants a common architecture pattern (e-commerce, chat app, rideshare, etc.)
-**OUTPUT**: Full diagram with positioned nodes and edges, plus a preview link (shareUrl) and edit link (diagramUrl) created by default. ALWAYS show those links to the user. Pass publish:false only if the user asks to keep it private.
+**OUTPUT**: Full diagram with positioned nodes and edges, plus a preview link (shareUrl) and edit link (diagramUrl) created by default. Include those links in your reply. Pass publish:false only if the user asks to keep it private.
 
 **AVAILABLE TEMPLATES**:
 - archflow: ArchDraw's own architecture (modern SaaS)
@@ -385,25 +277,9 @@ This tool does NOT generate or modify nodes/edges - it only computes optimal pos
     },
   },
   {
-    name: 'list_templates',
-    description: 'List all available architecture templates with their descriptions',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'read_me',
-    description: `Returns a compact LLM-optimized reference guide for ArchDraw — tiers, node types, 
-edge communication types, layout rules, and best practices. Call this FIRST before generating 
-any diagram to produce accurate, professional output.`,
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
     name: 'get_diagram_state',
+    title: 'Read the current ArchDraw diagram',
+    annotations: { title: 'Read the current ArchDraw diagram', readOnlyHint: true, openWorldHint: false },
     description: `Returns the current diagram's nodes and edges as structured JSON. 
 Call this before update_diagram to read what's on the canvas. 
 Optionally pass a sessionId to load that diagram first (e.g. a link the user opened).`,
@@ -417,6 +293,8 @@ Optionally pass a sessionId to load that diagram first (e.g. a link the user ope
   },
   {
     name: 'update_diagram',
+    title: 'Update an ArchDraw diagram',
+    annotations: { title: 'Update an ArchDraw diagram', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     description: `Surgically modifies an existing diagram. Add nodes, remove nodes, 
 add edges, remove edges, or update node properties — without regenerating the whole diagram.`,
     inputSchema: {
@@ -480,69 +358,124 @@ add edges, remove edges, or update node properties — without regenerating the 
     },
   },
   {
-    name: 'validate_diagram',
-    description: `Analyses the current diagram and returns a list of structural issues 
-and improvement suggestions. Use after generating to catch problems before rendering.`,
+    name: 'layout_diagram',
+    title: 'Lay out an ArchDraw diagram',
+    annotations: { title: 'Lay out an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: `Re-arranges the current diagram with ArchDraw's own layout engine, the same one as the editor's layout toggle. Use it when a diagram looks cramped, too wide or too tall, or the user asks to "tidy", "re-layout", "make it top-down", or fit a screen. Nothing is added or removed: only positions and sizes change, so ids, labels and connections stay the same. For exact manual placement of particular things use draw_on_canvas (move / align / distribute) instead; the two combine well: lay out, then nudge.
+
+CONTROLS
+- direction: LR (left to right, default) or TD (top down).
+- arrangement: "flow" (ranks follow the data flow, default) or "zones" (clients on the left, data above, chains below).
+- fold: wrap a long flow into rows so it fits a 16:9 screen (default true); false keeps one long row/column.
+- mixDirections: allow groups to run the other way when that fits clearly better (default true); false keeps every group in the main direction.
+- groupDirections: force particular groups, by id, e.g. {"api":"TD"} (the ids are in "canvas" from any earlier call, or get_diagram_state). Named groups are never overridden.
+Works on the current diagram (workingSessionId). The reply lists every node's new position and size, and (published by default) a preview link and shareable image: SHOW THE LINKS to the user.`,
     inputSchema: {
       type: 'object',
       properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
+        workingSessionId: { type: 'string', description: 'The workingSessionId from an earlier call about this diagram. Required on the hosted server.' },
+        direction: { type: 'string', enum: ['LR', 'TD'], description: 'Main flow direction. Default LR.' },
+        arrangement: { type: 'string', enum: ['flow', 'zones'], description: 'flow (default) or zones.' },
+        fold: { type: 'boolean', description: 'Wrap a long flow into rows to fit a 16:9 screen. Default true.' },
+        mixDirections: { type: 'boolean', description: 'Let groups run the other way when that fits better. Default true.' },
+        groupDirections: { type: 'object', additionalProperties: { type: 'string', enum: ['LR', 'TD'] }, description: 'Force the direction inside particular groups, by id.' },
+        label: { type: 'string' },
+        publish: { type: 'boolean', description: 'Update the shareable preview link. Default true.' },
+        style: { type: 'string', enum: ['sketch', 'studio', 'studio-metallic', 'neubrutalism', 'precision'], description: 'Look of the preview and shareable image. Default studio.' },
+        expectedRevision: { type: 'number', description: 'Optional: refuse if the published diagram changed since this revision.' },
       },
     },
   },
   {
-    name: 'save_checkpoint',
-    description: `Saves the current diagram state with a named label so it can be restored later. 
-Useful for multi-turn workflows: save before a major change, restore if needed.`,
+    name: 'draw_on_canvas',
+    title: 'Draw on an ArchDraw canvas',
+    annotations: { title: 'Draw on an ArchDraw canvas', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    description: `Draws on a canvas with exact control: place text, empty cards to write in, shapes, notes, components and groups at precise positions, connect them, restyle, move, align and remove. Use it when the user wants something drawn that generate_diagram's automatic layout cannot give (a whiteboard, a sketch, annotations, a precise arrangement), or to add to / edit any existing diagram.
+
+HOW IT WORKS
+- Coordinates are canvas pixels: x grows right, y grows DOWN, (x, y) is the top-left corner. A typical card is ~200x90, so leave ~60px between neighbours.
+- "ops" run in order. ALL of them apply or NONE do: an error names the failing operation (Operation N) and nothing is drawn, so fix it and resend.
+- Give an "id" to anything you will refer to later (connect, group, update, move...). Otherwise one is generated (text_1, card_2...) and returned in "steps".
+- It works on the current diagram (workingSessionId), including one made by generate_diagram or apply_template. For a NEW canvas start with {"op":"clear"} (or omit workingSessionId on a hosted server). The reply lists every node's position and size ("canvas") and the overall "bounds": use them to place the next things.
+
+OPERATIONS (field "op")
+- text: free text. {text, x, y, size?: small|medium|large|heading, bold?, color?, parent?}. text may be "" (a blank text box).
+- card: a card or shape, the "empty card to write in". {x, y, title?, subtitle?, shape?, width?, height?, color?, fill?, parent?}. Leave title empty for a blank card the user clicks to write in. shape: ${CARD_SHAPES.join(' | ')}.
+- note: a sticky text block. {x, y, title?, body?, titleSize?, bodySize?, width?, height?, parent?}. For longer writing.
+- component: an architecture component. {x, y, label, subtitle?, tier?, icon?, status?, width?, height?, parent?}.
+- group: a labelled frame. {id?, label?, children?: [ids], color?} wraps the children (sized to fit them), or give x, y, width, height for an empty frame to fill later (put things in with parent, or update parent). Groups cannot be nested.
+- connect: an arrow. {from, to, label?, style?: solid|dashed|thick, arrow?: end|both, color?, path?: smooth|step|straight|bezier, fromSide?, toSide?: top|right|bottom|left}. Joins nodes, not groups.
+- update: change a node or connection. {id, text? title? subtitle? body? label? size? bold? color? fill? shape? x? y? width? height? parent? (an id, or null to leave a group) style?}. Only fields that apply to that kind of node are accepted.
+- move: {ids, dx?, dy?} shift, or {ids, x?, y?} put the selection's top-left there.
+- align: {ids, mode: left|center|right|top|middle|bottom}.
+- distribute: {ids, axis: horizontal|vertical, gap?} even spacing (or a fixed gap).
+- remove: {ids}: nodes and/or connections. Removing a group frees its children where they are.
+- clear: empties the canvas and starts a new drawing.
+
+By default the result is published and links are returned (publish:false keeps it in this session): a preview, an edit link, and a shareable IMAGE (PNG, hand-drawn like a whiteboard by default; style:"studio" for a clean look) the user can post anywhere. SHOW THE LINKS to the user, the image first when they want to share it.`,
     inputSchema: {
       type: 'object',
       properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-        name: { type: 'string', description: 'Checkpoint name (e.g. "before-refactor")' },
-        description: { type: 'string', description: 'Optional description' },
+        workingSessionId: { type: 'string', description: 'The workingSessionId from an earlier call about this canvas. Required on the hosted server for edits; omit it there to start a new canvas.' },
+        label: { type: 'string', description: 'Title for a new canvas.' },
+        publish: { type: 'boolean', description: 'Create / update the shareable preview link. Default true.' },
+        style: { type: 'string', enum: ['sketch', 'studio', 'studio-metallic', 'neubrutalism', 'precision'], description: 'Look of the shareable image and preview, matching the editor render styles: sketch (hand-drawn, like a whiteboard; the default), studio (clean), studio-metallic (satin metal), neubrutalism (bold), precision. Pick the one the user works in.' },
+        expectedRevision: { type: 'number', description: 'Optional: refuse if the published canvas changed since this revision.' },
+        ops: {
+          type: 'array',
+          description: 'Drawing operations, applied in order (1-200). All apply or none do.',
+          minItems: 1,
+          maxItems: 200,
+          items: {
+            type: 'object',
+            properties: {
+              op: { type: 'string', enum: ['text', 'card', 'note', 'component', 'group', 'connect', 'update', 'move', 'align', 'distribute', 'remove', 'clear'] },
+              id: { type: 'string', description: 'text/card/note/component/group/connect: optional id to create; update: the node or connection to change.' },
+              ids: { type: 'array', items: { type: 'string' }, description: 'move / align / distribute / remove: the targets.' },
+              x: { type: 'number', description: 'Left edge in canvas px (move: put the selection here).' },
+              y: { type: 'number', description: 'Top edge in canvas px (y grows downward).' },
+              dx: { type: 'number', description: 'move: shift right by this many px.' },
+              dy: { type: 'number', description: 'move: shift down by this many px.' },
+              width: { type: 'number' },
+              height: { type: 'number' },
+              text: { type: 'string', description: 'text: the text (may be empty).' },
+              title: { type: 'string', description: 'card / note: the title. Empty = a blank card to write in.' },
+              subtitle: { type: 'string' },
+              body: { type: 'string', description: 'note: longer text.' },
+              label: { type: 'string', description: 'component / group / connect label.' },
+              size: { type: 'string', enum: ['small', 'medium', 'large', 'heading'], description: 'text size.' },
+              titleSize: { type: 'string', enum: ['small', 'medium', 'large', 'heading'] },
+              bodySize: { type: 'string', enum: ['small', 'medium', 'large', 'heading'] },
+              bold: { type: 'boolean' },
+              color: { type: 'string', description: '#rrggbb: ink / outline / line / group tint.' },
+              fill: { type: 'string', description: '#rrggbb card background.' },
+              shape: { type: 'string', enum: [...CARD_SHAPES] },
+              tier: { type: 'string', enum: ['client', 'edge', 'compute', 'async', 'data', 'observe', 'external'] },
+              icon: { type: 'string' },
+              status: { type: 'string', enum: ['healthy', 'warning', 'error', 'unknown'] },
+              parent: { type: ['string', 'null'], description: 'The group this belongs to (null in update: leave its group).' },
+              children: { type: 'array', items: { type: 'string' }, description: 'group: node ids to wrap.' },
+              from: { type: 'string', description: 'connect: source node id.' },
+              to: { type: 'string', description: 'connect: target node id.' },
+              style: { type: 'string', enum: ['solid', 'dashed', 'thick'] },
+              arrow: { type: 'string', enum: ['end', 'both'] },
+              path: { type: 'string', enum: ['smooth', 'step', 'straight', 'bezier'] },
+              fromSide: { type: 'string', enum: ['top', 'right', 'bottom', 'left'] },
+              toSide: { type: 'string', enum: ['top', 'right', 'bottom', 'left'] },
+              mode: { type: 'string', enum: ['left', 'center', 'right', 'top', 'middle', 'bottom'], description: 'align.' },
+              axis: { type: 'string', enum: ['horizontal', 'vertical'], description: 'distribute.' },
+              gap: { type: 'number', description: 'distribute: fixed gap in px.' },
+            },
+            required: ['op'],
+          },
+        },
       },
-      required: ['name'],
-    },
-  },
-  {
-    name: 'load_checkpoint',
-    description: `Restores a previously saved diagram state by name.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-        name: { type: 'string', description: 'Checkpoint name to restore' },
-        listAvailable: { type: 'boolean', description: 'If true, list all checkpoints without restoring' },
-      },
-      required: ['name'],
-    },
-  },
-  {
-    name: 'export_diagram',
-    description: `Export the current diagram in various formats.
-
-**USE WHEN**: User wants to save or download the diagram
-**OUTPUT**: Returns the diagram data or instructions for image export
-
-**FORMATS**:
-- json: Returns raw nodes and edges as JSON (recommended for saving)
-- png: Returns instructions to export as PNG from the editor
-- svg: Returns instructions to export as SVG from the editor
-
-**REQUIREMENT**: You must have a diagram loaded (generate or apply a template first).`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workingSessionId: { type: 'string', description: 'The workingSessionId returned by generate_diagram / apply_template. Required on the hosted server; resend it on every call about that diagram.' },
-        sessionId: { type: 'string', description: 'Session ID from a previous diagram operation. Omit to use the most recent session.' },
-        format: { type: 'string', enum: ['json', 'png', 'svg'], default: 'json', description: 'Export format' },
-      },
-      required: [],
+      required: ['ops'],
     },
   },
 ];
 
-export const SERVER_VERSION = '1.0.5';
+export const SERVER_VERSION = '1.0.9';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
@@ -570,15 +503,19 @@ const STATEFUL_TOOLS = new Set([
   'apply_template',
   'get_diagram_state',
   'update_diagram',
-  'validate_diagram',
-  'save_checkpoint',
-  'load_checkpoint',
-  'export_diagram',
+  'draw_on_canvas',
+  'layout_diagram',
 ]);
-const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'get_diagram_state']);
+const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'get_diagram_state', 'draw_on_canvas']);
 const WORKING_SESSION_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ToolArgs = Record<string, unknown> | undefined;
+
+// The drawn diagram goes to the inline preview in _meta, which hosts keep out
+// of the model's context (it is tens of KB of SVG).
+function previewMeta(previewSvg: string | undefined) {
+  return previewSvg ? { _meta: { [PREVIEW_SVG_META_KEY]: previewSvg } } : {};
+}
 
 function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true };
@@ -651,32 +588,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
         content: [{ type: 'text' as const, text }],
-      };
-    }
-
-    case 'fix_layout': {
-      const input = FixLayoutInputSchema.parse(args);
-      const result = await fixLayout(input);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'list_node_types': {
-      const input = ListNodeTypesInputSchema.parse(args ?? {});
-      const result = await listNodeTypes(input);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
+        ...previewMeta(result.previewSvg),
       };
     }
 
@@ -709,30 +621,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
         content: [{ type: 'text' as const, text }],
-      };
-    }
-
-    case 'list_templates': {
-      const templates = getAvailableTemplates();
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({ templates }, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'read_me': {
-      const readmeContent = getReadMe();
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: readmeContent,
-          },
-        ],
+        ...previewMeta(result.previewSvg),
       };
     }
 
@@ -802,54 +691,70 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       };
     }
 
-    case 'validate_diagram': {
-      const result = await validateDiagram(workingSession);
+    case 'draw_on_canvas': {
+      const input = DrawOnCanvasInputSchema.parse(args);
+      const result = await drawOnCanvas(input, workingSession);
+      if (!result.success) {
+        return errorResult(`${result.error ?? 'Could not draw.'}${result.failedOperation !== undefined ? ` (operation index ${result.failedOperation})` : ''}`);
+      }
+      setDiagramState({
+        nodes: result.nodes as unknown as ReactFlowNode[],
+        edges: result.edges as unknown as ReactFlowEdge[],
+        sessionId: result.sessionId,
+        updateToken: result.updateToken,
+        revision: result.revision,
+      }, workingSession);
+      const made = result.steps.flatMap(step => (['text', 'card', 'note', 'component', 'group', 'connect'].includes(step.op) ? step.ids.slice(0, 1).map(id => `${step.op} ${id}`) : []));
+      const linkBlock = result.canvas.length > 0
+        ? `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false, imageStyle: input.style })}\n\n`
+        : '';
+      const summary = `Drew ${input.ops.length} operation(s). Canvas now has ${result.canvas.length} node(s) and ${result.edges.length} connection(s)${result.bounds ? `, spanning x ${result.bounds.x}..${result.bounds.x + result.bounds.width}, y ${result.bounds.y}..${result.bounds.y + result.bounds.height}` : ''}.${made.length ? `\nCreated: ${made.join(', ')}.` : ''}\nworkingSessionId: ${workingSession}`;
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
+        structuredContent: {
+          success: true,
+          workingSessionId: workingSession,
+          steps: result.steps,
+          canvas: result.canvas,
+          ...(result.bounds ? { bounds: result.bounds } : {}),
+          revision: result.revision,
+          ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
+          ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
+          ...(imageUrlsFor(result.shareUrl, input.style) ? { imageUrl: imageUrlsFor(result.shareUrl, input.style)!.png, svgUrl: imageUrlsFor(result.shareUrl, input.style)!.svg } : {}),
+          ...(result.sessionId ? { sessionId: result.sessionId } : {}),
+          ...(result.linkError ? { linkError: result.linkError } : {}),
+        },
+        content: [{ type: 'text' as const, text: `${linkBlock}${summary}\n\nCanvas (id type x,y WxH):\n${result.canvas.slice(0, 120).map(e => `${e.id} ${e.type} ${e.x},${e.y} ${e.width}x${e.height}${e.parent ? ` in ${e.parent}` : ''}${e.text ? ` "${e.text}"` : ''}`).join('\n')}${result.canvas.length > 120 ? `\n…and ${result.canvas.length - 120} more` : ''}` }],
+        ...previewMeta(result.previewSvg),
       };
     }
 
-    case 'save_checkpoint': {
-      const input = SaveCheckpointInputSchema.parse(args);
-      const result = await saveCheckpoint(input, workingSession);
+    case 'layout_diagram': {
+      const input = LayoutDiagramInputSchema.parse(args);
+      const result = await layoutDiagram(input, workingSession);
+      if (!result.success) return errorResult(result.error ?? 'Could not lay the diagram out.');
+      setDiagramState({
+        nodes: result.nodes as unknown as ReactFlowNode[],
+        edges: result.edges as unknown as ReactFlowEdge[],
+        sessionId: result.sessionId,
+        updateToken: result.updateToken,
+        revision: result.revision,
+      }, workingSession);
+      const linkBlock = `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false, imageStyle: input.style })}\n\n`;
+      const summary = `Laid out ${result.canvas.length} node(s) ${input.direction === 'LR' ? 'left to right' : 'top down'} (${input.arrangement}). Only positions and sizes changed.${result.message ? `\nNote: ${result.message}` : ''}\nworkingSessionId: ${workingSession}`;
       return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'load_checkpoint': {
-      const input = LoadCheckpointInputSchema.parse(args);
-      const result = await loadCheckpoint(input, workingSession);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-
-    case 'export_diagram': {
-      const input = ExportDiagramInputSchema.parse(args);
-      const result = await exportDiagram(input, workingSession);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
+        structuredContent: {
+          success: true,
+          workingSessionId: workingSession,
+          canvas: result.canvas,
+          ...(result.bounds ? { bounds: result.bounds } : {}),
+          revision: result.revision,
+          ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
+          ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
+          ...(imageUrlsFor(result.shareUrl, input.style) ? { imageUrl: imageUrlsFor(result.shareUrl, input.style)!.png } : {}),
+          ...(result.linkError ? { linkError: result.linkError } : {}),
+        },
+        content: [{ type: 'text' as const, text: `${linkBlock}${summary}\n\nCanvas (id type x,y WxH):\n${result.canvas.slice(0, 120).map(e => `${e.id} ${e.type} ${e.x},${e.y} ${e.width}x${e.height}${e.parent ? ` in ${e.parent}` : ''}${e.text ? ` "${e.text}"` : ''}`).join('\n')}${result.canvas.length > 120 ? `\n…and ${result.canvas.length - 120} more` : ''}` }],
+        ...previewMeta(result.previewSvg),
       };
     }
 

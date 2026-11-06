@@ -38,18 +38,17 @@ export const cleanArchitectureNodes: Node[] = [
   node('ca_usecase', 'Use Cases', 'Application logic', 'compute', '#0d9488', 'Layers', 640, 260),
   node('ca_controller', 'Controllers', 'Interface adapter', 'compute', '#0d9488', 'Cpu', 320, 420),
   node('ca_presenter', 'Presenters', 'Output adapter', 'compute', '#0d9488', 'Monitor', 960, 420),
-  node('ca_gateway', 'Gateways', 'DB / API wrapper', 'data', '#334155', 'Database', 960, 580),
-  node('ca_frameworks', 'Frameworks', 'Web / DB / UI', 'data', '#334155', 'Layers', 320, 580),
-  node('ca_external', 'External', 'DB, Web, Device', 'external', '#b45309', 'Globe', 640, 740),
+  node('ca_gateway', 'Gateways', 'Repository adapters', 'compute', '#0d9488', 'Database', 960, 580),
+  node('ca_frameworks', 'Web Framework', 'Frameworks & drivers', 'client', '#64748b', 'Globe', 320, 580),
+  node('ca_external', 'Database', 'Frameworks & drivers', 'data', '#334155', 'Database', 960, 740),
 ];
 
 export const cleanArchitectureEdges: Edge[] = [
   edge('ca_e1', 'ca_usecase', 'ca_entity', 'uses'),
-  edge('ca_e2', 'ca_controller', 'ca_usecase', 'calls'),
-  edge('ca_e3', 'ca_usecase', 'ca_presenter', 'presents via'),
-  edge('ca_e4', 'ca_gateway', 'ca_usecase', 'implements port'),
-  edge('ca_e5', 'ca_frameworks', 'ca_controller', 'drives'),
-  edge('ca_e6', 'ca_frameworks', 'ca_gateway', 'uses'),
-  edge('ca_e7', 'ca_gateway', 'ca_external', 'I/O', 'dep'),
-  edge('ca_e8', 'ca_frameworks', 'ca_external', 'I/O', 'dep'),
+  edge('ca_e2', 'ca_controller', 'ca_usecase', 'input port'),
+  edge('ca_e3', 'ca_presenter', 'ca_usecase', 'implements output port'),
+  edge('ca_e4', 'ca_gateway', 'ca_usecase', 'implements repository port'),
+  edge('ca_e5', 'ca_frameworks', 'ca_controller', 'HTTP request'),
+  edge('ca_e6', 'ca_presenter', 'ca_frameworks', 'view model'),
+  edge('ca_e7', 'ca_gateway', 'ca_external', 'SQL', 'dep'),
 ];

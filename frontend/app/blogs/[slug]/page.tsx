@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Clock, Tag, ArrowLeft, Calendar } from 'lucide-react';
 import { blogs } from '@/data/blogs';
+import { BlogDemo } from '@/components/landing/BlogDemo';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 interface BlogDetailProps {
   params: Promise<{
@@ -49,13 +51,7 @@ function BlogDocsHeader({ activeTab }: { activeTab: 'docs' | 'blogs' }) {
         <div className="flex items-center gap-6">
           {/* Logo & Brand */}
           <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center bg-[hsl(var(--foreground))]"
-            >
-              <svg className="w-3.5 h-3.5 text-[hsl(var(--background))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-              </svg>
-            </div>
+            <BrandMark size={28} />
             <span className="font-semibold text-sm text-[hsl(var(--foreground))] tracking-tight">ArchDraw</span>
           </Link>
 
@@ -220,9 +216,11 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
                     <span className="leading-snug">{section.heading}</span>
                   </h2>
 
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed text-justify">
-                    {section.body}
-                  </p>
+                  {section.body.split('\n\n').map((paragraph, pIdx) => (
+                    <p key={pIdx} className="text-sm text-[hsl(var(--muted-foreground))] leading-relaxed text-justify">
+                      {paragraph}
+                    </p>
+                  ))}
 
                   {/* Bullets */}
                   {section.bullets && section.bullets.length > 0 && (
@@ -239,9 +237,19 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
                     </ul>
                   )}
 
+                  {/* Interactive demo */}
+                  {section.demo && (
+                    <div className="pt-1">
+                      <BlogDemo id={section.demo} />
+                    </div>
+                  )}
+
                   {/* Code Block */}
                   {section.code && (
-                    <div className="pt-1">
+                    <div className="pt-1 space-y-1.5">
+                      {section.codeTitle && (
+                        <div className="text-[10px] font-mono text-[hsl(var(--muted-foreground))]">{section.codeTitle}</div>
+                      )}
                       <pre 
                         className="overflow-x-auto rounded-lg border border-[hsl(var(--border)/0.16)] bg-[hsl(var(--muted)/0.3)] p-4 text-xs font-mono leading-relaxed text-[hsl(var(--foreground))] shadow-inner"
                         style={{ borderLeft: '3px solid hsl(var(--border))' }}

@@ -10,8 +10,6 @@ import {
   Shield, 
   Bell, 
   CreditCard,
-  ChevronRight,
-  Camera,
   Sparkles,
   Palette,
   Zap,
@@ -24,7 +22,6 @@ import {
   Bot,
   Clock,
   Link2,
-  Lock,
   Mail,
   Search,
   LayoutGrid,
@@ -54,7 +51,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
     <button
       onClick={() => onChange(!enabled)}
       className="w-11 h-6 rounded-full transition-colors relative"
-      style={{ background: enabled ? '#1E90FF' : '#E0E0E0' }}
+      style={{ background: enabled ? 'var(--brand)' : 'var(--border-strong)' }}
     >
       <span 
         className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform"
@@ -69,21 +66,21 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-semibold mb-1" style={{ color: '#1A1A1A' }}>{children}</h3>;
+  return <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{children}</h3>;
 }
 
 function SectionDesc({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs mb-3" style={{ color: '#6B6B6B' }}>{children}</p>;
+  return <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>{children}</p>;
 }
 
 function SettingRow({ icon: Icon, title, desc, children }: { icon?: React.ElementType; title: string; desc?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between py-3">
       <div className="flex items-center gap-3">
-        {Icon && <Icon className="w-4 h-4" style={{ color: '#6B6B6B' }} />}
+        {Icon && <Icon className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />}
         <div>
-          <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>{title}</p>
-          {desc && <p className="text-xs" style={{ color: '#6B6B6B' }}>{desc}</p>}
+          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{title}</p>
+          {desc && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{desc}</p>}
         </div>
       </div>
       {children}
@@ -202,7 +199,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
         ref={ref}
         className="relative mx-4 overflow-hidden flex"
         style={{ 
-          background: 'white', 
+          background: 'var(--surface-panel)', 
           borderRadius: 20,
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
           width: 850,
@@ -213,9 +210,9 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
         {/* Sidebar */}
         <div 
           className="w-[220px] shrink-0 p-4 flex flex-col"
-          style={{ background: '#FAFAFA' }}
+          style={{ background: 'var(--surface-page)' }}
         >
-          <h2 className="text-sm font-semibold mb-4 px-2" style={{ color: '#1A1A1A' }}>Settings</h2>
+          <h2 className="text-sm font-semibold mb-4 px-2" style={{ color: 'var(--text-primary)' }}>Settings</h2>
           <nav className="space-y-1 flex-shrink-0">
             {tabs.map((tab) => (
               <button
@@ -231,11 +228,11 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                     });
                   }
                 }}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-[12px] transition-all ${
-                  activeTab === tab.id ? 'bg-[#1E90FF]/10 text-[#1E90FF] font-medium' : 'hover:bg-gray-100'
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl transition ${
+                  activeTab === tab.id ? 'bg-brand/10 text-brand-text font-medium' : 'hover:bg-surface-page'
                 }`}
                 style={{ 
-                  color: activeTab === tab.id ? '#1E90FF' : '#6B6B6B'
+                  color: activeTab === tab.id ? 'var(--brand)' : 'var(--text-secondary)'
                 }}
               >
                 <tab.icon className="w-4 h-4" />
@@ -246,19 +243,19 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 
           {/* User info at bottom of sidebar */}
           <div className="mt-auto pt-4">
-            <div className="flex items-center gap-3 p-3 rounded-[12px]" style={{ background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-semibold" style={{ background: '#1A1A1A' }}>
+            <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--surface-panel)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-primary-foreground font-semibold" style={{ background: 'hsl(var(--primary))' }}>
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate" style={{ color: '#1A1A1A' }}>{profile.name ?? 'User'}</p>
-                <p className="text-[10px] truncate" style={{ color: '#6B6B6B' }}>{profile.email}</p>
+                <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{profile.name ?? 'User'}</p>
+                <p className="text-[10px] truncate" style={{ color: 'var(--text-secondary)' }}>{profile.email}</p>
               </div>
             </div>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center gap-2 px-3 py-2.5 mt-2 text-sm rounded-[12px] transition-colors hover:bg-red-50"
-              style={{ color: '#E5484D' }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 mt-2 text-sm rounded-xl transition-colors hover:bg-destructive/10"
+              style={{ color: 'hsl(var(--destructive))' }}
             >
               <LogOut className="w-4 h-4" />
               Sign out
@@ -271,15 +268,15 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
           {/* Header */}
           <div 
             className="h-[60px] px-6 flex items-center justify-between shrink-0 border-b"
-            style={{ borderColor: '#F2F2F2' }}
+            style={{ borderColor: 'var(--border-default)' }}
           >
-            <h3 className="text-base font-semibold" style={{ color: '#1A1A1A' }}>
+            <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               {tabs.find(t => t.id === activeTab)?.label}
             </h3>
             <button
               onClick={() => onOpenChange(false)}
-              className="p-2 rounded-lg transition-colors hover:bg-gray-100"
-              style={{ color: '#6B6B6B' }}
+              className="p-2 rounded-lg transition-colors hover:bg-surface-page"
+              style={{ color: 'var(--text-secondary)' }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -296,7 +293,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SectionDesc>Manage your account settings</SectionDesc>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Clock} title="Auto-save diagrams" desc="Automatically save changes">
                   <Toggle enabled={autoSave} onChange={(val) => { setAutoSave(val); trackToggle('auto_save', val); }} />
                 </SettingRow>
@@ -314,7 +311,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 </SettingRow>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Globe} title="Default language" desc="UI language">
                   <select 
                     value={language}
@@ -323,7 +320,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                       trackDropdownChange('language', e.target.value);
                     }}
                     className="text-sm px-3 py-1.5 rounded-lg border-none outline-none"
-                    style={{ background: 'white', color: '#1A1A1A' }}
+                    style={{ background: 'var(--surface-panel)', color: 'var(--text-primary)' }}
                   >
                     <option value="en">English</option>
                     <option value="es">Spanish</option>
@@ -341,65 +338,65 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
             <div className="space-y-6">
               <div>
                 <SectionTitle>Profile</SectionTitle>
-                <SectionDesc>Manage your public profile</SectionDesc>
+                <SectionDesc>Your name and photo come from your sign-in provider. Editing profile details is coming soon.</SectionDesc>
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl text-white font-semibold" style={{ background: '#1A1A1A' }}>
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl text-primary-foreground font-semibold" style={{ background: 'hsl(var(--primary))' }}>
                     {initials}
                   </div>
-                  <button className="absolute bottom-0 right-0 p-2 rounded-full bg-white shadow-md">
-                    <Camera className="w-3 h-3" style={{ color: '#1A1A1A' }} />
-                  </button>
                 </div>
                 <div>
-                  <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Profile photo</p>
-                  <p className="text-xs" style={{ color: '#6B6B6B' }}>Click to upload</p>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Profile photo</p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Comes from your sign-in provider</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: '#1A1A1A' }}>Display name</label>
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Display name</label>
                 <input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
+                  disabled
                   placeholder="Your name"
-                  className="w-full px-4 py-3 text-sm rounded-[14px] outline-none"
-                  style={{ background: '#F8F8F8', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: '#1A1A1A' }}
+                  className="w-full px-4 py-3 text-sm rounded-2xl outline-none"
+                  style={{ background: 'var(--surface-page)', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: 'var(--text-primary)' }}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: '#1A1A1A' }}>Bio</label>
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Bio</label>
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
+                  disabled
                   placeholder="Tell us about yourself..."
                   rows={3}
-                  className="w-full px-4 py-3 text-sm rounded-[14px] outline-none resize-none"
-                  style={{ background: '#F8F8F8', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: '#1A1A1A' }}
+                  className="w-full px-4 py-3 text-sm rounded-2xl outline-none resize-none"
+                  style={{ background: 'var(--surface-page)', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: 'var(--text-primary)' }}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: '#1A1A1A' }}>Portfolio / Website</label>
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Portfolio / Website</label>
                 <input
                   type="url"
                   value={portfolio}
                   onChange={(e) => setPortfolio(e.target.value)}
+                  disabled
                   placeholder="https://yourportfolio.com"
-                  className="w-full px-4 py-3 text-sm rounded-[14px] outline-none"
-                  style={{ background: '#F8F8F8', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: '#1A1A1A' }}
+                  className="w-full px-4 py-3 text-sm rounded-2xl outline-none"
+                  style={{ background: 'var(--surface-page)', boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.04)', color: 'var(--text-primary)' }}
                 />
               </div>
 
-              <button className="w-full py-3 text-sm font-medium text-white rounded-[14px] hover:opacity-90" style={{ background: '#1E90FF', boxShadow: '0 4px 12px rgba(30, 144, 255, 0.3)' }}>
+              <button disabled aria-disabled="true" title="Profile editing is coming soon" className="w-full py-3 text-sm font-medium text-white rounded-2xl opacity-50 cursor-not-allowed" style={{ background: 'var(--brand)', boxShadow: '0 4px 12px rgba(0, 112, 224, 0.3)' }}>
                 Save changes
               </button>
 
-              <div className="p-4 mt-6 rounded-[16px]" style={{ background: '#FFF4F4', border: '1px solid #FFE5E5' }}>
+              <div className="p-4 mt-6 rounded-3xl" style={{ background: 'hsl(var(--destructive) / 0.08)', border: '1px solid hsl(var(--destructive) / 0.25)' }}>
                 <SettingRow icon={Trash2} title="Reset all data" desc="Clear all diagrams and local storage">
                   <button
                     onClick={() => {
@@ -409,7 +406,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                       }
                     }}
                     className="px-4 py-2 text-sm font-medium rounded-lg text-white hover:opacity-90 transition-opacity"
-                    style={{ background: '#E5484D' }}
+                    style={{ background: 'hsl(var(--destructive))' }}
                   >
                     Reset Data
                   </button>
@@ -425,7 +422,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SectionDesc>Customize your diagram editing experience</SectionDesc>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Zap} title="Enable smooth connections" desc="Animate edge connections">
                   <Toggle enabled={edgeAnimations} onChange={(val) => { useDiagramStore.getState().toggleEdgeAnimations(); trackToggle('edge_animations', val); }} />
                 </SettingRow>
@@ -461,13 +458,13 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 </SettingRow>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Search} title="Default zoom level" desc="Initial zoom when opening canvas">
                   <select 
                     value={defaultZoom}
                     onChange={(e) => setDefaultZoom(e.target.value)}
                     className="text-sm px-3 py-1.5 rounded-lg border-none outline-none"
-                    style={{ background: 'white', color: '#1A1A1A' }}
+                    style={{ background: 'var(--surface-panel)', color: 'var(--text-primary)' }}
                   >
                     <option value="50">50%</option>
                     <option value="75">75%</option>
@@ -486,13 +483,13 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SectionDesc>Configure AI-powered features</SectionDesc>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Bot} title="Default AI model" desc="Model for diagram generation">
                   <select 
                     value={aiModel}
                     onChange={(e) => setAiModel(e.target.value)}
                     className="text-sm px-3 py-1.5 rounded-lg border-none outline-none"
-                    style={{ background: 'white', color: '#1A1A1A' }}
+                    style={{ background: 'var(--surface-panel)', color: 'var(--text-primary)' }}
                   >
                     <option value="llama">LLaMA 3 (default)</option>
                     <option value="gpt4o">GPT-4o</option>
@@ -505,7 +502,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                     value={responseStyle}
                     onChange={(e) => setResponseStyle(e.target.value)}
                     className="text-sm px-3 py-1.5 rounded-lg border-none outline-none"
-                    style={{ background: 'white', color: '#1A1A1A' }}
+                    style={{ background: 'var(--surface-panel)', color: 'var(--text-primary)' }}
                   >
                     <option value="fast">Fast</option>
                     <option value="balanced">Balanced</option>
@@ -514,7 +511,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 </SettingRow>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Sparkles} title="Auto-generate suggestions" desc="AI suggests improvements">
                   <Toggle enabled={autoSuggestions} onChange={(val) => { setAutoSuggestions(val); trackToggle('auto_suggestions', val); }} />
                 </SettingRow>
@@ -533,28 +530,14 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SectionDesc>Manage your account security</SectionDesc>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
-                <button className="w-full flex items-center justify-between p-3 rounded-[12px] hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Lock className="w-4 h-4" style={{ color: '#6B6B6B' }} />
-                    <div className="text-left">
-                      <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Change password</p>
-                      <p className="text-xs" style={{ color: '#6B6B6B' }}>Update your account password</p>
-                    </div>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
+                <div className="flex items-start gap-3 p-3">
+                  <Shield className="w-4 h-4 mt-0.5" style={{ color: 'var(--text-secondary)' }} />
+                  <div className="text-left">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Sign-in is handled by Google or GitHub</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>ArchDraw has no password of its own. Manage your password and two-factor authentication with your provider.</p>
                   </div>
-                  <ChevronRight className="w-4 h-4" style={{ color: '#6B6B6B' }} />
-                </button>
-                
-                <button className="w-full flex items-center justify-between p-3 rounded-[12px] hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Shield className="w-4 h-4" style={{ color: '#6B6B6B' }} />
-                    <div className="text-left">
-                      <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Two-factor authentication</p>
-                      <p className="text-xs" style={{ color: '#6B6B6B' }}>Add an extra layer of security</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4" style={{ color: '#6B6B6B' }} />
-                </button>
+                </div>
               </div>
             </div>
           )}
@@ -566,7 +549,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
                 <SectionDesc>Configure how you receive updates</SectionDesc>
               </div>
 
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <SettingRow icon={Mail} title="Email notifications" desc="Receive updates via email">
                   <Toggle enabled={emailNotifs} onChange={(val) => { setEmailNotifs(val); trackToggle('email_notifications', val); }} />
                 </SettingRow>
@@ -590,75 +573,75 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
               </div>
 
               {/* Current Plan */}
-              <div className="p-5 rounded-[16px] border-2" style={{ borderColor: '#1A1A1A' }}>
+              <div className="p-5 rounded-3xl border-2" style={{ borderColor: 'hsl(var(--primary))' }}>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium" style={{ color: '#1A1A1A' }}>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                     {userProfile?.id === 'guest' ? 'Guest' : 'Free'} plan
                   </span>
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#1A1A1A', color: 'white' }}>Current</span>
+                  <span className="text-xs px-2 py-1 rounded-full" style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>Current</span>
                 </div>
-                <p className="text-sm mb-4" style={{ color: '#6B6B6B' }}>
+                <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
                   {userProfile?.id === 'guest' ? '1 canvas (session only), 3 AI gens/hour' : '5 canvases, 10 AI gens/day'}
                 </p>
               </div>
 
               {/* Pro Plan Upgrade */}
-              <div className="p-5 rounded-[16px] border-2" style={{ borderColor: '#1E90FF', background: 'linear-gradient(135deg, #F0F8FF 0%, #E6F3FF 100%)' }}>
+              <div className="p-5 rounded-3xl border-2" style={{ borderColor: 'var(--brand)', background: 'var(--brand-bg)' }}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="w-5 h-5" style={{ color: '#1E90FF' }} />
-                  <span className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>Pro Plan</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#1E90FF', color: 'white' }}>Popular</span>
+                  <Sparkles className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Pro Plan</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--brand)', color: 'white' }}>Popular</span>
                 </div>
                 <ul className="space-y-2 mb-4">
-                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
-                    <span style={{ color: '#22C55E' }}>✓</span>
+                  <li className="text-xs flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--success)' }}>✓</span>
                     <span>Unlimited canvases</span>
                   </li>
-                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
-                    <span style={{ color: '#22C55E' }}>✓</span>
+                  <li className="text-xs flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--success)' }}>✓</span>
                     <span>Unlimited AI generations</span>
                   </li>
-                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
-                    <span style={{ color: '#22C55E' }}>✓</span>
+                  <li className="text-xs flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--success)' }}>✓</span>
                     <span>Priority support</span>
                   </li>
-                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
-                    <span style={{ color: '#22C55E' }}>✓</span>
+                  <li className="text-xs flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--success)' }}>✓</span>
                     <span>Advanced export options</span>
                   </li>
-                  <li className="text-xs flex items-start gap-2" style={{ color: '#4B5563' }}>
-                    <span style={{ color: '#22C55E' }}>✓</span>
+                  <li className="text-xs flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--success)' }}>✓</span>
                     <span>Custom branding</span>
                   </li>
                 </ul>
                 <a
                   href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'contact@archdraw.ai'}?subject=ArchDraw%20Pro%20Plan%20Inquiry&body=Hi%2C%0A%0AI'm%20interested%20in%20upgrading%20to%20the%20Pro%20plan%20for%20unlimited%20access.%0A%0AMy%20account%20details%3A%0AName%3A%20%0AEmail%3A%20%0A%0AThank%20you!`}
-                  className="w-full py-2.5 text-sm font-medium text-white rounded-[12px] hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                  style={{ background: '#1E90FF' }}
+                  className="w-full py-2.5 text-sm font-medium text-white rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  style={{ background: 'var(--brand)' }}
                 >
                   <Mail className="w-4 h-4" />
                   Contact for Upgrade
                 </a>
-                <p className="text-[10px] text-center mt-2" style={{ color: '#6B6B6B' }}>
+                <p className="text-[10px] text-center mt-2" style={{ color: 'var(--text-secondary)' }}>
                   Email us to discuss pricing and get started
                 </p>
               </div>
 
               {/* Usage Stats */}
-              <div className="p-4 rounded-[16px]" style={{ background: '#F8F8F8' }}>
+              <div className="p-4 rounded-3xl" style={{ background: 'var(--surface-page)' }}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium" style={{ color: '#1A1A1A' }}>Canvases used</p>
-                    <p className="text-xs mt-1" style={{ color: '#6B6B6B' }}>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Canvases used</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                       {canvases.length} of {userProfile?.id === 'guest' ? '1' : '5'}
                     </p>
                   </div>
-                  <div className="w-24 h-2 rounded-full" style={{ background: '#E0E0E0' }}>
+                  <div className="w-24 h-2 rounded-full" style={{ background: 'var(--border-strong)' }}>
                     <div 
                       className="h-full rounded-full transition-all" 
                       style={{ 
                         width: `${Math.min((canvases.length / (userProfile?.id === 'guest' ? 1 : 5)) * 100, 100)}%`, 
-                        background: canvases.length >= (userProfile?.id === 'guest' ? 1 : 5) ? '#EF4444' : '#1E90FF'
+                        background: canvases.length >= (userProfile?.id === 'guest' ? 1 : 5) ? 'hsl(var(--destructive))' : 'var(--brand)'
                       }} 
                     />
                   </div>
@@ -701,7 +684,7 @@ export function UserAvatar() {
     <div ref={ref} className="relative">
       <button
         onClick={openProfile}
-        className="flex items-center gap-2 p-1.5 rounded-[12px] transition-colors hover:bg-gray-100"
+        className="flex items-center gap-2 p-1.5 rounded-xl transition-colors hover:bg-surface-page"
       >
         {profile && 'avatar_url' in profile && profile.avatar_url ? (
           <>
@@ -709,45 +692,45 @@ export function UserAvatar() {
             <img src={profile.avatar_url} alt={initials} width={28} height={28} loading="lazy" decoding="async" className="w-7 h-7 rounded-full object-cover shrink-0" />
           </>
         ) : (
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold" style={{ background: '#1A1A1A' }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-primary-foreground font-semibold" style={{ background: 'hsl(var(--primary))' }}>
             {initials}
           </div>
         )}
       </button>
 
       {isProfileOpen && (
-        <div className="absolute top-full right-0 mt-2 w-56 rounded-[16px] overflow-hidden z-50" style={{ background: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
-          <div className="p-4 border-b" style={{ borderColor: '#F2F2F2' }}>
-            <p className="text-sm font-semibold truncate" style={{ color: '#1A1A1A' }}>{profile.name ?? 'User'}</p>
-            <p className="text-xs truncate" style={{ color: '#6B6B6B' }}>{profile.email}</p>
+        <div className="absolute top-full right-0 mt-2 w-56 rounded-3xl overflow-hidden z-50" style={{ background: 'var(--surface-panel)', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+          <div className="p-4 border-b" style={{ borderColor: 'var(--border-default)' }}>
+            <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{profile.name ?? 'User'}</p>
+            <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{profile.email}</p>
           </div>
           
           <div className="p-2">
             <button
               onClick={openProfile}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-[12px] transition-colors hover:bg-gray-50"
-              style={{ color: '#1A1A1A' }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors hover:bg-surface-page"
+              style={{ color: 'var(--text-primary)' }}
             >
-              <Settings className="w-4 h-4" style={{ color: '#6B6B6B' }} />
+              <Settings className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
               Settings
             </button>
             
             <button
               onClick={closeProfile}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-[12px] transition-colors hover:bg-gray-50"
-              style={{ color: '#1A1A1A' }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors hover:bg-surface-page"
+              style={{ color: 'var(--text-primary)' }}
             >
-              <FolderOpen className="w-4 h-4" style={{ color: '#6B6B6B' }} />
+              <FolderOpen className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
               <span className="flex-1 text-left">Your canvases</span>
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#F2F2F2', color: '#6B6B6B' }}>{canvases.length}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--border-default)', color: 'var(--text-secondary)' }}>{canvases.length}</span>
             </button>
           </div>
 
-          <div className="p-2 border-t" style={{ borderColor: '#F2F2F2' }}>
+          <div className="p-2 border-t" style={{ borderColor: 'var(--border-default)' }}>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-[12px] transition-colors hover:bg-red-50"
-              style={{ color: '#E5484D' }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors hover:bg-destructive/10"
+              style={{ color: 'hsl(var(--destructive))' }}
             >
               <LogOut className="w-4 h-4" />
               Sign out

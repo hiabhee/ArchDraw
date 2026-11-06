@@ -137,7 +137,7 @@ export default function TutorialPage() {
   const [headerRestartConfirm, setHeaderRestartConfirm] = useState(false);
   const headerRestartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panelRatio] = useState<'3:7' | '4:6'>('3:7');
-  const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('light');
+  const [canvasTheme, setCanvasTheme] = useState<'dark' | 'light'>('dark');
   const [showIntro, setShowIntro] = useState(false);
   const [introSkipped, setIntroSkipped] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NodeDetailsInfo | null>(null);

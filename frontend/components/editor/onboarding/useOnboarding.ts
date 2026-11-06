@@ -72,15 +72,21 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
 export function useOnboarding() {
   const store = useOnboardingStore();
   const initialNodeCount = useRef(0);
-  const { open: storeOpen, setStepCompleted } = store;
+  const { open: storeOpen, close: storeClose, setStepCompleted } = store;
+  // The tour teaches manual diagramming; a live project's map is drawn by its agents.
+  const isLiveProject = useDiagramStore((s) => Boolean(s.canvases.find((c) => c.id === s.activeCanvasId)?.agenticProjectId));
 
-  // Auto-open on first visit
+  // Auto-open on first visit (not dismissed, so it still shows on the first plain canvas)
   useEffect(() => {
+    if (isLiveProject) {
+      storeClose();
+      return;
+    }
     const dismissed = localStorage.getItem(STORAGE_KEYS.guideDismissed);
     if (!dismissed) {
       storeOpen();
     }
-  }, [storeOpen]);
+  }, [storeOpen, storeClose, isLiveProject]);
 
   // Step 4 drag detection via Zustand subscribe (v5 subscribe takes one fn)
   useEffect(() => {

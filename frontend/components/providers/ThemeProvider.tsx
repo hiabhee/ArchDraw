@@ -2,20 +2,16 @@
 
 import { useEffect } from 'react';
 import { ThemeProvider as NextThemesProvider, useTheme as useNextTheme } from 'next-themes';
-import { useDiagramStore } from '@/store/diagramStore';
-import { registerThemeSetter } from '@/lib/theme/themeBridge';
+import { Toaster } from 'sonner';
+import { publishAppTheme, registerThemeSetter } from '@/lib/theme/themeBridge';
 
 function ThemeSync() {
   const { resolvedTheme, setTheme } = useNextTheme();
 
-  // Mirror next-themes -> store.darkMode (store flag is a read-only view).
+  // Publish next-themes' theme; the diagram store mirrors it into
+  // store.darkMode (a read-only view) when it is loaded.
   useEffect(() => {
-    if (resolvedTheme) {
-      const isDark = resolvedTheme === 'dark';
-      if (useDiagramStore.getState().darkMode !== isDark) {
-        useDiagramStore.setState({ darkMode: isDark });
-      }
-    }
+    if (resolvedTheme) publishAppTheme(resolvedTheme === 'dark');
   }, [resolvedTheme]);
 
   // Register the next-themes setter so non-React code (toggleDarkMode in the
@@ -39,4 +35,10 @@ export function ThemeProvider({
       {children}
     </NextThemesProvider>
   );
+}
+
+/** Toasts in the app theme (dark unless the visitor chose light). */
+export function ThemedToaster() {
+  const { resolvedTheme } = useNextTheme();
+  return <Toaster position="bottom-right" theme={resolvedTheme === 'light' ? 'light' : 'dark'} richColors />;
 }

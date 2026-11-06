@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { type Edge, type Node } from 'reactflow'
 import { computeEdgeRoute } from '../edgeRouteBuilder'
+import { STUDIO_CARD_HEIGHT, STUDIO_CARD_WIDTH } from '@/lib/diagram/nodes/studioMetrics'
 
 function makeNode(id: string, x: number, y: number, width = 120, height = 70): Node {
   return { id, type: 'shapeNode', position: { x, y }, width, height, data: {} } as Node
@@ -47,9 +48,11 @@ describe('low-bend collision reroutes', () => {
     const route = computeEdgeRoute(edge, [source, target, nearby], [edge], 'LR', 'studio-minimal')
 
     // Degenerate midpoints are collapsed: a clear corridor is exactly straight.
+    // The router draws Studio cards at their own size, whatever the node reports:
+    // it leaves the right side (plus the 12px endpoint gap) at the card's middle.
     expect(route.waypoints).toEqual([
-      { x: 172, y: 132 },
-      { x: 488, y: 132 },
+      { x: STUDIO_CARD_WIDTH + 12, y: 100 + STUDIO_CARD_HEIGHT / 2 },
+      { x: 488, y: 100 + STUDIO_CARD_HEIGHT / 2 },
     ])
   })
 

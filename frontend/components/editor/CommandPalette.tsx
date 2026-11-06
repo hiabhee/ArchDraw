@@ -226,6 +226,7 @@ export function CommandPalette() {
       const result = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', {
         title: template.name,
         renderStyleId: useDiagramStore.getState().diagramRenderStyle,
+        layoutStyle: useDiagramStore.getState().diagramLayoutStyle,
       });
       if (!result.success) {
         toast.error(`Layout failed: ${result.warnings.join('; ') || 'unknown error'}`);
@@ -236,8 +237,12 @@ export function CommandPalette() {
       const store = useDiagramStore.getState();
       const currentNodes = store.nodes;
 
-      if (currentNodes.length > 0) {
+      // A live project's map is never replaced in place (its agents stay with it).
+      if (currentNodes.length > 0 || store.isActiveCanvasLiveProject()) {
+        const beforeId = store.activeCanvasId;
         store.addCanvas();
+        // addCanvas keeps the active id when it refuses (canvas limit): never overwrite then.
+        if (useDiagramStore.getState().activeCanvasId === beforeId) return;
         // addCanvas switches activeCanvasId synchronously; use timeout to let state propagate before loadTemplate
         setTimeout(() => {
           const live = useDiagramStore.getState();
@@ -429,7 +434,7 @@ export function CommandPalette() {
       return (
         <div 
           className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium"
-          style={{ background: color || '#E0E0E0' }}
+          style={{ background: color || 'var(--border-strong)' }}
         >
           <Layers className="w-4 h-4 text-white" />
         </div>
@@ -439,7 +444,7 @@ export function CommandPalette() {
       return (
         <div 
           className="w-8 h-8 rounded-lg flex items-center justify-center text-lg relative"
-          style={{ background: '#F2F2F2' }}
+          style={{ background: 'var(--surface-page)' }}
         >
           <span>{iconEmoji || '📄'}</span>
           {isLocked && (
@@ -454,9 +459,9 @@ export function CommandPalette() {
       return (
         <div 
           className="w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ background: '#F2F2F2' }}
+          style={{ background: 'var(--surface-page)' }}
         >
-          <FileText className="w-4 h-4" style={{ color: '#6B6B6B' }} />
+          <FileText className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
         </div>
       );
     }
@@ -465,7 +470,7 @@ export function CommandPalette() {
         className="w-8 h-8 rounded-lg flex items-center justify-center"
         style={{ background: '#EDE9FE' }}
       >
-        <ArrowRight className="w-4 h-4" style={{ color: '#595959' }} />
+        <ArrowRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
       </div>
     );
   };
@@ -494,20 +499,20 @@ export function CommandPalette() {
         <div 
           className="relative w-full max-w-lg mx-4 overflow-hidden"
           style={{ 
-            background: 'white', 
+            background: 'var(--surface-panel)', 
             borderRadius: 24,
             boxShadow: '0 25px 70px rgba(0, 0, 0, 0.15)'
           }}
         >
           {/* Search input - pill shape */}
           <div className="flex items-center gap-3 px-5 py-4">
-            <Search className="w-5 h-5 shrink-0" style={{ color: '#B0B0B0' }} />
+            <Search className="w-5 h-5 shrink-0" style={{ color: 'var(--text-muted)' }} />
             <input
               ref={inputRef}
               type="text"
               placeholder="Search components, templates, canvases, actions..."
               className="flex-1 py-2 text-base bg-transparent border-none outline-none"
-              style={{ color: '#1A1A1A' }}
+              style={{ color: 'var(--text-primary)' }}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -515,9 +520,9 @@ export function CommandPalette() {
             {search && (
               <button 
                 onClick={() => setSearch('')}
-                className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                className="p-1 rounded-full hover:bg-accent transition-colors"
               >
-                <X className="w-4 h-4" style={{ color: '#B0B0B0' }} />
+                <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
               </button>
             )}
           </div>
@@ -529,7 +534,7 @@ export function CommandPalette() {
           >
             {flatItems.length === 0 && (
               <div className="px-5 py-12 text-center">
-                <p className="text-sm" style={{ color: '#6B6B6B' }}>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                   {search ? 'No results found' : 'Start typing to search...'}
                 </p>
               </div>
@@ -538,8 +543,8 @@ export function CommandPalette() {
             {sections.map((section) => (
               <div key={section.title} className="pb-2">
                 {/* Section header */}
-                <div className="sticky top-0 px-5 py-2" style={{ background: 'white' }}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#B0B0B0' }}>
+                <div className="sticky top-0 px-5 py-2" style={{ background: 'var(--surface-panel)' }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                     {section.title}
                   </p>
                 </div>
@@ -556,20 +561,20 @@ export function CommandPalette() {
                         data-index={idx}
                         onClick={() => handleItemClick(item)}
                         disabled={!!loadingTemplateId}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-[14px] transition-all duration-150 ${
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl transition duration-150 ${
                           idx === selectedIndex 
-                            ? 'bg-gray-100' 
-                            : 'hover:bg-gray-50'
+                            ? 'bg-accent' 
+                            : 'hover:bg-accent'
                         } ${item.isLocked ? 'opacity-60' : ''} ${loadingTemplateId ? 'opacity-70' : ''}`}
                       >
                         {getItemIcon(item.type, item.color, item.icon, item.isLocked)}
                         <div className="flex-1 text-left min-w-0">
-                          <p className="text-sm font-medium truncate" style={{ color: '#1A1A1A' }}>
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                             {item.label}
                             {item.isLocked && <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 align-middle">Locked</span>}
                           </p>
                           {item.subtitle && (
-                            <p className="text-xs truncate" style={{ color: '#6B6B6B' }}>
+                            <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
                               {item.subtitle}
                             </p>
                           )}
@@ -577,7 +582,7 @@ export function CommandPalette() {
                         {item.type === 'template' && (
                           <div 
                             className="shrink-0 px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1"
-                            style={{ background: '#EFF6FF', color: '#2563EB' }}
+                            style={{ background: 'var(--info-bg)', color: 'var(--info)' }}
                           >
                             {isLoadingThis ? <Loader2 className="w-3 h-3 animate-spin" /> : <LayoutTemplate className="w-3 h-3" />}
                             {isLoadingThis ? 'Loading…' : 'Template'}
@@ -586,13 +591,13 @@ export function CommandPalette() {
                         {item.type === 'canvas' && (
                           <div 
                             className="shrink-0 px-2 py-1 rounded-lg text-[10px] font-medium"
-                            style={{ background: '#F2F2F2', color: '#6B6B6B' }}
+                            style={{ background: 'var(--surface-page)', color: 'var(--text-secondary)' }}
                           >
                             Canvas
                           </div>
                         )}
                         {idx === selectedIndex && !isLoadingThis && (
-                          <ArrowRight className="w-4 h-4 shrink-0" style={{ color: '#6B6B6B' }} />
+                          <ArrowRight className="w-4 h-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         )}
                       </button>
                     );
@@ -605,14 +610,14 @@ export function CommandPalette() {
           {/* Footer hint */}
           <div 
             className="flex items-center justify-between px-5 py-3 text-[10px] border-t"
-            style={{ background: '#FAFAFA', borderColor: '#F2F2F2', color: '#6B6B6B' }}
+            style={{ background: 'var(--surface-page)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
           >
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 rounded font-medium" style={{ background: 'white', color: '#6B6B6B' }}>↑↓</kbd> navigate
+                <kbd className="px-1.5 py-0.5 rounded font-medium" style={{ background: 'var(--surface-panel)', color: 'var(--text-secondary)' }}>↑↓</kbd> navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 rounded font-medium" style={{ background: 'white', color: '#6B6B6B' }}>↵</kbd> select
+                <kbd className="px-1.5 py-0.5 rounded font-medium" style={{ background: 'var(--surface-panel)', color: 'var(--text-secondary)' }}>↵</kbd> select
               </span>
             </div>
             <span className="flex items-center gap-1">

@@ -75,7 +75,7 @@ export function CanvasBackgroundControls() {
                     setCanvasBackground({ variant: p.id });
                     if (!showGrid) toggleGrid();
                   }}
-                  className={`relative h-[72px] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-end pb-2 transition-all ${
+                  className={`relative h-[72px] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-end pb-2 transition ${
                     active ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40'
                   }`}
                   aria-label={p.label}

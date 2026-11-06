@@ -2,12 +2,13 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Search, Bell, LayoutDashboard, FolderOpen, Sparkles, ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
+import { Search, LayoutDashboard, FolderOpen, Sparkles, ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
 import { UserAvatar, SettingsPanel } from '@/components/auth/UserAvatar';
 import { RecentCanvases } from './RecentCanvases';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 interface SidebarItemProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -21,7 +22,7 @@ function SidebarItem({ icon: Icon, label, active, onClick, badge }: SidebarItemP
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 cursor-pointer ${
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition duration-200 cursor-pointer ${
         active
           ? 'bg-brand-bg text-brand-text shadow-sm'
           : 'text-text-secondary hover:bg-brand-bg hover:text-brand-text'
@@ -57,7 +58,7 @@ function CollapsibleGroup({
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[14px] transition-all duration-200 text-text-primary hover:bg-brand-bg hover:text-brand-text group cursor-pointer"
+        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl transition duration-200 text-text-primary hover:bg-brand-bg hover:text-brand-text group cursor-pointer"
       >
         <Icon className="w-5 h-5" />
         <span className="text-xs font-semibold flex-1 text-left tracking-wider uppercase opacity-60">
@@ -78,7 +79,7 @@ function SubmenuItem({ label, active, onClick }: { label: string; active?: boole
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2 rounded-[12px] transition-all duration-200 cursor-pointer ${
+      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition duration-200 cursor-pointer ${
         active
           ? 'bg-brand-bg text-brand-text shadow-sm'
           : 'text-text-muted hover:bg-brand-bg hover:text-brand-text'
@@ -196,13 +197,7 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
           {/* Drawer Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 px-1">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center bg-brand"
-              >
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-                </svg>
-              </div>
+              <BrandMark size={32} />
               <div>
                 <span className="font-semibold text-text-primary block leading-tight">ArchDraw</span>
                 <span className="text-[10px] text-text-muted">Workspace</span>
@@ -309,13 +304,7 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
         >
           {/* Logo & Title */}
           <div className="flex items-center gap-3 px-2 mb-2">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-brand"
-            >
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" />
-              </svg>
-            </div>
+            <BrandMark size={32} />
             <div>
               <span className="font-semibold text-text-primary block leading-tight">ArchDraw</span>
               <span className="text-[10px] text-text-muted">Workspace</span>
@@ -443,12 +432,6 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  aria-label="Notifications"
-                  className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg transition-colors bg-surface-page text-text-secondary hover:bg-border-default"
-                >
-                  <Bell className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
                 <UserAvatar />
               </div>
             </div>

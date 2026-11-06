@@ -1,4 +1,5 @@
 import * as dagre from 'dagre';
+import { foreignNodeIds } from './groupDirections';
 import type {
   LayoutEdge,
   LayoutParams,
@@ -276,7 +277,12 @@ function placeSidecarGroups(
     })
     // A single attachment is usually an entry/exit group. Reposition only
     // multi-connection sidecars, where the long-trunk problem is measurable.
-    .filter(candidate => groupRole(candidate.id) !== 'core' && candidate.crossEdges.length >= 2);
+    // A group that only feeds the main group (data sources, upstream APIs)
+    // is part of the flow: it stays upstream, where its edges run along it.
+    .filter(candidate =>
+      groupRole(candidate.id) !== 'core' &&
+      candidate.crossEdges.length >= 2 &&
+      !candidate.crossEdges.every(edge => candidate.candidateDescendants.has(edge.source)));
   if (candidates.length === 0) return;
 
   const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
@@ -329,6 +335,310 @@ function placeSidecarGroups(
       positions,
       parentOf,
     );
+  }
+}
+
+/**
+ * Each group is laid out on its own, blind to where its outside neighbours
+ * end up, so independent members (e.g. an "External" column of data sources)
+ * can be stacked against the order of what they connect to and their edges
+ * cross. Re-order members that share a lane and have no edges among their
+ * siblings by the mean cross-axis position of their outside neighbours
+ * (barycenter), keeping the lane's slot centers.
+ */
+function orderUnlinkedSiblingsByNeighbours(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  childrenByParent: Map<string, string[]>,
+  dimsById: Map<string, { width: number; height: number }>,
+): void {
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const foreign = foreignNodeIds(params); // their ranks run along the other axis: not lanes here
+  const center = (id: string) => {
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) return undefined;
+    return { x: position.x + dims.width / 2, y: position.y + dims.height / 2 };
+  };
+  const neighbours = new Map<string, string[]>();
+  for (const edge of params.edges) {
+    if (edge.source === edge.target) continue;
+    neighbours.set(edge.source, [...(neighbours.get(edge.source) ?? []), edge.target]);
+    neighbours.set(edge.target, [...(neighbours.get(edge.target) ?? []), edge.source]);
+  }
+
+  for (const [, children] of childrenByParent) {
+    const siblings = new Set(children);
+    const loose = children.filter(id =>
+      !groupIds.has(id) &&
+      !foreign.has(id) &&
+      positions.has(id) &&
+      !(neighbours.get(id) ?? []).some(other => siblings.has(other)));
+    // Lanes: members in the same rank (same column for LR, row for TD).
+    const lanes = new Map<number, string[]>();
+    for (const id of loose) {
+      const c = center(id)!;
+      const key = Math.round(horizontalFlow ? c.x : c.y);
+      lanes.set(key, [...(lanes.get(key) ?? []), id]);
+    }
+    for (const lane of lanes.values()) {
+      if (lane.length < 2) continue;
+      const barycenter = new Map<string, number>();
+      for (const id of lane) {
+        const points = (neighbours.get(id) ?? []).map(center).filter(Boolean) as Array<{ x: number; y: number }>;
+        if (points.length === 0) break;
+        barycenter.set(id, points.reduce((sum, p) => sum + (horizontalFlow ? p.y : p.x), 0) / points.length);
+      }
+      if (barycenter.size !== lane.length) continue;
+      const slots = lane.map(id => (horizontalFlow ? center(id)!.y : center(id)!.x)).sort((a, b) => a - b);
+      const ordered = [...lane].sort((a, b) => barycenter.get(a)! - barycenter.get(b)! || a.localeCompare(b));
+      ordered.forEach((id, index) => {
+        const position = positions.get(id)!;
+        const dims = dimsById.get(id)!;
+        positions.set(id, horizontalFlow
+          ? { x: position.x, y: slots[index] - dims.height / 2 }
+          : { x: slots[index] - dims.width / 2, y: position.y });
+      });
+    }
+  }
+}
+
+/**
+ * Each group is laid out on its own, so two nodes joined by an edge that
+ * crosses a group boundary (a service and the external API it calls) land at
+ * slightly different cross-axis heights and the edge is drawn off-level.
+ * Nudge one endpoint so their centers line up, when that keeps it inside its
+ * group's current frame and clear of its neighbours. Only one-to-one links are
+ * straightened: a node in a fan-out or fan-in is placed by symmetry (centered
+ * on its branches) and must never be pulled onto one of them. Offsets beyond
+ * MAX_CROSS_GROUP_ALIGN are deliberate lanes and are left alone; a node that is
+ * already level with another cross-group neighbour is never moved.
+ */
+const MAX_CROSS_GROUP_ALIGN = 64;
+const ALIGN_CLEARANCE = 16;
+
+function alignCrossGroupEdges(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+): void {
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  // A node in a group laid out the other way is never nudged: along this axis its own flow
+  // runs, and a nudge squeezes the gap between stacked cards until the edge between them vanishes.
+  const foreign = foreignNodeIds(params);
+  const size = (id: string) => dimsById.get(id)!;
+  const center = (id: string) => {
+    const position = positions.get(id)!;
+    const dims = size(id);
+    return horizontalFlow ? position.y + dims.height / 2 : position.x + dims.width / 2;
+  };
+  const outDegree = new Map<string, Set<string>>();
+  const inDegree = new Map<string, Set<string>>();
+  for (const edge of params.edges) {
+    if (edge.source === edge.target) continue;
+    outDegree.set(edge.source, (outDegree.get(edge.source) ?? new Set()).add(edge.target));
+    inDegree.set(edge.target, (inDegree.get(edge.target) ?? new Set()).add(edge.source));
+  }
+  const crossing = params.edges.filter(edge =>
+    edge.source !== edge.target &&
+    !groupIds.has(edge.source) && !groupIds.has(edge.target) &&
+    positions.has(edge.source) && positions.has(edge.target) &&
+    parentOf.get(edge.source) !== parentOf.get(edge.target) &&
+    (outDegree.get(edge.source)?.size ?? 0) === 1 &&
+    (inDegree.get(edge.target)?.size ?? 0) === 1);
+
+  const level = new Set<string>();
+  for (const edge of crossing) {
+    if (Math.abs(center(edge.source) - center(edge.target)) < 0.5) {
+      level.add(edge.source);
+      level.add(edge.target);
+    }
+  }
+
+  const moved = new Set<string>();
+  const fits = (id: string, delta: number): boolean => {
+    if (level.has(id) || moved.has(id) || foreign.has(id)) return false;
+    const position = positions.get(id)!;
+    const dims = size(id);
+    const next = horizontalFlow ? { x: position.x, y: position.y + delta } : { x: position.x + delta, y: position.y };
+    const rect = { x: next.x, y: next.y, width: dims.width, height: dims.height };
+    const parentId = parentOf.get(id);
+    if (parentId) {
+      const frame = groupRect(parentId, positions, parentOf, dimsById);
+      const top = horizontalFlow ? frame.y + SUBGRAPH_PADDING_TOP : frame.y + SUBGRAPH_PADDING_X;
+      const bottom = horizontalFlow ? frame.y + frame.height - SUBGRAPH_PADDING_BOTTOM : frame.x + frame.width - SUBGRAPH_PADDING_X;
+      const low = horizontalFlow ? rect.y : rect.x;
+      const high = low + (horizontalFlow ? rect.height : rect.width);
+      if (low < top || high > bottom) {
+        // Frames are re-fitted around their children afterwards, so a top-level
+        // group may grow to take the nudge when no sibling group is in the way.
+        // Tight spacing leaves no slack inside a frame, so without this a
+        // cross-group link could never be levelled.
+        if (parentOf.get(parentId)) return false;
+        const grownLow = Math.min(horizontalFlow ? frame.y : frame.x, low - (horizontalFlow ? SUBGRAPH_PADDING_TOP : SUBGRAPH_PADDING_X));
+        const grownHigh = Math.max(horizontalFlow ? frame.y + frame.height : frame.x + frame.width, high + (horizontalFlow ? SUBGRAPH_PADDING_BOTTOM : SUBGRAPH_PADDING_X));
+        const grown = horizontalFlow
+          ? { x: frame.x, y: grownLow, width: frame.width, height: grownHigh - grownLow }
+          : { x: grownLow, y: frame.y, width: grownHigh - grownLow, height: frame.height };
+        for (const other of positions.keys()) {
+          if (other === parentId || parentOf.get(other) !== parentOf.get(parentId)) continue;
+          if (rectsOverlap(
+            { x: grown.x - ALIGN_CLEARANCE, y: grown.y - ALIGN_CLEARANCE, width: grown.width + 2 * ALIGN_CLEARANCE, height: grown.height + 2 * ALIGN_CLEARANCE },
+            rootRect(other, groupIds, positions, parentOf, dimsById),
+          )) return false;
+        }
+      }
+    }
+    for (const other of positions.keys()) {
+      if (other === id || other === parentId || parentOf.get(other) !== parentId) continue;
+      const otherRect = rootRect(other, groupIds, positions, parentOf, dimsById);
+      if (rectsOverlap(
+        { x: rect.x - ALIGN_CLEARANCE, y: rect.y - ALIGN_CLEARANCE, width: rect.width + 2 * ALIGN_CLEARANCE, height: rect.height + 2 * ALIGN_CLEARANCE },
+        otherRect,
+      )) return false;
+    }
+    return true;
+  };
+  const shift = (id: string, delta: number) => {
+    const position = positions.get(id)!;
+    positions.set(id, horizontalFlow ? { x: position.x, y: position.y + delta } : { x: position.x + delta, y: position.y });
+    moved.add(id);
+  };
+
+  for (const edge of crossing) {
+    const delta = center(edge.source) - center(edge.target);
+    if (Math.abs(delta) < 0.5 || Math.abs(delta) > MAX_CROSS_GROUP_ALIGN) continue;
+    if (fits(edge.target, delta)) shift(edge.target, delta);
+    else if (fits(edge.source, -delta)) shift(edge.source, -delta);
+  }
+}
+
+/**
+ * Groups stacked in one column are ordered by the dagre pass without looking at
+ * where their neighbours ended up, so two groups can be stacked against the
+ * order of what feeds them: the edges into the upper group then must cross the
+ * edges into the lower one, however they are routed. Swap two neighbouring
+ * groups of a column when that strictly lowers the number of forced crossings
+ * (pairs of outside neighbours, per side, that appear in the opposite vertical
+ * order to their groups). The column keeps the same extent: the groups are
+ * re-stacked in the new order with the gaps they had.
+ */
+function orderColumnGroupsByNeighbours(
+  positions: Map<string, { x: number; y: number }>,
+  params: LayoutParams,
+  parentOf: Map<string, string>,
+  dimsById: Map<string, { width: number; height: number }>,
+): void {
+  const horizontalFlow = params.direction === 'LR' || params.direction === 'RL';
+  const groupIds = new Set(params.nodes.filter(node => node.isGroup).map(node => node.id));
+  const rects = (id: string) => groupRect(id, positions, parentOf, dimsById);
+  const crossOf = (id: string) => {
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) return undefined;
+    return horizontalFlow ? position.y + dims.height / 2 : position.x + dims.width / 2;
+  };
+  const alongOf = (id: string) => {
+    const position = positions.get(id);
+    const dims = dimsById.get(id);
+    if (!position || !dims) return undefined;
+    return horizontalFlow ? position.x + dims.width / 2 : position.y + dims.height / 2;
+  };
+
+  // Groups that share a parent (or the root).
+  const byParent = new Map<string, string[]>();
+  for (const id of groupIds) {
+    if (!positions.has(id)) continue;
+    const key = parentOf.get(id) ?? '';
+    byParent.set(key, [...(byParent.get(key) ?? []), id]);
+  }
+
+  for (const siblings of byParent.values()) {
+    if (siblings.length < 2) continue;
+    // Columns: groups whose extent along the flow overlaps by more than half.
+    const alongRange = (id: string) => {
+      const rect = rects(id);
+      return horizontalFlow ? [rect.x, rect.x + rect.width] : [rect.y, rect.y + rect.height];
+    };
+    const columns: string[][] = [];
+    for (const id of [...siblings].sort((a, b) => alongRange(a)[0] - alongRange(b)[0])) {
+      const [lo, hi] = alongRange(id);
+      const column = columns.find(members => {
+        const [mlo, mhi] = alongRange(members[0]);
+        return Math.min(hi, mhi) - Math.max(lo, mlo) > 0.5 * Math.min(hi - lo, mhi - mlo);
+      });
+      if (column) column.push(id);
+      else columns.push([id]);
+    }
+
+    for (const column of columns) {
+      if (column.length < 2) continue;
+      const crossStart = (id: string) => (horizontalFlow ? rects(id).y : rects(id).x);
+      const crossSize = (id: string) => (horizontalFlow ? rects(id).height : rects(id).width);
+      const order = [...column].sort((a, b) => crossStart(a) - crossStart(b));
+      const originalStart = crossStart(order[0]);
+      const gaps = order.slice(1).map((id, i) => crossStart(id) - (crossStart(order[i]) + crossSize(order[i])));
+
+      const members = new Map(order.map(id => [id, descendantsOf(id, parentOf)]));
+      // Outside neighbours of a group, on the left and right of it along the flow.
+      const neighbours = (id: string, others: string[]) => {
+        const inside = members.get(id)!;
+        const skip = new Set(others.flatMap(other => [...members.get(other)!]));
+        const left = new Set<string>();
+        const right = new Set<string>();
+        for (const edge of params.edges) {
+          if (edge.source === edge.target) continue;
+          const sourceIn = inside.has(edge.source);
+          const targetIn = inside.has(edge.target);
+          if (sourceIn === targetIn) continue;
+          const outside = sourceIn ? edge.target : edge.source;
+          if (skip.has(outside) || groupIds.has(outside)) continue;
+          const groupAlong = alongOf(id) ?? rects(id).x;
+          const outsideAlong = alongOf(outside);
+          if (outsideAlong === undefined || crossOf(outside) === undefined) continue;
+          (outsideAlong < groupAlong ? left : right).add(outside);
+        }
+        return { left: [...left].map(crossOf) as number[], right: [...right].map(crossOf) as number[] };
+      };
+      // Forced crossings if `upper` sits above `lower`.
+      const crossings = (upper: string, lower: string) => {
+        const a = neighbours(upper, [lower]);
+        const b = neighbours(lower, [upper]);
+        let count = 0;
+        for (const side of ['left', 'right'] as const) {
+          for (const x of a[side]) for (const y of b[side]) if (x > y + 1) count++;
+        }
+        return count;
+      };
+
+      let changed = false;
+      for (let pass = 0; pass < order.length; pass++) {
+        let swapped = false;
+        for (let i = 0; i + 1 < order.length; i++) {
+          if (crossings(order[i + 1], order[i]) < crossings(order[i], order[i + 1])) {
+            [order[i], order[i + 1]] = [order[i + 1], order[i]];
+            swapped = true;
+            changed = true;
+          }
+        }
+        if (!swapped) break;
+      }
+      if (!changed) continue;
+
+      // Re-stack in the new order, same start and same gaps.
+      const sizes = new Map(order.map(id => [id, crossSize(id)]));
+      let cursor = originalStart;
+      order.forEach((id, i) => {
+        const delta = cursor - crossStart(id);
+        if (Math.abs(delta) > 0.5) {
+          moveLayoutSubtree(id, horizontalFlow ? { x: 0, y: delta } : { x: delta, y: 0 }, positions, parentOf);
+        }
+        cursor += sizes.get(id)! + (gaps[i] ?? 0);
+      });
+    }
   }
 }
 
@@ -665,7 +975,7 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
     levelEdges.push({ ...edge, source, target });
   }
   const rankEdges = selectAcyclicLayoutEdges(
-    aggregateLayoutEdges(levelEdges),
+    aggregateLayoutEdges(levelEdges, levelDirection),
     levelDirection,
     members,
   );
@@ -862,7 +1172,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
     // around a wide compound group (for example planner → knowledge/cache in
     // an agent loop) while leaving ordinary single-entry/single-exit groups in
     // their Dagre-ranked positions.
-    placeSidecarGroups(
+    if (!params.options?.flowAreas) placeSidecarGroups(
       result.positions,
       params,
       parentOf,
@@ -877,6 +1187,10 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       dimsById,
       Math.max(32, Math.min(72, (ctx.nodeSep || defaults.nodeSep || 110) / 2)),
     );
+
+    orderColumnGroupsByNeighbours(result.positions, params, parentOf, dimsById);
+    orderUnlinkedSiblingsByNeighbours(result.positions, params, childrenByParent, dimsById);
+    alignCrossGroupEdges(result.positions, params, parentOf, dimsById);
 
     // Root offset: keeps absolute coordinates clear of (0,0) and gives the
     // diagram a small margin on the canvas.

@@ -56,11 +56,11 @@ export const collaborativeDocsEdges: Edge[] = [
   edge('cd_e5', 'cd_edge', 'cd_api', 'doc metadata'),
   edge('cd_e6', 'cd_presence', 'cd_redis', 'cursor state'),
   edge('cd_e7', 'cd_collab', 'cd_pubsub', 'broadcast op', 'event'),
-  edge('cd_e8', 'cd_pubsub', 'cd_browser', 'remote ops', 'stream'),
+  edge('cd_e8', 'cd_pubsub', 'cd_edge', 'remote ops to sessions', 'stream'),
   edge('cd_e9', 'cd_collab', 'cd_docdb', 'append op'),
   edge('cd_e10', 'cd_api', 'cd_docdb', 'read document'),
   edge('cd_e11', 'cd_pubsub', 'cd_snapshot', 'compact trigger', 'async'),
   edge('cd_e12', 'cd_snapshot', 'cd_docdb', 'write snapshot'),
-  edge('cd_e13', 'cd_api', 'cd_search', 'index update', 'async'),
+  edge('cd_e13', 'cd_snapshot', 'cd_search', 'index text', 'async'),
   edge('cd_e14', 'cd_collab', 'cd_metrics', 'conflict rate', 'event'),
 ];

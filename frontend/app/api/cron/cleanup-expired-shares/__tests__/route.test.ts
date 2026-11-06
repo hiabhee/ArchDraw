@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const m = vi.hoisted(() => ({ findMany: vi.fn(), deleteMany: vi.fn() }));
+const m = vi.hoisted(() => ({ findMany: vi.fn(), deleteMany: vi.fn(), staleAnonymous: vi.fn() }));
 vi.mock('@/lib/server/prisma', () => ({ default: { sharedCanvas: { findMany: m.findMany, deleteMany: m.deleteMany } } }));
+vi.mock('@/lib/server/projects/anonymousProjects', () => ({ deleteStaleAnonymousProjects: m.staleAnonymous }));
 vi.mock('@/lib/logger', () => ({ default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn(), debug: vi.fn() } }));
 
 import { GET } from '../route';
@@ -15,6 +16,7 @@ describe('GET /api/cron/cleanup-expired-shares', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv('CRON_SECRET', 's3cret');
+    m.staleAnonymous.mockResolvedValue(0);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -36,8 +38,18 @@ describe('GET /api/cron/cleanup-expired-shares', () => {
 
     const res = await GET(req('Bearer s3cret'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ deleted: 520 });
+    expect(await res.json()).toEqual({ deleted: 520, anonymousProjects: 0 });
     expect(m.findMany.mock.calls[0][0].where.expiresAt.lt).toBeInstanceOf(Date);
     expect(m.deleteMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('also deletes unclaimed anonymous projects, and a failure there does not fail the run', async () => {
+    m.findMany.mockResolvedValue([]);
+    m.staleAnonymous.mockResolvedValueOnce(3);
+    expect(await (await GET(req('Bearer s3cret'))).json()).toEqual({ deleted: 0, anonymousProjects: 3 });
+    m.staleAnonymous.mockRejectedValueOnce(new Error('db down'));
+    const res = await GET(req('Bearer s3cret'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: 0, anonymousProjects: 0 });
   });
 });

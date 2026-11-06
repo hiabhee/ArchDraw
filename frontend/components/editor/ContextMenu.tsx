@@ -351,7 +351,7 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-all rounded-xl mx-1 hover:bg-brand group ${
+      className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition rounded-xl mx-1 hover:bg-brand group ${
         danger ? 'text-destructive hover:bg-destructive/10' : 'text-foreground'
       }`}
     >
@@ -394,7 +394,7 @@ function MenuItemWithSubmenu({
     <div className="relative" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <button
         onClick={onClick}
-        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-all rounded-xl mx-1 hover:bg-brand group text-foreground"
+        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm transition rounded-xl mx-1 hover:bg-brand group text-foreground"
       >
         {icon && <span className="w-4 h-4 opacity-50 group-hover:opacity-80">{icon}</span>}
         <span className="flex-1 text-left">{label}</span>
@@ -421,7 +421,7 @@ function SubmenuItem({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center px-3 py-2.5 text-sm transition-all rounded-xl mx-1 hover:bg-brand text-foreground"
+      className="w-full flex items-center px-3 py-2.5 text-sm transition rounded-xl mx-1 hover:bg-brand text-foreground"
     >
       {children}
     </button>

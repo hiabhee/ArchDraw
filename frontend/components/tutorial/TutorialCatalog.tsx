@@ -123,7 +123,7 @@ export function TutorialCatalog({ tutorials, showShare = false }: TutorialCatalo
                 <button
                   key={f.value}
                   onClick={() => setFilter(f.value)}
-                  className={`relative inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-all cursor-pointer whitespace-nowrap ${
+                  className={`relative inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12.5px] font-medium transition cursor-pointer whitespace-nowrap ${
                     active
                       ? 'bg-text-primary text-surface-panel shadow-sm'
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface-page'
@@ -156,7 +156,7 @@ export function TutorialCatalog({ tutorials, showShare = false }: TutorialCatalo
                 <button
                   key={o.value}
                   onClick={() => setSort(o.value)}
-                  className={`px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition cursor-pointer whitespace-nowrap ${
                     active
                       ? 'bg-surface-page text-text-primary border border-border-default'
                       : 'text-text-muted hover:text-text-primary'

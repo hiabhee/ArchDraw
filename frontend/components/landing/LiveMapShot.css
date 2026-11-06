@@ -1,0 +1,363 @@
+/* Live project demo. Colors come from the kit's tokens, the landing's
+   --signal-* palette and the session colors passed as --who. */
+
+.lp .ss-stage {
+  overflow: hidden;
+  background: var(--ss-well);
+  --lp-attention: var(--signal-attention);
+}
+
+/* One window, inset top and left, off the right and bottom edges */
+.lp-win {
+  position: absolute;
+  top: 24px;
+  left: 20px;
+  width: 600px;
+  height: 420px;
+}
+
+.lp .ss-stage[data-layout='compact'] .lp-win {
+  top: 16px;
+  left: 16px;
+  width: 400px;
+}
+
+.lp-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ss-text);
+}
+
+.lp-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ss-success);
+}
+
+/* Sessions panel */
+.lp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 48px 8px 0;
+  height: 100%;
+}
+
+.lp-head {
+  padding: 0 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ss-text-faint);
+  letter-spacing: 0.02em;
+}
+
+.lp-cap {
+  padding: 0 8px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lp-attention);
+}
+
+/* "Needs you" opens above the list and pushes it down */
+.lp-group {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.6s cubic-bezier(0.45, 0, 0.1, 1), opacity 0.4s ease;
+}
+
+.lp-group > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.lp-group[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  padding-bottom: 6px;
+}
+
+.lp-group[data-open] {
+  border-bottom: 1px solid var(--ss-line-faint);
+  margin-bottom: 4px;
+}
+
+.lp-fox {
+  transition: opacity 0.35s ease;
+}
+
+.lp-fox[data-hidden] {
+  opacity: 0;
+}
+
+.lp-row {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  grid-template-areas: 'dot name time' 'dot doing doing';
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--ss-radius-sm);
+}
+
+.lp-row b {
+  grid-area: name;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ss-text-strong);
+}
+
+.lp-row i {
+  grid-area: doing;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ss-text-faint);
+}
+
+.lp-row time {
+  grid-area: time;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lp-attention);
+}
+
+.lp-row[data-attention] i {
+  color: var(--lp-attention);
+}
+
+.lp-dot {
+  grid-area: dot;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--who);
+}
+
+.lp-filler {
+  display: grid;
+  gap: 8px;
+  padding: 10px 8px;
+}
+
+/* The map */
+.lp-canvas {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 92px);
+  grid-template-rows: repeat(3, 40px);
+  gap: 52px 22px;
+  align-content: start;
+  min-height: 420px;
+  padding: 28px 16px 0;
+  background-color: var(--ss-surface);
+  background-image: radial-gradient(circle, var(--ss-line-faint) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.lp .ss-stage[data-layout='compact'] .lp-canvas {
+  grid-template-columns: repeat(3, 92px);
+  gap: 40px 14px;
+  padding: 24px 12px 0;
+}
+
+.lp-edge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.lp-edge path {
+  fill: none;
+  stroke: var(--ss-line);
+  stroke-width: 1.5;
+}
+
+.lp-node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--ss-raised);
+  box-shadow: 0 0 0 1px var(--ss-line);
+  transition: box-shadow 0.3s ease, opacity 0.4s ease;
+}
+
+.lp-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ss-text-strong);
+}
+
+.lp-node[data-ring] {
+  box-shadow: 0 0 0 1.5px var(--lp-attention);
+}
+
+/* Code no component owns yet: a dashed plot */
+.lp-node[data-site] {
+  background: transparent;
+  box-shadow: none;
+  border: 1.5px dashed var(--ss-line);
+  gap: 2px;
+}
+
+.lp-node[data-site] small {
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ss-text-faint);
+}
+
+.lp-node[data-site] .lp-name {
+  font-family: var(--ss-mono);
+  font-weight: 500;
+  color: var(--ss-text);
+}
+
+.lp-node[data-alert] {
+  border-color: var(--lp-attention);
+}
+
+.lp-level {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--ss-raised);
+  box-shadow: 0 0 0 1px var(--ss-line);
+  font-size: 10px;
+  color: var(--ss-text-faint);
+}
+
+.lp-level b,
+.lp-level span {
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-weight: 500;
+}
+
+.lp-level b {
+  background: var(--ss-fill);
+  color: var(--ss-text-strong);
+}
+
+/* Agent figures: a star under a component, its tag beside it */
+.lp-figure svg { flex: none; }
+
+.lp-figure {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.lp-tag {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--ss-raised);
+  box-shadow: 0 0 0 1px var(--ss-line), var(--ss-shadow-card);
+  line-height: 1.25;
+}
+
+.lp-tag b {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--who);
+}
+
+.lp-tag i {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--ss-text-faint);
+}
+
+.lp-tag[data-attention] {
+  box-shadow: 0 0 0 1px var(--lp-attention), var(--ss-shadow-card);
+}
+
+.lp-tag[data-attention] i {
+  color: var(--lp-attention);
+}
+
+/* The history card */
+.lp-card {
+  position: absolute;
+  left: 204px;
+  top: 240px;
+  width: 206px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ss-raised);
+  box-shadow: 0 0 0 1px var(--ss-line), var(--ss-shadow-float);
+}
+
+.lp .ss-stage[data-layout='compact'] .lp-card {
+  left: 16px;
+  top: 190px;
+  width: 200px;
+}
+
+.lp-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--ss-line-faint);
+}
+
+.lp-card-head b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ss-text-strong);
+}
+
+.lp-card-head span {
+  font-size: 10px;
+  color: var(--ss-text-faint);
+}
+
+.lp-bout {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.lp-bout + .lp-bout {
+  margin-top: 8px;
+}
+
+.lp-bout p {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--ss-text-faint);
+}
+
+.lp-bout p b {
+  color: var(--ss-text-strong);
+}
+
+.lp-bout q {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--ss-text);
+  quotes: none;
+}

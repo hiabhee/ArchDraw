@@ -2,20 +2,32 @@
 
 import ReactFlow, {
   Background, BackgroundVariant,
-  useReactFlow, ReactFlowProvider, useViewport,
+  useReactFlow, ReactFlowProvider, useViewport, useStore, useStoreApi,
   SelectionMode, ConnectionLineType,
   ConnectionMode,
   type OnSelectionChangeParams,
+  type NodeChange,
+  applyNodeChanges,
   type Connection,
   type Edge,
   type OnConnectStart,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useDiagramStore, registerFitViewCallback } from '@/store/diagramStore';
+import { parsePastedImage } from '@/lib/diagram/nodes/pastedImage';
+import { prepareImage } from '@/lib/client/imageDownscale';
+import type { ImageNodeData } from '@/components/canvas/nodes/ImageNode';
+import type { NodeData } from '@/store/diagram/types';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/canvas/GuideLines';
 import { GroupBackgroundLayer } from '@/components/canvas/GroupBackgroundLayer';
+import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
+import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
+import { ComponentHistoryCard } from '@/components/canvas/ComponentHistoryCard';
+import { DetailMapEmpty } from '@/components/canvas/MapLevelToggle';
+import { useProjectLiveStore } from '@/store/projectLiveStore';
+import { anyNodeInView } from '@/lib/diagram/canvas/nodesInView';
 import { ContextMenu, type ContextMenuState } from '@/components/editor/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/canvas/CometTrailCanvas';
@@ -44,13 +56,17 @@ import type { Node } from 'reactflow';
 import { resolveNodeCollisions } from '@/lib/diagram/geometry/resolveNodeCollisions';
 import { useEdgeColors } from '@/lib/theme/edgeColors';
 import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
-import { createNode, createEdge, createBlankShapeNode } from '@/lib/component-library/factory';
+import { createNode, createEdge, createBlankShapeNode, createTextLabelNode } from '@/lib/component-library/factory';
+import { nodeCentre } from '@/lib/diagram/geometry/nodeBox';
+import { levelNearAlignedNodes } from '@/lib/diagram/geometry/levelNearAligned';
 import { reactFlowRef } from '@/lib/client/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/diagram/canvas/resolveNodeDropConnection';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
-import { resolveDiagramPresentation } from '@/lib/diagram/geometry/diagramPresentation';
-import { CanvasHostProvider, EDITOR_HOST } from '@/lib/diagram/canvas/CanvasHostContext';
+import { buildHighLevelGraph } from '@/lib/diagram/geometry/highLevelView';
+import { computeSelectionFocus, selectionFocusCss, SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
+import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
+import { CanvasHostProvider, EDITOR_HOST, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 
 // Isolated Suspense boundary for useSearchParams — prevents entire canvas from de-opting to CSR
 function CanvasUrlSync() {
@@ -152,12 +168,61 @@ function CanvasUrlSync() {
   return null;
 }
 
+/** Positions the user gave boxes in the high-level view, per canvas (this browser only). */
+const NO_DETAIL_EDGES: Edge[] = [];
+
+function highLevelKey(canvasId: string | null) {
+  return `archdraw-high-level:${canvasId ?? 'none'}`;
+}
+function readHighLevelPositions(canvasId: string | null): Record<string, { x: number; y: number }> {
+  try {
+    return JSON.parse(localStorage.getItem(highLevelKey(canvasId)) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+function writeHighLevelPositions(canvasId: string | null, positions: Record<string, { x: number; y: number }>) {
+  try {
+    localStorage.setItem(highLevelKey(canvasId), JSON.stringify(positions));
+  } catch {
+    // storage unavailable: the arrangement just isn't remembered
+  }
+}
+
+/** Only very large diagrams are culled to the viewport (see `onlyRenderVisibleElements`). */
+const CULL_NODES_ABOVE = 400;
+
+/**
+ * The "lines" grid, kept in its own component: it follows every pan/zoom
+ * frame, which must not re-render the whole canvas.
+ */
+function LinesBackground({ gap, color, opacity }: { gap: number; color: string; opacity: number }) {
+  const { x, y, zoom } = useViewport();
+  return (
+    <div
+      className="archdraw-lines-background"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 0,
+        backgroundColor: 'transparent',
+        backgroundImage: `linear-gradient(to right, ${color} 1px, transparent 1px), linear-gradient(to bottom, ${color} 1px, transparent 1px)`,
+        backgroundSize: `${gap * zoom}px ${gap * zoom}px`,
+        backgroundPosition: `${x}px ${y}px`,
+        opacity,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
 function CanvasInner() {
 
   const nodes = useDiagramStore((s) => s.nodes);
   const edges = useDiagramStore((s) => s.edges);
   const pipelineStatus = useDiagramStore((s) => s.pipelineStatus);
   const isPenModeActive = useDiagramStore((s) => s.isPenModeActive);
+  const activeTool = useDiagramStore((s) => s.activeTool);
   const showGrid = useDiagramStore((s) => s.showGrid);
   const diagramChromeMode = useDiagramStore((s) => s.diagramChromeMode);
   const diagramStyleTheme = useDiagramStore((s) => s.diagramStyleTheme);
@@ -187,6 +252,8 @@ function CanvasInner() {
 
   const reactFlowInstance = useReactFlow();
   const { onNodeDrag, onNodeDragStop: onNodeDragStopSnap } = useSnapping();
+  // While a node is lined up with another, alignment wins over the grid so edges can line up exactly.
+  const alignmentActive = useDiagramStore((s) => s.guideLines.length > 0);
   useMiddleMousePan();
   useGrouping();
 
@@ -343,6 +410,11 @@ function CanvasInner() {
     };
   }, [reactFlowInstance]);
 
+  // One undo step per drag, recorded at drag start; the moves in between are not recorded.
+  const onNodeDragStart = useCallback(() => {
+    useDiagramStore.getState().pushHistory();
+  }, []);
+
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: Node, draggedNodes: Node[]) => {
       onNodeDragStopSnap(event, node, draggedNodes);
@@ -355,27 +427,22 @@ function CanvasInner() {
       const STRAIGHT_THRESHOLD = 12;
       let autoStraightened = false;
       const straightenMap = new Map<string, { x: number; y: number }>();
+      const draggedIds = new Set(draggedNodes.map((n) => n.id));
       for (const dragged of draggedNodes) {
         const incident = edges.filter((e) => e.source === dragged.id || e.target === dragged.id);
         for (const edge of incident) {
           const otherId = edge.source === dragged.id ? edge.target : edge.source;
+          // Nodes dragged together keep their offset; straightening one would shear the selection.
+          if (draggedIds.has(otherId)) continue;
           const other = store.nodes.find((n) => n.id === otherId);
           if (!other) continue;
-          const dw = dragged.width ?? (dragged.data as { nodeWidth?: number })?.nodeWidth ?? 200;
-          const dh = dragged.height ?? (dragged.data as { nodeHeight?: number })?.nodeHeight ?? 88;
-          const ow = other.width ?? (other.data as { nodeWidth?: number })?.nodeWidth ?? 200;
-          const oh = other.height ?? (other.data as { nodeHeight?: number })?.nodeHeight ?? 88;
-          const dAbsX = (dragged as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? dragged.position.x;
-          const dAbsY = (dragged as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? dragged.position.y;
-          const dCX = dAbsX + dw / 2;
-          const dCY = dAbsY + dh / 2;
-          const oAbsX = (other as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? other.position.x;
-          const oAbsY = (other as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? other.position.y;
-          const oAbsCX = oAbsX + ow / 2;
-          const oAbsCY = oAbsY + oh / 2;
+          // React Flow's own node carries the absolute position and measured size,
+          // which the store copy lacks for nodes inside a group.
+          const dC = nodeCentre(dragged as Node);
+          const oC = nodeCentre(reactFlowRef.instance?.getNode(otherId) ?? other);
           // Determine if edge is primarily horizontal or vertical
-          const dx = oAbsCX - dCX;
-          const dy = oAbsCY - dCY;
+          const dx = oC.x - dC.x;
+          const dy = oC.y - dC.y;
           if (isLR && Math.abs(dx) > Math.abs(dy) && Math.abs(dy) > 0 && Math.abs(dy) < STRAIGHT_THRESHOLD) {
             const cur = straightenMap.get(dragged.id) ?? { x: 0, y: 0 };
             if (cur.y === 0 || Math.abs(dy) < Math.abs(cur.y)) cur.y = dy;
@@ -543,6 +610,7 @@ function CanvasInner() {
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
     setContextMenu(null);
+    useProjectLiveStore.getState().openHistory(null);
     if (isMobile) {
       window.dispatchEvent(new CustomEvent('pane-click-mobile-close'));
     }
@@ -602,6 +670,68 @@ function CanvasInner() {
     [reactFlowInstance, addNode, setSelectedNodeId, setSelectedNodeIds]
   );
 
+  // Pictures: paste or drop an ArchDraw preview/image link, an image URL or an image file. It lands
+  // as a picture node (a preview link is drawn in the editor's look and keeps its link), at the
+  // viewport centre for a paste and under the cursor for a drop.
+  const placeImage = useCallback((data: ImageNodeData, width: number, height: number, at?: { x: number; y: number }) => {
+    const bounds = document.querySelector('.react-flow')?.getBoundingClientRect();
+    const centre = reactFlowInstance.screenToFlowPosition(at ?? {
+      x: (bounds?.left ?? 0) + (bounds?.width ?? window.innerWidth) / 2,
+      y: (bounds?.top ?? 0) + (bounds?.height ?? window.innerHeight) / 2,
+    });
+    const id = `image-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    addNode({
+      id, type: 'imageNode', position: { x: centre.x - width / 2, y: centre.y - height / 2 },
+      width, height, data,
+    } as unknown as Node<NodeData>);
+    setSelectedNodeId(id);
+    setSelectedNodeIds([id]);
+  }, [reactFlowInstance, addNode, setSelectedNodeId, setSelectedNodeIds]);
+
+  const placeLink = useCallback((text: string, at?: { x: number; y: number }): boolean => {
+    const link = parsePastedImage(text, {
+      renderStyle: useDiagramStore.getState().diagramRenderStyle,
+      dark: document.documentElement.classList.contains('dark'),
+    });
+    if (!link) return false;
+    placeImage(link, 480, link.href ? 300 : 280, at);
+    return true;
+  }, [placeImage]);
+
+  const placeFile = useCallback((file: File, at?: { x: number; y: number }) => {
+    // Any normal image works: it is scaled and re-encoded to fit inside the diagram.
+    const pending = file.size > 1_000_000 ? toast.loading('Preparing image…') : undefined;
+    prepareImage(file)
+      .then(({ src, width, height }) => {
+        const scale = Math.min(1, 480 / width);
+        placeImage({ src }, Math.round(width * scale), Math.round(height * scale) + 8, at);
+      })
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : 'That image could not be added.'))
+      .finally(() => { if (pending !== undefined) toast.dismiss(pending); });
+  }, [placeImage]);
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.closest('input, textarea, select') || target.isContentEditable)) return;
+      if (placeLink(event.clipboardData?.getData('text/plain') ?? '')) {
+        event.preventDefault();
+        return;
+      }
+      const file = Array.from(event.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'));
+      if (!file) return;
+      event.preventDefault();
+      placeFile(file);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [placeLink, placeFile]);
+
+  const onCanvasDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    if (event.dataTransfer?.types.includes('Files')) event.dataTransfer.dropEffect = 'copy';
+  }, []);
+
   // Label editing via `edit-edge-label` custom event (inline on the edge).
   useEffect(() => {
     const handleEditEvent = (e: Event) => {
@@ -625,15 +755,221 @@ function CanvasInner() {
 
   const coloredEdges = useEdgeColors(edges);
   const diagramViewMode = useDiagramStore((s) => s.diagramViewMode);
-  const presentation = useMemo(
-    () => resolveDiagramPresentation(nodes, coloredEdges, diagramViewMode),
-    [nodes, coloredEdges, diagramViewMode],
+  // High-level view: groups collapsed into single components, laid out fresh.
+  // A read-only projection; the stored diagram is untouched.
+  // Rebuilt only when the summary's content changes (groups, members, links),
+  // not on every new nodes array — a rebuild re-lays it out and would undo
+  // the user's arrangement mid-drag.
+  const highLevelSignature = useMemo(() => {
+    if (diagramViewMode !== 'overview') return null;
+    const graph = buildHighLevelGraph(nodes, coloredEdges);
+    if (!graph) return null;
+    return JSON.stringify([
+      graph.nodes.map((n) => [n.id, n.data?.label, n.data?.subtitle]),
+      graph.edges.map((e) => [e.source, e.target, e.data?.connectionCount]),
+    ]);
+  }, [diagramViewMode, nodes, coloredEdges]);
+  const highLevelSource = useMemo(
+    () => (highLevelSignature ? buildHighLevelGraph(nodes, coloredEdges) : null),
+    // Keyed on the summary's content on purpose (see above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [highLevelSignature],
   );
-  const visibleNodes = useMemo(() => nodes.filter((node) => presentation.visibleNodeIds.has(node.id)), [nodes, presentation]);
-  const visibleEdges = useMemo(() => coloredEdges.filter((edge) => presentation.visibleEdgeIds.has(edge.id)), [coloredEdges, presentation]);
+  const activeCanvasId = useDiagramStore((s) => s.activeCanvasId);
+  const [highLevelGraph, setHighLevelGraph] = useState<{ source: object; nodes: Node[]; edges: typeof coloredEdges } | null>(null);
+  useEffect(() => {
+    if (!highLevelSource) return;
+    let cancelled = false;
+    // Lay the summary out both ways and keep the one that fits the window
+    // better (a long left-to-right chain wastes most of a wide screen's height).
+    void Promise.all([
+      layoutDiagramViaMermaid(highLevelSource.nodes, highLevelSource.edges, 'LR'),
+      layoutDiagramViaMermaid(highLevelSource.nodes, highLevelSource.edges, 'TD'),
+    ]).then((results) => {
+      if (cancelled) return;
+      const viewAspect = window.innerWidth / Math.max(window.innerHeight - 160, 200);
+      const fit = (r: (typeof results)[number]) => {
+        if (!r.success || r.nodes.length === 0) return Infinity;
+        const xs = r.nodes.flatMap((n) => [n.position.x, n.position.x + (n.width ?? 200)]);
+        const ys = r.nodes.flatMap((n) => [n.position.y, n.position.y + (n.height ?? 100)]);
+        const aspect = (Math.max(...xs) - Math.min(...xs)) / Math.max(Math.max(...ys) - Math.min(...ys), 1);
+        return Math.abs(Math.log(aspect / viewAspect));
+      };
+      const best = fit(results[0]) <= fit(results[1]) ? results[0] : results[1];
+      // Boxes the user arranged keep their place (view state; the diagram is untouched).
+      const saved = readHighLevelPositions(activeCanvasId);
+      const laidOut = best.success ? best.nodes : highLevelSource.nodes;
+      setHighLevelGraph({
+        source: highLevelSource,
+        // Summary boxes are always movable (the layout pipeline can mark nodes fixed).
+        nodes: laidOut.map((n) => ({ ...n, draggable: true, ...(saved[n.id] ? { position: saved[n.id] } : {}) })),
+        edges: best.success ? best.edges : highLevelSource.edges,
+      });
+      // Fit once React Flow has measured the new boxes (a fit on the first
+      // frame still sees the full diagram's bounds and leaves the summary tiny).
+      for (const delay of [60, 350]) setTimeout(() => { if (!cancelled) reactFlowInstance.fitView({ padding: 0.16, duration: 300 }); }, delay);
+    });
+    return () => { cancelled = true; };
+  }, [highLevelSource, activeCanvasId, reactFlowInstance]);
+  // The summary is movable: drags change only this view's positions.
+  const onHighLevelNodesChange = useCallback((changes: NodeChange[]) => {
+    setHighLevelGraph((graph) => (graph ? { ...graph, nodes: applyNodeChanges(changes, graph.nodes) } : graph));
+  }, []);
+  const onHighLevelDragStop = useCallback((_event: React.MouseEvent, _node: Node, dragged: Node[]) => {
+    const saved = readHighLevelPositions(activeCanvasId);
+    for (const n of dragged) saved[n.id] = { x: n.position.x, y: n.position.y };
+    writeHighLevelPositions(activeCanvasId, saved);
+  }, [activeCanvasId]);
+  // Until the summary is laid out, keep showing the full diagram.
+  const highLevel = highLevelSource !== null && highLevelGraph?.source === highLevelSource ? highLevelGraph : null;
+
+  // Live project "Detailed" level: the detailed map replaces the overview
+  // (this canvas) as a view-only projection with the agents still on it.
+  const projectLevel = useProjectLiveStore((s) => (s.canvasId === activeCanvasId && s.snapshot?.isProject ? s.level : 'overview'));
+  const detailMap = useProjectLiveStore((s) => (s.canvasId === activeCanvasId ? s.detail : null));
+  const detailEdges = useEdgeColors(detailMap?.edges ?? NO_DETAIL_EDGES);
+  const [detailNodes, setDetailNodes] = useState<{ source: object; nodes: Node[] } | null>(null);
+  if (detailMap && detailNodes?.source !== detailMap) {
+    setDetailNodes({
+      source: detailMap,
+      nodes: detailMap.nodes.map((n) => ({ ...n, selected: false, dragging: false, ...(n.type === 'groupNode' ? { zIndex: -1 } : {}) })),
+    });
+  }
+  const detailView = useMemo(
+    () => (projectLevel === 'detail' && detailMap && detailNodes?.source === detailMap ? { nodes: detailNodes.nodes, edges: detailEdges } : null),
+    [projectLevel, detailMap, detailNodes, detailEdges],
+  );
+  // Until the map arrives, "missing" is only what the server says: it has no
+  // detailed map. Otherwise the map is still loading.
+  const detailUpdatedAt = useProjectLiveStore((s) => (s.canvasId === activeCanvasId ? s.snapshot?.detailUpdatedAt : undefined));
+  const detailPending = projectLevel === 'detail' && !detailMap;
+  // On a live project, clicking a component opens its history (who worked on it and why).
+  const isLiveProject = useProjectLiveStore((s) => s.canvasId === activeCanvasId && Boolean(s.snapshot?.isProject));
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    useProjectLiveStore.getState().openHistory(node.id);
+  }, []);
+  const detailMissing = detailPending && detailUpdatedAt === null;
+  // Boxes of the detailed map can be moved for a better look; nothing is saved.
+  const onDetailNodesChange = useCallback((changes: NodeChange[]) => {
+    setDetailNodes((current) => (current ? { ...current, nodes: applyNodeChanges(changes, current.nodes) } : current));
+  }, []);
+  useEffect(() => {
+    if (!detailView) return;
+    for (const delay of [60, 350]) setTimeout(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }), delay);
+    // Frame the map when it appears or is redrawn, not on every drag.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailMap, projectLevel, reactFlowInstance]);
+
+  /** A view-only projection replaces the editable diagram (high-level summary or detailed map). */
+  const projection = detailView ?? highLevel;
+
+  const onCanvasDrop = useCallback((event: React.DragEvent) => {
+    if (projection) return;
+    const at = { x: event.clientX, y: event.clientY };
+    const files = Array.from(event.dataTransfer?.files ?? []).filter((f) => f.type.startsWith('image/'));
+    if (files.length) {
+      event.preventDefault();
+      // Several images fan out a little so none hides another.
+      files.slice(0, 8).forEach((file, i) => placeFile(file, { x: at.x + i * 24, y: at.y + i * 24 }));
+      return;
+    }
+    const text = event.dataTransfer?.getData('text/uri-list') || event.dataTransfer?.getData('text/plain') || '';
+    if (text && placeLink(text.split('\n')[0], at)) event.preventDefault();
+  }, [projection, placeFile, placeLink]);
+
+
+  // A card is drawn at its own size, which can differ from the size the layout
+  // assumed (a subtitle that wraps makes it taller), so two nodes lined up by their
+  // tops end up with centres a few px apart and the edge between them kinks. Once
+  // sizes are measured and nothing is being dragged, nodes joined by a nearly level
+  // edge are levelled (see levelNearAligned). It changes nothing when there is
+  // nothing to fix, and a fix needs no further fix, so it settles after one pass.
+  const levelKey = useMemo(
+    () => (projection ? '' : nodes.map((n) => `${n.id}:${Math.round(n.position.x)}:${Math.round(n.position.y)}:${n.width ?? ''}:${n.height ?? ''}`).join('|')),
+    [nodes, projection],
+  );
+  useEffect(() => {
+    if (!levelKey) return;
+    const timer = setTimeout(() => {
+      const store = useDiagramStore.getState();
+      const current = store.nodes;
+      if (current.some((n) => (n as Node & { dragging?: boolean }).dragging)) return;
+      const connected = new Set(store.edges.flatMap((e) => [e.source, e.target]));
+      if (!current.every((n) => !connected.has(n.id) || (n.width && n.height))) return; // still measuring
+      const moves = levelNearAlignedNodes(current, store.edges, store.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR');
+      if (moves.size === 0) return;
+      const next = current.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n));
+      store.setNodes(next);
+      store.recalculateHandles(next);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [levelKey]);
+
+  /**
+   * Pane click. With the text tool armed, a click places a label at the cursor
+   * (top-left, editing at once) and the tool returns to select. Projections are
+   * view-only, so they never place anything.
+   */
+  const onPaneClickOrPlace = useCallback(
+    (event: React.MouseEvent) => {
+      if (activeTool === 'text' && !projection && !suppressPaneClickRef.current) {
+        const pos = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+        const node = createTextLabelNode(pos, { autoStartEdit: true });
+        const store = useDiagramStore.getState();
+        store.pushHistory();
+        store.appendNode(node);
+        store.setActiveTool('select');
+        setSelectedNodeId(node.id);
+        setSelectedNodeIds([node.id]);
+        return;
+      }
+      onPaneClick();
+    },
+    [activeTool, projection, reactFlowInstance, onPaneClick, setSelectedNodeId, setSelectedNodeIds]
+  );
+
+  const visibleNodes = projection?.nodes ?? nodes;
+  const visibleEdges = projection?.edges ?? coloredEdges;
+  const canvasHost = useMemo<CanvasHost>(
+    () => (detailView
+      ? { readOnly: true, showLiveActivity: true, nodes: detailView.nodes, edges: detailView.edges, planKey: 'detail-map' }
+      : highLevel ? { readOnly: true, nodes: highLevel.nodes, edges: highLevel.edges, planKey: 'high-level' } : EDITOR_HOST),
+    [detailView, highLevel],
+  );
+  // Selected nodes + their first-degree neighbours stay visible; the rest dims.
+  const selectionFocusStyle = useMemo(() => {
+    if (projection) return null;
+    const focus = computeSelectionFocus(selectedNodeIds, nodes, edges);
+    return focus ? selectionFocusCss(focus) : null;
+  }, [projection, selectedNodeIds, nodes, edges]);
+  // With nothing selected, hovering a component focuses its connections the same way
+  // (off while drawing a connection, so every target stays visible).
+  const isConnecting = useStore((s) => s.connectionNodeId !== null);
+  const hoverFocus = useHoverFocus(visibleNodes, visibleEdges, !selectionFocusStyle && !isConnecting);
+  const focusStyle = selectionFocusStyle ?? hoverFocus.css;
+  const wasHighLevel = useRef(false);
+  useEffect(() => {
+    // Leaving the summary: frame the full diagram again.
+    if (wasHighLevel.current && !highLevel) requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.16, duration: 300 }));
+    wasHighLevel.current = Boolean(highLevel);
+  }, [highLevel, reactFlowInstance]);
+  // React Flow fits only on its first render, which shows the copy saved in
+  // this browser. The server copy that replaces it (on open, or when an agent
+  // re-lays out a live project) can sit entirely off screen: frame it then.
+  // A view that shows any part of the diagram is never moved.
+  const rfStore = useStoreApi();
+  useEffect(() => {
+    if (visibleNodes.length === 0) return;
+    // After React Flow has measured the new boxes.
+    const timer = setTimeout(() => {
+      const { width, height, transform, nodeInternals } = rfStore.getState();
+      if (!width || !height || nodeInternals.size === 0) return;
+      if (!anyNodeInView(nodeInternals.values(), transform, { width, height })) reactFlowInstance.fitView({ padding: 0.16, duration: 300 });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [visibleNodes, rfStore, reactFlowInstance]);
   const diagramRenderStyle = useDiagramStore((s) => s.diagramRenderStyle);
   const canvasBackground = useDiagramStore((s) => s.canvasBackground);
-  const viewport = useViewport();
   const themeVars = useMemo(
     () => resolveCanvasTokens({ renderStyleId: diagramRenderStyle, colorThemeId: diagramStyleTheme, isDark }).cssVars,
     [diagramStyleTheme, diagramRenderStyle, isDark],
@@ -663,12 +999,14 @@ function CanvasInner() {
         !canvasBackground.bgColor && 'bg-[var(--arch-canvas-bg)]',
         diagramChromeMode === 'present' ? 'diagram-chrome-present' : 'diagram-chrome-edit',
         isSketch && sketchFontClass,
+        focusStyle && SELECTION_FOCUS_CLASS,
       )}
       data-render-style={diagramRenderStyle}
       data-color-theme={diagramStyleTheme}
       data-pipeline={pipelineStatus}
-        onDragOver={(e) => e.preventDefault()}
-        onDoubleClick={onPaneDoubleClick}
+        onDragOver={onCanvasDragOver}
+        onDrop={onCanvasDrop}
+        onDoubleClick={projection ? undefined : onPaneDoubleClick}
       style={{
         width: '100%',
         height: '100%',
@@ -680,26 +1018,40 @@ function CanvasInner() {
         } : {}),
       }}
     >
-      <CanvasHostProvider value={EDITOR_HOST}>
+      {focusStyle && <style>{focusStyle}</style>}
+      <CanvasHostProvider value={canvasHost}>
       <DiagramGeometryProvider nodes={visibleNodes} edges={visibleEdges}>
       <ReactFlow
+        className={activeTool === 'text' ? 'arch-tool-text' : undefined}
         nodes={visibleNodes}
         edges={visibleEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={handleConnect}
-        onReconnect={onReconnect}
-        onConnectStart={onConnectStart}
-        onConnectEnd={onConnectEnd}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onPaneClick={onPaneClick}
-        onSelectionChange={onSelectionChange}
-        onNodeContextMenu={onNodeContextMenu}
-        onPaneContextMenu={onPaneContextMenu}
+        // The high-level summary is view-only: its nodes are synthetic, so no
+        // change may reach the store (or its auto-save).
+        onNodesChange={detailView ? onDetailNodesChange : highLevel ? onHighLevelNodesChange : onNodesChange}
+        onEdgesChange={projection ? undefined : onEdgesChange}
+        onConnect={projection ? undefined : handleConnect}
+        onReconnect={projection ? undefined : onReconnect}
+        onConnectStart={projection ? undefined : onConnectStart}
+        onConnectEnd={projection ? undefined : onConnectEnd}
+        onNodeDrag={projection ? undefined : onNodeDrag}
+        onNodeDragStart={projection ? undefined : onNodeDragStart}
+        onNodeDragStop={detailView ? undefined : highLevel ? onHighLevelDragStop : onNodeDragStop}
+        onPaneClick={onPaneClickOrPlace}
+        onNodeClick={isLiveProject && (!highLevel || detailView) ? onNodeClick : undefined}
+        onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
+        onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
+        onSelectionChange={projection ? undefined : onSelectionChange}
+        onNodeContextMenu={projection ? undefined : onNodeContextMenu}
+        onPaneContextMenu={projection ? undefined : onPaneContextMenu}
+        nodesDraggable
+        nodesConnectable={!projection}
+        elementsSelectable={!projection}
+        deleteKeyCode={projection ? null : undefined}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
-        onlyRenderVisibleElements
+        // Culling remounts nodes as they cross the screen edge (re-measuring
+        // handles and sizes), which costs more than it saves below a few hundred.
+        onlyRenderVisibleElements={visibleNodes.length > CULL_NODES_ABOVE}
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
         fitView
@@ -722,7 +1074,7 @@ function CanvasInner() {
         connectionRadius={isMobile ? 28 : CANVAS_CONFIG.connectionRadius}
         connectionLineType={ConnectionLineType.Bezier}
         connectionLineStyle={{ stroke: themeVars['--arch-edge-primary'], strokeWidth: 1.5, strokeDasharray: '6 4' }}
-        snapToGrid={CANVAS_CONFIG.snapToGrid}
+        snapToGrid={CANVAS_CONFIG.snapToGrid && !alignmentActive}
         snapGrid={CANVAS_CONFIG.snapGrid}
         defaultMarkerColor={themeVars['--arch-edge-primary']}
         minZoom={CANVAS_CONFIG.minZoom}
@@ -730,7 +1082,7 @@ function CanvasInner() {
         defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         proOptions={{ hideAttribution: true }}
       >
-        <GroupBackgroundLayer />
+        {!projection && <GroupBackgroundLayer />}
         {canvasBackground.variant === 'dots' && showGrid && (
           <Background
             variant={BackgroundVariant.Dots}
@@ -741,24 +1093,25 @@ function CanvasInner() {
           />
         )}
         {canvasBackground.variant === 'lines' && showGrid && (
-          <div
-            className="archdraw-lines-background"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 0,
-              backgroundColor: 'transparent',
-              backgroundImage: `linear-gradient(to right, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px), linear-gradient(to bottom, ${canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')} 1px, transparent 1px)`,
-              backgroundSize: `${canvasBackground.gap * viewport.zoom}px ${canvasBackground.gap * viewport.zoom}px`,
-              backgroundPosition: `${viewport.x}px ${viewport.y}px`,
-              opacity: isDark ? 0.25 : 1,
-              pointerEvents: 'none',
-            }}
+          <LinesBackground
+            gap={canvasBackground.gap}
+            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')}
+            opacity={isDark ? 0.25 : 1}
           />
         )}
         <SVGEdgeMarkerDefs />
         <GuideLines />
+        {(!highLevel || detailView) && <AgentAtlasLayer />}
+        {(!highLevel || detailView) && <NeedsYouQueue className="!top-20" />}
+        {isLiveProject && activeCanvasId && (!highLevel || detailView) && (
+          <ComponentHistoryCard historyUrl={`/api/projects/${encodeURIComponent(activeCanvasId)}/history`} className="!top-16" />
+        )}
       </ReactFlow>
+      {detailPending && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/40">
+          {detailMissing ? <DetailMapEmpty /> : <span className="text-sm text-muted-foreground">Loading the detailed map…</span>}
+        </div>
+      )}
       </DiagramGeometryProvider>
       </CanvasHostProvider>
 

@@ -165,7 +165,7 @@ function DiagramThread({
           type="button"
           onClick={onExpand}
           aria-label="Open diagram in fullscreen"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-page px-2.5 py-1.5 text-xs font-medium text-text-secondary transition hover:border-brand hover:text-brand"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border-default bg-surface-page px-2.5 py-1.5 text-xs font-medium text-text-secondary transition hover:border-brand hover:text-brand-text"
         >
           <Maximize2 className="size-3.5" aria-hidden="true" />
           Fullscreen
@@ -199,7 +199,7 @@ export function DiagramStage({
         <section className="flex flex-col overflow-hidden rounded-2xl border border-border-default bg-surface-panel p-5 shadow-1">
           <DiagramThread keyCode={code} label={label} onExpand={() => setFullscreen(true)} state={state} />
           {patternLabel ? (
-            <div className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-bg px-2.5 py-1 text-xs font-medium capitalize text-brand">
+            <div className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-bg px-2.5 py-1 text-xs font-medium capitalize text-brand-text">
               {patternLabel}
             </div>
           ) : null}
@@ -218,7 +218,7 @@ export function DiagramStage({
               <div className="flex items-center gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-text-muted">{label}</p>
                 {patternLabel ? (
-                  <span className="rounded-full bg-brand-bg px-2.5 py-1 text-xs font-medium capitalize text-brand">
+                  <span className="rounded-full bg-brand-bg px-2.5 py-1 text-xs font-medium capitalize text-brand-text">
                     {patternLabel}
                   </span>
                 ) : null}

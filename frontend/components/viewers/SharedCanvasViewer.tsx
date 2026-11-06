@@ -14,6 +14,8 @@ import ReactFlow, {
   type Node,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
+import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
 import { Download, Sun, Moon, MoveHorizontal, MoveVertical, Loader2, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
@@ -27,6 +29,7 @@ import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useTheme } from '@/lib/theme/appTheme';
 import '@/components/canvas/nodes/nodeStyles.css';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 interface SharedCanvas {
   id: string;
@@ -221,6 +224,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     () => assignEdgeColors(laidOutEdges ?? edges, isDark),
     [laidOutEdges, edges, isDark],
   );
+  const hoverFocus = useHoverFocus(displayedNodes, displayedEdges);
 
   const canvasHost = useMemo<CanvasHost>(() => ({
     readOnly: true,
@@ -339,9 +343,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
       {/* Top banner */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[hsl(var(--canvas-bg))]/95 backdrop-blur-sm border-b border-border/40">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-blue-600 rounded-md flex items-center justify-center">
-            <div className="w-2 h-2 border border-white/80 rounded-sm" />
-          </div>
+          <BrandMark size={20} className="rounded-md" />
           <span className="font-semibold text-sm">ArchDraw</span>
           <span className="text-muted-foreground text-sm">·</span>
           <span className="text-muted-foreground text-sm truncate max-w-xs">
@@ -371,7 +373,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
                   aria-pressed={active}
                   title={`${label} layout`}
                   aria-label={`${label} layout`}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all disabled:opacity-60 ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition disabled:opacity-60 ${
                     active
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -390,7 +392,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
             aria-pressed={isDark}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
@@ -402,7 +404,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           </button>
           <button
             onClick={() => fitView({ padding: 0.15, duration: 300 })}
-            className="w-8 h-8 rounded-lg hidden sm:flex items-center justify-center transition-all duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
+            className="w-8 h-8 rounded-lg hidden sm:flex items-center justify-center transition duration-150 bg-secondary hover:bg-secondary/80 border border-border/40"
             title="Fit diagram to screen"
             aria-label="Fit diagram to screen"
           >
@@ -437,7 +439,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
         </div>
       )}
 
-      <div className="w-full h-full pt-12">
+      <div className={`w-full h-full pt-12${hoverFocus.css ? ` ${SELECTION_FOCUS_CLASS}` : ''}`}>
+        {hoverFocus.css && <style>{hoverFocus.css}</style>}
         <CanvasHostProvider value={canvasHost}>
         <DiagramGeometryProvider nodes={nodes} edges={displayedEdges}>
         <ReactFlow
@@ -445,6 +448,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           edges={displayedEdges}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
+          onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
+          onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={true}

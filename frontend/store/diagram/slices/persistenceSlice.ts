@@ -8,10 +8,17 @@ import { MAX_GUEST_CANVASES } from '../constants';
 import { mergeCanvases } from '../helpers/canvasHelpers';
 import { normalizeNodes } from '../helpers/nodeHelpers';
 import { normalizeEdges } from '../helpers/edgeHelpers';
-import { debouncedSaveCanvasToDB } from '../persistence/dbSave';
+import { debouncedSaveCanvasToDB, hasPendingCanvasSave } from '../persistence/dbSave';
 import { withAutoSaveSuppressed } from '../persistence/autoSave';
 
-type CanvasRow = { id: string; name: string; nodes: unknown; edges: unknown; updatedAt: Date | string | null };
+type CanvasRow = {
+  id: string;
+  name: string;
+  nodes: unknown;
+  edges: unknown;
+  updatedAt: Date | string | null;
+  agenticProjectId?: string | null;
+};
 
 function canvasFromRow(d: CanvasRow): CanvasTab {
   const rawNodes = normalizeNodes((d.nodes as unknown as Node[]) ?? []);
@@ -25,6 +32,7 @@ function canvasFromRow(d: CanvasRow): CanvasTab {
     serverUpdatedAt: d.updatedAt ? updatedAt : undefined,
     isOpen: true,
     lastAccessedAt: updatedAt,
+    agenticProjectId: d.agenticProjectId ?? null,
   };
 }
 
@@ -56,6 +64,7 @@ export type PersistenceSlice = Pick<
   | 'savingState'
   | 'setSavingState'
   | 'setCanvasServerVersion'
+  | 'setCanvasProjectLink'
   | 'reloadCanvasFromDB'
   | 'loadCanvasesFromDB'
   | 'saveCanvasToDB'
@@ -115,11 +124,19 @@ export const createPersistenceSlice: StateCreator<
     });
   },
 
-  reloadCanvasFromDB: async (canvasId) => {
+  setCanvasProjectLink: (canvasId, agenticProjectId) => {
+    set({
+      canvases: get().canvases.map((c) => (c.id === canvasId ? { ...c, agenticProjectId } : c)),
+    });
+  },
+
+  reloadCanvasFromDB: async (canvasId, options) => {
     try {
       const rows = (await apiGetUserCanvases()) as CanvasRow[];
       const row = rows?.find((r) => r.id === canvasId);
       if (!row) return;
+      // An edit made during the fetch would be overwritten; the next poll retries.
+      if (options?.skipIfDirty && hasPendingCanvasSave(canvasId)) return;
       const fresh = canvasFromRow(row);
       withAutoSaveSuppressed(() => set({
         canvases: get().canvases.map((c) =>
@@ -148,7 +165,15 @@ export const createPersistenceSlice: StateCreator<
         const mergedCanvases = mergeCanvases(localCanvases, dbCanvases);
 
         const openIds = mergedCanvases.map((c) => c.id);
-        const targetCanvas = mergedCanvases.find((c) => c.id === activeCanvasId) || mergedCanvases[0];
+        // Read the active canvas now, after the fetch: the user may have switched
+        // canvases while the list was loading, and that choice must win over the
+        // value captured before the request. Only then fall back to the value the
+        // load started with, and finally to the first canvas.
+        const currentActiveId = get().activeCanvasId;
+        const targetCanvas =
+          mergedCanvases.find((c) => c.id === currentActiveId) ||
+          mergedCanvases.find((c) => c.id === activeCanvasId) ||
+          mergedCanvases[0];
         // Server data — don't echo it straight back as saves.
         withAutoSaveSuppressed(() => set({
           canvases: mergedCanvases,

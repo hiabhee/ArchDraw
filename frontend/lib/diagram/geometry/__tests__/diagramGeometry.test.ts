@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from 'reactflow';
-import { computeDiagramGeometryPlan, computeDiagramGeometryPreview, getCachedDiagramGeometryPlan } from '../diagramGeometry';
+import { computeDiagramGeometryPlan, computeDiagramGeometryPreview, geometrySnapshotKey, getCachedDiagramGeometryPlan } from '../diagramGeometry';
 import { computeEdgeRoute } from '../../edges/edgeRouteBuilder';
 
 const node = (id: string, x: number, y: number): Node => ({
@@ -18,6 +18,19 @@ describe('computeDiagramGeometryPlan', () => {
     const next = getCachedDiagramGeometryPlan(nodes, [{ ...edges[0], label: 'A much longer edited label' }], { direction: 'LR' });
     expect(next).not.toBe(first);
     expect(next.key).not.toBe(first.key);
+  });
+
+  it('keeps the plan key when only a dragged label position changes, if the canvas asks for it', () => {
+    const nodes = [node('a', 0, 0), node('b', 400, 0)];
+    const at = (labelT: number) => [{ ...edge('drag', 'request'), data: { label: 'request', labelT } }];
+    expect(geometrySnapshotKey(nodes, at(0.3), { direction: 'LR', ignoreLabelPosition: true }))
+      .toBe(geometrySnapshotKey(nodes, at(0.7), { direction: 'LR', ignoreLabelPosition: true }));
+    // Exports and every other caller keep the full key.
+    expect(geometrySnapshotKey(nodes, at(0.3), { direction: 'LR' }))
+      .not.toBe(geometrySnapshotKey(nodes, at(0.7), { direction: 'LR' }));
+    // A label text change still invalidates it.
+    expect(geometrySnapshotKey(nodes, at(0.3), { direction: 'LR', ignoreLabelPosition: true }))
+      .not.toBe(geometrySnapshotKey(nodes, [{ ...at(0.3)[0], data: { label: 'other', labelT: 0.3 } }], { direction: 'LR', ignoreLabelPosition: true }));
   });
 
   it('invalidates cached routing when a shape changes with the same bounds', () => {

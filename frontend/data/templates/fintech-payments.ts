@@ -51,7 +51,7 @@ export const fintechPaymentsNodes: Node[] = [
 export const fintechPaymentsEdges: Edge[] = [
   edge('fp_e1', 'fp_mobile', 'fp_gateway', 'checkout'),
   edge('fp_e2', 'fp_web', 'fp_gateway', 'checkout'),
-  edge('fp_e3', 'fp_gateway', 'fp_risk', 'score payment'),
+  edge('fp_e3', 'fp_payment', 'fp_risk', 'score before auth'),
   edge('fp_e4', 'fp_gateway', 'fp_payment', 'authorize'),
   edge('fp_e5', 'fp_payment', 'fp_processor', 'card auth', 'dep'),
   edge('fp_e6', 'fp_processor', 'fp_bank', 'settlement', 'dep'),

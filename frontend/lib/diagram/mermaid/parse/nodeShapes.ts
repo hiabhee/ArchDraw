@@ -132,6 +132,17 @@ export function detectShape(line: string): Shape {
   return 'rectangle'
 }
 
+/** Index just past a leading quoted string (backslash escapes allowed), or 0 when unquoted / unterminated. */
+function quotedLabelEnd(text: string): number {
+  const quote = text[0]
+  if (quote !== '"' && quote !== "'") return 0
+  for (let i = 1; i < text.length; i++) {
+    if (text[i] === '\\') i++
+    else if (text[i] === quote) return i + 1
+  }
+  return 0
+}
+
 export function extractNodeLabel(line: string): string | null {
   const idMatch = line.match(/^([A-Za-z0-9_][A-Za-z0-9_\-]*)/)
   if (!idMatch) return null
@@ -163,7 +174,8 @@ export function extractNodeLabel(line: string): string | null {
   for (const { open, close } of openers) {
     if (remaining.startsWith(open)) {
       const afterOpen = remaining.slice(open.length)
-      const closeIdx = afterOpen.indexOf(close)
+      // A quoted label may contain the closer (`a("Canvas (React Flow)")`): look past the quotes.
+      const closeIdx = afterOpen.indexOf(close, quotedLabelEnd(afterOpen))
       if (closeIdx !== -1) {
         const content = afterOpen.slice(0, closeIdx)
         return stripMarkdownLabel(unescapeLabel(content.replace(/^["']|["']$/g, '')).trim())

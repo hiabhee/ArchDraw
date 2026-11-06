@@ -47,7 +47,13 @@ export function mergeCanvases(localCanvases: CanvasTab[], dbCanvases: CanvasTab[
       const localTime = local.updatedAt || 0;
       const dbTime = existing.updatedAt || 0;
       if (localTime > dbTime) {
-        merged.set(local.id, { ...local, isOpen: existing.isOpen, isPinned: existing.isPinned });
+        // The project link is server-owned, so it always comes from the DB copy.
+        merged.set(local.id, {
+          ...local,
+          isOpen: existing.isOpen,
+          isPinned: existing.isPinned,
+          agenticProjectId: existing.agenticProjectId,
+        });
       }
     }
   }

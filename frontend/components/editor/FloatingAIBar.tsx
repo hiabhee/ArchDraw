@@ -2,20 +2,12 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Mic, Send, Loader2, Code, RotateCw, Sparkles
+  Mic, Send, Loader2, Code, RotateCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/client/analytics';
 import { usePromptHistory } from '@/store/promptHistory';
-
-const STARTER_PROMPTS = [
-  'E-commerce checkout flow',
-  'Real-time chat app',
-  'Video streaming platform',
-  'URL shortener system',
-  'Ride-sharing app',
-] as const;
 
 type CodeAction = 'show' | 'hide' | 'hidden';
 interface FloatingAIBarProps {
@@ -216,24 +208,6 @@ export function FloatingAIBar({
     }
   };
 
-  const handlePromptClick = useCallback((prompt: string) => {
-    // Pill shows short label (e.g. "Real-time chat app") but the actual
-    // prompt sent to AI should be the full architecture request.
-    const fullPrompt = `describe ${prompt} architecture`;
-    setInput(fullPrompt);
-    // Focus the textarea so user can immediately press Enter
-    requestAnimationFrame(() => textareaRef.current?.focus());
-
-    if (typeof window !== 'undefined') {
-      analytics.track({
-        event_type: 'ui_interaction',
-        event_name: 'starter_prompt_clicked',
-        page_path: window.location.pathname,
-        payload: { prompt: fullPrompt, pill_label: prompt },
-      });
-    }
-  }, []);
-
   // Mobile keyboard handling: adjust bottom when visual viewport shrinks (iOS keyboard)
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   useEffect(() => {
@@ -267,7 +241,7 @@ export function FloatingAIBar({
               type="button"
               onClick={handleRegenerate}
               disabled={isGenerating}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border/10 bg-muted/20 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition-all text-[10px] font-semibold cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border/10 bg-muted/20 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 transition text-[10px] font-semibold cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               title="Regenerate diagram"
             >
               {isGenerating ? (
@@ -297,9 +271,9 @@ export function FloatingAIBar({
                     });
                   }
                 }}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer active:scale-95 ${
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer active:scale-95 ${
                   detailLevel === level
-                    ? 'bg-[#1E90FF]/20 text-[#1E90FF] shadow-sm'
+                    ? 'bg-brand/20 text-brand-text shadow-sm'
                     : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
                 }`}
                 title={level === 1 ? 'Simple — only core components' : level === 2 ? 'Moderate — balanced detail' : 'Detailed — full architecture depth'}
@@ -326,7 +300,7 @@ export function FloatingAIBar({
               }}
               className={`flex items-center gap-1 px-2 py-0.5 rounded-full border transition-[background,border-color,color] text-[10px] font-semibold cursor-pointer active:scale-95 ${
                 showCodeDerived 
-                  ? 'bg-[#1E90FF]/15 text-[#1E90FF] border-[#1E90FF]/30' 
+                  ? 'bg-brand/15 text-brand-text border-brand/30' 
                   : 'bg-muted/20 border-border/10 text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30'
               }`}
             >
@@ -336,42 +310,15 @@ export function FloatingAIBar({
           )}
         </div>
 
-        {/* Starter prompt pills — only on empty canvas with no input, directly above the input */}
-        <AnimatePresence>
-          {isCanvasEmpty && !input.trim() && !isGenerating && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="flex flex-wrap justify-center gap-1.5 max-w-full px-1"
-              aria-label="Starter prompts"
-            >
-              {STARTER_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => handlePromptClick(prompt)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-card border border-border/40 shadow-sm text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-accent/50 transition-colors cursor-pointer active:scale-[0.98] whitespace-nowrap"
-                  title={`Use prompt: ${prompt}`}
-                >
-                  <Sparkles className="w-3 h-3 opacity-60" />
-                  {prompt}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <AnimatePresence mode="wait">
           <motion.div
             key="input"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
-              className={`flex items-center gap-2 w-full rounded-[16px] border bg-card shadow-soft-3 px-2 py-1 transition-all duration-200 ${
+              className={`flex items-center gap-2 w-full rounded-3xl border bg-card shadow-soft-3 px-2 py-1 transition duration-200 ${
                 isFirstTime && isCanvasEmpty 
-                  ? 'shiny-input-glow border-[#1E90FF]/70 focus-within:border-primary/50' 
+                  ? 'shiny-input-glow border-brand/70 focus-within:border-primary/50' 
                   : 'border-border/40 focus-within:border-primary/50'
               } ${isCanvasEmpty ? 'py-3' : ''}`}
         >
@@ -411,7 +358,7 @@ export function FloatingAIBar({
               onClick={handleGenerate}
               disabled={!input.trim() || isGenerating}
               aria-label={isGenerating ? 'Generating' : 'Generate diagram'}
-              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-[#1E90FF] text-white hover:bg-[#4dabf7] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-brand text-white hover:bg-[#4dabf7] transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer shadow-sm hover:scale-105 active:scale-95"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 animate-spin" />

@@ -3,8 +3,10 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { NodeProps, useUpdateNodeInternals } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
+import { LiveActivityBadge } from './LiveActivityBadge';
 import { findNodeById } from '@/store/diagram/derive';
 import { useDiagramStore, NodeData } from '@/store/diagramStore';
+import { wrapperMatchesSize } from '@/lib/diagram/nodes/wrapperSize';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
 import { Activity, Palette, Pencil, Copy, Trash2 } from 'lucide-react';
 import { FloatingHandles } from './FloatingHandles';
@@ -28,6 +30,7 @@ import {
   studioContentNodeSize,
   studioCompactNodeSize,
 } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import { STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import './nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
@@ -229,29 +232,36 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
     const n = findNodeById(s.nodes, id);
     return (n?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
   });
-  const lastPushedSizeRef = useRef<{ w: number; h: number } | null>(null);
+  // The wrapper's own size (what React Flow draws, measures and routes edges to). A saved or
+  // reloaded node can carry an older size here while `data` is already current.
+  const wrapperWidth = useDiagramStore((s) => (readOnly ? undefined : findNodeById(s.nodes, id)?.width));
+  const wrapperHeight = useDiagramStore((s) => (readOnly ? undefined : findNodeById(s.nodes, id)?.height));
+  const lastPushedSizeRef = useRef<{ w: number; h: number; ww?: number | null; wh?: number | null } | null>(null);
   useLayoutEffect(() => {
     if (readOnly) return;
-    if (storedNodeWidth === cardWidth && storedNodeHeight === cardHeight) {
+    const wrapperOk = wrapperMatchesSize({ width: wrapperWidth, height: wrapperHeight }, cardWidth, cardHeight);
+    if (storedNodeWidth === cardWidth && storedNodeHeight === cardHeight && wrapperOk) {
       lastPushedSizeRef.current = { w: cardWidth, h: cardHeight };
       return;
     }
+    // Already pushed this size for this very wrapper size: pushing again cannot help (and would loop).
     if (
       lastPushedSizeRef.current &&
       lastPushedSizeRef.current.w === cardWidth &&
-      lastPushedSizeRef.current.h === cardHeight
+      lastPushedSizeRef.current.h === cardHeight &&
+      (wrapperOk || (lastPushedSizeRef.current.ww === wrapperWidth && lastPushedSizeRef.current.wh === wrapperHeight))
     ) {
       return;
     }
-    lastPushedSizeRef.current = { w: cardWidth, h: cardHeight };
+    lastPushedSizeRef.current = { w: cardWidth, h: cardHeight, ww: wrapperOk ? undefined : wrapperWidth, wh: wrapperOk ? undefined : wrapperHeight };
     queueMicrotask(() => {
       const cur = useDiagramStore.getState().nodes.find((nd) => nd.id === id);
       const curW = (cur?.data as { nodeWidth?: number } | undefined)?.nodeWidth;
       const curH = (cur?.data as { nodeHeight?: number } | undefined)?.nodeHeight;
-      if (curW === cardWidth && curH === cardHeight) return;
+      if (curW === cardWidth && curH === cardHeight && wrapperMatchesSize(cur, cardWidth, cardHeight)) return;
       updateNodeSize(id, { width: cardWidth, height: cardHeight });
     });
-  }, [id, cardWidth, cardHeight, storedNodeWidth, storedNodeHeight, updateNodeSize, readOnly]);
+  }, [id, cardWidth, cardHeight, storedNodeWidth, storedNodeHeight, wrapperWidth, wrapperHeight, updateNodeSize, readOnly]);
   const pendingInternalsRef = useRef(false);
   useLayoutEffect(() => {
     if (pendingInternalsRef.current) return;
@@ -431,7 +441,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
               <input
                 {...labelEdit.inputProps}
                 style={{
-                  fontSize: sketch ? 18 : 16.2,
+                  fontSize: sketch ? 18 : studio ? STUDIO_TITLE_PX : 16.2,
                   fontWeight: sketch ? 400 : brutal ? 700 : 600,
                   fontFamily: sketch
                     ? 'var(--font-patrick-hand, "Patrick Hand"), var(--arch-font-title, cursive)'
@@ -480,6 +490,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           )}
         </div>
         <FloatingHandles nodeId={id} />
+        <LiveActivityBadge nodeId={id} />
       </div>
     </div>
   );

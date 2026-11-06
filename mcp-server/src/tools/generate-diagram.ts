@@ -192,6 +192,8 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
   shareUrl?: string;
   embeddedDiagram?: { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] };
   message?: string;
+  /** The diagram drawn by ArchDraw's SVG export, for the inline preview only. */
+  previewSvg?: string;
   /** Why a requested preview link could not be created. */
   linkError?: string;
   errors?: string[];
@@ -214,6 +216,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
           mermaid: input.mermaid,
           label,
           dryRun: true,
+          preview: true,
         }),
       });
 
@@ -232,7 +235,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         };
       }
 
-      const preview = await previewResponse.json() as { nodes: ReactFlowNode[]; edges: ReactFlowEdge[]; warnings?: string[] };
+      const preview = await previewResponse.json() as { nodes: ReactFlowNode[]; edges: ReactFlowEdge[]; warnings?: string[]; previewSvg?: string };
       const validation = validateGraph(preview.nodes, preview.edges);
       const structuralErrors = validation.issues.filter(issue => issue.severity === 'error').map(issue => issue.message);
       if (structuralErrors.length > 0) {
@@ -302,6 +305,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         linkError,
         embeddedDiagram: { nodes: saveData.nodes, edges: saveData.edges },
         message,
+        previewSvg: preview.previewSvg,
         errors: [...(saveData.warnings || []), ...validation.issues.filter(issue => issue.severity !== 'error').map(issue => issue.message)],
       };
     }

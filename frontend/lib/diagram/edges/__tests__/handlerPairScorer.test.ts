@@ -746,3 +746,45 @@ describe('Invariant: nearest facing handlers', () => {
     expect(best.pair.targetSide).toBe(Position.Top);
   });
 });
+
+describe('Flow-aligned sides for downstream targets', () => {
+  it('LR: a target in a later column is entered from the left even when it is far below', () => {
+    const source = makeRect(0, 0, 200, 64);
+    const target = makeRect(300, 220, 200, 64); // 100px gap across, 156px down
+    const best = selectBestHandlerPair(source, target, 'LR', new Map(), new Set());
+    expect([best.sourceSide, best.targetSide]).toEqual([Position.Right, Position.Left]);
+  });
+
+  it('TD: a target in a later row is entered from the top even when it is far to the side', () => {
+    const source = makeRect(0, 0, 200, 64);
+    const target = makeRect(500, 160, 200, 64);
+    const best = selectBestHandlerPair(source, target, 'TD', new Map(), new Set());
+    expect([best.sourceSide, best.targetSide]).toEqual([Position.Bottom, Position.Top]);
+  });
+
+  it('LR: nodes in the same column still connect through their facing sides', () => {
+    const source = makeRect(0, 0, 200, 64);
+    const target = makeRect(0, 200, 200, 64);
+    const best = selectBestHandlerPair(source, target, 'LR', new Map(), new Set());
+    expect([best.sourceSide, best.targetSide]).toEqual([Position.Bottom, Position.Top]);
+  });
+});
+
+describe('buildDefaultOrthogonalWaypoints: same-side routes leave outward', () => {
+  it('runs a top→top route above both handles instead of between them', () => {
+    const wp = buildDefaultOrthogonalWaypoints({ x: 228, y: 64 }, { x: 1772, y: 58 }, Position.Top, Position.Top, 0);
+    // Lane sits 24px above the higher handle, so the edge visibly leaves the nodes.
+    expect(wp[1].y).toBe(58 - 24);
+    expect(wp[2].y).toBe(58 - 24);
+  });
+
+  it('fans parallel top→top edges further out', () => {
+    const wp = buildDefaultOrthogonalWaypoints({ x: 228, y: 64 }, { x: 1772, y: 58 }, Position.Top, Position.Top, 24);
+    expect(wp[1].y).toBe(58 - 24 - 24);
+  });
+
+  it('keeps facing sides on the midpoint lane', () => {
+    const wp = buildDefaultOrthogonalWaypoints({ x: 0, y: 0 }, { x: 200, y: 100 }, Position.Bottom, Position.Top, 0);
+    expect(wp[1].y).toBe(50);
+  });
+});

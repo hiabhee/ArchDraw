@@ -5,6 +5,7 @@ import { NodeProps, NodeResizer, useReactFlow, useUpdateNodeInternals } from 're
 
 import { NodeHandles } from '@/components/canvas/nodes/NodeHandles';
 import { ANNOTATION_FONT_SIZE, ANNOTATION_FONT_WEIGHT, type TextSize } from '@/lib/diagram/nodes/textSizing';
+import { useDiagramStore } from '@/store/diagramStore';
 
 export interface AnnotationNodeData {
   title?: string;
@@ -234,6 +235,7 @@ function AnnotationNodeComponent({ id, data, selected }: NodeProps<AnnotationNod
   return (
     <>
       <NodeResizer
+        onResizeStart={() => useDiagramStore.getState().pushHistory({ coalesceKey: `resize:${id}` })}
         minWidth={160}
         minHeight={100}
         isVisible={!!selected}

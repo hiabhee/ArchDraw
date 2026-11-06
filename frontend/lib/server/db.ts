@@ -1,4 +1,5 @@
 import prisma from '@/lib/server/prisma';
+import { isAutoCanvasName } from '@/lib/diagram/canvas/canvasNames';
 import { type Prisma } from '@/src/generated/prisma/client';
 
 type InputJson = Prisma.InputJsonValue;
@@ -62,10 +63,16 @@ export async function upsertUserCanvas(userId: string, data: {
   // into a data-loss privilege escalation.
   const existing = await prisma.userCanvas.findUnique({
     where: { id: canvas.id },
-    select: { userId: true },
+    select: { userId: true, name: true, agenticProjectId: true },
   });
   if (existing && existing.userId !== userId) {
     throw new CanvasOwnershipError(canvas.id);
+  }
+  // A linked agent names an auto-named project canvas after its repository
+  // (without bumping updatedAt). A tab that saves before its next live poll
+  // still carries the generated name; don't let that undo the rename.
+  if (existing?.agenticProjectId && isAutoCanvasName(canvas.name) && !isAutoCanvasName(existing.name)) {
+    canvas.name = existing.name;
   }
 
   if (existing && baseUpdatedAt !== undefined) {

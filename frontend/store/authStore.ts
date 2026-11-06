@@ -21,6 +21,26 @@ const GUEST_USER: AuthUser = {
   createdAt: new Date(),
 };
 
+type SessionData = Awaited<ReturnType<typeof authClient.getSession>>['data'];
+
+/**
+ * Session lookup that tells "signed out" apart from "could not check". A
+ * database outage or rate limit returns 5xx/429; treating that as "no
+ * session" signed users out during a blip.
+ */
+async function readSession(): Promise<SessionData | 'unavailable'> {
+  try {
+    const { data, error } = await authClient.getSession();
+    const status = (error as { status?: number } | null)?.status;
+    if (error && (status === undefined || status >= 500 || status === 429)) return 'unavailable';
+    return data;
+  } catch {
+    return 'unavailable'; // network error
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
@@ -51,7 +71,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!authEnabled) return true;
 
     try {
-      const { data: session } = await authClient.getSession();
+      const session = await readSession();
+      // Could not check (server or network trouble): keep the current user.
+      if (session === 'unavailable') return get().user !== null && get().user?.id !== 'guest';
 
       if (session?.user) {
         const u = session.user;
@@ -114,7 +136,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const { data: session } = await authClient.getSession();
+      // A blip at page load should not drop a signed-in user to guest: retry
+      // a few times before giving up.
+      let session = await readSession();
+      for (const delay of [1500, 4000, 8000]) {
+        if (session !== 'unavailable') break;
+        await sleep(delay);
+        session = await readSession();
+      }
+      if (session === 'unavailable') session = null;
 
       if (session?.user) {
         const u = session.user;

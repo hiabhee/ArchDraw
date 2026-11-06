@@ -22,6 +22,8 @@
     "eval:repo:report": "tsx scripts/eval/run-eval.ts --report",
     "eval:golden": "tsx scripts/eval/gen-golden.ts",
     "eval:test": "vitest --run scripts/eval/__tests__/score.test.ts",
+    "eval:agent-tokens": "tsx scripts/eval/agent-tokens/run.ts",
+    "e2e:live": "tsx scripts/e2e/live-flow.mts",
     "lint:tutorials": "tsx scripts/lint-tutorials.ts",
     "lint:tutorials:strict": "tsx scripts/lint-tutorials.ts --strict",
     "perf:quick": "tsx scripts/perf/benchmark.ts --skip-build --runs 15",
@@ -33,7 +35,7 @@
     "perf:lighthouse": "tsx scripts/perf/benchmark.ts --skip-build --runs 10"
   },
   "dependencies": {
-    "@hiabhee/archdraw-mcp-server": "1.0.5",
+    "@hiabhee/archdraw-mcp-server": "1.0.9",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.8.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -42,6 +44,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@react-icons-cloud/aws": "^0.2.0",
     "@reactflow/node-resizer": "^2.2.14",
+    "@resvg/resvg-js": "^2.6.2",
     "@upstash/redis": "^1.37.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",

@@ -25,6 +25,17 @@ describe('formatPreviewLinks', () => {
     expect(text).toContain(`${API}/editor?session=s1`);
   });
 
+  it('adds a shareable image link, hand-drawn by default, derived from the share link', () => {
+    const text = formatPreviewLinks({ shareUrl: `${API}/share/s1` });
+    expect(text).toContain(`🖼️ Image to share (PNG, hand-drawn): ${API}/api/diagram/image/s1?style=sketch&format=png`);
+    expect(text).toContain(`![diagram](${API}/api/diagram/image/s1?style=sketch&format=png)`);
+    expect(text).toContain(`${API}/api/diagram/image/s1?style=studio&format=png`);
+    const clean = formatPreviewLinks({ shareUrl: `${API}/share/s1`, imageStyle: 'studio' });
+    expect(clean).toContain('PNG, clean');
+    expect(clean).not.toContain('Clean style:');
+    expect(formatPreviewLinks({ diagramUrl: `${API}/editor?session=s1` })).not.toContain('Image to share');
+  });
+
   it('explains private (publish:false) and failed-link cases instead of staying silent', () => {
     expect(formatPreviewLinks({ privateByRequest: true })).toMatch(/publish:false/);
     expect(formatPreviewLinks({ linkError: 'HTTP 500' })).toMatch(/No preview link could be created: HTTP 500/);

@@ -11,6 +11,13 @@ const pollPairingSchema = z.object({
   pollToken: z.string().regex(/^adp_[A-Za-z0-9_-]{43}$/),
 });
 
+/** Project canvas backed by this agentic project, if any (live-project pairing). */
+async function linkedCanvasId(projectId: string | null) {
+  if (!projectId) return null;
+  const canvas = await prisma.userCanvas.findUnique({ where: { agenticProjectId: projectId }, select: { id: true } });
+  return canvas?.id ?? null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const raw = await request.json();
@@ -60,7 +67,12 @@ export async function POST(request: NextRequest) {
 
     if (pairing.status === 'completed') {
       return NextResponse.json(
-        { status: 'complete', projectId: pairing.projectId, workspaceId: pairing.workspaceId },
+        {
+          status: 'complete',
+          projectId: pairing.projectId,
+          workspaceId: pairing.workspaceId,
+          canvasId: await linkedCanvasId(pairing.projectId),
+        },
         { headers: { 'Cache-Control': 'no-store' } },
       );
     }
@@ -104,7 +116,12 @@ export async function POST(request: NextRequest) {
       });
       if (latest?.status === 'completed') {
         return NextResponse.json(
-          { status: 'complete', projectId: latest.projectId, workspaceId: latest.workspaceId },
+          {
+            status: 'complete',
+            projectId: latest.projectId,
+            workspaceId: latest.workspaceId,
+            canvasId: await linkedCanvasId(latest.projectId),
+          },
           { headers: { 'Cache-Control': 'no-store' } },
         );
       }
@@ -115,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { status: 'complete', ...delivery },
+      { status: 'complete', ...delivery, canvasId: await linkedCanvasId(delivery.projectId) },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {

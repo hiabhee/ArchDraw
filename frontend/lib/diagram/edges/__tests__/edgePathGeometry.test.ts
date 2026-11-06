@@ -34,4 +34,23 @@ describe('shared rendered edge path geometry', () => {
     expect(validateRenderedPath(cubic, [{ id: 'loop', rect: { x: 45, y: 70, width: 10, height: 10 } }], 0))
       .toContainEqual({ code: 'PATH_OBSTACLE_INTERSECTION', obstacleId: 'loop' });
   });
+  it('does not round a 180° spike into a stray tick', () => {
+    const path = buildEdgePathGeometry({
+      kind: 'orthogonal',
+      waypoints: [{ x: 108, y: 0 }, { x: 108, y: 112 }, { x: 130, y: 112 }, { x: 0, y: 112 }],
+      cornerRadius: 24,
+    });
+
+    expect(path.d).toBe('M 108,0 L 108,88 A 24,24 0 0,1 84,112 L 0,112');
+  });
+
+  it('treats subpixel drift on a straight run as straight, not a semicircle', () => {
+    const path = buildEdgePathGeometry({
+      kind: 'orthogonal',
+      waypoints: [{ x: 0, y: 100 }, { x: 200, y: 100 }, { x: 400, y: 100.4 }],
+      cornerRadius: 24,
+    });
+
+    expect(path.commands.some(command => command.kind === 'arc')).toBe(false);
+  });
 });

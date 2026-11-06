@@ -59,7 +59,7 @@ describe('hosted (stateless HTTP) mode', () => {
   });
 
   it('refuses stateful calls without a workingSessionId instead of sharing a default session', async () => {
-    const result = await callTool(memoryStore(), vi.fn(), 'validate_diagram', {});
+    const result = await callTool(memoryStore(), vi.fn(), 'update_diagram', {});
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/workingSessionId/);
   });
@@ -67,5 +67,48 @@ describe('hosted (stateless HTTP) mode', () => {
   it('rejects a workingSessionId that is not a UUID', async () => {
     const result = await callTool(memoryStore(), vi.fn(), 'get_diagram_state', { workingSessionId: 'default' });
     expect(result.isError).toBe(true);
+  });
+
+  describe('draw_on_canvas', () => {
+    it('is listed with a schema an agent can follow', async () => {
+      const request = new Request('https://archdraw.test/api/mcp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/list' }),
+      });
+      const response = await handleMcpHttpRequest(request, { sessionStore: memoryStore(), context: { apiBase: API, fetch: vi.fn() } });
+      const body = await response.json() as { result: { tools: Array<{ name: string; description: string; inputSchema: { required: string[]; properties: { ops: { items: { properties: { op: { enum: string[] } } } } } } }> } };
+      const tool = body.result.tools.find(t => t.name === 'draw_on_canvas')!;
+      expect(tool).toBeDefined();
+      expect(tool.inputSchema.required).toEqual(['ops']);
+      expect(tool.inputSchema.properties.ops.items.properties.op.enum).toEqual(expect.arrayContaining(['text', 'card', 'note', 'group', 'connect', 'move', 'align', 'distribute', 'remove', 'clear']));
+      expect(tool.description).toMatch(/ALL of them apply or NONE do/);
+    });
+
+    it('starts a canvas with no session id, then edits it by the id it returned', async () => {
+      const store = memoryStore();
+      const fetchImpl = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(json({ sessionId: 'd1', updateToken: 'dt1', revision: 1, previewSvg: '<svg/>' }))
+        .mockResolvedValueOnce(json({ sessionId: 'd1', revision: 2 }))
+        .mockResolvedValueOnce(json({ previewSvg: '<svg/>' }));
+
+      const first = await callTool(store, fetchImpl, 'draw_on_canvas', { ops: [{ op: 'card', id: 'c1', x: 10, y: 20 }] });
+      expect(first.isError).toBeFalsy();
+      expect(first.content[0].text).toContain('https://archdraw.test/share/d1');
+      const workingSessionId = first.structuredContent?.workingSessionId as string;
+      expect(workingSessionId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(store.data.get(workingSessionId)?.diagram?.nodes).toHaveLength(1);
+
+      const second = await callTool(store, fetchImpl, 'draw_on_canvas', { workingSessionId, ops: [{ op: 'update', id: 'c1', title: 'Written in' }, { op: 'text', text: 'note', x: 10, y: 200 }] });
+      expect(second.isError).toBeFalsy();
+      expect(store.data.get(workingSessionId)?.diagram?.nodes).toHaveLength(2);
+      expect(second.structuredContent?.canvas).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'c1', text: 'Written in' })]));
+    });
+
+    it('returns a usable error for a bad operation and for a missing id on an edit', async () => {
+      const bad = await callTool(memoryStore(), vi.fn(), 'draw_on_canvas', { ops: [{ op: 'connect', from: 'a', to: 'b' }] });
+      expect(bad.isError).toBe(true);
+      expect(bad.content[0].text).toMatch(/Operation 1 \(connect\)/);
+    });
   });
 });

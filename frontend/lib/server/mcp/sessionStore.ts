@@ -18,6 +18,31 @@ const MAX_CHECKPOINTS = 10;
 const MAX_SNAPSHOT_BYTES = 900_000; // Upstash request-size headroom
 const key = (id: string) => `mcp:working-session:${id}`;
 
+// The Upstash client retries a failed call for seconds; every tool call does a
+// load and a save, so a dead Redis would add that wait twice per call. Cap each
+// call and skip Redis for a while after a failure (same as the rate limiter).
+const REDIS_TIMEOUT_MS = 1_500;
+const REDIS_RETRY_AFTER_MS = 30_000;
+let redisDownUntil = 0;
+
+async function withRedis<T>(operation: () => Promise<T>): Promise<T> {
+  if (Date.now() < redisDownUntil) throw new Error('Redis recently unreachable');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Redis operation timeout')), REDIS_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (error) {
+    redisDownUntil = Date.now() + REDIS_RETRY_AFTER_MS;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const memory = new Map<string, { snapshot: WorkingSessionSnapshot; expiresAt: number }>();
 
 function fitSnapshot(snapshot: WorkingSessionSnapshot): WorkingSessionSnapshot | null {
@@ -49,7 +74,7 @@ export const mcpWorkingSessionStore: WorkingSessionStore = {
   async load(id) {
     if (validateRedisConfig()) {
       try {
-        const stored = await redis.get<WorkingSessionSnapshot>(key(id));
+        const stored = await withRedis(() => redis.get<WorkingSessionSnapshot>(key(id)));
         if (stored) return stored;
       } catch (error) {
         logger.warn('[MCP] Working-session load failed, using memory:', error instanceof Error ? error.message : error);
@@ -67,7 +92,7 @@ export const mcpWorkingSessionStore: WorkingSessionStore = {
     saveToMemory(id, fitted);
     if (!validateRedisConfig()) return;
     try {
-      await redis.set(key(id), fitted, { ex: TTL_SECONDS });
+      await withRedis(() => redis.set(key(id), fitted, { ex: TTL_SECONDS }));
     } catch (error) {
       logger.warn('[MCP] Working-session save failed, kept in memory:', error instanceof Error ? error.message : error);
     }

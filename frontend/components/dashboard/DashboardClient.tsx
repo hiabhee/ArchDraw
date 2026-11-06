@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen, ArrowRight } from 'lucide-react';
+import { Sparkles, Plus, FolderOpen, ChevronRight, GraduationCap, BookOpen } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -90,7 +90,8 @@ export function DashboardClient(_props: DashboardClientProps) {
       return bTime - aTime;
     });
 
-  const displayCanvases = searchQuery ? sortedCanvases : sortedCanvases.slice(0, 4);
+  // Every canvas, newest first: the account limit is small, so there is nothing to cut off.
+  const displayCanvases = sortedCanvases;
 
   // Dynamic formatting for relative time
   const getRelativeTime = (timestamp?: number) => {
@@ -151,19 +152,21 @@ export function DashboardClient(_props: DashboardClientProps) {
         {/* LEFT COLUMN: Metrics, Chart, and Projects */}
         <div className="space-y-6">
 
+          {/* New Canvas: first, so creating a diagram never means scrolling past the list */}
+          <button
+            onClick={() => handleNewCanvas()}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-brand/40 bg-brand/5 hover:bg-brand/10 hover:border-brand text-brand-text text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Canvas</span>
+          </button>
+
           {/* Projects List */}
           <div className="border border-border-default rounded-xl p-5 bg-surface-panel shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
             <div className="flex items-center justify-between mb-4 px-1">
               <h3 className="text-sm font-semibold text-text-primary">
                 {searchQuery ? 'Matching Diagrams' : 'Recent Diagrams'}
               </h3>
-              <button
-                onClick={() => router.push('/editor')}
-                className="text-xs font-semibold text-brand-text hover:text-brand-hover flex items-center gap-0.5 transition-colors cursor-pointer"
-              >
-                <span>View all</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
             </div>
 
             {displayCanvases.length > 0 ? (
@@ -179,8 +182,13 @@ export function DashboardClient(_props: DashboardClientProps) {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="min-w-0">
-                          <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-brand-text transition-colors">
-                            {canvas.name}
+                          <h4 className="flex items-center gap-2 text-sm font-medium text-text-primary group-hover:text-brand-text transition-colors">
+                            <span className="truncate">{canvas.name}</span>
+                            {canvas.agenticProjectId && (
+                              <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                                Live project
+                              </span>
+                            )}
                           </h4>
                           <p className="text-[11px] text-text-muted mt-0.5">
                             {nodeCount} components • {edgeCount} connections
@@ -209,7 +217,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                 {!searchQuery && (
                   <button
                     onClick={() => handleNewCanvas()}
-                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-[#1E90FF] hover:bg-[#4dabf7] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 bg-brand hover:bg-[#4dabf7] text-white text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Create Canvas</span>
@@ -218,15 +226,6 @@ export function DashboardClient(_props: DashboardClientProps) {
               </div>
             )}
           </div>
-
-          {/* Long New Canvas Button */}
-          <button
-            onClick={() => handleNewCanvas()}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border border-dashed border-[#1E90FF]/40 bg-[#1E90FF]/5 hover:bg-[#1E90FF]/10 hover:border-[#1E90FF] text-[#1E90FF] text-sm font-semibold transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.99]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Canvas</span>
-          </button>
         </div>
 
         {/* RIGHT COLUMN: Checklist and Limits */}
@@ -258,7 +257,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                     </div>
                     <button
                       onClick={item.onClick}
-                      className="px-3 py-1 bg-surface-page hover:bg-[#1E90FF] hover:text-white border border-border-default hover:border-[#1E90FF] text-[10px] font-semibold rounded-lg text-text-primary transition-all cursor-pointer select-none shrink-0"
+                      className="px-3 py-1 bg-surface-page hover:bg-brand hover:text-white border border-border-default hover:border-brand text-[10px] font-semibold rounded-lg text-text-primary transition-all cursor-pointer select-none shrink-0"
                     >
                       {item.action}
                     </button>
@@ -286,7 +285,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
-                    className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
+                    className="h-full bg-brand rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(((quotaData?.canvases.current ?? totalCanvases) / (tier === 'guest' ? 1 : 5)) * 100, 100)}%` }}
                   />
                 </div>
@@ -303,7 +302,7 @@ export function DashboardClient(_props: DashboardClientProps) {
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-page border border-border-default/60 overflow-hidden">
                   <div
-                    className="h-full bg-[#1E90FF] rounded-full transition-all duration-500"
+                    className="h-full bg-brand rounded-full transition-all duration-500"
                     style={{ width: `${quotaData?.aiGenerations.unlimited ? 100 : Math.min(((quotaData?.aiGenerations.used ?? 0) / aiLimit) * 100, 100)}%` }}
                   />
                 </div>
@@ -322,7 +321,7 @@ export function DashboardClient(_props: DashboardClientProps) {
 
           {/* Guest Upgrade Banner */}
           {tier === 'guest' && (
-            <div className="border border-[#1E90FF]/30 rounded-xl p-5 bg-[#1E90FF]/5 space-y-4">
+            <div className="border border-brand/30 rounded-xl p-5 bg-brand/5 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-text-primary">Unlock the Full Experience</h3>
                 <p className="text-[11px] text-text-muted mt-0.5">Sign in for free to get more features.</p>

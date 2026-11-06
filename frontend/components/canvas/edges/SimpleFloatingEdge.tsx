@@ -2,12 +2,14 @@
 
 import { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { EdgeLabelRenderer, EdgeProps, useReactFlow, useStore, ReactFlowState, Position, Edge } from 'reactflow';
-import { computeEdgeRoute } from '@/lib/diagram/edges/edgeRouteBuilder';
+import { EdgeLabelRenderer, EdgeProps, useReactFlow, useStore, useStoreApi, ReactFlowState, Position, Edge } from 'reactflow';
+import { computeEdgeRoute, routeEndsAt } from '@/lib/diagram/edges/edgeRouteBuilder';
+import { buildDragPreviewRoute } from '@/lib/diagram/edges/dragPreviewRoute';
+import { movesWithDrag } from '@/lib/diagram/edges/dragAttachment';
 import { getPointOnPath, findClosestT, shortenSvgPathEnd, SKETCH_ARROWHEAD_TRIM_PX } from '@/lib/diagram/edges/edgeLabelDrag';
 import { buildSmoothStepSvg, trimWaypointsEnd } from '@/lib/diagram/edges/collisionFreeEdgePath';
 import { composeEdgeDisplayLabel } from '@/lib/diagram/edges/edgeLabelLayout';
-import { useDiagramGeometryEdge } from './DiagramGeometryProvider';
+import { useDiagramDragging, useDiagramGeometryEdge } from './DiagramGeometryProvider';
 import { buildEdgePathGeometry } from '@/lib/diagram/edges/edgePathGeometry';
 import { buildDefaultOrthogonalWaypoints } from '@/lib/diagram/edges/handlerPairScorer';
 import type { EdgeRouteResult } from '@/lib/diagram/edges/edgeRouteBuilder';
@@ -58,6 +60,32 @@ function buildSolidArrowheadPath(
   return `M ${tip.x} ${tip.y} L ${left.x} ${left.y} L ${right.x} ${right.y} Z`;
 }
 
+/**
+ * Last route drawn for each edge. It is held while a node is dragged (see
+ * `freezeRoute`) and while a new plan is being computed after a change, so
+ * edges that did not move do not flash back to the placeholder shape.
+ */
+const lastRoutePerEdge = new Map<string, EdgeRouteResult>();
+
+/** The live route for an edge on a dragged node, from the two nodes' current boxes (undefined until both are measured). */
+function liveDragRoute(
+  internals: ReactFlowState['nodeInternals'],
+  source: string,
+  target: string,
+  direction: 'LR' | 'TD',
+) {
+  const rectOf = (id: string) => {
+    const node = internals.get(id);
+    if (!node || !node.width || !node.height) return undefined;
+    const at = node.positionAbsolute ?? node.position;
+    return { x: at.x, y: at.y, width: node.width, height: node.height };
+  };
+  const from = rectOf(source);
+  const to = rectOf(target);
+  return from && to ? buildDragPreviewRoute(from, to, direction) : undefined;
+}
+const routeKey = (id: string, source: string, target: string) => `${id}\u0000${source}\u0000${target}`;
+
 export default function SimpleFloatingEdge({
   id,
   source,
@@ -76,9 +104,12 @@ export default function SimpleFloatingEdge({
   targetHandleId,
   markerEnd,
 }: EdgeProps<EdgeData>) {
-  const nodeInternals = useStore((s: ReactFlowState) => s.nodeInternals);
+  // Node positions are read on demand, never subscribed to: a subscription would
+  // re-render every edge on every drag frame.
+  const rfStore = useStoreApi();
   const edges = useStore((s: ReactFlowState) => s.edges);
   const zoom = useStore((s: ReactFlowState) => s.transform[2]);
+  const nodeDragging = useDiagramDragging();
   const { getViewport } = useReactFlow();
   const { readOnly, direction, iconMode } = useCanvasView();
   const updateEdgeDataInStore = useDiagramStore((s) => s.updateEdgeData);
@@ -102,54 +133,64 @@ export default function SimpleFloatingEdge({
   const bundledEdges = data?.bundledEdges;
   const isDenseBundle = (data as Record<string, unknown>)?.isDenseBundle === true;
 
+  // While a node is dragged: edges that don't touch it keep their route (no work,
+  // no re-render); edges that do touch it draw the cheap placeholder. Every edge
+  // is routed once, when the drag ends.
+  // A node inside a dragged group counts too: React Flow flags only the group, but
+  // everything in it moves, so its edges must follow instead of staying behind.
+  const touchesDraggedNode = useStore((s: ReactFlowState) => {
+    const get = (id: string) => s.nodeInternals.get(id);
+    return movesWithDrag(get, source) || movesWithDrag(get, target);
+  });
+  const freezeRoute = nodeDragging && !touchesDraggedNode;
+  const attachedToDrag = nodeDragging && touchesDraggedNode;
+  // Changes once, when the drag ends, so routing re-runs then and not per frame.
+  const layoutStamp = useStore((s: ReactFlowState) => (nodeDragging ? null : s.nodeInternals));
+
   const route = useMemo(() => {
-    const planned = geometry.route;
+    // Re-route once the drag ends: this dependency changes only then.
+    void layoutStamp;
+    const held = lastRoutePerEdge.get(routeKey(id, source, target));
+    if (freezeRoute && held) return held;
+    const planned = attachedToDrag ? undefined : geometry.route;
     if (planned) return planned;
-    if (geometry.provisional) {
-      const edgeObj: Edge = {
-        id,
-        source,
-        target,
-        sourceHandle: sourceHandleId,
-        targetHandle: targetHandleId,
-        data,
-      } as Edge;
-      // Prefer a full local route whenever both terminals are measured —
-      // this covers viewers and first paint with real smoothstep routing
-      // (side scoring + obstacle avoidance), not just a naive placeholder.
-      try {
-        const internals = Array.from(nodeInternals.values());
-        if (internals.length >= 2 && nodeInternals.get(source) && nodeInternals.get(target)) {
-          return computeEdgeRoute(
-            edgeObj,
-            internals,
-            edges,
-            direction,
-            renderStyleId,
-            {
-              source: { x: _sourceX, y: _sourceY },
-              target: { x: _targetX, y: _targetY },
-            },
-            iconMode,
-          );
-        }
-      } catch {
-        // fall through to the orthogonal placeholder below
-      }
-      // Terminals not measured yet: render a proper smoothstep placeholder —
-      // never a straight diagonal — so first paint already matches the look.
+    // The plan is being recomputed (after a drop or an edit). An edge whose
+    // handles did not move keeps the route it had; only edges that did move
+    // fall back to the placeholder.
+    if (
+      geometry.provisional && !attachedToDrag && held &&
+      routeEndsAt(held, { x: _sourceX, y: _sourceY }, { x: _targetX, y: _targetY })
+    ) return held;
+    if (geometry.provisional || attachedToDrag) {
+      // The diagram-wide plan is still being computed (off the main thread).
+      // Don't route here: every node measurement re-renders every edge, and a
+      // full obstacle-aware route per edge per render froze the page on
+      // diagrams of ~50 nodes. Draw a smoothstep placeholder — never a
+      // straight diagonal — until the plan replaces it.
       const s = { x: _sourceX, y: _sourceY };
       const t = { x: _targetX, y: _targetY };
       let waypoints = [s, t];
+      let sourceSide = _sourcePosition;
+      let targetSide = _targetPosition;
       try {
-        const built = buildDefaultOrthogonalWaypoints(
-          s,
-          t,
-          _sourcePosition as unknown as Parameters<typeof buildDefaultOrthogonalWaypoints>[2],
-          _targetPosition as unknown as Parameters<typeof buildDefaultOrthogonalWaypoints>[3],
-          0,
-        );
-        if (built.length >= 2) waypoints = built;
+        // An edge on the node being dragged follows it live, and re-picks its sides
+        // from the two boxes as they move (so it swings round to the facing side
+        // instead of waiting for the drop). Others use the handle positions.
+        const live = attachedToDrag && source !== target ? liveDragRoute(rfStore.getState().nodeInternals, source, target, direction) : undefined;
+        if (live) {
+          waypoints = live.waypoints;
+          sourceSide = live.sourcePosition;
+          targetSide = live.targetPosition;
+        } else {
+          const built = buildDefaultOrthogonalWaypoints(
+            s,
+            t,
+            _sourcePosition as unknown as Parameters<typeof buildDefaultOrthogonalWaypoints>[2],
+            _targetPosition as unknown as Parameters<typeof buildDefaultOrthogonalWaypoints>[3],
+            0,
+          );
+          if (built.length >= 2) waypoints = built;
+        }
       } catch {
         // fall through with the direct endpoints
       }
@@ -157,12 +198,14 @@ export default function SimpleFloatingEdge({
       const path = { kind: 'orthogonal' as const, waypoints, cornerRadius: radius };
       const renderedPath = buildEdgePathGeometry(path);
       return {
-        sourcePosition: _sourcePosition, targetPosition: _targetPosition,
-        sourcePoint: waypoints[0], targetPoint: waypoints[1], waypoints,
+        sourcePosition: sourceSide, targetPosition: targetSide,
+        // The route's ends are its first and last points. The last is not waypoints[1]:
+        // that is the first bend, and the arrowhead and label sit at the target point.
+        sourcePoint: waypoints[0], targetPoint: waypoints[waypoints.length - 1], waypoints,
         svgPath: renderedPath.d, path, renderedPath, status: 'ok', violations: [], expandedStates: 0,
       } as EdgeRouteResult;
     }
-    const nodes = Array.from(nodeInternals.values());
+    const nodes = Array.from(rfStore.getState().nodeInternals.values());
     const edgeObj: Edge = {
       id,
       source,
@@ -188,10 +231,15 @@ export default function SimpleFloatingEdge({
     );
   }, [
     id, source, target, sourceHandleId, targetHandleId, data,
-    nodeInternals, edges, direction, renderStyleId, iconMode,
+    layoutStamp, rfStore, edges, direction, renderStyleId, iconMode,
     _sourceX, _sourceY, _targetX, _targetY, _sourcePosition, _targetPosition,
-    geometry.route, geometry.provisional,
+    geometry.route, geometry.provisional, freezeRoute, attachedToDrag,
   ]);
+
+  useEffect(() => {
+    if (!freezeRoute) lastRoutePerEdge.set(routeKey(id, source, target), route);
+  }, [id, source, target, route, freezeRoute]);
+  useEffect(() => () => { lastRoutePerEdge.delete(routeKey(id, source, target)); }, [id, source, target]);
 
   const {
     sourcePosition: _sourcePos,
@@ -221,9 +269,13 @@ export default function SimpleFloatingEdge({
 
   const intermediateWaypoints = useMemo(() => {
     const stored = data?.customWaypoints as Array<{ x: number; y: number }> | undefined;
-    if (!stored || stored.length === 0) return [];
-    return stored;
-  }, [data?.customWaypoints]);
+    if (stored && stored.length > 0) return stored;
+    // An auto-routed edge has no stored bends yet: offer its current bends as
+    // handles (the first drag stores them via ensureCustomWaypoints, which
+    // slices the same route), or the edge could never be reshaped.
+    if (readOnly) return [];
+    return route.waypoints.slice(1, -1);
+  }, [data?.customWaypoints, readOnly, route.waypoints]);
 
   const ensureCustomWaypoints = useCallback(() => {
     const currentCustom = useDiagramStore.getState().edges.find(e => e.id === id)?.data?.customWaypoints;
@@ -318,7 +370,8 @@ export default function SimpleFloatingEdge({
   const brutal = renderStyleId === 'neubrutalism';
   // Global label placement: pass render style so the neubrutalism pill (larger
   // + hard shadow + larger arrowhead) reserves more room from nodes/marker.
-  const labelLayout = geometry.label;
+  // A label placed on a route that is being dragged is stale until the drag ends.
+  const labelLayout = attachedToDrag ? undefined : geometry.label;
   const sketchInk = useMemo(
     () => (sketch || isStudioRenderStyle(renderStyleId))
       ? { primary: colors.edgePrimary, default: colors.edgeDefault, supporting: colors.edgeDefault, dep: colors.edgeDefault, async: colors.edgeAsync, stream: colors.edgePrimary, event: colors.edgeAsync }
@@ -329,9 +382,12 @@ export default function SimpleFloatingEdge({
   const strokeStyle: React.CSSProperties = useMemo(() => {
     const palette = resolveEdgePalette(data as Record<string, unknown> | undefined, isDark, sketch, sketchInk);
     let stroke = edgeStyle?.stroke || palette.stroke;
-    const baseWidth = brutal
+    // Summary edges (high-level view) stand for several calls: thicker per call.
+    const connectionCount = Number((data as Record<string, unknown> | undefined)?.connectionCount) || 1;
+    const weight = Math.min(connectionCount - 1, 4) * 0.6;
+    const baseWidth = (brutal
       ? (palette.isPrimary ? 3 : 2.75)
-      : (palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth);
+      : (palette.strokeWidth ?? DIAGRAM_CONSTANTS.edge.strokeWidth)) + weight;
 
     if (isBundle) {
       stroke = isDenseBundle ? '#475569' : '#94a3b8';
@@ -465,7 +521,10 @@ export default function SimpleFloatingEdge({
     [edges, source, target]
   );
   const labelOrder = Math.max(0, parallelEdges.findIndex((edge) => edge.id === id));
-  const labelT = data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
+  // Read-only hosts (watch page, detailed map, high-level view) can't save a
+  // moved label, so the move is kept locally for this view instead.
+  const [localLabelT, setLocalLabelT] = useState<number | null>(null);
+  const labelT = localLabelT ?? data?.labelT ?? (parallelEdges.length > 1 ? Math.max(0.2, Math.min(0.8, 0.5 + ((labelOrder - (parallelEdges.length - 1) / 2) * 0.15))) : 0.5);
 
   const labelPos = useMemo(() => {
     if (!displayLabel) return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
@@ -479,7 +538,8 @@ export default function SimpleFloatingEdge({
       }
     }
     const resolved = labelLayout;
-    if (resolved) {
+    // A label the user placed (`labelT`) is read straight from the edge: the plan is not rebuilt while it is dragged.
+    if (resolved && localLabelT === null && typeof data?.labelT !== 'number') {
       // The shared label planner routes without React Flow's measured handle
       // centers. Keep its collision-aware position along the edge, but sample
       // the path we actually render so the pill is centered on the visible wire.
@@ -493,7 +553,7 @@ export default function SimpleFloatingEdge({
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayout, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
+  }, [labelLayout, localLabelT, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill
@@ -529,7 +589,8 @@ export default function SimpleFloatingEdge({
         const flowX = (ev.clientX - vpX) / zoom;
         const flowY = (ev.clientY - vpY) / zoom;
         const newT = findClosestT(stableEdgePath, flowX, flowY);
-        if (useDiagramStore.getState().activeCanvasId) {
+        if (readOnly) setLocalLabelT(newT);
+        else if (useDiagramStore.getState().activeCanvasId) {
           updateEdgeData(id, { labelT: newT });
         }
       };
@@ -551,7 +612,7 @@ export default function SimpleFloatingEdge({
         window.removeEventListener('mouseup', onMouseUp);
       };
     },
-    [stableEdgePath, getViewport, id, labelEditing, updateEdgeData]
+    [stableEdgePath, getViewport, id, labelEditing, readOnly, updateEdgeData]
   );
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -596,8 +657,12 @@ export default function SimpleFloatingEdge({
         data-geometry-status={route.status}
         fill="none"
         strokeDasharray={sketch && route.status === 'ok' ? undefined : strokeStyle.strokeDasharray}
-        className="react-flow__edge-path"
-        style={sketch && route.status === 'ok' ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : strokeStyle}
+        // Only dashed edges flow (globals.css): moving a solid edge's dash
+        // offset shows nothing but repaints the edge layer every frame.
+        className={!(sketch && route.status === 'ok') && strokeStyle.strokeDasharray && strokeStyle.strokeDasharray !== 'none' ? 'react-flow__edge-path arch-edge-flow' : 'react-flow__edge-path'}
+        // Inline `none` for solid edges: React Flow's `.animated` rule would otherwise dash every edge,
+        // hiding the solid (call) vs dashed (async) distinction.
+        style={sketch && route.status === 'ok' ? { stroke: 'transparent', strokeWidth: 0, opacity: 0, pointerEvents: 'none' } : { ...strokeStyle, strokeDasharray: strokeStyle.strokeDasharray ?? 'none' }}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleEdgeDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
@@ -650,6 +715,7 @@ export default function SimpleFloatingEdge({
       {(displayLabel || labelEditing) && (
         <EdgeLabelRenderer>
           <div
+            data-edge-label={id}
             onMouseDown={handleLabelMouseDown}
             onDoubleClick={(e) => {
               e.stopPropagation();

@@ -17,6 +17,10 @@ import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/icons/bran
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import { STUDIO_SCALE, STUDIO_SUBTITLE_PX, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
+
+/** A length from the original 64px Studio card, scaled to today's card. */
+const S = (px: number) => Math.round(px * STUDIO_SCALE);
 import {
   applyShapeSurface,
   getRenderStyle,
@@ -47,6 +51,7 @@ import {
 } from '@/lib/theme/renderStyles';
 import {
   escapeXml,
+  svgFontFamily,
   hexToRgba,
 } from './svgPrimitives';
 import type {
@@ -203,7 +208,7 @@ export function renderSystemNode(
           <text
             x="32" y="16"
             fill="${titleColor}"
-            font-family="${hand}"
+            font-family="${svgFontFamily(hand)}"
             font-size="15"
             font-weight="${sketch ? 500 : 600}"
             letter-spacing="${sketch ? '0.015em' : '-0.015em'}"
@@ -214,7 +219,7 @@ export function renderSystemNode(
           x="16" y="${height - 14}"
           fill="${subtitleColor}"
           fill-opacity="0.7"
-          font-family="${hand}"
+          font-family="${svgFontFamily(hand)}"
           font-size="11"
           font-weight="400"
           letter-spacing="0.01em"
@@ -250,8 +255,8 @@ export function renderSystemNode(
         <text
           x="30" y="15"
           fill="${nodeTitle}"
-          font-family="${font}"
-          font-size="16.2"
+          font-family="${svgFontFamily(font)}"
+          font-size="${studio ? 18.5 : 16.2}"
           font-weight="700"
           letter-spacing="-0.02em"
         >${escapeXml(data.label || 'Service')}</text>
@@ -260,7 +265,7 @@ export function renderSystemNode(
       <text
         x="16" y="${height - 13}"
         fill="${nodeSubtitle}"
-        font-family="${font}"
+        font-family="${svgFontFamily(font)}"
         font-size="11"
         font-weight="500"
       >${escapeXml(String(data.subtitle))}</text>` : ''}
@@ -292,8 +297,8 @@ export function renderSystemNode(
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
         ${icon ? `${iconWell}<g transform="translate(16, 14)">${icon}</g>` : ''}
-        <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${selectedTitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="16.2" font-weight="600">${escapeXml(data.label || 'Service')}</text>
-        ${data.subtitle ? `<text x="${textX}" y="47" fill="${selectedSubtitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="10.5">${escapeXml(String(data.subtitle))}</text>` : ''}
+        <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${selectedTitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="${STUDIO_TITLE_PX}" font-weight="600">${escapeXml(data.label || 'Service')}</text>
+        ${data.subtitle ? `<text x="${textX}" y="47" fill="${selectedSubtitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="12.5">${escapeXml(String(data.subtitle))}</text>` : ''}
         ${showStatus ? `<circle cx="${width - 13}" cy="${height - 13}" r="3" fill="${statusColor}" />` : ''}
       </g>
     `.trim();
@@ -321,7 +326,7 @@ export function renderSystemNode(
           x="30" y="15"
           fill="${titleColor}"
           font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
-          font-size="16.2"
+          font-size="${studio ? 18.5 : 16.2}"
           font-weight="600"
           letter-spacing="-0.015em"
         >${escapeXml(data.label || 'Service')}</text>
@@ -331,11 +336,27 @@ export function renderSystemNode(
         x="14" y="${height - 12}"
         fill="${subtitleColor}"
         font-family="Inter, IBM Plex Sans, system-ui, -apple-system, sans-serif"
-        font-size="10.5"
+        font-size="${studio ? 12.5 : 10.5}"
         font-weight="400"
       >${escapeXml(String(data.subtitle))}</text>` : ''}
       ${showStatus ? `
       <circle cx="${width - 14}" cy="${height - 14}" r="3" fill="${statusColor}" />` : ''}
+    </g>
+  `.trim();
+}
+
+/** A pasted picture or preview: a framed image with its caption. */
+export function renderImageNode(node: SystemNodeRenderData, isDark: boolean): string {
+  const { x, y, width, height, data } = node;
+  const { src, caption } = data as unknown as { src?: string; caption?: string };
+  const safe = typeof src === 'string' && /^(https?:|data:image\/)/i.test(src) ? src : undefined;
+  const stroke = isDark ? '#475569' : '#cbd5e1';
+  const captionH = caption ? 22 : 0;
+  return `
+    <g transform="translate(${x}, ${y})">
+      <rect width="${width}" height="${height}" rx="8" fill="${isDark ? '#0f172a' : '#ffffff'}" stroke="${stroke}" />
+      ${safe ? `<image href="${escapeXml(safe)}" x="4" y="4" width="${width - 8}" height="${height - 8 - captionH}" preserveAspectRatio="xMidYMid meet" />` : ''}
+      ${caption ? `<text x="10" y="${height - 8}" fill="${isDark ? '#94a3b8' : '#64748b'}" font-family="Inter, system-ui, sans-serif" font-size="11">${escapeXml(caption)}</text>` : ''}
     </g>
   `.trim();
 }
@@ -500,6 +521,7 @@ export function renderGroupNode(
                (data as { label?: string })?.label || '';
 
   const tagText = isDark ? hexToRgba(groupColor, 0.9) : groupColor;
+  const studioZone = isStudioRenderStyle(renderStyleId) && !sketch && !brutal;
 
   let zone = '';
   if (sketch) {
@@ -529,6 +551,14 @@ export function renderGroupNode(
         rx="8" ry="8"
         filter="url(#${shadowId})"
       />`;
+  } else if (studioZone) {
+    // Mirrors GroupNode: a 1px dashed border inside a 16px-radius tinted box.
+    const w = selected ? 1.5 : 1;
+    zone = `
+      <rect x="${w / 2}" y="${w / 2}" width="${width - w}" height="${height - w}" rx="${16 - w / 2}" ry="${16 - w / 2}"
+        fill="${isDark ? hexToRgba(groupColor, 0.10) : hexToRgba(groupColor, 0.055)}"
+        stroke="${selected ? groupColor : isDark ? hexToRgba(groupColor, 0.46) : hexToRgba(groupColor, 0.34)}"
+        stroke-width="${w}" stroke-dasharray="${3 * w} ${3 * w}" />`;
   } else {
     zone = `
       <rect
@@ -544,11 +574,12 @@ export function renderGroupNode(
   return `
     <g transform="translate(${x}, ${y})">
       ${zone}
-      ${label ? `
+      ${label && studioZone ? `
+      <text x="19" y="32" fill="${isDark ? '#cbd5e1' : '#52627a'}" font-family="${svgFontFamily(getRenderStyle(renderStyleId).fonts.title)}" font-size="13" font-weight="600" letter-spacing="0.52">${escapeXml(label)}</text>` : label ? `
       <text
         x="12" y="20"
         fill="${brutal ? brutalBorder : tagText}"
-        font-family="${sketch ? getRenderStyle('sketch').fonts.title : brutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, Roboto, system-ui, -apple-system, sans-serif'}"
+        font-family="${svgFontFamily(sketch ? getRenderStyle('sketch').fonts.title : brutal ? 'Space Grotesk, Inter, system-ui, sans-serif' : 'Inter, Roboto, system-ui, -apple-system, sans-serif')}"
         font-size="${sketch ? 15 : brutal ? 12 : 11}"
         font-weight="${brutal ? 700 : 500}"
         letter-spacing="${brutal ? '0.02em' : sketch ? '0.02em' : '0.04em'}"
@@ -664,34 +695,34 @@ export function renderShapeNode(
   const subtitleY = H / 2 + 12;
   const fontFamily = getRenderStyle(renderStyleId).fonts.title;
   // Sketch subtitles read as penciled secondary text — lighter, smaller, muted.
-  const titleFontSize = sketch ? 18 : 16.2;  // Increased from 14 for better prominence
-  const subtitleFontSize = sketch ? 11 : 10.5;  // Reduced from 11.5 for better hierarchy
+  const titleFontSize = sketch ? 18 : studio ? STUDIO_TITLE_PX : 16.2;  // Increased from 14 for better prominence
+  const subtitleFontSize = sketch ? 11 : studio ? STUDIO_SUBTITLE_PX : 10.5;  // Reduced from 11.5 for better hierarchy
   const subtitleFillOpacity = sketch ? 0.7 : 1;  // Reduced from 0.75 for more subtlety
 
   if (studio) {
     const showIcon = resolveNodeIconVisibility(iconMode, shapeData.showIcon);
     const icon = showIcon ? studioIconSvg(shapeData, color, isDark, !!selected) : '';
     const stackIcon = Boolean(icon) && shouldStackLabelVertically(W, STUDIO_ICON_WELL_PX);
-    const iconX = stackIcon ? (W - STUDIO_ICON_WELL_PX) / 2 : 6;
-    const contentHeight = STUDIO_ICON_WELL_PX + (title ? 18 : 0) + (subtitle ? 14 : 0);
-    const iconY = stackIcon ? Math.max(4, (H - contentHeight) / 2) : 8;
-    const textX = icon && !stackIcon ? iconX + STUDIO_ICON_WELL_PX + 8 : W / 2;
-    const titleY = stackIcon ? iconY + STUDIO_ICON_WELL_PX + 17 : subtitle ? 29 : 39;
-    const subtitleY = stackIcon ? titleY + 14 : 47;
+    const iconX = stackIcon ? (W - STUDIO_ICON_WELL_PX) / 2 : S(6);
+    const contentHeight = STUDIO_ICON_WELL_PX + (title ? S(18) : 0) + (subtitle ? S(14) : 0);
+    const iconY = stackIcon ? Math.max(S(4), (H - contentHeight) / 2) : S(8);
+    const textX = icon && !stackIcon ? iconX + STUDIO_ICON_WELL_PX + S(8) : W / 2;
+    const titleY = stackIcon ? iconY + STUDIO_ICON_WELL_PX + S(17) : subtitle ? S(29) : S(39);
+    const subtitleY = stackIcon ? titleY + S(14) : S(47);
     const iconWell = isDark && selected
-      ? `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="11" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-opacity="0.4" />`
-      : `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="11" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" />`;
+      ? `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-opacity="0.4" />`
+      : `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" />`;
     const iconGlyphX = iconX + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
     const iconGlyphY = iconY + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
     return `
       <g transform="translate(${x}, ${y})">
-        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : ''}
+        ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : `<rect x="0" y="0" width="${W}" height="${H}" rx="16" fill="#000" filter="url(#archdraw-studio-shadow)" />`}
         ${body}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
         ${icon ? `${iconWell}<g transform="translate(${iconGlyphX}, ${iconGlyphY})">${icon}</g>` : ''}
-        ${title ? `<text x="${textX}" y="${titleY}" fill="${titleColor}" font-family="${fontFamily}" font-size="16.2" font-weight="600" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
-        ${subtitle ? `<text x="${textX}" y="${subtitleY}" fill="${subtitleColor}" font-family="${fontFamily}" font-size="10.5" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
+        ${title ? `<text x="${textX}" y="${titleY}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="600" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(title)}</text>` : ''}
+        ${subtitle ? `<text x="${textX}" y="${subtitleY}" fill="${subtitleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_SUBTITLE_PX}" text-anchor="${icon && !stackIcon ? 'start' : 'middle'}">${escapeXml(subtitle)}</text>` : ''}
       </g>
     `.trim();
   }
@@ -703,7 +734,7 @@ export function renderShapeNode(
       <text
         x="${W / 2}" y="${titleY}"
         fill="${titleColor}"
-        font-family="${fontFamily}"
+        font-family="${svgFontFamily(fontFamily)}"
         font-size="${titleFontSize}"
         font-weight="${sketch ? 500 : brutal ? 700 : 600}"
         text-anchor="middle"
@@ -714,7 +745,7 @@ export function renderShapeNode(
         x="${W / 2}" y="${subtitleY}"
         fill="${subtitleColor}"
         fill-opacity="${subtitleFillOpacity}"
-        font-family="${fontFamily}"
+        font-family="${svgFontFamily(fontFamily)}"
         font-size="${subtitleFontSize}"
         font-weight="400"
         text-anchor="middle"

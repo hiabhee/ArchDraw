@@ -1,4 +1,5 @@
 import type { Edge, Node } from 'reactflow';
+import { nodeSize, nodeTopLeft } from './nodeBox';
 
 export interface AlignmentGuide {
   orientation: 'v' | 'h';
@@ -17,16 +18,9 @@ const DEFAULT_THRESHOLD = 8;
 const EDGE_STRAIGHT_THRESHOLD = 12;
 
 function getNodeBounds(n: Node) {
-  const w = n.width ?? (n.data as { nodeWidth?: number })?.nodeWidth ?? (n.style as { width?: number })?.width ?? 200;
-  const h = n.height ?? (n.data as { nodeHeight?: number })?.nodeHeight ?? (n.style as { height?: number })?.height ?? 88;
-  const x = n.position.x;
-  const y = n.position.y;
-  // For children of groups, position is parent-relative. For guide calc we need absolute.
-  // Caller should provide already-absolute nodes; we handle parent walk if needed via positionAbsolute.
-  const absX = (n as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? x;
-  const absY = (n as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.y ?? y;
-  // If node is inside group, its absolute is groupAbs + relative; but reactflow node.positionAbsolute is already absolute.
-  // Fallback: use absX/absY if available, else x/y.
+  const { width: w, height: h } = nodeSize(n);
+  // Children of groups have parent-relative positions; guides need absolute ones.
+  const { x: absX, y: absY } = nodeTopLeft(n);
   return {
     left: absX,
     right: absX + w,
@@ -53,13 +47,9 @@ export function computeAlignmentGuides(
   draggedIds: Set<string> = new Set([(dragged as Node).id ?? '__bbox__'])
 ): SnapResult {
   // Normalize dragged to bounds
-  const dW = (dragged as Node).width ?? (dragged as { width: number }).width ?? 200;
-  const dH = (dragged as Node).height ?? (dragged as { height: number }).height ?? 88;
-  const dX = dragged.position.x;
-  const dY = dragged.position.y;
-  // If dragged has positionAbsolute, use it (more accurate for nested groups)
-  const dAbsX = (dragged as unknown as { positionAbsolute?: { x: number; y: number } }).positionAbsolute?.x ?? dX;
-  const dAbsY = (dragged as unknown as { positionAbsolute?: { y: number } }).positionAbsolute?.y ?? dY;
+  const { width: dW, height: dH } = nodeSize(dragged as Node);
+  // Absolute corner: positionAbsolute is more accurate for nested groups.
+  const { x: dAbsX, y: dAbsY } = nodeTopLeft(dragged as Node);
 
   const dragAnchorsX = { left: dAbsX, centerX: dAbsX + dW / 2, right: dAbsX + dW };
   const dragAnchorsY = { top: dAbsY, centerY: dAbsY + dH / 2, bottom: dAbsY + dH };
@@ -76,18 +66,23 @@ export function computeAlignmentGuides(
     const thX = isEdgeConnected ? EDGE_STRAIGHT_THRESHOLD : threshold;
     const thY = isEdgeConnected ? EDGE_STRAIGHT_THRESHOLD : threshold;
     const priority = isEdgeConnected ? 0 : 1; // edge-connected snaps win (straight edge)
-    // Vertical (x) alignments
+    // Vertical (x) alignments. As on the y axis, connected nodes meet their edge
+    // at the centre, so they line up centre-to-centre only.
     for (const [dk, dv] of Object.entries(dragAnchorsX)) {
       for (const [ok, ov] of Object.entries({ left: o.left, centerX: o.centerX, right: o.right })) {
+        if (isEdgeConnected && (dk !== 'centerX' || ok !== 'centerX')) continue;
         const delta = ov - dv;
         if (Math.abs(delta) < thX) {
           xCandidates.push({ delta, position: ov, key: `v-${ov}-${dk}-${ok}`, priority });
         }
       }
     }
-    // Horizontal (y)
+    // Horizontal (y). Connected nodes meet their edge at the vertical centre
+    // (the handle), so they line up centre-to-centre only; matching tops or
+    // bottoms would leave the centres apart when the heights differ.
     for (const [dk, dv] of Object.entries(dragAnchorsY)) {
       for (const [ok, ov] of Object.entries({ top: o.top, centerY: o.centerY, bottom: o.bottom })) {
+        if (isEdgeConnected && (dk !== 'centerY' || ok !== 'centerY')) continue;
         const delta = ov - dv;
         if (Math.abs(delta) < thY) {
           yCandidates.push({ delta, position: ov, key: `h-${ov}-${dk}-${ok}`, priority });

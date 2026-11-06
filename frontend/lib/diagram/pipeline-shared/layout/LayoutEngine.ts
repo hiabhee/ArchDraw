@@ -58,6 +58,15 @@ export interface LayoutOptions {
   paddingBottom?: number;
   paddingLeft?: number;
   paddingRight?: number;
+  /** Top-level groups are flow stages: keep them in rank order (no sidecar lanes). */
+  flowAreas?: boolean;
+  /** Place branches around the most connected component instead of in rank columns (falls back when there is no hub). */
+  zones?: boolean;
+  /**
+   * `false` skips the settle passes (symmetry, even columns, column order): the raw
+   * Dagre layout, much faster, for callers that only need its size and shape.
+   */
+  settle?: boolean;
 }
 
 export interface LayoutParams {
@@ -97,6 +106,9 @@ export interface LayoutEngine {
  * 2-node demos compact while giving 10-15 node architectures clear flow,
  * still centering mirrored sub-trees (e.g. Leader → 2 Followers).
  */
+/** From this many nodes the density bump is skipped (fit-to-screen text size matters more). */
+const LARGE_GRAPH_NODES = 20;
+
 export function defaultCompoundLayoutOptions(
   direction: RankDirection,
   density?: { edgeCount?: number; nodeCount?: number },
@@ -124,7 +136,9 @@ export function defaultCompoundLayoutOptions(
   // Density trigger: either many edges or high edge-to-node ratio (>1.6 signals web)
   const densityScore = Math.max(edgeCount, Math.round((edgeCount / Math.max(1, nodeCount)) * 10));
   const effectiveCount = edgeCount > 10 || densityScore > 16 ? edgeCount : 0;
-  if (effectiveCount > 10) {
+  if (nodeCount >= LARGE_GRAPH_NODES) {
+    // Big graphs already sprawl: extra air per edge only shrinks them on screen.
+  } else if (effectiveCount > 10) {
     const extraEdges = effectiveCount - 10;
     const nodeExtra = Math.min(30, extraEdges * 6);
     const rankExtra = Math.min(60, extraEdges * 10);
@@ -153,11 +167,16 @@ export function defaultCompoundLayoutOptions(
  * diagrams, which take the two-phase path, would pack ranks as if labels had
  * zero size and drop labels onto nodes.
  */
+/** Label pills are reserved at their CSS size; the old 1.5x worst case doubled rank gaps on labelled graphs. */
+const LABEL_RESERVE_SCALE = 1;
+/** Room along the flow for the arrowhead and its handle (about 24px) and a visible stretch of line either side of the pill. */
+const LABEL_ALONG_CLEARANCE = 56;
+
 export function estimateEdgeLabelSize(label: string | undefined): { width: number; height: number } {
   if (!label) return { width: 0, height: 0 };
   // Reserve for the larger brutal pill (worst case): 6.2px per char + 16 padding, 15px height, 1.5x counter-scale
   const cssWidth = Math.max(38, label.length * 6.2 + 16);
-  return { width: cssWidth * 1.5, height: 15 * 1.5 };
+  return { width: cssWidth * LABEL_RESERVE_SCALE, height: 15 * LABEL_RESERVE_SCALE };
 }
 
 const IMPORTANCE_WEIGHT: Record<LayoutEdgeImportance, number> = {
@@ -192,6 +211,11 @@ export function isInfrastructureServiceType(serviceType?: string): boolean {
  * and how strongly a candidate layout is judged on crossings.
  */
 export function getLayoutEdgeWeight(edge: LayoutEdge): number {
+  // A caller-declared feedback edge (e.g. back to an earlier stage) never
+  // ranks, whatever importance the classifier inferred for it.
+  if (edge.flowRole === 'feedback' && edge.flowRoleSource === 'explicit' && edge.importanceSource !== 'explicit') {
+    return IMPORTANCE_WEIGHT.diagnostic;
+  }
   // A primary relationship is semantic backbone intent. Infrastructure and
   // async metadata describe transport, not a reason to demote that intent.
   if (edge.importance === 'primary') return IMPORTANCE_WEIGHT.primary;
@@ -227,8 +251,14 @@ export function getLayoutEdgeWeight(edge: LayoutEdge): number {
   return weight;
 }
 
-/** Combine parallel relationships into one Dagre constraint while reserving room for every label. */
-export function aggregateLayoutEdges(edges: LayoutEdge[]): AggregatedLayoutEdge[] {
+/**
+ * Combine parallel relationships into one Dagre constraint while reserving room for every label.
+ * Parallel labels sit side by side across the flow, so across the flow their sizes add up and
+ * along the flow only the widest counts. Left to right, the flow runs along x: summing label
+ * widths there reserved 450px of empty rank gap for five stacked labels.
+ */
+export function aggregateLayoutEdges(edges: LayoutEdge[], direction: RankDirection = 'TB'): AggregatedLayoutEdge[] {
+  const horizontal = direction === 'LR' || direction === 'RL';
   const pairs = new Map<string, AggregatedLayoutEdge>();
   for (const edge of edges) {
     if (!edge.source || !edge.target || edge.source === edge.target) continue;
@@ -237,14 +267,26 @@ export function aggregateLayoutEdges(edges: LayoutEdge[]): AggregatedLayoutEdge[
     const weight = getLayoutEdgeWeight(edge);
     const previous = pairs.get(key);
     if (previous) {
-      previous.width += labelSize.width + (previous.width > 0 && labelSize.width > 0 ? 12 : 0);
-      previous.height = Math.max(previous.height, labelSize.height);
+      if (horizontal) {
+        previous.width = Math.max(previous.width, labelSize.width);
+        previous.height += labelSize.height + (previous.height > 0 && labelSize.height > 0 ? 8 : 0);
+      } else {
+        previous.width += labelSize.width + (previous.width > 0 && labelSize.width > 0 ? 12 : 0);
+        previous.height = Math.max(previous.height, labelSize.height);
+      }
       previous.weight = Math.max(previous.weight, weight);
     } else {
       pairs.set(key, { ...edge, width: labelSize.width, height: labelSize.height, weight });
     }
   }
-  return [...pairs.values()];
+  // A label also needs the arrowhead and a margin on both sides of the pill: reserving
+  // only the pill left labels touching the marker on a short edge.
+  return [...pairs.values()].map(edge => {
+    if (edge.width <= 0 && edge.height <= 0) return edge;
+    return horizontal
+      ? { ...edge, width: edge.width + LABEL_ALONG_CLEARANCE }
+      : { ...edge, height: edge.height + LABEL_ALONG_CLEARANCE };
+  });
 }
 
 /**

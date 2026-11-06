@@ -104,7 +104,7 @@ function TutorialSystemNodeWrapper(props: NodeProps<NodeData>) {
 
   return (
     <div
-      className={`${isHighlighted === 'source' ? 'ring-2 ring-gray-500 ring-offset-2 ring-offset-white' : ''} ${isHighlighted === 'target' ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white' : ''} rounded-lg transition-all duration-300`}
+      className={`${isHighlighted === 'source' ? 'ring-2 ring-gray-500 ring-offset-2 ring-offset-white' : ''} ${isHighlighted === 'target' ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white' : ''} rounded-lg transition duration-300`}
       style={{
         boxShadow: isHighlighted === 'source' ? '0 0 20px rgba(107,114,128,0.4), inset 0 0 15px rgba(107,114,128,0.1)' :
                    isHighlighted === 'target' ? '0 0 20px rgba(16,185,129,0.4), inset 0 0 15px rgba(16,185,129,0.1)' : 'none',

@@ -60,20 +60,34 @@ Several top-level folders are configuration for AI coding assistants, not produc
 
 To maintain design system integrity, all UI components, dashboard chrome elements, navigation shells, inputs, buttons, and landing page elements must use the centralized Tailwind CSS v4 custom color classes.
 
+### One palette, one guard
+
+- **Where colors live:** `frontend/app/globals.css`. The dark theme and the landing page share one night palette (`--night-page`, `--night-panel`, `--night-card`, `--night-line`, `--night-ink`, `--night-muted`, ...) and two signal colors (`--signal-attention` for "needs you", `--signal-star` for a working agent). Landing CSS modules read these; they never redefine them.
+- **Brand blue** has three jobs, each its own token, all passing WCAG AA: `bg-brand` is a fill under white text (4.78:1), `text-brand-text` is the blue for text and links (7.8:1 on the night surfaces, 4.5:1+ on light), and `hover:bg-brand-hover` is darker, never lighter. Borders and rings use `border-brand` / `ring-brand`, tints `bg-brand/10`. Never a raw `#1E90FF`.
+- **A guard enforces it:** `frontend/lib/theme/__tests__/designSystemGuard.test.ts` counts raw hex values and raw Tailwind palette classes (`bg-slate-500`) per area of `components/` and `app/`, and fails if an area uses more than its baseline. When you replace some with tokens, lower that area's number in the test. Never raise one: add the color to `globals.css` first.
+- **Not covered, on purpose:** `lib/theme` (canvas themes, SVG/PNG export, chart colors): exported images cannot use CSS variables.
+
+### Motion
+
+- **One vocabulary.** `app/globals.css` defines `--ease-out` (entrances, hovers, anything the user triggers), `--ease-in-out` (state changes, ambient loops) and `--dur-fast/base/slow` (150 / 220 / 480ms). Every Tailwind `transition*` utility already defaults to the out curve at 220ms, so write `transition`, not a custom curve. In CSS use `var(--ease-out)`; framer-motion uses `[0.16, 1, 0.3, 1]`.
+- **Animate only what composites:** opacity and transform. Never `transition-all` (it animates layout and drops frames): use `transition`, `transition-colors` or `transition-transform`. Keep `transition-all` only where width or height must animate (progress bars), with a comment.
+- **Blur is for small text only.** Animating a `filter` on a large layer drops frames; `LandingReveal` has `blur` off by default.
+- **Reduced motion is handled globally** (`globals.css`: no glide, no decorative movement; spinners keep turning). Anchor links glide and land below the fixed nav (`scroll-padding-top`).
+
 ### Color palette tokens
 
 Always use these semantic classes rather than ad-hoc hex values (`#5e6ad2`, `#828fff`, etc.) or raw HSL bindings (`hsl(var(--card))`).
 
 | Semantic Token | Tailwind Class | Light Mode Value | Dark Mode Value |
 | :--- | :--- | :--- | :--- |
-| Canvas / Page | `bg-surface-page` | `#f7f7f5` | `#090b0d` |
-| Sidebar / Drawer | `bg-surface-panel` | `#ffffff` | `#121620` |
-| Node / Card Wrapper | `bg-surface-card` | `#ffffff` | `#1e2235` |
-| Secondary Border | `border-border` | `#e4e4df` | `#202327` |
-| Heavy Separator / Ring | `border-border-strong` | `#cbd5e1` | `#3f444c` |
-| Title / Primary Text | `text-text-primary` | `#1c1c1a` | `#f7f8f8` |
-| Body / Secondary Text | `text-text-secondary` | `#575752` | `#d0d6e0` |
-| Subtext / Muted | `text-text-muted` | `#8a8f98` | `#8a8f98` |
+| Canvas / Page | `bg-surface-page` | `#f7f7f5` | `#07080a` |
+| Sidebar / Drawer | `bg-surface-panel` | `#ffffff` | `#0c0e11` |
+| Node / Card Wrapper | `bg-surface-card` | `#ffffff` | `#131518` |
+| Secondary Border | `border-border` | `#e4e4df` | `#1f2124` |
+| Heavy Separator / Ring | `border-border-strong` | `#cbd5e1` | `#3a3c40` |
+| Title / Primary Text | `text-text-primary` | `#1c1c1a` | `#ece9e2` |
+| Body / Secondary Text | `text-text-secondary` | `#575752` | `#c9c5bc` |
+| Subtext / Muted | `text-text-muted` | `#8a8f98` | `#94918a` |
 | Brand Primary CTA | `bg-accent` / `text-accent` | `#5e6ad2` | `#5e6ad2` |
 | Brand Hover State | `bg-accent-hover` / `text-accent-hover` | `#4752b4` | `#828fff` |
 | Subtle Interactive Bg | `bg-accent-bg` | `rgba(94, 106, 210, 0.08)` | `rgba(130, 143, 255, 0.12)` |

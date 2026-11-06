@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import { AUTO_CANVAS_NAMES } from '@/lib/diagram/canvas/canvasNames';
 import { toast } from 'sonner';
 import { componentRegistry } from '@/lib/component-library/componentRegistry';
 import type { DiagramState, CanvasTab } from '../types';
@@ -18,6 +19,8 @@ export type CanvasSlice = Pick<
   | 'cloudProvider'
   | 'getRandomAnimalName'
   | 'addCanvas'
+  | 'isActiveCanvasLiveProject'
+  | 'openTabIfLiveProject'
   | 'duplicateCanvas'
   | 'removeCanvas'
   | 'switchCanvas'
@@ -47,10 +50,7 @@ export const createCanvasSlice: StateCreator<
   cloudProvider: 'off',
 
   getRandomAnimalName: () => {
-    const animals = [
-      'Elephant', 'Lion', 'Panda', 'Tiger', 'Falcon', 'Shark', 'Wolf', 'Fox', 'Bear', 'Eagle',
-      'Owl', 'Hawk', 'Dolphin', 'Penguin', 'Zebra', 'Giraffe', 'Leopard', 'Jaguar', 'Panther', 'Cheetah',
-    ];
+    const animals = AUTO_CANVAS_NAMES;
     const usedNames = get().canvases.map((c) => c.name);
     const available = animals.filter((a) => !usedNames.includes(a));
     if (available.length > 0) {
@@ -68,7 +68,7 @@ export const createCanvasSlice: StateCreator<
     const { canvases, openCanvasIds, getRandomAnimalName, userProfile } = get();
     const isGuest = !userProfile || userProfile.id === 'guest';
     if (isGuest) {
-      const guestCanvases = canvases.filter((c) => c.id.startsWith('guest-canvas'));
+      const guestCanvases = canvases.filter((c) => c.id.startsWith('guest-'));
       if (guestCanvases.length >= MAX_GUEST_CANVASES) {
         toast.error(`Guests can have up to ${MAX_GUEST_CANVASES} canvases. Delete one to create a new canvas.`);
         return get().activeCanvasId || 'guest-canvas';
@@ -135,6 +135,18 @@ export const createCanvasSlice: StateCreator<
     return newCanvas.id;
   },
 
+  isActiveCanvasLiveProject: () => {
+    const { canvases, activeCanvasId } = get();
+    return Boolean(canvases.find((c) => c.id === activeCanvasId)?.agenticProjectId);
+  },
+
+  openTabIfLiveProject: () => {
+    const { isActiveCanvasLiveProject, addCanvas, activeCanvasId } = get();
+    if (!isActiveCanvasLiveProject()) return true;
+    // addCanvas returns the active id unchanged when it refuses (canvas limit).
+    return addCanvas() !== activeCanvasId;
+  },
+
   duplicateCanvas: (id: string) => {
     const { canvases, openCanvasIds, userProfile } = get();
     const isGuest = !userProfile || userProfile.id === 'guest';
@@ -195,7 +207,7 @@ export const createCanvasSlice: StateCreator<
     const { canvases, activeCanvasId, openCanvasIds, userProfile } = get();
     const isGuest = !userProfile || userProfile.id === 'guest';
     if (isGuest) {
-      const guestCanvases = canvases.filter((c) => c.id.startsWith('guest-canvas'));
+      const guestCanvases = canvases.filter((c) => c.id.startsWith('guest-'));
       if (guestCanvases.length <= 1) {
         const replacementId = guestCanvases[0]?.id || 'guest-canvas';
         const replacement: CanvasTab = {
@@ -262,7 +274,8 @@ export const createCanvasSlice: StateCreator<
   switchCanvas: async (id) => {
     const { canvases, activeCanvasId, openCanvasIds, userProfile } = get();
     const isGuest = !userProfile || userProfile.id === 'guest';
-    if (isGuest && !id.startsWith('guest-canvas')) {
+    // Guest canvases are 'guest-canvas' (legacy default) or 'guest-<uuid>' (addCanvas).
+    if (isGuest && !id.startsWith('guest-')) {
       return;
     }
     if (id === activeCanvasId) return;

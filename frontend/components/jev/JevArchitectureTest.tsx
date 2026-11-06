@@ -232,7 +232,7 @@ export function JevArchitectureTest() {
       <div className="mx-auto max-w-7xl">
         <header className="mb-10 flex flex-col gap-6 border-b border-border-default pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand-text">
               <Activity className="size-3.5" aria-hidden="true" /> Decision laboratory
             </div>
             <h1 className="font-serif text-4xl leading-none tracking-tight sm:text-5xl">Judged, two ways.</h1>
@@ -282,7 +282,7 @@ export function JevArchitectureTest() {
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-text-muted">01 / Input</p>
               <h2 className="mt-2 text-xl font-semibold">{isTwoStage ? 'Describe what you want to build' : 'Describe the system as it exists'}</h2>
             </div>
-            <Network className="size-6 text-brand" aria-hidden="true" />
+            <Network className="size-6 text-brand-text" aria-hidden="true" />
           </div>
 
           <form className="mt-6" onSubmit={onSubmit}>
@@ -317,7 +317,7 @@ export function JevArchitectureTest() {
                   key={scenario.name}
                   type="button"
                   onClick={() => setArchitecture(scenario.text)}
-                  className="rounded-full border border-border-default px-3 py-1.5 text-xs font-medium text-text-secondary transition hover:border-brand hover:bg-brand-bg hover:text-brand"
+                  className="rounded-full border border-border-default px-3 py-1.5 text-xs font-medium text-text-secondary transition hover:border-brand hover:bg-brand-bg hover:text-brand-text"
                 >
                   {scenario.name}
                 </button>
@@ -519,7 +519,7 @@ function TwoStageSection({ payload }: { payload: TwoStagePayload }) {
               {Object.entries(classification.decisions ?? {}).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between rounded-lg border border-border-default bg-surface-page px-3 py-2">
                   <span className="text-xs font-medium text-text-secondary">{CLASSIFICATION_LABELS[key] ?? key}</span>
-                  <span className="rounded-full bg-brand-bg px-2.5 py-1 text-xs font-semibold text-brand">{decisionLabel(value)}</span>
+                  <span className="rounded-full bg-brand-bg px-2.5 py-1 text-xs font-semibold text-brand-text">{decisionLabel(value)}</span>
                 </div>
               ))}
               {Object.keys(classification.decisions ?? {}).length === 0 ? (

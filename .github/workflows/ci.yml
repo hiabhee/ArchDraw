@@ -74,3 +74,15 @@ jobs:
 
       - name: Test
         run: npm test
+
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test archdraw-live CLI and plugin hook script
+        run: node --test cli/lib/*.test.mjs plugins/archdraw/scripts/*.test.mjs

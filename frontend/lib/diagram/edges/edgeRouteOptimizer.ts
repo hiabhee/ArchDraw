@@ -44,7 +44,73 @@ function edgeKey(edge: Edge): string {
 }
 
 const properCross = (a: RenderedEdgePath, b: RenderedEdgePath) => getRenderedPathInteraction(a, b).crossing;
-const privateOverlapLength = (a: RenderedEdgePath, b: RenderedEdgePath) => getRenderedPathInteraction(a, b).privateOverlap;
+
+type Pt = { x: number; y: number };
+
+const samePoint = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) <= 1;
+/** Anchors this close are one point: a near-aligned link is snapped to a straight line (< 8px) and so starts a few px off its siblings. */
+const sameAnchor = (p: Pt, q: Pt) => Math.hypot(p.x - q.x, p.y - q.y) < 8;
+
+/**
+ * Length two routes share while they run together from the same point: each leg
+ * both start on, axis-aligned in the same direction, counts for the shorter of
+ * the two; the run ends where either route turns away or the legs end apart.
+ */
+function sharedRun(wa: readonly Pt[], wb: readonly Pt[]): number {
+  let total = 0;
+  for (let i = 1; i < Math.min(wa.length, wb.length); i++) {
+    const a0 = wa[i - 1], a1 = wa[i], b0 = wb[i - 1], b1 = wb[i];
+    if (!sameAnchor(a0, b0)) break;
+    const horizontal = Math.abs(a0.y - a1.y) < 0.5 && Math.abs(b0.y - b1.y) < 0.5 && Math.sign(a1.x - a0.x) === Math.sign(b1.x - b0.x);
+    const vertical = Math.abs(a0.x - a1.x) < 0.5 && Math.abs(b0.x - b1.x) < 0.5 && Math.sign(a1.y - a0.y) === Math.sign(b1.y - b0.y);
+    if (!horizontal && !vertical) break;
+    total += Math.min(Math.hypot(a1.x - a0.x, a1.y - a0.y), Math.hypot(b1.x - b0.x, b1.y - b0.y));
+    if (!samePoint(a1, b1)) break;
+  }
+  return total;
+}
+
+/**
+ * Edges out of the same point share their whole common trunk, and edges into
+ * the same point their whole common run into it (a fan-out or fan-in bus ending
+ * in separate arrows). That is a merge, not an overlap: without this, the
+ * third edge of a fan-out is pushed into a side lane and hooks into its target.
+ */
+function sharedTerminalLegs(a: EdgeRouteResult, b: EdgeRouteResult): number {
+  const wa = a.waypoints, wb = b.waypoints;
+  if (wa.length < 2 || wb.length < 2) return 0;
+  // Same start and same end (parallel edges between one pair): they must stay apart.
+  if (samePoint(wa[0], wb[0]) && samePoint(wa[wa.length - 1], wb[wb.length - 1])) return 0;
+  return sharedRun(wa, wb) + sharedRun([...wa].reverse(), [...wb].reverse());
+}
+
+/** Parallel segments closer than this run on top of each other. */
+const COLLINEAR_GAP = 3;
+
+/**
+ * Exact length two orthogonal routes run on top of each other, from their
+ * waypoints. The rendered-path check samples only a few points per path, so a
+ * long shared vertical run (several edges on one bus) can fall between samples.
+ */
+function collinearOverlap(a: EdgeRouteResult, b: EdgeRouteResult): number {
+  let total = 0;
+  const wa = a.waypoints, wb = b.waypoints;
+  for (let i = 1; i < wa.length; i++) for (let j = 1; j < wb.length; j++) {
+    const p = wa[i - 1], q = wa[i], r = wb[j - 1], t = wb[j];
+    if (Math.abs(p.y - q.y) < 0.5 && Math.abs(r.y - t.y) < 0.5 && Math.abs(p.y - r.y) <= COLLINEAR_GAP) {
+      total += Math.max(0, Math.min(Math.max(p.x, q.x), Math.max(r.x, t.x)) - Math.max(Math.min(p.x, q.x), Math.min(r.x, t.x)));
+    } else if (Math.abs(p.x - q.x) < 0.5 && Math.abs(r.x - t.x) < 0.5 && Math.abs(p.x - r.x) <= COLLINEAR_GAP) {
+      total += Math.max(0, Math.min(Math.max(p.y, q.y), Math.max(r.y, t.y)) - Math.max(Math.min(p.y, q.y), Math.min(r.y, t.y)));
+    }
+  }
+  return total;
+}
+
+/** Overlap between two routes that is not an intentional shared terminal leg. */
+function privateOverlapLength(a: EdgeRouteResult, b: EdgeRouteResult): number {
+  const overlap = Math.max(getRenderedPathInteraction(a.renderedPath, b.renderedPath).privateOverlap, collinearOverlap(a, b));
+  return overlap > 0 ? Math.max(0, overlap - sharedTerminalLegs(a, b)) : 0;
+}
 
 function boundsMayInteract(a: RenderedEdgePath, b: RenderedEdgePath): boolean {
   const gap = 4;
@@ -67,7 +133,7 @@ function conflictsWithRoutes(
     if (!other) continue;
     const sharesNode = [edge.source, edge.target].some(nodeId => nodeId === other.source || nodeId === other.target);
     if (!sharesNode && properCross(route.renderedPath, otherRoute.renderedPath)) return true;
-    if (privateOverlapLength(route.renderedPath, otherRoute.renderedPath) > 10) return true;
+    if (privateOverlapLength(route, otherRoute) > 10) return true;
   }
   return false;
 }
@@ -91,12 +157,13 @@ function globalCost(edges: readonly Edge[], routes: ReadonlyMap<string, EdgeRout
   }
   for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
     const left = edges[i], right = edges[j];
-    const a = routes.get(left.id)?.renderedPath, b = routes.get(right.id)?.renderedPath;
-    if (!a || !b) continue;
+    const ra = routes.get(left.id), rb = routes.get(right.id);
+    if (!ra || !rb) continue;
+    const a = ra.renderedPath, b = rb.renderedPath;
     if (!boundsMayInteract(a, b)) continue;
     const sharesNode = [left.source, left.target].some(id => id === right.source || id === right.target);
     if (!sharesNode && properCross(a, b)) cost += CROSSING_COST;
-    const overlap = privateOverlapLength(a, b);
+    const overlap = privateOverlapLength(ra, rb);
     cost += Math.ceil(overlap / 10) * SHARED_PRIVATE_COST_PER_10PX;
   }
   return cost;
@@ -111,7 +178,7 @@ function hasRouteConflicts(edges: readonly Edge[], routes: ReadonlyMap<string, E
       if (!otherRoute || !boundsMayInteract(route.renderedPath, otherRoute.renderedPath)) continue;
       const sharesNode = [edge.source, edge.target].some(id => id === otherEdge.source || id === otherEdge.target);
       if (!sharesNode && properCross(route.renderedPath, otherRoute.renderedPath)) return true;
-      if (privateOverlapLength(route.renderedPath, otherRoute.renderedPath) > 10) return true;
+      if (privateOverlapLength(route, otherRoute) > 10) return true;
     }
   }
   return false;
@@ -126,7 +193,7 @@ function incrementalCost(edge: Edge, route: EdgeRouteResult, fixed: ReadonlyMap<
     if (!boundsMayInteract(route.renderedPath, otherRoute.renderedPath)) continue;
     const sharesNode = [edge.source, edge.target].some(nodeId => nodeId === other.source || nodeId === other.target);
     if (!sharesNode && properCross(route.renderedPath, otherRoute.renderedPath)) cost += CROSSING_COST;
-    cost += Math.ceil(privateOverlapLength(route.renderedPath, otherRoute.renderedPath) / 10) * SHARED_PRIVATE_COST_PER_10PX;
+    cost += Math.ceil(privateOverlapLength(route, otherRoute) / 10) * SHARED_PRIVATE_COST_PER_10PX;
   }
   return cost;
 }
@@ -247,12 +314,13 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
   const diagnostics: RouteOptimizationResult['diagnostics'][number][] = [];
   for (let i = 0; i < input.edges.length; i++) for (let j = i + 1; j < input.edges.length; j++) {
     const a = input.edges[i], b = input.edges[j];
-    const pathA = routes.get(a.id)?.renderedPath, pathB = routes.get(b.id)?.renderedPath;
-    if (!pathA || !pathB) continue;
+    const routeA = routes.get(a.id), routeB = routes.get(b.id);
+    if (!routeA || !routeB) continue;
+    const pathA = routeA.renderedPath, pathB = routeB.renderedPath;
     if (!boundsMayInteract(pathA, pathB)) continue;
     const sharesNode = [a.source, a.target].some(id => id === b.source || id === b.target);
     if (!sharesNode && properCross(pathA, pathB)) diagnostics.push({ edgeId: a.id, otherEdgeId: b.id, kind: 'crossing' });
-    const overlap = privateOverlapLength(pathA, pathB);
+    const overlap = privateOverlapLength(routeA, routeB);
     if (overlap > 10) diagnostics.push({ edgeId: a.id, otherEdgeId: b.id, kind: 'private-overlap', amount: overlap });
   }
   return { routes, diagnostics, stats: { candidateRoutes, ripUpPasses, expandedStates } };

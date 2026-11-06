@@ -16,6 +16,8 @@ import { createEdgeEditSlice } from './diagram/slices/edgeEditSlice';
 import { createGraphSlice } from './diagram/slices/graphSlice';
 import { registerFitViewCallback } from './diagram/fitView';
 import { installCanvasAutoSave } from './diagram/persistence/autoSave';
+import { installAuthSync } from './diagram/authSync';
+import { onAppTheme } from '@/lib/theme/themeBridge';
 
 export type { GuideLine, NodeData, CanvasTab, UserProfile } from './diagram/types';
 export { registerFitViewCallback };
@@ -75,9 +77,15 @@ if (typeof window !== 'undefined') {
     if (installed) return;
     installed = true;
     installCanvasAutoSave(useDiagramStoreRaw);
+    // After rehydration, so the persisted profile and canvases are in place before sign-in merges into them.
+    installAuthSync(useDiagramStoreRaw);
   };
   if (useDiagramStoreRaw.persist.hasHydrated()) install();
   else useDiagramStoreRaw.persist.onFinishHydration(install);
+  // store.darkMode mirrors the app theme (next-themes, via ThemeProvider).
+  onAppTheme((isDark) => {
+    if (useDiagramStoreRaw.getState().darkMode !== isDark) useDiagramStoreRaw.setState({ darkMode: isDark });
+  });
 }
 
 export const useDiagramStore = Object.assign(

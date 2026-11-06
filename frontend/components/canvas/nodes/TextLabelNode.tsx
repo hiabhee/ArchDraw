@@ -1,7 +1,8 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState, useMemo, useLayoutEffect } from 'react';
-import { NodeProps, useUpdateNodeInternals } from 'reactflow';
+import { NodeProps, NodeToolbar, Position, useUpdateNodeInternals } from 'reactflow';
+import { Trash2 } from 'lucide-react';
 import { NodeHandles } from '@/components/canvas/nodes/NodeHandles';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
@@ -9,6 +10,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import {
   TEXT_LABEL_FONT_SIZE,
   TEXT_LABEL_FONT_WEIGHT,
+  TEXT_LABEL_SWATCHES,
   estimateTextNodeSize,
   resolveTextLabelColor,
   type TextSize,
@@ -39,7 +41,98 @@ function resolveTextLabelContent(data: TextLabelNodeData): string {
   return typeof raw === 'string' ? raw : '';
 }
 
-function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
+const STYLE_SIZES: TextSize[] = ['small', 'medium', 'large', 'heading'];
+const SIZE_LETTER: Record<TextSize, string> = { small: 'S', medium: 'M', large: 'L', heading: 'H' };
+
+const STYLE_BUTTON =
+  'h-7 min-w-7 px-1.5 inline-flex items-center justify-center rounded-md text-xs font-semibold select-none transition-colors duration-150';
+const STYLE_BUTTON_IDLE = 'text-text-secondary hover:bg-muted hover:text-text-primary';
+const STYLE_BUTTON_ON = 'bg-brand/15 text-brand-text ring-1 ring-brand/40';
+
+interface TextLabelStyleBarProps {
+  size: TextSize;
+  bold: boolean;
+  color: string;
+  onSize: (size: TextSize) => void;
+  onBold: () => void;
+  onColor: (color: string) => void;
+  onDelete: () => void;
+}
+
+/**
+ * Floating style bar shown above a selected text label (Excalidraw-style).
+ * Token-only colors so it reads on both the light and the night canvas.
+ */
+function TextLabelStyleBar({ size, bold, color, onSize, onBold, onColor, onDelete }: TextLabelStyleBarProps) {
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <div
+      role="toolbar"
+      aria-label="Text style"
+      className="nodrag nopan flex items-center gap-0.5 rounded-lg border border-border bg-surface-panel px-1.5 py-1 shadow-lg ring-1 ring-black/10"
+      onMouseDown={stop}
+      onClick={stop}
+      onDoubleClick={stop}
+    >
+      <button
+        type="button"
+        aria-pressed={bold}
+        title="Bold (Cmd+B)"
+        onClick={onBold}
+        className={`${STYLE_BUTTON} font-bold ${bold ? STYLE_BUTTON_ON : STYLE_BUTTON_IDLE}`}
+      >
+        B
+      </button>
+      <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
+      {STYLE_SIZES.map((option) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={size === option}
+          title={option.charAt(0).toUpperCase() + option.slice(1)}
+          onClick={() => onSize(option)}
+          className={`${STYLE_BUTTON} ${size === option ? STYLE_BUTTON_ON : STYLE_BUTTON_IDLE}`}
+        >
+          {SIZE_LETTER[option]}
+        </button>
+      ))}
+      <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
+      {TEXT_LABEL_SWATCHES.map((swatch) => {
+        const active = (color || '') === swatch.color;
+        return (
+          <button
+            key={swatch.id}
+            type="button"
+            aria-pressed={active}
+            title={swatch.label}
+            onClick={() => onColor(swatch.color)}
+            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 hover:bg-muted ${
+              active ? 'ring-1 ring-brand/60 bg-brand/10' : ''
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`block h-3.5 w-3.5 rounded-full border border-black/10 ${swatch.color ? '' : 'bg-text-primary'}`}
+              style={swatch.color ? { backgroundColor: swatch.color } : undefined}
+            />
+          </button>
+        );
+      })}
+      <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
+      <button
+        type="button"
+        title="Delete (Del)"
+        aria-label="Delete text"
+        onClick={onDelete}
+        className={`${STYLE_BUTTON} ${STYLE_BUTTON_IDLE} hover:text-destructive`}
+      >
+        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function TextLabelNodeComponent({ id, data, selected }: NodeProps<TextLabelNodeData>) {
   const updateNodeInternals = useUpdateNodeInternals();
   const { isDark } = useCanvasTheme();
   const resolvedText = resolveTextLabelContent(data);
@@ -91,6 +184,16 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
       useDiagramStore.getState().updateNodeData(id, patch);
     },
     [id, readOnly],
+  );
+
+  /** Style-bar changes are undoable: one history step per click, then the persisted patch. */
+  const applyStyle = useCallback(
+    (patch: Partial<TextLabelNodeData>) => {
+      if (readOnly) return;
+      // updateNodeData records the undo step itself.
+      persistTextLabel(patch);
+    },
+    [persistTextLabel, readOnly],
   );
 
   const syncNodeDimensions = useCallback(
@@ -250,9 +353,30 @@ function TextLabelNodeComponent({ id, data }: NodeProps<TextLabelNodeData>) {
         height: 'fit-content',
       }}
       onDoubleClick={startEdit}
-      className="text-label-node"
+      className={`text-label-node${selected && !editing ? ' rounded-md ring-1 ring-brand/50' : ''}`}
     >
       <NodeHandles handleStyle={handleStyle} nodeId={id} />
+
+      {selected && !editing && !readOnly && (
+        <NodeToolbar isVisible position={Position.Top} offset={12}>
+          <TextLabelStyleBar
+            size={currentSize}
+            bold={isBold}
+            color={data.color ?? ''}
+            onSize={(size) => {
+              setCurrentSize(size);
+              applyStyle({ fontSize: size });
+              syncNodeDimensions(resolvedText, size);
+            }}
+            onBold={() => {
+              setIsBold(!isBold);
+              applyStyle({ bold: !isBold });
+            }}
+            onColor={(color) => applyStyle({ color })}
+            onDelete={() => useDiagramStore.getState().deleteSelected()}
+          />
+        </NodeToolbar>
+      )}
 
       {editing ? (
         <div

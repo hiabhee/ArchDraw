@@ -15,6 +15,13 @@ export interface DiagramGeometryOptions {
   iconMode?: NodeIconMode;
   handleAnchors?: ReadonlyMap<string, EdgeRouteHandleAnchors>;
   revision?: string | number;
+  /**
+   * Leave a dragged label's position (`data.labelT`) out of the snapshot key.
+   * The canvas sets it so moving one label does not invalidate the plan and
+   * send every edge back to its provisional route; the edge reads `labelT`
+   * itself. Exports keep the full key.
+   */
+  ignoreLabelPosition?: boolean;
 }
 
 export interface DiagramGeometryPlan {
@@ -154,6 +161,12 @@ function countBends(route: EdgeRouteResult): number {
   return bends;
 }
 
+function withoutLabelPosition(data: unknown): unknown {
+  if (!data || typeof data !== 'object' || !('labelT' in data)) return data;
+  const { labelT: _labelT, ...rest } = data as Record<string, unknown>;
+  return rest;
+}
+
 export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes)): string {
   return JSON.stringify([
     options.revision ?? 0,
@@ -161,7 +174,7 @@ export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: Diagr
     options.renderStyleId ?? '',
     options.iconMode ?? '',
     nodes.map(node => [node.id, node.type, node.parentNode, (node as Node & { parentId?: string }).parentId, bounds.get(node.id), node.data]),
-    edges.map(edge => [edge.id, edge.source, edge.target, edge.sourceHandle, edge.targetHandle, edge.label, edge.data, edge.style]),
+    edges.map(edge => [edge.id, edge.source, edge.target, edge.sourceHandle, edge.targetHandle, edge.label, options.ignoreLabelPosition ? withoutLabelPosition(edge.data) : edge.data, edge.style]),
     [...(options.handleAnchors ?? new Map()).entries()],
   ]);
 }
