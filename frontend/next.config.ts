@@ -76,7 +76,9 @@ const nextConfig: NextConfig = {
   compress: true,
   // Hosted MCP endpoint: load the server package natively so its widget HTML
   // (read via import.meta.url) resolves from node_modules at runtime.
-  serverExternalPackages: ['@hiabhee/archdraw-mcp-server'],
+  serverExternalPackages: ['@hiabhee/archdraw-mcp-server', '@resvg/resvg-js'],
+  // PNG images draw text with these bundled fonts, read from disk at request time.
+  outputFileTracingIncludes: { '/api/diagram/image/[sessionId]': ['./assets/fonts/**'] },
   transpilePackages: [],
   // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
   // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion
