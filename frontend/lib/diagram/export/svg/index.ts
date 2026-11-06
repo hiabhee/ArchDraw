@@ -12,7 +12,7 @@ import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import { metallicSurfaceGradientSvgDefs } from '@/lib/theme/renderStyles/studioMetallic';
 import { getEffectiveNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
-import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
+import { calculateBounds, extendBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
 import { renderSystemNode, renderTextLabel, renderImageNode, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
 import { renderEdge } from './renderEdges';
 import type { SystemNodeRenderData, EdgeRenderData } from './types';
@@ -82,7 +82,60 @@ export function generatePureSVG(
     (a, b) => nodeDepth(a, nodeMap) - nodeDepth(b, nodeMap),
   );
 
-  const bounds = calculateBounds(preparedNodes);
+  // Every connection is drawn, as on the canvas: a request and its response (A to B and B to A)
+  // are two edges with their own labels and lanes, not one merged edge.
+  const processedEdges: Edge[] = [];
+  const processedEdgeIds = new Set<string>();
+  for (const edge of edges) {
+    if (processedEdgeIds.has(edge.id)) continue;
+    processedEdgeIds.add(edge.id);
+    processedEdges.push(edge);
+  }
+
+  // Routing must use nodes with parent relationships intact so passable groups
+  // (ancestors of source/target) are correctly identified. preparedNodes has
+  // parents cleared and absolute positions - using it makes every group look
+  // like an obstacle, causing the export to route around Compute Tier etc.
+  // Build routingNodes that keep parents but have correct effective dimensions.
+  const routingNodes: Node[] = nodes.map((node) => {
+    const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
+    let w: number | undefined;
+    let h: number | undefined;
+    if (!isText && !isGroup) {
+      const eff = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
+      w = eff.width;
+      h = eff.height;
+    } else {
+      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? undefined;
+      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? undefined;
+    }
+    return {
+      ...node,
+      ...(w !== undefined ? { width: w } : {}),
+      ...(h !== undefined ? { height: h } : {}),
+    } as Node;
+  });
+
+  const geometry = getCachedDiagramGeometryPlan(routingNodes, processedEdges, {
+    direction: layoutDirection,
+    renderStyleId,
+    iconMode,
+    revision: 'svg-export',
+  });
+
+  const nodeBounds = calculateBounds(preparedNodes);
+  // The image has to hold every connection and label as well as the cards: a route that detours
+  // around the diagram (long edges between distant groups) would otherwise be cut off at the edge.
+  const routePoints: Array<{ x: number; y: number }> = [];
+  for (const route of geometry.routes.values()) {
+    if (route.path.kind === 'orthogonal') routePoints.push(...route.path.waypoints);
+    else routePoints.push(route.path.start, route.path.control1, route.path.control2, route.path.end);
+  }
+  for (const label of geometry.labels.values()) {
+    routePoints.push({ x: label.x - 90, y: label.y - 24 }, { x: label.x + 90, y: label.y + 24 });
+  }
+  const bounds = extendBounds(nodeBounds, routePoints, 24);
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
 
@@ -137,48 +190,6 @@ export function generatePureSVG(
       nodeElements.push(renderSystemNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
     }
   }
-
-  // Every connection is drawn, as on the canvas: a request and its response (A to B and B to A)
-  // are two edges with their own labels and lanes, not one merged edge.
-  const processedEdges: Edge[] = [];
-  const processedEdgeIds = new Set<string>();
-  for (const edge of edges) {
-    if (processedEdgeIds.has(edge.id)) continue;
-    processedEdgeIds.add(edge.id);
-    processedEdges.push(edge);
-  }
-
-  // Routing must use nodes with parent relationships intact so passable groups
-  // (ancestors of source/target) are correctly identified. preparedNodes has
-  // parents cleared and absolute positions - using it makes every group look
-  // like an obstacle, causing the export to route around Compute Tier etc.
-  // Build routingNodes that keep parents but have correct effective dimensions.
-  const routingNodes: Node[] = nodes.map((node) => {
-    const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
-    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
-    let w: number | undefined;
-    let h: number | undefined;
-    if (!isText && !isGroup) {
-      const eff = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
-      w = eff.width;
-      h = eff.height;
-    } else {
-      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? undefined;
-      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? undefined;
-    }
-    return {
-      ...node,
-      ...(w !== undefined ? { width: w } : {}),
-      ...(h !== undefined ? { height: h } : {}),
-    } as Node;
-  });
-
-  const geometry = getCachedDiagramGeometryPlan(routingNodes, processedEdges, {
-    direction: layoutDirection,
-    renderStyleId,
-    iconMode,
-    revision: 'svg-export',
-  });
 
   for (const edge of processedEdges) {
     const sourceNode = routingNodes.find((n) => n.id === edge.source);

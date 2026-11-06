@@ -62,3 +62,20 @@ export function calculateBounds(nodes: Node[]): { minX: number; minY: number; ma
     maxY: maxY + padding,
   };
 }
+
+/** `bounds` grown to hold `points`, with `margin` px of room beyond the outermost one. */
+export function extendBounds(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  points: ReadonlyArray<{ x: number; y: number }>,
+  margin: number,
+): { minX: number; minY: number; maxX: number; maxY: number } {
+  let { minX, minY, maxX, maxY } = bounds;
+  for (const point of points) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+    minX = Math.min(minX, point.x - margin);
+    minY = Math.min(minY, point.y - margin);
+    maxX = Math.max(maxX, point.x + margin);
+    maxY = Math.max(maxY, point.y + margin);
+  }
+  return { minX, minY, maxX, maxY };
+}
