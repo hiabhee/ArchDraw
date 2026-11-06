@@ -196,6 +196,7 @@ async function buildExportSvg(
     state.diagramStyleTheme,
     state.iconMode,
     resolveSvgCanvasBackground(state.canvasBackground, state.showGrid, isDark, element),
+    reactFlowRef.instance?.getZoom?.(),
   );
   return inlineBrandImages(svg, requireBrandImages);
 }

@@ -36,6 +36,8 @@ export function generatePureSVG(
   colorThemeId: DiagramThemeId | string | null = 'default',
   iconMode: NodeIconMode = 'all',
   canvasBackground?: SvgCanvasBackground,
+  /** The canvas zoom the diagram is seen at; edge labels are scaled by it as the canvas scales them. */
+  viewZoom?: number,
 ): string {
   const aesthetics = resolveCanvasTokens({ renderStyleId, colorThemeId, isDark });
   const rawNodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -98,6 +100,11 @@ export function generatePureSVG(
   const studioSurfaceDefs = isStudioRenderStyle(renderStyleId) && aesthetics.render.nodeMaterial !== 'metallic'
     ? `<defs>${buildShadowFilter('archdraw-studio-shadow', aesthetics.colors.shadow)}</defs>`
     : '';
+  // The canvas counter-scales edge labels by the zoom, clamped to 0.85 to 1.4 (SimpleFloatingEdge),
+  // so they stay readable when the diagram is zoomed out. Without a known zoom, assume the diagram is
+  // fitted to a 1280x720 view, which is how a shared or exported diagram is usually seen.
+  const fitZoom = viewZoom && viewZoom > 0 ? viewZoom : Math.max(0.1, Math.min(1, 1280 / Math.max(1, width), 720 / Math.max(1, height)));
+  const labelScale = Math.min(1.4, Math.max(0.85, 1 / fitZoom));
   const nodeElements: string[] = [];
   const edgeElements: string[] = [];
   const metallicSurfaceDefs = aesthetics.render.nodeMaterial === 'metallic'
@@ -131,44 +138,14 @@ export function generatePureSVG(
     }
   }
 
+  // Every connection is drawn, as on the canvas: a request and its response (A to B and B to A)
+  // are two edges with their own labels and lanes, not one merged edge.
   const processedEdges: Edge[] = [];
   const processedEdgeIds = new Set<string>();
-
   for (const edge of edges) {
     if (processedEdgeIds.has(edge.id)) continue;
-
-    const source = edge.source;
-    const target = edge.target;
-
-    const forward = edges.filter((e) => e.source === source && e.target === target);
-    const reverse = edges.filter((e) => e.source === target && e.target === source);
-    const isBidirectional = forward.length > 0 && reverse.length > 0;
-
-    if (isBidirectional) {
-      const group = [...forward, ...reverse].sort((a, b) => a.id.localeCompare(b.id));
-      const leader = group[0];
-
-      for (const e of group) {
-        processedEdgeIds.add(e.id);
-      }
-
-      const combinedLabel = group
-        .map((e) => e.data?.label?.trim())
-        .filter(Boolean)
-        .join(' / ');
-
-      processedEdges.push({
-        ...leader,
-        data: {
-          ...leader.data,
-          label: combinedLabel || undefined,
-          isBidirectional: true,
-        },
-      });
-    } else {
-      processedEdgeIds.add(edge.id);
-      processedEdges.push(edge);
-    }
+    processedEdgeIds.add(edge.id);
+    processedEdges.push(edge);
   }
 
   // Routing must use nodes with parent relationships intact so passable groups
@@ -247,7 +224,7 @@ export function generatePureSVG(
       labelY,
     };
 
-    edgeElements.push(renderEdge(edgeData, isDark, renderStyleId, aesthetics));
+    edgeElements.push(renderEdge(edgeData, isDark, renderStyleId, aesthetics, labelScale, backgroundColor));
   }
 
   const geometryMetadata = escapeXml(JSON.stringify({
