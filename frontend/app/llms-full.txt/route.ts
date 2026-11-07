@@ -43,7 +43,7 @@ ArchDraw is for engineers, system-design learners, and teams that need review-re
 - **Sharing** (/share, /embed): read-only viewer, domain allowlist via ALLOWED_EMBED_DOMAINS, CSP frame-ancestors controlled in next.config.ts.
 - **Live projects** (\`npx -y archdraw-live\`): a canvas linked to coding agents. Claude Code hooks report file paths and the kind of action only (never contents, commands or prompts); the map shows each session on the component it is working on, which session needs you, and a per-component history. Watch links need no sign-in.
 - **Templates** (${SITE_URL}/templates): ${TEMPLATES.length} editable diagram templates, one page each at /templates/<slug>.
-- **MCP server** (/mcp, mcp-server/): hosted Streamable HTTP at ${SITE_URL}/api/mcp or local stdio (\`@hiabhee/archdraw-mcp-server@1.2.0\`). Tools: generate_diagram, update_diagram, apply_template, get_diagram_state, layout_diagram, draw_on_canvas. Published diagrams come with preview, editor and image links.
+- **MCP server** (/mcp, mcp-server/): hosted Streamable HTTP at ${SITE_URL}/api/mcp or local stdio (\`@hiabhee/archdraw-mcp-server@1.2.1\`). Tools: generate_diagram, update_diagram, apply_template, get_diagram_state, layout_diagram, draw_on_canvas. Published diagrams come with preview, editor and image links.
 
 ## 2. Documentation (canonical)
 
@@ -106,7 +106,7 @@ claude mcp add --scope user --transport http archdraw https://archdraw.hiabhee.o
 The local stdio package requires API_BASE_URL (there is no default; without it, diagram generation and layout fail):
 
 \`\`\`sh
-codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.2.0
+codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.2.1
 \`\`\`
 
 Install the reusable diagram skill:
@@ -124,7 +124,7 @@ The local MCP process runs over stdio JSON-RPC. Diagram generation and layout re
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.2.0"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.2.1"],
       "env": { "API_BASE_URL": "https://archdraw.hiabhee.online" }
     }
   }

@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import prisma from '@/lib/server/prisma';
 import type { Node } from 'reactflow';
+import { OgBrandMark } from '@/lib/site/ogBrandMark';
 
 export async function GET(
   request: Request,
@@ -88,24 +89,7 @@ export async function GET(
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                background: '#595959',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="7" height="7" rx="1" stroke="white" strokeWidth="2" />
-                <rect x="14" y="3" width="7" height="7" rx="1" stroke="white" strokeWidth="2" />
-                <rect x="3" y="14" width="7" height="7" rx="1" stroke="white" strokeWidth="2" />
-                <rect x="14" y="14" width="7" height="7" rx="1" stroke="white" strokeWidth="2" />
-              </svg>
-            </div>
+            <OgBrandMark size={48} />
             <span style={{ color: 'white', fontSize: 24, fontWeight: 600 }}>
               ArchDraw
             </span>
