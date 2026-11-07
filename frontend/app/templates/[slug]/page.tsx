@@ -7,6 +7,7 @@ import { Footer } from '@/components/landing/Footer';
 import { TemplateDiagram } from '@/components/landing/templates/TemplateDiagram';
 import { TemplateGuideBody, TemplateGuideFaq, templateFaqJsonLd } from '@/components/landing/templates/TemplateGuide';
 import { getTemplateGuide } from '@/data/templates/guides';
+import { termForComponent } from '@/lib/site/glossary';
 import {
   allTemplateSlugs,
   getTemplateBySlug,
@@ -162,7 +163,14 @@ export default async function TemplatePage({ params }: Props) {
             <ul className="mt-5 divide-y divide-border-default rounded-xl border border-border-default bg-surface-card">
               {components.map((c) => (
                 <li key={c.id} className="flex items-baseline justify-between gap-4 px-4 py-3">
-                  <span className="text-sm font-medium text-text-primary">{c.label}</span>
+                  {(() => {
+                    const term = termForComponent(c.label, c.detail);
+                    return term ? (
+                      <Link href={`/system-design/${term.slug}`} title={`What is ${term.name}?`} className="text-sm font-medium text-text-primary underline decoration-border-strong underline-offset-4 transition-colors hover:text-brand-text">{c.label}</Link>
+                    ) : (
+                      <span className="text-sm font-medium text-text-primary">{c.label}</span>
+                    );
+                  })()}
                   {c.detail && <span className="text-right text-xs text-text-muted">{c.detail}</span>}
                 </li>
               ))}

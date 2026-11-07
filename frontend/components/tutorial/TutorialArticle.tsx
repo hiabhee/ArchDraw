@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUp, Network } from 'lucide-react';
 import { TUTORIALS, type AnyTutorial } from '@/data/tutorials';
 import { templateForTutorial, templateHeading, templateSlug } from '@/lib/site/templateCatalog';
 import { absoluteUrl, breadcrumbJsonLd } from '@/lib/site/seo';
+import { termForComponent } from '@/lib/site/glossary';
 import {
   articleComponentCount,
   tutorialArticle,
@@ -35,6 +36,10 @@ export function TutorialArticle({ tutorial }: { tutorial: AnyTutorial }) {
   const related = relatedTutorials(tutorial);
   const path = `/tutorials/${tutorial.id}`;
   const url = absoluteUrl(path);
+  const concepts = [...new Map(levels.flatMap((l) => l.components).flatMap((c) => {
+    const term = termForComponent(c.name);
+    return term ? [[term.slug, term] as const] : [];
+  })).values()];
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -111,6 +116,19 @@ export function TutorialArticle({ tutorial }: { tutorial: AnyTutorial }) {
             ))}
           </ol>
         </section>
+
+        {concepts.length > 0 && (
+          <nav aria-label="Concepts in this design" className="mt-6">
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-text-muted">Concepts in this design</p>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {concepts.map((t) => (
+                <li key={t.slug}>
+                  <Link href={`/system-design/${t.slug}`} className="inline-block rounded-full border border-border-default px-3 py-1 text-xs text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary">{t.name}</Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
 
         {levels.map((level, i) => (
           <section key={level.id} id={level.id} aria-labelledby={`${level.id}-title`} className="mt-14 scroll-mt-20">
