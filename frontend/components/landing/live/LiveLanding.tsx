@@ -15,6 +15,16 @@ import {
   AimVignette, ConstructionVignette, CoverageVignette, LevelsVignette, NeedsYouVignette, WatchLinkVignette,
 } from './Vignettes';
 import styles from './LiveLanding.module.css';
+import { TUTORIALS } from '@/data/tutorials';
+import { TEMPLATES } from '@/data/templates/index';
+import { templateHeading, templateSlug } from '@/lib/site/templateCatalog';
+import { tutorialHeading } from '@/lib/tutorial/tutorialArticle';
+
+/** Home-page links into the two learning hubs: tutorials own "system design", templates own "architecture diagram". */
+const HOME_TUTORIALS = ['chatgpt-architecture', 'whatsapp-architecture', 'netflix-architecture', 'uber-architecture', 'url-shortener-architecture', 'rate-limiter-architecture']
+  .flatMap((id) => TUTORIALS.find((t) => t.id === id) ?? []);
+const HOME_TEMPLATES = ['chatgpt', 'microservices', 'netflix', 'event_driven', 'ecommerce', 'serverless']
+  .flatMap((id) => TEMPLATES.find((t) => t.id === id) ?? []);
 
 
 export const LIVE_FAQS = [
@@ -303,6 +313,42 @@ export default async function LiveLanding() {
               </div>
             </div>
           </LandingReveal>
+        </section>
+
+        {/* ── Learn: system design tutorials + architecture diagram templates ── */}
+        <section id="learn" className={styles.learn} aria-labelledby="learn-title">
+          <div className={styles.shell}>
+            <div className={styles.sectionHead}>
+              <p className={styles.kicker}>Learn</p>
+              <h2 id="learn-title" className={styles.h2}>System design, <em>drawn out.</em></h2>
+            </div>
+            <div className={styles.learnGrid}>
+              <nav aria-labelledby="learn-tutorials-title" className={styles.learnCol}>
+                <h3 id="learn-tutorials-title" className={styles.learnTitle}>
+                  <Link href="/tutorials">System design tutorials</Link>
+                </h3>
+                <p className={styles.note}>Design a real system step by step, with every component and trade-off explained.</p>
+                <ul className={styles.learnList}>
+                  {HOME_TUTORIALS.map((t) => (
+                    <li key={t.id}><Link href={`/tutorials/${t.id}`}>{tutorialHeading(t)}</Link></li>
+                  ))}
+                </ul>
+                <Link href="/tutorials" className={styles.learnMore}>All {TUTORIALS.length} system design tutorials →</Link>
+              </nav>
+              <nav aria-labelledby="learn-templates-title" className={styles.learnCol}>
+                <h3 id="learn-templates-title" className={styles.learnTitle}>
+                  <Link href="/templates">Architecture diagram templates</Link>
+                </h3>
+                <p className={styles.note}>Free, editable architecture diagrams of real products and common patterns.</p>
+                <ul className={styles.learnList}>
+                  {HOME_TEMPLATES.map((t) => (
+                    <li key={t.id}><Link href={`/templates/${templateSlug(t)}`}>{templateHeading(t)}</Link></li>
+                  ))}
+                </ul>
+                <Link href="/templates" className={styles.learnMore}>All {TEMPLATES.length} architecture diagram templates →</Link>
+              </nav>
+            </div>
+          </div>
         </section>
 
         {/* ── FAQ ──────────────────────────────────────────── */}

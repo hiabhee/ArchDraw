@@ -8,7 +8,7 @@ import { useTutorialStore } from '@/store/tutorialStore';
 import { TutorialCatalog } from '@/components/tutorial/TutorialCatalog';
 import { toast } from 'sonner';
 
-export default function TutorialsPage() {
+export default function TutorialsPageClient() {
   const [showResetAllConfirm, setShowResetAllConfirm] = useState(false);
   const clearAllProgress = useTutorialStore((s) => s.clearAllProgress);
   const completedCount = useTutorialStore((s) => s.completedTutorials.length);
@@ -94,10 +94,13 @@ export default function TutorialsPage() {
             {totalCount} tutorials available
           </div>
           <h1 className="text-3xl font-bold text-text-primary mb-3 tracking-tight">
-            Learn System Design
+            System Design Tutorials
           </h1>
-          <p className="text-sm text-text-secondary max-w-lg leading-relaxed">
-            Build real architectures step by step. From messaging apps to AI agents — each tutorial teaches you how production systems work by guiding you to design them yourself.
+          <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
+            Learn system design by building real systems step by step: ChatGPT, WhatsApp, Netflix, Uber, YouTube, a URL shortener, a rate limiter and more.
+            Each tutorial explains why every component exists and what it trades off, from a first working version to production scale, so it doubles as system design interview prep.
+            Want the finished diagram instead? Browse the{' '}
+            <Link href="/templates" className="font-medium text-brand-text hover:underline">architecture diagram templates</Link>.
           </p>
         </div>
 

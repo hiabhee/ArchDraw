@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -189,7 +190,10 @@ export function TutorialCard({ tutorial, showShare = false }: TutorialCardProps)
       {/* Body */}
       <div className="flex-1 flex flex-col px-5 pt-7 pb-4">
         <h3 className="font-semibold text-[15px] leading-snug text-text-primary mb-2 line-clamp-2 group-hover:text-brand-text transition-colors">
-          {tutorial.title}
+          {/* A real link so crawlers and keyboard users reach the tutorial; the card's own click handles the rest. */}
+          <Link href={`/tutorials/${tutorial.id}`} onClick={(e) => e.stopPropagation()}>
+            {tutorial.title}
+          </Link>
         </h3>
         <p className="text-[13px] leading-relaxed text-text-muted line-clamp-2 mb-4">
           {tutorial.description}

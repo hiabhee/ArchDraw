@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { TEMPLATES } from '@/data/templates/index';
+import { getTutorialById } from '@/data/tutorials';
 import {
   allTemplateSlugs,
   getTemplateBySlug,
   relatedTemplates,
+  representedProduct,
+  templateForTutorial,
+  tutorialIdsForTemplate,
   templateComponents,
   templateConnections,
   templateHeading,
@@ -26,9 +30,28 @@ describe('template catalog', () => {
     expect(getTemplateBySlug('missing')).toBeUndefined();
   });
 
-  it('does not repeat "architecture" in headings', () => {
-    expect(templateHeading({ name: 'Netflix Architecture' })).toBe('Netflix Architecture');
-    expect(templateHeading({ name: 'URL Shortener' })).toBe('URL Shortener Architecture');
+  it('titles every template "<system> Architecture Diagram", as people search for it', () => {
+    expect(templateHeading({ id: 'chatgpt', name: 'ChatGPT-like Architecture' })).toBe('ChatGPT Architecture Diagram');
+    expect(templateHeading({ id: 'url_shortener', name: 'URL Shortener' })).toBe('URL Shortener Architecture Diagram');
+    expect(templateHeading({ id: 'clean_architecture', name: 'Clean Architecture' })).toBe('Clean Architecture Diagram');
+    expect(templateHeading({ id: 'netflix', name: 'Netflix Streaming' })).toBe('Netflix Architecture Diagram');
+    for (const t of TEMPLATES) {
+      expect(templateHeading(t)).toMatch(/^\S.* Architecture Diagram$/);
+      expect(templateHeading(t)).not.toMatch(/architecture architecture|-like/i);
+    }
+  });
+
+  it('links templates and tutorials that cover the same system, both ways', () => {
+    for (const t of TEMPLATES) {
+      for (const id of tutorialIdsForTemplate(t)) {
+        expect(getTutorialById(id), `${t.id} → ${id}`).toBeDefined();
+      }
+    }
+    expect(templateForTutorial('chatgpt-architecture')?.id).toBe('chatgpt');
+    expect(templateForTutorial('uber-architecture')?.id).toBe('rideshare');
+    expect(templateForTutorial('rate-limiter-architecture')).toBeUndefined();
+    expect(representedProduct({ id: 'chatgpt' })).toBe('ChatGPT');
+    expect(representedProduct({ id: 'microservices' })).toBeUndefined();
   });
 
   it('lists components and named connections for every template', () => {

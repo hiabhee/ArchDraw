@@ -383,11 +383,10 @@ export default function TutorialPage() {
   }, []);
 
   // Calculate component count for intro
-  const componentCount = useMemo(() => 
-    allSteps.filter((s) => {
-      const nodeRules = s.validation.filter((r) => r.type === 'node_exists' || r.type === 'node_count');
-      return nodeRules.length > 0;
-    }).length,
+  // Distinct components the steps add. (Counting top-level node rules missed every step
+  // that also checks a connection, since those wrap the node rule in `all_of`.)
+  const componentCount = useMemo(
+    () => new Set(allSteps.map((s) => s.component ?? s.id)).size,
     [allSteps]
   );
 
@@ -420,7 +419,8 @@ export default function TutorialPage() {
     : 'Loading...';
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ background: '#F4F4F4' }}>
+    // `relative`: the intro / completion cards cover only this app, not the written guide rendered below it.
+    <div id="tutorial-app" className="relative flex flex-col h-screen w-screen overflow-hidden" style={{ background: '#F4F4F4' }}>
       {/* Header */}
       <header className="h-12 flex items-center justify-between px-4 shrink-0 z-20" style={{ background: 'white', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
         <Link href="/tutorials" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[#1A1A1A] transition-colors shrink-0">

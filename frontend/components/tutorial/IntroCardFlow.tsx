@@ -155,7 +155,7 @@ export function IntroCardFlow({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-50"
+      className="absolute inset-0 flex items-center justify-center z-50"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)' }}
     >
       <div 

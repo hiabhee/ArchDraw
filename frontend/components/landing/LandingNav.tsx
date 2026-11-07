@@ -9,9 +9,10 @@ import { BrandMark } from '@/components/ui/BrandMark';
 
 /** The site nav: night palette (the landing's), built only from the shared tokens. */
 const NAV_LINKS = [
+  { label: 'Templates', href: '/templates', track: 'nav_templates' },
+  { label: 'Tutorials', href: '/tutorials', track: 'nav_tutorials' },
   { label: 'How it works', href: '/#how', track: 'nav_how_it_works' },
   { label: 'Privacy', href: '/#privacy', track: 'nav_privacy' },
-  { label: 'Templates', href: '/templates', track: 'nav_templates' },
   { label: 'Pricing', href: '/pricing', track: 'nav_pricing' },
   { label: 'Docs', href: '/docs', track: 'nav_docs' },
 ];
