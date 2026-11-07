@@ -16,7 +16,7 @@ export const TEMPLATE_SECTIONS: Array<{ id: TemplateSection; title: string; blur
 ];
 
 const PATTERN_IDS = new Set(['mvc', 'clean_architecture', 'hexagonal', 'layered', 'microservices', 'event_driven', 'cqrs', 'event_sourcing', 'serverless']);
-const INTERVIEW_IDS = new Set(['ecommerce', 'url_shortener', 'chat_system', 'notification', 'search', 'request_response']);
+const INTERVIEW_IDS = new Set(['ecommerce', 'url_shortener', 'chat_system', 'notification', 'search', 'request_response', 'rate_limiter']);
 
 export function sectionFor(template: Template): TemplateSection {
   if (PATTERN_IDS.has(template.id)) return 'patterns';
@@ -74,6 +74,15 @@ const REPRESENTED_PRODUCTS: Record<string, string> = {
   netflix: 'Netflix',
   rideshare: 'Uber',
   collaborative_docs: 'Google Docs',
+  whatsapp: 'WhatsApp',
+  twitter: 'Twitter',
+  airbnb: 'Airbnb',
+  discord: 'Discord',
+  zoom: 'Zoom',
+  spotify: 'Spotify',
+  linkedin: 'LinkedIn',
+  figma: 'Figma',
+  github: 'GitHub',
 };
 
 /**
@@ -100,6 +109,17 @@ export const TEMPLATE_TUTORIALS: Record<string, string[]> = {
   food_delivery: ['doordash-architecture'],
   ecommerce: ['shopify-architecture'],
   url_shortener: ['url-shortener-architecture'],
+  whatsapp: ['whatsapp-architecture'],
+  twitter: ['twitter-architecture'],
+  airbnb: ['airbnb-architecture'],
+  discord: ['discord-architecture'],
+  zoom: ['zoom-architecture'],
+  spotify: ['spotify-architecture'],
+  linkedin: ['linkedin-architecture'],
+  figma: ['figma-architecture'],
+  github: ['github-architecture'],
+  rate_limiter: ['rate-limiter-architecture'],
+  // After the dedicated WhatsApp / Discord templates, which those tutorials link back to.
   chat_system: ['whatsapp-architecture', 'discord-architecture'],
 };
 
@@ -109,7 +129,9 @@ export function tutorialIdsForTemplate(template: Pick<Template, 'id'>): string[]
 
 /** The template whose diagram a tutorial builds (its best match), if any. */
 export function templateForTutorial(tutorialId: string): Template | undefined {
-  const entry = Object.entries(TEMPLATE_TUTORIALS).find(([, ids]) => ids.includes(tutorialId));
+  // A template built for this tutorial's system (listed first) wins over one that also covers it.
+  const entries = Object.entries(TEMPLATE_TUTORIALS);
+  const entry = entries.find(([, ids]) => ids[0] === tutorialId) ?? entries.find(([, ids]) => ids.includes(tutorialId));
   return entry ? TEMPLATES.find((t) => t.id === entry[0]) : undefined;
 }
 
