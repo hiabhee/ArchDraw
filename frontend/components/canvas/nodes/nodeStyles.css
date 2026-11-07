@@ -507,10 +507,13 @@
 }
 
 /* ── ShapeNode Handles (simple floating style) ───────────────────
-   Matches SystemNode floating handles: tiny hollow circles on dark canvas,
-   like the “simple floating edge” example. Always visible in edit mode. */
+   Tiny hollow circles, shown where they help: on the card under the pointer, on a selected
+   card and while a connection is being drawn. At rest they are hidden: a handle sits at a fixed
+   point on the side, while the router attaches each edge where its route is cleanest (a straight
+   link between cards whose centres differ attaches off-centre), so a resting dot drawn beside
+   the line read as the edge missing its handle. */
 .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle {
-  opacity: 0.9 !important;
+  opacity: 0 !important;
   pointer-events: all !important;
   width: 10px !important;
   height: 10px !important;
@@ -521,6 +524,11 @@
   border-radius: 50% !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node:hover .shape-node .react-flow__handle,
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node.selected .shape-node .react-flow__handle,
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow--connection-drawing .react-flow__node .shape-node .react-flow__handle {
+  opacity: 0.9 !important;
 }
 .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .shape-node .react-flow__handle:hover {
   border-color: var(--node-accent, #0d9488) !important;
@@ -575,11 +583,10 @@
   transform: translateX(-50%) !important;
 }
 
-/* SystemNode floating handles — simple floating edge style (image ref)
-   Tiny hollow circles, always visible in edit, subtle gray until hover.
-   Like the “...or me” card in the screenshot: 4 sides, 10px, dark fill. */
+/* SystemNode floating handles: tiny hollow circles, shown on hover, on a selected card and
+   while connecting, hidden at rest (see the ShapeNode handles above for why). */
 .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh {
-  opacity: 0.9 !important;
+  opacity: 0 !important;
   width: 10px !important;
   height: 10px !important;
   min-width: 10px !important;
@@ -591,6 +598,11 @@
   z-index: 20 !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node:hover .node-card .rh,
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node.selected .node-card .rh,
+.diagram-chrome-edit:not([data-pipeline='generating']) .react-flow--connection-drawing .react-flow__node .node-card .rh {
+  opacity: 0.9 !important;
 }
 .dark .diagram-chrome-edit:not([data-pipeline='generating']) .react-flow__node .node-card .rh {
   border-color: #475569 !important;

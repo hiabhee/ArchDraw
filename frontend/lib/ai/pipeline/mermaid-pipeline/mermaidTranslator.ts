@@ -1,5 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 import { isTextNode } from '@/lib/diagram/mermaid/textNodes';
+import { isDecorNode } from '@/lib/diagram/nodes/infographicNodes';
 import { isDirectiveOnlyShape } from '@/lib/diagram/nodes/shapeRegistry';
 
 function sanitizeId(id: string): string {
@@ -90,7 +91,8 @@ function formatTextDirective(node: Node): string | null {
 export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD' | 'LR' = 'TD'): string {
   const groupNodes = nodes.filter(n => n.type === 'groupNode' || n.data?.isGroup);
   const groupIds = new Set(groupNodes.map(n => n.id));
-  const regularNodes = nodes.filter(n => !groupIds.has(n.id) && !isTextNode(n));
+  // Decoration (panels, lines) is not part of the structure: a relayout keeps it where it is.
+  const regularNodes = nodes.filter(n => !groupIds.has(n.id) && !isTextNode(n) && !isDecorNode(n));
   const textNodes = nodes.filter(isTextNode);
 
   const lines: string[] = [];

@@ -106,6 +106,20 @@ const SHAPE_SIZE: Record<string, { width: number; height: number }> = {
 
 const GROUP_PAD = { left: 28, right: 28, top: 48, bottom: 28 };
 
+// Mirrors frontend/lib/diagram/nodes/infographicNodes.ts (estimateStatSize): change both.
+const STAT_PAD = 20, STAT_ICON = 28, STAT_ICON_GAP = 12, STAT_VALUE_PX = 44, STAT_LABEL_PX = 15, STAT_CAPTION_PX = 13;
+const STAT_VALUE_LINE = 52, STAT_LABEL_LINE = 21, STAT_CAPTION_LINE = 18, STAT_GAP = 6;
+
+export function estimateStatSize(value = '', label = '', caption = '', icon = false): { width: number; height: number } {
+  const width = Math.min(420, Math.max(200, Math.round(Math.max(value.length * STAT_VALUE_PX * 0.6, label.length * STAT_LABEL_PX * 0.56, Math.min(caption.length, 44) * STAT_CAPTION_PX * 0.52) + STAT_PAD * 2)));
+  const captionLines = caption ? Math.min(3, Math.ceil((caption.length * STAT_CAPTION_PX * 0.52) / (width - STAT_PAD * 2))) : 0;
+  const height = Math.round(STAT_PAD * 2 + (icon ? STAT_ICON + STAT_ICON_GAP : 0) + STAT_VALUE_LINE + (label ? STAT_GAP + STAT_LABEL_LINE : 0) + (captionLines ? STAT_GAP + captionLines * STAT_CAPTION_LINE : 0));
+  return { width, height };
+}
+
+/** Room around a line / arrow inside its box, so the stroke and the head are never clipped. */
+const linePad = (strokeWidth: number) => Math.max(12, strokeWidth * 4);
+
 interface Box { x: number; y: number; w: number; h: number }
 
 const HAS_SIZE_FIELDS = new Set(['width', 'height']);
@@ -117,6 +131,8 @@ const UPDATABLE: Record<string, ReadonlySet<string>> = {
   annotationNode: new Set(['title', 'body', 'x', 'y', 'width', 'height', 'parent']),
   systemNode: new Set(['label', 'title', 'subtitle', 'color', 'x', 'y', 'width', 'height', 'parent']),
   groupNode: new Set(['label', 'color', 'x', 'y', 'width', 'height', 'parent']),
+  decorNode: new Set(['color', 'fill', 'opacity', 'x', 'y', 'width', 'height', 'parent']),
+  statNode: new Set(['value', 'label', 'caption', 'color', 'fill', 'x', 'y', 'width', 'height', 'parent']),
   edge: new Set(['label', 'color', 'style']),
 };
 
@@ -257,11 +273,77 @@ export function applyDrawOps(inputNodes: CanvasNode[], inputEdges: CanvasEdge[],
           data: {
             label: op.label,
             ...(op.subtitle ? { subtitle: op.subtitle } : {}),
-            icon: op.icon ?? 'box',
+            // No icon unless the agent names one: the editor then picks one from the label (a
+            // database, a queue, a gateway), where a fixed default made every component look alike.
+            ...(op.icon ? { icon: op.icon } : {}),
             layer: tier,
             tier,
             tierColor: TIER_COLORS[tier],
             ...(op.status ? { status: op.status } : {}),
+          },
+        };
+        place(node, op.x, op.y, op.parent);
+        add(node);
+        ids.push(id);
+        break;
+      }
+      case 'shape': {
+        checkParent(index, op.op, op.parent);
+        const id = resolveId(index, op.op, op.id, 'shape');
+        const kind = op.kind ?? 'rectangle';
+        const line = kind === 'line' || kind === 'arrow';
+        const style: Record<string, unknown> = {};
+        let box: { x: number; y: number; w: number; h: number };
+        const data: Record<string, unknown> = { kind };
+        if (line) {
+          if (op.x2 === undefined || op.y2 === undefined) throw new DrawError(index, op.op, `a ${kind} needs its end point: x2 and y2.`);
+          if (op.width !== undefined || op.height !== undefined) throw new DrawError(index, op.op, `a ${kind} runs from x, y to x2, y2; it takes no width or height.`);
+          const pad = linePad(op.strokeWidth ?? 3);
+          const x1 = Math.min(op.x, op.x2) - pad, y1 = Math.min(op.y, op.y2) - pad;
+          box = { x: x1, y: y1, w: Math.abs(op.x2 - op.x) + pad * 2, h: Math.abs(op.y2 - op.y) + pad * 2 };
+          const frac = (v: number, start: number, len: number) => Math.round(((v - start) / len) * 1e6) / 1e6;
+          data.from = { x: frac(op.x, x1, box.w), y: frac(op.y, y1, box.h) };
+          data.to = { x: frac(op.x2, x1, box.w), y: frac(op.y2, y1, box.h) };
+        } else {
+          if (op.x2 !== undefined || op.y2 !== undefined) throw new DrawError(index, op.op, 'x2 / y2 are for lines and arrows; give a rectangle or circle a width and height.');
+          box = { x: op.x, y: op.y, w: op.width ?? 240, h: op.height ?? (kind === 'circle' ? op.width ?? 140 : 140) };
+        }
+        if (op.fill) data.fill = op.fill;
+        if (op.stroke) data.stroke = op.stroke;
+        if (op.strokeWidth !== undefined) data.strokeWidth = op.strokeWidth;
+        if (op.radius !== undefined) data.radius = op.radius;
+        if (op.dashed) data.dashed = true;
+        if (op.opacity !== undefined) data.opacity = op.opacity;
+        style.width = box.w;
+        style.height = box.h;
+        const node: CanvasNode = {
+          id, type: 'decorNode', position: { x: 0, y: 0 }, width: box.w, height: box.h, zIndex: -1,
+          style, selectable: true, connectable: false,
+          data: { ...data, nodeWidth: box.w, nodeHeight: box.h },
+        };
+        place(node, box.x, box.y, op.parent);
+        add(node);
+        ids.push(id);
+        break;
+      }
+      case 'stat': {
+        checkParent(index, op.op, op.parent);
+        const id = resolveId(index, op.op, op.id, 'stat');
+        const size = estimateStatSize(op.value, op.label ?? '', op.caption ?? '', Boolean(op.icon));
+        const width = op.width ?? size.width;
+        const height = op.height ?? size.height;
+        const node: CanvasNode = {
+          id, type: 'statNode', position: { x: 0, y: 0 }, width, height, zIndex: 1,
+          style: { width, height },
+          data: {
+            value: op.value,
+            ...(op.label ? { label: op.label } : {}),
+            ...(op.caption ? { caption: op.caption } : {}),
+            ...(op.icon ? { icon: op.icon } : {}),
+            ...(op.color ? { color: op.color } : {}),
+            ...(op.fill ? { fill: op.fill } : {}),
+            nodeWidth: width,
+            nodeHeight: height,
           },
         };
         place(node, op.x, op.y, op.parent);
@@ -311,6 +393,7 @@ export function applyDrawOps(inputNodes: CanvasNode[], inputEdges: CanvasEdge[],
         const target = need(index, op.op, op.to);
         if (source.id === target.id) throw new DrawError(index, op.op, 'a connection cannot join a node to itself.');
         if (isGroup(source) || isGroup(target)) throw new DrawError(index, op.op, 'connect nodes inside the groups; a connection cannot end on a group.');
+        if (source.type === 'decorNode' || target.type === 'decorNode') throw new DrawError(index, op.op, 'shapes are decoration and take no connections; connect cards, components or stats (or draw an arrow shape).');
         if (edges.length >= MAX_EDGES) throw new Error(`A canvas holds at most ${MAX_EDGES} connections.`);
         const id = resolveId(index, op.op, op.id, 'edge');
         const dashed = op.style === 'dashed';
@@ -389,6 +472,24 @@ export function applyDrawOps(inputNodes: CanvasNode[], inputEdges: CanvasEdge[],
           } else if (n.type === 'groupNode') {
             if (op.label !== undefined) { data.label = op.label; data.groupLabel = op.label; }
             if (op.color) data.groupColor = op.color;
+          } else if (n.type === 'decorNode') {
+            if (op.color) data.stroke = op.color;
+            if (op.fill) data.fill = op.fill;
+            if (op.opacity !== undefined) data.opacity = op.opacity;
+          } else if (n.type === 'statNode') {
+            if (op.value !== undefined) data.value = op.value;
+            if (op.label !== undefined) data.label = op.label;
+            if (op.caption !== undefined) data.caption = op.caption;
+            if (op.color) data.color = op.color;
+            if (op.fill) data.fill = op.fill;
+            if ((op.value !== undefined || op.label !== undefined || op.caption !== undefined) && op.width === undefined && op.height === undefined) {
+              const size = estimateStatSize(String(data.value ?? ''), String(data.label ?? ''), String(data.caption ?? ''), Boolean(data.icon));
+              n.width = Math.max(n.width ?? 0, size.width);
+              n.height = Math.max(n.height ?? 0, size.height);
+              n.style = { ...((n.style as object) ?? {}), width: n.width, height: n.height };
+              data.nodeWidth = n.width;
+              data.nodeHeight = n.height;
+            }
           } else {
             const label = op.label ?? op.title;
             if (label !== undefined) data.label = label;
@@ -399,8 +500,8 @@ export function applyDrawOps(inputNodes: CanvasNode[], inputEdges: CanvasEdge[],
             const value = (op as Record<string, unknown>)[key] as number | undefined;
             if (value === undefined) continue;
             n[key] = value;
-            if (n.type === 'shapeNode') data[key === 'width' ? 'nodeWidth' : 'nodeHeight'] = value;
-            if (n.type === 'groupNode') n.style = { ...((n.style as object) ?? {}), [key]: value };
+            if (n.type === 'shapeNode' || n.type === 'decorNode' || n.type === 'statNode') data[key === 'width' ? 'nodeWidth' : 'nodeHeight'] = value;
+            if (n.type === 'groupNode' || n.type === 'decorNode' || n.type === 'statNode') n.style = { ...((n.style as object) ?? {}), [key]: value };
           }
           if (op.parent !== undefined) {
             if (op.parent === null) reparent(n, undefined);

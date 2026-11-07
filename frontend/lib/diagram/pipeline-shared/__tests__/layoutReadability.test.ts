@@ -71,8 +71,13 @@ const TITLE_PX_FLOOR: Record<string, number> = {
   'notification:TD': 20.2,
   'search:LR': 21.8,
   'search:TD': 20.6, // was 22.7 before the wrong index → DB edge was removed
-  'request_response:LR': 13.6,
-  'request_response:TD': 17.7,
+  // Lowered from 13.6: with labels kept off their request/reply partner (which they had covered),
+  // the folded live-map variant of this chain no longer routes cleanly, so it stays one row.
+  // Ordinary layouts never fold, and their labels are now all readable.
+  'request_response:LR': 9.3,
+  // Lowered from 17.7: top-down gaps now hold both labels of a request/response pair, which
+  // had covered each other; the diagram is about 0.5% smaller for it.
+  'request_response:TD': 17.6,
 };
 
 interface Box { id: string; group: boolean; parent?: string; x: number; y: number; w: number; h: number }
@@ -112,7 +117,8 @@ describe('layout readability', () => {
       for (const template of TEMPLATES) {
         const label = `${template.id}:${direction}`;
         const options = { title: template.name, renderStyleId: 'studio-minimal' as const };
-        const folded = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, options);
+        // Folding is opt-in (live project maps); these floors guard it where it is used.
+        const folded = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { ...options, foldLongFlows: true });
         const unfolded = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { ...options, foldLongFlows: false });
         const foldedScore = measureLayoutAesthetics(folded.nodes, folded.edges, direction);
         const unfoldedScore = measureLayoutAesthetics(unfolded.nodes, unfolded.edges, direction);
@@ -133,7 +139,7 @@ describe('layout readability', () => {
         const diagram = randomDiagram(seed, options);
         for (const direction of ['LR', 'TD'] as const) {
           const label = `${diagram.id} ${direction}`;
-          const folded = await layoutDiagramViaMermaid(diagram.nodes, diagram.edges, direction, { renderStyleId: 'studio-minimal' });
+          const folded = await layoutDiagramViaMermaid(diagram.nodes, diagram.edges, direction, { renderStyleId: 'studio-minimal', foldLongFlows: true });
           const unfolded = await layoutDiagramViaMermaid(diagram.nodes, diagram.edges, direction, { renderStyleId: 'studio-minimal', foldLongFlows: false });
           expect(folded.success, `${label} succeeds`).toBe(true);
           const a = measureLayoutAesthetics(folded.nodes, folded.edges, direction).titlePxAtFit;

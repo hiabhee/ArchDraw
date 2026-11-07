@@ -5,6 +5,7 @@ import { applyDrawOps, DrawError, type CanvasEdge, type CanvasNode, type DrawSte
 import { validateGraph } from './validate-diagram.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { describeSaveFailure, type ImageStyleName } from '../lib/preview-links.js';
+import { checkLayout, type LayoutIssue } from '../lib/layout-check.js';
 
 /** One line per node: where it is on the canvas and how big, so the next drawing can be placed exactly. */
 export interface CanvasEntry {
@@ -36,10 +37,14 @@ export interface DrawResult {
   linkError?: string;
   previewSvg?: string;
   message?: string;
+  /** Layout problems in the result (overlaps, cards outside their group, labels with no room). */
+  issues?: LayoutIssue[];
 }
 
 const textOf = (node: CanvasNode): string | undefined => {
   const d = node.data;
+  if (node.type === 'statNode') return [d.value, d.label].filter(v => typeof v === 'string' && v).join(' ').slice(0, 80) || undefined;
+  if (node.type === 'decorNode') return typeof d.kind === 'string' ? d.kind : undefined;
   const value = d.text ?? d.label ?? d.title;
   return typeof value === 'string' && value ? value.slice(0, 80) : undefined;
 };
@@ -112,7 +117,8 @@ export async function drawOnCanvas(input: DrawOnCanvasInput, workingSession?: st
     }
   }
 
-  const base: DrawResult = { success: true, nodes, edges, steps, canvas, bounds, revision: state.revision };
+  const issues = checkLayout(canvas, edges as never);
+  const base: DrawResult = { success: true, nodes, edges, steps, canvas, bounds, revision: state.revision, ...(issues.length ? { issues } : {}) };
   return publishCanvas(state, nodes, edges, base, cleared, input);
 }
 

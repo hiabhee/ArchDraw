@@ -151,6 +151,8 @@ export async function POST(req: NextRequest) {
         foldLongFlows: body.layout.foldLongFlows,
         mixGroupDirections: body.layout.mixGroupDirections,
         layoutProfile: body.layout.profile,
+        // Areas are treated as stages in flow order, so an area declared before the services that feed it is put right.
+        areaOrder: 'flow',
       });
       if (!laid.success) {
         return NextResponse.json({ error: 'The layout could not be computed for this diagram.', warnings: laid.warnings }, { status: 422 });
@@ -161,7 +163,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.mermaid) {
-      const pipelineResult = await runMermaidPipeline(body.mermaid);
+      // Lay out with the Studio card sizes the previews, share page and editor draw. The default
+      // profile sizes cards smaller, so Studio cards overflowed their groups and overlapped, and the
+      // edges were then routed through them. The areas keep their data-flow order.
+      const pipelineResult = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
       if (!isDomainSuccess(pipelineResult)) {
         return NextResponse.json({
           error: 'Failed to parse Mermaid code',

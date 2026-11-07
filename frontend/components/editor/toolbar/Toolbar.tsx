@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { ExportControls, type ExportControlsHandle } from '@/components/editor/toolbar/ExportControls';
-import { LayoutStyleButton, LayoutToggleButton } from '@/components/editor/toolbar/LayoutControls';
+import { LayoutStyleButton } from '@/components/editor/toolbar/LayoutControls';
 import { hasHighLevelView } from '@/lib/diagram/geometry/highLevelView';
 
 export function Toolbar() {
@@ -425,7 +425,6 @@ export function Toolbar() {
             </Button>
             )}
 
-            <LayoutToggleButton />
             <LayoutStyleButton />
 
             {isLiveProject ? (

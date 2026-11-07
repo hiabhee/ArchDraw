@@ -12,8 +12,9 @@ import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import { metallicSurfaceGradientSvgDefs } from '@/lib/theme/renderStyles/studioMetallic';
 import { getEffectiveNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
-import { calculateBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
-import { renderSystemNode, renderTextLabel, renderImageNode, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
+import { calculateBounds, extendBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
+import { renderSystemNode, renderTextLabel, renderImageNode, renderAnnotationNode, renderGroupNode, renderShapeNode, renderDecorNode, renderStatNode } from './renderNodes';
+import { isDecorNode, infographicNodeSize, STAT_NODE_TYPE } from '@/lib/diagram/nodes/infographicNodes';
 import { renderEdge } from './renderEdges';
 import type { SystemNodeRenderData, EdgeRenderData } from './types';
 import { escapeXml } from './svgPrimitives';
@@ -44,7 +45,8 @@ export function generatePureSVG(
 
   const preparedNodes = nodes.map((node) => {
     const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
-    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
+    // Text and infographic pieces are drawn at their own box, not a card's effective size.
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode' || isDecorNode(node) || node.type === STAT_NODE_TYPE;
 
     let w: number;
     let h: number;
@@ -52,8 +54,10 @@ export function generatePureSVG(
     if (isText) {
       const measuredWidth = (node as Node & { measured?: { width?: number } }).measured?.width;
       const measuredHeight = (node as Node & { measured?: { height?: number } }).measured?.height;
-      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? measuredWidth ?? (node.type === 'textLabelNode' ? 120 : 200);
-      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? measuredHeight ?? (node.type === 'textLabelNode' ? 40 : 120);
+      const own = infographicNodeSize(node, { width: measuredWidth ?? (node.type === 'textLabelNode' ? 120 : 200), height: measuredHeight ?? (node.type === 'textLabelNode' ? 40 : 120) });
+      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? own.width;
+      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? own.height;
+      if (isDecorNode(node) || node.type === STAT_NODE_TYPE) { w = own.width; h = own.height; }
     } else if (isGroup) {
       w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 300;
       h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 200;
@@ -82,62 +86,6 @@ export function generatePureSVG(
     (a, b) => nodeDepth(a, nodeMap) - nodeDepth(b, nodeMap),
   );
 
-  const bounds = calculateBounds(preparedNodes);
-  const width = bounds.maxX - bounds.minX;
-  const height = bounds.maxY - bounds.minY;
-
-  const gridGap = Math.max(1, canvasBackground?.gap ?? 24);
-  const gridPhaseX = ((-bounds.minX % gridGap) + gridGap) % gridGap;
-  const gridPhaseY = ((-bounds.minY % gridGap) + gridGap) % gridGap;
-  const gridColor = canvasBackground?.patternColor ?? aesthetics.cssVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0');
-  const safeGridColor = escapeXml(gridColor);
-  const backgroundPattern = canvasBackground?.showGrid
-    ? canvasBackground.variant === 'dots'
-      ? `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="${Math.max(0.5, canvasBackground.size)}" fill="${safeGridColor}" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.35 : 0.5}" />`
-      : `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><path d="M ${gridGap} 0 H 0 V ${gridGap}" fill="none" stroke="${safeGridColor}" stroke-width="1" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.25 : 1}" />`
-    : '';
-
-  const studioSurfaceDefs = isStudioRenderStyle(renderStyleId) && aesthetics.render.nodeMaterial !== 'metallic'
-    ? `<defs>${buildShadowFilter('archdraw-studio-shadow', aesthetics.colors.shadow)}</defs>`
-    : '';
-  // The canvas counter-scales edge labels by the zoom, clamped to 0.85 to 1.4 (SimpleFloatingEdge),
-  // so they stay readable when the diagram is zoomed out. Without a known zoom, assume the diagram is
-  // fitted to a 1280x720 view, which is how a shared or exported diagram is usually seen.
-  const fitZoom = viewZoom && viewZoom > 0 ? viewZoom : Math.max(0.1, Math.min(1, 1280 / Math.max(1, width), 720 / Math.max(1, height)));
-  const labelScale = Math.min(1.4, Math.max(0.85, 1 / fitZoom));
-  const nodeElements: string[] = [];
-  const edgeElements: string[] = [];
-  const metallicSurfaceDefs = aesthetics.render.nodeMaterial === 'metallic'
-    ? metallicSurfaceGradientSvgDefs(isDark)
-    : '';
-
-  for (const node of sortedNodes) {
-    const nodeData: SystemNodeRenderData = {
-      id: node.id,
-      type: node.type || 'systemNode',
-      x: node.position.x - bounds.minX,
-      y: node.position.y - bounds.minY,
-      width: node.width!,
-      height: node.height!,
-      data: node.data as NodeData,
-      selected: node.selected,
-    };
-
-    if (node.type === 'imageNode') {
-      nodeElements.push(renderImageNode(nodeData, isDark));
-    } else if (node.type === 'textLabelNode') {
-      nodeElements.push(renderTextLabel(nodeData, isDark));
-    } else if (node.type === 'annotationNode') {
-      nodeElements.push(renderAnnotationNode(nodeData, isDark));
-    } else if (node.type === 'groupNode' || node.type === 'group') {
-      nodeElements.push(renderGroupNode(nodeData, isDark, renderStyleId, aesthetics));
-    } else if (node.type === 'shapeNode') {
-      nodeElements.push(renderShapeNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
-    } else {
-      nodeElements.push(renderSystemNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
-    }
-  }
-
   // Every connection is drawn, as on the canvas: a request and its response (A to B and B to A)
   // are two edges with their own labels and lanes, not one merged edge.
   const processedEdges: Edge[] = [];
@@ -155,7 +103,7 @@ export function generatePureSVG(
   // Build routingNodes that keep parents but have correct effective dimensions.
   const routingNodes: Node[] = nodes.map((node) => {
     const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
-    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode' || isDecorNode(node) || node.type === STAT_NODE_TYPE;
     let w: number | undefined;
     let h: number | undefined;
     if (!isText && !isGroup) {
@@ -179,6 +127,79 @@ export function generatePureSVG(
     iconMode,
     revision: 'svg-export',
   });
+
+  const nodeBounds = calculateBounds(preparedNodes);
+  // The image has to hold every connection and label as well as the cards: a route that detours
+  // around the diagram (long edges between distant groups) would otherwise be cut off at the edge.
+  const routePoints: Array<{ x: number; y: number }> = [];
+  for (const route of geometry.routes.values()) {
+    if (route.path.kind === 'orthogonal') routePoints.push(...route.path.waypoints);
+    else routePoints.push(route.path.start, route.path.control1, route.path.control2, route.path.end);
+  }
+  for (const label of geometry.labels.values()) {
+    routePoints.push({ x: label.x - 90, y: label.y - 24 }, { x: label.x + 90, y: label.y + 24 });
+  }
+  const bounds = extendBounds(nodeBounds, routePoints, 24);
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+
+  const gridGap = Math.max(1, canvasBackground?.gap ?? 24);
+  const gridPhaseX = ((-bounds.minX % gridGap) + gridGap) % gridGap;
+  const gridPhaseY = ((-bounds.minY % gridGap) + gridGap) % gridGap;
+  const gridColor = canvasBackground?.patternColor ?? aesthetics.cssVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0');
+  const safeGridColor = escapeXml(gridColor);
+  const backgroundPattern = canvasBackground?.showGrid
+    ? canvasBackground.variant === 'dots'
+      ? `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="${Math.max(0.5, canvasBackground.size)}" fill="${safeGridColor}" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.35 : 0.5}" />`
+      : `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><path d="M ${gridGap} 0 H 0 V ${gridGap}" fill="none" stroke="${safeGridColor}" stroke-width="1" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.25 : 1}" />`
+    : '';
+
+  const studioSurfaceDefs = isStudioRenderStyle(renderStyleId) && aesthetics.render.nodeMaterial !== 'metallic'
+    ? `<defs>${buildShadowFilter('archdraw-studio-shadow', aesthetics.colors.shadow)}</defs>`
+    : '';
+  // The canvas counter-scales edge labels by the zoom, clamped to 0.85 to 1.4 (SimpleFloatingEdge),
+  // so they stay readable when the diagram is zoomed out. Without a known zoom, assume the diagram is
+  // fitted to a 1280x720 view, which is how a shared or exported diagram is usually seen.
+  const fitZoom = viewZoom && viewZoom > 0 ? viewZoom : Math.max(0.1, Math.min(1, 1280 / Math.max(1, width), 720 / Math.max(1, height)));
+  const labelScale = Math.min(1.4, Math.max(0.85, 1 / fitZoom));
+  const nodeElements: string[] = [];
+  // Decoration sits under the connections, as on the canvas (zIndex below the edges).
+  const decorElements: string[] = [];
+  const edgeElements: string[] = [];
+  const metallicSurfaceDefs = aesthetics.render.nodeMaterial === 'metallic'
+    ? metallicSurfaceGradientSvgDefs(isDark)
+    : '';
+
+  for (const node of sortedNodes) {
+    const nodeData: SystemNodeRenderData = {
+      id: node.id,
+      type: node.type || 'systemNode',
+      x: node.position.x - bounds.minX,
+      y: node.position.y - bounds.minY,
+      width: node.width!,
+      height: node.height!,
+      data: node.data as NodeData,
+      selected: node.selected,
+    };
+
+    if (isDecorNode(node)) {
+      decorElements.push(renderDecorNode(nodeData, isDark));
+    } else if (node.type === STAT_NODE_TYPE) {
+      nodeElements.push(renderStatNode(nodeData, isDark));
+    } else if (node.type === 'imageNode') {
+      nodeElements.push(renderImageNode(nodeData, isDark));
+    } else if (node.type === 'textLabelNode') {
+      nodeElements.push(renderTextLabel(nodeData, isDark));
+    } else if (node.type === 'annotationNode') {
+      nodeElements.push(renderAnnotationNode(nodeData, isDark));
+    } else if (node.type === 'groupNode' || node.type === 'group') {
+      nodeElements.push(renderGroupNode(nodeData, isDark, renderStyleId, aesthetics));
+    } else if (node.type === 'shapeNode') {
+      nodeElements.push(renderShapeNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
+    } else {
+      nodeElements.push(renderSystemNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
+    }
+  }
 
   for (const edge of processedEdges) {
     const sourceNode = routingNodes.find((n) => n.id === edge.source);
@@ -240,6 +261,9 @@ export function generatePureSVG(
   ${studioSurfaceDefs}
   ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
   ${backgroundPattern}
+  <g id="decor">
+${decorElements.map((d) => '    ' + d.replace(/\n/g, '\n    ')).join('\n')}
+  </g>
   <g id="edges">
 ${edgeElements.map((e) => '    ' + e.replace(/\n/g, '\n    ')).join('\n')}
   </g>

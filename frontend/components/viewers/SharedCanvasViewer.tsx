@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -16,11 +16,11 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
 import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
-import { Download, Sun, Moon, MoveHorizontal, MoveVertical, Loader2, Maximize } from 'lucide-react';
+import { Download, Sun, Moon, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
 import { assignEdgeColors } from '@/lib/theme/edgeColors';
-import { layoutDiagramViaMermaid, type LayoutDirection } from '@/lib/diagram/mermaid/relayout';
+import type { LayoutDirection } from '@/lib/diagram/mermaid/relayout';
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
@@ -170,59 +170,13 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   // path. Always re-layouts from the shared base graph (never compounds),
   // caches per canvas + direction, and never writes back to the store.
   const canvasId = canvas?.id;
-  const canvasName = canvas?.canvas_name ?? 'Shared diagram';
-  const [layoutDir, setLayoutDir] = useState<LayoutDirection>('LR');
-  const [isRelayouting, setIsRelayouting] = useState(false);
-  const layoutCache = useRef(new Map<string, { nodes: Node[]; edges: Edge[] }>());
-  const [laidOut, setLaidOut] = useState<{
-    canvasId: string | undefined; nodes: Node[]; edges: Edge[];
-  } | null>(null);
+  // The shared diagram is shown as it was saved; the viewer has no layout controls.
+  const layoutDir: LayoutDirection = 'LR';
 
-  // A different shared canvas means a different base graph — only honor a
-  // cached layout for the canvas it was computed from (no reset effect).
-  const laidOutForCanvas = laidOut && laidOut.canvasId === canvasId ? laidOut : null;
-
-  const handleLayoutChange = useCallback(async (dir: LayoutDirection) => {
-    if (dir === layoutDir || isRelayouting) return;
-    const cacheKey = `${canvasId ?? 'none'}:${dir}`;
-    const cached = layoutCache.current.get(cacheKey);
-    if (cached) {
-      setLaidOut({ canvasId, ...cached });
-      setLayoutDir(dir);
-      setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
-      return;
-    }
-    setIsRelayouting(true);
-    try {
-      const result = await layoutDiagramViaMermaid(nodes, edges, dir, {
-        title: canvasName,
-      });
-      if (!result.success) {
-        toast.error('Could not re-layout diagram', {
-          description: result.warnings[0] ?? 'Showing the original layout.',
-        });
-        return;
-      }
-      const placed = {
-        nodes: normalizeNodes(result.nodes as unknown[]),
-        edges: normalizeEdges(result.edges as unknown[]),
-      };
-      layoutCache.current.set(cacheKey, placed);
-      setLaidOut({ canvasId, ...placed });
-      setLayoutDir(dir);
-      setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
-    } catch {
-      toast.error('Could not re-layout diagram');
-    } finally {
-      setIsRelayouting(false);
-    }
-  }, [layoutDir, isRelayouting, nodes, edges, canvasId, canvasName, fitView]);
-
-  const displayedNodes = laidOutForCanvas?.nodes ?? nodes;
-  const laidOutEdges = laidOutForCanvas?.edges;
+  const displayedNodes = nodes;
   const displayedEdges = useMemo(
-    () => assignEdgeColors(laidOutEdges ?? edges, isDark),
-    [laidOutEdges, edges, isDark],
+    () => assignEdgeColors(edges, isDark),
+    [edges, isDark],
   );
   const hoverFocus = useHoverFocus(displayedNodes, displayedEdges);
 
@@ -355,40 +309,6 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           <span className="hidden md:inline text-xs text-muted-foreground tabular-nums">
             {nodes.length} nodes · {edges.length} edges
           </span>
-          {/* Layout direction toggle (view-only, never persisted) */}
-          <div
-            className="flex items-center rounded-lg border border-border/40 bg-secondary p-0.5"
-            role="group"
-            aria-label="Layout direction"
-          >
-            {(['LR', 'TD'] as const).map((dir) => {
-              const active = layoutDir === dir;
-              const Icon = dir === 'LR' ? MoveHorizontal : MoveVertical;
-              const label = dir === 'LR' ? 'Horizontal' : 'Vertical';
-              return (
-                <button
-                  key={dir}
-                  onClick={() => void handleLayoutChange(dir)}
-                  disabled={isRelayouting}
-                  aria-pressed={active}
-                  title={`${label} layout`}
-                  aria-label={`${label} layout`}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition disabled:opacity-60 ${
-                    active
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {isRelayouting && active ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Icon className="w-3.5 h-3.5" />
-                  )}
-                  <span className="hidden lg:inline">{label}</span>
-                </button>
-              );
-            })}
-          </div>
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
             aria-pressed={isDark}

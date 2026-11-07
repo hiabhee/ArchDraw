@@ -11,7 +11,7 @@ This document uses ASD-STE100 Simplified Technical English.
 | Connection type | Value | Use it when |
 | --- | --- | --- |
 | **Remote (HTTP)** | `https://archdraw.hiabhee.online/api/mcp` | The client can connect to a remote MCP server. This is the recommended type. You do not install this package. |
-| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.1.0` | The client can only start a local process. |
+| **Local (stdio)** | `npx -y @hiabhee/archdraw-mcp-server@1.2.0` | The client can only start a local process. |
 
 For the steps for each client (Claude Code, Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, and others), refer to the [connection guide](https://archdraw.hiabhee.online/docs/connect-agents).
 
@@ -31,7 +31,7 @@ Most clients use this format:
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.1.0"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.2.0"],
       "env": {
         "API_BASE_URL": "https://archdraw.hiabhee.online"
       }
@@ -56,7 +56,7 @@ A live project is an ArchDraw canvas that shows which coding-agent session works
 2. In the repository, run:
 
    ```bash
-   npx -y @hiabhee/archdraw-mcp-server@1.1.0 link --api https://archdraw.hiabhee.online
+   npx -y @hiabhee/archdraw-mcp-server@1.2.0 link --api https://archdraw.hiabhee.online
    ```
 
 3. In the editor, select **Live project → Connect an agent** and enter the code that the command shows.
@@ -79,7 +79,7 @@ The ArchDraw plugin for Claude Code uses this link to report the files that each
 | `update_diagram` | Adds, removes, or changes nodes and edges in the current diagram. |
 | `get_diagram_state` | Gives the nodes and edges of the current diagram. |
 | `apply_template` | Loads an architecture template. |
-| `draw_on_canvas` | Draws with exact control: places text, blank cards to write in, shapes, notes, components and groups at precise positions, connects them, and restyles, moves, aligns, distributes or removes them. All operations in a call apply, or none do. Works on a blank canvas or on any existing diagram. Takes `style` to match the editor look: `"sketch"` (hand-drawn, the default), `"studio"`, `"studio-metallic"`, `"neubrutalism"` or `"precision"`. |
+| `draw_on_canvas` | Draws with exact control: places text, blank cards to write in, shapes, notes, components and groups at precise positions, plus infographic pieces (`shape`: panels, circles, dividers and arrows drawn behind everything; `stat`: big-number cards with a label, caption and icon), connects them, and restyles, moves, aligns, distributes or removes them. All operations in a call apply, or none do. Every reply also checks the result and lists layout problems for the agent to fix: overlapping cards or groups, a card outside its group or over another group, and connected cards too close for their label. Works on a blank canvas or on any existing diagram. Takes `style` to match the editor look: `"sketch"` (hand-drawn, the default), `"studio"`, `"studio-metallic"`, `"neubrutalism"` or `"precision"`. |
 | `layout_diagram` | Re-arranges the current diagram with ArchDraw's own layout engine (the editor's layout toggle): `direction` LR/TD, `arrangement` flow/zones, `fold` (wrap long flows for 16:9), `mixDirections`, and `groupDirections` to force particular groups. Only positions and sizes change. Combine with `draw_on_canvas` move/align for manual touch-ups. |
 
 ## Data and privacy

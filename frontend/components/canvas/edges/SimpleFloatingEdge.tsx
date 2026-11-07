@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useCallback, useState, useEffect } from 'react';
+import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import ReactDOM from 'react-dom';
 import { EdgeLabelRenderer, EdgeProps, useReactFlow, useStore, useStoreApi, ReactFlowState, Position, Edge } from 'reactflow';
 import { computeEdgeRoute, routeEndsAt } from '@/lib/diagram/edges/edgeRouteBuilder';
@@ -205,7 +206,7 @@ export default function SimpleFloatingEdge({
         svgPath: renderedPath.d, path, renderedPath, status: 'ok', violations: [], expandedStates: 0,
       } as EdgeRouteResult;
     }
-    const nodes = Array.from(rfStore.getState().nodeInternals.values());
+    const nodes = withoutDecorNodes(Array.from(rfStore.getState().nodeInternals.values()));
     const edgeObj: Edge = {
       id,
       source,
