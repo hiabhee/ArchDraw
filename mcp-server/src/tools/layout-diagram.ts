@@ -3,6 +3,7 @@ import { getDiagramState } from '../lib/diagram-state.js';
 import type { CanvasEdge, CanvasNode } from '../lib/canvas-ops.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { describeCanvas, publishCanvas, type DrawResult } from './draw-on-canvas.js';
+import { checkLayout } from '../lib/layout-check.js';
 
 const fail = (error: string, revision = 0): DrawResult => ({
   success: false, error, nodes: [], edges: [], steps: [], canvas: [], revision,
@@ -47,6 +48,7 @@ export async function layoutDiagram(input: LayoutDiagramInput, workingSession?: 
   }
 
   const { canvas, bounds } = describeCanvas(laid.nodes);
-  const base: DrawResult = { success: true, nodes: laid.nodes, edges: laid.edges, steps: [], canvas, bounds, revision: state.revision, message: laid.warnings?.length ? laid.warnings.join(' ') : undefined };
+  const issues = checkLayout(canvas, laid.edges as never);
+  const base: DrawResult = { success: true, nodes: laid.nodes, edges: laid.edges, steps: [], canvas, bounds, revision: state.revision, message: laid.warnings?.length ? laid.warnings.join(' ') : undefined, ...(issues.length ? { issues } : {}) };
   return publishCanvas(state, laid.nodes, laid.edges, base, false, input);
 }

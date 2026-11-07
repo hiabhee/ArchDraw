@@ -390,12 +390,13 @@ Works on the current diagram (workingSessionId). The reply lists every node's ne
     name: 'draw_on_canvas',
     title: 'Draw on an ArchDraw canvas',
     annotations: { title: 'Draw on an ArchDraw canvas', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    description: `Draws on a canvas with exact control: place text, empty cards to write in, shapes, notes, components and groups at precise positions, connect them, restyle, move, align and remove. Use it when the user wants something drawn that generate_diagram's automatic layout cannot give (a whiteboard, a sketch, annotations, a precise arrangement), or to add to / edit any existing diagram.
+    description: `Draws on a canvas with exact control: place text, empty cards to write in, shapes, panels and dividers, big-number stats, notes, components and groups at precise positions, connect them, restyle, move, align and remove. Use it when the user wants something drawn that generate_diagram's automatic layout cannot give (a whiteboard, a sketch, annotations, a precise arrangement, a simple infographic: steps, a timeline, a comparison, key numbers), or to add to / edit any existing diagram.
 
 HOW IT WORKS
 - Coordinates are canvas pixels: x grows right, y grows DOWN, (x, y) is the top-left corner. A typical card is ~200x90, so leave ~60px between neighbours.
 - "ops" run in order. ALL of them apply or NONE do: an error names the failing operation (Operation N) and nothing is drawn, so fix it and resend.
 - Give an "id" to anything you will refer to later (connect, group, update, move...). Otherwise one is generated (text_1, card_2...) and returned in "steps".
+- Every reply checks the result and lists layout problems: cards or groups overlapping, a card sticking out of its group or sitting over another group, and connected cards too close for their label (it would cover a card). Fix each one with move / update / distribute in a follow-up call before showing the user; a reply with no problems says so.
 - It works on the current diagram (workingSessionId), including one made by generate_diagram or apply_template. For a NEW canvas start with {"op":"clear"} (or omit workingSessionId on a hosted server). The reply lists every node's position and size ("canvas") and the overall "bounds": use them to place the next things.
 
 OPERATIONS (field "op")
@@ -403,9 +404,11 @@ OPERATIONS (field "op")
 - card: a card or shape, the "empty card to write in". {x, y, title?, subtitle?, shape?, width?, height?, color?, fill?, parent?}. Leave title empty for a blank card the user clicks to write in. shape: ${CARD_SHAPES.join(' | ')}.
 - note: a sticky text block. {x, y, title?, body?, titleSize?, bodySize?, width?, height?, parent?}. For longer writing.
 - component: an architecture component. {x, y, label, subtitle?, tier?, icon?, status?, width?, height?, parent?}.
+- shape: decoration behind everything; connections ignore it. {kind?: rectangle|circle|line|arrow, x, y, width?, height? (rectangle / circle), x2, y2 (line / arrow: the end point), fill?, stroke?, strokeWidth?, radius?, dashed?, opacity?, parent?}. Use rectangles as panels or bands behind a row of cards, circles as badges or step markers, lines as dividers, arrows to point at things. Cards and stats on a panel are not "overlapping". Draw panels FIRST so they sit underneath.
+- stat: a big-number card. {x, y, value, label?, caption?, icon?, color?, fill?, width?, height?, parent?}. value is short ("99.9%", "3x", "12 ms"); label says what it is ("uptime"); caption adds a line of context. Sized to fit when width/height are omitted. Can be connected like a card.
 - group: a labelled frame. {id?, label?, children?: [ids], color?} wraps the children (sized to fit them), or give x, y, width, height for an empty frame to fill later (put things in with parent, or update parent). Groups cannot be nested.
 - connect: an arrow. {from, to, label?, style?: solid|dashed|thick, arrow?: end|both, color?, path?: smooth|step|straight|bezier, fromSide?, toSide?: top|right|bottom|left}. Joins nodes, not groups.
-- update: change a node or connection. {id, text? title? subtitle? body? label? size? bold? color? fill? shape? x? y? width? height? parent? (an id, or null to leave a group) style?}. Only fields that apply to that kind of node are accepted.
+- update: change a node or connection. {id, text? title? subtitle? body? label? value? caption? size? bold? color? fill? opacity? shape? x? y? width? height? parent? (an id, or null to leave a group) style?}. Only fields that apply to that kind of node are accepted.
 - move: {ids, dx?, dy?} shift, or {ids, x?, y?} put the selection's top-left there.
 - align: {ids, mode: left|center|right|top|middle|bottom}.
 - distribute: {ids, axis: horizontal|vertical, gap?} even spacing (or a fixed gap).
@@ -429,8 +432,8 @@ By default the result is published and links are returned (publish:false keeps i
           items: {
             type: 'object',
             properties: {
-              op: { type: 'string', enum: ['text', 'card', 'note', 'component', 'group', 'connect', 'update', 'move', 'align', 'distribute', 'remove', 'clear'] },
-              id: { type: 'string', description: 'text/card/note/component/group/connect: optional id to create; update: the node or connection to change.' },
+              op: { type: 'string', enum: ['text', 'card', 'shape', 'stat', 'note', 'component', 'group', 'connect', 'update', 'move', 'align', 'distribute', 'remove', 'clear'] },
+              id: { type: 'string', description: 'text/card/shape/stat/note/component/group/connect: optional id to create; update: the node or connection to change.' },
               ids: { type: 'array', items: { type: 'string' }, description: 'move / align / distribute / remove: the targets.' },
               x: { type: 'number', description: 'Left edge in canvas px (move: put the selection here).' },
               y: { type: 'number', description: 'Top edge in canvas px (y grows downward).' },
@@ -442,13 +445,23 @@ By default the result is published and links are returned (publish:false keeps i
               title: { type: 'string', description: 'card / note: the title. Empty = a blank card to write in.' },
               subtitle: { type: 'string' },
               body: { type: 'string', description: 'note: longer text.' },
-              label: { type: 'string', description: 'component / group / connect label.' },
+              label: { type: 'string', description: 'component / group / connect label; stat: what the value measures.' },
+              kind: { type: 'string', enum: ['rectangle', 'circle', 'line', 'arrow'], description: 'shape: rectangle (default), circle, line or arrow.' },
+              x2: { type: 'number', description: 'shape line / arrow: end x.' },
+              y2: { type: 'number', description: 'shape line / arrow: end y.' },
+              stroke: { type: 'string', description: 'shape: #rrggbb outline or line ink.' },
+              strokeWidth: { type: 'number', description: 'shape: outline / line width (0..24).' },
+              radius: { type: 'number', description: 'shape rectangle: corner radius.' },
+              dashed: { type: 'boolean', description: 'shape: dashed outline or line.' },
+              opacity: { type: 'number', description: 'shape: 0.05..1.' },
+              value: { type: 'string', description: 'stat: the big value, e.g. "99.9%".' },
+              caption: { type: 'string', description: 'stat: small text under the label.' },
               size: { type: 'string', enum: ['small', 'medium', 'large', 'heading'], description: 'text size.' },
               titleSize: { type: 'string', enum: ['small', 'medium', 'large', 'heading'] },
               bodySize: { type: 'string', enum: ['small', 'medium', 'large', 'heading'] },
               bold: { type: 'boolean' },
               color: { type: 'string', description: '#rrggbb: ink / outline / line / group tint.' },
-              fill: { type: 'string', description: '#rrggbb card background.' },
+              fill: { type: 'string', description: '#rrggbb card / stat background or shape fill.' },
               shape: { type: 'string', enum: [...CARD_SHAPES] },
               tier: { type: 'string', enum: ['client', 'edge', 'compute', 'async', 'data', 'observe', 'external'] },
               icon: { type: 'string' },
@@ -475,7 +488,7 @@ By default the result is published and links are returned (publish:false keeps i
   },
 ];
 
-export const SERVER_VERSION = '1.1.0';
+export const SERVER_VERSION = '1.2.0';
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
@@ -704,17 +717,18 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
         updateToken: result.updateToken,
         revision: result.revision,
       }, workingSession);
-      const made = result.steps.flatMap(step => (['text', 'card', 'note', 'component', 'group', 'connect'].includes(step.op) ? step.ids.slice(0, 1).map(id => `${step.op} ${id}`) : []));
+      const made = result.steps.flatMap(step => (['text', 'card', 'shape', 'stat', 'note', 'component', 'group', 'connect'].includes(step.op) ? step.ids.slice(0, 1).map(id => `${step.op} ${id}`) : []));
       const linkBlock = result.canvas.length > 0
         ? `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false, imageStyle: input.style })}\n\n`
         : '';
-      const summary = `Drew ${input.ops.length} operation(s). Canvas now has ${result.canvas.length} node(s) and ${result.edges.length} connection(s)${result.bounds ? `, spanning x ${result.bounds.x}..${result.bounds.x + result.bounds.width}, y ${result.bounds.y}..${result.bounds.y + result.bounds.height}` : ''}.${made.length ? `\nCreated: ${made.join(', ')}.` : ''}\nworkingSessionId: ${workingSession}`;
+      const summary = `Drew ${input.ops.length} operation(s). Canvas now has ${result.canvas.length} node(s) and ${result.edges.length} connection(s)${result.bounds ? `, spanning x ${result.bounds.x}..${result.bounds.x + result.bounds.width}, y ${result.bounds.y}..${result.bounds.y + result.bounds.height}` : ''}.${made.length ? `\nCreated: ${made.join(', ')}.` : ''}${layoutIssuesText(result.issues)}\nworkingSessionId: ${workingSession}`;
       return {
         structuredContent: {
           success: true,
           workingSessionId: workingSession,
           steps: result.steps,
           canvas: result.canvas,
+          issues: result.issues ?? [],
           ...(result.bounds ? { bounds: result.bounds } : {}),
           revision: result.revision,
           ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
@@ -740,12 +754,13 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
         revision: result.revision,
       }, workingSession);
       const linkBlock = `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false, imageStyle: input.style })}\n\n`;
-      const summary = `Laid out ${result.canvas.length} node(s) ${input.direction === 'LR' ? 'left to right' : 'top down'} (${input.arrangement}). Only positions and sizes changed.${result.message ? `\nNote: ${result.message}` : ''}\nworkingSessionId: ${workingSession}`;
+      const summary = `Laid out ${result.canvas.length} node(s) ${input.direction === 'LR' ? 'left to right' : 'top down'} (${input.arrangement}). Only positions and sizes changed.${result.message ? `\nNote: ${result.message}` : ''}${layoutIssuesText(result.issues)}\nworkingSessionId: ${workingSession}`;
       return {
         structuredContent: {
           success: true,
           workingSessionId: workingSession,
           canvas: result.canvas,
+          issues: result.issues ?? [],
           ...(result.bounds ? { bounds: result.bounds } : {}),
           revision: result.revision,
           ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
@@ -769,6 +784,12 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
         isError: true,
       };
   }
+}
+
+/** The layout problems block for a drawing reply: what to fix, so the next call can fix it. */
+function layoutIssuesText(issues: Array<{ message: string }> | undefined): string {
+  if (!issues?.length) return '\nLayout check: no overlaps, every card inside its group, room for every label.';
+  return `\nLayout problems (fix these with move / update / distribute before showing the user):\n${issues.map((issue, i) => `${i + 1}. ${issue.message}`).join('\n')}`;
 }
 
 export function createArchDrawMCPServer(options: ArchDrawServerOptions = {}): Server {

@@ -1,4 +1,5 @@
 import type { Edge, Node } from 'reactflow';
+import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
 import { computeEdgeRoute, createEdgeRoutingContext, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
@@ -50,10 +51,11 @@ export interface DiagramGeometryPlan {
 /** Re-route only routes that touch a moved node or its old/new obstacle box. */
 export function computeDiagramGeometryPreview(
   previous: DiagramGeometryPlan,
-  nodes: Node[],
+  allNodes: Node[],
   edges: Edge[],
   options: DiagramGeometryOptions,
 ): DiagramGeometryPlan {
+  const nodes = withoutDecorNodes(allNodes);
   const rects = getBounds(nodes);
   const moved = new Set<string>();
   const affectedRects: Rect[] = [];
@@ -180,10 +182,12 @@ export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: Diagr
 }
 
 export function computeDiagramGeometryPlan(
-  nodes: Node[],
+  allNodes: Node[],
   edges: Edge[],
   options: DiagramGeometryOptions,
 ): DiagramGeometryPlan {
+  // Decoration (panels, lines) is drawn under the diagram: never an obstacle, never an end.
+  const nodes = withoutDecorNodes(allNodes);
   const nodeById = new Map(nodes.map(node => [node.id, node]));
   const bounds = getBounds(nodes);
   // Label placement works in canvas coordinates. Normalize parent-relative

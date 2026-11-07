@@ -9,6 +9,7 @@
 export const RAW_NODE_TYPES: ReadonlySet<string> = new Set([
   'systemNode', 'architectureNode', 'baseNode', 'databaseNode', 'cacheNode', 'shapeNode',
   'groupNode', 'group', 'frameNode', 'serviceNode', 'textLabelNode', 'annotationNode', 'imageNode',
+  'decorNode', 'statNode',
   'messageBrokerNode', 'customNode', 'custom',
 ]);
 

@@ -255,4 +255,78 @@ describe('schema', () => {
     expect(DrawOpSchema.safeParse({ op: 'wiggle' }).success).toBe(false);
     expect(DrawOpSchema.safeParse({ op: 'card', x: 0, y: 0, shape: 'blob' }).success).toBe(false);
   });
+
+  it('leaves a component without an icon unless one is given, so the editor picks one from its label', () => {
+    const { nodes } = applyDrawOps([], [], [
+      { op: 'component', id: 'db', x: 0, y: 0, label: 'User & Group DB' },
+      { op: 'component', id: 'gw', x: 300, y: 0, label: 'Gateway', icon: 'arch-api-gateway' },
+    ] as never);
+    expect(nodes.find((n) => n.id === 'db')!.data.icon).toBeUndefined();
+    expect(nodes.find((n) => n.id === 'gw')!.data.icon).toBe('arch-api-gateway');
+  });
+});
+
+describe('shape', () => {
+  it('draws a panel behind everything, sized as given', () => {
+    const r = run([{ op: 'shape', id: 'p', x: 10, y: 20, width: 600, height: 200, fill: '#112233', radius: 24, opacity: 0.6 }]);
+    const p = node(r, 'p');
+    expect(p.type).toBe('decorNode');
+    expect(p.position).toEqual({ x: 10, y: 20 });
+    expect(p.zIndex).toBeLessThan(0);
+    expect(p.style).toMatchObject({ width: 600, height: 200 });
+    expect(p.data).toMatchObject({ kind: 'rectangle', fill: '#112233', radius: 24, opacity: 0.6 });
+  });
+
+  it('draws a line or arrow from x, y to x2, y2 inside a padded box', () => {
+    const r = run([{ op: 'shape', id: 'a', kind: 'arrow', x: 100, y: 100, x2: 300, y2: 100 }]);
+    const a = node(r, 'a');
+    const w = a.width!, h = a.height!;
+    const from = a.data.from as { x: number; y: number }, to = a.data.to as { x: number; y: number };
+    expect(a.position.x + from.x * w).toBeCloseTo(100);
+    expect(a.position.y + from.y * h).toBeCloseTo(100);
+    expect(a.position.x + to.x * w).toBeCloseTo(300);
+    expect(h).toBeGreaterThan(0);
+  });
+
+  it('asks for the end of a line, and refuses a size on it', () => {
+    expect(() => run([{ op: 'shape', kind: 'line', x: 0, y: 0 }])).toThrow(/x2 and y2/);
+    expect(() => run([{ op: 'shape', kind: 'line', x: 0, y: 0, x2: 10, y2: 10, width: 50 }])).toThrow(/no width/);
+  });
+
+  it('takes no connections', () => {
+    expect(() => run([
+      { op: 'shape', id: 'p', x: 0, y: 0 },
+      { op: 'card', id: 'c', x: 400, y: 0, title: 'A' },
+      { op: 'connect', from: 'c', to: 'p' },
+    ])).toThrow(/decoration/);
+  });
+
+  it('is accepted by the schema', () => {
+    expect(DrawOpSchema.safeParse({ op: 'shape', kind: 'circle', x: 0, y: 0, width: 80, height: 80, fill: '#ffffff' }).success).toBe(true);
+    expect(DrawOpSchema.safeParse({ op: 'shape', kind: 'blob', x: 0, y: 0 }).success).toBe(false);
+  });
+});
+
+describe('stat', () => {
+  it('makes a big-number card sized to its text', () => {
+    const r = run([{ op: 'stat', id: 's', x: 0, y: 0, value: '99.9%', label: 'uptime', caption: 'across three regions', icon: 'globe', color: '#22c55e' }]);
+    const s = node(r, 's');
+    expect(s.type).toBe('statNode');
+    expect(s.data).toMatchObject({ value: '99.9%', label: 'uptime', caption: 'across three regions', icon: 'globe', color: '#22c55e' });
+    expect(s.width).toBeGreaterThanOrEqual(200);
+    expect(s.height).toBeGreaterThan(120);
+    expect(s.style).toMatchObject({ width: s.width, height: s.height });
+  });
+
+  it('can be connected and updated', () => {
+    const r = run([
+      { op: 'stat', id: 'a', x: 0, y: 0, value: '1' },
+      { op: 'stat', id: 'b', x: 400, y: 0, value: '2' },
+      { op: 'connect', from: 'a', to: 'b' },
+      { op: 'update', id: 'b', value: '2,000,000', caption: 'requests a day' },
+    ]);
+    expect(r.edges).toHaveLength(1);
+    expect(node(r, 'b').data).toMatchObject({ value: '2,000,000', caption: 'requests a day' });
+    expect(() => run([{ op: 'stat', id: 'a', x: 0, y: 0, value: '1' }, { op: 'update', id: 'a', shape: 'circle' }])).toThrow(/cannot be set/);
+  });
 });

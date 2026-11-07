@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import type { Node, Edge } from 'reactflow';
 import { getBezierPath, getStraightPath } from 'reactflow';
 import { computeEdgeRoute } from '@/lib/diagram/edges/edgeRouteBuilder';
@@ -174,7 +175,7 @@ export function DiagramPreview({ nodes, edges, width = 280, height = 160 }: Diag
   const generateEdgePath = (edge: Edge, sourceNode: Node, targetNode: Node): string => {
     if (!sourceNode || !targetNode) return '';
 
-    const nodesList = Array.from(previewNodeInternals.values());
+    const nodesList = withoutDecorNodes(Array.from(previewNodeInternals.values()));
     const route = computeEdgeRoute(edge, nodesList, edges);
 
     const transformPt = (pt: { x: number; y: number }) => transform(pt.x, pt.y);

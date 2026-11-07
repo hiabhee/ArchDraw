@@ -13,7 +13,8 @@ import { brutalShadowFilter } from '@/lib/theme/renderStyles/neubrutalism';
 import { metallicSurfaceGradientSvgDefs } from '@/lib/theme/renderStyles/studioMetallic';
 import { getEffectiveNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { calculateBounds, extendBounds, nodeDepth, resolveAbsolutePosition } from './nodeLayout';
-import { renderSystemNode, renderTextLabel, renderImageNode, renderAnnotationNode, renderGroupNode, renderShapeNode } from './renderNodes';
+import { renderSystemNode, renderTextLabel, renderImageNode, renderAnnotationNode, renderGroupNode, renderShapeNode, renderDecorNode, renderStatNode } from './renderNodes';
+import { isDecorNode, infographicNodeSize, STAT_NODE_TYPE } from '@/lib/diagram/nodes/infographicNodes';
 import { renderEdge } from './renderEdges';
 import type { SystemNodeRenderData, EdgeRenderData } from './types';
 import { escapeXml } from './svgPrimitives';
@@ -44,7 +45,8 @@ export function generatePureSVG(
 
   const preparedNodes = nodes.map((node) => {
     const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
-    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
+    // Text and infographic pieces are drawn at their own box, not a card's effective size.
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode' || isDecorNode(node) || node.type === STAT_NODE_TYPE;
 
     let w: number;
     let h: number;
@@ -52,8 +54,10 @@ export function generatePureSVG(
     if (isText) {
       const measuredWidth = (node as Node & { measured?: { width?: number } }).measured?.width;
       const measuredHeight = (node as Node & { measured?: { height?: number } }).measured?.height;
-      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? measuredWidth ?? (node.type === 'textLabelNode' ? 120 : 200);
-      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? measuredHeight ?? (node.type === 'textLabelNode' ? 40 : 120);
+      const own = infographicNodeSize(node, { width: measuredWidth ?? (node.type === 'textLabelNode' ? 120 : 200), height: measuredHeight ?? (node.type === 'textLabelNode' ? 40 : 120) });
+      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? own.width;
+      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? own.height;
+      if (isDecorNode(node) || node.type === STAT_NODE_TYPE) { w = own.width; h = own.height; }
     } else if (isGroup) {
       w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? 300;
       h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? 200;
@@ -99,7 +103,7 @@ export function generatePureSVG(
   // Build routingNodes that keep parents but have correct effective dimensions.
   const routingNodes: Node[] = nodes.map((node) => {
     const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
-    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode';
+    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode' || isDecorNode(node) || node.type === STAT_NODE_TYPE;
     let w: number | undefined;
     let h: number | undefined;
     if (!isText && !isGroup) {
@@ -159,6 +163,8 @@ export function generatePureSVG(
   const fitZoom = viewZoom && viewZoom > 0 ? viewZoom : Math.max(0.1, Math.min(1, 1280 / Math.max(1, width), 720 / Math.max(1, height)));
   const labelScale = Math.min(1.4, Math.max(0.85, 1 / fitZoom));
   const nodeElements: string[] = [];
+  // Decoration sits under the connections, as on the canvas (zIndex below the edges).
+  const decorElements: string[] = [];
   const edgeElements: string[] = [];
   const metallicSurfaceDefs = aesthetics.render.nodeMaterial === 'metallic'
     ? metallicSurfaceGradientSvgDefs(isDark)
@@ -176,7 +182,11 @@ export function generatePureSVG(
       selected: node.selected,
     };
 
-    if (node.type === 'imageNode') {
+    if (isDecorNode(node)) {
+      decorElements.push(renderDecorNode(nodeData, isDark));
+    } else if (node.type === STAT_NODE_TYPE) {
+      nodeElements.push(renderStatNode(nodeData, isDark));
+    } else if (node.type === 'imageNode') {
       nodeElements.push(renderImageNode(nodeData, isDark));
     } else if (node.type === 'textLabelNode') {
       nodeElements.push(renderTextLabel(nodeData, isDark));
@@ -251,6 +261,9 @@ export function generatePureSVG(
   ${studioSurfaceDefs}
   ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
   ${backgroundPattern}
+  <g id="decor">
+${decorElements.map((d) => '    ' + d.replace(/\n/g, '\n    ')).join('\n')}
+  </g>
   <g id="edges">
 ${edgeElements.map((e) => '    ' + e.replace(/\n/g, '\n    ')).join('\n')}
   </g>

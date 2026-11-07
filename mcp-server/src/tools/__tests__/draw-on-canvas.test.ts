@@ -134,4 +134,36 @@ describe('drawOnCanvas', () => {
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/cannot also be a child/);
   });
+
+  it('reports layout problems in the result so the agent can fix them', async () => {
+    const { run } = api();
+    const result = await run(() => drawOnCanvas(input({
+      publish: false,
+      ops: [
+        { op: 'clear' },
+        { op: 'card', id: 'chat', x: 0, y: 0, title: 'Chat Servers' },
+        { op: 'card', id: 'router', x: 230, y: 0, title: 'Message Router' },
+        { op: 'connect', from: 'chat', to: 'router', label: 'encrypted msg' },
+        { op: 'card', id: 'store', x: 230, y: 30, title: 'Message Store' },
+      ],
+    }), WS));
+    expect(result.success).toBe(true);
+    const kinds = (result.issues ?? []).map(issue => issue.kind);
+    expect(kinds).toContain('overlap');
+    expect(kinds).toContain('label-gap');
+  });
+
+  it('reports no problems for a tidy drawing', async () => {
+    const { run } = api();
+    const result = await run(() => drawOnCanvas(input({
+      publish: false,
+      ops: [
+        { op: 'clear' },
+        { op: 'card', id: 'a', x: 0, y: 0, title: 'A' },
+        { op: 'card', id: 'b', x: 500, y: 0, title: 'B' },
+        { op: 'connect', from: 'a', to: 'b', label: 'call' },
+      ],
+    }), WS));
+    expect(result.issues ?? []).toEqual([]);
+  });
 });

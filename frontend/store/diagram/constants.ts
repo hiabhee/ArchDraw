@@ -25,6 +25,9 @@ export const KNOWN_NODE_TYPES = new Set([
   'serviceNode',
   'textLabelNode',
   'annotationNode',
+  'imageNode',
+  'decorNode',
+  'statNode',
   'messageBrokerNode',
   'customNode',
 ]);

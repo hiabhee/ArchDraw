@@ -4,6 +4,8 @@ import { GroupNode } from '@/components/canvas/nodes/GroupNode';
 import { TextLabelNode } from '@/components/canvas/nodes/TextLabelNode';
 import { ImageNode } from '@/components/canvas/nodes/ImageNode';
 import { AnnotationNode } from '@/components/canvas/nodes/AnnotationNode';
+import { DecorNode } from '@/components/canvas/nodes/DecorNode';
+import { StatNode } from '@/components/canvas/nodes/StatNode';
 import SimpleFloatingEdge from '@/components/canvas/edges/SimpleFloatingEdge';
 import type { NodeTypes, EdgeTypes } from 'reactflow';
 
@@ -21,6 +23,8 @@ export const NODE_TYPES: NodeTypes = {
   textLabelNode:     TextLabelNode,
   annotationNode:    AnnotationNode,
   imageNode:         ImageNode,
+  decorNode:         DecorNode,
+  statNode:          StatNode,
   messageBrokerNode: SystemNode,
   customNode:        SystemNode,
   custom:            SystemNode,

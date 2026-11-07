@@ -20,6 +20,7 @@ import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/s
 import { getShapeLabelMaxWidth } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_ICON_GAP, STUDIO_SCALE, STUDIO_SUBTITLE_PX, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import { wrapText } from './textMeasure';
+import { decorOpacity, decorPrimitives, statIconName, statLayout, type DecorNodeData, type StatNodeData } from '@/lib/diagram/nodes/infographicNodes';
 
 /** A length from the original 64px Studio card, scaled to today's card. */
 const S = (px: number) => Math.round(px * STUDIO_SCALE);
@@ -346,6 +347,38 @@ export function renderSystemNode(
       <circle cx="${width - 14}" cy="${height - 14}" r="3" fill="${statusColor}" />` : ''}
     </g>
   `.trim();
+}
+
+/** A plain shape (panel, circle, line, arrow): the same primitives the canvas draws. */
+export function renderDecorNode(node: SystemNodeRenderData, isDark: boolean): string {
+  const { x, y, width, height } = node;
+  const data = node.data as unknown as DecorNodeData;
+  const opacity = decorOpacity(data);
+  const body = decorPrimitives(data, width, height, isDark)
+    .map(({ tag, attrs }) => `<${tag}${Object.entries(attrs).map(([k, v]) => ` ${k}="${escapeXml(String(v))}"`).join('')} />`)
+    .join('');
+  return `<g transform="translate(${x}, ${y})"${opacity < 1 ? ` opacity="${opacity}"` : ''}>${body}</g>`;
+}
+
+/** A big-number card, laid out exactly as the canvas lays it out (statLayout). */
+export function renderStatNode(node: SystemNodeRenderData, isDark: boolean): string {
+  const { x, y, width, height, selected } = node;
+  const data = node.data as unknown as StatNodeData;
+  const icon = statIconName(data, isDark);
+  const layout = statLayout(data, width, height, isDark, Boolean(icon));
+  const font = 'Inter, system-ui, -apple-system, sans-serif';
+  const lines = (block: { lines: string[]; y: number; px: number; line: number } | undefined, fill: string, weight: number) => block
+    ? `<text x="${layout.x}" y="${block.y}" fill="${fill}" font-family="${font}" font-size="${block.px}" font-weight="${weight}">${block.lines.map((line, i) => `<tspan x="${layout.x}" dy="${i === 0 ? 0 : block.line}">${escapeXml(line)}</tspan>`).join('')}</text>`
+    : '';
+  return [
+    `<g transform="translate(${x}, ${y})">`,
+    `<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="14" ry="14" fill="${layout.surface}" stroke="${selected ? layout.selectedBorder : layout.border}" stroke-width="${selected ? 2 : 1}" />`,
+    icon && layout.icon ? `<g transform="translate(${layout.icon.x}, ${layout.icon.y})">${iconElementSvg(CustomNodeIcon({ name: icon, color: layout.iconColor, size: layout.icon.size }))}</g>` : '',
+    layout.value ? `<text x="${layout.x}" y="${layout.value.y}" fill="${layout.valueColor}" font-family="${font}" font-size="${layout.value.px}" font-weight="600" letter-spacing="-0.5">${escapeXml(layout.value.text)}</text>` : '',
+    lines(layout.label, layout.labelColor, 600),
+    lines(layout.caption, layout.captionColor, 400),
+    '</g>',
+  ].join('');
 }
 
 /** A pasted picture or preview: a framed image with its caption. */
