@@ -211,6 +211,8 @@ export function step(config: StepConfig): TutorialStep {
   return {
     id: config.id ?? `step-${nodeType}`,
     title: stepTitle,
+    component,
+    ...(autoConnect ? { connectsFrom: parents } : {}),
     phases: { context, intro, teaching, action, connecting, celebration },
     validation,
     hints,
@@ -285,6 +287,75 @@ interface TutorialConfig {
   recommendedOrder?: number;
 }
 
+/** The component types a step's node rule accepts: its node type plus any aliases. */
+function acceptedTypes(rules: ValidationRule[]): string[] {
+  for (const rule of rules) {
+    if (rule.type === 'node_exists' || rule.type === 'node_count') return [rule.nodeType];
+    if (rule.type === 'any_of' && rule.rules.every((r) => r.type === 'node_exists')) {
+      return rule.rules.map((r) => (r as { nodeType: string }).nodeType);
+    }
+    if (rule.type === 'all_of') {
+      const inner = acceptedTypes(rule.rules);
+      if (inner.length) return inner;
+    }
+  }
+  return [];
+}
+
+/**
+ * Connections name their parent by its title (`edge('mobile_client', 'cdn')`), but the
+ * node a learner adds from search carries the registry's type and label (`client_mobile`,
+ * "Mobile"), so a correct connection never matched and the step only moved on through
+ * "Continue anyway". Each such rule also accepts the types the parent step and this step
+ * add. Name matches still count, so nothing that passed before stops passing.
+ */
+function resolveConnectionTypes(levels: TutorialLevel[]): TutorialLevel[] {
+  const typesByComponent = new Map<string, string[]>();
+  const withTypes = (rule: ValidationRule, parents: Map<string, string[]>, own: string[]): ValidationRule => {
+    if (rule.type === 'all_of' || rule.type === 'any_of') {
+      return { ...rule, rules: rule.rules.map((r) => withTypes(r, parents, own)) };
+    }
+    if (rule.type !== 'edge_exists') return rule;
+    const sourceTypes = parents.get(rule.source);
+    return {
+      ...rule,
+      ...(sourceTypes?.length && !rule.sourceTypes ? { sourceTypes } : {}),
+      ...(own.length && !rule.targetTypes ? { targetTypes: own } : {}),
+    };
+  };
+  return levels.map((level) => ({
+    ...level,
+    steps: level.steps.map((s) => {
+      const own = acceptedTypes(s.validation);
+      const parents = new Map(
+        (s.connectsFrom ?? []).flatMap((p) => {
+          const types = typesByComponent.get(p);
+          return types ? [[toSnakeCase(p), types] as const] : [];
+        }),
+      );
+      if (s.component) typesByComponent.set(s.component, own);
+      return parents.size ? { ...s, validation: s.validation.map((r) => withTypes(r, parents, own)) } : s;
+    }),
+  }));
+}
+
+/**
+ * Step ids default to `step-<nodeType>`, so two steps that add the same type (two
+ * microservices) shared an id and progress counted them as one. Later repeats get a
+ * numeric suffix; the first keeps its id, so saved progress still lines up.
+ */
+function uniqueStepIds(levels: TutorialLevel[]): TutorialLevel[] {
+  const seen = new Map<string, number>();
+  return levels.map((level) => ({
+    ...level,
+    steps: level.steps.map((s) => {
+      const count = (seen.get(s.id) ?? 0) + 1;
+      seen.set(s.id, count);
+      return count === 1 ? s : { ...s, id: `${s.id}-${count}` };
+    }),
+  }));
+}
+
 export function defineTutorial(config: TutorialConfig): TutorialDefinition {
   return {
     id: config.id,
@@ -292,7 +363,7 @@ export function defineTutorial(config: TutorialConfig): TutorialDefinition {
     description: config.description,
     difficulty: config.difficulty,
     estimatedMinutes: config.estimatedMinutes,
-    levels: config.levels,
+    levels: uniqueStepIds(resolveConnectionTypes(config.levels)),
     tags: config.tags,
     icon: config.icon,
     color: config.color,

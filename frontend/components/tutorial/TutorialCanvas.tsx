@@ -251,7 +251,7 @@ function TutorialCanvasInner({
     // Build a key of current met state
     const metKey = [
       ...allNodeTypes.map(nt => isNodeTypeMet(nt, nodes) ? '1' : '0'),
-      ...allEdges.map(er => isEdgeMet(er.source, er.target, nodes, edges) ? '1' : '0'),
+      ...allEdges.map(er => isEdgeMet(er.source, er.target, nodes, edges, er) ? '1' : '0'),
     ].join('');
 
     const prevKey = prevRequirementsMetRef.current;

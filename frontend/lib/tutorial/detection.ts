@@ -9,6 +9,11 @@ function normalize(str: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
+/** Whether a node is one of the given component types (registry id or type). */
+function isOfType(n: Node, types: string[] | undefined): boolean {
+  return !!types?.some((t) => n.data?.componentId === t || normalize(nodeTypeId(n)) === normalize(t));
+}
+
 function nodeTypeId(n: Node): string {
   return n.data?.componentType || n.data?.typeId || n.data?.componentId || n.type || '';
 }
@@ -64,14 +69,16 @@ export function evaluateValidationRule(
         n.data?.componentId === rule.source ||
         n.data?.typeId === rule.source ||
         normalize(nodeTypeId(n)) === srcTarget ||
-        normalize(n.data?.label || '') === srcTarget
+        normalize(n.data?.label || '') === srcTarget ||
+        isOfType(n, rule.sourceTypes)
       );
       const targetNodes = nodes.filter(n => 
         n.id === rule.target ||
         n.data?.componentId === rule.target ||
         n.data?.typeId === rule.target ||
         normalize(nodeTypeId(n)) === tgtTarget ||
-        normalize(n.data?.label || '') === tgtTarget
+        normalize(n.data?.label || '') === tgtTarget ||
+        isOfType(n, rule.targetTypes)
       );
 
       if (sourceNodes.length === 0 || targetNodes.length === 0) {
