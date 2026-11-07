@@ -159,3 +159,31 @@ describe('bidirectional edge routing', () => {
     expect(route.waypoints.every((point) => point.y === 50)).toBe(true);
   });
 });
+
+describe('a request/reply pair with a card between its ends', () => {
+  it('routes around the card instead of through it', () => {
+    // Chat above, Broker below, two other cards stacked between them (a column in one group).
+    const nodes = [
+      makeNode('chat', 0, 0, 240, 80),
+      makeNode('notify', 0, 100, 240, 80),
+      makeNode('presence', 0, 200, 240, 80),
+      makeNode('broker', 0, 400, 240, 80),
+    ];
+    const publish = makeEdge('publish', 'chat', 'broker');
+    const deliver = makeEdge('deliver', 'broker', 'chat');
+    for (const edge of [publish, deliver]) {
+      const route = computeEdgeRoute(edge, nodes, [publish, deliver], 'LR');
+      expect(route.status).toBe('ok');
+      expect(route.violations.some(v => v.code === 'OBSTACLE_INTERSECTION')).toBe(false);
+    }
+  });
+
+  it('keeps the facing sides when nothing is in the way', () => {
+    const nodes = [makeNode('a', 0, 0), makeNode('b', 400, 0)];
+    const ab = makeEdge('ab', 'a', 'b');
+    const ba = makeEdge('ba', 'b', 'a');
+    const route = computeEdgeRoute(ab, nodes, [ab, ba], 'LR');
+    expect(route.sourcePosition).toBe(Position.Right);
+    expect(route.targetPosition).toBe(Position.Left);
+  });
+});

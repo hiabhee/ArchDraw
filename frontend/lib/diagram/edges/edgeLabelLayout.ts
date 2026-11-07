@@ -443,6 +443,8 @@ export function findUniqueStemRange(
 
 /** Minimum length (px) for a unique line segment to host a label. */
 const MIN_LABEL_SEGMENT_LEN = 32
+/** Straight line kept between a label pill and the start of a bend. */
+const LABEL_CORNER_GAP = 6
 /**
  * Minimum gap (px) between a label pill and a node bounding box.
  * Increased from 12 → 20 so "publishes order event" doesn't sit
@@ -649,6 +651,11 @@ function buildCandidates(
   userPlaced = false,
   /** Height of the pill in world px: its extent along a vertical edge. */
   labelHeight = labelWidth,
+  /**
+   * Keep the pill off bends: spots where the whole pill sits on one straight run come first, and
+   * each end's clearance is measured along the run there (see computeEdgeLabelLayout).
+   */
+  avoidCorners = false,
 ): LabelCandidate[] {
   const mk = (t: number): LabelCandidate => {
     const base = pointAtFraction(segs, t)
@@ -667,16 +674,34 @@ function buildCandidates(
   // mostly vertical one. Using the width everywhere left no room on a short vertical edge, so
   // labels of parallel edges were all forced to the middle and covered each other.
   const half = (isMostlyVertical(segs) ? labelHeight : labelWidth) / 2
+  // The straight runs of the edge and the pill's extent along each (its width along a horizontal
+  // run, its height along a vertical one).
+  const runs = coalesceCollinearLineRuns(segs).map(run => {
+    let start = 0
+    let horizontal = true
+    for (const seg of segs) {
+      if (seg.type === 'line' && start >= run.start - 1e-6 && start < run.end) {
+        horizontal = Math.abs(seg.x1 - seg.x0) >= Math.abs(seg.y1 - seg.y0)
+        break
+      }
+      start += seg.len
+    }
+    const extent = (horizontal ? labelWidth : labelHeight) / 2
+    return { ...run, extent, half: extent + LABEL_CORNER_GAP }
+  })
+  // The short vertical leg out of a node in a mostly horizontal edge holds the pill by its height.
+  const halfAtStart = avoidCorners && runs.length ? runs[0].extent : half
+  const halfAtEnd = avoidCorners && runs.length ? runs[runs.length - 1].extent : half
   // Measured on the canvas: the arrowhead plus its handle dot take about 24px of the end,
   // and labels are drawn up to 1.5x larger when zoomed out. Leave a visible stretch of
   // line between the pill and the arrowhead (about 24px) on top of that.
   const sourceGap = brutal ? 30 : 24
   const targetGap = brutal ? 60 : 48
-  const marginOf = (px: number, floor: number) => (totalLen > 1 ? Math.min(0.45, Math.max(floor, (half + px) / totalLen)) : 0.45)
+  const marginOf = (px: number, floor: number, extent: number) => (totalLen > 1 ? Math.min(0.45, Math.max(floor, (extent + px) / totalLen)) : 0.45)
   // The target end carries the arrowhead and its handle, so it keeps a firmer floor; the
   // source end may sit closer (a private leg out of a shared trunk needs a label near it).
-  const lo0 = marginOf(sourceGap, 0.06)
-  const hi0 = 1 - marginOf(targetGap, 0.12)
+  const lo0 = marginOf(sourceGap, 0.06, halfAtStart)
+  const hi0 = 1 - marginOf(targetGap, 0.12, halfAtEnd)
   // An edge too short for either margin keeps its label in the middle.
   const [loBound, hiBound] = lo0 <= hi0 ? [lo0, hi0] : [0.5, 0.5]
   // The unique stem is a preference inside the clearance, never a way around it.
@@ -701,7 +726,17 @@ function buildCandidates(
     }
   }
 
+  const onStraight = (t: number) => {
+    const at = t * totalLen
+    const run = runs.find(item => at >= item.start - 1e-6 && at <= item.end + 1e-6)
+    return Boolean(run && at - run.start >= run.half && run.end - at >= run.half)
+  }
   candidates.sort((a, b) => {
+    if (avoidCorners && !userPlaced) {
+      const aClean = onStraight(a.t)
+      const bClean = onStraight(b.t)
+      if (aClean !== bClean) return aClean ? -1 : 1
+    }
     const inRange = (t: number) =>
       !preferredRange || (t >= lo - 1e-9 && t <= hi + 1e-9)
     const aIn = inRange(a.t)
@@ -730,6 +765,7 @@ function computeLayout(
   renderStyle?: DiagramRenderStyleId,
   routes?: ReadonlyMap<string, EdgeRouteResult>,
   iconMode?: NodeIconMode,
+  avoidCorners = false,
 ): Map<string, EdgeLabelAnchor> {
   const nodes = Array.from(nodeInternals.values())
   const brutal = renderStyle === 'neubrutalism'
@@ -741,8 +777,11 @@ function computeLayout(
   const nodeObstacles: PlacedRect[] = nodes
     .filter((n) => !isGroupNode(n))
     .map((n) => {
-      const w = n.width ?? DEFAULT_NODE_WIDTH
-      const h = n.height ?? DEFAULT_NODE_HEIGHT
+      // The corner-free pass reads sizes as the geometry check does (a laid-out card may carry its
+      // size only in data); it moves labels along their edges, so it must see the real cards.
+      const data = avoidCorners ? (n.data as { nodeWidth?: number; nodeHeight?: number } | undefined) : undefined
+      const w = n.width ?? data?.nodeWidth ?? DEFAULT_NODE_WIDTH
+      const h = n.height ?? data?.nodeHeight ?? DEFAULT_NODE_HEIGHT
       const x = (n.positionAbsolute?.x ?? n.position.x) - nodeGap
       const y = (n.positionAbsolute?.y ?? n.position.y) - nodeGap
       return { x, y, w: w + 2 * nodeGap, h: h + 2 * nodeGap }
@@ -856,7 +895,7 @@ function computeLayout(
       segs,
       basePerp: perpOffset,
       paired: parallelEdges.length > 1,
-      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number', estimateLabelSize(item.label, renderStyle).h),
+      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number', estimateLabelSize(item.label, renderStyle).h, avoidCorners),
       sortX: preferred.x,
       sortY: preferred.y,
     })
@@ -965,6 +1004,49 @@ function computeLayout(
   return result
 }
 
+/**
+ * Labels that cover something: the edges whose label sits on a card or a group title, and the
+ * number of label pairs that overlap. Uses the
+ * geometry check's own pill size and node bounds (diagramGeometry.ts), so a placement this prefers
+ * never scores worse there.
+ */
+function labelObstructions(
+  anchors: ReadonlyMap<string, EdgeLabelAnchor>,
+  edges: Edge[],
+  nodeInternals: ReadonlyMap<string, Node>,
+): { onNodes: Set<string>; onLabels: number } {
+  const boxes = [...nodeInternals.values()].map((node) => {
+    const data = node.data as { nodeWidth?: number; nodeHeight?: number } | undefined
+    const at = node.positionAbsolute ?? node.position
+    return {
+      node,
+      group: isGroupNode(node),
+      x: at.x, y: at.y,
+      w: node.width ?? data?.nodeWidth ?? 200,
+      h: node.height ?? data?.nodeHeight ?? 88,
+    }
+  })
+  const rects: Array<PlacedRect & { edge: Edge }> = []
+  const onNodes = new Set<string>()
+  for (const edge of edges) {
+    const anchor = anchors.get(edge.id)
+    const label = getDisplayLabel(edge)
+    if (!anchor || !label) continue
+    const w = Math.min(260, Math.max(48, label.length * 8 + 24))
+    const rect = { x: anchor.x - w / 2, y: anchor.y - 12, w, h: 24 }
+    const hit = boxes.some((box) => box.group
+      ? rectsOverlap(rect, { x: box.x, y: box.y, w: box.w, h: Math.min(40, box.h) })
+      : box.node.id !== edge.source && box.node.id !== edge.target && rectsOverlap(rect, box))
+    if (hit) onNodes.add(edge.id)
+    rects.push({ ...rect, edge })
+  }
+  let onLabels = 0
+  for (let i = 0; i < rects.length; i++) {
+    for (let j = i + 1; j < rects.length; j++) if (rectsOverlap(rects[i], rects[j])) onLabels++
+  }
+  return { onNodes, onLabels }
+}
+
 // ── Shared memoisation ─────────────────────────────────────────────────────
 //
 // Every SimpleFloatingEdge computes label positions during the same render.
@@ -1014,7 +1096,19 @@ export function computeEdgeLabelLayout(
     return hit.result
   }
 
-  const result = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode)
+  // Labels are kept off the bends of their edges when that costs nothing: the corner-free placement
+  // is used only when it puts no more labels on cards, group titles or other labels than the plain
+  // one (measured as the layout check measures them), so layout choices never get worse for it.
+  const plain = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode, false)
+  let result = plain
+  const hasBends = [...(routes?.values() ?? [])].some(route => route.waypoints.length > 2) || !routes
+  if (hasBends && edges.some(edge => getDisplayLabel(edge))) {
+    const cornerFree = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode, true)
+    const a = labelObstructions(cornerFree, edges, nodeInternals)
+    const b = labelObstructions(plain, edges, nodeInternals)
+    // No label may end up covering something it did not cover before.
+    if ([...a.onNodes].every(id => b.onNodes.has(id)) && a.onLabels <= b.onLabels) result = cornerFree
+  }
   layoutCache.set(edges, { nodeInternals, direction, renderStyle, routes, iconMode, result })
   if (layoutCache.size > CACHE_MAX) {
     const oldest = layoutCache.keys().next().value

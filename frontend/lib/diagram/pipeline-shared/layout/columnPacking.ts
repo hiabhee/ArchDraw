@@ -31,6 +31,13 @@ export interface PackOptions {
   gap?: number;
   /** Gaps up to this wide are left alone (they are what the layout chose, not slack). */
   maxGap?: number;
+  /**
+   * Also open columns with a gap narrower than this to `gap` (connections and their labels run
+   * between stacked cards). Off by default: callers keep the result only when it routes better.
+   */
+  minGap?: number;
+  /** Which end of a repacked column stays put: its centre (default), its start or its end. */
+  anchor?: 'centre' | 'start' | 'end';
 }
 
 const isGroup = (node: PackNode) =>
@@ -88,14 +95,17 @@ export function packGroupColumns<T extends PackNode>(
       if (column.length < 2) continue;
       const stack = [...column].sort((a, b) => crossStart(a) - crossStart(b));
       const gaps = stack.slice(1).map((node, i) => crossStart(node) - (crossStart(stack[i]) + crossSize(stack[i])));
-      if (!gaps.some(value => value > maxGap)) continue;
+      const minGap = options.minGap ?? -Infinity;
+      if (!gaps.some(value => value > maxGap || value < minGap - 0.5)) continue;
 
       // Pack with even gaps around the column's current centre, in the same order.
       const total = stack.reduce((sum, node) => sum + crossSize(node), 0) + gap * (stack.length - 1);
       const first = crossStart(stack[0]);
       const lastNode = stack[stack.length - 1];
-      const centre = (first + crossStart(lastNode) + crossSize(lastNode)) / 2;
-      let cursor = centre - total / 2;
+      const end = crossStart(lastNode) + crossSize(lastNode);
+      let cursor = options.anchor === 'start' ? first
+        : options.anchor === 'end' ? end - total
+        : (first + end) / 2 - total / 2;
       for (const node of stack) {
         const at = position.get(node.id)!;
         position.set(node.id, horizontal ? { x: at.x, y: cursor } : { x: cursor, y: at.y });

@@ -37,6 +37,8 @@ const SPINE_STEPWISE_LINES = 4;
 
 /** Gap left between cards stacked in one group column when its slack is closed. */
 const COLUMN_PACK_GAP = 56;
+/** A gap between stacked cards narrower than this leaves no room for a connection label. */
+const COLUMN_PACK_MIN_GAP = 40;
 /** Tiers are lined up only in diagrams with at most this many top-level groups... */
 const GROUP_ALIGN_MAX = 12;
 /** ...without drawing the diagram more than this much smaller on screen. */
@@ -455,6 +457,13 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
         }
       };
       tryStep(packGroupColumns(layouted.nodes as never, geometryDirection, { gap: COLUMN_PACK_GAP }), best.fit - 1e-9);
+      // A column stacked too tightly (labels land on the cards) is opened to the same even gap,
+      // kept only when that routes no worse (on some dense diagrams the tight stack routes better).
+      // Grown around its centre, or from either end (toward whichever side has room). Not for
+      // zones: their members are placed as rows and columns of their own.
+      for (const anchor of _context.metadata.layoutStyle === 'zones' ? [] : ['centre', 'start', 'end'] as const) {
+        tryStep(packGroupColumns(layouted.nodes as never, geometryDirection, { gap: COLUMN_PACK_GAP, minGap: COLUMN_PACK_MIN_GAP, anchor }), best.fit * (1 - GROUP_ALIGN_MAX_SHRINK));
+      }
       const topGroups = layouted.nodes.filter(node => node.type === 'groupNode' && !node.parentNode).map(node => node.id);
       if (topGroups.length >= 2 && topGroups.length <= GROUP_ALIGN_MAX) {
         const floor = best.fit * (1 - GROUP_ALIGN_MAX_SHRINK);

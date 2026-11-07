@@ -971,6 +971,9 @@ export function computeEdgeRoute(
   const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, srcHandlerRect, tgtHandlerRect)
   let manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
   let manualTargetSide = sideToPosition(edgeData?.targetSide as string)
+  // The facing sides of a request/reply pair are a preference, not the user's choice: when they
+  // cannot be routed cleanly (another card sits between the two), other sides are tried below.
+  const sidesFromPairOnly = Boolean(bidirectionalSides) && manualSourceSide === undefined && manualTargetSide === undefined
   if (bidirectionalSides) {
     manualSourceSide = manualSourceSide ?? bidirectionalSides.sourceSide
     manualTargetSide = manualTargetSide ?? bidirectionalSides.targetSide
@@ -1276,6 +1279,20 @@ export function computeEdgeRoute(
   }
 
   const primary = routeForSides(sourcePosition, targetPosition)
+  if (sidesFromPairOnly && primary.status !== 'ok'
+    && handleAnchors?.sourceSide === undefined && handleAnchors?.targetSide === undefined) {
+    const pairs = applyLaneBias(
+      scoreAllHandlerPairs(srcHandlerRect, tgtHandlerRect, direction, scorerObstacles, excludedIds),
+      laneSourcePreference,
+      laneTargetPreference,
+    )
+    for (const { pair } of pairs) {
+      if (pair.sourceSide === primary.sourcePosition && pair.targetSide === primary.targetPosition) continue
+      if (orthogonalPenetratesTerminal(srcHandlerRect, tgtHandlerRect, pair.sourceSide, pair.targetSide)) continue
+      const alternative = routeForSides(pair.sourceSide, pair.targetSide)
+      if (alternative.status === 'ok') return alternative
+    }
+  }
   // A side pair that faces away from the other node forces the router to
   // overshoot and double back (a tight U next to the handle). When the sides
   // are ours to choose, try the next-best pairs and keep the first clean
