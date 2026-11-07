@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { getTutorialById } from '@/data/tutorials';
+import { OgBrandMark } from '@/lib/site/ogBrandMark';
 
 export async function GET(
   _request: Request,
@@ -31,7 +32,6 @@ export async function GET(
   }
 
   const stepCount = tutorial.levels.reduce((acc, l) => acc + l.steps.length, 0);
-  const accent = tutorial.color ?? '#595959';
 
   return new ImageResponse(
     (
@@ -47,14 +47,7 @@ export async function GET(
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: accent,
-            }}
-          />
+          <OgBrandMark size={48} />
           <span style={{ color: '#94a3b8', fontSize: 22, fontWeight: 600 }}>ArchDraw Tutorials</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
