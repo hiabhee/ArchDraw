@@ -5,7 +5,7 @@
 
 export const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://archdraw.hiabhee.online';
 export const SITE_NAME = 'ArchDraw';
-export const LAST_UPDATED = '2026-09-02';
+export const LAST_UPDATED = '2026-11-07';
 export const PIPELINE_VERSION = 'v8';
 
 export interface DocSection {
