@@ -267,4 +267,4 @@ After each deploy:
 | 2026-11-07 | Written guides on all 26 template pages, with FAQ structured data | #28, #29 |
 | 2026-11-07 | Ten new templates for systems that had only a tutorial | #30 |
 | 2026-11-07 | System design concepts glossary (20 terms), with links in from templates and tutorials | #31 |
-| 2026-11-07 | Free tools (AI generator, text-to-diagram, system design calculator) and comparison pages | next PR |
+| 2026-11-07 | Free tools (AI generator, text-to-diagram, system design calculator) and comparison pages; this playbook | #32 |
