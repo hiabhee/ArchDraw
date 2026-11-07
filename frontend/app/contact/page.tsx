@@ -4,8 +4,8 @@ import { Footer } from '@/components/landing/Footer';
 import { Mail, Github, Twitter } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Contact — ArchDraw',
-  description: 'Contact ArchDraw — hello@archdraw.app, GitHub, and Twitter. We reply within a day.',
+  title: 'Contact',
+  description: 'Contact ArchDraw — jamdadeabhishek039@gmail.com, GitHub, and Twitter. We reply within a day.',
   alternates: { canonical: 'https://archdraw.hiabhee.online/contact' },
   openGraph: {
     type: 'website',
@@ -28,10 +28,10 @@ export default function ContactPage() {
         <p className="mt-4 text-sm text-text-secondary max-w-2xl leading-relaxed">Questions, feedback, or a repo that won’t diagram? We answer quickly.</p>
 
         <div className="mt-10 grid gap-5 md:grid-cols-3 max-w-3xl">
-          <a href="mailto:hello@archdraw.app" className="bg-surface-card border border-border-default rounded-xl p-6 hover:shadow-[0_8px_24px_rgba(28,28,26,0.06)] transition-shadow">
+          <a href="mailto:jamdadeabhishek039@gmail.com" className="bg-surface-card border border-border-default rounded-xl p-6 hover:shadow-[0_8px_24px_rgba(28,28,26,0.06)] transition-shadow">
             <Mail className="w-4 h-4 text-brand-text mb-3" />
             <h3 className="text-sm font-bold">Email</h3>
-            <p className="text-xs text-text-secondary mt-1">hello@archdraw.app</p>
+            <p className="text-xs text-text-secondary mt-1">jamdadeabhishek039@gmail.com</p>
             <p className="text-xs text-brand-text mt-3 font-medium">Send an email →</p>
           </a>
           <a href="https://github.com/hiabhee/ArchDraw" target="_blank" rel="noopener noreferrer" className="bg-surface-card border border-border-default rounded-xl p-6 hover:shadow-[0_8px_24px_rgba(28,28,26,0.06)] transition-shadow">
