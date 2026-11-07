@@ -70,7 +70,9 @@
   gap: 18px;
   padding: 26px 0;
   border-top: 1px solid var(--line);
-  opacity: .38;
+  /* Steps not reached yet are dimmed, but never below WCAG AA: the muted body text needs
+     opacity >= .82 on the night page for 4.5:1 (it failed at .38, 1.8:1). */
+  opacity: .85;
   transform: translateX(-6px);
   transition: opacity 450ms var(--ease-out), transform 450ms cubic-bezier(.16, 1, .3, 1);
 }

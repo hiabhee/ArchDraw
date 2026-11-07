@@ -139,7 +139,8 @@ function HeroCanvas({ graphs }: { graphs: HeroGraphs }) {
           </span>
           <span className="truncate text-sm font-semibold text-foreground">acme-shop</span>
           <span className="shrink-0 text-xs text-muted-foreground">· view only</span>
-          <span className="pointer-events-none ml-1 shrink-0" aria-hidden="true">
+          {/* A picture of the watch page's toggle: inert, so its buttons are neither focusable nor in the accessibility tree. */}
+          <span className="pointer-events-none ml-1 shrink-0" aria-hidden="true" inert>
             <MapLevelToggle level="overview" onChange={() => {}} hasDetail />
           </span>
         </div>

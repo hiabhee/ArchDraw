@@ -65,6 +65,9 @@ const embedHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Source maps for the browser bundles: Lighthouse flags large first-party JS without them,
+  // and they make production errors readable. The code is open source, so nothing is exposed.
+  productionBrowserSourceMaps: true,
   // Keep build tracing inside the frontend package even when a parent
   // workspace manifest exists outside the repository checkout.
   outputFileTracingRoot: process.cwd(),
