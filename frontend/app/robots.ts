@@ -24,7 +24,7 @@ const DISCOVERY_ALLOW = [
   '/robots.txt',
 ];
 
-const ALLOWED = ['/', '/docs', '/blogs', '/templates', '/pricing', '/faq', '/about', '/contact', '/tutorials', '/system-design', '/mcp', '/agent-skill', '/repo-diagram', '/api/og/', '/changelog.json', '/manifest.webmanifest', ...DISCOVERY_ALLOW];
+const ALLOWED = ['/', '/docs', '/blogs', '/templates', '/pricing', '/faq', '/about', '/contact', '/tutorials', '/system-design', '/free-architecture-diagram-generator', '/free-diagram-generator', '/system-design-calculator', '/alternatives', '/mcp', '/agent-skill', '/repo-diagram', '/api/og/', '/changelog.json', '/manifest.webmanifest', ...DISCOVERY_ALLOW];
 
 // AI crawler user-agents — explicitly allowlisted per checklist §2 WAF note + §3 robots.txt.
 const AI_BOTS = [
