@@ -8,10 +8,10 @@ import { TEMPLATE_SECTIONS, sectionFor, templateHeading, templateSlug } from '@/
 import { absoluteUrl, breadcrumbJsonLd, pageMetadata } from '@/lib/site/seo';
 
 export const metadata = pageMetadata({
-  title: 'System Architecture Diagram Templates',
-  description: `${TEMPLATES.length} free, editable system architecture diagram templates: ChatGPT, Netflix, Uber, microservices, CQRS, event-driven, URL shortener and more. Open any in ArchDraw.`,
+  title: 'Architecture Diagram Templates & Examples',
+  description: `${TEMPLATES.length} free, editable architecture diagram templates and examples: ChatGPT, Netflix, Uber, microservices, event-driven, CQRS, URL shortener and more.`,
   path: '/templates',
-  keywords: ['architecture diagram templates', 'system design templates', 'microservices diagram template', 'system design interview diagrams', 'software architecture examples'],
+  keywords: ['architecture diagram', 'architecture diagram templates', 'architecture diagram examples', 'system architecture diagram', 'software architecture diagram', 'microservices architecture diagram'],
 });
 
 const JSON_LD = {
@@ -19,7 +19,7 @@ const JSON_LD = {
   '@graph': [
     {
       '@type': 'CollectionPage',
-      name: 'System Architecture Diagram Templates',
+      name: 'Architecture Diagram Templates',
       url: absoluteUrl('/templates'),
       isPartOf: { '@id': `${absoluteUrl('/')}#website` },
       mainEntity: {
@@ -33,7 +33,7 @@ const JSON_LD = {
         })),
       },
     },
-    breadcrumbJsonLd([['Templates', '/templates']]),
+    breadcrumbJsonLd([['Architecture diagram templates', '/templates']]),
   ],
 };
 
@@ -49,11 +49,12 @@ export default function TemplatesGalleryPage() {
             className="tracking-[-.05em] text-text-primary"
             style={{ fontFamily: 'var(--font-instrument-serif), Georgia, serif', fontSize: 'clamp(2.6rem, 5.5vw, 4.6rem)', lineHeight: 0.95 }}
           >
-            System architecture diagrams to start from.
+            Architecture diagram templates and examples.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-7 text-text-secondary">
-            {TEMPLATES.length} editable diagrams of real products, common architecture patterns and system design interview questions.
-            Open one in the editor, change it, export it, or ask the AI to adapt it to your system.
+            {TEMPLATES.length} free, editable architecture diagrams of real products, common software architecture patterns and system design interview questions.
+            Open one in the editor, change it, export it, or ask the AI to adapt it to your system. To learn how to design these systems step by step, see the{' '}
+            <Link href="/tutorials" className="font-medium text-brand-text hover:underline">system design tutorials</Link>.
           </p>
         </header>
 
@@ -84,7 +85,7 @@ export default function TemplatesGalleryPage() {
                         className="group flex h-full flex-col overflow-hidden rounded-xl border border-border-default bg-surface-card transition-colors hover:border-border-strong"
                       >
                         <div className="flex aspect-[16/9] items-center justify-center overflow-hidden border-b border-border-default bg-surface-panel p-3">
-                          <TemplateDiagram slug={slug} alt={`${templateHeading(t)} diagram`} className="max-h-full object-contain" />
+                          <TemplateDiagram slug={slug} alt={templateHeading(t)} className="max-h-full object-contain" />
                         </div>
                         <div className="flex flex-1 flex-col p-5">
                           <h3 className="text-base font-semibold tracking-tight text-text-primary">{templateHeading(t)}</h3>

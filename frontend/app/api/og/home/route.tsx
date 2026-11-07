@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { OgBrandMark } from '@/lib/site/ogBrandMark';
 
 export const runtime = 'nodejs';
 
@@ -17,23 +18,7 @@ export async function GET(_request: Request) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: '#0070e0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-              <path d="M2 17l10 5 10-5" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-              <path d="M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-            </svg>
-          </div>
+          <OgBrandMark size={48} />
           <span style={{ color: '#f8fafc', fontSize: 22, fontWeight: 600 }}>ArchDraw</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 920 }}>

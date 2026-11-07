@@ -111,7 +111,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 
 | Area | Path | Role |
 |------|------|------|
-| Landing | `page.tsx` | Marketing + interactive demo |
+| Landing | `page.tsx` | Marketing + interactive demo. A returning visitor (cookie `archdraw_returning`, set by the editor once a canvas has content, cleared on sign-out) who opens `/` from outside the site is sent to `/editor`, which reopens their last canvas (`proxy.ts`, `lib/site/returningVisitor.ts`); links inside ArchDraw and `/?home` always show the landing |
 | Editor | `editor/` | Main diagramming UI (`components/editor/Editor.tsx`) |
 | Dashboard | `dashboard/` | User canvases / learn |
 | Tutorials | `tutorials/` | Guided architecture lessons |
@@ -121,7 +121,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 | Docs / legal | `docs/`, `privacy/`, `terms/` | Static content |
 | Templates | `templates/`, `templates/[slug]/` | Public gallery of `data/templates` (slug = id with hyphens, `lib/site/templateCatalog.ts`); diagram images are static SVGs at `templates/<slug>/diagram-{light,dark}.svg` (`lib/server/templatePreview.ts`, same layout as `/editor?template=`) |
 
-SEO: public pages build their metadata with `pageMetadata` (`lib/site/seo.ts`: canonical, OG, Twitter). The root layout sets no `alternates.canonical` (it would be inherited and mark every page a duplicate of `/`), and page titles omit the brand (the root template appends `| ArchDraw`). Brand mark: `app/icon.svg`, `app/apple-icon.png`, `app/favicon.ico`, `public/logo.*`, `app/manifest.ts`, all drawn from `components/ui/BrandMark.tsx`.
+SEO (playbook and change log: `SEO.md` at the repo root; add every new SEO technique there with its PR): public pages build their metadata with `pageMetadata` (`lib/site/seo.ts`: canonical, OG, Twitter). The root layout sets no `alternates.canonical` (it would be inherited and mark every page a duplicate of `/`), and page titles omit the brand (the root template appends `| ArchDraw`). Brand mark: `app/icon.svg`, `app/apple-icon.png`, `app/favicon.ico`, `public/logo.*`, `app/manifest.ts`, all drawn from `components/ui/BrandMark.tsx`.
 
 ### Key API routes (`frontend/app/api/`)
 

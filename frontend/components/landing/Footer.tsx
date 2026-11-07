@@ -6,9 +6,13 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     title: 'Product',
     links: [
       { label: 'Editor', href: '/editor' },
-      { label: 'Templates', href: '/templates' },
+      { label: 'AI diagram generator', href: '/free-architecture-diagram-generator' },
+      { label: 'Free diagram generator', href: '/free-diagram-generator' },
+      { label: 'System design calculator', href: '/system-design-calculator' },
+      { label: 'Architecture diagram templates', href: '/templates' },
       { label: 'Repo to diagram', href: '/repo-diagram' },
       { label: 'Pricing', href: '/pricing' },
+      { label: 'Compare', href: '/alternatives' },
     ],
   },
   {
@@ -23,7 +27,8 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     title: 'Learn',
     links: [
       { label: 'Docs', href: '/docs' },
-      { label: 'Tutorials', href: '/tutorials' },
+      { label: 'System design tutorials', href: '/tutorials' },
+      { label: 'System design concepts', href: '/system-design' },
       { label: 'Blog', href: '/blogs' },
       { label: 'FAQ', href: '/faq' },
     ],

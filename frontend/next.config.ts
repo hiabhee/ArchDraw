@@ -127,6 +127,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        // One page for "free" and "AI" architecture diagram generator searches.
+        source: '/ai-architecture-diagram-generator',
+        destination: '/free-architecture-diagram-generator',
+        permanent: true,
+      },
+      {
         source: '/blog',
         destination: '/blogs',
         permanent: true,

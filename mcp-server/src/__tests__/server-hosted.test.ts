@@ -112,3 +112,25 @@ describe('hosted (stateless HTTP) mode', () => {
     });
   });
 });
+
+describe('server identity', () => {
+  it('tells clients its title, site and brand icons on initialize', async () => {
+    const request = new Request('https://archdraw.test/api/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: ++rpcId,
+        method: 'initialize',
+        params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } },
+      }),
+    });
+    const response = await handleMcpHttpRequest(request, { sessionStore: memoryStore(), context: { apiBase: API, fetch: vi.fn() } });
+    const body = await response.json() as { result: { serverInfo: { title?: string; websiteUrl?: string; icons?: Array<{ src: string; sizes?: string[] }> } } };
+    const info = body.result.serverInfo;
+    expect(info.title).toBe('ArchDraw');
+    expect(info.websiteUrl).toBe('https://archdraw.hiabhee.online');
+    expect(info.icons?.map((i) => i.src)).toContain('https://archdraw.hiabhee.online/logo.png');
+    expect(info.icons?.every((i) => i.src.startsWith('https://'))).toBe(true);
+  });
+});

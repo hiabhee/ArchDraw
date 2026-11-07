@@ -16,7 +16,7 @@ export const TEMPLATE_SECTIONS: Array<{ id: TemplateSection; title: string; blur
 ];
 
 const PATTERN_IDS = new Set(['mvc', 'clean_architecture', 'hexagonal', 'layered', 'microservices', 'event_driven', 'cqrs', 'event_sourcing', 'serverless']);
-const INTERVIEW_IDS = new Set(['ecommerce', 'url_shortener', 'chat_system', 'notification', 'search', 'request_response']);
+const INTERVIEW_IDS = new Set(['ecommerce', 'url_shortener', 'chat_system', 'notification', 'search', 'request_response', 'rate_limiter']);
 
 export function sectionFor(template: Template): TemplateSection {
   if (PATTERN_IDS.has(template.id)) return 'patterns';
@@ -37,9 +37,102 @@ export function getTemplateBySlug(slug: string): Template | undefined {
   return TEMPLATES.find((t) => templateSlug(t) === slug);
 }
 
-/** The page heading: names already ending in "Architecture" keep it, others get "Architecture". */
-export function templateHeading(template: Pick<Template, 'name'>): string {
-  return /architecture$/i.test(template.name.trim()) ? template.name.trim() : `${template.name.trim()} Architecture`;
+/**
+ * Search-facing names where the template's own name is not what people search for
+ * (the editor keeps the original names).
+ */
+const SUBJECT_OVERRIDES: Record<string, string> = {
+  netflix: 'Netflix',
+  rideshare: 'Uber Ride-Sharing',
+  fintech_payments: 'Payment System',
+  collaborative_docs: 'Google Docs-Style Editor',
+  food_delivery: 'Food Delivery App',
+  repo_to_diagram: 'Repo-to-Diagram Pipeline',
+};
+
+/** The system a template shows, as people search for it: "ChatGPT-like Architecture" → "ChatGPT". */
+export function templateSubject(template: Pick<Template, 'id' | 'name'>): string {
+  return (
+    SUBJECT_OVERRIDES[template.id] ??
+    template.name.trim().replace(/-like\b/i, '').replace(/\s+architecture$/i, '').trim()
+  );
+}
+
+/**
+ * The page heading and title. Template pages own the "<system> architecture diagram"
+ * searches; tutorials own "<system> system design" (`lib/tutorial/tutorialArticle.ts`).
+ */
+export function templateHeading(template: Pick<Template, 'id' | 'name'>): string {
+  return `${templateSubject(template)} Architecture Diagram`;
+}
+
+/** Templates that show a typical design for a named product, and that product. */
+const REPRESENTED_PRODUCTS: Record<string, string> = {
+  chatgpt: 'ChatGPT',
+  claude_code: 'Claude Code',
+  instagram: 'Instagram',
+  netflix: 'Netflix',
+  rideshare: 'Uber',
+  collaborative_docs: 'Google Docs',
+  whatsapp: 'WhatsApp',
+  twitter: 'Twitter',
+  airbnb: 'Airbnb',
+  discord: 'Discord',
+  zoom: 'Zoom',
+  spotify: 'Spotify',
+  linkedin: 'LinkedIn',
+  figma: 'Figma',
+  github: 'GitHub',
+};
+
+/**
+ * The named product a template sketches, if any. Its page says the design is drawn from
+ * public information, so a "ChatGPT architecture diagram" is not read as OpenAI's own.
+ */
+export function representedProduct(template: Pick<Template, 'id'>): string | undefined {
+  return REPRESENTED_PRODUCTS[template.id];
+}
+
+/**
+ * The system design tutorials that teach each template's system, best match first.
+ * Templates point readers here for "how to design X"; tutorials point back for the diagram.
+ */
+export const TEMPLATE_TUTORIALS: Record<string, string[]> = {
+  chatgpt: ['chatgpt-architecture', 'rag-application-architecture'],
+  claude_code: ['ai-agent-system-architecture', 'openclaw-architecture'],
+  instagram: ['instagram-architecture'],
+  video_streaming: ['youtube-architecture'],
+  netflix: ['netflix-architecture'],
+  rideshare: ['uber-architecture'],
+  fintech_payments: ['stripe-architecture'],
+  collaborative_docs: ['notion-architecture', 'figma-architecture'],
+  food_delivery: ['doordash-architecture'],
+  ecommerce: ['shopify-architecture'],
+  url_shortener: ['url-shortener-architecture'],
+  whatsapp: ['whatsapp-architecture'],
+  twitter: ['twitter-architecture'],
+  airbnb: ['airbnb-architecture'],
+  discord: ['discord-architecture'],
+  zoom: ['zoom-architecture'],
+  spotify: ['spotify-architecture'],
+  linkedin: ['linkedin-architecture'],
+  figma: ['figma-architecture'],
+  github: ['github-architecture'],
+  rate_limiter: ['rate-limiter-architecture'],
+  // After the dedicated WhatsApp / Discord templates, which those tutorials link back to.
+  chat_system: ['whatsapp-architecture', 'discord-architecture'],
+};
+
+export function tutorialIdsForTemplate(template: Pick<Template, 'id'>): string[] {
+  return TEMPLATE_TUTORIALS[template.id] ?? [];
+}
+
+/** The template whose diagram a tutorial builds (its best match), if any. */
+export function templateForTutorial(tutorialId: string): Template | undefined {
+  // A template built for this tutorial's system (listed first) wins over one that also covers it.
+  const entries = Object.entries(TEMPLATE_TUTORIALS);
+  const entry = entries.find(([, ids]) => ids[0] === tutorialId) ?? entries.find(([, ids]) => ids.includes(tutorialId));
+  return entry ? TEMPLATES.find((t) => t.id === entry[0]) : undefined;
 }
 
 export interface TemplateComponent {
@@ -90,8 +183,8 @@ export function relatedTemplates(template: Template, limit = 3): Template[] {
 
 /** Meta description: the template's own text, trimmed to what search results show. */
 export function templateMetaDescription(template: Template): string {
-  const base = `${templateHeading(template)} diagram template: ${template.description}`;
-  const full = `${base} Open it in ArchDraw and edit it free.`;
+  const base = `${templateHeading(template)}: ${template.description}`;
+  const full = `${base} Free, editable template.`;
   if (full.length <= 160) return full;
   return base.length <= 160 ? base : `${base.slice(0, 157).replace(/\s+\S*$/, '')}…`;
 }

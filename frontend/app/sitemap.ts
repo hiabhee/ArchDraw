@@ -2,6 +2,8 @@ import type { MetadataRoute } from 'next';
 import { TUTORIALS } from '@/data/tutorials';
 import { blogs } from '@/data/blogs';
 import { allTemplateSlugs } from '@/lib/site/templateCatalog';
+import { GLOSSARY } from '@/data/glossary/terms';
+import { ALTERNATIVES } from '@/data/alternatives';
 
 // Sitemap: canonical URLs only. `/learn/*` route does not exist — removed 2026-09-02 (was doubling sitemap size + 404s in Search Console).
 // `lastModified` uses stable build-time date so sitemap is cacheable (previously `new Date()` per entry → ETag churn).
@@ -31,6 +33,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
+  const glossaryEntries: MetadataRoute.Sitemap = GLOSSARY.map((t) => ({
+    url: `${base}/system-design/${t.slug}`,
+    lastModified: BUILD_DATE,
+    changeFrequency: 'monthly',
+    priority: 0.7,
+  }));
+
   return [
     { url: base, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 1 },
     { url: `${base}/docs`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.85 },
@@ -47,7 +56,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/templates`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.9 },
     { url: `${base}/privacy`, lastModified: BUILD_DATE, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${base}/terms`, lastModified: BUILD_DATE, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${base}/system-design`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${base}/free-architecture-diagram-generator`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${base}/free-diagram-generator`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${base}/system-design-calculator`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${base}/alternatives`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.6 },
+    ...ALTERNATIVES.map((a) => ({ url: `${base}/alternatives/${a.slug}`, lastModified: BUILD_DATE, changeFrequency: 'monthly' as const, priority: 0.6 })),
     ...templateEntries,
+    ...glossaryEntries,
     ...blogEntries,
     ...tutorialEntries,
   ];

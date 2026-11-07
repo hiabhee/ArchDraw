@@ -63,7 +63,7 @@ function RequirementChecklist({
     seenEdges.add(key);
     items.push({
       label: `${er.sourceLabel} → ${er.targetLabel}`,
-      met: isEdgeMet(er.source, er.target, nodes, edges),
+      met: isEdgeMet(er.source, er.target, nodes, edges, er),
     });
   }
 
@@ -325,7 +325,7 @@ export function GuidePanel() {
 
     // Find the first unmet edge requirement's source/target
     const unmetEdges = requirements.requiredEdges.filter(
-      er => !isEdgeMet(er.source, er.target, nodes, edges)
+      er => !isEdgeMet(er.source, er.target, nodes, edges, er)
     );
 
     if (unmetNodeTypes.length > 0) {

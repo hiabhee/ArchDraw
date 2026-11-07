@@ -21,7 +21,19 @@ export interface PhaseContent {
 
 export type ValidationRule =
   | { type: 'node_exists'; nodeType: string; label?: string }
-  | { type: 'edge_exists'; source: string; target: string }
+  | {
+      type: 'edge_exists';
+      source: string;
+      target: string;
+      /**
+       * Component types that also count as the source / target (the types the parent
+       * step and this step add). `defineTutorial` fills them in: a parent is named by
+       * its title ("Mobile Client"), but the node added from search has the registry's
+       * type and label (`client_mobile`, "Mobile").
+       */
+      sourceTypes?: string[];
+      targetTypes?: string[];
+    }
   | { type: 'node_count'; nodeType: string; min: number }
   | { type: 'edge_from_type'; sourceType: string; targetType: string }
   | { type: 'all_of'; rules: ValidationRule[] }
@@ -30,6 +42,10 @@ export type ValidationRule =
 export interface TutorialStep {
   id: string;
   title: string;
+  /** The component this step adds (set by `step()`); the written guide names it. */
+  component?: string;
+  /** Components it connects from in the finished design (set by `step()` when it auto-connects). */
+  connectsFrom?: string[];
   phases: {
     context: PhaseContent;
     intro: PhaseContent;
