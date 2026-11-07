@@ -71,6 +71,10 @@ Rankings take weeks to move. Re-measure in Search Console 4–6 weeks after each
 
 **Rule:** only mark up content that is visible on the page. FAQ markup must match an FAQ the reader can see.
 
+**What Google actually shows (Rich Results Test, `/templates/chatgpt`, 2026-11-07):** 3 valid items: breadcrumbs, "paywalled content" (read from `isAccessibleForFree`) and software app.
+- **FAQ:** since August 2023 Google shows FAQ rich results only for well-known government and health sites, so ours don't appear there. We keep the markup because it is valid and Bing and AI answer engines read it, but don't expect FAQ dropdowns in Google.
+- **`aggregateRating`:** the software app result reports it as missing; the field is optional. Never add ratings without real reviews; fabricated review markup breaks Google's policies.
+
 ### 2.5 Brand and icons
 - Use one mark everywhere: `app/icon.svg` (switches with `prefers-color-scheme`), `app/apple-icon.png`, `app/favicon.ico` (16, 32 and 48px, square), `public/logo.png` (512px, used as the `Organization` logo), and the web manifest.
 - **Lesson:** Google's favicon service (`google.com/s2/favicons`) and apps that use it, including Claude's connector list, cache old icons for weeks. After a brand change, request indexing of the home page and remove and re-add integrations.
@@ -230,9 +234,9 @@ Tests in the repository that fail when SEO regresses:
 
 After each deploy:
 1. Run the audit script (section 1) against production: every sitemap URL returns 200, is indexable and has a self-referencing canonical.
-2. Search Console:
-   - resubmit `sitemap.xml`;
-   - use URL Inspection → "Request indexing" for the new hubs and a few new pages;
+2. Search Console (domain property `archdraw.hiabhee.online`; a URL-prefix property for the same site doesn't exist):
+   - resubmit `sitemap.xml` (after the Nov 7 deploys Google read it the same day: 116 pages);
+   - use URL Inspection → "Request indexing" for the new hubs and a few new pages (about 10 a day; on Nov 7 we requested `/system-design`, both free generators, the calculator, `/alternatives` and the WhatsApp, Twitter and rate-limiter templates);
    - check structured data with the Rich Results Test.
 3. Lighthouse: SEO 100, Best Practices 100, Agentic Browsing 3/3. For WebMCP, use Chrome with `chrome://flags/#enable-webmcp-testing`.
 4. After 4–6 weeks:
