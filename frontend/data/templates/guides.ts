@@ -405,6 +405,563 @@ export const TEMPLATE_GUIDES: Record<string, TemplateGuide> = {
       { question: "Is this YouTube's architecture?", answer: "It is a typical design for a video platform like YouTube, based on public information, not YouTube's internal system." },
     ],
   },
+  claude_code: {
+    overview: [
+      "A terminal coding agent such as Claude Code is a loop around a language model: it builds a request from the conversation and the project's context, lets the model decide on the next step, runs the tools the model asks for, and feeds the results back until the task is done.",
+      "The diagram follows that loop. The developer talks to the CLI, the agent loop asks the context builder for a request (system prompt, history, CLAUDE.md memory, skills and summaries from compaction), the Anthropic API streams the model's answer, and tool calls go through a router that checks permissions and hooks before reaching file, Bash, search, web, subagent and MCP tools.",
+    ],
+    flows: [
+      {
+        title: "One turn of the agent loop",
+        steps: [
+          "The developer types a prompt in the terminal or IDE; the CLI hands it to the agent loop as a user turn.",
+          "The context builder assembles the request: system prompt, conversation history, CLAUDE.md instructions, relevant skill content and any compaction summary.",
+          "The request goes to the Anthropic API with the list of available tools, and the model's answer streams back.",
+          "If the answer contains tool calls, the tool router checks permissions, runs any hooks and dispatches each call to the right tool: read or edit files, run a shell command, search the repo, fetch a web page, delegate to a subagent or call an MCP server.",
+          "Tool results go back into the loop, and the model decides the next step. The loop ends when the model answers without calling a tool.",
+          "When the conversation nears the context limit, compaction summarises older turns so the loop can continue.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "The model chooses the tools", body: "Instead of a fixed script, the model sees tool descriptions and decides which to call and when. That makes the agent general (the same loop fixes a test, writes a migration or answers a question) at the cost of needing guardrails around what the tools may do." },
+      { title: "Permissions and hooks around every tool call", body: "Editing files and running commands affect the developer's machine, so every call passes a permission check (settings and modes decide what runs without asking) and can trigger hooks that block, log or adjust it." },
+      { title: "Context as a budget", body: "The model's context window is finite. Project memory (CLAUDE.md), skills loaded on demand and compaction of old turns keep the most useful information in the request without overflowing it." },
+      { title: "Subagents and MCP for reach", body: "Subagents run a task in a separate context and return only the result, which keeps the main conversation small. MCP servers add tools from outside (databases, issue trackers, design tools) without changing the agent itself." },
+    ],
+    scaling: [
+      "Long tasks are limited by context, not compute: compaction and subagents are what let a session run for hours.",
+      "Parallel work comes from several sessions or subagents working on separate parts of the repo, each with its own context.",
+      "Tool output is the largest consumer of context, so search tools and file reads return focused results rather than whole files where they can.",
+    ],
+    faq: [
+      { question: "How does Claude Code work?", answer: "It runs an agent loop in your terminal: it sends your request plus project context to a Claude model, the model replies with text or tool calls (read files, edit code, run commands, search), the CLI runs those tools with your permission settings, and the results go back to the model until the task is done." },
+      { question: "What is CLAUDE.md?", answer: "A Markdown file of project or user instructions that Claude Code adds to its context at the start of a session, so the agent knows your conventions, commands and constraints." },
+      { question: "What are hooks in Claude Code?", answer: "Commands you configure to run on events such as before or after a tool call. They can block a call, log it or add context, which is how teams enforce their own rules around the agent." },
+    ],
+  },
+
+  fintech_payments: {
+    overview: [
+      "A payment system takes a customer's payment, decides whether it is safe, gets it authorised by the card network, records it correctly and settles the money later. The hard parts are not speed but correctness: never charge twice, never lose a record, and always be able to explain every balance.",
+      "The diagram shows mobile and web checkouts calling an API gateway, a payment service that consults a risk engine before authorising through a card processor, a double-entry ledger, a payments database, and an event stream that feeds analytics and alerting.",
+    ],
+    flows: [
+      {
+        title: "Authorising a payment",
+        steps: [
+          "The checkout sends the payment to the API gateway, which authenticates the merchant or user and applies rate limits.",
+          "The payment service asks the risk engine to score the transaction before authorising it.",
+          "If the score is acceptable, the payment service sends the authorisation to the card processor, which settles with the bank network later.",
+          "The payment service writes the transaction to the payments database and a double-entry record through the ledger service.",
+          "A payment event goes to Kafka, feeding the data warehouse and alerting on failed payments.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "A double-entry ledger", body: "Every movement of money is recorded as matching debit and credit entries that are never edited, only added. Balances are derived from entries, so any number can be traced back and audited, and errors are corrected with new entries." },
+      { title: "Fraud scoring before authorisation", body: "Scoring the transaction first stops bad payments before money moves and lets the system add friction (for example 3-D Secure) only where the risk is high." },
+      { title: "Idempotency on every write", body: "Clients and networks retry. An idempotency key on each payment request means a retry returns the original result instead of charging again." },
+      { title: "Authorisation now, settlement later", body: "Card networks approve a payment in seconds but move the money in batches. The design keeps the two apart: authorisation is synchronous, settlement and reconciliation run later from the ledger." },
+    ],
+    scaling: [
+      "The payment service is stateless and scales horizontally; the database is the part to protect, partitioned by merchant or account.",
+      "Analytics and reporting read from the event stream and warehouse, never from the transactional database.",
+      "Daily reconciliation compares the ledger with processor and bank reports, which catches discrepancies at any volume.",
+    ],
+    faq: [
+      { question: "What is a double-entry ledger in a payment system?", answer: "A record where every transaction writes equal debits and credits to two or more accounts and entries are never changed. It makes balances auditable and guarantees money is never created or lost by a bug." },
+      { question: "How do payment systems prevent double charges?", answer: "With idempotency keys: the client sends a unique key with each payment, and the server stores the result under that key, so a retried request returns the first result instead of creating a second charge." },
+      { question: "What is the difference between authorisation and settlement?", answer: "Authorisation is the card network approving and reserving the amount, which happens in seconds. Settlement is the actual transfer of money between banks, which happens later in batches." },
+    ],
+  },
+
+  collaborative_docs: {
+    overview: [
+      "A Google Docs-style editor lets many people edit the same document at once, see each other's cursors and keep working offline. The central problem is merging edits that happen at the same time on different devices without losing anyone's work.",
+      "In the diagram, browser and mobile editors connect through an edge router. A presence service tracks cursors and viewers in Redis, a collaboration service applies CRDT operations and broadcasts them over pub/sub, a document API serves metadata and sharing, and a snapshot worker compacts the operation log and updates search.",
+    ],
+    flows: [
+      {
+        title: "Typing in a shared document",
+        steps: [
+          "The editor opens the document through the edge router, which joins the user to the document's presence room and loads metadata from the document API.",
+          "Each keystroke becomes an operation sent to the collaboration service, which appends it to the document store's operation log.",
+          "The collaboration service broadcasts the operation on the document's pub/sub channel, and the edge router delivers it to every other open session.",
+          "Each editor merges remote operations into its local copy; because they are CRDT operations, every copy ends up identical regardless of arrival order.",
+          "Periodically the snapshot worker compacts the log into a snapshot and indexes the text for search.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "CRDTs for merging", body: "Conflict-free replicated data types let each device apply edits locally and merge others' edits in any order with the same result. That makes offline editing and low-latency typing possible without a central lock. Operational transformation is the older alternative and needs a central server to order operations." },
+      { title: "An operation log plus snapshots", body: "Storing every operation gives full history and lets late joiners catch up, but replaying a long log is slow. Snapshots taken by a background worker bound the replay to recent operations." },
+      { title: "Presence kept separate", body: "Cursor positions change constantly and do not need to be durable. Keeping them in Redis through a presence service stops them from flooding the document store." },
+    ],
+    scaling: [
+      "Route all sessions for one document to the same region, so its pub/sub channel stays local.",
+      "Snapshot frequency trades storage and worker time against how long a document takes to load.",
+      "Metrics on merge conflicts and operation latency show when a hot document needs attention.",
+    ],
+    faq: [
+      { question: "How does real-time collaborative editing work?", answer: "Each edit is sent as an operation to a collaboration service, which stores it and broadcasts it to everyone with the document open. Each client merges remote operations into its copy using an algorithm such as CRDTs or operational transformation, so all copies converge." },
+      { question: "What is a CRDT?", answer: "A conflict-free replicated data type: a data structure designed so that copies edited independently can always be merged automatically into the same result, whatever order the edits arrive in." },
+      { question: "Is this Google Docs' architecture?", answer: "No. It is a typical design for a collaborative editor, based on public information about how such editors work." },
+    ],
+  },
+
+  food_delivery: {
+    overview: [
+      "A food delivery app is a three-sided marketplace: customers order, restaurants prepare, couriers deliver. The system has to keep all three in sync in real time and pick the right courier for each order.",
+      "The diagram shows customer, courier and restaurant apps behind an API gateway, catalog and order services, a dispatch service fed by a stream of courier locations, payments, an order event pipeline on Kafka, notifications and an operations dashboard.",
+    ],
+    flows: [
+      {
+        title: "From order to doorstep",
+        steps: [
+          "The customer browses restaurants and menus through the catalog service, which keeps a search index for discovery.",
+          "Placing the order goes to the order service, which charges the customer through the payment service and writes the order to the orders database.",
+          "The restaurant sees the order in its portal, and the order service asks the dispatch service for a courier.",
+          "Dispatch matches a courier using live positions from the location stream and records the assignment.",
+          "Every status change is published to the order events pipeline, which drives push and SMS updates to the customer and the operations dashboard.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "An explicit order lifecycle", body: "An order moves through clear states (placed, accepted, preparing, picked up, delivered, cancelled). Owning that state machine in one order service makes it clear who may change what and when." },
+      { title: "Dispatch on live locations", body: "Couriers stream GPS positions continuously. Matching needs the freshest positions plus estimated preparation time, so dispatch reads a location stream rather than querying a database." },
+      { title: "Events for everything downstream", body: "Notifications, analytics and the ops dashboard all react to order events, so the order service does not wait on them and new consumers can be added freely." },
+    ],
+    scaling: [
+      "Partition by city: orders, couriers and restaurants rarely interact across cities.",
+      "Lunch and dinner peaks drive capacity; the catalog and search tier is cached heavily since menus change rarely.",
+      "Track delivery-time SLAs from the event stream to spot problems in a zone before customers complain.",
+    ],
+    faq: [
+      { question: "How do food delivery apps assign couriers?", answer: "A dispatch service combines couriers' live GPS positions, their current workload and the restaurant's preparation time to pick the courier who can arrive when the food is ready, then offers them the job." },
+      { question: "What services does a food delivery platform need?", answer: "Catalog and search for restaurants and menus, an order service for the order lifecycle, payments, dispatch for couriers, a location stream, notifications and an event pipeline that connects them." },
+      { question: "Is this DoorDash's or Uber Eats' architecture?", answer: "It is a typical design for a food delivery marketplace based on public information, not any company's internal architecture." },
+    ],
+  },
+
+  mvc: {
+    overview: [
+      "Model-View-Controller (MVC) splits a web application into three roles: the model holds the data and business rules, the view renders what the user sees, and the controller handles each request and decides what to do. It is the structure behind Rails, Django, Laravel, Spring MVC and ASP.NET MVC.",
+      "The diagram follows one request: the browser calls a router, the router picks a controller, the controller updates or reads the model (which talks to the database) and selects a view, and the view renders HTML back to the browser.",
+    ],
+    flows: [
+      {
+        title: "Handling one request",
+        steps: [
+          "The browser sends an HTTP request, and the router matches the URL to a controller action.",
+          "The controller validates input and asks the model to read or change data.",
+          "The model applies business rules and queries the database.",
+          "The controller selects a view, passing it the model data.",
+          "The view renders HTML (or JSON) and the response goes back to the browser.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Separate data from presentation", body: "Keeping business rules in the model means the same rules apply whether the request came from a web page, an API or a background job, and views can change without touching them." },
+      { title: "Thin controllers", body: "Controllers should coordinate, not decide: parse the request, call the model, choose the view. Logic that piles up in controllers is hard to test and reuse." },
+      { title: "Convention over configuration", body: "Most MVC frameworks map URLs to controllers and models to tables by naming convention, which is why MVC apps are quick to start." },
+    ],
+    scaling: [
+      "MVC is a code structure, not a deployment one: the whole application usually runs as one process, scaled by running more copies behind a load balancer.",
+      "As the model grows, teams often add a service layer between controllers and models, which is the step towards layered or clean architecture.",
+      "Caching rendered views and database queries handles most read-heavy growth.",
+    ],
+    faq: [
+      { question: "What is MVC architecture?", answer: "A way to organise an application into models (data and business rules), views (what the user sees) and controllers (code that handles each request, updates the model and picks the view)." },
+      { question: "What is the difference between MVC and layered architecture?", answer: "MVC separates concerns inside the presentation of a web app. Layered architecture separates the whole application into tiers (presentation, business, persistence), and an MVC framework often forms its presentation layer." },
+      { question: "Is MVC still used?", answer: "Yes. Rails, Django, Laravel, Spring MVC and ASP.NET MVC all follow it, and many front-end frameworks use variations of the same idea." },
+    ],
+  },
+
+  clean_architecture: {
+    overview: [
+      "Clean architecture arranges code in rings with one rule: source code dependencies point inwards. Entities and use cases sit at the centre and know nothing about the web framework or the database, which sit on the outside.",
+      "The diagram shows the rings from the inside out: entities (enterprise business rules), use cases (application logic), interface adapters (controllers, presenters and gateways), and frameworks and drivers (the web framework and the database).",
+    ],
+    flows: [
+      {
+        title: "A request through the rings",
+        steps: [
+          "The web framework receives an HTTP request and passes it to a controller.",
+          "The controller converts it into an input model and calls a use case through its input port.",
+          "The use case applies application logic using entities, and loads or saves data through a repository port.",
+          "A gateway implements that port and talks to the database with SQL.",
+          "The use case hands its result to a presenter (an output port implementation), which builds a view model for the web framework to render.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "The dependency rule", body: "Inner rings never import outer ones. The use case defines the interfaces it needs (ports), and the outer ring implements them, so the core can be tested without a database or web server and the framework can be replaced." },
+      { title: "Use cases as the unit of design", body: "Each use case (place order, register user) is one class or function, so the application's behaviour is visible in one place rather than spread across controllers." },
+      { title: "The cost", body: "More interfaces and data mapping between rings. For a small CRUD app this is overhead; it pays off when business rules are complex and long-lived." },
+    ],
+    scaling: [
+      "Clean architecture scales with the codebase and team, not with traffic: deployment is the same as any application.",
+      "Use cases are natural boundaries if the application is later split into services.",
+      "Tests at the use-case level stay fast because they need no infrastructure.",
+    ],
+    faq: [
+      { question: "What is clean architecture?", answer: "A way of structuring an application, described by Robert C. Martin, in which business rules sit at the centre and all source code dependencies point inwards, so frameworks, databases and user interfaces are details that can change without touching the core." },
+      { question: "Clean architecture vs hexagonal architecture?", answer: "They share the same idea: the core defines ports and the outside implements adapters. Clean architecture adds explicit rings for entities and use cases; hexagonal focuses on the split between driving and driven sides." },
+      { question: "What is the dependency rule?", answer: "Code in an inner ring must not name anything in an outer ring. Data crosses boundaries as simple structures, and inner rings declare the interfaces that outer rings implement." },
+    ],
+  },
+
+  hexagonal: {
+    overview: [
+      "Hexagonal architecture, also called ports and adapters, puts the domain logic in the centre and connects it to the outside world only through ports: interfaces the domain defines. Adapters on the outside implement those ports for a specific technology.",
+      "In the diagram, REST and CLI adapters drive the application through an input port. The domain core calls an output port, which the database (Postgres), queue (Kafka) and cache (Redis) adapters implement.",
+    ],
+    flows: [
+      {
+        title: "A request through ports and adapters",
+        steps: [
+          "A REST call or a CLI command arrives at its adapter, which translates it into a call on the input port.",
+          "The domain core runs the business logic.",
+          "When it needs to persist, publish or cache something, it calls the output port.",
+          "The DB, queue or cache adapter carries out the call with its technology.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Driving and driven sides", body: "Adapters that call the application (REST, CLI, tests) are on the driving side; adapters the application calls (database, queue, cache) are on the driven side. Keeping them apart makes it obvious which code is infrastructure." },
+      { title: "The domain owns the interfaces", body: "Because the core defines the output port, it never imports a database client. Swapping Postgres for another store, or a real queue for an in-memory one in tests, means writing a new adapter." },
+      { title: "Several adapters for one port", body: "The same input port serves HTTP and the command line; the same logic runs in production and in tests with fake adapters." },
+    ],
+    scaling: [
+      "Like other code-structure patterns, it scales the codebase: deployment is unchanged.",
+      "Adding a new entry point (a message consumer, a GraphQL API) is a new driving adapter, with no change to the core.",
+      "Domain tests run against in-memory adapters and stay fast as the system grows.",
+    ],
+    faq: [
+      { question: "What is hexagonal architecture?", answer: "A design, introduced by Alistair Cockburn, in which the application's core logic talks to the outside only through ports (interfaces it defines), and adapters implement those ports for specific technologies such as HTTP, databases or message queues." },
+      { question: "What is the difference between a port and an adapter?", answer: "A port is an interface owned by the application, for example 'save order'. An adapter is an implementation of that interface for one technology, for example a Postgres repository." },
+      { question: "Why is it called hexagonal?", answer: "The hexagon is just a drawing convention that leaves room for many ports on each side. The number six has no meaning." },
+    ],
+  },
+
+  layered: {
+    overview: [
+      "Layered (n-tier) architecture stacks an application in horizontal layers, each depending only on the one below: presentation handles requests and views, business logic holds the rules, persistence handles storage, and the database sits at the bottom.",
+      "The diagram shows the classic three tiers plus the client and the external services the business layer integrates with, such as payment, email and SMS providers.",
+    ],
+    flows: [
+      {
+        title: "A request down the layers",
+        steps: [
+          "The client sends an HTTP or REST request to the presentation layer (controllers and views).",
+          "Presentation calls the business layer, where services and the domain model apply the rules.",
+          "The business layer uses the persistence layer (repositories and DAOs) to read and write data.",
+          "Persistence runs the queries against the database; the result travels back up the layers.",
+          "Where needed, the business layer calls external services such as payments or email.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Each layer talks only to the next", body: "Presentation never queries the database directly. That keeps responsibilities clear and lets each layer be changed or tested on its own." },
+      { title: "Business logic in the middle", body: "Putting the rules in one layer means every entry point (web, API, jobs) shares them, and storage details stay out of them." },
+      { title: "The common pitfall", body: "When the database schema drives everything, business logic leaks into persistence and the middle layer becomes a pass-through. Clean and hexagonal architectures invert that dependency to prevent it." },
+    ],
+    scaling: [
+      "The presentation and business layers are usually stateless and scale by adding servers behind a load balancer.",
+      "The database layer is scaled with replicas, caching and, eventually, partitioning.",
+      "Calls to external services are best moved to background jobs once they slow requests down.",
+    ],
+    faq: [
+      { question: "What is layered architecture?", answer: "An application structure in which code is grouped into layers (typically presentation, business logic and persistence) and each layer only depends on the layer directly beneath it." },
+      { question: "What is the difference between layers and tiers?", answer: "Layers are a logical grouping of code; tiers are where that code runs. A three-layer app can run on one server or on three tiers (web server, application server, database server)." },
+      { question: "Layered vs microservices architecture?", answer: "Layered architecture splits one application horizontally by technical role. Microservices split a system vertically by business capability into separately deployed services, each of which may be layered inside." },
+    ],
+  },
+
+  cqrs: {
+    overview: [
+      "Command Query Responsibility Segregation (CQRS) uses separate models for changing data and for reading it. Commands go to a write side optimised for consistency; queries go to a read side optimised for the views the application needs.",
+      "In the diagram, an API gateway routes commands to the command API and queries to the query API. The command API writes to a Postgres write database, which emits events onto an event bus; a projection keeps a materialised read database up to date for the query API.",
+    ],
+    flows: [
+      {
+        title: "A command",
+        steps: [
+          "The client sends a command (for example, place order), and the gateway routes it to the command API.",
+          "The command API validates it against the write model and saves the change in the write database.",
+          "The change is published as a domain event on the event bus.",
+        ],
+      },
+      {
+        title: "A query",
+        steps: [
+          "The projection consumes the event and updates the materialised read database.",
+          "Queries from the gateway go to the query API, which reads the precomputed view directly.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Two models for two jobs", body: "The write model enforces rules and invariants; the read model is shaped for each screen, often denormalised so a page needs one query. Neither has to compromise for the other." },
+      { title: "Eventual consistency", body: "The read side lags the write side by the time it takes to process events. The interface has to accept that, for example by showing the user's own change immediately while the view catches up." },
+      { title: "When not to use it", body: "For simple CRUD applications the extra moving parts add cost without benefit. CQRS pays off when reads and writes have very different shapes or scale." },
+    ],
+    scaling: [
+      "Reads and writes scale independently: add read replicas or more query instances without touching the write side.",
+      "New views can be added by building a new projection from the same events.",
+      "Monitor projection lag; it is the main health signal of a CQRS system.",
+    ],
+    faq: [
+      { question: "What is CQRS?", answer: "Command Query Responsibility Segregation: a pattern that separates operations that change data (commands) from operations that read it (queries), often with separate data stores kept in sync through events." },
+      { question: "Is CQRS the same as event sourcing?", answer: "No. CQRS separates reads from writes; event sourcing stores state as a sequence of events. They are often used together but each works without the other." },
+      { question: "When should you use CQRS?", answer: "When the read side and write side differ a lot in shape or load, for example complex validation on writes and many different, high-volume views on reads." },
+    ],
+  },
+
+  event_sourcing: {
+    overview: [
+      "Event sourcing stores the state of the system as a sequence of events (order placed, item added, order shipped) instead of only the latest values. The current state is derived by replaying the events, and the log is never changed, only appended to.",
+      "The diagram shows the cycle: a command handler validates commands and appends events to the event store, the event store publishes them on an event bus, a projection builds a query-optimised read model, and the client reads from that model.",
+    ],
+    flows: [
+      {
+        title: "Recording a change",
+        steps: [
+          "The client sends a command, and the command handler loads the current state by replaying that entity's events.",
+          "If the command is valid, the handler appends one or more new events to the event store.",
+          "The event store publishes the new events on the event bus.",
+          "A projection consumes them and upserts the read model, which the client queries.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "The log is the source of truth", body: "Because every change is kept, you get a complete audit trail, the ability to rebuild state as of any point in time, and new read models built from history." },
+      { title: "Projections for reading", body: "Replaying events for every query would be slow, so projections keep read models up to date. They can be dropped and rebuilt from the log at any time." },
+      { title: "Events are forever", body: "Event shapes must be versioned carefully, since old events are replayed for years. Mistakes are fixed with new compensating events, not edits." },
+    ],
+    scaling: [
+      "Snapshots of an entity's state bound how many events must be replayed to load it.",
+      "Partition the event store by entity id; appends for one entity stay ordered.",
+      "Projections scale independently and can be rebuilt in parallel from the log.",
+    ],
+    faq: [
+      { question: "What is event sourcing?", answer: "A way of storing data as an append-only sequence of events that describe every change, rather than overwriting records with their latest values. Current state is computed by replaying the events." },
+      { question: "What are the benefits of event sourcing?", answer: "A full audit history, the ability to reconstruct past states, and the freedom to build new read models from existing events. The cost is more complexity in versioning events and building projections." },
+      { question: "What is a projection in event sourcing?", answer: "A process that reads events and builds a view of the data shaped for queries, such as a table of current order statuses. It can be rebuilt by replaying the log." },
+    ],
+  },
+
+  serverless: {
+    overview: [
+      "A serverless architecture runs code as functions that the cloud provider starts on demand, so there are no servers to manage and you pay per request. Storage and messaging are managed services too.",
+      "The diagram shows a typical AWS setup: static assets served by CloudFront from S3, API calls through API Gateway to Lambda functions, data in DynamoDB and S3, and EventBridge triggering scheduled functions.",
+    ],
+    flows: [
+      {
+        title: "Serving a request",
+        steps: [
+          "The client loads the static front end from the CDN, which fetches it from S3 on a miss.",
+          "API calls go to API Gateway, which invokes a Lambda function.",
+          "The function reads and writes DynamoDB or S3 and returns the response.",
+          "Scheduled work (reports, clean-ups) runs when EventBridge triggers a function on a cron schedule.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Pay per use", body: "Functions cost nothing when idle and scale automatically with traffic, which suits spiky or low-volume workloads. At constant high load, always-on servers can be cheaper." },
+      { title: "Stateless functions", body: "Each invocation may run on a fresh instance, so state lives in DynamoDB or S3, never in memory between requests." },
+      { title: "Managed building blocks", body: "API Gateway, DynamoDB, S3 and EventBridge remove the work of running gateways, databases and schedulers, at the cost of tying the design to one provider." },
+    ],
+    scaling: [
+      "Lambda scales by running more concurrent instances; set concurrency limits so a spike cannot overwhelm downstream services.",
+      "Cold starts add latency to the first request on a new instance; keep functions small, or use provisioned concurrency for latency-sensitive paths.",
+      "Design DynamoDB keys around access patterns so load spreads evenly across partitions.",
+    ],
+    faq: [
+      { question: "What is a serverless architecture?", answer: "An architecture where application code runs in functions managed by a cloud provider (such as AWS Lambda) that start on demand and scale automatically, combined with managed services for APIs, storage and events." },
+      { question: "What is a cold start?", answer: "The extra delay when the provider has to start a new function instance before handling a request. It ranges from milliseconds to a few seconds depending on the runtime and package size." },
+      { question: "When is serverless a bad fit?", answer: "For long-running jobs beyond the function time limit, steady high traffic where servers are cheaper, or workloads needing persistent connections or local state." },
+    ],
+  },
+
+  notification: {
+    overview: [
+      "A notification system lets any service send a message to a user over push, email or SMS without knowing how each channel works. It has to respect user preferences, survive provider outages and never send the same message twice.",
+      "In the diagram, services put notification requests on a queue, a dispatcher consumes them, checks the user's preferences and fans each message out to push (FCM and APNS), email (SES) and SMS (Twilio).",
+    ],
+    flows: [
+      {
+        title: "Sending a notification",
+        steps: [
+          "A service enqueues a notification request (who, what, which channels) on Kafka or SQS and moves on.",
+          "The dispatcher polls the queue and checks the preference database for opt-outs and channel choices.",
+          "It sends the message through each allowed channel: push to FCM or APNS, email through SES, SMS through Twilio.",
+          "Failed sends are retried with backoff; after repeated failures they go to a dead-letter queue.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "A queue in front of everything", body: "Producers never wait for email or SMS providers. The queue absorbs bursts (a marketing send, an outage alert) and lets dispatchers process at a steady rate." },
+      { title: "Preferences checked centrally", body: "Opt-outs, quiet hours and channel choices are checked in one place, so no service can accidentally message someone who opted out." },
+      { title: "Deduplication", body: "Queues deliver at least once. Giving each notification an id and recording what was sent stops retries from sending duplicates." },
+    ],
+    scaling: [
+      "Run separate queues or priorities per channel and urgency, so a large email campaign cannot delay security alerts.",
+      "Respect each provider's rate limits, and keep a second provider ready for critical channels.",
+      "Track delivery, open and failure rates per channel to catch provider problems early.",
+    ],
+    faq: [
+      { question: "How do you design a notification system?", answer: "Services publish notification requests to a queue; dispatchers consume them, check user preferences, render the message and send it through channel providers (push, email, SMS), with retries, deduplication and rate limiting." },
+      { question: "Why use a queue for notifications?", answer: "So senders do not wait on slow third-party providers, bursts are absorbed, and failed sends can be retried without losing messages." },
+      { question: "How do push notifications work?", answer: "The app registers with Apple Push Notification service or Firebase Cloud Messaging and gets a device token. Your server sends the message and token to that service, which delivers it to the device." },
+    ],
+  },
+
+  search: {
+    overview: [
+      "Search autocomplete (typeahead) suggests completions as the user types, within a few tens of milliseconds per keystroke. The design keeps the most common prefixes in memory and falls back to a full search index for the rest.",
+      "In the diagram, the client calls a search API that checks a trie cache in Redis and queries Elasticsearch. Changes in the primary Postgres database flow through change data capture into Kafka, and an indexer updates both the search index and the trie.",
+    ],
+    flows: [
+      {
+        title: "A keystroke",
+        steps: [
+          "The client sends the current prefix to the search API (usually after a short debounce).",
+          "The API looks the prefix up in the trie cache, which holds the top suggestions for common prefixes.",
+          "For less common prefixes it queries the Elasticsearch index.",
+          "It returns a short list of suggestions, ranked by popularity or relevance.",
+        ],
+      },
+      {
+        title: "Keeping suggestions fresh",
+        steps: [
+          "Changes in the primary database are captured and published to Kafka.",
+          "The indexer consumes them, re-indexes Elasticsearch and rebuilds the affected trie entries.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Precomputed top results per prefix", body: "Storing the top few completions at each prefix means a lookup is a single key read, not a search. The cost is rebuilding entries when popularity changes." },
+      { title: "Change data capture for indexing", body: "Reading the database's change log means the application never has to remember to update search, and the index catches up even after an outage." },
+      { title: "Debounce on the client", body: "Waiting a short moment between keystrokes cuts the request rate several times over without making suggestions feel slow." },
+    ],
+    scaling: [
+      "Shard the trie cache by prefix and replicate it for read throughput.",
+      "Cache popular prefixes at the edge or in the browser, since a few prefixes take most of the traffic.",
+      "Rebuild popularity rankings in batch from query logs; real-time updates are rarely worth the cost.",
+    ],
+    faq: [
+      { question: "How does search autocomplete work?", answer: "As the user types, the client sends the prefix to a service that returns the most likely completions, usually from a precomputed in-memory structure (a trie or prefix cache) with a full search index as fallback." },
+      { question: "What is a trie in autocomplete?", answer: "A tree where each node is a character, so every path from the root spells a prefix. Storing the top completions at each node makes looking up suggestions for a prefix very fast." },
+      { question: "How is the search index kept up to date?", answer: "Often with change data capture: database changes are streamed (for example through Kafka) to an indexer that updates the search index and suggestion cache." },
+    ],
+  },
+
+  request_response: {
+    overview: [
+      "Every web or API request follows roughly the same path, from typing a URL to seeing the page. This diagram numbers the steps of that path, which is the most common warm-up question in system design interviews: what happens when you open a URL?",
+      "The request goes through DNS, a CDN, a load balancer, an API gateway with an auth service, an application server, a Redis cache and a PostgreSQL database, and the response comes back the same way.",
+    ],
+    flows: [
+      {
+        title: "The 14 steps",
+        steps: [
+          "The client asks DNS (for example Route 53) for the domain's address.",
+          "It opens an HTTPS connection and sends the request to the nearest CDN node.",
+          "If the CDN cannot answer from its cache, it forwards the request to the origin's load balancer.",
+          "The load balancer forwards it to an API gateway instance.",
+          "The gateway asks the auth service to verify the JWT and gets back the user's claims.",
+          "It routes the request to the application server for that service.",
+          "The application server checks Redis; on a hit it uses the cached value, on a miss it queries PostgreSQL and gets rows back.",
+          "It builds a JSON response, which returns through the gateway, load balancer and CDN (which may cache it) to the client.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Cache at every layer", body: "The CDN caches public responses close to the user, the application caches hot data in Redis, and the database has its own buffer cache. Each layer that answers saves every layer behind it." },
+      { title: "Authenticate at the gateway", body: "Verifying tokens once at the edge of the system means services receive requests that are already authenticated, with the user's claims attached." },
+      { title: "Stateless application servers", body: "Because session and data live in the cache and database, any server can handle any request, which is what lets the load balancer spread traffic freely." },
+    ],
+    scaling: [
+      "DNS and the CDN spread users across regions before requests reach the origin.",
+      "Add application servers behind the load balancer as traffic grows.",
+      "Scale the database last, with read replicas and caching first, then partitioning.",
+    ],
+    faq: [
+      { question: "What happens when you type a URL into a browser?", answer: "The browser resolves the domain through DNS, opens a TCP and TLS connection, sends an HTTP request (often to a CDN), which forwards it to the origin through a load balancer and gateway to an application server; the server reads from cache or database and the response returns along the same path." },
+      { question: "What is the difference between a load balancer and an API gateway?", answer: "A load balancer spreads traffic across servers. An API gateway also routes requests to different services and handles cross-cutting concerns such as authentication, rate limiting and request transformation." },
+      { question: "Where does caching happen in a request?", answer: "In the browser, at the CDN, in an application cache such as Redis, and inside the database. Each layer can answer the request before it reaches the next." },
+    ],
+  },
+
+  archdraw_self: {
+    overview: [
+      "This is ArchDraw's own architecture, drawn in ArchDraw. It shows how a prompt, a Mermaid file or a GitHub repository becomes an editable diagram: three pipelines that share one stage engine and one layout engine, a React Flow canvas in the browser, and a Postgres backend.",
+      "The browser side is the Next.js app, the React Flow canvas, the Mermaid code panel and a Zustand store. The pipelines are the AI Mermaid pipeline (concept detection, LLM planning, materialise, score, validate), the Mermaid pipeline (parse, validate, build, layout, size) and the repo diagram pipeline (ingest, analyse, classify, extract, relate, verify, finalise). Groq and OpenRouter provide the models.",
+    ],
+    flows: [
+      {
+        title: "From a prompt to a diagram",
+        steps: [
+          "The web UI sends the prompt to the orchestrator, which runs the AI pipeline through the shared pipeline engine.",
+          "Concept detection serves a canned diagram for short concept prompts; otherwise the LLM architecture planner (through the API key manager, Groq first, OpenRouter on rate limits) writes a plan as Mermaid.",
+          "Mermaid materialise runs the Mermaid pipeline: parse to an AST, validate, build React Flow objects, lay them out with Dagre and size the groups.",
+          "The result is scored and validated, cached, and written to the Zustand store, which the canvas renders and auto-saves through the canvas API to Postgres.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Everything becomes Mermaid", body: "The AI pipeline, the code panel and the repo pipeline all produce Mermaid or React Flow objects and go through the same build and layout stages, so every diagram looks and behaves the same however it was made." },
+      { title: "One stage engine", body: "pipeline-core runs every pipeline as a list of stages: a PipelineContext carries the abort signal, progress and shared data, every run ends in a typed DomainResult (success or failure with an error code), and Stage Metrics record each stage's duration. That keeps error handling and progress reporting the same in all three pipelines." },
+      { title: "Shared renderers", body: "Whatever produced the graph, the canvas draws it with the same components: SystemNode for services, ShapeNode for databases, gateways and other shapes, and SimpleFloatingEdge for connections with dynamic handles. Sign-in (Google or GitHub through better-auth) and the canvas API sit on the Postgres backend." },
+      { title: "Deterministic layout", body: "The layout engine (Dagre, with compound grouping and symmetry passes) is deterministic, so the same graph always gets the same layout and layout quality can be tested." },
+    ],
+    scaling: [
+      "Generation results are cached by prompt, and repo diagrams by repository, commit and detail level.",
+      "Model calls rotate across several API keys and fall back to a second provider on rate limits.",
+      "Canvas saves are debounced and compare-and-swap protected, so two tabs cannot silently overwrite each other.",
+    ],
+    faq: [
+      { question: "How does ArchDraw turn a prompt into a diagram?", answer: "An LLM plans the architecture and writes it as Mermaid; ArchDraw's Mermaid pipeline then parses it, builds the components and lays them out with a deterministic layout engine before showing it on the canvas." },
+      { question: "Which AI models does ArchDraw use?", answer: "Models served through Groq first, with OpenRouter as a fallback when the primary provider is rate-limited." },
+      { question: "Can I see ArchDraw's source code?", answer: "Yes, ArchDraw is open source on GitHub at github.com/hiabhee/ArchDraw." },
+    ],
+  },
+
+  repo_to_diagram: {
+    overview: [
+      "This diagram shows how ArchDraw turns a GitHub repository into an architecture diagram. It combines deterministic analysis of the code with three LLM agents, then checks the agents' answer against evidence in the repository and its README before drawing anything.",
+      "The developer pastes a repository URL; the repo diagram API checks a cache keyed by repository and commit, ingests the code from GitHub, runs static analysis and a baseline graph, then the classifier, component extractor and relationship analyst agents, and finally verification and a docs review before finalising the canvas.",
+    ],
+    flows: [
+      {
+        title: "From repository URL to diagram",
+        steps: [
+          "The API checks the quota and the result cache (memory and Redis, keyed by repository and commit SHA); a hit returns immediately.",
+          "On a miss, ingestion downloads the repository archive from GitHub, falling back to the contents API.",
+          "Static analysis finds subsystems, signals and the import graph, and builds a deterministic baseline graph.",
+          "The classifier agent profiles the repository and picks an extraction strategy; the component extractor and relationship analyst add components, edges and user journeys.",
+          "Verification prunes anything the evidence does not support, and the docs review re-checks the graph against the README.",
+          "Finalisation applies limits and confidence scores, caches the result and sends the graph to the canvas, with progress streamed to the developer throughout.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Read the architecture files first", body: "READMEs, package manifests, Docker Compose, Terraform and CI files describe a system's architecture more directly than source code, so ingestion reads them all before sampling code." },
+      { title: "A deterministic baseline", body: "Static analysis produces a draft graph without any LLM, so the agents refine something grounded in the code instead of inventing a system from scratch." },
+      { title: "Verify before drawing", body: "LLM agents can hallucinate components. Checking each one against import-graph evidence and the README removes unsupported parts before the user sees them." },
+    ],
+    scaling: [
+      "Results are cached per repository, commit and detail level, so popular repositories are analysed once per commit.",
+      "File and content budgets scale with the requested detail level, which bounds the cost of very large repositories.",
+      "Progress is streamed with server-sent events, so long analyses never look stuck.",
+    ],
+    faq: [
+      { question: "Can AI generate an architecture diagram from a GitHub repository?", answer: "Yes. ArchDraw reads the repository's architecture files and code, builds a draft from static analysis, refines it with LLM agents and verifies the result against the code and README before drawing it." },
+      { question: "Does it work with private repositories?", answer: "The repository import works with public GitHub repositories." },
+      { question: "How accurate are repo diagrams?", answer: "Components are kept only when the code or documentation supports them, but generated diagrams can still miss or misname parts, so review them before relying on them." },
+    ],
+  },
 };
 
 export function getTemplateGuide(templateId: string): TemplateGuide | undefined {
