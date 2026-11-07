@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTutorialById } from '@/data/tutorials';
 import TutorialPageClient from './TutorialPageClient';
+import { pageMetadata } from '@/lib/site/seo';
 
 export async function generateMetadata({
   params,
@@ -9,7 +10,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const tutorial = getTutorialById(id);
-  if (!tutorial) return { title: 'Tutorial Not Found | ArchDraw' };
+  if (!tutorial) return { title: 'Tutorial not found', robots: { index: false } };
 
   const keywords = [
     ...(tutorial.tags ?? []),
@@ -21,21 +22,15 @@ export async function generateMetadata({
   const ogImage = `/api/og/tutorial/${id}`;
 
   return {
-    title: `${tutorial.title} | ArchDraw Tutorials`,
-    description: tutorial.description,
-    keywords,
-    openGraph: {
-      title: `${tutorial.title} | ArchDraw Tutorials`,
+    ...pageMetadata({
+      title: `${tutorial.title} — System Design Tutorial`,
       description: tutorial.description,
+      path: `/tutorials/${id}`,
       type: 'article',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: tutorial.title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${tutorial.title} | ArchDraw Tutorials`,
-      description: tutorial.description,
-      images: [ogImage],
-    },
+      image: ogImage,
+      imageAlt: tutorial.title,
+    }),
+    keywords,
   };
 }
 

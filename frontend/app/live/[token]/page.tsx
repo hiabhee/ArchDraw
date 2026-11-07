@@ -9,7 +9,7 @@ interface Props {
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Live project — ArchDraw',
+  title: 'Live project',
   description: 'A live architecture diagram showing which coding-agent session is working on which component.',
   robots: { index: false, follow: false },
 };

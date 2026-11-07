@@ -6,7 +6,7 @@ import { Check, Lock, Sparkles } from 'lucide-react';
 import { UpgradeToPro } from '@/components/billing/UpgradeToPro';
 
 export const metadata: Metadata = {
-  title: 'Pricing — ArchDraw',
+  title: 'Pricing',
   description: 'Free during beta. 3 generations/hour for guests, 10/day when signed in. Canvas limits and export included. Paid plans coming.',
   alternates: { canonical: 'https://archdraw.hiabhee.online/pricing' },
   openGraph: {

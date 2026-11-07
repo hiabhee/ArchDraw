@@ -5,7 +5,7 @@ import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
 
 export const metadata: Metadata = {
-  title: 'About ArchDraw | AI Architecture Diagram Tool',
+  title: { absolute: 'About ArchDraw — AI Architecture Diagram Tool' },
   description: 'Learn how ArchDraw turns a repository, Mermaid, or system description into an editable architecture diagram.',
   alternates: { canonical: 'https://archdraw.hiabhee.online/about' },
   openGraph: {

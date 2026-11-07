@@ -3,6 +3,7 @@ import { ArrowRight, GitBranch, Workflow, Layers, ShieldCheck, ScanSearch, Netwo
 import { BrandMark } from '@/components/ui/BrandMark';
 export const metadata = {
   title: 'How to generate an architecture diagram from a GitHub repo with AI',
+  alternates: { canonical: 'https://archdraw.hiabhee.online/repo-diagram' },
   description:
     'Paste a GitHub repo URL and ArchDraw analyzes the codebase to produce an architecture diagram — components, relationships, workflows, and dependency intelligence — in minutes.',
   openGraph: {

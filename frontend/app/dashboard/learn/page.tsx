@@ -2,7 +2,7 @@ import { LearnClient } from '@/components/dashboard/LearnClient';
 import { TUTORIALS } from '@/data/tutorials';
 
 export const metadata = {
-  title: 'System Design Tutorials | ArchDraw',
+  title: 'Learn System Design',
   description: 'Master system design by building real architectures from top tech companies.',
 };
 

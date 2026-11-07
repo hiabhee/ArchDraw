@@ -4,7 +4,7 @@ import { TEMPLATES } from '@/data/templates/index';
 
 
 export const metadata = {
-  title: 'Dashboard | ArchDraw',
+  title: 'Dashboard',
   description: 'Manage your architecture diagrams and templates.',
 };
 

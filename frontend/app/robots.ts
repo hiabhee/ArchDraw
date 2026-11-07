@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next';
 
 // Private / gated paths — never crawl / training, but discovery files must stay public.
-const DISALLOWED = ['/editor', '/api/', '/share', '/auth', '/admin'];
+// `/api/og/` stays crawlable: social cards and search previews fetch the page images from it.
+const DISALLOWED = ['/editor', '/dashboard', '/connect-agent', '/live/', '/embed/', '/api/', '/share', '/auth', '/login', '/admin'];
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://archdraw.hiabhee.online';
 
@@ -23,7 +24,7 @@ const DISCOVERY_ALLOW = [
   '/robots.txt',
 ];
 
-const ALLOWED = ['/', '/docs', '/blogs', '/pricing', '/faq', '/about', '/contact', '/tutorials', '/mcp', '/agent-skill', '/repo-diagram', ...DISCOVERY_ALLOW];
+const ALLOWED = ['/', '/docs', '/blogs', '/templates', '/pricing', '/faq', '/about', '/contact', '/tutorials', '/mcp', '/agent-skill', '/repo-diagram', '/api/og/', '/changelog.json', '/manifest.webmanifest', ...DISCOVERY_ALLOW];
 
 // AI crawler user-agents — explicitly allowlisted per checklist §2 WAF note + §3 robots.txt.
 const AI_BOTS = [

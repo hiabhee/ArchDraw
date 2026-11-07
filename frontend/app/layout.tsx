@@ -23,18 +23,10 @@ export const metadata: Metadata = {
     default: 'ArchDraw — System Architecture Diagram & Design Tool',
     template: '%s | ArchDraw',
   },
-  icons: {
-    icon: '/favicon.ico',
-    apple: '/favicon.ico',
-  },
+  applicationName: 'ArchDraw',
   description: 'Design and map production system architecture with drag-and-drop diagrams. Share, export, and embed instantly.',
-  alternates: {
-    canonical: 'https://archdraw.hiabhee.online',
-    languages: {
-      en: 'https://archdraw.hiabhee.online',
-      'x-default': 'https://archdraw.hiabhee.online',
-    },
-  },
+  // No site-wide `alternates.canonical`: every child page inherits it, which would mark each
+  // page as a duplicate of the homepage. Pages set their own via `pageMetadata` (lib/site/seo.ts).
   keywords: [
     'system design tool', 'architecture diagram', 'system architecture',
     'software architecture diagram', 'system design diagram maker',
@@ -91,7 +83,7 @@ export default function RootLayout({
                   '@id': 'https://archdraw.hiabhee.online/#organization',
                   name: 'ArchDraw',
                   url: 'https://archdraw.hiabhee.online',
-                  logo: 'https://archdraw.hiabhee.online/api/og/home',
+                  logo: 'https://archdraw.hiabhee.online/logo.png',
                   description:
                     'AI-assisted system architecture diagramming tool that turns plain English, Mermaid, or a GitHub repo URL into styled, auto-laid-out architecture diagrams.',
                   sameAs: ['https://github.com/hiabhee/ArchDraw'],

@@ -4,6 +4,7 @@ import { Clock, Tag, ArrowLeft, Calendar } from 'lucide-react';
 import { blogs } from '@/data/blogs';
 import { BlogDemo } from '@/components/landing/BlogDemo';
 import { BrandMark } from '@/components/ui/BrandMark';
+import { pageMetadata } from '@/lib/site/seo';
 
 interface BlogDetailProps {
   params: Promise<{
@@ -22,23 +23,13 @@ export async function generateMetadata({ params }: BlogDetailProps) {
   const post = blogs.find((b) => b.slug === slug);
   if (!post) return {};
   
-  return {
-    title: `${post.title} — ArchDraw`,
+  return pageMetadata({
+    title: post.title,
     description: post.summary,
-    openGraph: {
-      type: 'article',
-      url: `https://archdraw.hiabhee.online/blogs/${post.slug}`,
-      title: `${post.title} — ArchDraw`,
-      description: post.summary,
-      images: [{ url: '/api/og/home', width: 1200, height: 630, alt: post.title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${post.title} — ArchDraw`,
-      description: post.summary,
-      images: ['/api/og/home'],
-    },
-  };
+    path: `/blogs/${post.slug}`,
+    type: 'article',
+    imageAlt: post.title,
+  });
 }
 
 function BlogDocsHeader({ activeTab }: { activeTab: 'docs' | 'blogs' }) {

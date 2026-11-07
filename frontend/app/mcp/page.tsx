@@ -5,6 +5,7 @@ import { LandingNav } from '@/components/landing/LandingNav';
 
 export const metadata = {
   title: 'What is an MCP server for diagramming?',
+  alternates: { canonical: 'https://archdraw.hiabhee.online/mcp' },
   description:
     'An MCP server for diagramming is a local bridge that lets AI assistants like Claude and Cursor read, edit, and lay out architecture diagrams programmatically. Here is how ArchDraw\u2019s MCP server works and how to connect it.',
   openGraph: {
