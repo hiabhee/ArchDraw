@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight, GraduationCap, PencilRuler } from 'lucide-react'
 import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
 import { TemplateDiagram } from '@/components/landing/templates/TemplateDiagram';
+import { TemplateGuideBody, TemplateGuideFaq, templateFaqJsonLd } from '@/components/landing/templates/TemplateGuide';
+import { getTemplateGuide } from '@/data/templates/guides';
 import {
   allTemplateSlugs,
   getTemplateBySlug,
@@ -72,6 +74,8 @@ export default async function TemplatePage({ params }: Props) {
   const product = representedProduct(template);
   const tutorials = tutorialIdsForTemplate(template).flatMap((id) => getTutorialById(id) ?? []);
 
+  const guide = getTemplateGuide(template.id);
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -88,6 +92,7 @@ export default async function TemplatePage({ params }: Props) {
         publisher: { '@id': `${absoluteUrl('/')}#organization` },
       },
       breadcrumbJsonLd([['Architecture diagram templates', '/templates'], [heading, `/templates/${slug}`]]),
+      ...(guide ? [templateFaqJsonLd(guide)] : []),
     ],
   };
 
@@ -149,6 +154,8 @@ export default async function TemplatePage({ params }: Props) {
           </figcaption>
         </figure>
 
+        {guide && <TemplateGuideBody guide={guide} subject={subject} />}
+
         <div className="grid gap-10 pt-14 lg:grid-cols-2">
           <section aria-labelledby="components-title">
             <h2 id="components-title" className="text-xl font-semibold tracking-[-.03em] text-text-primary">Components</h2>
@@ -179,6 +186,8 @@ export default async function TemplatePage({ params }: Props) {
             </section>
           )}
         </div>
+
+        {guide && <TemplateGuideFaq guide={guide} />}
 
         <section aria-labelledby="learn-title" className="pt-16">
           <h2 id="learn-title" className="text-xl font-semibold tracking-[-.03em] text-text-primary">
