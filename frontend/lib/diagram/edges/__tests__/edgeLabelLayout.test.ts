@@ -328,16 +328,17 @@ describe('computeEdgeLabelLayout', () => {
     const anchor = res.get('e1')!
     expect(anchor).toBeDefined()
 
-    // The label stays on the wire midpoint (an L-shaped route: the child's
-    // absolute y is offset by the group's position), not pushed off the group.
+    // The label stays on the wire (an L-shaped route: the child's absolute y is offset by the
+    // group's position), not pushed off it by the group.
     const route = computeEdgeRoute(edges[0], [group, a, b], edges, 'LR')
     const expected = pointAtFraction(buildPathSegments(route.waypoints), anchor?.t ?? 0.5)
     expect(anchor.x).toBeCloseTo(expected.x, 0)
     expect(anchor.y).toBeCloseTo(expected.y, 0)
 
-    // And that midpoint sits inside the group box — groups are not obstacles.
-    expect(anchor.x).toBeGreaterThan(0)
-    expect(anchor.x).toBeLessThan(500)
+    // It is not pushed away from the group (groups are not obstacles): it stays between the two
+    // nodes, on a straight run of the wire rather than on the bend.
+    expect(anchor.x).toBeGreaterThan(260)
+    expect(anchor.x).toBeLessThan(600)
     expect(anchor.y).toBeGreaterThan(80)
     expect(anchor.y).toBeLessThanOrEqual(200)
   })
@@ -495,5 +496,18 @@ describe('splitComposedEdgeLabel', () => {
 
   it('never splits content slashes', () => {
     expect(splitComposedEdgeLabel('read/write')).toEqual({ base: 'read/write', response: undefined })
+  })
+
+  it('moves a label off the bends onto a straight leg when the middle leg is too short', () => {
+    // A Z-shaped route whose middle (vertical) leg is only 60px: its midpoint is on the bends.
+    const nodes = [makeNode('a', 0, 0, 200, 80), makeNode('b', 600, 60, 200, 80)]
+    const edges = [makeEdge('e1', 'a', 'b', { label: 'queries user' })]
+    const route = computeEdgeRoute(edges[0], nodes, edges, 'LR')
+    const bendX = route.waypoints[1].x
+    expect(route.waypoints[1].y).not.toBe(route.waypoints[2].y)
+    const anchor = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'LR').get('e1')!
+    // On one of the horizontal legs, with the whole pill clear of the bend.
+    expect([route.waypoints[0].y, route.waypoints[2].y].some(y => Math.abs(anchor.y - y) < 1)).toBe(true)
+    expect(Math.abs(anchor.x - bendX)).toBeGreaterThan(60)
   })
 })
