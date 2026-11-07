@@ -49,7 +49,8 @@ describe('template catalog', () => {
     }
     expect(templateForTutorial('chatgpt-architecture')?.id).toBe('chatgpt');
     expect(templateForTutorial('uber-architecture')?.id).toBe('rideshare');
-    expect(templateForTutorial('rate-limiter-architecture')).toBeUndefined();
+    expect(templateForTutorial('whatsapp-architecture')?.id).toBe('whatsapp');
+    expect(templateForTutorial('todo-api-architecture')).toBeUndefined();
     expect(representedProduct({ id: 'chatgpt' })).toBe('ChatGPT');
     expect(representedProduct({ id: 'microservices' })).toBeUndefined();
   });

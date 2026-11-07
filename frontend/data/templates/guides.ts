@@ -962,6 +962,374 @@ export const TEMPLATE_GUIDES: Record<string, TemplateGuide> = {
       { question: "How accurate are repo diagrams?", answer: "Components are kept only when the code or documentation supports them, but generated diagrams can still miss or misname parts, so review them before relying on them." },
     ],
   },
+  whatsapp: {
+    overview: [
+      "A WhatsApp-style messenger delivers short, end-to-end encrypted messages between phones in real time, keeps undelivered messages until the recipient comes online, and fans group messages out to every member. The server never sees message contents: clients encrypt before sending.",
+      "In the diagram, mobile and web clients keep a persistent connection to chat servers behind a load balancer. A message service stores messages until they are delivered, a group service fans out group messages, a presence service tracks who is online, a queue and push service reach offline phones, and media and calls have their own services.",
+    ],
+    flows: [
+      {
+        title: "Sending a message",
+        steps: [
+          "The sender's app encrypts the message with the recipient's public key (fetched once through the API gateway and auth service) and sends it over its open connection to a chat server.",
+          "The chat server hands it to the message service, which stores it in the message store until it is delivered.",
+          "If the recipient is online, the message goes straight to the chat server holding their connection; delivery and read receipts flow back the same way.",
+          "If they are offline, the message goes onto the queue and the push service wakes their phone through APNS or FCM; the stored copy is deleted once delivered.",
+          "For a group, the group service looks up the members and fans the message out, one copy per member.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "End-to-end encryption", body: "Keys live on the devices and the server only relays ciphertext. That protects users even if the servers are compromised, but means the server cannot search, filter or back up message contents; the auth service only stores public keys." },
+      { title: "Store until delivered", body: "Messages are held only until every recipient device has them, then deleted. That keeps server storage small and fits the privacy model, while history lives on the devices." },
+      { title: "Persistent connections", body: "Phones keep one long-lived connection open to a chat server, so messages arrive instantly without polling and the server knows who is online." },
+      { title: "Media out of band", body: "Photos and videos are encrypted on the device, uploaded once to object storage through the media service, and messages carry only a reference and the key." },
+    ],
+    scaling: [
+      "Each chat server holds a very large number of mostly idle connections; add servers as users grow and keep a registry of which server holds which user.",
+      "Group fan-out is the expensive path, so it runs through the queue and large groups are capped.",
+      "Presence is kept in a cache and updates are batched, since status changes far more often than messages are sent.",
+    ],
+    faq: [
+      { question: "How does WhatsApp deliver messages?", answer: "Phones keep a persistent connection to a chat server. A message goes to the server, is stored until the recipient's device receives it, and is pushed over the recipient's connection, or via a push notification if they are offline. Delivery and read receipts travel back the same way." },
+      { question: "How does end-to-end encryption work in a messenger?", answer: "Each device has its own key pair. The sender encrypts the message with keys derived from the recipient's public key, so only the recipient's device can decrypt it; the server only relays and briefly stores ciphertext." },
+      { question: "Is this WhatsApp's real architecture?", answer: "No. It is a typical design for a WhatsApp-style messenger based on public information, not WhatsApp's internal system." },
+    ],
+  },
+
+  twitter: {
+    overview: [
+      "A Twitter-style service lets anyone post short messages and shows each user a timeline of posts from the accounts they follow. Reads outnumber writes by orders of magnitude, so the design precomputes timelines instead of building them on every request.",
+      "In the diagram, clients call an API gateway. The tweet service stores tweets in a NoSQL database and hands each new tweet to a fan-out service, which reads the social graph and appends the tweet to followers' timelines in Redis. The timeline service reads those cached timelines; an event stream feeds search indexing and notifications; media goes through its own service to object storage and the CDN.",
+    ],
+    flows: [
+      {
+        title: "Posting a tweet",
+        steps: [
+          "The client sends the tweet through the API gateway and load balancer to the tweet service, which stores it in the NoSQL database.",
+          "The fan-out service looks up the author's followers in the social graph and appends the tweet id to each follower's timeline in the cache.",
+          "The tweet event goes onto the event stream, which updates the search index and triggers notifications for mentions.",
+        ],
+      },
+      {
+        title: "Reading the home timeline",
+        steps: [
+          "The timeline service reads the user's precomputed list of tweet ids from the cache.",
+          "It hydrates them with tweet content and returns the page; images and video load from the CDN.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Fan-out on write", body: "Writing each tweet into every follower's timeline makes reading a timeline a single cache read. The cost moves to posting, which is fine because most users have few followers and reads dominate." },
+      { title: "A hybrid for celebrities", body: "Fanning out a tweet from an account with tens of millions of followers would mean millions of writes. Those accounts are usually merged into timelines at read time instead." },
+      { title: "Timelines in memory", body: "Timelines are lists of recent tweet ids, kept in Redis. They can always be rebuilt from the tweet store and the social graph, so the cache does not need to be durable." },
+      { title: "Search from the stream", body: "Indexing tweets from the event stream keeps search off the write path and lets the index fall behind briefly without slowing posting." },
+    ],
+    scaling: [
+      "Partition tweets by tweet id and timelines by user id so load spreads evenly.",
+      "Keep cached timelines only for active users and rebuild the rest on demand.",
+      "Scale fan-out workers with the posting rate; spikes during big events are absorbed by the queue.",
+    ],
+    faq: [
+      { question: "How does Twitter build the home timeline?", answer: "Mostly by fan-out on write: when someone tweets, the tweet id is added to each follower's timeline in an in-memory cache, so reading a timeline is a single lookup. Tweets from accounts with huge followings are merged in at read time." },
+      { question: "What is fan-out in system design?", answer: "Delivering one item to many recipients. Fan-out on write pushes it to every recipient's feed when it is created; fan-out on read collects it from all sources when a feed is opened." },
+      { question: "Is this Twitter's (X's) real architecture?", answer: "No. It is a representative design for a Twitter-style timeline service based on public information." },
+    ],
+  },
+
+  airbnb: {
+    overview: [
+      "An Airbnb-style marketplace connects guests looking for a place to stay with hosts who list homes. The two hard parts are search (location, dates, price and filters at once) and booking (never letting two guests reserve the same nights).",
+      "In the diagram, the web client reaches an API gateway and load balancer in front of search, listing, availability, booking, payment, messaging and review services. Search runs on a geo-aware index, listings are cached, availability calendars and bookings live in the database, and booking events drive notifications.",
+    ],
+    flows: [
+      {
+        title: "Searching and booking a stay",
+        steps: [
+          "The guest searches by place and dates; the search service queries the search index for listings in that area with free dates and matching filters.",
+          "Opening a listing loads it from the listing service (from the in-memory cache when hot) with photos from the CDN.",
+          "Booking goes to the booking service, which asks the availability service to hold the dates and the payment service to charge the guest.",
+          "Once confirmed, a booking event goes onto the queue and the notification service tells the guest and the host.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Hold dates atomically", body: "Two guests can try to book the same nights at once. The availability service reserves the dates in a single transaction (or with a conditional update) before payment, so only one booking can win." },
+      { title: "A separate search index", body: "Searching by map area, dates and many filters is a job for a search engine with geo queries. The index is updated from listing changes, so searches never load the main database." },
+      { title: "Charge after the hold", body: "Holding the dates first and charging second means a failed payment simply releases the hold, and a guest is never charged for dates they did not get." },
+    ],
+    scaling: [
+      "Search traffic is far larger than booking traffic, so the search tier and index scale independently.",
+      "Cache listing pages aggressively; prices and availability are checked again at booking time.",
+      "Partition bookings and calendars by listing, so all writes for one home stay together.",
+    ],
+    faq: [
+      { question: "How does Airbnb prevent double bookings?", answer: "The availability service reserves the dates for one booking atomically, for example with a transaction or a conditional update on the listing's calendar, before charging the guest. A second request for the same nights fails the check." },
+      { question: "How does search by location and dates work?", answer: "Listings are indexed in a search engine that supports geo queries. A search filters by map area and price, and excludes listings whose calendars are blocked for the requested dates." },
+      { question: "Is this Airbnb's real architecture?", answer: "No. It is a typical design for a booking marketplace based on public information." },
+    ],
+  },
+
+  discord: {
+    overview: [
+      "A Discord-style platform runs millions of communities (guilds) with text channels, voice channels and live presence. Every message must reach everyone viewing a channel within moments, and the full history must stay searchable for years.",
+      "In the diagram, clients use REST through an API gateway for actions and a WebSocket gateway for live events. Guild, message, voice and session services sit behind them; messages are stored in a NoSQL database partitioned by channel, attachments go through a media pipeline to object storage, and metrics and traces cover the whole system.",
+    ],
+    flows: [
+      {
+        title: "Posting in a channel",
+        steps: [
+          "The client sends the message through the API gateway; the auth service verifies the token and the guild service checks the member's permissions for that channel.",
+          "The message service stores it in the NoSQL database, keyed by channel and time.",
+          "It publishes the message to the WebSocket gateway, which pushes it to every member currently connected and viewing that guild.",
+          "Attachments go through the media pipeline to object storage and are served through the CDN.",
+        ],
+      },
+      {
+        title: "Joining a voice channel",
+        steps: [
+          "The guild service checks the member may join and the voice service assigns a voice server for the channel.",
+          "The client connects to that voice server directly for audio; the session service updates presence so others see who is in the channel.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "REST for actions, WebSockets for events", body: "Sending a message, editing a role or creating a channel are ordinary requests. Everything that happens to you (new messages, typing, presence) arrives as events over one persistent WebSocket connection." },
+      { title: "Messages partitioned by channel and time", body: "Reads are almost always the latest messages in one channel, so storing messages in a wide-column store keyed by channel and time bucket makes those reads cheap and keeps huge histories spread across nodes." },
+      { title: "Voice on separate servers", body: "Voice is latency-sensitive real-time media, unlike chat. Dedicated voice servers handle it, close to users, and the rest of the system only coordinates who is where." },
+    ],
+    scaling: [
+      "Shard the WebSocket gateway by guild, so all events for one community go through a known set of servers.",
+      "Very large guilds fan events out only to members who are online, and lazily load member lists.",
+      "Metrics and tracing on the session and message paths are how slow fan-out is found before users notice.",
+    ],
+    faq: [
+      { question: "How does Discord deliver messages in real time?", answer: "Clients hold a WebSocket connection to a gateway. When a message is posted, it is stored and then published to the gateway servers responsible for that guild, which push it to every connected member." },
+      { question: "How does Discord store billions of messages?", answer: "In a distributed wide-column database, with messages partitioned by channel and time window, so the latest messages of a channel are read from one partition and history spreads across the cluster." },
+      { question: "Is this Discord's real architecture?", answer: "No. It is a representative design for a Discord-style platform based on public information." },
+    ],
+  },
+
+  zoom: {
+    overview: [
+      "A Zoom-style video conferencing system lets many people see and hear each other with as little delay as possible. Media takes a different path from everything else: signaling sets the call up, and audio and video then flow through media servers built for real-time traffic.",
+      "In the diagram, clients join through a signaling server, which uses the meeting service to find the room and negotiates the session with the WebRTC server. Audio and video run through media servers, with a TURN server relaying for clients behind strict firewalls. Meeting state, chat and cloud recording are separate services, and recordings are processed by workers into object storage.",
+    ],
+    flows: [
+      {
+        title: "Joining a meeting",
+        steps: [
+          "The client schedules or signs in through the API gateway, and opens the meeting link.",
+          "The signaling server looks up the room in the meeting service (live state in the in-memory cache, meetings in the SQL database).",
+          "It negotiates the media session through the WebRTC server, exchanging codecs and network candidates.",
+          "Audio and video flow to a media server, which forwards each participant's streams to the others; the TURN server relays traffic when a direct path is blocked.",
+          "If recording is on, the media server streams to the recording service, which queues the recording for workers to transcode and store.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "A forwarding media server", body: "Sending every participant's video to every other participant directly does not scale past a few people. A selective forwarding server receives each stream once and sends each viewer only the streams and quality they need." },
+      { title: "UDP and adaptive quality", body: "Real-time media prefers a late frame dropped over a frame delivered late, so it uses UDP-based protocols and lowers resolution or frame rate as the network degrades." },
+      { title: "TURN as a fallback", body: "Many corporate networks block direct connections. A TURN server relays the media so the call still works, at the cost of extra bandwidth on the relay." },
+      { title: "Recording off the live path", body: "Recording streams to its own service and is processed later by workers, so transcoding and transcription never affect the live call." },
+    ],
+    scaling: [
+      "Place media servers in many regions and connect each participant to the nearest one; large meetings cascade between servers.",
+      "Signaling and meeting services are light and scale horizontally; media capacity is planned separately by bandwidth.",
+      "Recording workers scale with the queue, and recordings are stored in object storage.",
+    ],
+    faq: [
+      { question: "How does Zoom video conferencing work?", answer: "Clients first exchange connection details through a signaling server. Their audio and video then flow to a media server that forwards each participant's streams to the others, adapting quality to each connection." },
+      { question: "What is a TURN server?", answer: "A relay that forwards media between participants when firewalls or NAT prevent a direct connection. It makes calls work on restrictive networks at the cost of relaying all of that participant's traffic." },
+      { question: "Is this Zoom's real architecture?", answer: "No. It is a typical design for a video conferencing service based on public information about WebRTC-style systems." },
+    ],
+  },
+
+  spotify: {
+    overview: [
+      "A Spotify-style music service streams a huge catalog of tracks, keeps each listener's playlists and library, and recommends what to play next. Audio files are served from a CDN; the services handle catalog, playback rights, playlists, search and recommendations.",
+      "In the diagram, the client apps stream audio from the audio CDN and call the API gateway. Behind the load balancer sit auth, catalog, playback, playlist, search and recommendation services; listening events flow through Kafka into a data warehouse and the recommendation service; new releases are transcoded from object storage and pushed to the CDN.",
+    ],
+    flows: [
+      {
+        title: "Playing a track",
+        steps: [
+          "The app calls the API gateway; the auth service checks the account and subscription.",
+          "The playback service checks the listener may play the track in their country and returns where to fetch it.",
+          "The app streams the encoded audio from the audio CDN, buffering ahead to avoid gaps.",
+          "A track-played event goes to the listening events stream, which feeds the data warehouse and the recommendation service.",
+        ],
+      },
+      {
+        title: "Publishing a release",
+        steps: [
+          "Uploaded audio lands in object storage, and the transcoding worker encodes it at several bitrates.",
+          "The encoded files are pushed to the audio CDN, ready to stream.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Audio from the edge", body: "Streaming audio is most of the traffic. Serving encoded files from a CDN keeps playback fast and keeps the bytes off the application servers, which only answer small API calls." },
+      { title: "Several bitrates per track", body: "Encoding each track at multiple qualities lets the app pick one for the connection and the listener's settings, and switch without stopping playback." },
+      { title: "Listening events as the raw material", body: "Every play, skip and save is an event. Streaming them into a warehouse and the recommendation service is what personalised playlists and radio are built from." },
+    ],
+    scaling: [
+      "Popular tracks stay hot in the CDN; the long tail is fetched from storage on demand.",
+      "Recommendations are mostly computed in batch and served from storage, with lighter real-time updates from recent listening.",
+      "Playlists and libraries are partitioned by user id.",
+    ],
+    faq: [
+      { question: "How does Spotify stream music?", answer: "Tracks are encoded at several bitrates and cached on a CDN. The app asks the backend for permission and the file location, then streams the audio from the nearest CDN server while buffering ahead." },
+      { question: "How do music recommendations work?", answer: "Listening events (plays, skips, saves) are collected into a data warehouse and used to find patterns between listeners and tracks; the recommendation service turns those into playlists and suggestions." },
+      { question: "Is this Spotify's real architecture?", answer: "No. It is a representative design for a music streaming service based on public information." },
+    ],
+  },
+
+  linkedin: {
+    overview: [
+      "A LinkedIn-style network is built on a graph of members and their connections. Profiles, the feed, people search and recommendations all depend on that graph, and the feed has to rank posts from a member's network, not just list them.",
+      "In the diagram, clients reach an API gateway and load balancer. The user service reads profiles and connections from a graph database and cache; the feed service ranks candidate posts from the timeline service; a fan-out service distributes new posts; search runs on its own index; activity events go through a queue to notifications.",
+    ],
+    flows: [
+      {
+        title: "Opening the feed",
+        steps: [
+          "The client calls the API gateway; the auth service verifies the session.",
+          "The feed service asks the timeline service for recent candidate posts from the member's network.",
+          "It ranks them by relevance and returns the page; profile details come from the user service and its cache.",
+        ],
+      },
+      {
+        title: "Publishing a post",
+        steps: [
+          "The fan-out service looks up who should see the post in the connection graph.",
+          "It appends the post to those members' feed stores and publishes an activity event, which the notification service turns into email and push notifications.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "A graph store for connections", body: "Questions such as 'how am I connected to this person' or 'people you may know' are graph traversals. A graph database answers them directly instead of with many joins." },
+      { title: "Ranking, not just recency", body: "Showing the most relevant posts first means scoring candidates (relationship, engagement, freshness) at read time, which is why the feed service is separate from the timeline store." },
+      { title: "Search as its own system", body: "People and job search need full text, filters and ranking, so they run on a dedicated index kept in sync from profile changes." },
+    ],
+    scaling: [
+      "Cache profiles and connection lists heavily; they are read far more often than they change.",
+      "Partition the graph by member and keep second-degree lookups bounded.",
+      "Fan-out and notifications run asynchronously from the queue so posting stays fast.",
+    ],
+    faq: [
+      { question: "How does LinkedIn's feed work?", answer: "Candidate posts from a member's network are collected (partly precomputed by fan-out), then ranked by relevance signals such as relationship strength, engagement and freshness before the page is returned." },
+      { question: "Why use a graph database for a social network?", answer: "Connections are a graph, and features like degrees of connection and 'people you may know' are traversals that a graph store answers efficiently." },
+      { question: "Is this LinkedIn's real architecture?", answer: "No. It is a typical design for a professional network based on public information." },
+    ],
+  },
+
+  figma: {
+    overview: [
+      "A Figma-style design tool lets many people edit the same file at once in the browser, seeing each other's cursors and changes live. The editor itself runs in the browser; the server's job is to merge edits, broadcast them and keep the file safe.",
+      "In the diagram, the browser editor connects over a WebSocket through a load balancer to a multiplayer server for that file. A CRDT engine merges concurrent edits, a presence service shares cursors, a pub/sub bus broadcasts changes, version history checkpoints the file to object storage, and an API gateway with auth and a SQL database handles files, teams and permissions.",
+    ],
+    flows: [
+      {
+        title: "Editing together",
+        steps: [
+          "Opening a file goes through the API gateway, where the auth service checks the user's access in the SQL database.",
+          "The editor opens a WebSocket, and the load balancer routes it to the multiplayer server responsible for that file.",
+          "Each change is sent as a small operation; the CRDT engine merges it with others' changes and the result is broadcast to everyone in the file.",
+          "Cursor moves go to the presence service, which shares them without storing them durably.",
+          "Version history periodically checkpoints the file to object storage; workers produce thumbnails and exports.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "One server per file", body: "Routing every editor of a file to the same multiplayer process gives that file a single place where edits are ordered and merged, which keeps the merge logic simple and fast." },
+      { title: "Property-level merging", body: "Conflicts are resolved per object property (last writer wins on the same property), using CRDT-style rules, so two people moving different layers never conflict." },
+      { title: "Snapshots, not a database per edit", body: "Edits are held in memory on the multiplayer server and checkpointed regularly, which keeps editing fast; the checkpoint interval bounds how much could be replayed after a crash." },
+    ],
+    scaling: [
+      "Spread files across many multiplayer servers; a busy file only affects its own server.",
+      "Presence updates are frequent and throwaway, so they stay in memory and are throttled.",
+      "Exports and thumbnails run on workers so heavy rendering never slows the live session.",
+    ],
+    faq: [
+      { question: "How does Figma multiplayer work?", answer: "Everyone editing a file connects to the same server process for that file. Each change is sent as a small operation, merged with others using conflict-free rules, and broadcast to all collaborators, while cursors are shared through a separate presence channel." },
+      { question: "What is a CRDT in collaborative design tools?", answer: "A conflict-free replicated data type: a way of structuring the document so concurrent changes can be merged automatically and every copy ends up the same." },
+      { question: "Is this Figma's real architecture?", answer: "No. It is a representative design for a multiplayer design tool based on public information." },
+    ],
+  },
+
+  github: {
+    overview: [
+      "A GitHub-style code host stores Git repositories, lets teams review changes in pull requests, runs CI on every push and notifies integrations through webhooks. Git traffic and web traffic arrive through different protocols but share accounts, permissions and events.",
+      "In the diagram, the web client uses an API gateway and the Git client connects over HTTPS or SSH through a load balancer. The repository service reads and writes replicated Git storage; the pull request service handles reviews and merges; push and PR events go onto an event queue that starts Actions runners, delivers webhooks and runs background jobs such as code indexing for search.",
+    ],
+    flows: [
+      {
+        title: "Pushing code",
+        steps: [
+          "git push connects over HTTPS or SSH; the auth service checks the token or SSH key.",
+          "The repository service writes the new objects and updates the branch in Git storage, replicated across several servers.",
+          "A push event goes onto the event queue.",
+          "Actions runners pick up matching workflows, the webhook handler notifies integrations, and a worker re-indexes the changed code for search.",
+        ],
+      },
+      {
+        title: "Reviewing a pull request",
+        steps: [
+          "The pull request service computes the diff between branches from the repository service and stores reviews and comments in the database.",
+          "Merging updates the target branch in Git storage and emits a PR event that triggers the same downstream work.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Replicated Git storage", body: "Repositories are stored as Git data on several servers at once, so a disk or machine failure does not lose code and reads can be spread across replicas." },
+      { title: "Events drive everything after a push", body: "CI, webhooks, notifications and search indexing all react to push and PR events from a queue, so a push returns as soon as the code is stored." },
+      { title: "Two front doors", body: "Web and API traffic go through the API gateway; Git protocol traffic goes through its own load balancer to the repository service, since it is long-lived and bandwidth-heavy." },
+    ],
+    scaling: [
+      "Partition repositories across storage servers; very large monorepos get dedicated capacity.",
+      "Actions runners scale with the job queue and are isolated per job.",
+      "Webhook delivery retries with backoff so a slow integration cannot hold up the queue.",
+    ],
+    faq: [
+      { question: "How does GitHub store repositories?", answer: "As Git data on storage servers, with each repository replicated to several servers so it survives failures. A repository service handles push and fetch on top of that storage." },
+      { question: "How do GitHub webhooks work?", answer: "When something happens (a push, a pull request, an issue), an event is queued and a webhook handler sends an HTTP POST describing it to every URL configured for that repository, retrying if delivery fails." },
+      { question: "Is this GitHub's real architecture?", answer: "No. It is a typical design for a code hosting platform based on public information." },
+    ],
+  },
+
+  rate_limiter: {
+    overview: [
+      "A rate limiter caps how many requests a client may make in a period, protecting the API from abuse and overload and enforcing plan limits. In a system with many API servers, the limit must be shared, so the counters live in a fast central store.",
+      "In the diagram, requests reach the API gateway, where a distributed rate limiter checks each one. It reads limits from a rules service and applies a token bucket backed by counters in Redis; allowed requests continue to the load balancer and API servers, rejected ones get HTTP 429 and are counted in metrics, and heavy work can be deferred to a queue.",
+    ],
+    flows: [
+      {
+        title: "Checking a request",
+        steps: [
+          "The request reaches the API gateway, which passes it to the rate limiter middleware.",
+          "The limiter identifies the client (API key, user id or IP) and looks up its limit from the rules service, cached locally.",
+          "The token bucket takes one token for that client with an atomic operation in Redis.",
+          "If a token was available, the request continues through the load balancer to the API servers; if not, the client gets 429 Too Many Requests with a Retry-After header and the rejection is recorded in metrics.",
+        ],
+      },
+    ],
+    decisions: [
+      { title: "Token bucket", body: "Each client has a bucket that refills at a steady rate up to a maximum. It allows short bursts while enforcing an average rate, and needs only two values per client. Sliding windows are more exact but cost more memory." },
+      { title: "Shared counters in Redis", body: "With many gateway instances, each one counting alone would let a client exceed the limit several times over. A central store with atomic operations (or a Lua script) keeps one count per client." },
+      { title: "Fail open or fail closed", body: "If Redis is unreachable the limiter must decide: allow traffic (fail open) to keep the API up, or reject it (fail closed) to protect the backend. Most public APIs fail open with a local fallback limit." },
+    ],
+    scaling: [
+      "Shard counters by client id across Redis nodes; each check is one small atomic call.",
+      "Cache rules in memory on every gateway so the rules service is not on the hot path.",
+      "For very high traffic, count locally and sync with Redis in small batches, trading a little accuracy for latency.",
+    ],
+    faq: [
+      { question: "How do you design a rate limiter?", answer: "Identify each client, keep a counter or token bucket per client in a fast shared store such as Redis, update it atomically on every request, and reject requests over the limit with HTTP 429 and a Retry-After header." },
+      { question: "Token bucket vs sliding window: which is better?", answer: "Token bucket allows bursts up to a set size while enforcing an average rate, with little state per client. A sliding window log is exact but stores every request time; the sliding window counter is a cheap approximation of it." },
+      { question: "Where should a rate limiter run?", answer: "Usually at the API gateway or as middleware in front of every API server, so requests are rejected before they reach the application." },
+    ],
+  },
 };
 
 export function getTemplateGuide(templateId: string): TemplateGuide | undefined {
