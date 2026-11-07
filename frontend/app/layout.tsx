@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { AnalyticsProvider } from '@/components/providers/AnalyticsProvider';
 import { ThemedToaster, ThemeProvider } from '@/components/providers/ThemeProvider';
+import { WebMcpTools } from '@/components/providers/WebMcpTools';
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -71,6 +72,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* WebMCP origin trial (Chrome): lets visitors' browsers expose the tools in WebMcpTools. */}
+        {process.env.NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL && (
+          <meta httpEquiv="origin-trial" content={process.env.NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL} />
+        )}
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
@@ -166,6 +171,7 @@ export default function RootLayout({
             <ThemedToaster />
           </AuthProvider>
         </ThemeProvider>
+        <WebMcpTools />
         <Analytics />
         <SpeedInsights />
       </body>
