@@ -11,6 +11,7 @@ import { BrandMark } from '@/components/ui/BrandMark';
 const NAV_LINKS = [
   { label: 'How it works', href: '/#how', track: 'nav_how_it_works' },
   { label: 'Privacy', href: '/#privacy', track: 'nav_privacy' },
+  { label: 'Templates', href: '/templates', track: 'nav_templates' },
   { label: 'Pricing', href: '/pricing', track: 'nav_pricing' },
   { label: 'Docs', href: '/docs', track: 'nav_docs' },
 ];

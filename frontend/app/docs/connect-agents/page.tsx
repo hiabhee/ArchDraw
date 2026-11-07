@@ -16,7 +16,7 @@ const API_BASE = 'https://archdraw.hiabhee.online';
 const NPM_PACKAGE = '@hiabhee/archdraw-mcp-server@1.2.0';
 
 export const metadata: Metadata = {
-  title: 'Connect a Coding Agent | ArchDraw Docs',
+  title: 'Connect a Coding Agent — Docs',
   description:
     'Connect ArchDraw to Claude Code, the Claude apps, Codex, Cursor, VS Code, Gemini CLI, OpenCode, or another MCP client.',
   alternates: { canonical: PAGE_URL },

@@ -2,7 +2,7 @@ import { TemplatesClient } from '@/components/dashboard/TemplatesClient';
 import { TEMPLATES } from '@/data/templates/index';
 
 export const metadata = {
-  title: 'Architecture Templates | ArchDraw',
+  title: 'Your Templates',
   description: 'Start with pre-built system architectures for common use cases.',
 };
 

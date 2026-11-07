@@ -5,7 +5,8 @@ import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
 
 export const metadata = {
-  title: 'Engineering Blog — ArchDraw',
+  title: 'Engineering Blog',
+  alternates: { canonical: 'https://archdraw.hiabhee.online/blogs' },
   description: 'Deep explanations of how we built our interactive diagramming canvas, AI layout compilation, and database synchronization.',
   openGraph: {
     type: 'website',

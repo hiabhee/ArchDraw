@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://archdraw.hiabhee.online';
   
   return {
-    title: 'ArchDraw Diagram',
+    title: { absolute: 'ArchDraw Diagram' },
     description: 'Interactive architecture diagram created with ArchDraw',
     keywords: ['architecture', 'diagram', 'system design', 'archdraw'],
     robots: {

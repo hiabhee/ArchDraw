@@ -51,7 +51,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   return {
-    title: `${result.name || 'Shared Diagram'} — ArchDraw`,
+    title: result.name || 'Shared Diagram',
     robots: { index: false },
   };
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'ArchDraw Documentation | Architecture Diagram Guides',
+  title: { absolute: 'ArchDraw Documentation — Architecture Diagram Guides' },
   description:
     'Guides for generating, editing, arranging, and sharing architecture diagrams with ArchDraw.',
   keywords: [

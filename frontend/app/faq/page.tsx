@@ -3,7 +3,7 @@ import { LandingNav } from '@/components/landing/LandingNav';
 import { Footer } from '@/components/landing/Footer';
 
 export const metadata: Metadata = {
-  title: 'FAQ — ArchDraw',
+  title: 'FAQ',
   description: 'Frequently asked questions about ArchDraw — pricing, import, Mermaid, MCP, privacy, and more.',
   alternates: { canonical: 'https://archdraw.hiabhee.online/faq' },
   openGraph: {
