@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { authClient } from '@/lib/client/auth-client';
 import { analytics } from '@/lib/client/analytics';
+import { clearReturningVisitor } from '@/lib/client/returningVisitorCookie';
 import logger from '@/lib/logger';
 
 interface AuthUser {
@@ -60,6 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     try {
       await authClient.signOut();
+      clearReturningVisitor();
       set({ user: null, sessionExpired: false });
     } catch (err) {
       logger.error('[Auth] Sign out error:', err);

@@ -17,6 +17,7 @@ import { useDiagramStore } from '@/store/diagramStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { ShapeType } from '@/lib/diagram/nodes/shapeRegistry';
 import { getViewportCenter } from '@/lib/utils';
+import { markReturningVisitor } from '@/lib/client/returningVisitorCookie';
 import type { PlacementMemory } from '@/lib/diagram/geometry/quickAddPlacement';
 import { quickAddShape } from '@/lib/client/quickAddShape';
 import { useAuthStore } from '@/store/authStore';
@@ -119,6 +120,12 @@ export default function EditorPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastPrompt(localStorage.getItem(`archdraw-last-prompt:${activeCanvasId}`));
   }, [activeCanvasId]);
+
+  // Once the open canvas has something on it, `/` brings this visitor back here.
+  const hasContent = useDiagramStore((s) => s.nodes.length > 0);
+  useEffect(() => {
+    if (hasContent) markReturningVisitor();
+  }, [hasContent]);
 
   // Refs for useEffect to avoid dependency issues
   const sidebarOpenRef = useRef(sidebarOpen);

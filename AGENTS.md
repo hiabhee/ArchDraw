@@ -111,7 +111,7 @@ Short “what is X / describe X architecture” prompts (≤12 words, concept ma
 
 | Area | Path | Role |
 |------|------|------|
-| Landing | `page.tsx` | Marketing + interactive demo |
+| Landing | `page.tsx` | Marketing + interactive demo. A returning visitor (cookie `archdraw_returning`, set by the editor once a canvas has content, cleared on sign-out) who opens `/` from outside the site is sent to `/editor`, which reopens their last canvas (`proxy.ts`, `lib/site/returningVisitor.ts`); links inside ArchDraw and `/?home` always show the landing |
 | Editor | `editor/` | Main diagramming UI (`components/editor/Editor.tsx`) |
 | Dashboard | `dashboard/` | User canvases / learn |
 | Tutorials | `tutorials/` | Guided architecture lessons |
