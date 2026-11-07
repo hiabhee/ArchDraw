@@ -43,7 +43,7 @@ _Last updated: ${LAST_UPDATED} • Pipeline ${PIPELINE_VERSION} • Source: http
 
 - [What is an MCP server for diagramming?](${BASE_URL}/mcp): How ArchDraw's MCP server lets assistants read, edit and lay out diagrams.
 - Hosted endpoint (Streamable HTTP, no install): \`${BASE_URL}/api/mcp\`. Claude Code: \`claude mcp add --scope user --transport http archdraw ${BASE_URL}/api/mcp\`.
-- Local stdio package: \`npx -y @hiabhee/archdraw-mcp-server@1.2.0\` with \`API_BASE_URL=${BASE_URL}\` set (there is no default API base).
+- Local stdio package: \`npx -y @hiabhee/archdraw-mcp-server@1.2.1\` with \`API_BASE_URL=${BASE_URL}\` set (there is no default API base).
 - Tools: \`generate_diagram\` (Mermaid or nodes/edges → laid-out diagram), \`update_diagram\`, \`apply_template\`, \`get_diagram_state\`, \`layout_diagram\` (re-arrange without redrawing) and \`draw_on_canvas\` (exact placement of cards, groups, text, notes, shapes and stats).
 - Every published diagram has a preview link, an editor link and image links: \`${BASE_URL}/api/diagram/image/<sessionId>?style=sketch|studio|precision&theme=light|dark&format=png|svg\`.
 
