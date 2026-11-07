@@ -1,5 +1,6 @@
 import { blogs } from '@/data/blogs';
 import { TUTORIALS } from '@/data/tutorials';
+import { TEMPLATES } from '@/data/templates/index';
 import { DOC_SECTIONS, SITE_URL, LAST_UPDATED, PIPELINE_VERSION } from '@/lib/site/discovery';
 
 export const runtime = 'nodejs';
@@ -40,7 +41,9 @@ ArchDraw is for engineers, system-design learners, and teams that need review-re
 - **AI Generate** (POST /api/generate-diagram): prompt → ConceptDetection → ArchitecturePlanning (LLM or concept template) → MermaidMaterialize (Dagre) → Score → Validation. Detail levels L1–L3 control size. Concept templates trigger on ≤12 word "what is X architecture" prompts and skip the LLM.
 - **Repo → Diagram** (POST /api/repo-diagram): GitHub tarball → Classify → Extract → Relationships → Verify → DocsReview → Finalization. Budgets are level-aware; cache keys are \`v8::url::sha::L{level}\`.
 - **Sharing** (/share, /embed): read-only viewer, domain allowlist via ALLOWED_EMBED_DOMAINS, CSP frame-ancestors controlled in next.config.ts.
-- **MCP server** (/mcp, mcp-server/): stdio JSON-RPC, tools: generate-diagram, update-diagram, validate-diagram, fix-layout, apply-template, export-diagram, list-nodes, save/load-checkpoint.
+- **Live projects** (\`npx -y archdraw-live\`): a canvas linked to coding agents. Claude Code hooks report file paths and the kind of action only (never contents, commands or prompts); the map shows each session on the component it is working on, which session needs you, and a per-component history. Watch links need no sign-in.
+- **Templates** (${SITE_URL}/templates): ${TEMPLATES.length} editable diagram templates, one page each at /templates/<slug>.
+- **MCP server** (/mcp, mcp-server/): hosted Streamable HTTP at ${SITE_URL}/api/mcp or local stdio (\`@hiabhee/archdraw-mcp-server@1.2.0\`). Tools: generate_diagram, update_diagram, apply_template, get_diagram_state, layout_diagram, draw_on_canvas. Published diagrams come with preview, editor and image links.
 
 ## 2. Documentation (canonical)
 
@@ -103,7 +106,7 @@ claude mcp add --scope user --transport http archdraw https://archdraw.hiabhee.o
 The local stdio package requires API_BASE_URL (there is no default; without it, diagram generation and layout fail):
 
 \`\`\`sh
-codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.0.9
+codex mcp add archdraw --env API_BASE_URL=https://archdraw.hiabhee.online -- npx -y @hiabhee/archdraw-mcp-server@1.2.0
 \`\`\`
 
 Install the reusable diagram skill:
@@ -121,7 +124,7 @@ The local MCP process runs over stdio JSON-RPC. Diagram generation and layout re
   "mcpServers": {
     "archdraw": {
       "command": "npx",
-      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.0.9"],
+      "args": ["-y", "@hiabhee/archdraw-mcp-server@1.2.0"],
       "env": { "API_BASE_URL": "https://archdraw.hiabhee.online" }
     }
   }
@@ -160,7 +163,7 @@ Preferred: "Generate a messaging architecture. Order nodes in LR flow. Web clien
 
 ## 3. What is an MCP server for diagramming? (${SITE_URL}/mcp)
 
-An MCP server for diagramming is a local bridge that lets AI assistants read, edit, and lay out architecture diagrams programmatically via stdio JSON-RPC instead of producing text you translate manually.
+An MCP server for diagramming is a bridge (hosted over HTTP or run locally over stdio) that lets AI assistants read, edit, and lay out architecture diagrams programmatically via stdio JSON-RPC instead of producing text you translate manually.
 
 Capabilities: generate_diagram, update_diagram, get_diagram_state, apply_template.
 
