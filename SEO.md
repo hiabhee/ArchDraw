@@ -295,4 +295,4 @@ After each deploy:
 | 2026-11-07 | Clean-ups: lint errors to zero, current MCP install commands in docs | #33 |
 | 2026-11-07 | Search Console: sitemap read (116 pages), 8 indexing requests, Rich Results Test; WebMCP origin trial registered | #34 |
 | 2026-11-07 | Lighthouse / PageSpeed fixes on the home page: inert hero toggle, AA contrast for dimmed steps, production source maps | #35 |
-| 2026-11-07 | Home page performance: AWS icon set loaded on demand (unused JS 292 → 43 KiB), hero map loads after the page is idle | next PR |
+| 2026-11-07 | Home page performance: AWS icon set loaded on demand (unused JS 292 → 43 KiB), hero map loads after the page is idle | #36 |
