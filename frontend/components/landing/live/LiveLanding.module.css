@@ -276,6 +276,18 @@
 .whoGrid h3 { margin: 0 0 10px; font-size: 20px; font-weight: 600; letter-spacing: -.015em; }
 .whoGrid p { margin: 0; color: var(--ld-muted); font-size: 15px; line-height: 1.6; }
 
+/* Learn: links into the tutorials and templates hubs */
+.learn { padding: 120px 0; border-top: 1px solid var(--line); }
+.learnGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.learnCol { display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid var(--line-strong); border-radius: 18px; }
+.learnTitle { margin: 0; font-size: 22px; font-weight: 550; letter-spacing: -.01em; }
+.learnTitle a:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.learnList { display: grid; margin: 6px 0 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+.learnList li { border-bottom: 1px solid var(--line); }
+.learnList a { display: block; padding: 12px 0; color: var(--ink-soft); font-size: 15px; transition: color 160ms var(--ease-out); }
+.learnList a:hover, .learnMore:hover { color: var(--ink); }
+.learnMore { margin-top: auto; padding-top: 6px; color: var(--ld-muted); font-family: var(--font-mono), ui-monospace, monospace; font-size: 12.5px; transition: color 160ms var(--ease-out); }
+
 /* FAQ */
 .faq { padding: 120px 0; border-top: 1px solid var(--line); }
 .faqAside { max-width: 34ch; margin: 26px 0 0; color: var(--ld-muted); font-size: 14.5px; line-height: 1.6; }
@@ -318,6 +330,7 @@
   .ledgerCol + .ledgerCol, .ledgerProof { border-top: 1px solid var(--line); border-left: 0; }
   .ledgerProof { border-radius: 0 0 18px 18px; }
   .whoGrid { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .learnGrid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
   .shell { width: calc(100% - 32px); }
@@ -325,7 +338,8 @@
   .heroStage { width: calc(100% - 16px); margin-top: 44px; }
   .proof { justify-content: flex-start; }
   .hero { padding-top: 96px; }
-  .problem, .how, .features, .privacy, .who, .faq { padding: 84px 0; }
+  .problem, .how, .features, .privacy, .who, .learn, .faq { padding: 84px 0; }
+  .learnCol { padding: 22px; }
   .final { padding: 110px 0; }
   .bento { grid-template-columns: minmax(0, 1fr); }
   .cellWide { grid-column: span 1; }

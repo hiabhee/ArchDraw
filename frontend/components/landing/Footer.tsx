@@ -6,7 +6,7 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     title: 'Product',
     links: [
       { label: 'Editor', href: '/editor' },
-      { label: 'Templates', href: '/templates' },
+      { label: 'Architecture diagram templates', href: '/templates' },
       { label: 'Repo to diagram', href: '/repo-diagram' },
       { label: 'Pricing', href: '/pricing' },
     ],
@@ -23,7 +23,7 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     title: 'Learn',
     links: [
       { label: 'Docs', href: '/docs' },
-      { label: 'Tutorials', href: '/tutorials' },
+      { label: 'System design tutorials', href: '/tutorials' },
       { label: 'Blog', href: '/blogs' },
       { label: 'FAQ', href: '/faq' },
     ],

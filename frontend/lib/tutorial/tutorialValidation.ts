@@ -95,7 +95,14 @@ export interface StepRequirements {
   /** Display labels for required nodes (e.g. "API Gateway") */
   requiredNodeLabels: string[];
   /** Edge requirements: source label → target label */
-  requiredEdges: Array<{ source: string; target: string; sourceLabel: string; targetLabel: string }>;
+  requiredEdges: Array<{
+    source: string;
+    target: string;
+    sourceLabel: string;
+    targetLabel: string;
+    sourceTypes?: string[];
+    targetTypes?: string[];
+  }>;
 }
 
 /**
@@ -127,6 +134,8 @@ function extractSchemaRequirements(rules: ValidationRule[], out: StepRequirement
           target: rule.target,
           sourceLabel: rule.source.replace(/_/g, ' '),
           targetLabel: rule.target.replace(/_/g, ' '),
+          sourceTypes: rule.sourceTypes,
+          targetTypes: rule.targetTypes,
         });
         break;
       case 'all_of':
@@ -155,17 +164,27 @@ export function isNodeTypeMet(nodeType: string, nodes: Node[]): boolean {
 /**
  * Check whether a specific edge requirement is already met.
  */
-export function isEdgeMet(source: string, target: string, nodes: Node[], edges: Edge[]): boolean {
+export function isEdgeMet(
+  source: string,
+  target: string,
+  nodes: Node[],
+  edges: Edge[],
+  types?: { sourceTypes?: string[]; targetTypes?: string[] },
+): boolean {
   const srcTarget = normalize(source);
   const tgtTarget = normalize(target);
+  const isOfType = (n: Node, list?: string[]) =>
+    !!list?.some((t) => n.data?.componentId === t || normalize(nodeTypeId(n)) === normalize(t));
 
   const sourceNodes = nodes.filter(n =>
     normalize(nodeTypeId(n)) === srcTarget ||
-    normalize(n.data?.label || '') === srcTarget
+    normalize(n.data?.label || '') === srcTarget ||
+    isOfType(n, types?.sourceTypes)
   );
   const targetNodes = nodes.filter(n =>
     normalize(nodeTypeId(n)) === tgtTarget ||
-    normalize(n.data?.label || '') === tgtTarget
+    normalize(n.data?.label || '') === tgtTarget ||
+    isOfType(n, types?.targetTypes)
   );
 
   return edges.some(e =>
