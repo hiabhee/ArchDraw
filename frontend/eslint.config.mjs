@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "scratch/**",
+    // Vendored copy of the stageshow UI kit (.agents/skills/stageshow/kit, plus 'use client'),
+    // used only by the landing demo. Its animation code reads refs during render on purpose;
+    // update it from the kit rather than editing it here.
+    "lib/stageshow-kit/**",
   ]),
   {
     rules: {
