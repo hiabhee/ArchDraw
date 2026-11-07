@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Search, LayoutDashboard, FolderOpen, Sparkles, ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -196,13 +197,13 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
         >
           {/* Drawer Header */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3 px-1">
+            <Link href="/" title="ArchDraw home" className="flex items-center gap-3 px-1">
               <BrandMark size={32} />
               <div>
                 <span className="font-semibold text-text-primary block leading-tight">ArchDraw</span>
                 <span className="text-[10px] text-text-muted">Workspace</span>
               </div>
-            </div>
+            </Link>
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="p-1.5 rounded-lg hover:bg-surface-page text-text-muted"
@@ -303,13 +304,13 @@ export function DashboardShell({ children, activePage: activePageProp }: Dashboa
           className="hidden md:block rounded-xl p-4 self-start sticky top-6 border border-border bg-surface-panel shadow-[0_8px_28px_rgba(0,0,0,0.04)] h-fit"
         >
           {/* Logo & Title */}
-          <div className="flex items-center gap-3 px-2 mb-2">
+          <Link href="/" title="ArchDraw home" className="flex items-center gap-3 px-2 mb-2">
             <BrandMark size={32} />
             <div>
               <span className="font-semibold text-text-primary block leading-tight">ArchDraw</span>
               <span className="text-[10px] text-text-muted">Workspace</span>
             </div>
-          </div>
+          </Link>
 
           {/* Stats */}
           <div className="px-2 mb-4 text-[11px] text-text-muted">
