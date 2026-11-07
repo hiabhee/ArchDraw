@@ -153,6 +153,10 @@ const LABEL_MATCHERS: Array<{
   test: RegExp;
 }> = [
   { source: 'label', icon: 'arch-database', technology: 'supabase', test: /\bsupabase\b/i },
+  // A database or record store named generically ("User & Group DB", "Message Store").
+  { source: 'label', icon: 'arch-database', test: /\b(db|database|databases|datastore|data store|message store|event store|record store)\b/i },
+  // A client app named by who uses it ("Sender App", "Recipient App", "Driver App").
+  { source: 'label', icon: 'arch-mobile', test: /\b(sender|recipient|customer|user|driver|rider|courier|merchant|patient|member)\s+app\b/i },
   { source: 'label', icon: 'arch-grpc', test: /\b(grpc|protobuf)\b/i },
   { source: 'label', icon: 'arch-scheduler', test: /\b(scheduler|cron|scheduled job)\b/i },
   { source: 'label', icon: 'arch-batch', test: /\b(batch|bulk process)\b/i },
@@ -187,7 +191,7 @@ const LABEL_MATCHERS: Array<{
   { source: 'label', icon: 'arch-worker', test: /\b(worker|job runner|cron|background job)\b/i },
   { source: 'label', icon: 'arch-payment', test: /\b(payment|billing|invoice|stripe|card)\b/i },
   { source: 'label', icon: 'arch-email', test: /\b(email|mail|smtp|ses)\b/i },
-  { source: 'label', icon: 'arch-notification', test: /\b(notification|push|sms|pagerduty|alert)\b/i },
+  { source: 'label', icon: 'arch-notification', test: /\b(notification|push|sms|pagerduty|alert|apns|fcm|gcm)\b/i },
   { source: 'label', icon: 'arch-firewall', test: /\b(firewall|waf|security group)\b/i },
   { source: 'label', icon: 'arch-vector', test: /\b(vector|embedding|pinecone|weaviate|chroma|milvus)\b/i },
   { source: 'label', icon: 'arch-kubernetes', test: /\b(kubernetes|k8s|eks|aks|gke)\b/i },
