@@ -10,7 +10,7 @@ OpenCode is the first adapter target because this repository already contains a 
 
 OpenCode's official documentation describes local MCP servers started over stdio, project-level configuration, and project `AGENTS.md` instructions. These mechanisms support a local MCP process plus explicit project instructions, but they do not guarantee that every task invokes ArchDraw automatically. Setup must show a fallback instruction and any required harness restart. Sources: [OpenCode MCP servers](https://opencode.ai/docs/mcp-servers/), [OpenCode v2 MCP servers](https://opencode.ai/v2/docs/mcp-servers), [OpenCode rules](https://opencode.ai/docs/rules/).
 
-The supported version range and package-install command remain release checks. The package currently declares `@hiabhee/archdraw-mcp-server@1.0.2`; this repository configuration is evidence of an existing integration, not proof that a clean external install succeeds.
+The supported version range and package-install command remain release checks. The package currently declares `@hiabhee/archdraw-mcp-server@1.2.1`; this repository configuration is evidence of an existing integration, not proof that a clean external install succeeds.
 
 ## Identity and storage
 
