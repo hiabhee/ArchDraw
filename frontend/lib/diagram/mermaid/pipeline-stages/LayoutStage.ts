@@ -3,6 +3,8 @@ import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { measureLayoutQuality } from '@/lib/diagram/pipeline-shared/layout/layoutQuality';
 import { applyRfLayout } from '@/lib/diagram/pipeline-shared/layout/IntegratedLayout';
 import { foldCandidates } from '@/lib/diagram/pipeline-shared/layout/foldLongFlows';
+import { alignMainSpine, mainSpine } from '@/lib/diagram/pipeline-shared/layout/spineAlign';
+import { alignGroupCentres, packGroupColumns } from '@/lib/diagram/pipeline-shared/layout/columnPacking';
 import { measureLayoutAesthetics } from '@/lib/diagram/pipeline-shared/layout/layoutAesthetics';
 import { MIN_MIX_GAIN, searchGroupDirections, type FlowDirection } from '@/lib/diagram/pipeline-shared/layout/groupDirectionSearch';
 import { defaultCompoundLayoutOptions, type RankDirection } from '@/lib/diagram/pipeline-shared/layout/LayoutEngine';
@@ -27,6 +29,18 @@ const EXTENDED_REPAIR_MIN_BLOCKED = 4;
 const EXTENDED_REPAIR_MIN_GAIN = 3;
 /** ...without drawing the diagram more than this much smaller on screen (a share of its size). */
 const EXTENDED_REPAIR_MAX_SHRINK = 0.2;
+
+/** Spines up to this many cards are straightened one card at a time... */
+const SPINE_STEPWISE_MAX = 12;
+/** ...trying at most this many lines. */
+const SPINE_STEPWISE_LINES = 4;
+
+/** Gap left between cards stacked in one group column when its slack is closed. */
+const COLUMN_PACK_GAP = 56;
+/** Tiers are lined up only in diagrams with at most this many top-level groups... */
+const GROUP_ALIGN_MAX = 12;
+/** ...without drawing the diagram more than this much smaller on screen. */
+const GROUP_ALIGN_MAX_SHRINK = 0.1;
 
 function foldTries(nodeCount: number): number {
   return nodeCount <= 20 ? 6 : nodeCount <= 40 ? 3 : 1;
@@ -143,7 +157,10 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     ];
     const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
     const geometryDirection = input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD';
-    const foldDirection = _context.metadata.foldLongFlows === false ? undefined
+    // Folding a long flow into rows is opt-in (live project maps and the landing hero ask for it).
+    // On ordinary diagrams it read as random: the reading order broke at every wrap, and request /
+    // response loops turned into tangles where the rows met. The Layout buttons give a straight flow.
+    const foldDirection = _context.metadata.foldLongFlows !== true ? undefined
       : input.direction === 'LR' ? 'LR' as const
       : input.direction === 'TD' ? 'TD' as const
       : undefined;
@@ -219,7 +236,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     // Keep topology, dimensions and groups intact; never delete edges for aesthetics.
     const evaluated = new Set<string>();
     const evaluate = (candidateSpec: typeof candidates[number]) => {
-      const signature = `${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
+      const signature = `${(candidateSpec.options as { zones?: boolean } | undefined)?.zones ? 'zones' : 'flow'}:${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
       if (evaluated.has(signature)) return;
       evaluated.add(signature);
       const { candidate, measured } = produce(candidateSpec);
@@ -253,6 +270,13 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     // Only pay for alternate Dagre order when cheap node-level scoring or the
     // selected route plan reports crossings; spacing repairs target hard issues.
     evaluate(candidates[0]);
+    // Zones (hub in the middle) is used only when it routes at least as cleanly as the plain flow:
+    // on a diagram whose hub has request/reply loops to both sides it adds crossings and long return
+    // edges, and the flow layout reads better. The comparison is the same score as every candidate.
+    if (flowAreas.zones) {
+      const { zones: _zones, ...flowOnly } = flowAreas;
+      evaluate({ nodes: canonicalNodes, options: layoutOptions || Object.keys(flowOnly).length ? { ...layoutOptions, ...flowOnly } : undefined });
+    }
     if ((best?.nodeQuality.weightedCrossings ?? 0) > 0 || (best?.geometry.quality.weightedCrossings ?? 0) > 0) {
       evaluate(candidates[1]);
     }
@@ -335,6 +359,107 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
           layouted = candidate;
           mixedGroups = found.assignment;
         }
+      }
+    }
+
+    // Line the main flow up on one straight line (see alignMainSpine). Every line the spine's cards
+    // already sit on is tried; the one that puts the most of them on it wins, kept only when it routes
+    // no worse, so a spine that cannot be straightened without tangling stays as Dagre placed it.
+    const settled = best;
+    if (layouted && settled && geometryDirection) {
+      const spine = mainSpine(layouted.nodes as never, semanticObjects.edges as never, geometryDirection);
+      const labelHits = (g: typeof settled.geometry) => g.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
+      const before = settled.geometry.quality;
+      const onLine = (nodes: RFObjects['nodes'], line: number) => {
+        const ids = new Set(spine.ids);
+        return nodes.filter(node => ids.has(node.id)).filter(node => {
+          const w = (node as { width?: number }).width ?? 200;
+          const h = (node as { height?: number }).height ?? 100;
+          const c = geometryDirection === 'LR' ? node.position.y + h / 2 : node.position.x + w / 2;
+          return Math.abs(c - line) < 1;
+        }).length;
+      };
+      // Fans must stay centred: a spine card is often also the parent of a fan (a gateway with its
+      // services), and moving it onto the spine must not pull it off the middle of its branches.
+      const fans = (nodes: RFObjects['nodes']) => measureLayoutAesthetics(applySubgraphBoundsToRf(nodes) as never, semanticObjects.edges as never, geometryDirection);
+      const fansBefore = fans(layouted.nodes);
+      const worse = (measured: Measured, nodes: RFObjects['nodes']) => {
+        const after = measured.geometry.quality;
+        if (after.hardViolations > before.hardViolations
+          || after.criticalPathDisconnectCount > before.criticalPathDisconnectCount
+          || after.weightedCrossings > before.weightedCrossings
+          || labelHits(measured.geometry) > labelHits(settled.geometry)) return true;
+        const fansAfter = fans(nodes);
+        // Straightening the spine must not bend a link that was straight.
+        // The worst fan may not get worse and no straight link may bend; small shifts of other
+        // fans are the price of a straight spine.
+        return fansAfter.fanCenteringError > fansBefore.fanCenteringError + 0.5
+          || fansAfter.straightEdgeRatio < fansBefore.straightEdgeRatio - 1e-9;
+      };
+      let chosen: { nodes: RFObjects['nodes']; measured: Measured; count: number } | undefined;
+      // One card at a time on small spines (each move is kept only if it routes no worse, so a card
+      // whose move would push a branch through its neighbours stays put); all at once on large ones.
+      const stepwise = spine.ids.length <= SPINE_STEPWISE_MAX;
+      for (const line of spine.lines.slice(0, stepwise ? SPINE_STEPWISE_LINES : 8)) {
+        let nodes = layouted.nodes;
+        let measured: Measured | undefined;
+        // The whole spine at once first (single moves can each look worse on their way to a
+        // straight line that is better), then one card at a time for whatever is still off it.
+        const order: Array<ReadonlySet<string> | undefined> = stepwise ? [undefined, ...spine.ids.map(id => new Set([id]))] : [undefined];
+        for (const only of order) {
+          const aligned = alignMainSpine(nodes as never, semanticObjects.edges as never, geometryDirection, { target: line, only });
+          if (!aligned) continue;
+          const next = aligned as unknown as RFObjects['nodes'];
+          const trial = measureCandidate({ ...layouted, nodes: next });
+          if (worse(trial, next)) continue;
+          nodes = next;
+          measured = trial;
+        }
+        if (!measured) continue;
+        const count = onLine(nodes, line);
+        if (!chosen || count > chosen.count || (count === chosen.count && measured.geometry.quality.weightedCrossings < chosen.measured.geometry.quality.weightedCrossings)) {
+          chosen = { nodes, measured, count };
+        }
+      }
+      if (chosen) {
+        best = { nodeQuality: chosen.measured.quality, geometry: chosen.measured.geometry, fit: chosen.measured.fit };
+        layouted = { ...layouted, nodes: chosen.nodes };
+      }
+    }
+
+    // Close the slack inside group columns (see packGroupColumns): a tier of cards stacked with
+    // even gaps reads as one column. Kept only when it routes no worse and the diagram gets no smaller.
+    // Then line the tiers (top-level groups) up across the flow (see alignGroupCentres): all at once
+    // first, then one group at a time, each step kept on the same terms.
+    if (layouted && best && geometryDirection) {
+      const labelHits = (g: Measured['geometry']) => g.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
+      const tryStep = (moved: unknown[] | undefined, minFit: number) => {
+        if (!moved || !layouted || !best) return;
+        const next = moved as unknown as RFObjects['nodes'];
+        const trial = measureCandidate({ ...layouted, nodes: next });
+        const before = best.geometry.quality;
+        const after = trial.geometry.quality;
+        if (after.hardViolations <= before.hardViolations
+          && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
+          && after.weightedCrossings <= before.weightedCrossings
+          && labelHits(trial.geometry) <= labelHits(best.geometry)
+          && after.bendCount <= before.bendCount
+          && trial.fit >= minFit) {
+          // Fans stay centred and straight links stay straight, as in the spine pass.
+          const aesthetics = (nodes: RFObjects['nodes']) => measureLayoutAesthetics(applySubgraphBoundsToRf(nodes) as never, semanticObjects.edges as never, geometryDirection);
+          const was = aesthetics(layouted.nodes);
+          const now = aesthetics(next);
+          if (now.fanCenteringError > was.fanCenteringError + 0.5 || now.straightEdgeRatio < was.straightEdgeRatio - 1e-9) return;
+          best = { nodeQuality: trial.quality, geometry: trial.geometry, fit: trial.fit };
+          layouted = { ...layouted, nodes: next };
+        }
+      };
+      tryStep(packGroupColumns(layouted.nodes as never, geometryDirection, { gap: COLUMN_PACK_GAP }), best.fit - 1e-9);
+      const topGroups = layouted.nodes.filter(node => node.type === 'groupNode' && !node.parentNode).map(node => node.id);
+      if (topGroups.length >= 2 && topGroups.length <= GROUP_ALIGN_MAX) {
+        const floor = best.fit * (1 - GROUP_ALIGN_MAX_SHRINK);
+        tryStep(alignGroupCentres(layouted.nodes as never, geometryDirection), floor);
+        for (const id of topGroups) tryStep(alignGroupCentres(layouted.nodes as never, geometryDirection, { only: id }), floor);
       }
     }
 

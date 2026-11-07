@@ -105,19 +105,53 @@ function dataOf(edge: FlowEdge): Record<string, unknown> {
 
 function edgeWeight(edge: FlowEdge): number {
   const data = dataOf(edge);
-  if (data.flowRole === 'main') return 5;
-  if (data.flowRole === 'branch') return 3;
-  if (data.flowRole === 'feedback') return 0.5;
+  // Only a role the author set counts. An inferred role is this function's own earlier guess,
+  // saved with the diagram; reading it back made a wrong guess stick (a request saved as
+  // "feedback" kept losing to its reply on every later layout).
+  const role = data.flowRoleSource === 'explicit' ? data.flowRole : undefined;
+  if (role === 'main') return 5;
+  if (role === 'branch') return 3;
+  if (role === 'feedback') return 0.5;
   const importance = String(data.importance ?? 'secondary');
   return IMPORTANCE_WEIGHT[importance] ?? IMPORTANCE_WEIGHT.secondary;
 }
 
-function compareEdges(a: FlowEdge, b: FlowEdge): number {
+/** A reply rather than a request: the second half of a request/response pair. */
+const RESPONSE_HINT = /\b(ok|okay|result|results|rows|returns?|returned|response|reply|ack|claims|[2-5]\d\d)\b/i;
+/** A numbered step, "5. Verify JWT" or "9b) Miss": its number. */
+const STEP_NUMBER = /^\s*(\d+)[a-z]?\s*[.):]/i;
+
+const labelOf = (edge: FlowEdge) => String(edge.label ?? dataOf(edge).label ?? '');
+
+/**
+ * Edges in the order they establish the flow: weightier and better-evidenced first. On a tie (a
+ * request and its response often weigh the same) the request goes first, so it is the one that sets
+ * the ranks and its response becomes the feedback edge: the lower step number when the labels are
+ * numbered, then the one that does not read as a reply, then (for a pair between the same two
+ * nodes) the one leading away from where the flow starts (`depth`: hops from the diagram's sources). Without these, the tie fell to the
+ * alphabetical order of node ids, which made "Auth OK" the request and "Verify JWT" the reply.
+ */
+function compareEdges(a: FlowEdge, b: FlowEdge, depth?: ReadonlyMap<string, number>, paired?: ReadonlySet<string>): number {
   const weight = edgeWeight(b) - edgeWeight(a);
   if (weight) return weight;
-  const evidence = Number(LABEL_EVIDENCE.test(String(b.label ?? dataOf(b).label ?? '')))
-    - Number(LABEL_EVIDENCE.test(String(a.label ?? dataOf(a).label ?? '')));
+  const evidence = Number(LABEL_EVIDENCE.test(labelOf(b))) - Number(LABEL_EVIDENCE.test(labelOf(a)));
   if (evidence) return evidence;
+  const stepA = STEP_NUMBER.exec(labelOf(a))?.[1];
+  const stepB = STEP_NUMBER.exec(labelOf(b))?.[1];
+  if (stepA !== undefined && stepB !== undefined && Number(stepA) !== Number(stepB)) return Number(stepA) - Number(stepB);
+  const reply = Number(RESPONSE_HINT.test(labelOf(a))) - Number(RESPONSE_HINT.test(labelOf(b)));
+  if (reply) return reply;
+  // Depth only settles a request/response pair (two edges between the same two nodes, opposite
+  // ways). Across a longer loop a node can be both near and far from a source, so depth misreads it.
+  if (depth && paired?.has(a.id) && paired.has(b.id)) {
+    const forward = (edge: FlowEdge) => {
+      const from = depth.get(edge.source);
+      const to = depth.get(edge.target);
+      return from !== undefined && to !== undefined && from < to ? 1 : 0;
+    };
+    const lead = forward(b) - forward(a);
+    if (lead) return lead;
+  }
   return a.source.localeCompare(b.source)
     || a.target.localeCompare(b.target)
     || String(a.label ?? dataOf(a).label ?? '').localeCompare(String(b.label ?? dataOf(b).label ?? ''))
@@ -173,10 +207,25 @@ export function resolveEdgeFlowSemantics(
   const outcomes = (hintedOutcomes.length ? hintedOutcomes : nodes.filter(node => outDegree.get(node.id) === 0))
     .map(node => node.id).sort();
 
+  // Hops from the diagram's sources (nodes nothing points at), over every edge: a request leads
+  // away from them, its reply back towards them.
+  const depth = new Map<string, number>();
+  const queue = nodes.filter(node => inDegree.get(node.id) === 0).map(node => node.id);
+  for (const id of queue) depth.set(id, 0);
+  for (let i = 0; i < queue.length; i++) {
+    for (const edge of validEdges) {
+      if (edge.source !== queue[i] || depth.has(edge.target)) continue;
+      depth.set(edge.target, depth.get(queue[i])! + 1);
+      queue.push(edge.target);
+    }
+  }
+
   const adjacency = new Map<string, Set<string>>();
   const ranked: FlowEdge[] = [];
   const feedbackIds = new Set<string>();
-  for (const edge of [...validEdges].sort(compareEdges)) {
+  const pairKeys = new Set(validEdges.map(edge => `${edge.source}\u0000${edge.target}`));
+  const paired = new Set(validEdges.filter(edge => pairKeys.has(`${edge.target}\u0000${edge.source}`)).map(edge => edge.id));
+  for (const edge of [...validEdges].sort((a, b) => compareEdges(a, b, depth, paired))) {
     const explicitRole = explicitAssignments.get(edge.id)?.role;
     if (explicitRole === 'feedback' || (explicitRole !== 'main' && FEEDBACK_HINT.test(String(edge.label ?? dataOf(edge).label ?? '')))) {
       feedbackIds.add(edge.id);

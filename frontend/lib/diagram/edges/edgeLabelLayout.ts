@@ -20,7 +20,9 @@ export interface EdgeLabelAnchor {
 
 const LABEL_WIDTH_PER_CHAR = 5.8
 const LABEL_HORIZONTAL_PADDING = 14
-const LABEL_HEIGHT_CSS = 14
+// The drawn pill: 10.5px text at a 1.35 line height (14px), 3px padding top and bottom and a 1px
+// border. Reserving only the text height let two labels on lines 28px apart cover each other.
+const LABEL_HEIGHT_CSS = 22
 const LABEL_MIN_WIDTH_CSS = 32
 
 // ── Neubrutalism / Sketch pill sizing ───────────────────────────────────────
@@ -319,11 +321,27 @@ function getDisplayLabel(edge: Edge): string {
   return composeEdgeDisplayLabel(base, data?.responseLabel as unknown)
 }
 
-function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number): number {
+function isMostlyVertical(segs: PathSegment[]): boolean {
+  const total = segs.reduce((sum, seg) => sum + seg.len, 0)
+  const vertical = segs.reduce((sum, seg) => sum + (Math.abs(seg.y1 - seg.y0) > Math.abs(seg.x1 - seg.x0) ? seg.len : 0), 0)
+  return total > 0 && vertical > total / 2
+}
+
+function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number, vertical = false): number {
   const data = edge.data as Record<string, unknown> | undefined
   if (typeof data?.labelT === 'number') return data.labelT
   if (parallelEdges.length > 1) {
-    return Math.max(0.2, Math.min(0.8, 0.5 + (labelOrder - (parallelEdges.length - 1) / 2) * 0.15))
+    if (!vertical) {
+      // Horizontal parallel lines are a label's height apart, so their labels stack one above the
+      // other at the same spot along the line.
+      return Math.max(0.2, Math.min(0.8, 0.5 + (labelOrder - (parallelEdges.length - 1) / 2) * 0.15))
+    }
+    // Vertical parallel lines are much closer than a label is wide, so their labels must be spread
+    // along the line. The spot is counted from the first edge's source: a reply runs the other way,
+    // so its own t is mirrored. Otherwise a request at 0.4 and its reply at 0.6 (counted from the
+    // reply's own source) landed on the same spot and covered each other.
+    const t = Math.max(0.2, Math.min(0.8, 0.5 + (labelOrder - (parallelEdges.length - 1) / 2) * 0.3))
+    return edge.source === parallelEdges[0].source ? t : 1 - t
   }
   return 0.5
 }
@@ -600,6 +618,8 @@ interface LabelWorkItem {
   size: { w: number; h: number }
   segs: PathSegment[]
   basePerp: number
+  /** Shares its two nodes with another labelled edge (a request and its reply, or parallel calls). */
+  paired?: boolean
   candidates: LabelCandidate[]
   sortX: number
   sortY: number
@@ -627,6 +647,8 @@ function buildCandidates(
   labelWidth: number,
   /** A label the user dragged stays exactly where they put it. */
   userPlaced = false,
+  /** Height of the pill in world px: its extent along a vertical edge. */
+  labelHeight = labelWidth,
 ): LabelCandidate[] {
   const mk = (t: number): LabelCandidate => {
     const base = pointAtFraction(segs, t)
@@ -641,7 +663,10 @@ function buildCandidates(
   // on a short edge.
   const brutal = renderStyle === 'neubrutalism'
   const totalLen = segs.reduce((s, seg) => s + seg.len, 0)
-  const half = labelWidth / 2
+  // The pill's extent along the edge: its width on a mostly horizontal edge, its height on a
+  // mostly vertical one. Using the width everywhere left no room on a short vertical edge, so
+  // labels of parallel edges were all forced to the middle and covered each other.
+  const half = (isMostlyVertical(segs) ? labelHeight : labelWidth) / 2
   // Measured on the canvas: the arrowhead plus its handle dot take about 24px of the end,
   // and labels are drawn up to 1.5x larger when zoomed out. Leave a visible stretch of
   // line between the pill and the arrowhead (about 24px) on top of that.
@@ -798,7 +823,7 @@ function computeLayout(
       : { uniqueEndFromSource: 0.5, uniqueStartFromTarget: 0.5 }
     const preferredT = pathMerges
       ? preferredTForUniqueStem(edge, parallelEdges, labelOrder, stem, segs)
-      : getPreferredT(edge, parallelEdges, labelOrder)
+      : getPreferredT(edge, parallelEdges, labelOrder, isMostlyVertical(segs))
 
     let preferredRange: { lo: number; hi: number } | undefined
     if (pathMerges && typeof data?.labelT !== 'number') {
@@ -830,7 +855,8 @@ function computeLayout(
       size: estimateLabelSize(item.label, renderStyle),
       segs,
       basePerp: perpOffset,
-      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number'),
+      paired: parallelEdges.length > 1,
+      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number', estimateLabelSize(item.label, renderStyle).h),
       sortX: preferred.x,
       sortY: preferred.y,
     })
@@ -901,9 +927,19 @@ function computeLayout(
       }
       if (chosen) break
     }
-    // Overlapping a node is worse than touching another label, so when no
-    // candidate clears both, prefer staying off the node even at the cost of a
-    // label-label overlap; only fall back to label-clear as a last resort.
+    // When no candidate clears everything. For parallel edges between the same two nodes (a request
+    // and its reply) the labels compete for one stretch of line, and a label hiding its partner is
+    // the worst outcome, so stay off nodes and other labels even if the pill sits over the partner
+    // line (it knocks the line out, so both stay legible). Otherwise stay off nodes and edges first;
+    // only then accept touching another label.
+    if (!chosen && item.paired) {
+      for (const cand of item.candidates) {
+        if (clearOfNodes(cand) && clearOfLabels(cand)) {
+          chosen = cand
+          break
+        }
+      }
+    }
     if (!chosen) {
       for (const cand of item.candidates) {
         if (clearOfNodes(cand) && clearOfOtherEdges(cand)) {

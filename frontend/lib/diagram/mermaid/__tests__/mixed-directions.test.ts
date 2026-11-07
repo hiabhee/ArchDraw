@@ -55,7 +55,7 @@ const MAP = (directions: Record<string, string> = {}) => `graph LR
 type Laid = { id: string; type?: string; parentNode?: string; position: { x: number; y: number }; width?: number; height?: number; data?: { direction?: string } };
 
 async function layout(mermaid: string, mixGroupDirections: boolean) {
-  const result = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', mixGroupDirections });
+  const result = await runMermaidPipeline(mermaid, { layoutProfile: 'studio-minimal', mixGroupDirections, foldLongFlows: true });
   if (!result.success) throw new Error('pipeline failed');
   return { nodes: result.data.nodes as unknown as Laid[], edges: result.data.edges };
 }

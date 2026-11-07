@@ -320,12 +320,33 @@ export function selectAcyclicLayoutEdges(
     return false;
   };
 
+  const dropped: AggregatedLayoutEdge[] = [];
   for (const edge of ordered) {
-    if (reaches(edge.target, edge.source)) continue;
+    if (reaches(edge.target, edge.source)) {
+      dropped.push(edge);
+      continue;
+    }
     const targets = outgoing.get(edge.source) ?? new Set<string>();
     targets.add(edge.target);
     outgoing.set(edge.source, targets);
     selected.push(edge);
+  }
+
+  // A request and its reply (A to B and B to A) are drawn as two parallel edges, each with its
+  // own label, but only one of them ranks. Top down, the two labels sit on two close vertical
+  // lines and have to stack along them, so the gap between the ranks must hold both: the reply's
+  // label is added to the request's. (Left to right they sit on two separate horizontal lines
+  // and need no extra length.)
+  const vertical = _direction === 'TB' || _direction === 'BT' || _direction === undefined;
+  if (vertical) {
+    const byPair = new Map(selected.map(edge => [`${edge.source}\u0000${edge.target}`, edge]));
+    for (const edge of dropped) {
+      const kept = byPair.get(`${edge.target}\u0000${edge.source}`);
+      if (!kept || edge.height <= 0) continue;
+      const replyLabel = Math.max(0, edge.height - LABEL_ALONG_CLEARANCE);
+      // The reply's pill plus room to keep it clear of the request's pill and of its own arrowhead.
+      if (replyLabel > 0) kept.height += replyLabel + LABEL_ALONG_CLEARANCE / 2;
+    }
   }
 
   return selected;
