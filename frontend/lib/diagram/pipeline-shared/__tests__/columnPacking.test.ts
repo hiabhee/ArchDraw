@@ -48,3 +48,19 @@ describe('alignGroupCentres', () => {
     expect(alignGroupCentres(nodes, 'LR', { only: 'g2' })).toBeUndefined();
   });
 });
+
+describe('packGroupColumns with minGap', () => {
+  const tight = () => [group('g', 0, 0), card('a', 0, 0, 'g'), card('b', 0, 96, 'g'), card('c', 0, 192, 'g')];
+
+  it('opens a column stacked too tightly for labels, from the chosen end', () => {
+    const opened = packGroupColumns(tight(), 'LR', { gap: 56, minGap: 40, anchor: 'end' })!;
+    const ys = opened.filter(n => n.type === 'shapeNode').map(n => n.position.y);
+    expect(ys[1] - (ys[0] + 80)).toBe(56);
+    // The bottom card stays where it was.
+    expect(ys[2]).toBe(192);
+  });
+
+  it('leaves tight columns alone without minGap', () => {
+    expect(packGroupColumns(tight(), 'LR', { gap: 56 })).toBeUndefined();
+  });
+});
