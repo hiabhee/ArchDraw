@@ -24,6 +24,7 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; href: string
     links: [
       { label: 'Docs', href: '/docs' },
       { label: 'System design tutorials', href: '/tutorials' },
+      { label: 'System design concepts', href: '/system-design' },
       { label: 'Blog', href: '/blogs' },
       { label: 'FAQ', href: '/faq' },
     ],
