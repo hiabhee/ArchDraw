@@ -15,6 +15,5 @@ Components are grouped by the part of the product they belong to. Logic that isn
 | `icons/` | Cloud-provider and technology brand icon components | Canvas nodes, palettes |
 | `ui/` | Low-level primitives (shadcn/Radix: button, dialog, dropdown, …) | Everywhere |
 | `agent-skill/` | Small widgets for the agent-skill page | `app/agent-skill` |
-| `jev/` | Experimental architecture-spec test page | `app/test` |
 
 Canvas components are shared by several hosts. A node or edge must read its graph and settings through `CanvasHostContext` (`lib/diagram/canvas/`), and must not write to the editor store unless the host is the editor. See AGENTS.md, "Canvas hosts".
