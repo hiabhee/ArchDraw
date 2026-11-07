@@ -488,7 +488,26 @@ By default the result is published and links are returned (publish:false keeps i
   },
 ];
 
-export const SERVER_VERSION = '1.2.0';
+export const SERVER_VERSION = '1.2.1';
+
+/**
+ * How clients (claude.ai connectors, Claude Desktop, Codex) show the server: name, site
+ * and brand mark. Without `icons` a client falls back to a guessed or cached image.
+ * The assets are the site's own (`frontend/app/icon.svg`, `frontend/public/logo.png`):
+ * an ink tile with a light mark, readable on light and dark UIs.
+ */
+const SITE_URL = 'https://archdraw.hiabhee.online';
+export const SERVER_INFO = {
+  name: 'archdraw-mcp-server',
+  title: 'ArchDraw',
+  version: SERVER_VERSION,
+  websiteUrl: SITE_URL,
+  icons: [
+    { src: `${SITE_URL}/logo.png`, mimeType: 'image/png', sizes: ['512x512'] },
+    { src: `${SITE_URL}/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+    { src: `${SITE_URL}/icon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+  ],
+};
 
 /** Everything a working session holds between tool calls. */
 export interface WorkingSessionSnapshot {
@@ -794,10 +813,7 @@ function layoutIssuesText(issues: Array<{ message: string }> | undefined): strin
 
 export function createArchDrawMCPServer(options: ArchDrawServerOptions = {}): Server {
   const server = new Server(
-    {
-      name: 'archdraw-mcp-server',
-      version: SERVER_VERSION,
-    },
+    SERVER_INFO,
     {
       capabilities: {
         tools: {},
