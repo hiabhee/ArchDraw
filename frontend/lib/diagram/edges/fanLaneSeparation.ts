@@ -158,14 +158,13 @@ export function separateFanLanes(
         }
         next.set(trunk.edgeId, rebuilt(routes.get(trunk.edgeId)!, waypoints));
       }
-      // No moved lane may cross a line it did not cross before (edges sharing an end may meet).
+      // Shared endpoints may meet, but sibling edges must not gain a crossing farther along.
       for (const [edgeId, route] of next) {
-        const edge = edgeById.get(edgeId)!;
         const before = routes.get(edgeId)!;
         for (const [otherId, otherRoute] of routes) {
           if (otherId === edgeId) continue;
           const other = edgeById.get(otherId);
-          if (!other || [edge.source, edge.target].some(id => id === other.source || id === other.target)) continue;
+          if (!other) continue;
           const drawn = next.get(otherId) ?? otherRoute;
           if (getRenderedPathInteraction(route.renderedPath, drawn.renderedPath).crossing
             && !getRenderedPathInteraction(before.renderedPath, otherRoute.renderedPath).crossing) return null;

@@ -3,12 +3,16 @@ import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
 import { computeEdgeRoute, createEdgeRoutingContext, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
-import { computeEdgeLabelLayout, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
+import { computeEdgeLabelLayout, estimateLabelSize, getDisplayLabel, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
 import { optimizeEdgeRoutes } from '../edges/edgeRouteOptimizer';
 import { validateRenderedPath, getRenderedPathInteraction, type RenderedEdgePath } from '../edges/edgePathGeometry';
 import type { GeometryStatus, GeometryViolation, Rect } from './geometryTypes';
 import type { Position } from 'reactflow';
 import { resolveEdgeFlowSemantics } from '@/lib/diagram/mermaid/edgeFlowSemantics';
+
+// Change when routing semantics change so persisted in-memory geometry plans
+// from the prior router cannot keep drawing stale attachment choices.
+const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v2';
 
 export interface DiagramGeometryOptions {
   direction: EdgeRouteDirection;
@@ -23,6 +27,11 @@ export interface DiagramGeometryOptions {
    * itself. Exports keep the full key.
    */
   ignoreLabelPosition?: boolean;
+  /**
+   * Draw the shortest wire between handles when nothing is in the way.
+   * Scoring, repair, canvas and export must use the same value.
+   */
+  straightEdges?: boolean;
 }
 
 export interface DiagramGeometryPlan {
@@ -81,7 +90,7 @@ export function computeDiagramGeometryPreview(
   const context = createEdgeRoutingContext(nodes, edges, options.direction, options.renderStyleId, options.iconMode);
   for (const edge of edges) {
     if (!affected.has(edge.id)) continue;
-    const route = computeEdgeRoute(edge, nodes, edges, options.direction, options.renderStyleId, options.handleAnchors?.get(edge.id), options.iconMode, { context });
+    const route = computeEdgeRoute(edge, nodes, edges, options.direction, options.renderStyleId, options.handleAnchors?.get(edge.id), options.iconMode, { context, straightEdges: options.straightEdges === true });
     routes.set(edge.id, route);
     paths.set(edge.id, route.renderedPath);
     sourceSides.set(edge.id, route.sourcePosition);
@@ -161,9 +170,11 @@ function withoutLabelPosition(data: unknown): unknown {
 export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes)): string {
   return JSON.stringify([
     options.revision ?? 0,
+    EDGE_ROUTING_ALGORITHM_REVISION,
     options.direction,
     options.renderStyleId ?? '',
     options.iconMode ?? '',
+    options.straightEdges === true,
     nodes.map(node => [node.id, node.type, node.parentNode, (node as Node & { parentId?: string }).parentId, bounds.get(node.id), node.data]),
     edges.map(edge => [edge.id, edge.source, edge.target, edge.sourceHandle, edge.targetHandle, edge.label, options.ignoreLabelPosition ? withoutLabelPosition(edge.data) : edge.data, edge.style]),
     [...(options.handleAnchors ?? new Map()).entries()],
@@ -199,6 +210,7 @@ export function computeDiagramGeometryPlan(
   const routeOptimization = optimizeEdgeRoutes({
     nodes, edges, direction: options.direction, renderStyleId: options.renderStyleId,
     iconMode: options.iconMode, handleAnchors: options.handleAnchors,
+    straightEdges: options.straightEdges === true,
   });
   const optimizedRoutes = routeOptimization.routes;
 
@@ -214,6 +226,7 @@ export function computeDiagramGeometryPlan(
     const route = optimizedRoutes.get(edge.id) ?? computeEdgeRoute(
       edge, nodes, edges, options.direction, options.renderStyleId,
       options.handleAnchors?.get(edge.id), options.iconMode,
+      { straightEdges: options.straightEdges === true },
     );
     routes.set(edge.id, route);
     paths.set(edge.id, route.renderedPath);
@@ -260,7 +273,6 @@ export function computeDiagramGeometryPlan(
   let crossings = 0;
   for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
     const a = edges[i], b = edges[j];
-    if ([a.source, a.target].some(id => id === b.source || id === b.target)) continue;
     const pathA = paths.get(a.id), pathB = paths.get(b.id);
     if (pathA && pathB && getRenderedPathInteraction(pathA, pathB).crossing) {
       crossings++;
@@ -277,11 +289,9 @@ export function computeDiagramGeometryPlan(
   for (const [edgeId, anchor] of labels) {
     const edge = edges.find(candidate => candidate.id === edgeId);
     if (!edge) continue;
-    const raw = edge.label ?? (edge.data as { label?: unknown; responseLabel?: unknown } | undefined)?.label;
-    const response = (edge.data as { responseLabel?: unknown } | undefined)?.responseLabel;
-    const label = [raw, response].filter(value => typeof value === 'string' && value.trim()).join(' / ');
-    if (!label.trim()) continue;
-    const width = Math.min(260, Math.max(48, label.length * 8 + 24)), height = 24;
+    const label = getDisplayLabel(edge);
+    if (!label) continue;
+    const { w: width, h: height } = estimateLabelSize(label, options.renderStyleId);
     const rect = { x: anchor.x - width / 2, y: anchor.y - height / 2, width, height };
     const obstruction = leafNodes.find(node => {
       if (node.id === edge.source || node.id === edge.target) return false;
@@ -315,8 +325,12 @@ export function computeDiagramGeometryPlan(
   }).length;
   const weightedCrossings = violations.filter((violation): violation is Extract<GeometryViolation, { code: 'EDGE_CROSSING' }> => violation.code === 'EDGE_CROSSING')
     .reduce((sum, violation) => {
-      const role = flow.assignments.get(violation.edgeId)?.role;
-      return sum + (role === 'main' ? 10 : role === 'branch' ? 4 : role === 'feedback' ? 2 : 1);
+      const weight = (id: string) => {
+        const role = flow.assignments.get(id)?.role;
+        return role === 'main' ? 10 : role === 'branch' ? 4 : role === 'feedback' ? 2 : 1;
+      };
+      // A crossing involving the main flow has the same cost in either edge order.
+      return sum + Math.max(weight(violation.edgeId), weight(violation.otherEdgeId));
     }, 0);
   const unexplainedPrivateOverlapLength = violations.reduce((sum, violation) => sum + (violation.code === 'PRIVATE_ROUTE_OVERLAP' ? violation.length : 0), 0);
   const quality = {

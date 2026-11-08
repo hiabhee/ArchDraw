@@ -54,9 +54,9 @@ describe('separateFanLanes', () => {
 });
 
 describe('composeEdgeDisplayLabel', () => {
-  it('never ends a shortened label on a joiner or a comma', () => {
-    expect(composeEdgeDisplayLabel('index text & metadata', undefined)).toBe('index text');
-    expect(composeEdgeDisplayLabel('list, rename, move, delete', undefined)).toBe('list, rename, move');
+  it('preserves qualifiers and every listed operation', () => {
+    expect(composeEdgeDisplayLabel('index text & metadata', undefined)).toBe('index text & metadata');
+    expect(composeEdgeDisplayLabel('list, rename, move, delete', undefined)).toBe('list, rename, move, delete');
     expect(composeEdgeDisplayLabel('thumbnails & previews', undefined)).toBe('thumbnails & previews');
   });
 });

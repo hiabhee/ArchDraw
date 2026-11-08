@@ -48,7 +48,7 @@ const BORDER_RADIUS = 24
  */
 const PARALLEL_LABEL_STACK_GAP = 0
 
-function estimateLabelSize(text: string, renderStyle?: DiagramRenderStyleId): { w: number; h: number } {
+export function estimateLabelSize(text: string, renderStyle?: DiagramRenderStyleId): { w: number; h: number } {
   const brutal = renderStyle === 'neubrutalism'
   const sketch = renderStyle === 'sketch'
   const wpc = brutal ? BRUTAL_WIDTH_PER_CHAR : sketch ? SKETCH_WIDTH_PER_CHAR : LABEL_WIDTH_PER_CHAR
@@ -284,15 +284,10 @@ export function composeEdgeDisplayLabel(
   // half must never leave a dangling "/". Inner slashes ("read/write",
   // "/api/users") are content and pass through untouched.
   const raw = base && resp ? `${base} / ${resp}` : base || resp
-  const words = raw ? raw.split(/\s+/).filter(Boolean) : []
-  if (words.length === 0) return ''
-  // A cut never ends on a joiner ("index text & metadata" reads "index text", not "index text &").
-  const kept = words.slice(0, 3)
-  while (kept.length > 1 && /^(&|\+|and|or|to|of|for|with|via|\/|-|–)$/i.test(kept[kept.length - 1])) kept.pop()
-  const full = words.length <= 3 ? raw : kept.join(' ').replace(/[,;:]+$/, '')
-  // Defensive: strip a leftover separator from legacy data (slash with
-  // adjacent whitespace), but preserve content slashes like "/api/users".
-  return full.replace(/^\s*\/\s+/, '').replace(/\s+\/\s*$/, '').trim()
+  // Preserve operation qualifiers and response semantics. Layout reserves the
+  // displayed text's full width rather than silently discarding words.
+  return raw.replace(/^\s*\/\s+/, '').replace(/\s+\/\s*$/, '').trim()
+
 }
 
 /**
@@ -315,7 +310,7 @@ export function splitComposedEdgeLabel(draft: string): { base: string; response:
   };
 }
 
-function getDisplayLabel(edge: Edge): string {
+export function getDisplayLabel(edge: Edge): string {
   const data = edge.data as Record<string, unknown> | undefined
   const base =
     typeof edge.label === 'string' && edge.label.trim()
@@ -343,7 +338,7 @@ function getPreferredT(edge: Edge, parallelEdges: Edge[], labelOrder: number, ve
     // along the line. The spot is counted from the first edge's source: a reply runs the other way,
     // so its own t is mirrored. Otherwise a request at 0.4 and its reply at 0.6 (counted from the
     // reply's own source) landed on the same spot and covered each other.
-    const t = Math.max(0.2, Math.min(0.8, 0.5 + (labelOrder - (parallelEdges.length - 1) / 2) * 0.3))
+    const t = Math.max(0.2, Math.min(0.8, 0.5 + (labelOrder - (parallelEdges.length - 1) / 2) * 0.5))
     return edge.source === parallelEdges[0].source ? t : 1 - t
   }
   return 0.5
@@ -658,6 +653,7 @@ function buildCandidates(
   userPlaced = false,
   /** Height of the pill in world px: its extent along a vertical edge. */
   labelHeight = labelWidth,
+  paired = false,
   /**
    * Keep the pill off bends: spots where the whole pill sits on one straight run come first, and
    * each end's clearance is measured along the run there (see computeEdgeLabelLayout).
@@ -702,7 +698,7 @@ function buildCandidates(
   // Measured on the canvas: the arrowhead plus its handle dot take about 24px of the end,
   // and labels are drawn up to 1.5x larger when zoomed out. Leave a visible stretch of
   // line between the pill and the arrowhead (about 24px) on top of that.
-  const sourceGap = brutal ? 30 : 24
+  const sourceGap = brutal ? 30 : paired ? 12 : 24
   const targetGap = brutal ? 60 : 48
   const marginOf = (px: number, floor: number, extent: number) => (totalLen > 1 ? Math.min(0.45, Math.max(floor, (extent + px) / totalLen)) : 0.45)
   // The target end carries the arrowhead and its handle, so it keeps a firmer floor; the
@@ -870,12 +866,16 @@ function computeLayout(
     const stem = pathMerges
       ? findUniqueStemRange(item.samples, peerSamples)
       : { uniqueEndFromSource: 0.5, uniqueStartFromTarget: 0.5 }
-    const preferredT = pathMerges
+    // A request and its reply should use opposite stretches of the shared
+    // route. Unique-stem detection sees their offset terminal lanes as private
+    // and can put both pills back at the midpoint, where they collide.
+    const reversePair = parallelEdges.some((peer) => peer.id !== edge.id && peer.source === edge.target && peer.target === edge.source)
+    const preferredT = pathMerges && !reversePair
       ? preferredTForUniqueStem(edge, parallelEdges, labelOrder, stem, segs)
       : getPreferredT(edge, parallelEdges, labelOrder, isMostlyVertical(segs))
 
     let preferredRange: { lo: number; hi: number } | undefined
-    if (pathMerges && typeof data?.labelT !== 'number') {
+    if (pathMerges && !reversePair && typeof data?.labelT !== 'number') {
       const fromSourceLen = stem.uniqueEndFromSource
       const fromTargetLen = 1 - stem.uniqueStartFromTarget
       if (fromSourceLen >= MIN_UNIQUE_STEM && fromSourceLen >= fromTargetLen) {
@@ -905,7 +905,7 @@ function computeLayout(
       segs,
       basePerp: perpOffset,
       paired: parallelEdges.length > 1,
-      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number', estimateLabelSize(item.label, renderStyle).h, avoidCorners),
+      candidates: buildCandidates(segs, preferredT, perpOffset, preferredRange, renderStyle, estimateLabelSize(item.label, renderStyle).w, typeof data?.labelT === 'number', estimateLabelSize(item.label, renderStyle).h, parallelEdges.length > 1, avoidCorners),
       sortX: preferred.x,
       sortY: preferred.y,
     })
@@ -1053,6 +1053,7 @@ function labelObstructions(
   anchors: ReadonlyMap<string, EdgeLabelAnchor>,
   edges: Edge[],
   nodeInternals: ReadonlyMap<string, Node>,
+  renderStyle?: DiagramRenderStyleId,
 ): { onNodes: Set<string>; onLabels: number } {
   const boxes = [...nodeInternals.values()].map((node) => {
     const data = node.data as { nodeWidth?: number; nodeHeight?: number } | undefined
@@ -1071,8 +1072,8 @@ function labelObstructions(
     const anchor = anchors.get(edge.id)
     const label = getDisplayLabel(edge)
     if (!anchor || !label) continue
-    const w = Math.min(260, Math.max(48, label.length * 8 + 24))
-    const rect = { x: anchor.x - w / 2, y: anchor.y - 12, w, h: 24 }
+    const { w, h } = estimateLabelSize(label, renderStyle)
+    const rect = { x: anchor.x - w / 2, y: anchor.y - h / 2, w, h }
     const hit = boxes.some((box) => box.group
       ? rectsOverlap(rect, { x: box.x, y: box.y, w: box.w, h: Math.min(40, box.h) })
       : box.node.id !== edge.source && box.node.id !== edge.target && rectsOverlap(rect, box))
@@ -1143,8 +1144,8 @@ export function computeEdgeLabelLayout(
   const hasBends = [...(routes?.values() ?? [])].some(route => route.waypoints.length > 2) || !routes
   if (hasBends && edges.some(edge => getDisplayLabel(edge))) {
     const cornerFree = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode, true)
-    const a = labelObstructions(cornerFree, edges, nodeInternals)
-    const b = labelObstructions(plain, edges, nodeInternals)
+    const a = labelObstructions(cornerFree, edges, nodeInternals, renderStyle)
+    const b = labelObstructions(plain, edges, nodeInternals, renderStyle)
     // No label may end up covering something it did not cover before.
     if ([...a.onNodes].every(id => b.onNodes.has(id)) && a.onLabels <= b.onLabels) result = cornerFree
   }

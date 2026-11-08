@@ -11,6 +11,30 @@ vi.mock('../edgeRouteBuilder', async (importOriginal) => ({
 }));
 
 describe('route repair acceptance', () => {
+  it('detects sibling crossings away from their shared source', () => {
+    let crossing = true;
+    route.mockImplementation((edge: Edge) => {
+      const waypoints = edge.id === 'sa'
+        ? [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 200 }, { x: 300, y: 200 }]
+        : [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: crossing ? 100 : -100 }, { x: 250, y: crossing ? 100 : -100 }];
+      const path = { kind: 'orthogonal' as const, waypoints, cornerRadius: 0 };
+      const renderedPath = buildEdgePathGeometry(path);
+      return {
+        sourcePosition: 'right', targetPosition: 'left', sourcePoint: waypoints[0], targetPoint: waypoints.at(-1),
+        waypoints, svgPath: renderedPath.d, path, renderedPath,
+        status: 'ok', violations: [], expandedStates: 0,
+      };
+    });
+    const nodes = ['s', 'a', 'b'].map(id => ({
+      id, type: 'systemNode', data: { label: id }, position: { x: 0, y: 0 },
+    })) as Node[];
+    const edges = [{ id: 'sa', source: 's', target: 'a' }, { id: 'sb', source: 's', target: 'b' }] as Edge[];
+    const input = { nodes, edges, direction: 'LR' as const, searchBudget: { maxCandidateRoutes: 2, ripUpPasses: 0 } };
+    expect(optimizeEdgeRoutes(input).diagnostics.filter(item => item.kind === 'crossing')).toHaveLength(1);
+    crossing = false;
+    expect(optimizeEdgeRoutes(input).diagnostics.filter(item => item.kind === 'crossing')).toHaveLength(0);
+  });
+
   it('restores the prior routes when a rip-up pass worsens the objective', () => {
     let calls = 0;
     route.mockImplementation(() => {

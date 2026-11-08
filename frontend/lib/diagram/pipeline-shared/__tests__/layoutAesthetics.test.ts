@@ -21,7 +21,7 @@ const DEFAULT_FAN_CEILING = 10;
 
 const STRAIGHT_FLOOR: Record<string, number> = {};
 
-/** Key: `${template id}:${LR|TD}`. Every template not listed here must be within the default. */
+/** Key: template id. Every template not listed here must be within the default. */
 const FAN_CEILING: Record<string, number> = {
   // Dense and flat (56 nodes): interlocking fans that cannot all be centred.
   'archdraw_self:LR': 350,

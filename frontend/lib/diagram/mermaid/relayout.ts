@@ -1,3 +1,4 @@
+import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import type { Direction } from '@/lib/diagram/pipeline-shared/reactflow/types';
 import type { Node, Edge } from 'reactflow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
@@ -24,6 +25,7 @@ export interface RelayoutCanvasResult {
 export type LayoutDirection = Extract<Direction, 'TD' | 'LR'>;
 
 export interface RelayoutOptions {
+  iconMode?: NodeIconMode;
   /** Used when the graph has no top heading yet (templates, manual diagrams). */
   title?: string;
   /** Applies an appearance-specific spacing profile without changing topology. */
@@ -115,7 +117,7 @@ export async function layoutDiagramViaMermaid(
   if (!byEdges) { byEdges = new WeakMap(); relayoutCache.set(nodes, byEdges); }
   let byOptions = byEdges.get(edges);
   if (!byOptions) { byOptions = new Map(); byEdges.set(edges, byOptions); }
-  const cacheKey = JSON.stringify([direction, options.title ?? '', options.renderStyleId ?? '', options.layoutStyle ?? 'flow', options.foldLongFlows ?? false, options.mixGroupDirections ?? true, options.layoutProfile ?? '', options.areaOrder ?? '']);
+  const cacheKey = JSON.stringify([direction, options.title ?? '', options.renderStyleId ?? '', options.layoutStyle ?? 'flow', options.foldLongFlows ?? false, options.mixGroupDirections ?? true, options.layoutProfile ?? '', options.areaOrder ?? '', options.iconMode ?? '']);
   const cachedLayout = byOptions.get(cacheKey);
   if (cachedLayout) return cachedLayout;
 
@@ -169,6 +171,8 @@ export async function layoutDiagramViaMermaid(
     const result = await runMermaidPipeline(mermaid, {
       layoutProfile: options.layoutProfile
         ?? (options.renderStyleId === 'studio-minimal' || options.renderStyleId === 'studio-metallic' ? 'studio-minimal' : undefined),
+      renderStyleId: options.renderStyleId,
+      iconMode: options.iconMode,
       edgeSemantics,
       layoutStyle: options.layoutStyle,
       foldLongFlows: options.foldLongFlows,

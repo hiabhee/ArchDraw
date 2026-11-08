@@ -272,7 +272,7 @@ describe('computeEdgeLabelLayout', () => {
     expect(overlaps(rectOf(a2, 'stores comment'), rectOf(a3, 'stores like'))).toBe(false)
   })
 
-  it('places labels on vertical drops into a shared horizontal bus', () => {
+  it('places labels along straight drops from a shared sink', () => {
     const nodes = [
       makeNode('notif', 80, 40, 200, 80),
       makeNode('comment', 320, 40, 200, 80),
@@ -295,19 +295,29 @@ describe('computeEdgeLabelLayout', () => {
     edges[2].sourceHandle = 'source-bottom'
     edges[2].targetHandle = 'target-top'
 
-    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'TD')
+    const routes = new Map(edges.map(e => [
+      e.id,
+      computeEdgeRoute(e, nodes, edges, 'TD', undefined, undefined, undefined, { straightEdges: true }),
+    ]))
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'TD', undefined, routes)
     const a1 = res.get('e1')!
     const a2 = res.get('e2')!
     const a3 = res.get('e3')!
 
-    // Labels must sit on the private vertical legs (near each source's x),
-    // not on the shared horizontal bus at y≈260.
-    expect(a1.x).toBeCloseTo(80 + 100, 0)
-    expect(a2.x).toBeCloseTo(320 + 100, 0)
-    expect(a3.x).toBeCloseTo(560 + 100, 0)
-    expect(a1.y).toBeLessThan(250)
-    expect(a2.y).toBeLessThan(250)
-    expect(a3.y).toBeLessThan(250)
+    // Straight wires from each source's bottom to the sink's top: every label
+    // sits on its own wire, left-to-right in source order, between the ends.
+    expect(a1.x).toBeGreaterThan(180)
+    expect(a1.x).toBeLessThan(500)
+    expect(a2.x).toBeGreaterThan(420)
+    expect(a2.x).toBeLessThan(500)
+    expect(a3.x).toBeGreaterThan(500)
+    expect(a3.x).toBeLessThan(660)
+    expect(a1.y).toBeGreaterThan(152)
+    expect(a2.y).toBeGreaterThan(152)
+    expect(a3.y).toBeGreaterThan(152)
+    expect(a1.y).toBeLessThan(388)
+    expect(a2.y).toBeLessThan(388)
+    expect(a3.y).toBeLessThan(388)
     expect(Math.abs(a1.x - a2.x)).toBeGreaterThan(100)
     expect(Math.abs(a2.x - a3.x)).toBeGreaterThan(100)
   })
@@ -468,6 +478,11 @@ describe('computeEdgeLabelLayout', () => {
 })
 
 describe('composeEdgeDisplayLabel', () => {
+  it('retains operation qualifiers and complete request/response meaning', () => {
+    expect(composeEdgeDisplayLabel('Read account transaction history', 'Return paginated transaction results'))
+      .toBe('Read account transaction history / Return paginated transaction results')
+  })
+
   it('joins request and response labels with a separator', () => {
     expect(composeEdgeDisplayLabel('order', 'receipt')).toBe('order / receipt')
   })
@@ -515,7 +530,10 @@ describe('splitComposedEdgeLabel', () => {
   it('moves a label off the bends onto a straight leg when the middle leg is too short', () => {
     // A Z-shaped route whose middle (vertical) leg is only 60px: its midpoint is on the bends.
     const nodes = [makeNode('a', 0, 0, 200, 80), makeNode('b', 600, 60, 200, 80)]
-    const edges = [makeEdge('e1', 'a', 'b', { label: 'queries user' })]
+    const edges = [makeEdge('e1', 'a', 'b', {
+      label: 'queries user',
+      customWaypoints: [{ x: 400, y: 50 }, { x: 400, y: 110 }],
+    })]
     const route = computeEdgeRoute(edges[0], nodes, edges, 'LR')
     const bendX = route.waypoints[1].x
     expect(route.waypoints[1].y).not.toBe(route.waypoints[2].y)

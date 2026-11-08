@@ -1,7 +1,9 @@
 import type { Edge, Node } from 'reactflow';
+import { Position } from './edgePositions';
 import type { EdgeRouteDirection, EdgeRouteHandleAnchors, EdgeRouteResult } from './edgeRouteBuilder';
-import { computeEdgeRoute, createEdgeRoutingContext } from './edgeRouteBuilder';
+import { computeEdgeRoute, createEdgeRoutingContext, getNodeRect } from './edgeRouteBuilder';
 import { getRenderedPathInteraction, type RenderedEdgePath } from './edgePathGeometry';
+import { scoreAllHandlerPairs } from './handlerPairScorer';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
 import { resolveEdgeFlowSemantics, type ResolvedEdgeFlowAssignment } from '@/lib/diagram/mermaid/edgeFlowSemantics';
 import { separateFanLanes } from './fanLaneSeparation';
@@ -21,6 +23,8 @@ export interface RouteOptimizationInput {
   iconMode?: NodeIconMode;
   handleAnchors?: ReadonlyMap<string, EdgeRouteHandleAnchors>;
   searchBudget?: { perRouteStates?: number; totalStates?: number; ripUpPasses?: number; maxCandidateRoutes?: number };
+  /** Rendering asks for the shortest wire when clear; layout scoring keeps the orthogonal route. */
+  straightEdges?: boolean;
 }
 
 export interface RouteOptimizationResult {
@@ -44,6 +48,7 @@ function edgeKey(edge: Edge): string {
   return [edge.source, edge.target, String(edge.label ?? data?.label ?? '').trim().toLowerCase(), edge.id].join('\u0000');
 }
 
+// Proper crossings exclude shared endpoints; sibling edges can still cross farther along.
 const properCross = (a: RenderedEdgePath, b: RenderedEdgePath) => getRenderedPathInteraction(a, b).crossing;
 
 type Pt = { x: number; y: number };
@@ -122,7 +127,7 @@ function boundsMayInteract(a: RenderedEdgePath, b: RenderedEdgePath): boolean {
 }
 
 function conflictsWithRoutes(
-  edge: Edge,
+  _edge: Edge,
   route: EdgeRouteResult,
   fixed: ReadonlyMap<string, EdgeRouteResult>,
   edgeById: ReadonlyMap<string, Edge>,
@@ -132,8 +137,7 @@ function conflictsWithRoutes(
     if (!boundsMayInteract(route.renderedPath, otherRoute.renderedPath)) continue;
     const other = edgeById.get(id);
     if (!other) continue;
-    const sharesNode = [edge.source, edge.target].some(nodeId => nodeId === other.source || nodeId === other.target);
-    if (!sharesNode && properCross(route.renderedPath, otherRoute.renderedPath)) return true;
+    if (properCross(route.renderedPath, otherRoute.renderedPath)) return true;
     if (privateOverlapLength(route, otherRoute) > 10) return true;
   }
   return false;
@@ -162,8 +166,7 @@ function globalCost(edges: readonly Edge[], routes: ReadonlyMap<string, EdgeRout
     if (!ra || !rb) continue;
     const a = ra.renderedPath, b = rb.renderedPath;
     if (!boundsMayInteract(a, b)) continue;
-    const sharesNode = [left.source, left.target].some(id => id === right.source || id === right.target);
-    if (!sharesNode && properCross(a, b)) cost += CROSSING_COST;
+    if (properCross(a, b)) cost += CROSSING_COST;
     const overlap = privateOverlapLength(ra, rb);
     cost += Math.ceil(overlap / 10) * SHARED_PRIVATE_COST_PER_10PX;
   }
@@ -177,23 +180,21 @@ function hasRouteConflicts(edges: readonly Edge[], routes: ReadonlyMap<string, E
     for (let j = i + 1; j < edges.length; j++) {
       const otherEdge = edges[j], otherRoute = routes.get(otherEdge.id);
       if (!otherRoute || !boundsMayInteract(route.renderedPath, otherRoute.renderedPath)) continue;
-      const sharesNode = [edge.source, edge.target].some(id => id === otherEdge.source || id === otherEdge.target);
-      if (!sharesNode && properCross(route.renderedPath, otherRoute.renderedPath)) return true;
+      if (properCross(route.renderedPath, otherRoute.renderedPath)) return true;
       if (privateOverlapLength(route, otherRoute) > 10) return true;
     }
   }
   return false;
 }
 
-function incrementalCost(edge: Edge, route: EdgeRouteResult, fixed: ReadonlyMap<string, EdgeRouteResult>, edgeById: ReadonlyMap<string, Edge>): number {
+function incrementalCost(_edge: Edge, route: EdgeRouteResult, fixed: ReadonlyMap<string, EdgeRouteResult>, edgeById: ReadonlyMap<string, Edge>): number {
   let cost = route.status === 'ok' ? 0 : 1_000_000 + route.violations.length * 100_000;
   cost += route.renderedPath.length + bendCount(route) * BEND_COST;
   for (const [id, otherRoute] of fixed) {
     const other = edgeById.get(id);
     if (!other) continue;
     if (!boundsMayInteract(route.renderedPath, otherRoute.renderedPath)) continue;
-    const sharesNode = [edge.source, edge.target].some(nodeId => nodeId === other.source || nodeId === other.target);
-    if (!sharesNode && properCross(route.renderedPath, otherRoute.renderedPath)) cost += CROSSING_COST;
+    if (properCross(route.renderedPath, otherRoute.renderedPath)) cost += CROSSING_COST;
     cost += Math.ceil(privateOverlapLength(route, otherRoute) / 10) * SHARED_PRIVATE_COST_PER_10PX;
   }
   return cost;
@@ -220,6 +221,15 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
   // Reserve one base route for every edge; optional lanes and repairs have a
   // separate bounded pool so a dense graph can never starve its last edges.
   let extraCandidates = Math.max(0, (input.searchBudget?.maxCandidateRoutes ?? edges.length * 4) - edges.length);
+  const perEdgeAlternativeBudget = edges.length > 0 ? Math.ceil(extraCandidates / edges.length) : 0;
+  const alternativesUsedByEdge = new Map<string, number>();
+  const consumeAlternative = (edgeId: string): boolean => {
+    const used = alternativesUsedByEdge.get(edgeId) ?? 0;
+    if (used >= perEdgeAlternativeBudget || extraCandidates <= 0) return false;
+    alternativesUsedByEdge.set(edgeId, used + 1);
+    extraCandidates--;
+    return true;
+  };
   const edgeById = new Map(input.edges.map(edge => [edge.id, edge]));
   let candidateRoutes = 0;
   let expandedStates = 0;
@@ -227,7 +237,7 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
   const totalStateBudget = input.searchBudget?.totalStates ?? 400_000;
   const ripUpBudget = input.searchBudget?.ripUpPasses ?? RIP_UP_PASSES;
 
-  const routeAt = (edge: Edge, laneOffset: number) => {
+  const routeAt = (edge: Edge, laneOffset: number, attachmentSides?: { sourceSide: Position; targetSide: Position }) => {
     candidateRoutes++;
     const remainingBudget = Math.max(0, totalStateBudget - expandedStates);
     const route = computeEdgeRoute(
@@ -241,6 +251,8 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
       {
         laneOffset,
         context,
+        straightEdges: input.straightEdges === true,
+        attachmentSides,
         searchBudget: { maxExpandedStates: Math.min(perRouteBudget, remainingBudget) },
       },
     );
@@ -255,23 +267,63 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
     const laneDeltas = feedback ? [...LANE_CANDIDATE_DELTAS, ...FEEDBACK_CORRIDOR_DELTAS] : LANE_CANDIDATE_DELTAS;
     const candidates = [...new Set(laneDeltas.map(delta => base + delta))]
       .sort((a, b) => Math.abs(a) - Math.abs(b) || (stableOrder % 2 ? b - a : a - b));
-    if (repair && extraCandidates <= 0) return { route: routes.get(edge.id)!, offset: base };
-    if (repair) extraCandidates--;
+    if (repair && !consumeAlternative(edge.id)) return { route: routes.get(edge.id)!, offset: base };
     let winner = routeAt(edge, candidates[0]);
     let winnerOffset = candidates[0];
     let winnerCost = incrementalCost(edge, winner, fixed, edgeById);
     if (!conflictsWithRoutes(edge, winner, fixed, edgeById)) return { route: winner, offset: winnerOffset };
+
+    // A route can be individually short yet create a crossing or private
+    // overlap. Before moving its lane, try alternate node attachments against
+    // the already routed graph and score each with the same global conflict
+    // cost used by the lane optimizer.
+    const data = edge.data as Record<string, unknown> | undefined;
+    const pinnedSource = data?.sourceSideLocked === true && typeof data.sourceSide === 'string'
+      ? data.sourceSide.toLowerCase() : undefined;
+    const pinnedTarget = data?.targetSideLocked === true && typeof data.targetSide === 'string'
+      ? data.targetSide.toLowerCase() : undefined;
+    const sourceNode = input.nodes.find(node => node.id === edge.source);
+    const targetNode = input.nodes.find(node => node.id === edge.target);
+    const sourceRect = sourceNode ? getNodeRect(sourceNode, input.nodes as Node[], input.renderStyleId, input.iconMode) : undefined;
+    const targetRect = targetNode ? getNodeRect(targetNode, input.nodes as Node[], input.renderStyleId, input.iconMode) : undefined;
+    const allSidePairs = sourceRect && targetRect
+      ? scoreAllHandlerPairs(
+          { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h },
+          { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h },
+          input.direction,
+        ).map(({ pair }) => pair)
+      : [Position.Right, Position.Left, Position.Top, Position.Bottom]
+          .flatMap(sourceSide => [Position.Right, Position.Left, Position.Top, Position.Bottom]
+            .map(targetSide => ({ sourceSide, targetSide })));
+    const hasParallelEdge = edges.some(candidate =>
+      candidate.id !== edge.id && candidate.source === edge.source && candidate.target === edge.target,
+    );
+    const sidePairs = allSidePairs
+      .filter(pair => pair.sourceSide !== winner.sourcePosition || pair.targetSide !== winner.targetPosition)
+      .filter(pair => !pinnedSource || pair.sourceSide === pinnedSource)
+      .filter(pair => !pinnedTarget || pair.targetSide === pinnedTarget)
+      // Parallel edges share visible handles. Resolve their overlap with private
+      // route lanes; changing one edge's attachment side makes the fan look
+      // detached and defeats the lane allocator.
+      .filter(() => !hasParallelEdge);
+    let bestConflictFree: { route: EdgeRouteResult; cost: number } | undefined;
+    for (const pair of sidePairs) {
+      if (!consumeAlternative(edge.id)) break;
+      const candidate = routeAt(edge, candidates[0], pair);
+      const score = incrementalCost(edge, candidate, fixed, edgeById);
+      if (score < winnerCost) { winner = candidate; winnerOffset = candidates[0]; winnerCost = score; }
+      if (!conflictsWithRoutes(edge, candidate, fixed, edgeById)
+        && (!bestConflictFree || score < bestConflictFree.cost)) {
+        bestConflictFree = { route: candidate, cost: score };
+      }
+    }
+    if (bestConflictFree) return { route: bestConflictFree.route, offset: candidates[0] };
+
     for (const offset of candidates.slice(1)) {
-      if (extraCandidates <= 0) break;
-      extraCandidates--;
+      if (!consumeAlternative(edge.id)) break;
       const candidate = routeAt(edge, offset);
       const score = incrementalCost(edge, candidate, fixed, edgeById);
       if (score < winnerCost) { winner = candidate; winnerOffset = offset; winnerCost = score; }
-      // Stop once a deterministic lane clears every routed path. Additional
-      // alternatives cannot improve validity and multiply work on dense graphs.
-      if (!conflictsWithRoutes(edge, candidate, fixed, edgeById)) {
-        return { route: candidate, offset };
-      }
     }
     return { route: winner, offset: winnerOffset };
   };
@@ -322,8 +374,7 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
     if (!routeA || !routeB) continue;
     const pathA = routeA.renderedPath, pathB = routeB.renderedPath;
     if (!boundsMayInteract(pathA, pathB)) continue;
-    const sharesNode = [a.source, a.target].some(id => id === b.source || id === b.target);
-    if (!sharesNode && properCross(pathA, pathB)) diagnostics.push({ edgeId: a.id, otherEdgeId: b.id, kind: 'crossing' });
+    if (properCross(pathA, pathB)) diagnostics.push({ edgeId: a.id, otherEdgeId: b.id, kind: 'crossing' });
     const overlap = privateOverlapLength(routeA, routeB);
     if (overlap > 10) diagnostics.push({ edgeId: a.id, otherEdgeId: b.id, kind: 'private-overlap', amount: overlap });
   }
