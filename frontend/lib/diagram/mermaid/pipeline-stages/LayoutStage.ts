@@ -112,13 +112,15 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     };
     // Studio: large cards packed close, but not so close that a label pill cannot
     // sit between two columns: every label reserves its full width on top of
-    // rankSep, which leaves room for the arrowhead and a gap on both sides. A live
-    // project map keeps more room inside a column for the agent tags that hang
-    // below a component. Other appearances keep the shared default geometry.
+    // rankSep, which leaves room for the arrowhead and a gap on both sides. Inside a
+    // column the cards keep 72px apart, a corridor for edges that pass between them
+    // (at 48px they had none and were routed around the whole column), which also
+    // holds the agent tags of a live project map. Other appearances keep the shared
+    // default geometry.
     const profile = _context.metadata.layoutProfile;
     const layoutOptions = profile === 'studio-minimal' || profile === 'studio-live'
       ? {
-          nodeSep: profile === 'studio-live' ? 72 : 48,
+          nodeSep: process.env.EXP_NS48 ? (profile === 'studio-live' ? 72 : 48) : 72,
           rankSep: 60,
         }
       : undefined;
@@ -261,7 +263,13 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
         for (let previous = 0; previous < index; previous++) if (candidateScore[previous] !== priorScore[previous]) return false;
         return value < priorScore[index];
       });
-      if (!best || improves) {
+      // The score never weighs size, so a candidate drawn clearly smaller (by more than a mix must
+      // gain) may only win by fixing something: fewer blocked edges or main-path failures. Winning a
+      // tie-break (overlap length, crossings, bends) is not worth a diagram the reader cannot read.
+      const fixesSomething = candidateScore[0] < priorScore[0]
+        || (candidateScore[0] === priorScore[0] && candidateScore[1] < priorScore[1]);
+      const shrinks = best !== undefined && measured.fit * MIN_MIX_GAIN < best.fit;
+      if (!best || (improves && (fixesSomething || !shrinks))) {
         best = { nodeQuality: quality, geometry, fit: measured.fit };
         // Keep Dagre's absolute coordinates for the next sizing stage; the
         // normalized copy is only the coordinate-space-correct scoring view.

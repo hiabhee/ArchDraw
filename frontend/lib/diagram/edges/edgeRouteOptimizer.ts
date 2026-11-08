@@ -4,6 +4,7 @@ import { computeEdgeRoute, createEdgeRoutingContext } from './edgeRouteBuilder';
 import { getRenderedPathInteraction, type RenderedEdgePath } from './edgePathGeometry';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
 import { resolveEdgeFlowSemantics, type ResolvedEdgeFlowAssignment } from '@/lib/diagram/mermaid/edgeFlowSemantics';
+import { separateFanLanes } from './fanLaneSeparation';
 
 const RIP_UP_PASSES = 2;
 const LANE_CANDIDATE_DELTAS = [0, -28, 28] as const;
@@ -310,6 +311,9 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
       break;
     }
   }
+
+  // Edges of one fan no longer share one drawn line: each gets its own lane (see fanLaneSeparation).
+  if (!process.env.EXP_NO_LANES) separateFanLanes(routes, input.edges, input.nodes, input.renderStyleId, input.iconMode);
 
   const diagnostics: RouteOptimizationResult['diagnostics'][number][] = [];
   for (let i = 0; i < input.edges.length; i++) for (let j = i + 1; j < input.edges.length; j++) {

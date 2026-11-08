@@ -142,17 +142,6 @@ function getBounds(nodes: readonly Node[]): Map<string, Rect> {
   }));
 }
 
-function ancestors(node: Node, nodesById: ReadonlyMap<string, Node>): Set<string> {
-  const result = new Set<string>();
-  let parent = node.parentNode ?? (node as Node & { parentId?: string }).parentId;
-  while (parent && !result.has(parent)) {
-    result.add(parent);
-    const parentNode = nodesById.get(parent);
-    parent = parentNode?.parentNode ?? (parentNode as Node & { parentId?: string } | undefined)?.parentId;
-  }
-  return result;
-}
-
 function countBends(route: EdgeRouteResult): number {
   const points = route.waypoints;
   let bends = 0;
@@ -237,13 +226,9 @@ export function computeDiagramGeometryPlan(
         violations.push({ severity: 'hard', code: 'TERMINAL_INTERSECTION', edgeId: edge.id, nodeId: violation.nodeId });
       }
     }
-    const sourceNode = nodeById.get(edge.source), targetNode = nodeById.get(edge.target);
-    const passable = new Set<string>([
-      ...(sourceNode ? ancestors(sourceNode, nodeById) : []),
-      ...(targetNode ? ancestors(targetNode, nodeById) : []),
-    ]);
+    // Only cards are obstacles: an edge may cross any group's empty space (see edgeRouteBuilder).
     const obstacles = nodes
-      .filter(node => node.id !== edge.source && node.id !== edge.target && (!isGroup(node) || !passable.has(node.id)))
+      .filter(node => node.id !== edge.source && node.id !== edge.target && (!isGroup(node) || (Boolean(process.env.EXP_GROUP_WALLS) && !__ancestorsOf(edge, nodeById).has(node.id))))
       .flatMap(node => {
         const rect = bounds.get(node.id);
         return rect ? [{ id: node.id, rect }] : [];
@@ -361,4 +346,13 @@ export function getCachedDiagramGeometryPlan(nodes: Node[], edges: Edge[], optio
   settledPlans.set(key, plan);
   if (settledPlans.size > 8) settledPlans.delete(settledPlans.keys().next().value!);
   return plan;
+}
+
+function __ancestorsOf(edge: Edge, byId: ReadonlyMap<string, Node>): Set<string> {
+  const out = new Set<string>();
+  for (const id of [edge.source, edge.target]) {
+    let p = byId.get(id)?.parentNode ?? (byId.get(id) as Node & { parentId?: string } | undefined)?.parentId;
+    while (p && !out.has(p)) { out.add(p); const n = byId.get(p); p = n?.parentNode ?? (n as Node & { parentId?: string } | undefined)?.parentId; }
+  }
+  return out;
 }

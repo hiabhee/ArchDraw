@@ -4,7 +4,11 @@ import { buildEdgePathGeometry } from '../edgePathGeometry';
 import { optimizeEdgeRoutes } from '../edgeRouteOptimizer';
 
 const route = vi.hoisted(() => vi.fn());
-vi.mock('../edgeRouteBuilder', () => ({ computeEdgeRoute: route, createEdgeRoutingContext: () => ({}) }));
+vi.mock('../edgeRouteBuilder', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../edgeRouteBuilder')>()),
+  computeEdgeRoute: route,
+  createEdgeRoutingContext: () => ({}),
+}));
 
 describe('route repair acceptance', () => {
   it('restores the prior routes when a rip-up pass worsens the objective', () => {

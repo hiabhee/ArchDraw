@@ -254,10 +254,25 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   return { x, y }
 }
 
-function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode): ObstacleRect {
+export function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode): ObstacleRect {
   const pos = getAbsolutePosition(node, nodes)
   const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId, iconMode)
   return { x: pos.x, y: pos.y, w, h }
+}
+
+function __passable(a: string, b: string, nodes: Node[]): Set<string> {
+  if (!process.env.EXP_GROUP_WALLS) return allGroupIds(nodes)
+  const byId = new Map(nodes.map(n => [n.id, n]))
+  const out = new Set<string>()
+  for (const id of [a, b]) {
+    let cur = byId.get(id); const seen = new Set<string>()
+    while (cur && !seen.has(cur.id)) { seen.add(cur.id); const p = cur.parentId || (cur as Node & { parentNode?: string }).parentNode; if (!p) break; const parent = byId.get(p); if (!parent) break; if (isGroupNode(parent)) out.add(p); cur = parent }
+  }
+  return out
+}
+
+function allGroupIds(nodes: Node[]): Set<string> {
+  return new Set(nodes.filter(isGroupNode).map(node => node.id))
 }
 
 export function isGroupNode(node: Node): boolean {
@@ -276,30 +291,6 @@ function sideToPosition(side: string | undefined): Position | undefined {
   if (side === 'top') return Position.Top
   if (side === 'bottom') return Position.Bottom
   return undefined
-}
-
-/**
- * Collects the ids of every group node that contains `nodeId` (all ancestors
- * through the parent chain). An edge may always cross its own groups'
- * boundaries because its endpoints live inside them, so these groups must
- * not be treated as routing obstacles — otherwise the edge could never leave
- * (or stay inside) its container.
- */
-function getAncestorGroupIds(nodeId: string, nodes: Node[]): Set<string> {
-  const result = new Set<string>()
-  const nodeById = new Map(nodes.map((n) => [n.id, n]))
-  const visited = new Set<string>()
-  let currentId = nodeById.get(nodeId)
-  while (currentId && !visited.has(currentId.id)) {
-    visited.add(currentId.id)
-    const parentId = currentId.parentId || (currentId as Node & { parentNode?: string }).parentNode
-    if (!parentId) break
-    const parent = nodeById.get(parentId)
-    if (!parent) break
-    if (isGroupNode(parent)) result.add(parentId)
-    currentId = parent
-  }
-  return result
 }
 
 function buildBlockingNodeRects(
@@ -592,11 +583,8 @@ function resolveEdgeSideOnNode(
     return e.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide
   }
   const excluded = new Set([e.source, e.target])
-  // Match useHandleSlotLayout: per-edge obstacles, not the main edge's.
-  const passableGroupIds = new Set<string>([
-    ...getAncestorGroupIds(e.source, nodes),
-    ...getAncestorGroupIds(e.target, nodes),
-  ])
+  // Match useHandleSlotLayout: per-edge obstacles, not the main edge's (groups are never obstacles).
+  const passableGroupIds = __passable(edge.source, edge.target, nodes)
   const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId, iconMode)
   let pair = selectBestHandlerPair(
     sourceHandlerRect,
@@ -950,13 +938,10 @@ export function computeEdgeRoute(
   const laneTargetPreference = sideToPosition(edgeData?.laneTargetSide as string)
 
   const excludedIds = new Set([edge.source, edge.target])
-  // Groups containing either endpoint are passable (the edge starts/ends
-  // inside them); every other group is an obstacle so edges of one group
-  // never cut across another group's rectangle.
-  const passableGroupIds = new Set<string>([
-    ...getAncestorGroupIds(edge.source, nodes),
-    ...getAncestorGroupIds(edge.target, nodes),
-  ])
+  // Groups are never obstacles: an edge takes the shortest way and goes around only what is in its
+  // way (cards). Treating every group an edge does not belong to as a wall sent long edges around
+  // the outside of whole subsystems instead of through their empty space.
+  const passableGroupIds = __passable(e.source, e.target, nodes)
   // Validation must skip the same groups routing treats as passable, or every
   // edge leaving its own group is reported as crossing it.
   const validationExcludedIds = new Set<string>([...excludedIds, ...passableGroupIds])

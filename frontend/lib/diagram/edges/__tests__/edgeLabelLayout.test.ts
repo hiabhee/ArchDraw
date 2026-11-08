@@ -44,6 +44,16 @@ function overlaps(a: { x: number; y: number; w: number; h: number }, b: { x: num
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 }
 
+/** The pill as drawn (estimateLabelSize before LABEL_SAFE_SCALE): 5.8px a character + 14, min 32, 22 high. */
+function drawnRectOf(anchor: EdgeLabelAnchor, text: string) {
+  const w = Math.max(32, text.length * 5.8 + 14)
+  return { x: anchor.x - w / 2, y: anchor.y - 11, w, h: 22 }
+}
+
+function boxOf(node: Node) {
+  return { x: node.position.x, y: node.position.y, w: node.width!, h: node.height! }
+}
+
 describe('pointAtFraction', () => {
   it('interpolates along a straight line by arc length', () => {
     const segs = buildPathSegments([{ x: 0, y: 0 }, { x: 200, y: 0 }])
@@ -159,8 +169,10 @@ describe('computeEdgeLabelLayout', () => {
     const expectedA = pointAtFraction(buildPathSegments(routeA.waypoints), a.t)
     const expectedB = pointAtFraction(buildPathSegments(routeB.waypoints), b.t)
     expect(Math.hypot(a.x - expectedA.x, a.y - expectedA.y)).toBeLessThan(1)
-    expect(Math.hypot(b.x - expectedB.x, b.y - expectedB.y)).toBeLessThan(1)
-    expect(Math.abs(a.y - b.y)).toBeGreaterThan(1)
+    // The lanes are too close for both pills, so the second steps just beside its line
+    // rather than covering the first label.
+    expect(Math.hypot(b.x - expectedB.x, b.y - expectedB.y)).toBeLessThan(20)
+    expect(overlaps(drawnRectOf(a, 'REQUEST'), drawnRectOf(b, 'RESPONSE'))).toBe(false)
   })
 
   it('resolves overlaps across several labeled edges', () => {
@@ -355,9 +367,11 @@ describe('computeEdgeLabelLayout', () => {
     const a = res.get('e1')!
     expect(a).toBeDefined()
 
-    // Label is centered on the horizontal edge between the nodes (uniform 100px height).
-    expect(a.y).toBeCloseTo(150, 0)
+    // The 113px pill does not fit the 100px gap, so centred on the line it would cover both
+    // cards: it steps beside the line instead, centred along it, and covers neither.
     expect(a.t).toBeCloseTo(0.5, 1)
+    for (const node of nodes) expect(overlaps(drawnRectOf(a, 'controls pressure'), boxOf(node))).toBe(false)
+    expect(Math.abs(a.y - 150)).toBeLessThan(60)
   })
 
   it('never overlaps any node at the doubled scale across a busy diagram', () => {

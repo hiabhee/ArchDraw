@@ -286,7 +286,10 @@ export function composeEdgeDisplayLabel(
   const raw = base && resp ? `${base} / ${resp}` : base || resp
   const words = raw ? raw.split(/\s+/).filter(Boolean) : []
   if (words.length === 0) return ''
-  const full = words.length <= 3 ? raw : words.slice(0, 3).join(' ')
+  // A cut never ends on a joiner ("index text & metadata" reads "index text", not "index text &").
+  const kept = words.slice(0, 3)
+  while (kept.length > 1 && /^(&|\+|and|or|to|of|for|with|via|\/|-|–)$/i.test(kept[kept.length - 1])) kept.pop()
+  const full = words.length <= 3 ? raw : kept.join(' ').replace(/[,;:]+$/, '')
   // Defensive: strip a leftover separator from legacy data (slash with
   // adjacent whitespace), but preserve content slashes like "/api/users".
   return full.replace(/^\s*\/\s+/, '').replace(/\s+\/\s*$/, '').trim()
@@ -452,6 +455,10 @@ const LABEL_CORNER_GAP = 6
  * 1.5x safe scale, so world gap is ~30px.
  */
 const NODE_LABEL_GAP = 20
+/** Gap between the line and a label stepped beside it (only when every spot on the line covers a card). */
+const LABEL_ESCAPE_GAP = 6
+/** Multiples of (half the pill height + gap) tried on each side of the line. */
+const LABEL_ESCAPE_STEPS = [1, 2, 3]
 const BRUTAL_NODE_LABEL_GAP = 22
 
 function totalPathLength(segs: PathSegment[]): number {
@@ -786,6 +793,9 @@ function computeLayout(
       const y = (n.positionAbsolute?.y ?? n.position.y) - nodeGap
       return { x, y, w: w + 2 * nodeGap, h: h + 2 * nodeGap }
     })
+  const cardBoxes: PlacedRect[] = nodeObstacles.map((r) => ({
+    x: r.x + nodeGap, y: r.y + nodeGap, w: r.w - 2 * nodeGap, h: r.h - 2 * nodeGap,
+  }))
 
   // Pass 1: route every edge so fan-in/fan-out sharing can be detected even
   // against unlabeled siblings that occupy the same corridor.
@@ -927,6 +937,13 @@ function computeLayout(
     })
     const clearOfNodes = (cand: LabelCandidate) =>
       !nodeObstacles.some((n) => rectsOverlap(n, cssRectAt(cand)))
+    /** The drawn pill does not cover a card (the safe size and the clearance margin may be touched). */
+    const drawnW = item.size.w / LABEL_SAFE_SCALE
+    const drawnH = item.size.h / LABEL_SAFE_SCALE
+    const clearOfCards = (cand: LabelCandidate) => {
+      const rect = { x: cand.x - drawnW / 2, y: cand.y - drawnH / 2, w: drawnW, h: drawnH }
+      return !cardBoxes.some((n) => rectsOverlap(n, rect))
+    }
     const clearOfLabels = (cand: LabelCandidate) => {
       const rect = { x: cand.x - item.size.w / 2, y: cand.y - item.size.h / 2, w: item.size.w, h: item.size.h }
       return !placed.some((p) => rectsOverlap(p, rect))
@@ -978,6 +995,28 @@ function computeLayout(
           break
         }
       }
+    }
+    // No label may cover a card or another label. On the line first: crossing another line is
+    // fine, then so is sitting inside a card's clearance margin, as long as the card itself is clear.
+    const firstOnLine = (accept: (cand: LabelCandidate) => boolean) => item.candidates.find(accept) ?? null
+    if (!chosen) chosen = firstOnLine((cand) => clearOfNodes(cand) && clearOfLabels(cand))
+    if (!chosen) chosen = firstOnLine((cand) => clearOfCards(cand) && clearOfLabels(cand))
+    // Only when every spot on the line covers something, step the pill beside the line
+    // (either side, nearest first).
+    if (!chosen) {
+      const step = drawnH / 2 + LABEL_ESCAPE_GAP
+      const escapes = LABEL_ESCAPE_STEPS.flatMap((k) => [k * step, -k * step])
+      const beside = (accept: (cand: LabelCandidate) => boolean) => {
+        for (const perp of escapes) {
+          for (const base of item.candidates) {
+            const cand = pointFor(base.t, perp)
+            if (accept(cand)) return cand
+          }
+        }
+        return null
+      }
+      chosen = beside((cand) => clearOfNodes(cand) && clearOfLabels(cand) && clearOfOtherEdges(cand))
+        ?? beside((cand) => clearOfCards(cand) && clearOfLabels(cand))
     }
     if (!chosen) {
       for (const cand of item.candidates) {
