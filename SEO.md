@@ -85,7 +85,7 @@ Rankings take weeks to move. Re-measure in Search Console 4–6 weeks after each
 - **AI crawlers** (GPTBot, ClaudeBot, PerplexityBot and others) are explicitly allowed in `robots.txt`.
 - **WebMCP** (Lighthouse "Agentic Browsing"): `components/providers/WebMcpTools.tsx` registers tools with `document.modelContext.registerTool`: search templates, search tutorials, open a template, generate a diagram and open a page.
   - The tools only navigate to same-site paths they build themselves; an agent can't pass in a URL.
-  - The origin-trial token goes in `NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL`.
+  - The origin-trial token goes in `NEXT_PUBLIC_WEBMCP_ORIGIN_TRIAL`. Register the origin at developer.chrome.com/origintrials (WebMCP, Chrome 149–162, ends 30 March 2027) and redeploy, since `NEXT_PUBLIC_*` values are built in. The token is public by design. It affects agent use, not Google rankings; Lighthouse only needs `chrome://flags/#enable-webmcp-testing`.
 
 ---
 
@@ -230,6 +230,13 @@ Tests in the repository that fail when SEO regresses:
 
 ---
 
+## 11b. Accessibility fixes that Lighthouse and agents check
+
+Agentic Browsing includes an "agent-centric accessibility" check, so accessibility failures now also cost agent compatibility.
+- **Decorative copies of real controls:** `aria-hidden="true"` hides an element from screen readers but not from the keyboard, so a hidden mock-up containing buttons fails "ARIA hidden element must not be focusable". Add `inert`, which removes it from both (the home hero's picture of the Overview / Detailed toggle).
+- **Dimmed content still has to pass contrast:** scroll effects that fade inactive steps are measured in their faded state. Compute the lowest opacity that keeps the faintest text at 4.5:1 (3:1 for 24px+ or 18.66px+ bold) and never go below it. On the night page, the muted body text needed at least 0.82; the steps had been at 0.38 (1.8:1).
+- **Source maps:** `productionBrowserSourceMaps: true` clears "Missing source maps for large first-party JavaScript" and makes production errors readable. Only do this when the code may be public (ArchDraw is open source).
+
 ## 12. Launch and measurement checklist
 
 After each deploy:
@@ -238,11 +245,15 @@ After each deploy:
    - resubmit `sitemap.xml` (after the Nov 7 deploys Google read it the same day: 116 pages);
    - use URL Inspection → "Request indexing" for the new hubs and a few new pages (about 10 a day; on Nov 7 we requested `/system-design`, both free generators, the calculator, `/alternatives` and the WhatsApp, Twitter and rate-limiter templates);
    - check structured data with the Rich Results Test.
-3. Lighthouse: SEO 100, Best Practices 100, Agentic Browsing 3/3. For WebMCP, use Chrome with `chrome://flags/#enable-webmcp-testing`.
-4. After 4–6 weeks:
+3. **PageSpeed Insights** (https://pagespeed.web.dev/?hl=en): test the home page and one page of each type, on both mobile and desktop.
+   - It runs Lighthouse on Google's servers and also shows **real-user Core Web Vitals** (LCP, INP, CLS) from the Chrome UX Report once the site has enough traffic. Those field numbers are what Google's page experience signals use, not the lab score.
+   - Treat the lab score as a to-do list. Fix accessibility and best-practice failures first: they are cheap, and agents and screen readers depend on them. Performance work comes after.
+   - The Lighthouse version in PageSpeed Insights and Chrome DevTools can lag the CLI, so newer categories such as Agentic Browsing may need `npx lighthouse@latest`.
+4. Lighthouse: SEO 100, Best Practices 100, Agentic Browsing 3/3. For WebMCP, use Chrome with `chrome://flags/#enable-webmcp-testing`.
+5. After 4–6 weeks:
    - in Search Console's Performance report, find queries in positions 8–30 and improve those pages first;
    - check the Pages report for "Duplicate without user-selected canonical" and "Crawled – currently not indexed".
-5. Off-site (needed for head terms):
+6. Off-site (needed for head terms):
    - post on Show HN and Product Hunt;
    - submit to AI-tool and MCP directories;
    - open PRs adding templates to awesome-system-design lists;
@@ -257,6 +268,7 @@ After each deploy:
 - **Accuracy is an SEO feature.** Honest comparisons, "representative design" notes and tested guides build the trust that earns links.
 - **Product bugs are SEO bugs.** A tutorial whose steps can't be completed sends visitors back to the results page. Our playthrough test found that 22 of 24 tutorials had steps that never accepted a correct connection.
 - **Caches outlive deploys.** Favicons, social cards and connector icons can stay stale for weeks after a brand change.
+- **Check whose icon it really is.** The "old logo" in Claude's connector list was the parent domain's (`hiabhee.online`) favicon, not an old ArchDraw icon. Search Console's property list shows each domain's icon, which is a quick way to check.
 
 ---
 
@@ -272,3 +284,6 @@ After each deploy:
 | 2026-11-07 | Ten new templates for systems that had only a tutorial | #30 |
 | 2026-11-07 | System design concepts glossary (20 terms), with links in from templates and tutorials | #31 |
 | 2026-11-07 | Free tools (AI generator, text-to-diagram, system design calculator) and comparison pages; this playbook | #32 |
+| 2026-11-07 | Clean-ups: lint errors to zero, current MCP install commands in docs | #33 |
+| 2026-11-07 | Search Console: sitemap read (116 pages), 8 indexing requests, Rich Results Test; WebMCP origin trial registered | #34 |
+| 2026-11-07 | Lighthouse / PageSpeed fixes on the home page: inert hero toggle, AA contrast for dimmed steps, production source maps | not yet opened |
