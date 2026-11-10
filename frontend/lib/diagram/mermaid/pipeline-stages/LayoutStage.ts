@@ -1,3 +1,5 @@
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
 import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { measureLayoutQuality } from '@/lib/diagram/pipeline-shared/layout/layoutQuality';
@@ -41,8 +43,8 @@ const COLUMN_PACK_GAP = 56;
 const COLUMN_PACK_MIN_GAP = 40;
 /** Tiers are lined up only in diagrams with at most this many top-level groups... */
 const GROUP_ALIGN_MAX = 12;
-/** ...without drawing the diagram more than this much smaller on screen. */
-const GROUP_ALIGN_MAX_SHRINK = 0.1;
+/** Cosmetic alignment must preserve fitted text size. */
+const GROUP_ALIGN_MAX_SHRINK = 0;
 
 function foldTries(nodeCount: number): number {
   return nodeCount <= 20 ? 6 : nodeCount <= 40 ? 3 : 1;
@@ -112,13 +114,15 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     };
     // Studio: large cards packed close, but not so close that a label pill cannot
     // sit between two columns: every label reserves its full width on top of
-    // rankSep, which leaves room for the arrowhead and a gap on both sides. A live
-    // project map keeps more room inside a column for the agent tags that hang
-    // below a component. Other appearances keep the shared default geometry.
+    // rankSep, which leaves room for the arrowhead and a gap on both sides. Inside a
+    // column the cards keep 72px apart, a corridor for edges that pass between them
+    // (at 48px they had none and were routed around the whole column), which also
+    // holds the agent tags of a live project map. Other appearances keep the shared
+    // default geometry.
     const profile = _context.metadata.layoutProfile;
     const layoutOptions = profile === 'studio-minimal' || profile === 'studio-live'
       ? {
-          nodeSep: profile === 'studio-live' ? 72 : 48,
+          nodeSep: process.env.EXP_NS48 ? (profile === 'studio-live' ? 72 : 48) : 72,
           rankSep: 60,
         }
       : undefined;
@@ -154,7 +158,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     const candidates = [
       { nodes: canonicalNodes, options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
       { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
-      { nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 32, ...flowAreas } },
+      { nodes: canonicalNodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), rankSep: Math.max(40, baseRankSep - 20), ...flowAreas } },
       { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } },
     ];
     const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
@@ -173,7 +177,12 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       // counted twice and grouped candidates receive incorrect scores.
       const normalized = applySubgraphBoundsToRf(laid.nodes);
       const quality = measureLayoutQuality(normalized, laid.edges, qualityDirection);
-      const geometry = getCachedDiagramGeometryPlan(normalized as never, laid.edges as never, { direction: geometryDirection });
+      const geometry = getCachedDiagramGeometryPlan(normalized as never, laid.edges as never, {
+        direction: geometryDirection,
+        straightEdges: false,
+        renderStyleId: (_context.metadata.renderStyleId ?? (profile === 'studio-minimal' || profile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined,
+        iconMode: _context.metadata.iconMode as NodeIconMode | undefined,
+      });
       const labelCollisions = geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
       return {
         quality,
@@ -243,6 +252,8 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       evaluated.add(signature);
       const { candidate, measured } = produce(candidateSpec);
       const { quality, geometry, candidateScore } = measured;
+
+
       const score = (value: typeof best) => value
         ? [
             value.geometry.quality.hardViolations,
@@ -261,7 +272,17 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
         for (let previous = 0; previous < index; previous++) if (candidateScore[previous] !== priorScore[previous]) return false;
         return value < priorScore[index];
       });
-      if (!best || improves) {
+      // Protect fitted typography: route tie-breaks cannot shrink a diagram.
+      // A smaller result must fix hard geometry or main-path failures.
+      const fixesSomething = candidateScore[0] < priorScore[0]
+        || (candidateScore[0] === priorScore[0] && candidateScore[1] < priorScore[1]);
+      const shrinks = best !== undefined && measured.fit < best.fit - 1e-6;
+      const improvesFit = best !== undefined && measured.fit > best.fit + 1e-6
+        && geometry.quality.hardViolations <= best.geometry.quality.hardViolations
+        && geometry.quality.criticalPathDisconnectCount <= best.geometry.quality.criticalPathDisconnectCount
+        && geometry.quality.weightedCrossings <= best.geometry.quality.weightedCrossings
+        && geometry.quality.unexplainedPrivateOverlapLength <= best.geometry.quality.unexplainedPrivateOverlapLength;
+      if (!best || improvesFit || (improves && (fixesSomething || !shrinks))) {
         best = { nodeQuality: quality, geometry, fit: measured.fit };
         // Keep Dagre's absolute coordinates for the next sizing stage; the
         // normalized copy is only the coordinate-space-correct scoring view.
@@ -281,6 +302,28 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     }
     if ((best?.nodeQuality.weightedCrossings ?? 0) > 0 || (best?.geometry.quality.weightedCrossings ?? 0) > 0) {
       evaluate(candidates[1]);
+    }
+    evaluate(candidates[2]);
+    evaluate({ ...candidates[2], nodes: [...canonicalNodes].reverse() });
+    // Packing both axes can close a necessary corridor. Search each axis separately
+    // on small/medium maps; all candidates still pass the complete route score.
+    if (canonicalNodes.length <= 40 && best && best.fit < 1) {
+      for (const nodes of [canonicalNodes, [...canonicalNodes].reverse()]) {
+        evaluate({ nodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: Math.max(40, baseRankSep - 20), ...flowAreas } });
+        evaluate({ nodes, options: { ...base, nodeSep: Math.max(48, baseNodeSep - 12), rankSep: Math.max(40, baseRankSep - 10), ...flowAreas } });
+      }
+    }
+
+    if (best && (best.geometry.quality.weightedCrossings > 0 || best.geometry.quality.unexplainedPrivateOverlapLength > 0)) {
+      // Congestion can need more room on one axis, not a globally looser diagram.
+      for (const nodes of [canonicalNodes, [...canonicalNodes].reverse()]) {
+        evaluate({ nodes, options: { ...base, nodeSep: baseNodeSep + 24, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 16, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 24, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 32, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } });
+      }
     }
     if (best?.geometry.quality.hardViolations) {
       // Two bounded Dagre spacing repairs. Route optimization then reallocates
@@ -387,7 +430,9 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const fansBefore = fans(layouted.nodes);
       const worse = (measured: Measured, nodes: RFObjects['nodes']) => {
         const after = measured.geometry.quality;
-        if (after.hardViolations > before.hardViolations
+        if (measured.fit < settled.fit - 1e-6
+          || after.unexplainedPrivateOverlapLength > before.unexplainedPrivateOverlapLength
+          || after.hardViolations > before.hardViolations
           || after.criticalPathDisconnectCount > before.criticalPathDisconnectCount
           || after.weightedCrossings > before.weightedCrossings
           || labelHits(measured.geometry) > labelHits(settled.geometry)) return true;

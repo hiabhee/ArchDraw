@@ -1,8 +1,16 @@
+import { computeDiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
 import { describe, expect, it } from 'vitest';
 import { runMermaidPipeline } from '../pipeline';
 import { semanticEdgeKeyString } from '../edgeFlowSemantics';
 
 describe('geometry and flow metadata pipeline regressions', () => {
+  it('reports the same visible geometry the canvas receives, including style and labels', async () => {
+    const result = await runMermaidPipeline('graph LR\n  a[Client] -->|Read account transaction history| b[API]\n  b --> c[(Database)]', { renderStyleId: 'studio-metallic', layoutProfile: 'studio-minimal', iconMode: 'off' });
+    if (!result.success) throw result.error;
+    const visible = computeDiagramGeometryPlan(result.data.nodes, result.data.edges, { direction: 'LR', straightEdges: false, renderStyleId: 'studio-metallic', iconMode: 'off' });
+    expect(result.data.geometrySummary).toMatchObject({ status: visible.status, ...visible.quality });
+  });
+
   it('scores RL geometry in the same horizontal orientation as final validation', async () => {
     const source = 'graph LR\n  a[Client] --> b[API]\n  b --> c[Database]';
     const lr = await runMermaidPipeline(source);

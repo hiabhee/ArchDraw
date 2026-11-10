@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { buildEdgePathGeometry, pointAtRenderedPath, validateRenderedPath } from '../edgePathGeometry';
 
 describe('shared rendered edge path geometry', () => {
+  it('preserves obstacle-avoiding bends with square corners', () => {
+    const path = buildEdgePathGeometry({
+      kind: 'orthogonal',
+      waypoints: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }],
+      cornerRadius: 0,
+    });
+    expect(path.d).toBe('M 0,0 L 100,0 L 100,100');
+    expect(path.length).toBeCloseTo(200);
+    expect(validateRenderedPath(path, [{ id: 'middle', rect: { x: 40, y: 40, width: 20, height: 20 } }], 0)).toEqual([]);
+  });
+
   it('keeps the rounded SVG path, commands, and samples consistent', () => {
     const path = buildEdgePathGeometry({
       kind: 'orthogonal',

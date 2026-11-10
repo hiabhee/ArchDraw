@@ -148,13 +148,14 @@ function resolveScorerSide(
   if (!sourceNode || !targetNode) return undefined;
   const sourceRect = getNodeRect(sourceNode, nodes, renderStyleId, iconMode);
   const targetRect = getNodeRect(targetNode, nodes, renderStyleId, iconMode);
-  // Explicit manual sides pin; lane sides only bias the scorer.
-  // Handle ids do NOT pin sides — floating behavior.
+  // Saved side values are hints from earlier geometry and may be stale after
+  // nodes move. Only an explicit lock pins the handle; floating handles follow
+  // the current graph geometry and let stored sides act as scorer preferences.
   if (edge.source === nodeId) {
-    const manual = sideFromDataString(data?.sourceSide);
+    const manual = data?.sourceSideLocked === true ? sideFromDataString(data?.sourceSide) : undefined;
     if (manual !== undefined) return manual;
   } else if (edge.target === nodeId) {
-    const manual = sideFromDataString(data?.targetSide);
+    const manual = data?.targetSideLocked === true ? sideFromDataString(data?.targetSide) : undefined;
     if (manual !== undefined) return manual;
   } else {
     return undefined;
@@ -171,8 +172,8 @@ function resolveScorerSide(
   ]);
   const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId, iconMode);
 
-  const manualSource = sideFromDataString(data?.sourceSide);
-  const manualTarget = sideFromDataString(data?.targetSide);
+  const manualSource = data?.sourceSideLocked === true ? sideFromDataString(data?.sourceSide) : undefined;
+  const manualTarget = data?.targetSideLocked === true ? sideFromDataString(data?.targetSide) : undefined;
   const laneSource = sideFromDataString(data?.laneSourceSide);
   const laneTarget = sideFromDataString(data?.laneTargetSide);
 
