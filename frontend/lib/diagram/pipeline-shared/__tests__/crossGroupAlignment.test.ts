@@ -38,11 +38,11 @@ const interviewApp = `graph LR
   rest -->|"rows"| db
 `;
 
-describe('cross-group edges are drawn level', () => {
-  it('puts a service and the external API it calls on the same level', async () => {
+describe('cross-group edge alignment', () => {
+  it('keeps large endpoint offsets as distinct lanes instead of pulling groups out of place', async () => {
     const { centerY } = await layout(interviewApp);
-    expect(Math.abs(centerY('voice') - centerY('eleven'))).toBeLessThan(1);
-    expect(Math.abs(centerY('ai') - centerY('groq'))).toBeLessThan(1);
+    expect(Math.abs(centerY('voice') - centerY('eleven'))).toBeGreaterThanOrEqual(64);
+    expect(Math.abs(centerY('ai') - centerY('groq'))).toBeGreaterThanOrEqual(64);
   });
 
   it('leaves large offsets (separate lanes) alone', async () => {

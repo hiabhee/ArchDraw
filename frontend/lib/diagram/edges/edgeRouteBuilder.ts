@@ -53,6 +53,26 @@ function completeRoute<T extends Omit<EdgeRouteResult, 'path' | 'renderedPath' |
   terminals?: { source: ObstacleRect; target: ObstacleRect },
   routeOutcome?: RoutePathOutcome,
 ): EdgeRouteResult {
+  // Route corridors terminate outside the card for clearance. Extend only the
+  // final terminal leg to the visible border so the arrow never floats in air.
+  if (terminals && (result.targetPosition === Position.Top || result.targetPosition === Position.Bottom) && result.waypoints.length >= 2) {
+    const points = [...result.waypoints];
+    const last = points[points.length - 1];
+    const previous = points[points.length - 2];
+    const box = terminals.target;
+    const side = result.targetPosition;
+    const tip = side === Position.Top ? { x: last.x, y: box.y }
+      : side === Position.Bottom ? { x: last.x, y: box.y + box.h }
+      : side === Position.Left ? { x: box.x, y: last.y }
+      : { x: box.x + box.w, y: last.y };
+    if (Math.hypot(tip.x - last.x, tip.y - last.y) <= 16) {
+      const normalLeg = side === Position.Top || side === Position.Bottom
+        ? Math.abs(previous.x - last.x) < 0.01 : Math.abs(previous.y - last.y) < 0.01;
+      if (normalLeg) points[points.length - 1] = tip;
+      else points.push(tip);
+      result = { ...result, waypoints: points, targetPoint: tip };
+    }
+  }
   const validation = routeStatus(result.waypoints, nodes, excludedNodeIds, terminals)
   const obstacleViolations = (routeOutcome?.violatedObstacleIds ?? []).map(obstacleId => ({
     code: 'OBSTACLE_INTERSECTION' as const,
@@ -145,8 +165,8 @@ function isAxisAligned(
 /** A measured handle anchor is trustworthy only when it sits on the scored anchor. */
 const HANDLE_ANCHOR_TOLERANCE = 6
 
-const HAIRPIN_ALTERNATIVE_PAIRS = 6
-const ROUTE_STATUS_RANK: Record<EdgeRouteResult['status'], number> = { ok: 0, invalid: 1, failed: 2 }
+const SIDE_CHANGE_STABILITY_BIAS = 8
+const ROUTE_BEND_COST = 28
 
 /**
  * True when the route reverses direction across a leg shorter than `maxLeg`
@@ -254,10 +274,25 @@ function getAbsolutePosition(node: Node, nodes: Node[]): { x: number; y: number 
   return { x, y }
 }
 
-function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode): ObstacleRect {
+export function getNodeRect(node: Node, nodes: Node[], renderStyleId?: string, iconMode?: NodeIconMode): ObstacleRect {
   const pos = getAbsolutePosition(node, nodes)
   const { width: w, height: h } = getEffectiveNodeDimensions(node, renderStyleId, iconMode)
   return { x: pos.x, y: pos.y, w, h }
+}
+
+function __passable(a: string, b: string, nodes: Node[]): Set<string> {
+  if (!process.env.EXP_GROUP_WALLS) return allGroupIds(nodes)
+  const byId = new Map(nodes.map(n => [n.id, n]))
+  const out = new Set<string>()
+  for (const id of [a, b]) {
+    let cur = byId.get(id); const seen = new Set<string>()
+    while (cur && !seen.has(cur.id)) { seen.add(cur.id); const p = cur.parentId || (cur as Node & { parentNode?: string }).parentNode; if (!p) break; const parent = byId.get(p); if (!parent) break; if (isGroupNode(parent)) out.add(p); cur = parent }
+  }
+  return out
+}
+
+function allGroupIds(nodes: Node[]): Set<string> {
+  return new Set(nodes.filter(isGroupNode).map(node => node.id))
 }
 
 export function isGroupNode(node: Node): boolean {
@@ -276,30 +311,6 @@ function sideToPosition(side: string | undefined): Position | undefined {
   if (side === 'top') return Position.Top
   if (side === 'bottom') return Position.Bottom
   return undefined
-}
-
-/**
- * Collects the ids of every group node that contains `nodeId` (all ancestors
- * through the parent chain). An edge may always cross its own groups'
- * boundaries because its endpoints live inside them, so these groups must
- * not be treated as routing obstacles — otherwise the edge could never leave
- * (or stay inside) its container.
- */
-function getAncestorGroupIds(nodeId: string, nodes: Node[]): Set<string> {
-  const result = new Set<string>()
-  const nodeById = new Map(nodes.map((n) => [n.id, n]))
-  const visited = new Set<string>()
-  let currentId = nodeById.get(nodeId)
-  while (currentId && !visited.has(currentId.id)) {
-    visited.add(currentId.id)
-    const parentId = currentId.parentId || (currentId as Node & { parentNode?: string }).parentNode
-    if (!parentId) break
-    const parent = nodeById.get(parentId)
-    if (!parent) break
-    if (isGroupNode(parent)) result.add(parentId)
-    currentId = parent
-  }
-  return result
 }
 
 function buildBlockingNodeRects(
@@ -397,6 +408,7 @@ function computeDirectWaypoints(
   borderRadius: number = 24,
   trustMeasuredTerminals: boolean = false,
   maxExpandedStates?: number,
+  preferStraight: boolean = false,
 ): { waypoints: Array<{ x: number; y: number }>; outcome?: RoutePathOutcome } {
   // A tiny height difference should read as one straight connector. Snap to
   // the midpoint so the wire is pixel-straight instead of a shallow diagonal;
@@ -418,6 +430,24 @@ function computeDirectWaypoints(
     const straight = [ssh, sth];
     const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
     if (!blocked && (trustMeasuredTerminals || !pathEntersTerminalInterior(straight, sourceRect, targetRect))) {
+      return { waypoints: straight };
+    }
+  }
+
+  // Shortest distance between the two anchors: draw a straight wire whenever
+  // nothing is in the way. This is the common case (a clear corridor); when a
+  // card blocks it, fall through to the orthogonal route and its detour. The
+  // caller only enables this when no lane offset applies (parallel /
+  // bidirectional edges keep their offset and never collapse here); a shared
+  // fan channel is ignored because straight wires already diverge.
+  const outwardProjection = (side: Position, dx: number, dy: number) =>
+    side === Position.Right ? dx : side === Position.Left ? -dx : side === Position.Bottom ? dy : -dy;
+  const leavesSource = outwardProjection(sourcePosition, th.x - sh.x, th.y - sh.y) > 0.5;
+  const entersTarget = outwardProjection(targetPosition, sh.x - th.x, sh.y - th.y) > 0.5;
+  if (preferStraight && leavesSource && entersTarget) {
+    const straight = [sh, th];
+    const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
+    if (!blocked && !pathEntersTerminalInterior(straight, sourceRect, targetRect)) {
       return { waypoints: straight };
     }
   }
@@ -581,22 +611,23 @@ function resolveEdgeSideOnNode(
   const sourceHandlerRect = { x: sourceRect.x, y: sourceRect.y, width: sourceRect.w, height: sourceRect.h }
   const targetHandlerRect = { x: targetRect.x, y: targetRect.y, width: targetRect.w, height: targetRect.h }
   const bidirectionalSides = resolveBidirectionalFacingSides(e, edges, sourceHandlerRect, targetHandlerRect)
+  const storedSource = sideToPosition(data?.sourceSide as string)
+  const storedTarget = sideToPosition(data?.targetSide as string)
+  const lockedSource = data?.sourceSideLocked === true ? storedSource : undefined
+  const lockedTarget = data?.targetSideLocked === true ? storedTarget : undefined
   if (e.source === nodeId) {
-    const manual = sideToPosition(data?.sourceSide as string)
+    const manual = lockedSource
     if (manual !== undefined) return manual
   } else {
-    const manual = sideToPosition(data?.targetSide as string)
+    const manual = lockedTarget
     if (manual !== undefined) return manual
   }
   if (bidirectionalSides) {
     return e.source === nodeId ? bidirectionalSides.sourceSide : bidirectionalSides.targetSide
   }
   const excluded = new Set([e.source, e.target])
-  // Match useHandleSlotLayout: per-edge obstacles, not the main edge's.
-  const passableGroupIds = new Set<string>([
-    ...getAncestorGroupIds(e.source, nodes),
-    ...getAncestorGroupIds(e.target, nodes),
-  ])
+  // Match useHandleSlotLayout: per-edge obstacles, not the main edge's (groups are never obstacles).
+  const passableGroupIds = __passable(e.source, e.target, nodes)
   const obstacles = buildScorerObstacles(nodes, excluded, passableGroupIds, renderStyleId, iconMode)
   let pair = selectBestHandlerPair(
     sourceHandlerRect,
@@ -604,13 +635,13 @@ function resolveEdgeSideOnNode(
     direction,
     obstacles.size > 0 ? obstacles : undefined,
     excluded,
-    sideToPosition(data?.sourceSide as string),
-    sideToPosition(data?.targetSide as string),
+    lockedSource,
+    lockedTarget,
     sideToPosition(data?.laneSourceSide as string),
     sideToPosition(data?.laneTargetSide as string),
   )
-  const manualSource = sideToPosition(data?.sourceSide as string)
-  const manualTarget = sideToPosition(data?.targetSide as string)
+  const manualSource = lockedSource
+  const manualTarget = lockedTarget
   const usesCustomWaypoints = Array.isArray(data?.customWaypoints) && data.customWaypoints.length > 0
   if ((manualSource === undefined || manualTarget === undefined) && !usesCustomWaypoints) {
     if (orthogonalPenetratesTerminal(sourceHandlerRect, targetHandlerRect, pair.sourceSide, pair.targetSide)) {
@@ -655,6 +686,14 @@ export interface EdgeRouteOptions {
   searchBudget?: { maxExpandedStates?: number };
   /** Shared only within one immutable graph pass, never across edits. */
   context?: EdgeRoutingContext;
+  /**
+   * Draw the shortest wire between the handles when nothing is in the way.
+   * Rendering (canvas / export) turns this on; the layout scorer keeps the
+   * orthogonal route so its aesthetic tuning stays unchanged.
+   */
+  straightEdges?: boolean;
+  /** Forced only by the global optimizer while comparing crossing costs. */
+  attachmentSides?: { sourceSide: Position; targetSide: Position };
 }
 
 export interface EdgeRoutingContext {
@@ -946,17 +985,14 @@ export function computeEdgeRoute(
   // this library free of store reads prevents an inverted layering dependency
   // where a geometry utility would import the UI state container.
 
-  const laneSourcePreference = sideToPosition(edgeData?.laneSourceSide as string)
-  const laneTargetPreference = sideToPosition(edgeData?.laneTargetSide as string)
+  let laneSourcePreference = sideToPosition(edgeData?.laneSourceSide as string)
+  let laneTargetPreference = sideToPosition(edgeData?.laneTargetSide as string)
 
   const excludedIds = new Set([edge.source, edge.target])
-  // Groups containing either endpoint are passable (the edge starts/ends
-  // inside them); every other group is an obstacle so edges of one group
-  // never cut across another group's rectangle.
-  const passableGroupIds = new Set<string>([
-    ...getAncestorGroupIds(edge.source, nodes),
-    ...getAncestorGroupIds(edge.target, nodes),
-  ])
+  // Groups are never obstacles: an edge takes the shortest way and goes around only what is in its
+  // way (cards). Treating every group an edge does not belong to as a wall sent long edges around
+  // the outside of whole subsystems instead of through their empty space.
+  const passableGroupIds = __passable(edge.source, edge.target, nodes)
   // Validation must skip the same groups routing treats as passable, or every
   // edge leaving its own group is reported as crossing it.
   const validationExcludedIds = new Set<string>([...excludedIds, ...passableGroupIds])
@@ -969,14 +1005,15 @@ export function computeEdgeRoute(
   }
 
   const bidirectionalSides = resolveBidirectionalFacingSides(edge, edges, srcHandlerRect, tgtHandlerRect)
-  let manualSourceSide = sideToPosition(edgeData?.sourceSide as string)
-  let manualTargetSide = sideToPosition(edgeData?.targetSide as string)
-  // The facing sides of a request/reply pair are a preference, not the user's choice: when they
-  // cannot be routed cleanly (another card sits between the two), other sides are tried below.
-  const sidesFromPairOnly = Boolean(bidirectionalSides) && manualSourceSide === undefined && manualTargetSide === undefined
+  const storedSourceSide = sideToPosition(edgeData?.sourceSide as string)
+  const storedTargetSide = sideToPosition(edgeData?.targetSide as string)
+  // Side values are staleable geometry hints. Only an explicit lock pins a
+  // side; ordinary saved sides bias selection but must not block a shorter route.
+  const manualSourceSide = edgeData?.sourceSideLocked === true ? storedSourceSide : undefined
+  const manualTargetSide = edgeData?.targetSideLocked === true ? storedTargetSide : undefined
   if (bidirectionalSides) {
-    manualSourceSide = manualSourceSide ?? bidirectionalSides.sourceSide
-    manualTargetSide = manualTargetSide ?? bidirectionalSides.targetSide
+    laneSourcePreference ??= bidirectionalSides.sourceSide
+    laneTargetPreference ??= bidirectionalSides.targetSide
   }
 
   // Custom waypoints: keep stored sides when present; only score if missing.
@@ -1077,8 +1114,8 @@ export function computeEdgeRoute(
     laneTargetPreference,
   )
 
-  let sourcePosition = handlerPair.sourceSide
-  let targetPosition = handlerPair.targetSide
+  let sourcePosition = routeOptions.attachmentSides?.sourceSide ?? handlerPair.sourceSide
+  let targetPosition = routeOptions.attachmentSides?.targetSide ?? handlerPair.targetSide
 
   if (process.env.NEXT_PUBLIC_DEBUG_EDGES === 'true') {
     logger.debug('[EdgeDebug:4-Final] edge=%s  src=%s→%s  tgt=%s→%s',
@@ -1086,7 +1123,8 @@ export function computeEdgeRoute(
   }
 
   // Terminal penetration guard on orthogonal path; respect lane prefs when falling back.
-  const hasUserOverride = manualSourceSide !== undefined && manualTargetSide !== undefined
+  const hasUserOverride = routeOptions.attachmentSides !== undefined
+    || (manualSourceSide !== undefined && manualTargetSide !== undefined)
   if (!hasUserOverride && orthogonalPenetratesTerminal(
     srcHandlerRect, tgtHandlerRect, sourcePosition, targetPosition,
   )) {
@@ -1118,8 +1156,8 @@ export function computeEdgeRoute(
     }
   }
 
-  if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
-  if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+  if (!routeOptions.attachmentSides && manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+  if (!routeOptions.attachmentSides && manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
   const routeForSides = (sourcePosition: Position, targetPosition: Position): EdgeRouteResult => {
     const nodeMap = context.nodeById
@@ -1142,11 +1180,13 @@ export function computeEdgeRoute(
     // meets the handle it is drawn next to, perpendicular to it.
     const scoredSh = getBoundaryAnchor(
       sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h,
-      sourcePosition, sourceShift,
+      sourcePosition, sourceShift, 0,
+      routeOptions.straightEdges && sourcePosition === targetPosition ? 0 : undefined,
     )
     const scoredTh = getBoundaryAnchor(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
-      targetPosition, targetShift,
+      targetPosition, targetShift, 0,
+      routeOptions.straightEdges && sourcePosition === targetPosition ? 0 : undefined,
     )
     const measuredSh = handleAnchors?.source
     const measuredTh = handleAnchors?.target
@@ -1214,6 +1254,7 @@ export function computeEdgeRoute(
         measuredTh && pointsNear(measuredTh, scoredTh),
       ),
       routeOptions.searchBudget?.maxExpandedStates,
+      routeOptions.straightEdges === true && edgeOffset === 0,
     )
     let waypoints = directRoute.waypoints
     let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
@@ -1279,42 +1320,45 @@ export function computeEdgeRoute(
   }
 
   const primary = routeForSides(sourcePosition, targetPosition)
-  if (sidesFromPairOnly && primary.status !== 'ok'
-    && handleAnchors?.sourceSide === undefined && handleAnchors?.targetSide === undefined) {
-    const pairs = applyLaneBias(
-      scoreAllHandlerPairs(srcHandlerRect, tgtHandlerRect, direction, scorerObstacles, excludedIds),
-      laneSourcePreference,
-      laneTargetPreference,
-    )
-    for (const { pair } of pairs) {
-      if (pair.sourceSide === primary.sourcePosition && pair.targetSide === primary.targetPosition) continue
-      if (orthogonalPenetratesTerminal(srcHandlerRect, tgtHandlerRect, pair.sourceSide, pair.targetSide)) continue
-      const alternative = routeForSides(pair.sourceSide, pair.targetSide)
-      if (alternative.status === 'ok') return alternative
-    }
-  }
-  // A side pair that faces away from the other node forces the router to
-  // overshoot and double back (a tight U next to the handle). When the sides
-  // are ours to choose, try the next-best pairs and keep the first clean
-  // route that validates at least as well.
+  // `edge.data.*Side` is an explicit user choice; bidirectional facing sides
+  // and measured floating handles are only preferences. Evaluate the actual
+  // smooth-step geometry for every legal pair so a short side connection can
+  // beat a heuristically preferred but unnecessarily long route.
   const sidesPinned = manualSourceSide !== undefined || manualTargetSide !== undefined
-    || handleAnchors?.sourceSide !== undefined || handleAnchors?.targetSide !== undefined
-  if (sidesPinned || !hasHairpinTurn(primary.waypoints, curveRadius * 2)) return primary
+    || routeOptions.attachmentSides !== undefined
+  if (sidesPinned) return primary
+
   const alternatives = applyLaneBias(
     scoreAllHandlerPairs(srcHandlerRect, tgtHandlerRect, direction, scorerObstacles, excludedIds),
     laneSourcePreference,
     laneTargetPreference,
   )
-  for (const { pair } of alternatives.slice(0, HAIRPIN_ALTERNATIVE_PAIRS)) {
+  const routeCost = (route: EdgeRouteResult, heuristicScore: number, isPrimary: boolean): number => {
+    const statusCost = route.status === 'ok' ? 0 : route.status === 'invalid' ? 1_000_000 : 2_000_000
+    const bendCount = Math.max(0, route.waypoints.length - 2)
+    const stabilityCost = isPrimary ? 0 : SIDE_CHANGE_STABILITY_BIAS
+    return statusCost + route.violations.length * 100_000
+      + route.renderedPath.length + bendCount * ROUTE_BEND_COST
+      + heuristicScore * 0.01 + stabilityCost
+  }
+  let bestRoute = primary
+  const primaryScore = alternatives.find(({ pair }) =>
+    pair.sourceSide === primary.sourcePosition && pair.targetSide === primary.targetPosition,
+  )
+  let bestCost = routeCost(primary, primaryScore?.total ?? 0, true)
+  for (const { pair, ...score } of alternatives) {
     if (pair.sourceSide === primary.sourcePosition && pair.targetSide === primary.targetPosition) continue
+    if (manualSourceSide !== undefined && pair.sourceSide !== manualSourceSide) continue
+    if (manualTargetSide !== undefined && pair.targetSide !== manualTargetSide) continue
     if (orthogonalPenetratesTerminal(srcHandlerRect, tgtHandlerRect, pair.sourceSide, pair.targetSide)) continue
     const alternative = routeForSides(pair.sourceSide, pair.targetSide)
-    if (ROUTE_STATUS_RANK[alternative.status] <= ROUTE_STATUS_RANK[primary.status]
-      && !hasHairpinTurn(alternative.waypoints, curveRadius * 2)) {
-      return alternative
+    const cost = routeCost(alternative, score.total, false)
+    if (cost < bestCost) {
+      bestRoute = alternative
+      bestCost = cost
     }
   }
-  return primary
+  return bestRoute
 }
 
 /**

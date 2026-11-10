@@ -1,3 +1,5 @@
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles'
+import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility'
 import { Pipeline, pipelineStages, toDomainResult } from '@/lib/diagram/pipeline-core'
 import type { DomainPipelineResult } from '@/lib/diagram/pipeline-core'
 import type { Stage } from '@/lib/diagram/pipeline-core/Stage'
@@ -214,7 +216,7 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
         }
         const nodes = input.objects.nodes;
         const edges = input.objects.edges;
-        const plan = computeDiagramGeometryPlan(nodes, edges, { direction: input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD' });
+        const plan = computeDiagramGeometryPlan(nodes, edges, { direction: input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD', straightEdges: false, renderStyleId: (context.metadata.renderStyleId ?? (context.metadata.layoutProfile === 'studio-minimal' || context.metadata.layoutProfile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined, iconMode: context.metadata.iconMode as NodeIconMode | undefined });
         const geometrySummary: GeometrySummary = {
           status: plan.status,
           ...plan.quality,
@@ -238,6 +240,8 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
 export async function runMermaidPipeline(
   mermaidText: string,
   options: {
+    renderStyleId?: DiagramRenderStyleId;
+    iconMode?: NodeIconMode;
     reduceRedundantEdges?: boolean;
     diagramKind?: 'architecture' | 'workflow';
     pruneOrphans?: boolean;

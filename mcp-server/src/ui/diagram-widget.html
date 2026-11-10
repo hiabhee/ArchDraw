@@ -137,10 +137,11 @@
 
       stage.addEventListener('wheel', (event) => {
         // Inline, a plain scroll keeps scrolling the chat; pinch (ctrl) or ⌘ zooms.
+        // Expanded, the diagram is the whole view: the wheel zooms and dragging pans.
         if (!natural || (displayMode !== 'fullscreen' && !event.ctrlKey && !event.metaKey)) return;
         event.preventDefault();
-        if (event.ctrlKey || event.metaKey) zoomAt(Math.exp(-event.deltaY * 0.01), ...local(event));
-        else { view = { ...view, x: view.x - event.deltaX, y: view.y - event.deltaY }; applyView(); }
+        const speed = event.ctrlKey || event.metaKey ? 0.01 : 0.0025;
+        zoomAt(Math.exp(-event.deltaY * speed), ...local(event));
       }, { passive: false });
 
       const pointers = new Map();
