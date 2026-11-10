@@ -58,11 +58,14 @@ export function computeAlignmentGuides(
   const xCandidates: Candidate[] = [];
   const yCandidates: Candidate[] = [];
 
+  const connectedIds = new Set<string>();
+  for (const edge of edges) {
+    if (draggedIds.has(edge.source)) connectedIds.add(edge.target);
+    if (draggedIds.has(edge.target)) connectedIds.add(edge.source);
+  }
   for (const other of others) {
     const o = getNodeBounds(other);
-    const isEdgeConnected = edges.some(
-      (e) => (draggedIds.has(e.source) && e.target === other.id) || (draggedIds.has(e.target) && e.source === other.id)
-    );
+    const isEdgeConnected = connectedIds.has(other.id);
     const thX = isEdgeConnected ? EDGE_STRAIGHT_THRESHOLD : threshold;
     const thY = isEdgeConnected ? EDGE_STRAIGHT_THRESHOLD : threshold;
     const priority = isEdgeConnected ? 0 : 1; // edge-connected snaps win (straight edge)

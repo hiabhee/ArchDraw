@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, useState, type ReactNode } from 'react';
 import { useStore, type Edge, type Node, type ReactFlowState } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { computeDiagramGeometryPlan, geometrySnapshotKey, type DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
@@ -89,11 +89,18 @@ export function DiagramGeometryProvider({
     () => settledPlans.get(planStoreKey) ?? null,
     () => null,
   );
-  const nodeInternals = useStore((state: ReactFlowState) => state.nodeInternals);
+  const isDragging = nodes.some((node) => node.dragging === true);
+  const heldInternals = useRef<ReactFlowState['nodeInternals'] | null>(null);
+  const nodeInternals = useStore((state: ReactFlowState) => {
+    if (isDragging && heldInternals.current) return heldInternals.current;
+    return state.nodeInternals;
+  });
+  useEffect(() => { if (!isDragging) heldInternals.current = nodeInternals; }, [isDragging, nodeInternals]);
+  const geometryNodes = isDragging ? null : nodes;
   const measuredNodes = useMemo(() => {
     const internal = Array.from(nodeInternals.values()) as Node[];
-    return internal.length ? internal : nodes;
-  }, [nodeInternals, nodes]);
+    return internal.length ? internal : (geometryNodes ?? []);
+  }, [nodeInternals, geometryNodes]);
   const handleAnchors = useMemo(() => {
     const result = new Map<string, EdgeRouteHandleAnchors>();
     const byId = new Map(measuredNodes.map((node) => [node.id, node as Node & {
@@ -114,7 +121,6 @@ export function DiagramGeometryProvider({
     }
     return result;
   }, [measuredNodes, edges]);
-  const isDragging = nodes.some((node) => (node as Node & { dragging?: boolean }).dragging === true);
   // A label drag rewrites `labelT` on every pointer move; keep it out of the plan key so the other edges are not re-planned (and flicker to their fallback routes) mid-drag.
   const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true, straightEdges: false }), [direction, renderStyleId, iconMode, handleAnchors]);
   const geometryKey = useMemo(() => geometrySnapshotKey(measuredNodes, edges, options), [measuredNodes, edges, options]);
@@ -122,19 +128,20 @@ export function DiagramGeometryProvider({
     if (isDragging) return;
     const currentKey = geometryKey;
     if (settledPlans.get(planStoreKey)?.key === currentKey) return;
+    let cancelled = false;
     const timer = setTimeout(() => {
       void computeDiagramGeometryInWorker(measuredNodes, edges, options).then((next) => {
-        if (next.key !== currentKey) return;
+        if (cancelled || next.key !== currentKey) return;
         setWorkerPlan(next);
         publishSettledPlan(planStoreKey, next);
       }).catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'ObsoleteGeometryRequest') return;
+        if (cancelled || (error instanceof Error && error.name === 'ObsoleteGeometryRequest')) return;
         // The worker may be unavailable in older browser/test hosts.
         const next = computeDiagramGeometryPlan(measuredNodes, edges, options);
         if (next.key === currentKey) { setWorkerPlan(next); publishSettledPlan(planStoreKey, next); }
       });
     }, 60);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [isDragging, geometryKey, measuredNodes, edges, options, planStoreKey]);
 
   // During a drag the diagram keeps the last plan it had, instead of rebuilding
