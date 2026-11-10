@@ -31,7 +31,6 @@ import { anyNodeInView } from '@/lib/diagram/canvas/nodesInView';
 import { ContextMenu, type ContextMenuState } from '@/components/editor/ContextMenu';
 import { useSnapping } from '@/hooks/useSnapping';
 import { CometTrailCanvas } from '@/components/canvas/CometTrailCanvas';
-import { useMiddleMousePan } from '@/hooks/useCanvasInteractions';
 import { useCallback, useEffect, useRef, useState, useMemo, Suspense } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
@@ -53,11 +52,9 @@ import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 import { useGrouping } from '@/hooks/useGrouping';
 import { toast } from 'sonner';
 import type { Node } from 'reactflow';
-import { resolveNodeCollisions } from '@/lib/diagram/geometry/resolveNodeCollisions';
 import { useEdgeColors } from '@/lib/theme/edgeColors';
 import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
 import { createNode, createEdge, createBlankShapeNode, createTextLabelNode } from '@/lib/component-library/factory';
-import { nodeCentre } from '@/lib/diagram/geometry/nodeBox';
 import { levelNearAlignedNodes } from '@/lib/diagram/geometry/levelNearAligned';
 import { reactFlowRef } from '@/lib/client/reactFlowRef';
 import { resolveNodeDropConnection } from '@/lib/diagram/canvas/resolveNodeDropConnection';
@@ -231,12 +228,11 @@ function CanvasInner() {
   const isMobile = useIsMobile();
 
   const {
-    onNodesChange, onEdgesChange, onConnect, onReconnect,
+    onEdgesChange, onConnect, onReconnect,
     setSelectedNodeId, setSelectedNodeIds, setSelectedEdgeId,
     setPendingLabelEdgeId,
     setNodes, addNodeOnEdgeDrop, addNode,
   } = useDiagramStore(useShallow((s) => ({
-    onNodesChange: s.onNodesChange,
     onEdgesChange: s.onEdgesChange,
     onConnect: s.onConnect,
     onReconnect: s.onReconnect,
@@ -251,10 +247,9 @@ function CanvasInner() {
   const { isDark } = useCanvasTheme();
 
   const reactFlowInstance = useReactFlow();
-  const { onNodeDrag, onNodeDragStop: onNodeDragStopSnap } = useSnapping();
+  const { onNodesChange, onNodeDragStop: onNodeDragStopSnap } = useSnapping();
   // While a node is lined up with another, alignment wins over the grid so edges can line up exactly.
   const alignmentActive = useDiagramStore((s) => s.guideLines.length > 0);
-  useMiddleMousePan();
   useGrouping();
 
   // Live migration for persisted groups saved before the zIndex fix.
@@ -410,81 +405,30 @@ function CanvasInner() {
     };
   }, [reactFlowInstance]);
 
+  const dragRevision = useRef(0);
+
   // One undo step per drag, recorded at drag start; the moves in between are not recorded.
   const onNodeDragStart = useCallback(() => {
+    dragRevision.current++;
     useDiagramStore.getState().pushHistory();
   }, []);
 
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: Node, draggedNodes: Node[]) => {
+      dragRevision.current++;
       onNodeDragStopSnap(event, node, draggedNodes);
 
-      // Auto-straighten: if dragged node has incident edges that are almost horizontal/vertical,
-      // nudge it so the edge becomes perfectly straight — so user doesn't have to hunt pixel-perfect.
+      // The drop keeps the last snapped position. Layout repair is explicit;
+      // moving neighbours or straightening again here makes the release jump.
       const store = useDiagramStore.getState();
-      const isLR = store.activeLayoutPresetId !== 'layered-tb';
-      const edges = store.edges;
-      const STRAIGHT_THRESHOLD = 12;
-      let autoStraightened = false;
-      const straightenMap = new Map<string, { x: number; y: number }>();
-      const draggedIds = new Set(draggedNodes.map((n) => n.id));
-      for (const dragged of draggedNodes) {
-        const incident = edges.filter((e) => e.source === dragged.id || e.target === dragged.id);
-        for (const edge of incident) {
-          const otherId = edge.source === dragged.id ? edge.target : edge.source;
-          // Nodes dragged together keep their offset; straightening one would shear the selection.
-          if (draggedIds.has(otherId)) continue;
-          const other = store.nodes.find((n) => n.id === otherId);
-          if (!other) continue;
-          // React Flow's own node carries the absolute position and measured size,
-          // which the store copy lacks for nodes inside a group.
-          const dC = nodeCentre(dragged as Node);
-          const oC = nodeCentre(reactFlowRef.instance?.getNode(otherId) ?? other);
-          // Determine if edge is primarily horizontal or vertical
-          const dx = oC.x - dC.x;
-          const dy = oC.y - dC.y;
-          if (isLR && Math.abs(dx) > Math.abs(dy) && Math.abs(dy) > 0 && Math.abs(dy) < STRAIGHT_THRESHOLD) {
-            const cur = straightenMap.get(dragged.id) ?? { x: 0, y: 0 };
-            if (cur.y === 0 || Math.abs(dy) < Math.abs(cur.y)) cur.y = dy;
-            straightenMap.set(dragged.id, cur);
-            autoStraightened = true;
-          } else if (!isLR && Math.abs(dy) > Math.abs(dx) && Math.abs(dx) > 0 && Math.abs(dx) < STRAIGHT_THRESHOLD) {
-            const cur = straightenMap.get(dragged.id) ?? { x: 0, y: 0 };
-            if (cur.x === 0 || Math.abs(dx) < Math.abs(cur.x)) cur.x = dx;
-            straightenMap.set(dragged.id, cur);
-            autoStraightened = true;
-          }
-        }
-      }
-      let currentNodes = store.nodes;
-      if (autoStraightened) {
-        currentNodes = currentNodes.map((n) => {
-          const delta = straightenMap.get(n.id);
-          if (!delta) return n;
-          return { ...n, position: { x: n.position.x + delta.x, y: n.position.y + delta.y } };
-        });
-        setNodes(currentNodes);
-      }
-
-      // Collision resolution (after straightening)
-      const resolvedNodes = resolveNodeCollisions(currentNodes);
-
-      const hasChanges = currentNodes.some((n, i) =>
-        n.position.x !== resolvedNodes[i]?.position.x ||
-        n.position.y !== resolvedNodes[i]?.position.y
-      );
-
-      const latestNodes = hasChanges ? resolvedNodes : useDiagramStore.getState().nodes;
-
-      // Persistence is handled by the store's auto-save subscription, which
-      // saves the final (non-dragging) positions.
-      if (hasChanges) setNodes(resolvedNodes);
-
-      // Recalculate connection handles from the post-drag node positions
-      useDiagramStore.getState().recalculateHandles(latestNodes);
+      store.recalculateHandles(store.nodes);
     },
-    [onNodeDragStopSnap, setNodes]
+    [onNodeDragStopSnap]
   );
+
+  const onSelectionDragStop = useCallback((event: React.MouseEvent, dragged: Node[]) => {
+    if (dragged[0]) onNodeDragStop(event, dragged[0], dragged);
+  }, [onNodeDragStop]);
 
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
@@ -885,14 +829,16 @@ function CanvasInner() {
   // edge are levelled (see levelNearAligned). It changes nothing when there is
   // nothing to fix, and a fix needs no further fix, so it settles after one pass.
   const levelKey = useMemo(
-    () => (projection ? '' : nodes.map((n) => `${n.id}:${Math.round(n.position.x)}:${Math.round(n.position.y)}:${n.width ?? ''}:${n.height ?? ''}`).join('|')),
+    () => (projection ? '' : nodes.map((n) => `${n.id}:${n.width ?? ''}:${n.height ?? ''}`).join('|')),
     [nodes, projection],
   );
   useEffect(() => {
     if (!levelKey) return;
+    const revision = dragRevision.current;
     const timer = setTimeout(() => {
       const store = useDiagramStore.getState();
       const current = store.nodes;
+      if (revision !== dragRevision.current) return;
       if (current.some((n) => (n as Node & { dragging?: boolean }).dragging)) return;
       const connected = new Set(store.edges.flatMap((e) => [e.source, e.target]));
       if (!current.every((n) => !connected.has(n.id) || (n.width && n.height))) return; // still measuring
@@ -1033,8 +979,9 @@ function CanvasInner() {
         onReconnect={projection ? undefined : onReconnect}
         onConnectStart={projection ? undefined : onConnectStart}
         onConnectEnd={projection ? undefined : onConnectEnd}
-        onNodeDrag={projection ? undefined : onNodeDrag}
         onNodeDragStart={projection ? undefined : onNodeDragStart}
+        onSelectionDragStart={projection ? undefined : onNodeDragStart}
+        onSelectionDragStop={projection ? undefined : onSelectionDragStop}
         onNodeDragStop={detailView ? undefined : highLevel ? onHighLevelDragStop : onNodeDragStop}
         onPaneClick={onPaneClickOrPlace}
         onNodeClick={isLiveProject && (!highLevel || detailView) ? onNodeClick : undefined}

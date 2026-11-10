@@ -1526,7 +1526,9 @@
       "data": {
         "label": "no template → LLM",
         "connectionType": "sync",
-        "edgeVariant": "solid"
+        "edgeVariant": "solid",
+        "flowRole": "main",
+        "flowRoleSource": "explicit"
       }
     },
     {
@@ -1540,7 +1542,9 @@
       "data": {
         "label": "architecture plan",
         "connectionType": "sync",
-        "edgeVariant": "solid"
+        "edgeVariant": "solid",
+        "flowRole": "main",
+        "flowRoleSource": "explicit"
       }
     },
     {
@@ -1554,7 +1558,9 @@
       "data": {
         "label": "mermaid code",
         "connectionType": "sync",
-        "edgeVariant": "solid"
+        "edgeVariant": "solid",
+        "flowRole": "main",
+        "flowRoleSource": "explicit"
       }
     },
     {
@@ -1568,7 +1574,9 @@
       "data": {
         "label": "RF nodes/edges",
         "connectionType": "sync",
-        "edgeVariant": "solid"
+        "edgeVariant": "solid",
+        "flowRole": "main",
+        "flowRoleSource": "explicit"
       }
     },
     {
@@ -1582,7 +1590,9 @@
       "data": {
         "label": "diagram score",
         "connectionType": "sync",
-        "edgeVariant": "solid"
+        "edgeVariant": "solid",
+        "flowRole": "main",
+        "flowRoleSource": "explicit"
       }
     },
     {
@@ -1791,6 +1801,20 @@
       "label": "rendered nodes",
       "data": {
         "label": "rendered nodes",
+        "connectionType": "sync",
+        "edgeVariant": "solid"
+      }
+    },
+    {
+      "id": "e_shapenode_canvas",
+      "source": "nd_shapenode",
+      "target": "nd_canvas",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "simpleFloating",
+      "label": "rendered shapes",
+      "data": {
+        "label": "rendered shapes",
         "connectionType": "sync",
         "edgeVariant": "solid"
       }

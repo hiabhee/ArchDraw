@@ -112,7 +112,11 @@ function orthogonalCommands(points: readonly Point[], requestedRadius: number): 
     const cross = incoming.x * outgoing.y - incoming.y * outgoing.x;
     if (Math.abs(cross) < 1e-6) continue;
     const radius = Math.max(0, Math.min(requestedRadius, distance(prev, corner) / 2, distance(corner, next) / 2));
-    if (radius <= 0) continue;
+    if (radius <= 0) {
+      if (distance(cursor, corner) > 0.001) commands.push({ kind: 'line', from: cursor, to: corner });
+      cursor = corner;
+      continue;
+    }
     const start = { x: corner.x - incoming.x * radius, y: corner.y - incoming.y * radius };
     const end = { x: corner.x + outgoing.x * radius, y: corner.y + outgoing.y * radius };
     if (distance(cursor, start) > 0.001) commands.push({ kind: 'line', from: cursor, to: start });

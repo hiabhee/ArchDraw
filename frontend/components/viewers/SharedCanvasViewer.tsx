@@ -376,8 +376,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           elevateNodesOnSelect={false}
           elevateEdgesOnSelect={false}
           panOnDrag
-          panOnScroll
-          zoomOnScroll={false}
+          // A read-only viewer: the wheel zooms (as on a map) and dragging pans.
+          zoomOnScroll
           zoomOnPinch
           fitView
           fitViewOptions={{ padding: 0.15 }}

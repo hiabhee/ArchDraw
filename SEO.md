@@ -237,6 +237,14 @@ Agentic Browsing includes an "agent-centric accessibility" check, so accessibili
 - **Dimmed content still has to pass contrast:** scroll effects that fade inactive steps are measured in their faded state. Compute the lowest opacity that keeps the faintest text at 4.5:1 (3:1 for 24px+ or 18.66px+ bold) and never go below it. On the night page, the muted body text needed at least 0.82; the steps had been at 0.38 (1.8:1).
 - **Source maps:** `productionBrowserSourceMaps: true` clears "Missing source maps for large first-party JavaScript" and makes production errors readable. Only do this when the code may be public (ArchDraw is open source).
 
+## 11c. Performance: measure before you optimise
+
+- **Lighthouse's mobile LCP is simulated.** With the default `throttlingMethod: simulate`, it replays the page as a slow phone on a slow network and charges LCP for every script and stylesheet requested before the first paint. Read `metrics.observedLargestContentfulPaint` in the JSON report, too. On the ArchDraw home page, the hero paragraph really painted at **224 ms**, together with the first paint, while the simulated LCP said 3.0 s (production) or 3.9 s (local build). Real-user Core Web Vitals in PageSpeed Insights' field data are what count for Google.
+- **Compare like with like.** Build `main` and the branch the same way, serve both locally, run Lighthouse three times each and compare medians. A single run, or local against production, is noise.
+- **Find the biggest unused chunk and trace it to its import.** Minified chunks hide library names, but fingerprints such as hundreds of `viewBox` values give them away. Here a 241 KB chunk, 96% unused, was the full `@react-icons-cloud/aws` set (about 500 icons in one pre-bundled file that can't be tree-shaken). It was pulled into every canvas, including the landing hero, which uses none of it. Loading it on demand, the first time an AWS component renders, cut unused JavaScript from **292 to 43 KiB**.
+- **Lazy isn't lazy if it fires during hydration.** An `IntersectionObserver` with a 200px margin fired at once on phones, so the hero map's JavaScript competed with the first paint. Now, when the map is merely visible, it waits for the `load` event and `requestIdleCallback`; interaction still loads it immediately. That cut total blocking time by 19% (219 → 177 ms) and Speed Index by 7% (2,529 → 2,347 ms).
+- **Not every Lighthouse suggestion helps.** `experimental.inlineCss` removed the render-blocking stylesheets but inlined *all* of the app's CSS. The home page HTML grew to 946 KB, and the score fell from 85 to 75. Measure each suggestion; don't apply them in bulk.
+
 ## 12. Launch and measurement checklist
 
 After each deploy:
@@ -286,4 +294,5 @@ After each deploy:
 | 2026-11-07 | Free tools (AI generator, text-to-diagram, system design calculator) and comparison pages; this playbook | #32 |
 | 2026-11-07 | Clean-ups: lint errors to zero, current MCP install commands in docs | #33 |
 | 2026-11-07 | Search Console: sitemap read (116 pages), 8 indexing requests, Rich Results Test; WebMCP origin trial registered | #34 |
-| 2026-11-07 | Lighthouse / PageSpeed fixes on the home page: inert hero toggle, AA contrast for dimmed steps, production source maps | not yet opened |
+| 2026-11-07 | Lighthouse / PageSpeed fixes on the home page: inert hero toggle, AA contrast for dimmed steps, production source maps | #35 |
+| 2026-11-07 | Home page performance: AWS icon set loaded on demand (unused JS 292 → 43 KiB), hero map loads after the page is idle | #36 |

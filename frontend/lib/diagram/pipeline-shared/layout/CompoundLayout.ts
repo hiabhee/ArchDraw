@@ -448,6 +448,8 @@ function alignCrossGroupEdges(
     positions.has(edge.source) && positions.has(edge.target) &&
     parentOf.get(edge.source) !== parentOf.get(edge.target) &&
     (outDegree.get(edge.source)?.size ?? 0) === 1 &&
+    (inDegree.get(edge.source)?.size ?? 0) === 1 &&
+    (outDegree.get(edge.target)?.size ?? 0) <= 1 &&
     (inDegree.get(edge.target)?.size ?? 0) === 1);
 
   const level = new Set<string>();

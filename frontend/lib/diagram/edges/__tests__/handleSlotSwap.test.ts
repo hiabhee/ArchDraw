@@ -54,10 +54,10 @@ describe('getEdgeShiftOffset role → dedicated tip', () => {
 
   it('never places incoming and outgoing on the same tip when both share a side via data overrides', () => {
     const edges: Edge[] = [
-      { id: 'i1', source: 'a', target: 'hub', data: { targetSide: 'right' } },
-      { id: 'i2', source: 'b', target: 'hub', data: { targetSide: 'right' } },
-      { id: 'o1', source: 'hub', target: 'e', data: { sourceSide: 'right' } },
-      { id: 'o2', source: 'hub', target: 'f', data: { sourceSide: 'right' } },
+      { id: 'i1', source: 'a', target: 'hub', data: { targetSide: 'right', targetSideLocked: true } },
+      { id: 'i2', source: 'b', target: 'hub', data: { targetSide: 'right', targetSideLocked: true } },
+      { id: 'o1', source: 'hub', target: 'e', data: { sourceSide: 'right', sourceSideLocked: true } },
+      { id: 'o2', source: 'hub', target: 'f', data: { sourceSide: 'right', sourceSideLocked: true } },
     ];
     const inOnRight = getEdgeShiftOffset('hub', 'i1', Position.Right, edges, internals);
     const outOnRight = getEdgeShiftOffset('hub', 'o1', Position.Right, edges, internals);
