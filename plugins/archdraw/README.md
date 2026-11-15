@@ -68,3 +68,11 @@ To point the plugin at your own ArchDraw deployment, change the `url` in `.mcp.j
 Questions and bug reports: [GitHub issues](https://github.com/hiabhee/ArchDraw/issues). Documentation: [archdraw.hiabhee.online/mcp](https://archdraw.hiabhee.online/mcp). Setup for other clients (Cursor, VS Code, Gemini CLI, OpenCode, Claude apps): [connection guide](https://archdraw.hiabhee.online/docs/connect-agents). [Privacy policy](https://archdraw.hiabhee.online/privacy) · [Terms](https://archdraw.hiabhee.online/terms).
 
 Licensed under MIT.
+
+## Public OpenAI directory submission
+
+The public ChatGPT/Codex directory uses a separate hosted-only ZIP. Build it
+with `node plugins/openai/package.mjs` from the repository root. See
+[the public package guide](../openai/README.md) for validation and submission.
+This keeps the local Codex MCP server and Claude live-project hooks available
+through the existing repository marketplaces.

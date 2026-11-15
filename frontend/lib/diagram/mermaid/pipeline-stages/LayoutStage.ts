@@ -53,14 +53,22 @@ function foldTries(nodeCount: number): number {
 /**
  * A fold (or a mix of directions) may add some weighted crossings over the plain
  * layout and still be used, in proportion to how much larger it makes the diagram on
- * screen: a few for a change that merely tidies the shape, more for one that doubles
- * the text.
+ * screen: a few for a change that merely tidies the shape, more for a much larger result. One
+ * extra soft intersection can consume more of the budget because a single crossing may carry
+ * several weighted edge relationships.
  */
 const FOLD_CROSSING_BASE = 2;
 const FOLD_CROSSING_PER_EXTRA_FIT = 5;
 const FOLD_CROSSING_CAP = 12;
-function foldCrossingAllowance(fitGain: number): number {
-  return Math.min(FOLD_CROSSING_CAP, FOLD_CROSSING_BASE + FOLD_CROSSING_PER_EXTRA_FIT * Math.max(0, fitGain - 1));
+const FOLD_SOFT_CROSSING_CAP = 3;
+const FOLD_SOFT_OVERLAP_CAP = 24;
+function foldCrossingAllowance(fitGain: number, addedCrossings = 0): number {
+  return Math.min(
+    FOLD_CROSSING_CAP,
+    FOLD_CROSSING_BASE
+      + FOLD_CROSSING_PER_EXTRA_FIT * Math.max(0, fitGain - 1)
+      + 5 * Math.max(0, addedCrossings),
+  );
 }
 
 /** A diagram with more nodes than this is not searched for a mix of directions (each trial is a layout). */
@@ -205,7 +213,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     type Measured = ReturnType<typeof measureCandidate>;
 
     /** Lays the nodes out, then tries folding the result; returns the layout to use and its measure. */
-    const produce = (spec: typeof candidates[number]): { candidate: RFObjects; measured: Measured } => {
+    const produce = (spec: typeof candidates[number]): { candidate: RFObjects; measured: Measured; folded: boolean } => {
       const laidOut = applyRfLayout(
         { ...semanticObjects, nodes: spec.nodes } as unknown as Parameters<typeof applyRfLayout>[0],
         input.direction,
@@ -218,11 +226,13 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       // the score sees the rows that will be drawn.
       let candidate = laidOut;
       let measured = measureCandidate(laidOut);
+      let usedFold = false;
       if (foldDirection) {
         // Best-fitting fold first; the first that routes about as cleanly as the
         // unfolded layout wins. A few are tried: the best fit is not always the
         // one whose wrap edges clear every node and label.
-        for (const fold of foldCandidates(laidOut.nodes, { direction: foldDirection, edges: laidOut.edges }).slice(0, foldTries(laidOut.nodes.length))) {
+        const folds = foldCandidates(laidOut.nodes, { direction: foldDirection, edges: laidOut.edges }).slice(0, foldTries(laidOut.nodes.length));
+        for (const fold of folds) {
           const folded = { ...laidOut, nodes: fold.nodes };
           const foldedMeasure = measureCandidate(folded);
           const before = measured.geometry.quality;
@@ -230,15 +240,21 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
           if (
             after.hardViolations <= before.hardViolations &&
             after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount &&
-            after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(foldedMeasure.fit / Math.max(measured.fit, 1e-6))
+            after.crossings <= before.crossings + FOLD_SOFT_CROSSING_CAP &&
+            after.unexplainedPrivateOverlapLength <= Math.max(before.unexplainedPrivateOverlapLength, FOLD_SOFT_OVERLAP_CAP) &&
+            after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(
+              foldedMeasure.fit / Math.max(measured.fit, 1e-6),
+              after.crossings - before.crossings,
+            )
           ) {
             candidate = folded;
             measured = foldedMeasure;
+            usedFold = true;
             break;
           }
         }
       }
-      return { candidate, measured };
+      return { candidate, measured, folded: usedFold };
     };
 
     let layouted: RFObjects | undefined;
@@ -250,7 +266,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const signature = `${(candidateSpec.options as { zones?: boolean } | undefined)?.zones ? 'zones' : 'flow'}:${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
       if (evaluated.has(signature)) return;
       evaluated.add(signature);
-      const { candidate, measured } = produce(candidateSpec);
+      const { candidate, measured, folded } = produce(candidateSpec);
       const { quality, geometry, candidateScore } = measured;
 
 
@@ -280,8 +296,16 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const improvesFit = best !== undefined && measured.fit > best.fit + 1e-6
         && geometry.quality.hardViolations <= best.geometry.quality.hardViolations
         && geometry.quality.criticalPathDisconnectCount <= best.geometry.quality.criticalPathDisconnectCount
-        && geometry.quality.weightedCrossings <= best.geometry.quality.weightedCrossings
-        && geometry.quality.unexplainedPrivateOverlapLength <= best.geometry.quality.unexplainedPrivateOverlapLength;
+        && (!folded || geometry.quality.crossings <= best.geometry.quality.crossings + FOLD_SOFT_CROSSING_CAP)
+        && geometry.quality.weightedCrossings <= best.geometry.quality.weightedCrossings + (folded
+          ? foldCrossingAllowance(
+              measured.fit / Math.max(best.fit, 1e-6),
+              geometry.quality.crossings - best.geometry.quality.crossings,
+            )
+          : 0)
+        && geometry.quality.unexplainedPrivateOverlapLength <= (folded
+          ? Math.max(best.geometry.quality.unexplainedPrivateOverlapLength, FOLD_SOFT_OVERLAP_CAP)
+          : best.geometry.quality.unexplainedPrivateOverlapLength);
       if (!best || improvesFit || (improves && (fixesSomething || !shrinks))) {
         best = { nodeQuality: quality, geometry, fit: measured.fit };
         // Keep Dagre's absolute coordinates for the next sizing stage; the
@@ -398,7 +422,10 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
           measured.fit >= best.fit * MIN_MIX_GAIN &&
           after.hardViolations <= before.hardViolations &&
           after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount &&
-          after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(measured.fit / Math.max(best.fit, 1e-6))
+          after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(
+            measured.fit / Math.max(best.fit, 1e-6),
+            after.crossings - before.crossings,
+          )
         ) {
           best = { nodeQuality: measured.quality, geometry: measured.geometry, fit: measured.fit };
           layouted = candidate;

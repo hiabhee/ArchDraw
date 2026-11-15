@@ -54,3 +54,19 @@ describe('layout aesthetics across every shipped template', () => {
     }
   }, 300_000);
 });
+
+describe('one-to-one edge scoring', () => {
+  it('does not count a short branch as one-to-one when its sibling edge skips a column', () => {
+    const nodes = [
+      { id: 'source', type: 'shapeNode', position: { x: 0, y: 0 }, width: 200, height: 80 },
+      { id: 'near', type: 'shapeNode', position: { x: 400, y: 100 }, width: 200, height: 80 },
+      { id: 'far', type: 'shapeNode', position: { x: 800, y: 0 }, width: 200, height: 80 },
+    ];
+    const edges = [
+      { id: 'near-branch', source: 'source', target: 'near' },
+      { id: 'long-branch', source: 'source', target: 'far' },
+    ];
+
+    expect(measureLayoutAesthetics(nodes as never, edges as never, 'LR').straightEdgeRatio).toBe(1);
+  });
+});

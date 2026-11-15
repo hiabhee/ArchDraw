@@ -157,3 +157,4 @@ export function alignMainSpine<T extends SpineNode>(
     return at.x === node.position.x && at.y === node.position.y ? node : { ...node, position: at };
   });
 }
+

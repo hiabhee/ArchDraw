@@ -230,7 +230,9 @@ export function reactFlowToMermaid(nodes: Node[], edges: Edge[], direction: 'TD'
     ) {
       arrow = '<-->';
     } else if (resolvedVariant === 'dashed' || resolvedVariant === 'dotted' || isAsyncFamily) {
-      arrow = elabel ? `-.${elabel}.->` : '-.->';
+      // Mermaid uses periods to delimit dotted tokens, so a dotted label like
+      // `Pipeline.execute` must use the separate pipe-label syntax.
+      arrow = elabel && !elabel.includes('.') ? `-.${elabel}.->` : '-.->';
     } else {
       arrow = '-->';
     }

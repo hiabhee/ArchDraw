@@ -85,4 +85,4 @@ jobs:
           node-version: 20
 
       - name: Test archdraw-live CLI and plugin hook script
-        run: node --test cli/lib/*.test.mjs plugins/archdraw/scripts/*.test.mjs
+        run: node --test cli/lib/*.test.mjs plugins/archdraw/scripts/*.test.mjs plugins/openai/*.test.mjs
