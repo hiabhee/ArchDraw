@@ -100,8 +100,13 @@ export interface EdgeData {
   labelT?: number;
   /** Keep a label at its rendered-path midpoint instead of collision-aware placement. */
   labelPlacement?: 'auto' | 'midpoint';
+  /** Last side hint; floating routing recomputes it as node geometry changes. */
   sourceSide?: EdgePortSide;
+  /** Last side hint; floating routing recomputes it as node geometry changes. */
   targetSide?: EdgePortSide;
+  /** Pin a floating attachment when a user or imported diagram explicitly requires that port. */
+  sourceSideLocked?: boolean;
+  targetSideLocked?: boolean;
   curvature?: number;
   async?: boolean;
   importance?: 'primary' | 'secondary' | 'supporting' | 'diagnostic' | 'optional';

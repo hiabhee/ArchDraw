@@ -56,6 +56,18 @@ describe('low-bend collision reroutes', () => {
     ])
   })
 
+  it('chooses the shorter side route instead of keeping a bottom attachment from the initial heuristic', () => {
+    const source = makeNode('auth', 0, 0, 304, 100)
+    const target = makeNode('jwt', 674, 90, 304, 110)
+    const edge = { id: 'token', source: 'auth', target: 'jwt', data: {} } as Edge
+
+    const route = computeEdgeRoute(edge, [source, target], [edge], 'LR')
+
+    expect(route.sourcePosition).toBe('right')
+    expect(route.targetPosition).toBe('left')
+    expect(route.waypoints.length).toBeLessThanOrEqual(4)
+  })
+
   it('wraps a mid-corridor blocker with a clean U (≤4 bends, no terminal S)', () => {
     const source = makeNode('source', 0, 100)
     const target = makeNode('target', 500, 100)

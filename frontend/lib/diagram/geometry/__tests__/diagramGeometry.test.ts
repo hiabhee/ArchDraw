@@ -11,6 +11,42 @@ const edge = (id: string, label: string): Edge => ({
 } as Edge);
 
 describe('computeDiagramGeometryPlan', () => {
+  it('uses orthogonal segments for staggered nodes under the canvas routing policy', () => {
+    const nodes = [node('a', 0, 0), node('b', 500, 200)];
+    const edges: Edge[] = [{ id: 'step', source: 'a', target: 'b' }];
+    const plan = computeDiagramGeometryPlan(nodes, edges, { direction: 'LR', straightEdges: false });
+    const points = plan.routes.get('step')!.waypoints;
+    expect(points.length).toBeGreaterThan(2);
+    for (let i = 1; i < points.length; i++) {
+      expect(Math.min(Math.abs(points[i].x - points[i - 1].x), Math.abs(points[i].y - points[i - 1].y))).toBeLessThan(0.01);
+    }
+  });
+
+  it('connects bottom handles with terminal legs instead of a floating horizontal wire', () => {
+    const nodes = [{ ...node('a', 0, 0), height: 100 }, { ...node('b', 500, 0), height: 100 }];
+    const edges: Edge[] = [{ id: 'messages-tools', source: 'b', target: 'a', label: 'messages + tools', data: { sourceSide: 'bottom', targetSide: 'bottom', sourceSideLocked: true, targetSideLocked: true } }];
+    const plan = computeDiagramGeometryPlan(nodes, edges, { direction: 'LR', straightEdges: true });
+    const points = plan.routes.get('messages-tools')!.waypoints;
+    expect(points.length).toBeGreaterThanOrEqual(4);
+    expect(points[1].x).toBe(points[0].x);
+    expect(points[1].y).toBeGreaterThan(points[0].y);
+    expect(points.at(-2)!.x).toBe(points.at(-1)!.x);
+    expect(points.at(-2)!.y).toBeGreaterThan(points.at(-1)!.y);
+    expect(points.at(-1)!.y).toBe(nodes[0].position.y + nodes[0].height!);
+  });
+
+  it('weights crossings independently of input edge order', () => {
+    const nodes = [node('a', 0, 0), node('b', 0, 400), node('c', 500, 400), node('d', 500, 0)];
+    const edges: Edge[] = [
+      { id: 'main', source: 'a', target: 'c', data: { flowRole: 'main', flowRoleSource: 'explicit' } },
+      { id: 'feedback', source: 'b', target: 'd', data: { flowRole: 'feedback', flowRoleSource: 'explicit' } },
+    ];
+    const options = { direction: 'LR' as const, straightEdges: true };
+    const forward = computeDiagramGeometryPlan(nodes, edges, options);
+    const reverse = computeDiagramGeometryPlan(nodes, [...edges].reverse(), options);
+    expect(forward.quality.weightedCrossings).toBe(reverse.quality.weightedCrossings);
+  });
+
   it('invalidates cached label placement for a top-level label edit', () => {
     const nodes = [node('a', 0, 0), node('b', 400, 0)];
     const edges = [{ id: 'label-cache', source: 'a', target: 'b', label: 'short' }] as Edge[];

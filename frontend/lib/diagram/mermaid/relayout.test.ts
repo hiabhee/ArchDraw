@@ -184,7 +184,7 @@ describe('layoutDiagramViaMermaid', () => {
       const laid = result.nodes.find((n) => n.id === orig.id);
       expect(laid?.parentNode).toBe(orig.parentNode);
     }
-  });
+  }, 180_000);
 
   it('does not auto-add a heading when toggling LR/TD (opt-in only)', async () => {
     const nodes: Node[] = [

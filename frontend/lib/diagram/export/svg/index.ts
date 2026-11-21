@@ -126,6 +126,7 @@ export function generatePureSVG(
     renderStyleId,
     iconMode,
     revision: 'svg-export',
+    straightEdges: false,
   });
 
   const nodeBounds = calculateBounds(preparedNodes);

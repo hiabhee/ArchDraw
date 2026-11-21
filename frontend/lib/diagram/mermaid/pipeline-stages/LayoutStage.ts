@@ -1,3 +1,5 @@
+import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
+import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
 import type { PipelineContext } from '@/lib/diagram/pipeline-core';
 import { measureLayoutQuality } from '@/lib/diagram/pipeline-shared/layout/layoutQuality';
@@ -41,8 +43,8 @@ const COLUMN_PACK_GAP = 56;
 const COLUMN_PACK_MIN_GAP = 40;
 /** Tiers are lined up only in diagrams with at most this many top-level groups... */
 const GROUP_ALIGN_MAX = 12;
-/** ...without drawing the diagram more than this much smaller on screen. */
-const GROUP_ALIGN_MAX_SHRINK = 0.1;
+/** Cosmetic alignment must preserve fitted text size. */
+const GROUP_ALIGN_MAX_SHRINK = 0;
 
 function foldTries(nodeCount: number): number {
   return nodeCount <= 20 ? 6 : nodeCount <= 40 ? 3 : 1;
@@ -51,14 +53,22 @@ function foldTries(nodeCount: number): number {
 /**
  * A fold (or a mix of directions) may add some weighted crossings over the plain
  * layout and still be used, in proportion to how much larger it makes the diagram on
- * screen: a few for a change that merely tidies the shape, more for one that doubles
- * the text.
+ * screen: a few for a change that merely tidies the shape, more for a much larger result. One
+ * extra soft intersection can consume more of the budget because a single crossing may carry
+ * several weighted edge relationships.
  */
 const FOLD_CROSSING_BASE = 2;
 const FOLD_CROSSING_PER_EXTRA_FIT = 5;
 const FOLD_CROSSING_CAP = 12;
-function foldCrossingAllowance(fitGain: number): number {
-  return Math.min(FOLD_CROSSING_CAP, FOLD_CROSSING_BASE + FOLD_CROSSING_PER_EXTRA_FIT * Math.max(0, fitGain - 1));
+const FOLD_SOFT_CROSSING_CAP = 3;
+const FOLD_SOFT_OVERLAP_CAP = 24;
+function foldCrossingAllowance(fitGain: number, addedCrossings = 0): number {
+  return Math.min(
+    FOLD_CROSSING_CAP,
+    FOLD_CROSSING_BASE
+      + FOLD_CROSSING_PER_EXTRA_FIT * Math.max(0, fitGain - 1)
+      + 5 * Math.max(0, addedCrossings),
+  );
 }
 
 /** A diagram with more nodes than this is not searched for a mix of directions (each trial is a layout). */
@@ -112,13 +122,15 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     };
     // Studio: large cards packed close, but not so close that a label pill cannot
     // sit between two columns: every label reserves its full width on top of
-    // rankSep, which leaves room for the arrowhead and a gap on both sides. A live
-    // project map keeps more room inside a column for the agent tags that hang
-    // below a component. Other appearances keep the shared default geometry.
+    // rankSep, which leaves room for the arrowhead and a gap on both sides. Inside a
+    // column the cards keep 72px apart, a corridor for edges that pass between them
+    // (at 48px they had none and were routed around the whole column), which also
+    // holds the agent tags of a live project map. Other appearances keep the shared
+    // default geometry.
     const profile = _context.metadata.layoutProfile;
     const layoutOptions = profile === 'studio-minimal' || profile === 'studio-live'
       ? {
-          nodeSep: profile === 'studio-live' ? 72 : 48,
+          nodeSep: process.env.EXP_NS48 ? (profile === 'studio-live' ? 72 : 48) : 72,
           rankSep: 60,
         }
       : undefined;
@@ -154,7 +166,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     const candidates = [
       { nodes: canonicalNodes, options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
       { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
-      { nodes: canonicalNodes, options: { ...base, nodeSep: baseNodeSep + 32, ...flowAreas } },
+      { nodes: canonicalNodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), rankSep: Math.max(40, baseRankSep - 20), ...flowAreas } },
       { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } },
     ];
     const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
@@ -173,7 +185,12 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       // counted twice and grouped candidates receive incorrect scores.
       const normalized = applySubgraphBoundsToRf(laid.nodes);
       const quality = measureLayoutQuality(normalized, laid.edges, qualityDirection);
-      const geometry = getCachedDiagramGeometryPlan(normalized as never, laid.edges as never, { direction: geometryDirection });
+      const geometry = getCachedDiagramGeometryPlan(normalized as never, laid.edges as never, {
+        direction: geometryDirection,
+        straightEdges: false,
+        renderStyleId: (_context.metadata.renderStyleId ?? (profile === 'studio-minimal' || profile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined,
+        iconMode: _context.metadata.iconMode as NodeIconMode | undefined,
+      });
       const labelCollisions = geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
       return {
         quality,
@@ -196,7 +213,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     type Measured = ReturnType<typeof measureCandidate>;
 
     /** Lays the nodes out, then tries folding the result; returns the layout to use and its measure. */
-    const produce = (spec: typeof candidates[number]): { candidate: RFObjects; measured: Measured } => {
+    const produce = (spec: typeof candidates[number]): { candidate: RFObjects; measured: Measured; folded: boolean } => {
       const laidOut = applyRfLayout(
         { ...semanticObjects, nodes: spec.nodes } as unknown as Parameters<typeof applyRfLayout>[0],
         input.direction,
@@ -209,27 +226,40 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       // the score sees the rows that will be drawn.
       let candidate = laidOut;
       let measured = measureCandidate(laidOut);
+      let usedFold = false;
       if (foldDirection) {
         // Best-fitting fold first; the first that routes about as cleanly as the
         // unfolded layout wins. A few are tried: the best fit is not always the
         // one whose wrap edges clear every node and label.
-        for (const fold of foldCandidates(laidOut.nodes, { direction: foldDirection, edges: laidOut.edges }).slice(0, foldTries(laidOut.nodes.length))) {
+        const folds = foldCandidates(laidOut.nodes, { direction: foldDirection, edges: laidOut.edges }).slice(0, foldTries(laidOut.nodes.length));
+        for (const fold of folds) {
           const folded = { ...laidOut, nodes: fold.nodes };
           const foldedMeasure = measureCandidate(folded);
           const before = measured.geometry.quality;
           const after = foldedMeasure.geometry.quality;
+          // Preserve the overlap cap on clean routes. On an already congested
+          // layout, a fold can trade soft overlap for fewer weighted crossings.
+          const acceptableOverlap =
+            after.unexplainedPrivateOverlapLength <= Math.max(before.unexplainedPrivateOverlapLength, FOLD_SOFT_OVERLAP_CAP) ||
+            (before.unexplainedPrivateOverlapLength > FOLD_SOFT_OVERLAP_CAP && after.weightedCrossings < before.weightedCrossings);
           if (
             after.hardViolations <= before.hardViolations &&
             after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount &&
-            after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(foldedMeasure.fit / Math.max(measured.fit, 1e-6))
+            after.crossings <= before.crossings + FOLD_SOFT_CROSSING_CAP &&
+            acceptableOverlap &&
+            after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(
+              foldedMeasure.fit / Math.max(measured.fit, 1e-6),
+              after.crossings - before.crossings,
+            )
           ) {
             candidate = folded;
             measured = foldedMeasure;
+            usedFold = true;
             break;
           }
         }
       }
-      return { candidate, measured };
+      return { candidate, measured, folded: usedFold };
     };
 
     let layouted: RFObjects | undefined;
@@ -241,8 +271,10 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const signature = `${(candidateSpec.options as { zones?: boolean } | undefined)?.zones ? 'zones' : 'flow'}:${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
       if (evaluated.has(signature)) return;
       evaluated.add(signature);
-      const { candidate, measured } = produce(candidateSpec);
+      const { candidate, measured, folded } = produce(candidateSpec);
       const { quality, geometry, candidateScore } = measured;
+
+
       const score = (value: typeof best) => value
         ? [
             value.geometry.quality.hardViolations,
@@ -261,7 +293,25 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
         for (let previous = 0; previous < index; previous++) if (candidateScore[previous] !== priorScore[previous]) return false;
         return value < priorScore[index];
       });
-      if (!best || improves) {
+      // Protect fitted typography: route tie-breaks cannot shrink a diagram.
+      // A smaller result must fix hard geometry or main-path failures.
+      const fixesSomething = candidateScore[0] < priorScore[0]
+        || (candidateScore[0] === priorScore[0] && candidateScore[1] < priorScore[1]);
+      const shrinks = best !== undefined && measured.fit < best.fit - 1e-6;
+      const improvesFit = best !== undefined && measured.fit > best.fit + 1e-6
+        && geometry.quality.hardViolations <= best.geometry.quality.hardViolations
+        && geometry.quality.criticalPathDisconnectCount <= best.geometry.quality.criticalPathDisconnectCount
+        && (!folded || geometry.quality.crossings <= best.geometry.quality.crossings + FOLD_SOFT_CROSSING_CAP)
+        && geometry.quality.weightedCrossings <= best.geometry.quality.weightedCrossings + (folded
+          ? foldCrossingAllowance(
+              measured.fit / Math.max(best.fit, 1e-6),
+              geometry.quality.crossings - best.geometry.quality.crossings,
+            )
+          : 0)
+        && geometry.quality.unexplainedPrivateOverlapLength <= (folded
+          ? Math.max(best.geometry.quality.unexplainedPrivateOverlapLength, FOLD_SOFT_OVERLAP_CAP)
+          : best.geometry.quality.unexplainedPrivateOverlapLength);
+      if (!best || improvesFit || (improves && (fixesSomething || !shrinks))) {
         best = { nodeQuality: quality, geometry, fit: measured.fit };
         // Keep Dagre's absolute coordinates for the next sizing stage; the
         // normalized copy is only the coordinate-space-correct scoring view.
@@ -281,6 +331,37 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     }
     if ((best?.nodeQuality.weightedCrossings ?? 0) > 0 || (best?.geometry.quality.weightedCrossings ?? 0) > 0) {
       evaluate(candidates[1]);
+    }
+    evaluate(candidates[2]);
+    evaluate({ ...candidates[2], nodes: [...canonicalNodes].reverse() });
+    // Packing both axes can close a necessary corridor. Search each axis separately
+    // on small/medium maps; all candidates still pass the complete route score.
+    if (canonicalNodes.length <= 40 && best && best.fit < 1) {
+      for (const nodes of [canonicalNodes, [...canonicalNodes].reverse()]) {
+        evaluate({ nodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: Math.max(40, baseRankSep - 20), ...flowAreas } });
+        evaluate({ nodes, options: { ...base, nodeSep: Math.max(48, baseNodeSep - 12), rankSep: Math.max(40, baseRankSep - 10), ...flowAreas } });
+      }
+    }
+
+    // A folded layout just wider than its viewport can fit at full scale
+    // with a slightly tighter rank gap. Evaluate it through the same route guards.
+    if (foldDirection && best && best.fit >= 0.95 && best.fit < 1) {
+      evaluate({
+        ...candidates[2],
+        options: { ...candidates[2].options, rankSep: Math.max(36, baseRankSep - 24) },
+      });
+    }
+
+    if (best && (best.geometry.quality.weightedCrossings > 0 || best.geometry.quality.unexplainedPrivateOverlapLength > 0)) {
+      // Congestion can need more room on one axis, not a globally looser diagram.
+      for (const nodes of [canonicalNodes, [...canonicalNodes].reverse()]) {
+        evaluate({ nodes, options: { ...base, nodeSep: baseNodeSep + 24, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 16, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 24, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 32, ...flowAreas } });
+        evaluate({ nodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } });
+      }
     }
     if (best?.geometry.quality.hardViolations) {
       // Two bounded Dagre spacing repairs. Route optimization then reallocates
@@ -355,7 +436,10 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
           measured.fit >= best.fit * MIN_MIX_GAIN &&
           after.hardViolations <= before.hardViolations &&
           after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount &&
-          after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(measured.fit / Math.max(best.fit, 1e-6))
+          after.weightedCrossings <= before.weightedCrossings + foldCrossingAllowance(
+            measured.fit / Math.max(best.fit, 1e-6),
+            after.crossings - before.crossings,
+          )
         ) {
           best = { nodeQuality: measured.quality, geometry: measured.geometry, fit: measured.fit };
           layouted = candidate;
@@ -387,7 +471,9 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const fansBefore = fans(layouted.nodes);
       const worse = (measured: Measured, nodes: RFObjects['nodes']) => {
         const after = measured.geometry.quality;
-        if (after.hardViolations > before.hardViolations
+        if (measured.fit < settled.fit - 1e-6
+          || after.unexplainedPrivateOverlapLength > before.unexplainedPrivateOverlapLength
+          || after.hardViolations > before.hardViolations
           || after.criticalPathDisconnectCount > before.criticalPathDisconnectCount
           || after.weightedCrossings > before.weightedCrossings
           || labelHits(measured.geometry) > labelHits(settled.geometry)) return true;

@@ -31,39 +31,64 @@ describe('computeEdgeRoute routing', () => {
     expect(route.svgPath).toBe('M 312,153 L 488,153');
   });
 
-  it('does not straighten a near-aligned link through another node', () => {
+  it('does not straighten a link through another node', () => {
     const nodes = [
-      makeNode('a', 100, 100),
-      makeNode('b', 500, 106),
-      makeNode('blocker', 355, 120, 80, 60),
+      makeNode('a', 0, 100),
+      makeNode('b', 800, 100),
+      makeNode('blocker', 400, 60),
     ];
     const edge = makeEdge('e1', 'a', 'b');
-    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+    // Force the flow sides so the direct wire has to cross the blocker.
+    edge.data = { sourceSide: 'right', targetSide: 'left' };
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, { straightEdges: true });
 
     expect(route.waypoints.length).toBeGreaterThan(2);
     expect(route.waypoints[0]).toEqual(route.sourcePoint);
     expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });
 
-  it('keeps a tiny off-axis jog as a routed path (no straight-snap)', () => {
+  it('draws a straight diagonal for a tiny off-axis jog', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 112)];
     const edge = makeEdge('e1', 'a', 'b');
-    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, { straightEdges: true });
 
-    expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints[0]).toEqual({ x: 312, y: 150 });
-    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 162 });
+    // Nothing between the handles: the shortest wire is the straight one.
+    expect(route.waypoints).toEqual([
+      { x: 312, y: 150 },
+      { x: 488, y: 162 },
+    ]);
+    expect(route.svgPath).toBe('M 312,150 L 488,162');
   });
 
-  it('keeps the routed Z path for a large vertical offset', () => {
+  it('draws a straight diagonal for a large vertical offset', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 300)];
     const edge = makeEdge('e1', 'a', 'b');
-    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, { straightEdges: true });
 
-    expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(route.waypoints[0]).toEqual({ x: 312, y: 150 });
-    expect(route.waypoints[route.waypoints.length - 1]).toEqual({ x: 488, y: 350 });
+    expect(route.waypoints).toEqual([
+      { x: 312, y: 150 },
+      { x: 488, y: 350 },
+    ]);
+    expect(route.svgPath).toBe('M 312,150 L 488,350');
   });
+
+  it('draws a straight fan branch instead of a shared channel when clear', () => {
+    const nodes = [
+      makeNode('a', 100, 200),
+      makeNode('b', 600, 120),
+      makeNode('c', 600, 300),
+    ]
+    const e1 = makeEdge('e1', 'a', 'b')
+    const e2 = makeEdge('e2', 'a', 'c')
+    const opts = { straightEdges: true }
+    const r1 = computeEdgeRoute(e1, nodes, [e1, e2], 'LR', undefined, undefined, undefined, opts)
+    const r2 = computeEdgeRoute(e2, nodes, [e1, e2], 'LR', undefined, undefined, undefined, opts)
+
+    // Both branches leave the same anchor: a shared orthogonal channel would
+    // draw them on one wire, but the straight diagonals already diverge.
+    expect(r1.waypoints.length).toBe(2)
+    expect(r2.waypoints.length).toBe(2)
+  })
 
   it('keeps parallel-edge separation (does not snap overlapping straights)', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 112)];
@@ -83,7 +108,7 @@ describe('computeEdgeRoute routing', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
     const pinned = {
       ...makeEdge('a-b', 'a', 'b'),
-      data: { sourceSide: 'top', targetSide: 'top' },
+      data: { sourceSide: 'top', targetSide: 'top', sourceSideLocked: true, targetSideLocked: true },
     } as Edge;
     const reverse = makeEdge('b-a', 'b', 'a');
 
@@ -99,7 +124,7 @@ describe('computeEdgeRoute routing', () => {
       const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 100)];
       const pinned = {
         ...makeEdge('a-b', 'a', 'b'),
-        data: { sourceSide: side, targetSide: side },
+        data: { sourceSide: side, targetSide: side, sourceSideLocked: true, targetSideLocked: true },
       } as Edge;
       const reverse = makeEdge('b-a', 'b', 'a');
 
@@ -118,7 +143,7 @@ describe('computeEdgeRoute routing', () => {
     ];
     const edge = {
       ...makeEdge('a-b', 'a', 'b'),
-      data: { sourceSide: 'right', targetSide: 'left' },
+      data: { sourceSide: 'right', targetSide: 'left', sourceSideLocked: true, targetSideLocked: true },
     } as Edge;
 
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
@@ -138,7 +163,7 @@ describe('computeEdgeRoute routing', () => {
     ];
     const edge = {
       ...makeEdge('a-b', 'a', 'b'),
-      data: { sourceSide: 'right', targetSide: 'left' },
+      data: { sourceSide: 'right', targetSide: 'left', sourceSideLocked: true, targetSideLocked: true },
     } as Edge;
 
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');

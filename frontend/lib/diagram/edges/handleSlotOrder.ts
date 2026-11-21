@@ -27,8 +27,8 @@ function sideFromDataString(value: unknown): Position | undefined {
 
 /**
  * Which side of `nodeId` an edge renders on, mirroring the floating-side
- * router: explicit data override first, then lane override, then center-to-center geometry.
- * Handle ids no longer pin sides.
+ * router: locked override, lane preference, then current graph geometry.
+ * Old sourceSide/targetSide values are only a fallback without node geometry.
  */
 export function inferEdgeSide(
   edge: Edge,
@@ -36,19 +36,22 @@ export function inferEdgeSide(
   nodePositions?: Map<string, SlotNodePos>,
 ): Position | undefined {
   const data = edge.data as Record<string, unknown> | undefined;
-  const manual = sideFromDataString(
+  const lockedSide = sideFromDataString(
     edge.source === nodeId ? data?.sourceSide : data?.targetSide,
   );
-  if (manual !== undefined) return manual;
+  const isLocked = edge.source === nodeId
+    ? data?.sourceSideLocked === true
+    : data?.targetSideLocked === true;
+  if (isLocked && lockedSide !== undefined) return lockedSide;
   const lane = sideFromDataString(
     edge.source === nodeId ? data?.laneSourceSide : data?.laneTargetSide,
   );
   if (lane !== undefined) return lane;
 
-  if (!nodePositions) return undefined;
+  if (!nodePositions) return isLocked ? lockedSide : undefined;
   const self = nodePositions.get(nodeId);
   const other = nodePositions.get(edge.source === nodeId ? edge.target : edge.source);
-  if (!self || !other) return undefined;
+  if (!self || !other) return isLocked ? lockedSide : undefined;
 
   const dx = other.x + other.width / 2 - (self.x + self.width / 2);
   const dy = other.y + other.height / 2 - (self.y + self.height / 2);

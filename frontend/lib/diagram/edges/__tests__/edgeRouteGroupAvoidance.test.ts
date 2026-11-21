@@ -70,10 +70,11 @@ function pathHitsRect(points: Array<{ x: number; y: number }>, rect: Rect): bool
   return false;
 }
 
-describe('computeEdgeRoute group-node avoidance', () => {
-  it('routes an edge inside a group around an unrelated group that blocks the corridor', () => {
+describe('computeEdgeRoute group-node handling', () => {
+  it('passes an edge inside a group straight through another group’s empty space', () => {
     // Nodes A and B both live in grpA; grpB is a separate group sitting in the
-    // middle of the direct path between them.
+    // middle of the direct path between them. Groups are passable: only cards
+    // block an edge, so the shortest route is a straight line.
     const grpA = makeGroup('grpA', 0, 0, 900, 200);
     const s = makeChild('s', 'grpA', 80, 70);
     const t = makeChild('t', 'grpA', 700, 70);
@@ -83,14 +84,12 @@ describe('computeEdgeRoute group-node avoidance', () => {
     const edge = makeEdge('e1', 's', 't');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
-    // The direct corridor (y≈105, x 200→700) crosses grpB (x 400–540, y 55–145).
-    expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(pathHitsRect(route.waypoints, { x: 400, y: 55, w: 140, h: 90 })).toBe(false);
+    expect(route.waypoints.length).toBe(2);
     expect(route.waypoints[0]).toEqual(route.sourcePoint);
     expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });
 
-  it('routes an edge between two groups around a third unrelated group', () => {
+  it('passes an edge between two groups straight through a third group’s space', () => {
     const grpA = makeGroup('grpA', 0, 0, 300, 200);
     const grpC = makeGroup('grpC', 600, 0, 300, 200);
     const s = makeChild('s', 'grpA', 80, 70);
@@ -101,11 +100,12 @@ describe('computeEdgeRoute group-node avoidance', () => {
     const edge = makeEdge('e1', 's', 't');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
-    expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(pathHitsRect(route.waypoints, { x: 350, y: 55, w: 200, h: 90 })).toBe(false);
+    expect(route.waypoints.length).toBe(2);
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });
 
-  it('routes an edge from a group to a free node around an unrelated group', () => {
+  it('passes an edge from a group to a free node straight through an unrelated group’s space', () => {
     const grpA = makeGroup('grpA', 0, 0, 300, 200);
     const s = makeChild('s', 'grpA', 80, 70);
     const t = makeNode('t', 700, 70);
@@ -115,8 +115,9 @@ describe('computeEdgeRoute group-node avoidance', () => {
     const edge = makeEdge('e1', 's', 't');
     const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
 
-    expect(route.waypoints.length).toBeGreaterThan(2);
-    expect(pathHitsRect(route.waypoints, { x: 350, y: 55, w: 200, h: 90 })).toBe(false);
+    expect(route.waypoints.length).toBe(2);
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints[route.waypoints.length - 1]).toEqual(route.targetPoint);
   });
 
   it('does not treat a node as an obstacle when it is inside the same group', () => {

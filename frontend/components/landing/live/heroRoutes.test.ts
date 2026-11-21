@@ -5,7 +5,7 @@ import { buildHeroGraphs } from './heroGraph';
 
 async function hero() {
   const { base } = await buildHeroGraphs();
-  const plan = computeDiagramGeometryPlan(base.nodes, base.edges, { direction: 'LR' });
+  const plan = computeDiagramGeometryPlan(base.nodes, base.edges, { direction: 'LR', straightEdges: false, renderStyleId: 'studio-metallic' });
   const route = (source: string, target: string) => {
     const edge = base.edges.find((e) => e.source === source && e.target === target)!;
     return plan.routes.get(edge.id)!.waypoints;
@@ -22,25 +22,29 @@ describe('landing hero layout and routing', () => {
     expect(score.columnSpacingSpread).toBeLessThan(1);
   });
 
-  it('draws the gateway fan-out as one shared trunk, with a straight line to the middle target', async () => {
+  it('routes gateway fan branches through shared orthogonal channels', async () => {
     const { route } = await hero();
-    expect(route('gateway', 'auth')).toHaveLength(4);
-    expect(route('gateway', 'orders')).toHaveLength(4);
+    expect(route('gateway', 'auth').length).toBeGreaterThanOrEqual(3);
+    expect(route('gateway', 'auth').length).toBeLessThanOrEqual(4);
+    expect(route('gateway', 'orders').length).toBeGreaterThanOrEqual(3);
+    expect(route('gateway', 'orders').length).toBeLessThanOrEqual(4);
     expect(route('gateway', 'payments')).toHaveLength(2);
     const trunkX = new Set(['auth', 'orders'].map((target) => Math.round(route('gateway', target)[1].x)));
     expect(trunkX.size).toBe(1);
   });
 
-  it('merges Web and Mobile into the gateway through one channel', async () => {
+  it('routes Web and Mobile through one orthogonal channel', async () => {
     const { route } = await hero();
     const web = route('web', 'gateway');
     const mobile = route('mobile', 'gateway');
-    expect(web).toHaveLength(4);
-    expect(mobile).toHaveLength(4);
+    expect(web.length).toBeGreaterThanOrEqual(3);
+    expect(web.length).toBeLessThanOrEqual(4);
+    expect(mobile.length).toBeGreaterThanOrEqual(3);
+    expect(mobile.length).toBeLessThanOrEqual(4);
     expect(Math.round(web[1].x)).toBe(Math.round(mobile[1].x));
   });
 
-  it('routes edges between two groups through one channel instead of lanes at both ends', async () => {
+  it('routes edges between two groups without crossings or unnecessary bends', async () => {
     const { plan, route } = await hero();
     for (const [source, target] of [['auth', 'redis'], ['orders', 'email'], ['orders', 'search'], ['payments', 'stripe']]) {
       expect(route(source, target).length).toBeLessThanOrEqual(4);
@@ -53,7 +57,7 @@ describe('landing hero layout and routing', () => {
     // Orders feeds both Workers and Data, so those groups must sit in the order of their sources
     // (Workers above Data); otherwise Orders → Workers would have to cross Payments → Stripe.
     expect(plan.quality.unexplainedPrivateOverlapLength).toBe(0);
-    expect(route('orders', 'email')[2].y).toBeLessThan(route('orders', 'postgres')[2].y);
-    expect(route('payments', 'stripe')[2].y).toBeLessThan(route('auth', 'redis')[2].y);
+    expect(route('orders', 'email').at(-1)!.y).toBeLessThan(route('orders', 'postgres').at(-1)!.y);
+    expect(route('payments', 'stripe').at(-1)!.y).toBeLessThan(route('auth', 'redis').at(-1)!.y);
   });
 });

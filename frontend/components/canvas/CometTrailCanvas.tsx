@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useReactFlow, useViewport } from 'reactflow';
+import { useReactFlow } from 'reactflow';
 import { useDiagramStore } from '@/store/diagramStore';
 
 interface Point {
@@ -18,18 +18,21 @@ interface Stroke {
 export function CometTrailCanvas() {
   const isPenModeActive = useDiagramStore((s) => s.isPenModeActive);
   const reactFlowInstance = useReactFlow();
-  const { x, y, zoom } = useViewport();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const isDrawingRef = useRef(false);
   const currentStrokeIdRef = useRef<string | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const startAnimationRef = useRef<() => void>(() => {});
+  const sizeRef = useRef({ width: 0, height: 0 });
 
   // Resize canvas handler to handle window sizing and Retina displays
   const resizeCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
+    sizeRef.current = { width: rect.width, height: rect.height };
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
@@ -46,24 +49,17 @@ export function CometTrailCanvas() {
     return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
 
-  // Frame loop for 60fps trail decay and render
+  // Animate only while strokes remain; normal canvas navigation does no pen work.
   useEffect(() => {
-    let animationFrameId: number;
-
     const render = () => {
       const canvas = canvasRef.current;
-      if (!canvas) {
-        animationFrameId = requestAnimationFrame(render);
-        return;
-      }
+      animationRef.current = null;
+      if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        animationFrameId = requestAnimationFrame(render);
-        return;
-      }
+      if (!ctx) return;
 
-      const rect = canvas.getBoundingClientRect();
-      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.clearRect(0, 0, sizeRef.current.width, sizeRef.current.height);
+      const { x, y, zoom } = reactFlowInstance.getViewport();
 
       const now = Date.now();
 
@@ -106,12 +102,18 @@ export function CometTrailCanvas() {
         }
       });
 
-      animationFrameId = requestAnimationFrame(render);
+      if (strokesRef.current.length) animationRef.current = requestAnimationFrame(render);
     };
 
-    animationFrameId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [x, y, zoom]);
+    startAnimationRef.current = () => {
+      if (animationRef.current === null) animationRef.current = requestAnimationFrame(render);
+    };
+    return () => {
+      if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+      startAnimationRef.current = () => {};
+    };
+  }, [reactFlowInstance]);
 
   // Pointer Down
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -131,6 +133,7 @@ export function CometTrailCanvas() {
     const newStrokeId = Math.random().toString(36);
     currentStrokeIdRef.current = newStrokeId;
 
+    startAnimationRef.current();
     strokesRef.current.push({
       id: newStrokeId,
       points: [{ x: flowPos.x, y: flowPos.y, time: Date.now() }]

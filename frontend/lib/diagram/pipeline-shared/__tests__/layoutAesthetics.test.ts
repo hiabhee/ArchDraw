@@ -21,7 +21,7 @@ const DEFAULT_FAN_CEILING = 10;
 
 const STRAIGHT_FLOOR: Record<string, number> = {};
 
-/** Key: `${template id}:${LR|TD}`. Every template not listed here must be within the default. */
+/** Key: template id. Every template not listed here must be within the default. */
 const FAN_CEILING: Record<string, number> = {
   // Dense and flat (56 nodes): interlocking fans that cannot all be centred.
   'archdraw_self:LR': 350,
@@ -41,16 +41,32 @@ const FAN_CEILING: Record<string, number> = {
 };
 
 describe('layout aesthetics across every shipped template', () => {
-  it('keeps one-to-one links straight and fans centred within their ratchet', async () => {
-    for (const template of TEMPLATES) {
-      for (const direction of ['LR', 'TD'] as const) {
-        // Folding wraps a long flow into rows and splits fans across them on purpose; this measures the symmetry engine's own layout.
+  for (const template of TEMPLATES) {
+    for (const direction of ['LR', 'TD'] as const) {
+      const label = `${template.id}:${direction}`;
+      it(`${label} keeps one-to-one links straight and fans centred`, async () => {
+        // Folding can split fans across rows, so measure the unfolded layout.
         const laid = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { foldLongFlows: false });
         const score = measureLayoutAesthetics(laid.nodes, laid.edges, direction);
-        const label = `${template.id} ${direction}`;
         expect(score.straightEdgeRatio, `${label} straight links`).toBeGreaterThanOrEqual(STRAIGHT_FLOOR[template.id] ?? DEFAULT_STRAIGHT_FLOOR);
-        expect(score.fanCenteringError, `${label} fan centring (px)`).toBeLessThanOrEqual(FAN_CEILING[`${template.id}:${direction}`] ?? DEFAULT_FAN_CEILING);
-      }
+        expect(score.fanCenteringError, `${label} fan centring (px)`).toBeLessThanOrEqual(FAN_CEILING[label] ?? DEFAULT_FAN_CEILING);
+      }, 180_000);
     }
-  }, 300_000);
+  }
+});
+
+describe('one-to-one edge scoring', () => {
+  it('does not count a short branch as one-to-one when its sibling edge skips a column', () => {
+    const nodes = [
+      { id: 'source', type: 'shapeNode', position: { x: 0, y: 0 }, width: 200, height: 80 },
+      { id: 'near', type: 'shapeNode', position: { x: 400, y: 100 }, width: 200, height: 80 },
+      { id: 'far', type: 'shapeNode', position: { x: 800, y: 0 }, width: 200, height: 80 },
+    ];
+    const edges = [
+      { id: 'near-branch', source: 'source', target: 'near' },
+      { id: 'long-branch', source: 'source', target: 'far' },
+    ];
+
+    expect(measureLayoutAesthetics(nodes as never, edges as never, 'LR').straightEdgeRatio).toBe(1);
+  });
 });

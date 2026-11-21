@@ -108,8 +108,12 @@ export function measureLayoutAesthetics(
   };
   const out = new Map<string, Set<string>>();
   const into = new Map<string, Set<string>>();
+  const allOut = new Map<string, Set<string>>();
+  const allInto = new Map<string, Set<string>>();
   for (const edge of edges) {
     if (edge.source === edge.target || !leafIds.has(edge.source) || !leafIds.has(edge.target)) continue;
+    (allOut.get(edge.source) ?? allOut.set(edge.source, new Set()).get(edge.source)!).add(edge.target);
+    (allInto.get(edge.target) ?? allInto.set(edge.target, new Set()).get(edge.target)!).add(edge.source);
     if (skipsColumn(edge.source, edge.target)) continue;
     (out.get(edge.source) ?? out.set(edge.source, new Set()).get(edge.source)!).add(edge.target);
     (into.get(edge.target) ?? into.set(edge.target, new Set()).get(edge.target)!).add(edge.source);
@@ -164,7 +168,10 @@ export function measureLayoutAesthetics(
   for (const edge of edges) {
     if (!leafIds.has(edge.source) || !leafIds.has(edge.target) || edge.source === edge.target) continue;
     if (skipsColumn(edge.source, edge.target)) continue;
-    if (out.get(edge.source)?.size !== 1 || into.get(edge.target)?.size !== 1) continue;
+    // A skipped long edge is still another relationship for one-to-one
+    // classification. Otherwise a branch is miscounted as a straight link just
+    // because its other branch spans a column and was excluded from fan scoring.
+    if (allOut.get(edge.source)?.size !== 1 || allInto.get(edge.target)?.size !== 1) continue;
     oneToOne++;
     if (Math.abs(cross(edge.source) - cross(edge.target)) < 1) straight++;
   }

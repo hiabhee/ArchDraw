@@ -289,7 +289,7 @@ describe('computeDynamicSlotOffsets', () => {
         makeEdge('e1', 'above', 'center', 'source-left', 'target-left'),
         {
           ...makeEdge('e2', 'center', 'below', 'source-right', 'target-right'),
-          data: { sourceSide: 'right', targetSide: 'right' },
+          data: { sourceSide: 'right', targetSide: 'right', sourceSideLocked: true, targetSideLocked: true },
         } as Edge,
       ];
 

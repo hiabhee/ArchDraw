@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { MapLevelToggle } from '@/components/canvas/MapLevelToggle';
 import { useProjectLiveStore } from '@/store/projectLiveStore';
 import { Trash2, Upload, Undo2, Redo2, Share2, Radio, Loader2, Check, GraduationCap, MoreHorizontal, HelpCircle, PanelLeftClose, LayoutTemplate, FolderOpen, LayoutDashboard, Github, PenTool, Type, Moon, Sun } from 'lucide-react';
@@ -33,14 +33,14 @@ export function Toolbar() {
   const router = useRouter();
   const {
     clearDiagram,
-    nodes,
-    edges,
+    nodeCount,
+    edgeCount,
     importDiagram,
     undo,
     redo,
-    past,
-    future,
-    canvases,
+    canUndo,
+    canRedo,
+    canvasName,
     activeCanvasId,
     removeCanvas,
     savingState,
@@ -57,14 +57,14 @@ export function Toolbar() {
   } = useDiagramStore(
     useShallow((s) => ({
       clearDiagram: s.clearDiagram,
-      nodes: s.nodes,
-      edges: s.edges,
+      nodeCount: s.nodes.length,
+      edgeCount: s.edges.length,
       importDiagram: s.importDiagram,
       undo: s.undo,
       redo: s.redo,
-      past: s.past,
-      future: s.future,
-      canvases: s.canvases,
+      canUndo: s.past.length > 0,
+      canRedo: s.future.length > 0,
+      canvasName: s.canvases.find((c) => c.id === s.activeCanvasId)?.name,
       activeCanvasId: s.activeCanvasId,
       removeCanvas: s.removeCanvas,
       savingState: s.savingState,
@@ -85,7 +85,7 @@ export function Toolbar() {
   const tier = getUserTier(user?.id);
   const isGuest = tier === 'guest';
   const _isSequenceDiagram = activeCanvasId ? !!sequenceDiagrams[activeCanvasId] : false;
-  const canShowHighLevel = useMemo(() => hasHighLevelView(nodes), [nodes]);
+  const canShowHighLevel = useDiagramStore((s) => hasHighLevelView(s.nodes));
   // Live projects switch between the overview (this canvas) and the detailed map.
   const mapLevel = useProjectLiveStore((s) => s.level);
   const setMapLevel = useProjectLiveStore((s) => s.setLevel);
@@ -112,16 +112,12 @@ export function Toolbar() {
   const darkMode = useDiagramStore((s) => s.darkMode);
   const toggleDarkMode = useDiagramStore((s) => s.toggleDarkMode);
 
-  // Count nodes/edges in current canvas for delete confirmation
-  const currentCanvasForDelete = canvases.find(c => c.id === activeCanvasId);
-  const deleteNodeCount = currentCanvasForDelete?.nodes.length ?? 0;
-  const deleteEdgeCount = currentCanvasForDelete?.edges.length ?? 0;
+  const deleteNodeCount = nodeCount;
+  const deleteEdgeCount = edgeCount;
 
   const handleDeleteCanvas = () => {
     setConfirmDeleteId(activeCanvasId);
   };
-
-  const activeCanvas = canvases.find((c) => c.id === activeCanvasId);
 
   const sanitizeFilename = (name: string): string => {
     return name
@@ -133,7 +129,6 @@ export function Toolbar() {
   };
 
   const getExportFilename = (extension: string): string => {
-    const canvasName = activeCanvas?.name;
     if (!canvasName) return `archdraw-export.${extension}`;
     return `${sanitizeFilename(canvasName)}.${extension}`;
   };
@@ -160,6 +155,7 @@ export function Toolbar() {
   };
 
   const doShare = async () => {
+    const { nodes, edges } = useDiagramStore.getState();
     const currentUser = useAuthStore.getState().user;
     const userEmail = currentUser?.email || 'owner@local';
     const userName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Owner';
@@ -172,7 +168,7 @@ export function Toolbar() {
         body: JSON.stringify({
           nodes,
           edges,
-          label: activeCanvas?.name ?? 'Shared Diagram',
+          label: canvasName ?? 'Shared Diagram',
           source: 'manual',
           accessType: 'anyone',
           linkPermission: 'viewer',
@@ -257,7 +253,7 @@ export function Toolbar() {
 
   const handleClear = () => {
     // A live project's map is published by its agents; clearing it would wipe it.
-    if (nodes.length === 0 || isLiveProject) return;
+    if (nodeCount === 0 || isLiveProject) return;
     if (window.confirm('Clear all nodes and edges from the canvas?')) {
       clearDiagram();
       toast.success('Canvas cleared');
@@ -323,12 +319,12 @@ export function Toolbar() {
         {/* CENTER: Context info */}
         <div className="!hidden sm:flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span>{nodes.length}</span>
+            <span>{nodeCount}</span>
             <span className="hidden sm:inline">nodes</span>
           </span>
           <span className="w-px h-3 bg-border/50" />
           <span className="flex items-center gap-1">
-            <span>{edges.length}</span>
+            <span>{edgeCount}</span>
             <span className="hidden sm:inline">edges</span>
           </span>
 
@@ -353,7 +349,7 @@ export function Toolbar() {
               variant="ghost"
               size="icon"
               onClick={undo}
-              disabled={!past.length}
+              disabled={!canUndo}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Undo (Cmd+Z)"
               aria-label="Undo"
@@ -364,7 +360,7 @@ export function Toolbar() {
               variant="ghost"
               size="icon"
               onClick={redo}
-              disabled={!future.length}
+              disabled={!canRedo}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-30"
               title="Redo (Cmd+Shift+Z)"
               aria-label="Redo"
@@ -467,7 +463,7 @@ export function Toolbar() {
               variant="ghost"
               size="icon"
               onClick={handleShare}
-              disabled={isSharing || nodes.length === 0}
+              disabled={isSharing || nodeCount === 0}
               className="!w-8 sm:!w-9 !h-8 sm:!h-9 disabled:opacity-40"
               aria-label="Share diagram"
               title="Share diagram"
@@ -516,7 +512,7 @@ export function Toolbar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => { undo(); setMoreOpen(false); }}
-                    disabled={!past.length}
+                    disabled={!canUndo}
                     className="w-full justify-start gap-2 rounded-none disabled:opacity-30"
                   >
                     <Undo2 className="w-3.5 h-3.5" />
@@ -526,7 +522,7 @@ export function Toolbar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => { redo(); setMoreOpen(false); }}
-                    disabled={!future.length}
+                    disabled={!canRedo}
                     className="w-full justify-start gap-2 rounded-none disabled:opacity-30"
                   >
                     <Redo2 className="w-3.5 h-3.5" />
@@ -554,7 +550,7 @@ export function Toolbar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => { handleShare(); setMoreOpen(false); }}
-                    disabled={isSharing || nodes.length === 0}
+                    disabled={isSharing || nodeCount === 0}
                     className="w-full justify-start gap-2 rounded-none disabled:opacity-30"
                   >
                     <Share2 className="w-3.5 h-3.5" />
@@ -625,7 +621,7 @@ export function Toolbar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => { handleClear(); setMoreOpen(false); }}
-                    disabled={nodes.length === 0 || isLiveProject}
+                    disabled={nodeCount === 0 || isLiveProject}
                     title={isLiveProject ? 'Live project maps are published by your agents and cannot be cleared' : undefined}
                     className="w-full justify-start gap-2 rounded-none !text-destructive hover:!bg-destructive/10 disabled:opacity-40"
                   >
@@ -736,7 +732,7 @@ export function Toolbar() {
         title="Delete canvas?"
         description={
           <>
-            This will delete <strong>&ldquo;{currentCanvasForDelete?.name || 'this canvas'}&rdquo;</strong> and remove {deleteNodeCount} node{deleteNodeCount !== 1 ? 's' : ''} and {deleteEdgeCount} edge{deleteEdgeCount !== 1 ? 's' : ''}.
+            This will delete <strong>&ldquo;{canvasName || 'this canvas'}&rdquo;</strong> and remove {deleteNodeCount} node{deleteNodeCount !== 1 ? 's' : ''} and {deleteEdgeCount} edge{deleteEdgeCount !== 1 ? 's' : ''}.
           </>
         }
         confirmText="Delete"

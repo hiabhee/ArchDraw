@@ -44,6 +44,16 @@ function overlaps(a: { x: number; y: number; w: number; h: number }, b: { x: num
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 }
 
+/** The pill as drawn (estimateLabelSize before LABEL_SAFE_SCALE): 5.8px a character + 14, min 32, 22 high. */
+function drawnRectOf(anchor: EdgeLabelAnchor, text: string) {
+  const w = Math.max(32, text.length * 5.8 + 14)
+  return { x: anchor.x - w / 2, y: anchor.y - 11, w, h: 22 }
+}
+
+function boxOf(node: Node) {
+  return { x: node.position.x, y: node.position.y, w: node.width!, h: node.height! }
+}
+
 describe('pointAtFraction', () => {
   it('interpolates along a straight line by arc length', () => {
     const segs = buildPathSegments([{ x: 0, y: 0 }, { x: 200, y: 0 }])
@@ -159,8 +169,10 @@ describe('computeEdgeLabelLayout', () => {
     const expectedA = pointAtFraction(buildPathSegments(routeA.waypoints), a.t)
     const expectedB = pointAtFraction(buildPathSegments(routeB.waypoints), b.t)
     expect(Math.hypot(a.x - expectedA.x, a.y - expectedA.y)).toBeLessThan(1)
-    expect(Math.hypot(b.x - expectedB.x, b.y - expectedB.y)).toBeLessThan(1)
-    expect(Math.abs(a.y - b.y)).toBeGreaterThan(1)
+    // The lanes are too close for both pills, so the second steps just beside its line
+    // rather than covering the first label.
+    expect(Math.hypot(b.x - expectedB.x, b.y - expectedB.y)).toBeLessThan(20)
+    expect(overlaps(drawnRectOf(a, 'REQUEST'), drawnRectOf(b, 'RESPONSE'))).toBe(false)
   })
 
   it('resolves overlaps across several labeled edges', () => {
@@ -260,7 +272,7 @@ describe('computeEdgeLabelLayout', () => {
     expect(overlaps(rectOf(a2, 'stores comment'), rectOf(a3, 'stores like'))).toBe(false)
   })
 
-  it('places labels on vertical drops into a shared horizontal bus', () => {
+  it('places labels along straight drops from a shared sink', () => {
     const nodes = [
       makeNode('notif', 80, 40, 200, 80),
       makeNode('comment', 320, 40, 200, 80),
@@ -283,19 +295,29 @@ describe('computeEdgeLabelLayout', () => {
     edges[2].sourceHandle = 'source-bottom'
     edges[2].targetHandle = 'target-top'
 
-    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'TD')
+    const routes = new Map(edges.map(e => [
+      e.id,
+      computeEdgeRoute(e, nodes, edges, 'TD', undefined, undefined, undefined, { straightEdges: true }),
+    ]))
+    const res = computeEdgeLabelLayout(edges, nodeInternals(nodes), 'TD', undefined, routes)
     const a1 = res.get('e1')!
     const a2 = res.get('e2')!
     const a3 = res.get('e3')!
 
-    // Labels must sit on the private vertical legs (near each source's x),
-    // not on the shared horizontal bus at y≈260.
-    expect(a1.x).toBeCloseTo(80 + 100, 0)
-    expect(a2.x).toBeCloseTo(320 + 100, 0)
-    expect(a3.x).toBeCloseTo(560 + 100, 0)
-    expect(a1.y).toBeLessThan(250)
-    expect(a2.y).toBeLessThan(250)
-    expect(a3.y).toBeLessThan(250)
+    // Straight wires from each source's bottom to the sink's top: every label
+    // sits on its own wire, left-to-right in source order, between the ends.
+    expect(a1.x).toBeGreaterThan(180)
+    expect(a1.x).toBeLessThan(500)
+    expect(a2.x).toBeGreaterThan(420)
+    expect(a2.x).toBeLessThan(500)
+    expect(a3.x).toBeGreaterThan(500)
+    expect(a3.x).toBeLessThan(660)
+    expect(a1.y).toBeGreaterThan(152)
+    expect(a2.y).toBeGreaterThan(152)
+    expect(a3.y).toBeGreaterThan(152)
+    expect(a1.y).toBeLessThan(388)
+    expect(a2.y).toBeLessThan(388)
+    expect(a3.y).toBeLessThan(388)
     expect(Math.abs(a1.x - a2.x)).toBeGreaterThan(100)
     expect(Math.abs(a2.x - a3.x)).toBeGreaterThan(100)
   })
@@ -355,9 +377,11 @@ describe('computeEdgeLabelLayout', () => {
     const a = res.get('e1')!
     expect(a).toBeDefined()
 
-    // Label is centered on the horizontal edge between the nodes (uniform 100px height).
-    expect(a.y).toBeCloseTo(150, 0)
+    // The 113px pill does not fit the 100px gap, so centred on the line it would cover both
+    // cards: it steps beside the line instead, centred along it, and covers neither.
     expect(a.t).toBeCloseTo(0.5, 1)
+    for (const node of nodes) expect(overlaps(drawnRectOf(a, 'controls pressure'), boxOf(node))).toBe(false)
+    expect(Math.abs(a.y - 150)).toBeLessThan(60)
   })
 
   it('never overlaps any node at the doubled scale across a busy diagram', () => {
@@ -454,6 +478,11 @@ describe('computeEdgeLabelLayout', () => {
 })
 
 describe('composeEdgeDisplayLabel', () => {
+  it('retains operation qualifiers and complete request/response meaning', () => {
+    expect(composeEdgeDisplayLabel('Read account transaction history', 'Return paginated transaction results'))
+      .toBe('Read account transaction history / Return paginated transaction results')
+  })
+
   it('joins request and response labels with a separator', () => {
     expect(composeEdgeDisplayLabel('order', 'receipt')).toBe('order / receipt')
   })
@@ -501,7 +530,10 @@ describe('splitComposedEdgeLabel', () => {
   it('moves a label off the bends onto a straight leg when the middle leg is too short', () => {
     // A Z-shaped route whose middle (vertical) leg is only 60px: its midpoint is on the bends.
     const nodes = [makeNode('a', 0, 0, 200, 80), makeNode('b', 600, 60, 200, 80)]
-    const edges = [makeEdge('e1', 'a', 'b', { label: 'queries user' })]
+    const edges = [makeEdge('e1', 'a', 'b', {
+      label: 'queries user',
+      customWaypoints: [{ x: 400, y: 50 }, { x: 400, y: 110 }],
+    })]
     const route = computeEdgeRoute(edges[0], nodes, edges, 'LR')
     const bendX = route.waypoints[1].x
     expect(route.waypoints[1].y).not.toBe(route.waypoints[2].y)

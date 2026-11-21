@@ -1,10 +1,12 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, useState, type ReactNode } from 'react';
 import { useStore, type Edge, type Node, type ReactFlowState } from 'reactflow';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { computeDiagramGeometryPlan, geometrySnapshotKey, type DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
 import { computeDiagramGeometryInWorker } from '@/lib/diagram/geometry/diagramGeometryWorkerClient';
+import { repairDiagramLayout } from '@/lib/diagram/mermaid/repairLayout';
+import { useDiagramStore } from '@/store/diagramStore';
 import type { EdgeRouteHandleAnchors } from '@/lib/diagram/edges/edgeRouteBuilder';
 
 type EdgeGeometrySnapshot = { route?: DiagramGeometryPlan['routes'] extends ReadonlyMap<string, infer R> ? R : never; label?: DiagramGeometryPlan['labels'] extends ReadonlyMap<string, infer L> ? L : never; provisional: boolean };
@@ -79,17 +81,26 @@ export function DiagramGeometryProvider({
   children: ReactNode;
 }) {
   const { direction, planKey: planStoreKey, renderStyleId, iconMode, readOnly } = useCanvasView();
+  const [repairing, setRepairing] = useState(false);
+  const [repairMessage, setRepairMessage] = useState('');
   const [workerPlan, setWorkerPlan] = useState<DiagramGeometryPlan | null>(null);
   const settledPlan = useSyncExternalStore(
     (listener) => subscribeToSettledPlan(planStoreKey, listener),
     () => settledPlans.get(planStoreKey) ?? null,
     () => null,
   );
-  const nodeInternals = useStore((state: ReactFlowState) => state.nodeInternals);
+  const isDragging = nodes.some((node) => node.dragging === true);
+  const heldInternals = useRef<ReactFlowState['nodeInternals'] | null>(null);
+  const nodeInternals = useStore((state: ReactFlowState) => {
+    if (isDragging && heldInternals.current) return heldInternals.current;
+    return state.nodeInternals;
+  });
+  useEffect(() => { if (!isDragging) heldInternals.current = nodeInternals; }, [isDragging, nodeInternals]);
+  const geometryNodes = isDragging ? null : nodes;
   const measuredNodes = useMemo(() => {
     const internal = Array.from(nodeInternals.values()) as Node[];
-    return internal.length ? internal : nodes;
-  }, [nodeInternals, nodes]);
+    return internal.length ? internal : (geometryNodes ?? []);
+  }, [nodeInternals, geometryNodes]);
   const handleAnchors = useMemo(() => {
     const result = new Map<string, EdgeRouteHandleAnchors>();
     const byId = new Map(measuredNodes.map((node) => [node.id, node as Node & {
@@ -110,27 +121,27 @@ export function DiagramGeometryProvider({
     }
     return result;
   }, [measuredNodes, edges]);
-  const isDragging = nodes.some((node) => (node as Node & { dragging?: boolean }).dragging === true);
   // A label drag rewrites `labelT` on every pointer move; keep it out of the plan key so the other edges are not re-planned (and flicker to their fallback routes) mid-drag.
-  const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true }), [direction, renderStyleId, iconMode, handleAnchors]);
+  const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true, straightEdges: false }), [direction, renderStyleId, iconMode, handleAnchors]);
   const geometryKey = useMemo(() => geometrySnapshotKey(measuredNodes, edges, options), [measuredNodes, edges, options]);
   useEffect(() => {
     if (isDragging) return;
     const currentKey = geometryKey;
     if (settledPlans.get(planStoreKey)?.key === currentKey) return;
+    let cancelled = false;
     const timer = setTimeout(() => {
       void computeDiagramGeometryInWorker(measuredNodes, edges, options).then((next) => {
-        if (next.key !== currentKey) return;
+        if (cancelled || next.key !== currentKey) return;
         setWorkerPlan(next);
         publishSettledPlan(planStoreKey, next);
       }).catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'ObsoleteGeometryRequest') return;
+        if (cancelled || (error instanceof Error && error.name === 'ObsoleteGeometryRequest')) return;
         // The worker may be unavailable in older browser/test hosts.
         const next = computeDiagramGeometryPlan(measuredNodes, edges, options);
         if (next.key === currentKey) { setWorkerPlan(next); publishSettledPlan(planStoreKey, next); }
       });
     }, 60);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [isDragging, geometryKey, measuredNodes, edges, options, planStoreKey]);
 
   // During a drag the diagram keeps the last plan it had, instead of rebuilding
@@ -155,22 +166,52 @@ export function DiagramGeometryProvider({
   useEffect(() => { geometryStore.set(plan); }, [plan]);
   useEffect(() => { geometryStore.setDragging(isDragging); }, [isDragging]);
 
-  // Only hard issues (an edge through a node, colliding nodes) interrupt the
-  // user. Soft ones are mostly ordinary crossings, which any dense
-  // architecture diagram has; a standing warning about them was noise.
+  // Surface collisions and substantial congestion; a single ordinary crossing
+  // should not leave a permanent warning on an otherwise readable diagram.
   const hardIssueCount = plan.violations.filter((issue) => issue.severity === 'hard').length;
+  const repair = async () => {
+    if (readOnly || repairing || isDragging) return;
+    const snapshot = useDiagramStore.getState();
+    setRepairing(true);
+    setRepairMessage('');
+    try {
+      const result = await repairDiagramLayout(snapshot.nodes, snapshot.edges, direction, { renderStyleId, iconMode });
+      const current = useDiagramStore.getState();
+      if (current.activeCanvasId !== snapshot.activeCanvasId || current.nodes !== snapshot.nodes || current.edges !== snapshot.edges) {
+        setRepairMessage('Diagram changed during repair. Try again.');
+        return;
+      }
+      if (!result.repaired) {
+        setRepairMessage('No safer layout found. Try separating the crowded components manually.');
+        return;
+      }
+      current.pushHistory();
+      current.setNodes(result.nodes);
+      setRepairMessage('Layout improved. You can undo this change.');
+    } catch {
+      setRepairMessage('Repair could not finish. Your diagram is unchanged.');
+    } finally {
+      setRepairing(false);
+    }
+  };
   return (
     <DiagramGeometryContext.Provider value={geometryStore}>
       {children}
       {/* Viewers can't move nodes, so the advice is for the editor only. */}
-      {!readOnly && !plan.provisional && hardIssueCount > 0 && (
+      {!readOnly && !plan.provisional && (hardIssueCount > 0 || plan.quality.crossings > 2 || plan.quality.unexplainedPrivateOverlapLength > 48) && (
         <div
           role="status"
           aria-live="polite"
           className="absolute bottom-3 left-3 z-20 max-w-xs rounded-md border border-amber-500/40 bg-background/95 px-3 py-2 text-xs text-foreground shadow-sm"
           title={plan.violations.filter((issue) => issue.severity === 'hard').map((issue) => issue.code).join(', ')}
         >
-          {`${hardIssueCount} layout issue${hardIssueCount === 1 ? '' : 's'}: an edge runs through a node or nodes overlap. Move a node or try another layout.`}
+          {hardIssueCount > 0
+            ? `${hardIssueCount} layout issue${hardIssueCount === 1 ? '' : 's'}: components, connections or labels collide.`
+            : 'Connections share crowded routes. Try repairing the layout.'}
+          <button type="button" disabled={repairing || isDragging} onClick={repair} className="mt-2 block text-brand underline disabled:opacity-50">
+            {repairing ? 'Repairing layout…' : 'Repair layout'}
+          </button>
+          {repairMessage && <p className="mt-2">{repairMessage}</p>}
         </div>
       )}
     </DiagramGeometryContext.Provider>

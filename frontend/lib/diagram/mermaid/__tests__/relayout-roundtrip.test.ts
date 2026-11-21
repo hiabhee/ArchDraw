@@ -88,4 +88,18 @@ describe('relayout round-trip fixes', () => {
     const e = result.edges[0];
     expect(e.label ?? (e.data as { label?: string } | undefined)?.label).toBe('Kafka | Redpanda');
   });
+
+  it('preserves dotted labels on dashed edges through relayout', async () => {
+    const nodes = [node('parse', 'Parser'), node('ingest', 'Ingestor'), node('pipeline', 'Pipeline')];
+    const edges = [
+      { id: 'parse-pipeline', source: 'parse', target: 'pipeline', label: 'Pipeline.execute', data: { edgeVariant: 'dashed' } },
+      { id: 'ingest-pipeline', source: 'ingest', target: 'pipeline', label: 'Pipeline.execute', data: { edgeVariant: 'dashed' } },
+    ] as Edge[];
+
+    const result = await layoutDiagramViaMermaid(nodes, edges, 'LR');
+
+    expect(result.success).toBe(true);
+    expect(result.edges).toHaveLength(2);
+    expect(result.edges.map((edge) => edge.label)).toEqual(['Pipeline.execute', 'Pipeline.execute']);
+  });
 });

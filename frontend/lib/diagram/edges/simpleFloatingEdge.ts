@@ -127,16 +127,17 @@ export function getBoundaryAnchor(
   position: Position,
   shiftOffset: number = 0,
   contentBiasY: number = 0,
+  endpointGap: number = EDGE_ENDPOINT_GAP,
 ): { x: number; y: number } {
   switch (position) {
     case Position.Left:
-      return { x: nodeX - EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset + contentBiasY };
+      return { x: nodeX - endpointGap, y: nodeY + height / 2 + shiftOffset + contentBiasY };
     case Position.Right:
-      return { x: nodeX + width + EDGE_ENDPOINT_GAP, y: nodeY + height / 2 + shiftOffset + contentBiasY };
+      return { x: nodeX + width + endpointGap, y: nodeY + height / 2 + shiftOffset + contentBiasY };
     case Position.Top:
-      return { x: nodeX + width / 2 + shiftOffset, y: nodeY - EDGE_ENDPOINT_GAP };
+      return { x: nodeX + width / 2 + shiftOffset, y: nodeY - endpointGap };
     case Position.Bottom:
-      return { x: nodeX + width / 2 + shiftOffset, y: nodeY + height + EDGE_ENDPOINT_GAP };
+      return { x: nodeX + width / 2 + shiftOffset, y: nodeY + height + endpointGap };
     default:
       return { x: nodeX + width / 2, y: nodeY + height / 2 };
   }

@@ -229,6 +229,7 @@ export default function SimpleFloatingEdge({
         target: { x: _targetX, y: _targetY },
       },
       iconMode,
+      { straightEdges: false },
     );
   }, [
     id, source, target, sourceHandleId, targetHandleId, data,
