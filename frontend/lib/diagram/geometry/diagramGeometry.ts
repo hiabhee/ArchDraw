@@ -12,7 +12,7 @@ import { resolveEdgeFlowSemantics } from '@/lib/diagram/mermaid/edgeFlowSemantic
 
 // Change when routing semantics change so persisted in-memory geometry plans
 // from the prior router cannot keep drawing stale attachment choices.
-const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v2';
+const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v3';
 
 export interface DiagramGeometryOptions {
   direction: EdgeRouteDirection;

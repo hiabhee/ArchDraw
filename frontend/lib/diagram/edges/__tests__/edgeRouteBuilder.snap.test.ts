@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Edge, Node } from 'reactflow';
+import { Position } from '../edgePositions';
 import { computeEdgeRoute } from '../edgeRouteBuilder';
 
 function makeNode(id: string, x: number, y: number, w = 160, h = 80): Node {
@@ -29,6 +30,40 @@ describe('computeEdgeRoute routing', () => {
     expect(route.targetPoint).toEqual({ x: 488, y: 153 });
     expect(route.waypoints).toEqual([route.sourcePoint, route.targetPoint]);
     expect(route.svgPath).toBe('M 312,153 L 488,153');
+  });
+
+  it('leaves the top border before turning right, even when the target is level with the handle', () => {
+    const nodes = [makeNode('source', 0, 250), makeNode('target', 450, 188)];
+    const edge = makeEdge('wire', 'source', 'target');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, {
+      attachmentSides: { sourceSide: Position.Top, targetSide: Position.Left },
+    });
+
+    expect(route.status).toBe('ok');
+    expect(route.sourcePoint.y).toBe(250);
+    expect(route.waypoints).toEqual([
+      route.sourcePoint,
+      { x: route.sourcePoint.x, y: 238 },
+      route.targetPoint,
+    ]);
+    expect(route.svgPath).toContain(`M ${route.sourcePoint.x},250 L ${route.sourcePoint.x},244`);
+  });
+
+  it('absorbs a short step in a horizontal run into the vertical departure', () => {
+    const nodes = [makeNode('source', 0, 250), makeNode('target', 450, 158)];
+    const edge = makeEdge('wire', 'source', 'target');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, {
+      laneOffset: -4,
+      attachmentSides: { sourceSide: Position.Top, targetSide: Position.Left },
+    });
+
+    expect(route.status).toBe('ok');
+    expect(route.sourcePoint.y).toBe(250);
+    expect(route.waypoints).toEqual([
+      route.sourcePoint,
+      { x: route.sourcePoint.x, y: route.targetPoint.y },
+      route.targetPoint,
+    ]);
   });
 
   it('does not straighten a link through another node', () => {

@@ -367,6 +367,44 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
   // Edges of one fan no longer share one drawn line: each gets its own lane (see fanLaneSeparation).
   if (!process.env.EXP_NO_LANES) separateFanLanes(routes, input.edges, input.nodes, input.renderStyleId, input.iconMode);
 
+  // On dense diagrams, reconsider the worst conflicts after all paths are
+  // known. Keep the chosen attachment sides and try the two nearby corridors.
+  if (input.searchBudget?.maxCandidateRoutes === undefined && edges.length >= 40) {
+    const conflictScore = (edgeId: string, route: EdgeRouteResult) => {
+      let crossings = 0;
+      let overlap = 0;
+      for (const [id, other] of routes) {
+        if (id === edgeId || !boundsMayInteract(route.renderedPath, other.renderedPath)) continue;
+        if (properCross(route.renderedPath, other.renderedPath)) crossings++;
+        overlap += privateOverlapLength(route, other);
+      }
+      return { crossings, overlap };
+    };
+    const eligible = edges.flatMap(edge => {
+      const route = routes.get(edge.id);
+      if (route?.status !== 'ok' || edge.data?.customWaypoints?.length) return [];
+      return [{ edge, ...conflictScore(edge.id, route) }];
+    });
+    eligible.sort((a, b) => b.overlap - a.overlap || b.crossings - a.crossings || edgePriority(a.edge) - edgePriority(b.edge));
+    for (const { edge } of eligible.slice(0, 4)) {
+      const current = routes.get(edge.id)!;
+      let best = conflictScore(edge.id, current);
+      if (best.overlap <= 10 && best.crossings === 0) continue;
+      const sides = { sourceSide: current.sourcePosition, targetSide: current.targetPosition };
+      const base = laneById.get(edge.id) ?? 0;
+      for (const offset of [base - 56, base + 56]) {
+        const trial = routeAt(edge, offset, sides);
+        if (trial.status !== 'ok') continue;
+        const after = conflictScore(edge.id, trial);
+        if (after.crossings <= best.crossings && after.overlap <= best.overlap
+          && (after.crossings < best.crossings || after.overlap < best.overlap - 10)) {
+          routes.set(edge.id, trial);
+          best = after;
+        }
+      }
+    }
+  }
+
   const diagnostics: RouteOptimizationResult['diagnostics'][number][] = [];
   for (let i = 0; i < input.edges.length; i++) for (let j = i + 1; j < input.edges.length; j++) {
     const a = input.edges[i], b = input.edges[j];

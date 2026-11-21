@@ -50,9 +50,46 @@ function completeRoute<T extends Omit<EdgeRouteResult, 'path' | 'renderedPath' |
   nodes: Node[],
   excludedNodeIds: Set<string>,
   borderRadius: number,
-  terminals?: { source: ObstacleRect; target: ObstacleRect },
+  terminals?: { source: ObstacleRect; target: ObstacleRect; preserveLane?: boolean },
   routeOutcome?: RoutePathOutcome,
 ): EdgeRouteResult {
+  // The router starts above or below the card for clearance. Draw the
+  // departure from the border so the vertical leg is visible at the card.
+  if (terminals && (result.sourcePosition === Position.Top || result.sourcePosition === Position.Bottom) && result.waypoints.length >= 2) {
+    const [anchor, next] = result.waypoints;
+    const box = terminals.source;
+    const top = result.sourcePosition === Position.Top;
+    const start = { x: anchor.x, y: top ? box.y : box.y + box.h };
+    const rise = (y: number) => (y - start.y) * (top ? -1 : 1);
+    if (rise(anchor.y) > 0 && rise(anchor.y) <= 16) {
+      const leavesVertically = Math.abs(next.x - anchor.x) < 0.01 && rise(next.y) > 0;
+      // Established vertical runs already show the departure clearly.
+      // Extend a short or tangential exit to make the rise visible.
+      let points = result.waypoints;
+      if (!leavesVertically || rise(next.y) - rise(anchor.y) <= 8) {
+        points = [start, ...result.waypoints.slice(leavesVertically ? 1 : 0)];
+      }
+
+      // A tiny step between two horizontal runs just after a vertical
+      // departure can usually be absorbed into that departure.
+      const firstSideways = result.waypoints.findIndex(point => Math.abs(point.x - anchor.x) >= 0.01);
+      const [elbow, jogStart, jogEnd, laneEnd] = firstSideways > 0
+        ? result.waypoints.slice(firstSideways - 1, firstSideways + 3)
+        : [];
+      if (!terminals.preserveLane && elbow && jogStart && jogEnd && laneEnd
+        && Math.abs(elbow.y - jogStart.y) < 0.01
+        && Math.abs(jogStart.x - jogEnd.x) < 0.01
+        && Math.abs(jogEnd.y - laneEnd.y) < 0.01
+        && Math.abs(jogEnd.y - jogStart.y) > 0.01
+        && Math.abs(jogEnd.y - jogStart.y) <= 8
+        && Math.sign(jogStart.x - elbow.x) * Math.sign(laneEnd.x - jogEnd.x) > 0
+        && rise(jogEnd.y) >= 8) {
+        const simplified = [start, { x: start.x, y: jogEnd.y }, ...result.waypoints.slice(firstSideways + 2)];
+        if (routeStatus(simplified, nodes, excludedNodeIds, terminals).status === 'ok') points = simplified;
+      }
+      if (points !== result.waypoints) result = { ...result, waypoints: points, sourcePoint: start };
+    }
+  }
   // Route corridors terminate outside the card for clearance. Extend only the
   // final terminal leg to the visible border so the arrow never floats in air.
   if (terminals && (result.targetPosition === Position.Top || result.targetPosition === Position.Bottom) && result.waypoints.length >= 2) {
@@ -1316,7 +1353,11 @@ export function computeEdgeRoute(
       validation.status = 'failed'
       validation.failureReason = 'no-path-found'
     }
-    return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
+    return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, {
+      source: sourceRect,
+      target: targetRect,
+      preserveLane: parallelEdges.length > 1,
+    }, directRoute.outcome)
   }
 
   const primary = routeForSides(sourcePosition, targetPosition)
