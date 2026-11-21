@@ -13,7 +13,11 @@ const ARROW_MARKER = 'arrowclosed'
  * `sizing: 'studio'` sizes shape nodes as Studio cards (what the canvas draws
  * by default), so layout reserves the space the cards actually take.
  */
-export function buildReactFlowObjects(ast: MermaidAST, options: { sizing?: 'studio' } = {}): RFObjects {
+export function buildReactFlowObjects(ast: MermaidAST, options: {
+  sizing?: 'studio';
+  showIcons?: boolean;
+  studioNodeSizes?: ReadonlyMap<string, { width: number; height: number }>;
+} = {}): RFObjects {
   const nodes: RFNode[] = []
   const edges: RFEdge[] = []
   const subgraphNodes = new Set(ast.subgraphs.map(s => s.id))
@@ -121,7 +125,7 @@ export function buildReactFlowObjects(ast: MermaidAST, options: { sizing?: 'stud
     const rfShape = rfShapeRaw === 'rectangle' ? 'rounded-rectangle' : rfShapeRaw
     const cylinderAxis = rfShape === 'cylinder' ? resolveCylinderAxis({ serviceType, label }) : undefined
     const { width, height } = options.sizing === 'studio'
-      ? studioContentNodeSize(label, subtitle, true)
+      ? options.studioNodeSizes?.get(pNode.id) ?? studioContentNodeSize(label, subtitle, options.showIcons !== false)
       : calculateNodeDimensions(label, subtitle, {
           shape: rfShape,
           cylinderAxis,

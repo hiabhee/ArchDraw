@@ -83,6 +83,7 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const result = await runMermaidPipeline(newCode, {
           renderStyleId: store.diagramRenderStyle,
           layoutProfile: isStudioRenderStyle(store.diagramRenderStyle) ? 'studio-minimal' : undefined,
+          layoutStyle: 'auto',
         });
 
         if (!result.success) {

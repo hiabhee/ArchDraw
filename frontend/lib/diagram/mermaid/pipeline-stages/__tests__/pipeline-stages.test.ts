@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import * as geometry from '@/lib/diagram/geometry/diagramGeometry';
+import * as layout from '@/lib/diagram/pipeline-shared/layout/IntegratedLayout';
 import { unwrapDomainResult } from '@/lib/diagram/pipeline-core';
 import { ParseStage } from '../ParseStage';
 import { ValidateStage } from '../ValidateStage';
@@ -129,6 +131,39 @@ describe('LayoutStage', () => {
 
     expect(result.success).toBe(true);
     expect(result.data!.nodes.every(n => n.position.x !== 0 || n.position.y !== 0)).toBe(true);
+  });
+
+  it('selects a main-path repair even when it bends a straight link', async () => {
+    const objects = {
+      nodes: [
+        { id: 'a', type: 'shapeNode', position: { x: 0, y: 0 }, width: 160, height: 80, data: { label: 'Client' } },
+        { id: 'b', type: 'shapeNode', position: { x: 300, y: 0 }, width: 160, height: 80, data: { label: 'API' } },
+      ],
+      edges: [{ id: 'request', source: 'a', target: 'b', sourceHandle: null, targetHandle: null, type: 'simpleFloating' }],
+    };
+    const place = vi.spyOn(layout, 'applyRfLayout').mockImplementation((_graph, _direction, options) => ({
+      ...objects,
+      nodes: objects.nodes.map(node => node.id === 'b' && options?.nodeSep !== undefined
+        ? { ...node, position: { ...node.position, y: 24 } }
+        : node),
+    }));
+    const measure = vi.spyOn(geometry, 'getCachedDiagramGeometryPlan').mockImplementation((nodes, edges, options) => {
+      const plan = geometry.computeDiagramGeometryPlan(nodes, edges, options);
+      return {
+        ...plan,
+        quality: { ...plan.quality, criticalPathDisconnectCount: nodes.find(node => node.id === 'b')?.position.y === 24 ? 0 : 1 },
+      };
+    });
+    try {
+      const context = new DefaultPipelineContext('candidate-priority', { layoutStyle: 'auto' });
+      const result = await new LayoutStage().execute({ objects, direction: 'LR' }, context);
+
+      expect(result.success).toBe(true);
+      expect(result.data?.nodes.find(node => node.id === 'b')?.position.y).toBe(24);
+    } finally {
+      measure.mockRestore();
+      place.mockRestore();
+    }
   });
 });
 
