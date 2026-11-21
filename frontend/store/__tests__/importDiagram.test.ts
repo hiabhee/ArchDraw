@@ -61,6 +61,22 @@ describe('importDiagram', () => {
     expect(edge?.targetHandle).toBeTruthy();
   });
 
+  it('applies verified relayout geometry and routes exactly', () => {
+    const nodes: Node[] = [
+      { id: 'a', type: 'systemNode', position: { x: 0, y: 0 }, draggable: false, data: { label: 'A' } },
+      { id: 'b', type: 'systemNode', position: { x: 340, y: 8 }, data: { label: 'B' } },
+    ];
+    const edges = [
+      { id: 'first', source: 'a', target: 'b', sourceHandle: 'source-top', data: { customWaypoints: [{ x: 200, y: -40 }] } },
+      { id: 'second', source: 'a', target: 'b', sourceHandle: 'source-bottom' },
+    ];
+    useDiagramStore.getState().importDiagram(nodes, edges, { preserveLayout: true });
+
+    expect(useDiagramStore.getState().nodes).toEqual(nodes);
+    expect(useDiagramStore.getState().edges).toEqual(edges);
+    expect(useDiagramStore.getState().past).toHaveLength(1);
+  });
+
   it('preserves authored parallel edges and positions for JSON imports', () => {
     const nodes: Node[] = [
       { id: 'a', type: 'systemNode', position: { x: 123, y: 71 }, data: { label: 'A' } },
