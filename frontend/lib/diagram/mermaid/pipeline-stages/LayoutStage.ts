@@ -344,6 +344,15 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       }
     }
 
+    // A folded layout just wider than its viewport can fit at full scale
+    // with a slightly tighter rank gap. Evaluate it through the same route guards.
+    if (foldDirection && best && best.fit >= 0.95 && best.fit < 1) {
+      evaluate({
+        ...candidates[2],
+        options: { ...candidates[2].options, rankSep: Math.max(36, baseRankSep - 24) },
+      });
+    }
+
     if (best && (best.geometry.quality.weightedCrossings > 0 || best.geometry.quality.unexplainedPrivateOverlapLength > 0)) {
       // Congestion can need more room on one axis, not a globally looser diagram.
       for (const nodes of [canonicalNodes, [...canonicalNodes].reverse()]) {

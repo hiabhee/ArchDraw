@@ -41,18 +41,18 @@ const FAN_CEILING: Record<string, number> = {
 };
 
 describe('layout aesthetics across every shipped template', () => {
-  it('keeps one-to-one links straight and fans centred within their ratchet', async () => {
-    for (const template of TEMPLATES) {
-      for (const direction of ['LR', 'TD'] as const) {
-        // Folding wraps a long flow into rows and splits fans across them on purpose; this measures the symmetry engine's own layout.
+  for (const template of TEMPLATES) {
+    for (const direction of ['LR', 'TD'] as const) {
+      const label = `${template.id}:${direction}`;
+      it(`${label} keeps one-to-one links straight and fans centred`, async () => {
+        // Folding can split fans across rows, so measure the unfolded layout.
         const laid = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { foldLongFlows: false });
         const score = measureLayoutAesthetics(laid.nodes, laid.edges, direction);
-        const label = `${template.id} ${direction}`;
         expect(score.straightEdgeRatio, `${label} straight links`).toBeGreaterThanOrEqual(STRAIGHT_FLOOR[template.id] ?? DEFAULT_STRAIGHT_FLOOR);
-        expect(score.fanCenteringError, `${label} fan centring (px)`).toBeLessThanOrEqual(FAN_CEILING[`${template.id}:${direction}`] ?? DEFAULT_FAN_CEILING);
-      }
+        expect(score.fanCenteringError, `${label} fan centring (px)`).toBeLessThanOrEqual(FAN_CEILING[label] ?? DEFAULT_FAN_CEILING);
+      }, 180_000);
     }
-  }, 300_000);
+  }
 });
 
 describe('one-to-one edge scoring', () => {
