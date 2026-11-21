@@ -38,6 +38,21 @@ async function callTool(store: WorkingSessionStore, fetchImpl: typeof fetch, nam
 }
 
 describe('hosted (stateless HTTP) mode', () => {
+  it('advertises template-style generation guidance to MCP clients', async () => {
+    const request = new Request(`${API}/api/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/list' }),
+    });
+    const response = await handleMcpHttpRequest(request, { sessionStore: memoryStore(), context: { apiBase: API } });
+    const body = await response.json() as { result: { tools: Array<{ name: string; description: string }> } };
+    const generate = body.result.tools.find(tool => tool.name === 'generate_diagram');
+
+    expect(generate?.description).toContain('Plan the main flow first');
+    expect(generate?.description).toContain('Show where branches rejoin');
+    expect(generate?.description).toContain('Keep real return paths, feedback loops, and hub connections');
+  });
+
   it('persists the working session between requests and routes fetches through the request context', async () => {
     const store = memoryStore();
     const fetchImpl = vi.fn<typeof fetch>()
@@ -46,6 +61,7 @@ describe('hosted (stateless HTTP) mode', () => {
 
     const generated = await callTool(store, fetchImpl, 'generate_diagram', { mermaid: MERMAID });
     expect(generated.isError).toBeFalsy();
+    expect(generated.content[0].text).toContain('/api/diagram/image/s1?style=studio&format=png');
     expect(String(fetchImpl.mock.calls[0][0])).toBe(`${API}/api/diagram/load`);
     const workingSessionId = generated.structuredContent?.workingSessionId as string;
     expect(workingSessionId).toMatch(/^[0-9a-f-]{36}$/);

@@ -70,6 +70,34 @@ describe('generate_diagram preview links', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('sends structured groups, subtitles, shapes and connection labels to the layout pipeline', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(previewBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const { generateDiagram } = await import('../generate-diagram.js');
+
+    const result = await generateDiagram(GenerateDiagramInputSchema.parse({
+      publish: false,
+      direction: 'DOWN',
+      nodes: [
+        { id: 'api', label: 'API Gateway', subtitle: 'NGINX', tier: 'edge', shape: 'hexagon', parentId: 'web' },
+        { id: 'web', label: 'Web tier', subtitle: '', tier: 'edge', isGroup: true },
+        { id: 'worker', label: 'Worker', subtitle: 'Processes orders', tier: 'async' },
+      ],
+      edges: [{ source: 'api', target: 'worker', label: 'Order | created', communicationType: 'event' }],
+    }));
+
+    expect(result.success).toBe(true);
+    const { mermaid } = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(mermaid).toBe([
+      'graph TD',
+      '  subgraph web["Web tier"]',
+      '  api{{"API Gateway<br/>NGINX"}}',
+      '  end',
+      '  worker["Worker<br/>Processes orders"]',
+      '  api -.->|"Order | created"| worker',
+    ].join('\n'));
+  });
+
   it('still returns the diagram when saving the preview fails', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(json(previewBody))

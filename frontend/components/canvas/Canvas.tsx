@@ -137,8 +137,10 @@ function CanvasUrlSync() {
         });
       });
       const canvasName = isMCP ? `MCP: ${data.label || 'Diagram'}` : (data.label || 'Session Diagram');
+      const previousCanvasId = useDiagramStore.getState().activeCanvasId;
       const canvasId = addCanvas(canvasName, sessionId);
-      importDiagram(nodesWithType, edgesWithType);
+      if (canvasId === previousCanvasId && canvasId !== sessionId) return;
+      importDiagram(nodesWithType, edgesWithType, { preserveLayout: isMCP });
       router.replace(`/editor?canvas=${canvasId}`);
       toast.success(`Diagram loaded: ${data.label || 'Untitled'}`);
     } catch {

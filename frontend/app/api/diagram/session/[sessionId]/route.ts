@@ -13,7 +13,7 @@ export async function GET(
 
     const shared = await prisma.sharedCanvas.findUnique({
       where: { id: sessionId },
-      select: { canvasName: true, nodes: true, edges: true, createdAt: true, expiresAt: true },
+      select: { canvasName: true, nodes: true, edges: true, createdAt: true, expiresAt: true, mcpUpdateToken: true },
     });
 
     if (!shared) {
@@ -35,7 +35,7 @@ export async function GET(
       edges: shared.edges,
       label: shared.canvasName,
       createdAt: shared.createdAt,
-      source: 'manual',
+      source: shared.mcpUpdateToken ? 'mcp' : 'manual',
     });
   } catch (error) {
     logger.error('Diagram session GET error:', error);

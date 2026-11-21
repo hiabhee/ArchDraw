@@ -33,92 +33,38 @@ const TOOLS: Tool[] = [
     name: 'generate_diagram',
     title: 'Generate an ArchDraw diagram',
     annotations: { title: 'Generate an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    description: `Generate a rich architecture diagram with groups, labeled edges, and visual hierarchy. Compatible chat clients display the result as an inline interactive preview; text-only clients receive a concise summary and the ArchDraw site link.
+    description: `Generate an architecture diagram with ArchDraw's editor layout engine. Compatible chat clients show an inline preview. Include the returned preview link (shareUrl) and edit link (diagramUrl) so the user can open the result. Published links are view-by-link and expire after 7 days.
 
-Include the returned preview link (shareUrl) and edit link (diagramUrl) in your reply: in clients without the inline preview, the links are how the user sees the diagram. Links are created by default in the same response (no extra call needed); they are unguessable, view-by-link, and expire after 7 days.
+**Plan the main flow first.**
+1. Choose the request, event, or data flow the user needs to trace. Write its steps in order before you write Mermaid. Use left-to-right flow (graph LR) by default or graph TD when the user asks for a vertical layout.
+2. Connect each consecutive step. Attach caches, workers, event subscribers, and other branches to the step that actually calls, feeds, or triggers them. Show where branches rejoin by using a single node for the shared destination. Keep several entry points or paths if the architecture requires them.
+3. Give every edge a short action, protocol, or event label. Use solid arrows for direct calls and dashed arrows for asynchronous work. Keep real return paths, feedback loops, and hub connections. Verify each arrow against the source material or the user's design.
+4. Use short node names and add a subtitle when it explains the role or technology. Add a subgraph only when it shows a meaningful system boundary, such as a deployment, trust, or ownership boundary. Let ArchDraw align the main path and place parallel branches.
 
-**INPUT MODES — choose ONE**:
+**Preferred input: Mermaid.** For example, the order request follows Client → Orders API → Orders DB. A background worker branches from the API:
 
-**Mode 1 (RECOMMENDED): Mermaid code** — pass a \`graph LR\` / \`graph TD\` diagram in \`mermaid\`.
-This runs the same parser + layout engine the web editor uses, so output is guaranteed to match the product.
-Example:
-  graph LR
-    subgraph client["Client Tier"]
-      Web[Web App]
-      Mobile[Mobile App]
-    end
-    subgraph edge["API Gateway Tier"]
-      GW[API Gateway]
-    end
-    subgraph data["Data Tier"]
-      DB[("PostgreSQL")]
-    end
-    Web --> GW
-    Mobile --> GW
-    GW --> DB
-Use \`direction\` to pick LR (default) or TD. Any graph \`graph TD\` implies top-down.
-The web parser runs Mermaid → React Flow → Dagre layout, so positions come out clean automatically.
-Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` are supported for non-native shapes.
+    graph LR
+      client["Client"] -->|Place order| api["Orders API"]
+      api -->|Save order| db[("Orders DB")]
+      api -.->|Queue confirmation| worker["Email Worker"]
 
-**Mode 2 (compatibility): Structured JSON** — pass \`nodes\` and \`edges\` arrays (schemas below). ArchDraw converts this input to Mermaid and uses the same editor pipeline.
+Optional shape directives such as %% archdraw-shape: {"id":"api","shape":"shield"} are supported. As an alternative to Mermaid, pass structured nodes and edges. ArchDraw converts those to Mermaid and applies the same layout.
 
-**ALWAYS ALSO PASS** (when you have them):
-- \`userPrompt\`: the user's request verbatim — node subtitles must reflect any tech stack they named.
-- \`techStack\`: explicit list of technologies (["Next.js", "PostgreSQL 15", "Redis"]).
-- \`customFeatures\`: features the user explicitly asked for.
+Pass userPrompt, techStack, and customFeatures when available. Keep technologies the user specified in the relevant node names or subtitles. Model components and flows supported by the context.
 
-**Architecture guidance, not hard rules:** use groups and concise labels where they help comprehension. Model only the components and flows supported by the user’s context. Gateways, event brokers, direct client streams, and domain-specific services are valid when the architecture calls for them.
+Review the preview if the client makes it available. Check that the main flow is easy to trace and each branch starts and ends at the correct component. If a link is missing or the arrows tell the wrong story, revise the graph.
 
-**Privacy:** pass \`publish:false\` only if the user asks to keep the diagram private; then no link is created and the diagram stays in this MCP session. Retain and resend \`workingSessionId\` from the result when working on more than one diagram in parallel.
-
-**WORKFLOW**:
-1. Identify the user’s actual domain and constraints
-2. Model only supported components and relationships
-3. Design the Mermaid graph: groups (subgraphs) first, then children inside them
-4. Design edges: use correct communicationType, audit Auth Service edges, verify no security bypass
-5. **EDGE AUDIT (mandatory)**: Before calling this tool, scan every edge you planned:
-   - Does any edge have a client-tier node as the TARGET? DELETE IT (unless both source and target are client tier)
-   - Does any single node receive >45% of all edges? That node is a hub -- redistribute connections
-   - Do all edges flow LEFT->RIGHT (lower tier -> higher tier)? If not, fix direction.
-6. Call this tool
-
-**NODE FIELDS (JSON mode)**:
-- id (required): snake_case unique ID
-- label (required): 1-3 word display name
-- tier (required): client | edge | compute | async | data | external | observe
-- subtitle (required): specific description of what this service does
-- isGroup: true = swimlane container wrapping child nodes
-- parentId: ID of parent group (places this node inside that group)
-- groupColor: hex background tint for group containers
-- icon: lucide icon name (box, server, database, zap, shield, globe, etc.)
-- accentColor: override highlight color (15 palette options)
-- status: healthy | warning | error | unknown
-- width/height: pixel size (groups: 400-800px wide, 200-400px tall)
-
-**EDGE FIELDS (JSON mode)**:
-- source, target (required): node IDs
-- communicationType: sync | async | stream | event | dep
-- label: required for async/stream/event — name the message or event
-- pathType: Smoothstep | bezier | step | straight
-
-**TIER COLORS**:
-- client: #64748b (slate) — browsers, mobile apps
-- edge: #6366f1 (indigo) — API gateways, load balancers, CDN
-- compute: #0d9488 (teal) — microservices, workers, APIs
-- async: #d97706 (amber) — queues, event buses, Kafka
-- data: #3b82f6 (blue) — databases, caches, object storage
-- external: #8b5cf6 (violet) — third-party APIs, payment gateways
-- observe: #6b7280 (gray) — monitoring, logging, tracing`,
+Pass publish:false when the user asks to keep the diagram private. Keep the returned workingSessionId for later calls about the same diagram.`,
     inputSchema: {
       type: 'object',
       properties: {
         mermaid: {
           type: 'string',
-          description: 'RECOMMENDED: Mermaid code for the diagram (graph LR or graph TD with subgraphs). Uses the web pipeline parser + Dagre layout.',
+          description: 'Preferred input. Mermaid with a labeled main flow and related branches. Use graph LR or graph TD.',
         },
         nodes: {
           type: 'array',
-          description: 'Legacy JSON mode (only if not using mermaid). Array of nodes. RULES: (1) every node needs id+label+tier+subtitle, (2) include at least one isGroup:true node, (3) use parentId to nest nodes inside groups, (4) use accentColor to visually differentiate nodes in the same tier.',
+          description: 'Structured input when Mermaid is omitted. Each node needs an id, label, tier, and subtitle. Use isGroup and parentId for meaningful system boundaries when needed.',
           items: {
             type: 'object',
             properties: {
@@ -143,7 +89,7 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
         },
         edges: {
           type: 'array',
-          description: 'Legacy JSON mode (only if not using mermaid). Array of edges. REQUIRED. Add labels to all async/event/stream edges. Do not connect data tier directly to client tier.',
+          description: 'Structured connections when Mermaid is omitted. Label each connection and point it in the direction of the actual request, response, event, or data flow.',
           items: {
             type: 'object',
             properties: {
@@ -162,7 +108,7 @@ Optional directives like \`%% archdraw-shape: {"id":"<id>","shape":"shield"}\` a
                 default: 'Smoothstep',
                 description: 'Edge path style',
               },
-              label: { type: 'string', description: 'Edge label. REQUIRED for async/stream/event. Describe the message or event name.' },
+              label: { type: 'string', description: 'Required. Name the action, protocol, or event.' },
             },
             required: ['source', 'target', 'label'],
           },
@@ -615,7 +561,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       };
       const summary = result.message || `Diagram generated with ${result.metadata.nodeCount} nodes and ${result.metadata.edgeCount} connections.`;
       const text = result.success
-        ? `${formatPreviewLinks({ ...result, privateByRequest: input.publish === false })}\n\n${summary}`
+        ? `${formatPreviewLinks({ ...result, privateByRequest: input.publish === false, imageStyle: 'studio' })}\n\n${summary}`
         : `Diagram generation failed: ${(result.errors || ['Unknown error']).join('; ')}`;
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },

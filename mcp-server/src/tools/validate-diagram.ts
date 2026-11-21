@@ -110,9 +110,7 @@ export function validateGraph(nodes: ReactFlowNode[], edges: ReactFlowEdge[]): {
     }
   }
 
-  // ─── STAR TOPOLOGY DETECTION — critical anti-pattern ─────────────────────
-  // If any single non-gateway node has more than 40% of all edges pointing TO it,
-  // it is being used as a hub — this is wrong.
+  // Flag concentrated inbound traffic for review. A hub can be intentional.
   const totalEdges = state.edges.length;
   for (const node of state.nodes) {
     if (node.data?.isGroup) continue;
@@ -126,10 +124,7 @@ export function validateGraph(nodes: ReactFlowNode[], edges: ReactFlowEdge[]): {
       issues.push({
         severity: 'warning',
         nodeId: node.id,
-        message: `STAR TOPOLOGY ERROR: Client node '${label}' is the TARGET of ${inbound} edges. ` +
-          `Client tier nodes (Web App, Mobile App) are SOURCES — they initiate requests. ` +
-          `Backend/service nodes must NOT connect back to the client. ` +
-          `Fix: reverse these edges so they flow FROM the client → API Gateway → Services.`,
+        message: `Client node '${label}' receives ${inbound} connections. Check that each arrow matches an actual response, push, or peer flow.`,
       });
     }
 
@@ -138,9 +133,7 @@ export function validateGraph(nodes: ReactFlowNode[], edges: ReactFlowEdge[]): {
       issues.push({
         severity: 'warning',
         nodeId: node.id,
-        message: `STAR TOPOLOGY ERROR: Node '${label}' (${tier} tier) is the hub — ${inbound} of ${totalEdges} edges point TO it. ` +
-          `Architecture must use a tiered flow, not a star/hub pattern. ` +
-          `Edges must flow: client → edge → compute → async/data → external.`,
+        message: `Node '${label}' (${tier} tier) receives ${inbound} of ${totalEdges} connections. Check that the shared destination matches the architecture.`,
       });
     }
   }
@@ -158,24 +151,11 @@ export function validateGraph(nodes: ReactFlowNode[], edges: ReactFlowEdge[]): {
     const sourceTierOrder = TIER_RANK[sourceTier] ?? 2;
     const targetTierOrder = TIER_RANK[targetTier] ?? 2;
 
-    // Direction is visual guidance only; it is not a validity condition.
-    if (sourceTierOrder > 1 && targetTierOrder === 0) {
-      issues.push({
-        severity: 'warning',
-        nodeId: edge.source,
-        message: `BACKWARD EDGE: '${sourceNode.data?.label}' (${sourceTier}) → '${targetNode.data?.label}' (client). ` +
-          `Service and data nodes must NEVER connect to the client tier. ` +
-          `The client initiates requests; it never receives direct pushes from backend services (use WebSocket gateway or notification service instead).`,
-      });
-    }
-
-    // Edge tier should not connect back to client
     if (sourceTierOrder >= 1 && targetTierOrder === 0) {
       issues.push({
         severity: 'warning',
         nodeId: edge.source,
-        message: `DIRECTION WARNING: Edge from '${sourceNode.data?.label}' (${sourceTier}) points back TO '${targetNode.data?.label}' (client tier). ` +
-          `In a request-response architecture, backend→client connections should use response arrows or a separate WebSocket/SSE node, not direct edges.`,
+        message: `Check the direction of '${sourceNode.data?.label}' → '${targetNode.data?.label}'. Label the response, event, or data the client receives.`,
       });
     }
   }

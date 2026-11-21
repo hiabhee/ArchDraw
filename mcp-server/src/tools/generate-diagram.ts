@@ -4,14 +4,58 @@ import { describeSaveFailure } from '../lib/preview-links.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { validateGraph } from './validate-diagram.js';
 
-function structuredInputToMermaid(nodes: NodeInput[], edges: NonNullable<GenerateDiagramInput['edges']>, direction: GenerateDiagramInput['direction']): string {
+function structuredInputToMermaid(nodes: NonNullable<GenerateDiagramInput['nodes']>, edges: NonNullable<GenerateDiagramInput['edges']>, direction: GenerateDiagramInput['direction']): string {
   const graphDirection = direction === 'DOWN' || direction === 'UP' ? 'TD' : 'LR';
   const lines = [`graph ${graphDirection}`];
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const childrenByParent = new Map<string | undefined, NonNullable<GenerateDiagramInput['nodes']>>();
+  const escapeLabel = (label: string) => label.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replace(/[\r\n]+/g, ' ');
+  const delimiters: Record<string, [string, string]> = {
+    diamond: ['{', '}'],
+    ellipse: ['((', '))'],
+    hexagon: ['{{', '}}'],
+  };
+
+  if (byId.size !== nodes.length) throw new Error('Node ids must be unique.');
+
   for (const node of nodes) {
-    const label = (node.label || node.id || 'Component').replaceAll('"', "'").replaceAll('\n', ' ');
-    lines.push(`  ${node.id || 'component'}["${label}"]`);
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(node.id)) {
+      throw new Error(`Invalid Mermaid node id "${node.id}".`);
+    }
+    if (node.parentId && !byId.get(node.parentId)?.isGroup) {
+      throw new Error(`Parent "${node.parentId}" of "${node.id}" must be a group.`);
+    }
+    const siblings = childrenByParent.get(node.parentId) ?? [];
+    siblings.push(node);
+    childrenByParent.set(node.parentId, siblings);
   }
-  for (const edge of edges || []) lines.push(`  ${edge.source} --> ${edge.target}`);
+
+  let emitted = 0;
+  const emitNodes = (parent?: string) => {
+    for (const node of childrenByParent.get(parent) ?? []) {
+      emitted++;
+      const label = escapeLabel(node.label || node.id || 'Component');
+      if (node.isGroup) {
+        lines.push(`  subgraph ${node.id}["${label}"]`);
+        emitNodes(node.id);
+        lines.push('  end');
+      } else {
+        const [open, close] = delimiters[node.shape ?? ''] ?? ['[', ']'];
+        const subtitle = node.subtitle ? `<br/>${escapeLabel(node.subtitle)}` : '';
+        lines.push(`  ${node.id}${open}"${label}${subtitle}"${close}`);
+      }
+    }
+  };
+  emitNodes();
+  if (emitted !== nodes.length) throw new Error('Node groups contain a circular parent relationship.');
+
+  for (const edge of edges) {
+    if (!byId.has(edge.source) || !byId.has(edge.target)) {
+      throw new Error(`Unknown endpoint on connection "${edge.source}" to "${edge.target}".`);
+    }
+    const arrow = edge.communicationType === 'sync' ? '-->' : '-.->';
+    lines.push(`  ${edge.source} ${arrow}|"${escapeLabel(edge.label)}"| ${edge.target}`);
+  }
   return lines.join('\n');
 }
 
@@ -155,25 +199,6 @@ function validateEdgeTopology(
   return topologyErrors;
 } */
 
-interface NodeInput {
-  id?: string;
-  label: string;
-  tier?: string;
-  layer?: string;
-  subtitle?: string;
-  icon?: string;
-  tierColor?: string;
-  accentColor?: string;
-  groupColor?: string;
-  status?: 'healthy' | 'warning' | 'error' | 'unknown';
-  shape?: string;
-  width?: number;
-  height?: number;
-  serviceType?: string;
-  isGroup?: boolean;
-  parentId?: string;
-}
-
 export async function generateDiagram(input: GenerateDiagramInput): Promise<{
   success: boolean;
   nodes: ReactFlowNode[];
@@ -313,7 +338,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
     if (!input.nodes || input.nodes.length === 0) {
       return {
         success: false, nodes: [], edges: [], elkPositions: [],
-        metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'ELK layered', direction, groupCount: 0 },
+        metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction, groupCount: 0 },
         errors: ['No nodes or mermaid string provided.'],
       };
     }
@@ -323,7 +348,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
     // Mermaid → Dagre pipeline rather than a competing ELK layout.
     return generateDiagram({
       ...input,
-      mermaid: structuredInputToMermaid(input.nodes as NodeInput[], input.edges || [], input.direction),
+      mermaid: structuredInputToMermaid(input.nodes, input.edges || [], input.direction),
     });
 
   } catch (error) {
