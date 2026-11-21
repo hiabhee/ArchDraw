@@ -309,7 +309,9 @@ export function parseMermaid(mermaidText: string): ParseResult {
 
         const nextMatch = matches[mIdx + 1]
         const nextArrowIdx = nextMatch ? nextMatch.index! : line.length
-        let targetPart = line.slice(arrowIdx + match[0].length, nextArrowIdx).trim()
+        const rawTargetPart = line.slice(arrowIdx + match[0].length, nextArrowIdx)
+        const targetStart = arrowIdx + match[0].length + rawTargetPart.length - rawTargetPart.trimStart().length
+        let targetPart = rawTargetPart.trim()
 
         let pipeLabelMatch: RegExpMatchArray | null = null
         if (!edgeLabel) {
@@ -340,8 +342,7 @@ export function parseMermaid(mermaidText: string): ParseResult {
         })
 
         if (pipeLabelMatch) {
-          const labelOffset = line.slice(arrowIdx + match[0].length).indexOf(pipeLabelMatch[3])
-          lastIndex = arrowIdx + match[0].length + Math.max(0, labelOffset)
+          lastIndex = targetStart + pipeLabelMatch[0].length - pipeLabelMatch[3].length
         } else {
           lastIndex = arrowIdx + match[0].length
         }

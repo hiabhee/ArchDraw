@@ -2,11 +2,13 @@
 
 import type { Direction, Shape, EdgeType, ParsedNodeStyle } from '../types'
 import { stripComments } from './directives'
-import { unescapeLabel, stripMarkdownLabel } from './labelText'
+import { unescapeLabel, stripMarkdownLabel, startsQuotedLabel } from './labelText'
 
 export function splitStatements(line: string): string[] {
   const statements: string[] = []
   let current = ''
+  let inPipeLabel = false
+  let depth = 0
   let inQuote: '"' | "'" | '' = ''
   for (let i = 0; i < line.length; i++) {
     const ch = line[i]
@@ -20,12 +22,15 @@ export function splitStatements(line: string): string[] {
       }
       continue
     }
-    if (ch === '"' || ch === "'") {
-      inQuote = ch
+    if (startsQuotedLabel(line, i)) {
+      inQuote = ch as '"' | "'"
       current += ch
       continue
     }
-    if (ch === ';') {
+    if (ch === '|' && depth === 0) inPipeLabel = !inPipeLabel
+    if (!inPipeLabel && '[({'.includes(ch)) depth++
+    if (!inPipeLabel && '])}'.includes(ch)) depth = Math.max(0, depth - 1)
+    if (ch === ';' && !inPipeLabel && depth === 0) {
       statements.push(current)
       current = ''
       continue

@@ -1,5 +1,6 @@
 // Comment/frontmatter stripping and ArchDraw `%%` directive parsing.
 
+import { startsQuotedLabel } from './labelText'
 import type { ParsedText, TextSize, TextAnchor } from '../types'
 import { SUPPORTED_SHAPES, type ShapeType } from '@/lib/diagram/nodes/shapeRegistry'
 
@@ -24,7 +25,7 @@ export function stripComments(line: string): string {
     if (inQuote) {
       if (ch === quoteChar && line[i - 1] !== '\\') inQuote = false
     } else {
-      if (ch === '"' || ch === "'") {
+      if (startsQuotedLabel(line, i)) {
         inQuote = true
         quoteChar = ch
       } else if (ch === '%' && i + 1 < line.length && line[i + 1] === '%') {
