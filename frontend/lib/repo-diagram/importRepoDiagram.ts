@@ -1,12 +1,11 @@
 /**
  * Shared helper for importing repo diagram NDJSON into the canvas.
  * Used by both RepoDiagramGenerator and Editor (FloatingAIBar path).
- * Applies dagre layout for consistent structure with the normal AI pipeline.
+ * Uses the same layout and routing checks as the templates and layout toolbar.
  */
 
 import { parseRepoNdjsonToReactFlow } from '@/lib/repo-diagram/parseRepoNdjson';
-import { applyRfLayout } from '@/lib/diagram/pipeline-shared/layout/IntegratedLayout';
-import { applySubgraphBoundsToRf } from '@/lib/diagram/mermaid/recomputeSubgraphBounds';
+import { layoutDiagramViaMermaid, type RelayoutOptions } from '@/lib/diagram/mermaid/relayout';
 import { classifyNode, SERVICE_TYPE_META, CATEGORY_COLORS, getDeterministicColor } from '@/lib/diagram/mermaid/planTranslator';
 import { classifyEdge } from '@/lib/diagram/mermaid/edgeClassifier';
 import { calculateNodeDimensions } from '@/lib/diagram/nodes/nodeSizing';
@@ -103,15 +102,13 @@ function enrichRepoEdges(edges: Edge[], enrichedNodes: Node[]): Edge[] {
 }
 
 /**
- * Parse NDJSON, enrich nodes with classification data, strip manual grid
- * positions, and re-layout with dagre so repo diagrams have the same
- * structure and appearance as normal AI-generated diagrams.
+ * Parse NDJSON, enrich its graph, and compute layout for the active render style.
  * Returns null if no architectural components could be parsed.
  */
-export function parseAndValidateRepoDiagram(
+export async function parseAndValidateRepoDiagram(
   ndjson: string,
-  direction: 'LR' | 'TB' = 'LR'
-): ImportRepoDiagramResult | null {
+  options: RelayoutOptions = {},
+): Promise<ImportRepoDiagramResult | null> {
   const { nodes: rfNodes, edges: rfEdges } = parseRepoNdjsonToReactFlow(ndjson);
 
   if (rfNodes.length === 0) {
@@ -127,30 +124,15 @@ export function parseAndValidateRepoDiagram(
   // 2. Enrich edges with semantic classification and strip static styling
   const enrichedEdges = enrichRepoEdges(rfEdges, enrichedNodes);
 
-  // Use the canonical applyRfLayout (pipeline-shared Dagre) so repo diagrams
-  // are laid out by the same engine as AI-generated and template diagrams.
-  const zeroedNodes = enrichedNodes.map((n) => ({
-    ...n,
-    position: { x: 0, y: 0 } as { x: number; y: number },
-  }));
-
-  const layouted = applyRfLayout(
-    { nodes: zeroedNodes as Parameters<typeof applyRfLayout>[0]['nodes'], edges: enrichedEdges },
-    direction === 'LR' ? 'LR' : 'TD',
-    { rankSep: 160, nodeSep: 100 },
-  );
-  // Dagre compound output places children at ABSOLUTE positions and relies on
-  // a follow-up sizing pass. Without it React Flow reads child positions as
-  // parent-relative (grouped nodes render offset outside their box) and
-  // groups are never sized to their contents.
-  const sizedNodes = applySubgraphBoundsToRf(layouted.nodes as typeof enrichedNodes);
-  const layoutedNodes = sizedNodes;
-  const layoutedEdges = layouted.edges as typeof enrichedEdges;
+  const layout = await layoutDiagramViaMermaid(enrichedNodes, enrichedEdges, 'LR', options);
+  if (!layout.success) {
+    throw new Error(layout.warnings[0] || 'Could not lay out the repository diagram.');
+  }
 
   return {
-    nodes: layoutedNodes,
-    edges: layoutedEdges,
+    nodes: layout.nodes,
+    edges: layout.edges,
     nodeCount: safeNodes.length,
-    edgeCount: layoutedEdges.length,
+    edgeCount: layout.edges.length,
   };
 }

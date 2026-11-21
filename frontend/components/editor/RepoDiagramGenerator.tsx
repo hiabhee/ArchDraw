@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { X, GitBranch, Loader2, Check, AlertTriangle, BarChart3, Workflow as WorkflowIcon, Package } from 'lucide-react';
 import { useDiagramStore } from '@/store/diagramStore';
-import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 import { parseAndValidateRepoDiagram } from '@/lib/repo-diagram/importRepoDiagram';
 import type { RepoDiagramApiResponse } from '@/lib/repo-diagram/types';
@@ -37,20 +36,6 @@ export function RepoDiagramGenerator({ onClose }: Props) {
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [progressPct, setProgressPct] = useState<number>(0);
 
-  const {
-    importDiagram,
-    activeCanvasId,
-    renameCanvas,
-    fitView,
-  } = useDiagramStore(
-    useShallow((s) => ({
-      importDiagram: s.importDiagram,
-      activeCanvasId: s.activeCanvasId,
-      renameCanvas: s.renameCanvas,
-      fitView: s.fitView,
-    })),
-  );
-
   const extractRepoName = (url: string): string => {
     try {
       const cleanUrl = url.trim().replace(/\/+$/, '');
@@ -61,22 +46,33 @@ export function RepoDiagramGenerator({ onClose }: Props) {
     }
   };
 
-  const loadDiagram = (ndjson: string) => {
-    const parsed = parseAndValidateRepoDiagram(ndjson);
-    if (!parsed) {
-      toast.error('No architectural components could be detected in this repository.');
-      return;
-    }
+  const loadDiagram = async (ndjson: string) => {
+    const { diagramRenderStyle, diagramLayoutStyle, iconMode } = useDiagramStore.getState();
+    setIsLoading(true);
+    try {
+      const parsed = await parseAndValidateRepoDiagram(ndjson, {
+        renderStyleId: diagramRenderStyle,
+        layoutStyle: diagramLayoutStyle,
+        iconMode,
+      });
+      if (!parsed) {
+        toast.error('No architectural components could be detected in this repository.');
+        return;
+      }
 
-    // Import replaces the diagram: a live project's map moves to a new tab instead.
-    if (!useDiagramStore.getState().openTabIfLiveProject()) return;
-    importDiagram(parsed.nodes, parsed.edges);
-    useDiagramStore.getState().setDiagramViewMode('overview');
-    const repoName = extractRepoName(repoUrl);
-    renameCanvas(useDiagramStore.getState().activeCanvasId, `${repoName} Architecture`);
-    setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
-    toast.success(`Loaded: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
-    onClose();
+      if (!useDiagramStore.getState().openTabIfLiveProject()) return;
+      const store = useDiagramStore.getState();
+      store.setActiveLayoutPresetId('layered-lr');
+      store.setDiagramViewMode('overview');
+      store.renameCanvas(store.activeCanvasId, `${extractRepoName(repoUrl)} Architecture`);
+      store.importDiagram(parsed.nodes, parsed.edges, { preserveLayout: true });
+      toast.success(`Loaded: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
+      onClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not lay out the repository diagram.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -325,10 +321,11 @@ export function RepoDiagramGenerator({ onClose }: Props) {
                 <button
                   type="button"
                   onClick={() => loadDiagram(summary.ndjson)}
+                  disabled={isLoading}
                   className="px-5 py-2.5 text-xs font-medium text-white bg-primary rounded-xl hover:bg-primary/95 transition shadow-md flex items-center gap-2"
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  View Diagram
+                  {isLoading ? 'Laying out diagram…' : 'View Diagram'}
                 </button>
               </div>
             </div>
