@@ -49,6 +49,13 @@ export function segmentIntersectsRect(
   x2: number, y2: number,
   rx: number, ry: number, rw: number, rh: number,
 ): boolean {
+  // Nearly every segment in a route candidate is orthogonal.
+  if (x1 === x2) {
+    return x1 >= rx && x1 <= rx + rw && Math.max(y1, y2) >= ry && Math.min(y1, y2) <= ry + rh;
+  }
+  if (y1 === y2) {
+    return y1 >= ry && y1 <= ry + rh && Math.max(x1, x2) >= rx && Math.min(x1, x2) <= rx + rw;
+  }
   const INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
   const code = (x: number, y: number) => {
     let c = INSIDE;
@@ -76,24 +83,6 @@ export function segmentIntersectsRect(
 }
 
 function pathCollidesWithNodes(
-  waypoints: Array<{ x: number; y: number }>,
-  nodeRects: Map<string, NodeRect>,
-  excludedIds: Set<string>,
-): boolean {
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const p1 = waypoints[i];
-    const p2 = waypoints[i + 1];
-    for (const [id, rect] of nodeRects) {
-      if (excludedIds.has(id)) continue;
-      if (segmentIntersectsRect(p1.x, p1.y, p2.x, p2.y, rect.x, rect.y, rect.w, rect.h)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-function pathEntersNodeInterior(
   waypoints: Array<{ x: number; y: number }>,
   nodeRects: Map<string, NodeRect>,
   excludedIds: Set<string>,
@@ -180,7 +169,7 @@ function pickLowestBendPath(
   for (const raw of candidates) {
     const path = simplifyOrthogonalPath(raw);
     if (path.length < 2) continue;
-    if (pathEntersNodeInterior(path, nodeRects, excludedIds)) continue;
+    if (pathCollidesWithNodes(path, nodeRects, excludedIds)) continue;
     const bends = countPathBends(path);
     const len = pathManhattanLength(path);
     if (bends < bestBends || (bends === bestBends && len < bestLen)) {
@@ -331,7 +320,7 @@ function findSafeLShapePath(
     ? [{ x: sx, y: sy }, { x: tx, y: sy }, { x: tx, y: ty }]
     : [{ x: sx, y: sy }, { x: sx, y: ty }, { x: tx, y: ty }];
 
-  if (!pathEntersNodeInterior(defaultWaypoints, nodeRects, excludedIds)) {
+  if (!pathCollidesWithNodes(defaultWaypoints, nodeRects, excludedIds)) {
     return defaultWaypoints;
   }
 
@@ -601,8 +590,8 @@ function collapseTinyJogs(
             const pathB = [...result.slice(0, i - 1), ...candB, ...result.slice(i + 3)];
             const simpleA = simplifyOrthogonalPath(pathA);
             const simpleB = simplifyOrthogonalPath(pathB);
-            const freeA = !nodeRects || !pathEntersNodeInterior(simpleA, nodeRects, excludedIds);
-            const freeB = !nodeRects || !pathEntersNodeInterior(simpleB, nodeRects, excludedIds);
+            const freeA = !nodeRects || !pathCollidesWithNodes(simpleA, nodeRects, excludedIds);
+            const freeB = !nodeRects || !pathCollidesWithNodes(simpleB, nodeRects, excludedIds);
             let chosen: Array<{ x: number; y: number }> | null = null;
             if (freeA && freeB) {
               // Prefer the side that keeps the longer horizontal
@@ -633,8 +622,8 @@ function collapseTinyJogs(
             const pathB = [...result.slice(0, i - 1), ...candB, ...result.slice(i + 3)];
             const simpleA = simplifyOrthogonalPath(pathA);
             const simpleB = simplifyOrthogonalPath(pathB);
-            const freeA = !nodeRects || !pathEntersNodeInterior(simpleA, nodeRects, excludedIds);
-            const freeB = !nodeRects || !pathEntersNodeInterior(simpleB, nodeRects, excludedIds);
+            const freeA = !nodeRects || !pathCollidesWithNodes(simpleA, nodeRects, excludedIds);
+            const freeB = !nodeRects || !pathCollidesWithNodes(simpleB, nodeRects, excludedIds);
             let chosen: Array<{ x: number; y: number }> | null = null;
             if (freeA && freeB) {
               const lenA = Math.abs(d.y - a.y);
@@ -746,7 +735,7 @@ function preferLowBendReroute(
   const withStubs = enforceTerminalStubs(full, sourcePosition, targetPosition, stubLen, nodeRects, excludedIds);
   const bends = countPathBends(withStubs);
 
-  if (bends < currentBends && !pathEntersNodeInterior(withStubs, nodeRects, excludedIds)) {
+  if (bends < currentBends && !pathCollidesWithNodes(withStubs, nodeRects, excludedIds)) {
     return withStubs;
   }
   return null;
