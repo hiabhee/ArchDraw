@@ -29,6 +29,18 @@ describe('export draws what the canvas draws', () => {
     expect(text).toContain('Kong routing');
   });
 
+  it.each(['shapeNode', 'systemNode'])('exports readable identifier titles for %s cards', (type) => {
+    const titles = ['DagreLayoutEngine', 'SimpleFloatingEdge'];
+    const cards = titles.map((label, index) => {
+      const node = card(String(index), index * 400, label, 'Details');
+      return { ...node, type, data: { ...node.data, showIcon: true, icon: 'GitMerge' } };
+    });
+    const svg = generatePureSVG(cards, [], true, '#0b0c0e', 'LR', 'studio-minimal', 'default', 'all');
+    const titleLines = [...svg.matchAll(/<text[^>]*font-size="23"[^>]*>([^<]*)<\/text>/g)].map((match) => match[1]);
+    expect(titleLines.join(' ')).toBe('Dagre Layout Engine Simple Floating Edge');
+    expect(cards.map(node => node.data.label)).toEqual(titles);
+  });
+
   it('wraps a long card subtitle the way the canvas does and keeps every word', () => {
     const wide = [card('a', 0, 'Client', 'Browser / Mobile — initiates request'), card('b', 500, 'DNS', 'Route 53 — resolves domain'), card('c', 1000, 'CDN', 'Cloudflare — edge cache')];
     const svg = generatePureSVG(wide, [], true, '#0b0c0e', 'LR', 'studio-minimal', 'default', 'off');

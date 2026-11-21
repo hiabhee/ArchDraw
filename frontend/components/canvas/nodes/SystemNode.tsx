@@ -30,6 +30,7 @@ import {
   studioContentNodeSize,
   studioCompactNodeSize,
 } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import { formatStudioCardTitle } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import './nodeStyles.css';
 
@@ -476,7 +477,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
                   opacity: data.label ? 1 : 0.45,
                 }}
               >
-                {data.label || 'Service'}
+                {studio ? formatStudioCardTitle(data.label || 'Service') : data.label || 'Service'}
               </p>
             )}
             {nodeData.subtitle && (

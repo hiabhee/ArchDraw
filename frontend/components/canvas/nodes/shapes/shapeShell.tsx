@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useUpdateNodeInternals } from 'reactflow';
 import { ICON_SIZE, PROMINENT_ICON_SLOT_PX, PROMINENT_ICON_GLYPH_RATIO, prominentIconGlyphSize, type NodeStyleConfig } from '@/lib/theme/stylingConstants';
 import { countPipeLabelLines } from '@/lib/diagram/nodes/nodeSizing';
-import { getDiamondLabelNudge, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
+import { formatStudioCardTitle, getDiamondLabelNudge, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
 import { NodeHandles } from '@/components/canvas/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
@@ -283,7 +283,7 @@ export function Label({
               overflow: undefined,
             }}
           >
-            {data.label}
+            {studio ? formatStudioCardTitle(data.label) : data.label}
           </span>
         ) : null}
         {showSubtitle && (

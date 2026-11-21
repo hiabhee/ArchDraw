@@ -15,9 +15,8 @@ import { CustomNodeIcon, toCustomNodeIconName } from '@/lib/icons/CustomNodeIcon
 import { resolveNodeIcon, type NodeIconSource } from '@/lib/icons/nodeIconResolver';
 import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/icons/brandIcons';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
-import { shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
+import { formatStudioCardTitle, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
-import { getShapeLabelMaxWidth } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_ICON_GAP, STUDIO_SCALE, STUDIO_SUBTITLE_PX, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import { wrapText } from './textMeasure';
 import { decorOpacity, decorPrimitives, statIconName, statLayout, type DecorNodeData, type StatNodeData } from '@/lib/diagram/nodes/infographicNodes';
@@ -114,6 +113,38 @@ function studioIconSvg(data: ShapeNodeData, color: string, isDark: boolean, sele
   }
   const name = toCustomNodeIconName(resolved.icon);
   return name ? `<g data-semantic-icon="${name}">${iconElementSvg(CustomNodeIcon({ name, color, size: 36 }))}</g>` : '';
+}
+
+function renderStudioCardText(
+  title: string,
+  subtitle: string | undefined,
+  {
+    x, width, height, blockTop, anchor, fontFamily, titleColor, subtitleColor,
+  }: {
+    x: number;
+    width: number;
+    height: number;
+    blockTop?: number;
+    anchor: 'start' | 'middle';
+    fontFamily: string;
+    titleColor: string;
+    subtitleColor: string;
+  },
+): string {
+  const titleSpacing = -0.015 * STUDIO_TITLE_PX;
+  const subtitleSpacing = 0.01 * STUDIO_SUBTITLE_PX;
+  const titleLine = STUDIO_TITLE_PX * 1.25;
+  const subtitleLine = STUDIO_SUBTITLE_PX * 1.2;
+  const titleLines = title ? wrapText(formatStudioCardTitle(title), width, { weight: 600, px: STUDIO_TITLE_PX, letterSpacing: titleSpacing }) : [];
+  const subtitleLines = subtitle ? wrapText(subtitle, width, { weight: 400, px: STUDIO_SUBTITLE_PX, letterSpacing: subtitleSpacing }) : [];
+  const blockHeight = titleLines.length * titleLine + (subtitleLines.length ? 1 + subtitleLines.length * subtitleLine : 0);
+  const top = blockTop ?? (height - blockHeight) / 2;
+  // First baseline of a line box: half-leading above the glyphs plus the font's ascent.
+  const baseline = (lineTop: number, line: number, size: number) => lineTop + (line - size * 1.21) / 2 + size * 0.969;
+  return [
+    ...titleLines.map((line, i) => `<text x="${x}" y="${baseline(top + i * titleLine, titleLine, STUDIO_TITLE_PX).toFixed(2)}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="600" letter-spacing="${titleSpacing.toFixed(3)}" text-anchor="${anchor}">${escapeXml(line)}</text>`),
+    ...subtitleLines.map((line, i) => `<text x="${x}" y="${baseline(top + titleLines.length * titleLine + 1 + i * subtitleLine, subtitleLine, STUDIO_SUBTITLE_PX).toFixed(2)}" fill="${subtitleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_SUBTITLE_PX}" letter-spacing="${subtitleSpacing.toFixed(3)}" text-anchor="${anchor}">${escapeXml(line)}</text>`),
+  ].join('\n        ');
 }
 
 export function renderSystemNode(
@@ -301,8 +332,15 @@ export function renderSystemNode(
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
         ${icon ? `${iconWell}<g transform="translate(16, 14)">${icon}</g>` : ''}
-        <text x="${textX}" y="${data.subtitle ? 29 : 39}" fill="${selectedTitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="${STUDIO_TITLE_PX}" font-weight="600">${escapeXml(data.label || 'Service')}</text>
-        ${data.subtitle ? `<text x="${textX}" y="47" fill="${selectedSubtitle}" font-family="Inter, IBM Plex Sans, system-ui, sans-serif" font-size="12.5">${escapeXml(String(data.subtitle))}</text>` : ''}
+        ${renderStudioCardText(data.label || 'Service', data.subtitle ? String(data.subtitle) : undefined, {
+          x: textX,
+          width: Math.max(56, width - textX - 16),
+          height,
+          anchor: 'start',
+          fontFamily: 'Inter, IBM Plex Sans, system-ui, sans-serif',
+          titleColor: selectedTitle,
+          subtitleColor: selectedSubtitle,
+        })}
         ${showStatus ? `<circle cx="${width - 13}" cy="${height - 13}" r="3" fill="${statusColor}" />` : ''}
       </g>
     `.trim();
@@ -749,25 +787,17 @@ export function renderShapeNode(
     const textX = icon && !stackIcon ? iconX + STUDIO_ICON_WELL_PX + S(8) : W / 2;
     const textAnchor = icon && !stackIcon ? 'start' : 'middle';
 
-    // Text is set exactly as the canvas card sets it: wrapped to the card's text width (the card
-    // minus its padding, and minus the icon beside it), a 1.25 / 1.2 line height, the title's
-    // -0.015em and the subtitle's +0.01em letter spacing, and the whole block centred vertically.
-    const TITLE_SPACING = -0.015 * STUDIO_TITLE_PX;
-    const SUBTITLE_SPACING = 0.01 * STUDIO_SUBTITLE_PX;
-    const TITLE_LINE = STUDIO_TITLE_PX * 1.25;
-    const SUBTITLE_LINE = STUDIO_SUBTITLE_PX * 1.2;
-    // The canvas card's label lane: `getShapeLabelMaxWidth` (88% of the card) less the 4px inset on each side.
-    const textWidth = Math.max(56, getShapeLabelMaxWidth(shape, W, 'title') - 8 - (icon && !stackIcon ? STUDIO_ICON_WELL_PX + STUDIO_ICON_GAP : 0));
-    const titleLines = title ? wrapText(title, textWidth, { weight: 600, px: STUDIO_TITLE_PX, letterSpacing: TITLE_SPACING }) : [];
-    const subtitleLines = subtitle ? wrapText(String(subtitle), textWidth, { weight: 400, px: STUDIO_SUBTITLE_PX, letterSpacing: SUBTITLE_SPACING }) : [];
-    const blockHeight = titleLines.length * TITLE_LINE + (subtitleLines.length ? 1 + subtitleLines.length * SUBTITLE_LINE : 0);
-    const blockTop = stackIcon ? iconY + STUDIO_ICON_WELL_PX + 6 : (H - blockHeight) / 2;
-    // First baseline of a line box: half-leading above the glyphs plus the font's ascent.
-    const baseline = (top: number, line: number, size: number) => top + (line - size * 1.21) / 2 + size * 0.969;
-    const textSvg = [
-      ...titleLines.map((line, i) => `<text x="${textX}" y="${baseline(blockTop + i * TITLE_LINE, TITLE_LINE, STUDIO_TITLE_PX).toFixed(2)}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="600" letter-spacing="${TITLE_SPACING.toFixed(3)}" text-anchor="${textAnchor}">${escapeXml(line)}</text>`),
-      ...subtitleLines.map((line, i) => `<text x="${textX}" y="${baseline(blockTop + titleLines.length * TITLE_LINE + 1 + i * SUBTITLE_LINE, SUBTITLE_LINE, STUDIO_SUBTITLE_PX).toFixed(2)}" fill="${subtitleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_SUBTITLE_PX}" letter-spacing="${SUBTITLE_SPACING.toFixed(3)}" text-anchor="${textAnchor}">${escapeXml(line)}</text>`),
-    ].join('\n        ');
+    const textSvg = renderStudioCardText(title, subtitle ? String(subtitle) : undefined, {
+      x: textX,
+      // The label area is the shape's safe width less padding and the adjacent icon.
+      width: Math.max(56, getShapeLabelMaxWidth(shape, W, 'title') - 8 - (icon && !stackIcon ? STUDIO_ICON_WELL_PX + STUDIO_ICON_GAP : 0)),
+      height: H,
+      ...(stackIcon ? { blockTop: iconY + STUDIO_ICON_WELL_PX + 6 } : {}),
+      anchor: textAnchor,
+      fontFamily,
+      titleColor,
+      subtitleColor,
+    });
     const iconWell = isDark && selected
       ? `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-opacity="0.4" />`
       : `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" />`;
