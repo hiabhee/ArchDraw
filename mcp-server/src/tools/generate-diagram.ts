@@ -1,6 +1,6 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { GenerateDiagramInput } from '../lib/schema.js';
-import { describeSaveFailure } from '../lib/preview-links.js';
+import { DEFAULT_MCP_IMAGE_STYLE, describeSaveFailure, previewOptions } from '../lib/preview-links.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { validateGraph } from './validate-diagram.js';
 
@@ -199,6 +199,26 @@ function validateEdgeTopology(
   return topologyErrors;
 } */
 
+interface PreviewQuality {
+  status: 'ok' | 'degraded' | 'invalid' | 'failed';
+  hardViolations: number;
+  crossings: number;
+  labelCollisions: number;
+  criticalPathDisconnectCount: number;
+  unexplainedPrivateOverlapLength: number;
+}
+
+interface DiagramPreview {
+  nodes: ReactFlowNode[];
+  edges: ReactFlowEdge[];
+  warnings?: string[];
+  previewSvg?: string;
+  previewQuality?: PreviewQuality;
+  direction?: 'LR' | 'TD';
+}
+
+const MERMAID_DIRECTION = { RIGHT: 'LR', DOWN: 'TD', LEFT: 'RL', UP: 'BT' } as const;
+
 export async function generateDiagram(input: GenerateDiagramInput): Promise<{
   success: boolean;
   nodes: ReactFlowNode[];
@@ -219,12 +239,13 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
   message?: string;
   /** The diagram drawn by ArchDraw's SVG export, for the inline preview only. */
   previewSvg?: string;
+  previewQuality?: PreviewQuality;
   /** Why a requested preview link could not be created. */
   linkError?: string;
   errors?: string[];
 }> {
   try {
-    const { direction } = input;
+    const direction = input.direction ?? 'RIGHT';
 
     // Handle Mermaid input directly
     if (input.mermaid) {
@@ -234,14 +255,22 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 }, errors: ['Mermaid generation requires API_BASE_URL to run the ArchDraw pipeline.'] };
       }
       
+      const mermaid = input.direction
+        ? input.mermaid.replace(/^(\s*(?:graph|flowchart)\s+)(?:LR|RL|TB|TD|BT)\b/im, `$1${MERMAID_DIRECTION[input.direction]}`)
+        : input.mermaid;
+      const graph = {
+        mermaid,
+        label,
+        layout: { autoDirection: input.direction === undefined },
+        previewStyle: DEFAULT_MCP_IMAGE_STYLE,
+      };
       const previewResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mermaid: input.mermaid,
-          label,
+          ...graph,
           dryRun: true,
-          preview: true,
+          ...previewOptions(),
         }),
       });
 
@@ -260,7 +289,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         };
       }
 
-      const preview = await previewResponse.json() as { nodes: ReactFlowNode[]; edges: ReactFlowEdge[]; warnings?: string[]; previewSvg?: string };
+      const preview = await previewResponse.json() as DiagramPreview;
       const validation = validateGraph(preview.nodes, preview.edges);
       const structuralErrors = validation.issues.filter(issue => issue.severity === 'error').map(issue => issue.message);
       if (structuralErrors.length > 0) {
@@ -276,10 +305,15 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         // A failed publish must not throw away a successfully generated
         // diagram — return it and report why there is no link.
         try {
-          const saveResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mermaid: input.mermaid, label, source: 'mcp', publish: true }),
+          const publishGraph = (payload: object) => fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, label, source: 'mcp', publish: true }),
           });
+          // Reuse the accepted preview layout. If an older API or the raw-graph
+          // limits reject it, keep the existing Mermaid publication path.
+          let saveResponse = await publishGraph({ nodes: preview.nodes, edges: preview.edges });
+          if (saveResponse.status === 400) saveResponse = await publishGraph(graph);
           if (saveResponse.ok) {
             const saved = await saveResponse.json() as { sessionId: string; updateToken: string };
             sessionId = saved.sessionId;
@@ -320,7 +354,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
           nodeCount: saveData.nodes.length,
           edgeCount: saveData.edges.length,
           layoutAlgorithm: 'Mermaid Pipeline',
-          direction: input.direction || 'RIGHT',
+          direction: input.direction ?? (saveData.direction === 'TD' ? 'DOWN' : direction),
           groupCount,
         },
         diagramUrl,
@@ -331,6 +365,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         embeddedDiagram: { nodes: saveData.nodes, edges: saveData.edges },
         message,
         previewSvg: preview.previewSvg,
+        previewQuality: preview.previewQuality,
         errors: [...(saveData.warnings || []), ...validation.issues.filter(issue => issue.severity !== 'error').map(issue => issue.message)],
       };
     }
@@ -354,7 +389,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
   } catch (error) {
     return {
       success: false, nodes: [], edges: [], elkPositions: [],
-      metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction, groupCount: 0 },
+      metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction ?? 'RIGHT', groupCount: 0 },
       errors: [error instanceof Error ? error.message : 'Unknown error'],
     };
   }

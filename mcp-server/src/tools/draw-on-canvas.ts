@@ -4,7 +4,7 @@ import { getDiagramState } from '../lib/diagram-state.js';
 import { applyDrawOps, DrawError, type CanvasEdge, type CanvasNode, type DrawStep } from '../lib/canvas-ops.js';
 import { validateGraph } from './validate-diagram.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
-import { describeSaveFailure, type ImageStyleName } from '../lib/preview-links.js';
+import { describeSaveFailure, previewOptions, type ImageStyleName } from '../lib/preview-links.js';
 import { checkLayout, type LayoutIssue } from '../lib/layout-check.js';
 
 /** One line per node: where it is on the canvas and how big, so the next drawing can be placed exactly. */
@@ -86,7 +86,7 @@ async function preview(apiBase: string, nodes: CanvasNode[], edges: CanvasEdge[]
   try {
     const response = await fetchWithTimeout(`${apiBase}/api/diagram/load`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodes, edges, dryRun: true, preview: true, previewStyle: style }),
+      body: JSON.stringify({ nodes, edges, dryRun: true, ...previewOptions(style) }),
     });
     if (!response.ok) return undefined;
     return ((await response.json()) as { previewSvg?: string }).previewSvg;
@@ -172,7 +172,7 @@ export async function publishCanvas(
     try {
       const response = await fetchWithTimeout(`${apiBase}/api/diagram/load`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodes, edges, label: input.label || 'ArchDraw canvas', source: 'mcp', publish: true, preview: true, previewStyle: input.style }),
+        body: JSON.stringify({ nodes, edges, label: input.label || 'ArchDraw canvas', source: 'mcp', publish: true, ...previewOptions(input.style) }),
       });
       if (response.ok) {
         const saved = await response.json() as { sessionId: string; updateToken?: string; revision?: number; previewSvg?: string };

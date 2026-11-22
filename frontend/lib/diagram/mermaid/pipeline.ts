@@ -11,6 +11,7 @@ import type { RFObjects, RFNode, RFEdge, Direction, MermaidAST } from './types'
 import type { PrepareLayoutGeometry } from './pipeline-stages/LayoutStage'
 import type { EdgeLayoutSemantics } from './edgeFlowSemantics'
 import { getCachedDiagramGeometryPlan, type DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry'
+import { measureLayoutAesthetics } from '@/lib/diagram/pipeline-shared/layout/layoutAesthetics'
 import type { GeometryStatus } from '@/lib/diagram/geometry/geometryTypes'
 import {
   ParseStage,
@@ -267,6 +268,8 @@ export async function runMermaidPipeline(
     layoutStyle?: 'auto' | 'flow' | 'zones';
     /** Fold a long left-to-right flow into rows when that fits the screen far better (live projects). */
     foldLongFlows?: boolean;
+    /** Keep differently styled branches legible when an external preview requests separate strokes. */
+    separateSharedStrokes?: boolean;
     /** Score the restored graph during React Flow relayout. The caller verifies it after sizing and text placement. */
     prepareGeometry?: PrepareLayoutGeometry;
     /** Lay out some top-level groups the other way (top-down in a left-to-right diagram, or the reverse) when that fits the screen clearly better. Default on. */
@@ -307,4 +310,40 @@ export async function runMermaidPipeline(
     warnings: domainResult.warnings,
     metrics: domainResult.metrics,
   }
+}
+
+/** Prefer a readable, unfolded main flow in a compact preview. */
+export async function runCompactMermaidPipeline(
+  text: string,
+  options: Parameters<typeof runMermaidPipeline>[1],
+): Promise<DomainPipelineResult<PipelineResult>> {
+  const unfolded = { ...options, foldLongFlows: false }
+  const horizontal = await runMermaidPipeline(text, unfolded)
+  if (!horizontal.success || horizontal.data.direction !== 'LR') return horizontal
+
+  const before = horizontal.data.geometrySummary
+  const horizontalFit = measureLayoutAesthetics(horizontal.data.nodes, horizontal.data.edges, 'LR').fitScale
+  if (!before) return horizontal
+  const hasLayoutProblems = before.hardViolations || before.criticalPathDisconnectCount
+    || before.crossings || before.labelCollisions || before.unexplainedPrivateOverlapLength
+  if (!hasLayoutProblems && horizontalFit >= 0.55) return horizontal
+
+  const topDownText = text.replace(/^(\s*(?:graph|flowchart)\s+)LR\b/im, '$1TD')
+  if (topDownText === text) return horizontal
+  const topDown = await runMermaidPipeline(topDownText, unfolded)
+  if (!topDown.success || !topDown.data.geometrySummary) return horizontal
+  const after = topDown.data.geometrySummary
+  const topDownFit = measureLayoutAesthetics(topDown.data.nodes, topDown.data.edges, 'TD').fitScale
+
+  const noWorse = after.hardViolations <= before.hardViolations
+    && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
+    && after.crossings <= before.crossings
+    && after.labelCollisions <= before.labelCollisions
+    && after.unexplainedPrivateOverlapLength <= before.unexplainedPrivateOverlapLength
+  const fixesIssue = after.hardViolations < before.hardViolations
+    || after.criticalPathDisconnectCount < before.criticalPathDisconnectCount
+    || after.crossings < before.crossings || after.labelCollisions < before.labelCollisions
+    || after.unexplainedPrivateOverlapLength < before.unexplainedPrivateOverlapLength
+  const improvesFit = topDownFit >= horizontalFit * 1.2
+  return noWorse && (improvesFit || (fixesIssue && topDownFit >= horizontalFit * 0.9)) ? topDown : horizontal
 }

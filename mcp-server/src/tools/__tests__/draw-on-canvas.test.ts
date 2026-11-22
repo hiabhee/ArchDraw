@@ -56,15 +56,13 @@ describe('drawOnCanvas', () => {
     expect(result.bounds!.x).toBe(40);
   });
 
-  it('draws hand-drawn by default and returns the shareable image links', async () => {
+  it('defaults to dark Studio Minimal and accepts Studio Metallic explicitly', async () => {
     const { calls, run } = api();
-    const sketch = await run(() => drawOnCanvas(input({ ops: [{ op: 'card', x: 0, y: 0 }] }), WS));
-    expect(calls.find(c => c.body.source === 'mcp')!.body.previewStyle).toBe('sketch');
-    const { imageUrlsFor } = await import('../../lib/preview-links.js');
-    expect(imageUrlsFor(sketch.shareUrl)!.png).toBe('https://archdraw.test/api/diagram/image/sess1?style=sketch&format=png');
+    await run(() => drawOnCanvas(input({ ops: [{ op: 'card', x: 0, y: 0 }] }), WS));
+    expect(calls.find(c => c.body.source === 'mcp')!.body).toMatchObject({ previewStyle: 'studio', previewTheme: 'dark' });
     clearDiagramState(WS);
-    const clean = await run(() => drawOnCanvas(input({ style: 'studio', ops: [{ op: 'card', x: 0, y: 0 }] }), WS));
-    expect(calls.filter(c => c.body.source === 'mcp')[1].body.previewStyle).toBe('studio');
+    const clean = await run(() => drawOnCanvas(input({ style: 'studio-metallic', ops: [{ op: 'card', x: 0, y: 0 }] }), WS));
+    expect(calls.filter(c => c.body.source === 'mcp')[1].body.previewStyle).toBe('studio-metallic');
     expect(clean.success).toBe(true);
   });
 

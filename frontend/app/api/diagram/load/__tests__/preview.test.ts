@@ -28,6 +28,24 @@ describe('POST /api/diagram/load preview', () => {
     expect(body.previewSvg).not.toMatch(/href="https?:/);
   });
 
+  it('defaults the inline canvas to dark Studio Minimal and honors explicit preview styles', async () => {
+    const input = { mermaid: MERMAID, dryRun: true, preview: true };
+    const explicitCanvas = { ...input, previewStyle: 'studio', previewSurface: 'canvas' };
+    const explicitMetallic = { ...explicitCanvas, previewStyle: 'studio-metallic' };
+    const explicitLight = { ...input, previewStyle: 'studio', previewTheme: 'light' };
+    const [defaultPreview, canvas, metallic, light] = await Promise.all([input, explicitCanvas, explicitMetallic, explicitLight].map(async options =>
+      (await POST(post(options))).json(),
+    ));
+
+    expect(canvas.previewSvg).not.toContain('archdraw-metallic-sheen');
+    expect(canvas.previewSvg).toContain('fill="#191d24"');
+    expect(canvas.previewSvg).not.toContain('archdraw-background-pattern');
+    expect(defaultPreview.previewSvg).toBe(canvas.previewSvg);
+    expect(metallic.previewSvg).toContain('archdraw-metallic-sheen');
+    expect(metallic.previewSvg).not.toContain('archdraw-background-pattern');
+    expect(light.previewSvg).toContain('fill="#fdfdfc"');
+  });
+
   it('draws a raw drawing hand-drawn when previewStyle is sketch, and keeps the Studio look otherwise', async () => {
     const nodes = [
       { id: 'a', type: 'textLabelNode', position: { x: 0, y: 0 }, width: 200, height: 100, data: { text: 'Whiteboard' } },
@@ -40,6 +58,39 @@ describe('POST /api/diagram/load preview', () => {
     expect(sketch.previewSvg).toContain(paper); // the sketch paper
     expect(clean.previewSvg).not.toContain(paper);
     expect(sketch.previewSvg).not.toBe(clean.previewSvg);
+  });
+
+  it('renders a compact Studio Metallic preview on black while preserving its graph', async () => {
+    const mermaid = `graph LR
+  client["Client<br/>Creates or opens a short link"] -->|Create or resolve link| gateway["Load balancer"]
+  gateway -->|Route request| api["URL shortener API"]
+  api -->|Check cached redirect| cache["Redis cache"]
+  api -->|Save or read URL mapping| db[("PostgreSQL")]
+  api -.->|Schedule expiry| worker["Cleanup worker"]
+  worker -->|Delete expired mappings| db`;
+    const input = { mermaid, dryRun: true, preview: true, previewStyle: 'studio-metallic', previewTheme: 'dark' };
+    const unfolded = await (await POST(post(input))).json();
+    const compact = await (await POST(post({ ...input, layout: { autoDirection: true } }))).json();
+    const aspectRatio = (svg: string) => {
+      const match = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)!;
+      return Number(match[1]) / Number(match[2]);
+    };
+
+    expect(compact.previewSvg).toContain('fill="#000000"');
+    expect(compact.previewSvg).toContain('url(#archdraw-metallic-sheen)');
+    expect(aspectRatio(compact.previewSvg)).toBeLessThan(aspectRatio(unfolded.previewSvg) / 2);
+    expect(compact.direction).toBe('TD');
+    expect(compact.previewQuality).toMatchObject({
+      hardViolations: 0, crossings: 0, labelCollisions: 0, criticalPathDisconnectCount: 0,
+    });
+    const row = (id: string) => compact.nodes.find((node: Node) => node.id === id).position.y;
+    expect(row('client')).toBeLessThan(row('gateway'));
+    expect(row('gateway')).toBeLessThan(row('api'));
+    expect(row('api')).toBeLessThan(row('db'));
+    expect(compact.nodes.map((node: Node) => node.id).sort()).toEqual(unfolded.nodes.map((node: Node) => node.id).sort());
+    const connections = (edges: Array<{ source: string; target: string; label: string }>) =>
+      edges.map(({ source, target, label }) => [source, target, label].join(':')).sort();
+    expect(connections(compact.edges)).toEqual(connections(unfolded.edges));
   });
 
   it('refuses a raw drawing with a node type the canvas does not know', async () => {

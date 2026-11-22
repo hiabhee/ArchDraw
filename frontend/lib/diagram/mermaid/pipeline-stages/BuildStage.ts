@@ -18,6 +18,10 @@ export class BuildStage extends BaseStage<MermaidAST, RFObjects> {
     // Areas written in data-flow order: edges back to an earlier area are feedback.
     const areaOrder = context.metadata.areaOrder as 'flow' | readonly string[] | undefined;
     const objects = areaOrder ? markBackwardAreaEdges(built, Array.isArray(areaOrder) ? areaOrder : undefined) : built;
-    return successResult(objects);
+    if (context.metadata.separateSharedStrokes !== true) return successResult(objects);
+    return successResult({
+      ...objects,
+      edges: objects.edges.map(edge => ({ ...edge, data: { ...edge.data, separateSharedStrokes: true } })),
+    });
   }
 }

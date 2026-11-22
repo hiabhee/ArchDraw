@@ -4,7 +4,7 @@ import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
 import type { Node, Edge } from 'reactflow';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
-import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
+import { runCompactMermaidPipeline, runMermaidPipeline, type GeometrySummary } from '@/lib/diagram/mermaid/pipeline';
 import { generatePureSVG } from '@/lib/diagram/export/svgExport';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
 import { getUserTier, canAccessFeature } from '@/lib/quotas/userQuotas';
@@ -57,11 +57,14 @@ const PostSchema = z.object({
   preview: z.boolean().optional().default(false),
   /** Look of the returned preview: `sketch` is hand-drawn; omitted is the clean Studio preview. */
   previewStyle: z.enum(IMAGE_STYLES).optional(),
+  previewTheme: z.enum(['light', 'dark']).optional(),
+  previewSurface: z.literal('canvas').optional(),
   /** Re-lay out the graph sent as nodes/edges with the canonical layout (the MCP layout tool). */
   layout: z.object({
     direction: z.enum(['LR', 'TD']).default('LR'),
     style: z.enum(['flow', 'zones']).default('flow'),
     foldLongFlows: z.boolean().optional(),
+    autoDirection: z.boolean().optional(),
     mixGroupDirections: z.boolean().optional(),
     profile: z.enum(['studio-minimal']).optional(),
   }).optional(),
@@ -138,6 +141,8 @@ export async function POST(req: NextRequest) {
     let nodes = body.nodes || [];
     let edges = body.edges || [];
     let warnings: string[] = [];
+    let previewQuality: GeometrySummary | undefined;
+    let direction = body.layout?.direction ?? 'LR';
 
     // A graph sent as JSON (the MCP drawing tool) is stored as is, so it is checked first.
     if (!body.mermaid && (nodes.length > 0 || edges.length > 0)) {
@@ -162,32 +167,53 @@ export async function POST(req: NextRequest) {
       warnings = laid.warnings;
     }
 
+    const style = body.previewStyle ?? 'studio';
+    const studioPreview = style === 'studio' || style === 'studio-metallic';
+    const defaultPreview = body.previewStyle === undefined && (body.preview || body.source === 'mcp');
+    const canvasPreview = body.previewSurface === 'canvas' || defaultPreview;
+    const studioCanvas = studioPreview && canvasPreview;
+    const theme = body.previewTheme ?? (style === 'studio-metallic' || studioCanvas ? 'dark' : 'light');
+
     if (body.mermaid) {
       // Lay out with the Studio card sizes the previews, share page and editor draw. The default
       // profile sizes cards smaller, so Studio cards overflowed their groups and overlapped, and the
       // edges were then routed through them. The areas keep their data-flow order.
-      const pipelineResult = await runMermaidPipeline(body.mermaid, { layoutProfile: 'studio-minimal', areaOrder: 'flow' });
+      const layoutMermaid = body.layout?.autoDirection ? runCompactMermaidPipeline : runMermaidPipeline;
+      const pipelineResult = await layoutMermaid(body.mermaid, {
+        layoutProfile: 'studio-minimal',
+        areaOrder: 'flow',
+        renderStyleId: style === 'studio-metallic' ? 'studio-metallic' : studioCanvas ? 'studio-minimal' : undefined,
+        separateSharedStrokes: style === 'studio-metallic' || studioCanvas,
+        foldLongFlows: body.layout?.foldLongFlows,
+      });
       if (!isDomainSuccess(pipelineResult)) {
         return NextResponse.json({
           error: 'Failed to parse Mermaid code',
           warnings: pipelineResult.warnings
         }, { status: 400 });
       }
+      direction = pipelineResult.data.direction === 'TD' || pipelineResult.data.direction === 'BT' ? 'TD' : 'LR';
       nodes = pipelineResult.data.nodes;
       edges = pipelineResult.data.edges;
       warnings = pipelineResult.data.warnings;
+      previewQuality = pipelineResult.data.geometrySummary;
     }
 
-    // Light Studio style, as the share page shows it; vector icons only, so the
-    // SVG renders inside an <img> without fetching anything.
-    const previewSvg = body.preview && body.previewStyle && body.previewStyle !== 'studio'
-      ? renderDiagramSvg(nodes, edges, { style: body.previewStyle, theme: 'light' })
-      : body.preview
-      ? generatePureSVG(nodes, edges, false, PREVIEW_BACKGROUND, /graph\s+(TD|TB|BT)\b/i.test(body.mermaid ?? '') ? 'TD' : 'LR', 'studio-minimal', 'studio-minimal')
-      : undefined;
+    // The host supplies the grid and backdrop for embedded Studio previews.
+    const transparent = studioCanvas && theme === 'dark';
+    const previewSvg = !body.preview ? undefined
+      : style === 'studio' && theme === 'light'
+        ? generatePureSVG(nodes, edges, false, PREVIEW_BACKGROUND, direction, 'studio-minimal', 'studio-minimal')
+        : renderDiagramSvg(nodes, edges, {
+            style,
+            theme,
+            direction,
+            transparent,
+            grid: !transparent && (style !== 'studio-metallic' || theme !== 'dark'),
+          });
 
     if (body.dryRun) {
-      return NextResponse.json({ nodes, edges, warnings, ...(previewSvg ? { previewSvg } : {}) });
+      return NextResponse.json({ nodes, edges, direction, warnings, ...(previewSvg ? { previewSvg, previewQuality } : {}) });
     }
 
     if (body.source === 'mcp' && !body.publish) {

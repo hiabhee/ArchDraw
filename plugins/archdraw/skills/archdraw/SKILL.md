@@ -5,17 +5,19 @@ description: Use ArchDraw to create, refine, validate, lay out, template, checkp
 
 # ArchDraw architecture diagrams
 
-Use ArchDraw's MCP tools when the user wants an architecture represented or changed as a diagram. Model only components and relationships supported by the user's description. Ask a focused question when a missing constraint would materially change the architecture; otherwise state a small assumption in the result.
+Use ArchDraw for plain-language requests to create or refine diagrams. Choose the tools, layout, and default style from the request. The user can give only a subject. Model only components and relationships supported by the user's description. Ask a focused question when a missing constraint would materially change the architecture; otherwise state a small assumption in the result.
 
 ## Create a diagram
 
 - Prefer `generate_diagram` with Mermaid (`graph LR` or `graph TD`) because this uses the same parser and Dagre layout pipeline as the ArchDraw editor. Use structured node and edge data only when the user already has it or requests it.
 - Include the user's original request in `userPrompt` when available. Pass named technologies through `techStack` and explicitly requested special requirements through `customFeatures`.
 - Use subgraphs to group tiers or trust boundaries when they make the system easier to read. Keep labels concise and add communication labels for asynchronous, event, or streaming edges.
-- Before generation, audit the planned edges: avoid arrows into client-tier nodes except between client-tier nodes; prevent one node from becoming an unjustified hub; and keep the flow consistent with the intended architecture rather than adding layers by habit.
+- Before generation, check each edge against the intended architecture. Keep real replies, feedback, and data delivery to clients. Show a hub when the system has one.
 - Keep the `workingSessionId` returned by `generate_diagram` / `apply_template` and pass it on every later call about that diagram (`update_diagram`, `get_diagram_state`). The hosted server requires it.
 
 ## Refine and validate
+
+- Inspect the preview when available and use the returned layout quality when it is not. If a visible defect or layout issue harms readability, make one targeted repair in the same session before responding. Preserve node identities and connection directions for visual edits.
 
 - Call `get_diagram_state` before editing an existing diagram if its current state is not already available.
 - Use `draw_on_canvas` when the user wants something drawn with exact control: a whiteboard or sketch, free text, empty cards to write in, notes, shapes, precise placement, or changes the automatic layout cannot make. Positions are canvas pixels (x right, y down, top-left corner; a card is about 200x90, so leave about 60px between neighbours). Operations run in order and all apply or none do; an error names the failing operation. Give an `id` to anything you will refer to again, and use the `canvas` list in the reply to place the next things. Start a new drawing with `{"op":"clear"}`.
@@ -24,9 +26,9 @@ Use ArchDraw's MCP tools when the user wants an architecture represented or chan
 - Use `apply_template` when the user wants a template (its description lists the template ids).
 - For an image, point the user to the preview's Download PNG button or the editor link's export.
 
-## Preview links (always share them)
+## Preview links
 
-- A diagram is visual, and in a terminal or IDE the user cannot see it unless you give them the link. `generate_diagram`, `apply_template`, and `update_diagram` return a preview link (`shareUrl`) and an edit link (`diagramUrl`) in the same response — no extra call is needed. **Always put both links in your reply**, near the top. The reply also has an image link (PNG, hand-drawn by default; add `style: "studio"` to `draw_on_canvas` for a clean look). When the user wants to share the diagram, give them that image link or its Markdown (`![diagram](url)`).
+- Use the inline ArchDraw canvas as the visual result. Keep the reply short and include the preview and edit links when available. Show an additional image only when requested. The canvas has a PNG download, and the editor has export options.
 - Links are unguessable, viewable by anyone who has them, and expire after 7 days. If the user asks to keep a diagram private, pass `publish: false`; then say plainly that no link was created.
 - If the result contains `linkError` instead of links, tell the user the diagram was generated but could not be published, and include the reason.
 - Never put secrets, credentials, or private hostnames in diagram labels. Anyone with the link can read them.

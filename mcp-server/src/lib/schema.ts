@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_MCP_IMAGE_STYLE, IMAGE_STYLE_NAMES } from './preview-links.js';
 
 export const NodeInputSchema = z.object({
   id: z.string().describe('Unique node identifier. REQUIRED — use snake_case, e.g. "api_gateway", "postgres_db"'),
@@ -54,7 +55,7 @@ export const GenerateDiagramInputSchema = z.object({
   edges: z.array(EdgeInputSchema).optional().describe(
     'Array of edges. Legacy parameter (not needed if mermaid code is provided).'
   ),
-  direction: z.enum(['RIGHT', 'DOWN', 'LEFT', 'UP']).default('RIGHT').describe('Layout direction. Default RIGHT (left-to-right).'),
+  direction: z.enum(['RIGHT', 'DOWN', 'LEFT', 'UP']).optional().describe('Set a direction only when the user requires it. Otherwise ArchDraw can choose a compact direction.'),
   label: z.string().optional().describe('Diagram title shown in the header'),
   diagramDescription: z.string().optional().describe('One-sentence description of what this architecture does. Helps with diagram metadata.'),
   userPrompt: z.string().optional().describe(
@@ -401,7 +402,7 @@ export const DrawOnCanvasInputSchema = z.object({
   ops: z.array(DrawOpSchema).min(1).max(200).describe('Drawing operations, applied in order. All of them apply or none do.'),
   label: z.string().max(200).optional().describe('Title of a new canvas (used when the canvas is first published).'),
   publish: z.boolean().default(true).describe('Create / update the shareable preview link (default true). false keeps the drawing in this session only.'),
-  style: z.enum(['sketch', 'studio', 'studio-metallic', 'neubrutalism', 'precision']).default('sketch').describe('Look of the shareable image and preview, matching the editor render styles: sketch (hand-drawn, like a whiteboard; default), studio (clean), studio-metallic (satin metal), neubrutalism (bold), precision. Pick the one the user works in.'),
+  style: z.enum(IMAGE_STYLE_NAMES).default(DEFAULT_MCP_IMAGE_STYLE).describe('Preview and image style. Defaults to Studio Minimal on a black canvas.'),
   expectedRevision: z.number().int().positive().optional(),
 });
 
@@ -413,7 +414,7 @@ export const LayoutDiagramInputSchema = z.object({
   groupDirections: z.record(z.string(), z.enum(['LR', 'TD'])).optional().describe('Force the direction inside particular groups, by group id, e.g. {"api":"TD"}. Groups you name are never overridden by mixDirections.'),
   label: z.string().max(200).optional(),
   publish: z.boolean().default(true).describe('Update the shareable preview link (default true). false keeps the change in this session only.'),
-  style: z.enum(['sketch', 'studio', 'studio-metallic', 'neubrutalism', 'precision']).default('studio').describe('Look of the preview and shareable image. Defaults to studio (clean); pick the one the user works in.'),
+  style: z.enum(IMAGE_STYLE_NAMES).default(DEFAULT_MCP_IMAGE_STYLE).describe('Preview and image style. Defaults to Studio Minimal on a black canvas.'),
   expectedRevision: z.number().int().positive().optional(),
 });
 

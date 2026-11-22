@@ -2,7 +2,7 @@ import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { ApplyTemplateInput } from '../lib/schema.js';
 import { normalizeLayer, getTierColor } from '../lib/node-catalog.js';
 import { COMM_COLORS } from '../lib/constants.js';
-import { describeSaveFailure } from '../lib/preview-links.js';
+import { describeSaveFailure, previewOptions } from '../lib/preview-links.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
 import type { TierType } from '../types/index.js';
 
@@ -394,7 +394,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
           label: template.name,
-          source: 'mcp', publish: true, preview: true,
+          source: 'mcp', publish: true, ...previewOptions(),
         }),
       });
 
@@ -418,7 +418,7 @@ export async function applyTemplate(input: ApplyTemplateInput): Promise<{
         const previewResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nodes: reactFlowNodes, edges: reactFlowEdges, dryRun: true, preview: true }),
+          body: JSON.stringify({ nodes: reactFlowNodes, edges: reactFlowEdges, dryRun: true, ...previewOptions() }),
         });
         if (previewResponse.ok) previewSvg = ((await previewResponse.json()) as { previewSvg?: string }).previewSvg;
       } catch {

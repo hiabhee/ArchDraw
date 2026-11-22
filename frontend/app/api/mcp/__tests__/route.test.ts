@@ -69,6 +69,36 @@ describe('POST /api/mcp (hosted MCP)', () => {
     expect(JSON.parse(state.result.content[0].text).nodes.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('returns a private 15-product diagram as SVG for the expandable canvas', async () => {
+    const mermaid = `graph LR
+  contacts["Google Contacts"] --> gmail["Gmail"]
+  gmail --> calendar["Google Calendar"]
+  calendar --> meet["Google Meet"]
+  meet --> drive["Google Drive"]
+  gmail --> chat["Google Chat"]
+  chat --> tasks["Google Tasks"]
+  gemini["Gemini"] --> keep["Google Keep"]
+  gemini --> drive
+  forms["Google Forms"] --> sheets["Google Sheets"]
+  sheets --> slides["Google Slides"]
+  slides --> sites["Google Sites"]
+  drive --> docs["Google Docs"]
+  docs --> sites
+  script["Apps Script"] --> sheets`;
+    const response = await POST(rpc('tools/call', {
+      name: 'generate_diagram',
+      arguments: { mermaid, label: 'Google Workspace', publish: false },
+    }));
+    const { result } = await response.json();
+
+    expect(result.structuredContent.success).toBe(true);
+    expect(result.structuredContent.nodes).toHaveLength(15);
+    expect(result.structuredContent.edges).toHaveLength(14);
+    expect(result._meta['archdraw/previewSvg']).toMatch(/^<svg[\s>]/);
+    expect(result._meta['archdraw/previewSvg']).toContain('Google Calendar');
+    expect(m.create).not.toHaveBeenCalled();
+  });
+
   it('returns 429 when the per-IP endpoint limit is exhausted', async () => {
     m.rateLimit.mockResolvedValueOnce({ allowed: false, remaining: 0, resetAt: now() + 30 });
     const res = await POST(rpc('tools/list'));
