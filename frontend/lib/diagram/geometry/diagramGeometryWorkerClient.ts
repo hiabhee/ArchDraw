@@ -43,8 +43,10 @@ function getWorker(): Worker | null {
   }
 }
 
-export function computeDiagramGeometryInWorker(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions): Promise<DiagramGeometryPlan> {
-  if (pending.size) {
+export function computeDiagramGeometryInWorker(
+  nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, replacePending = true,
+): Promise<DiagramGeometryPlan> {
+  if (replacePending && pending.size) {
     for (const job of pending.values()) job.reject(new ObsoleteGeometryRequest());
     pending.clear();
     clearTimeout(readyTimer);

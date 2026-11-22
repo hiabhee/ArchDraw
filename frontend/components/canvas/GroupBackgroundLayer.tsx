@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useDiagramStore } from '@/store/diagramStore';
+import { useStore } from 'reactflow';
+import { useHostGraph } from '@/lib/diagram/canvas/CanvasHostContext';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
 import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
 
@@ -18,7 +19,8 @@ import { useDiagramAesthetics } from '@/lib/theme/useDiagramAesthetics';
  * transparent in brutal and lets this layer provide the visual plate.
  */
 export function GroupBackgroundLayer() {
-  const nodes = useDiagramStore((s) => s.nodes);
+  const { nodes } = useHostGraph();
+  const flowRoot = useStore((state) => state.domNode);
   const { isDark } = useCanvasTheme();
   const aesthetics = useDiagramAesthetics();
   const brutal = aesthetics.renderStyleId === 'neubrutalism';
@@ -34,26 +36,7 @@ export function GroupBackgroundLayer() {
     );
   }, [nodes, brutal]);
 
-  const [viewportEl, setViewportEl] = useState<Element | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const sync = () => {
-      if (cancelled) return;
-      const el = document.querySelector('.react-flow__viewport');
-      setViewportEl(el);
-    };
-    const frame = requestAnimationFrame(sync);
-    const obs = new MutationObserver(() => {
-      requestAnimationFrame(sync);
-    });
-    obs.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
-      obs.disconnect();
-    };
-  }, []);
+  const viewportEl = flowRoot?.querySelector('.react-flow__viewport');
 
   if (!brutal || groups.length === 0 || !viewportEl) return null;
 
@@ -86,6 +69,7 @@ export function GroupBackgroundLayer() {
   const layer = (
     <div
       aria-hidden
+      data-group-plates
       style={{
         position: 'absolute',
         inset: 0,

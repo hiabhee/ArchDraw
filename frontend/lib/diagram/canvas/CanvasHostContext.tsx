@@ -30,6 +30,8 @@ export interface CanvasHost {
   isDark?: boolean;
   /** Cache key for this host's settled geometry plans. */
   planKey?: string;
+  /** Preserve source label sizing when a copy is rendered at export zoom. */
+  labelZoom?: number;
   /** Show live agent-activity badges in a read-only host (the live watch page). */
   showLiveActivity?: boolean;
 }

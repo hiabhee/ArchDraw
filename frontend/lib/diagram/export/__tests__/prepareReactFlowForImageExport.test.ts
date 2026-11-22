@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeSvgDataUrl,
+  pngDataUrlToBlob,
   reactFlowExportFilter,
   resolveExportBackgroundColor,
 } from '@/lib/diagram/export/prepareReactFlowForImageExport';
 
 describe('prepareReactFlowForImageExport helpers', () => {
+  it('converts the PNG to a downloadable blob without refetching it', async () => {
+    const blob = pngDataUrlToBlob('data:image/png;base64,iVBORw0KGgo=');
+    expect(blob.type).toBe('image/png');
+    expect(Array.from(new Uint8Array(await blob.arrayBuffer()))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  });
+
   it('decodes utf8 svg data urls', () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
     const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

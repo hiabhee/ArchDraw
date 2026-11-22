@@ -19,6 +19,8 @@
  *    bypasses the entire `getCSSRules` codepath.
  */
 
+// Export callers lazy-load this wrapper and its renderer together for DOM capture.
+import { toCanvas, toJpeg, toPng, toSvg } from 'html-to-image';
 import type { Options } from 'html-to-image/lib/types';
 
 function isCssRulesSecurityError(err: unknown): boolean {
@@ -75,53 +77,36 @@ function patchCssRulesGetter(): (() => void) | null {
   };
 }
 
-export async function safeToPng(element: HTMLElement, options: Options = {}): Promise<string> {
+async function capture<T>(
+  render: (element: HTMLElement, options: Options) => Promise<T>,
+  element: HTMLElement,
+  options: Options,
+): Promise<T> {
   const restore = patchCssRulesGetter();
   try {
-    const { toPng } = await import('html-to-image');
-    try {
-      return await toPng(element, options);
-    } catch (err) {
-      if (isCssRulesSecurityError(err) && !options.skipFonts) {
-        return await toPng(element, { ...options, skipFonts: true });
-      }
-      throw err;
+    return await render(element, options);
+  } catch (err) {
+    if (isCssRulesSecurityError(err) && !options.skipFonts) {
+      return await render(element, { ...options, skipFonts: true });
     }
+    throw err;
   } finally {
     restore?.();
   }
 }
 
-export async function safeToJpeg(element: HTMLElement, options: Options = {}): Promise<string> {
-  const restore = patchCssRulesGetter();
-  try {
-    const { toJpeg } = await import('html-to-image');
-    try {
-      return await toJpeg(element, options);
-    } catch (err) {
-      if (isCssRulesSecurityError(err) && !options.skipFonts) {
-        return await toJpeg(element, { ...options, skipFonts: true });
-      }
-      throw err;
-    }
-  } finally {
-    restore?.();
-  }
+export function safeToPng(element: HTMLElement, options: Options = {}): Promise<string> {
+  return capture(toPng, element, options);
 }
 
-export async function safeToCanvas(element: HTMLElement, options: Options = {}): Promise<HTMLCanvasElement> {
-  const restore = patchCssRulesGetter();
-  try {
-    const { toCanvas } = await import('html-to-image');
-    try {
-      return await toCanvas(element, options);
-    } catch (err) {
-      if (isCssRulesSecurityError(err) && !options.skipFonts) {
-        return await toCanvas(element, { ...options, skipFonts: true });
-      }
-      throw err;
-    }
-  } finally {
-    restore?.();
-  }
+export function safeToJpeg(element: HTMLElement, options: Options = {}): Promise<string> {
+  return capture(toJpeg, element, options);
+}
+
+export function safeToCanvas(element: HTMLElement, options: Options = {}): Promise<HTMLCanvasElement> {
+  return capture(toCanvas, element, options);
+}
+
+export function safeToSvg(element: HTMLElement, options: Options = {}): Promise<string> {
+  return capture(toSvg, element, options);
 }

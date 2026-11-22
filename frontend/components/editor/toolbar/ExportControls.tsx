@@ -11,14 +11,7 @@ import logger from '@/lib/logger';
 import { getUserTier, isExportFormatAllowed, shouldWatermark } from '@/lib/quotas/userQuotas';
 import { UpgradeModal, UPGRADE_BENEFITS } from '@/components/editor/modals/UpgradeModal';
 import { Button } from '@/components/ui/button';
-import {
-  prepareReactFlowForImageExport,
-  reactFlowExportFilter,
-  resolveExportBackgroundColor,
-  restoreReactFlowAfterImageExport,
-  waitForReactFlowFrame,
-} from '@/lib/diagram/export/prepareReactFlowForImageExport';
-import { computeDiagramCropRect, cropRasterDataUrl } from '@/lib/diagram/export/exportCrop';
+import { pngDataUrlToBlob } from '@/lib/diagram/export/prepareReactFlowForImageExport';
 import { reactFlowRef } from '@/lib/client/reactFlowRef';
 import type { CanvasBackgroundConfig } from '@/store/diagram/types';
 import type { SvgCanvasBackground } from '@/lib/diagram/export/svgExport';
@@ -57,86 +50,6 @@ function resolveSvgCanvasBackground(
   };
 }
 
-const embeddedBrandSvgCache = new Map<string, Promise<string>>();
-
-async function inlineBrandImages(svg: string, required: boolean): Promise<string> {
-  const imageUrls = [...svg.matchAll(/<image\b[^>]*\bhref="(https:\/\/cdn\.simpleicons\.org\/[^\"]+)"/g)]
-    .map((match) => match[1]);
-  if (imageUrls.length === 0) return svg;
-
-  const uniqueUrls = [...new Set(imageUrls)];
-  const embedded = await Promise.all(uniqueUrls.map(async (url) => {
-    let pending = embeddedBrandSvgCache.get(url);
-    if (!pending) {
-      pending = fetch(url, { mode: 'cors' }).then(async (response) => {
-        if (!response.ok) throw new Error(`Brand icon request failed (${response.status})`);
-        const iconSvg = await response.text();
-        if (!/<svg\b/i.test(iconSvg)) throw new Error('Brand icon response was not SVG');
-        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(iconSvg)}`;
-      });
-      embeddedBrandSvgCache.set(url, pending);
-    }
-    try {
-      return [url, await pending] as const;
-    } catch (error) {
-      embeddedBrandSvgCache.delete(url);
-      if (required) throw error;
-      return [url, null] as const;
-    }
-  }));
-
-  let result = svg;
-  for (const [url, dataUrl] of embedded) {
-    if (dataUrl) result = result.replaceAll(`href="${url}"`, `href="${dataUrl}"`);
-  }
-  return result;
-}
-
-function svgToDataUri(svg: string): string {
-  // Blob URLs are intermittently rejected by Safari/Firefox when the SVG
-  // contains filters, embedded glyphs, or large path data. An encoded data URI
-  // stays same-origin and gives the image decoder the complete XML document.
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-async function loadSvgImage(svg: string, width: number, height: number): Promise<CanvasImageSource> {
-  const image = new window.Image();
-  image.decoding = 'async';
-  const source = svgToDataUri(svg);
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(() => reject(new Error('SVG image load timeout')), 15000);
-      image.onload = () => { window.clearTimeout(timeout); resolve(); };
-      image.onerror = () => { window.clearTimeout(timeout); reject(new Error('Failed to decode generated SVG')); };
-      image.src = source;
-    });
-    // decode() waits for the raster decoder, not merely the load event. This
-    // avoids drawing a partially decoded image on high-DPI canvases.
-    if (typeof image.decode === 'function') await image.decode();
-    if (!image.naturalWidth || !image.naturalHeight) {
-      throw new Error(`Decoded SVG has invalid dimensions (${width}x${height})`);
-    }
-    return image;
-  } catch (imageError) {
-    // Some WebKit builds reject both blob URLs and data-URI <img> decoding for
-    // SVGs containing filters. createImageBitmap uses the browser's image
-    // decoder directly and avoids the DOM image security path.
-    if (typeof window.createImageBitmap === 'function') {
-      try {
-        const bitmap = await window.createImageBitmap(
-          new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }),
-        );
-        if (!bitmap.width || !bitmap.height) bitmap.close();
-        else return bitmap;
-      } catch {
-        // Preserve the original error below so diagnostics identify the SVG
-        // decode failure rather than the optional bitmap fallback.
-      }
-    }
-    throw imageError;
-  }
-}
-
 async function addWatermark(dataUrl: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new window.Image();
@@ -161,44 +74,44 @@ async function addWatermark(dataUrl: string): Promise<string> {
 
 type ExportBg = 'dark' | 'light' | 'transparent';
 
-/** One SVG builder for SVG, PNG, PDF and HTML-embed exports so they always match the canvas. */
-async function buildExportSvg(
-  bgType: ExportBg,
-  element: HTMLElement | null,
-  fallbackNodes: ReturnType<typeof useDiagramStore.getState>['nodes'],
-  requireBrandImages: boolean,
-): Promise<string> {
+function exportSnapshot(bgType: ExportBg, element: HTMLElement | null) {
   const state = useDiagramStore.getState();
-  const layoutDirection = state.activeLayoutPresetId === 'layered-tb' ? 'TD' : 'LR';
-  // Export what the canvas shows: in High-level / Detailed view the instance holds a
-  // projection whose nodes and edges differ from the stored diagram.
-  // Selection is editor chrome, not part of the diagram.
-  const exportNodes = (reactFlowRef.instance?.getNodes() ?? fallbackNodes).map((n) => (n.selected ? { ...n, selected: false } : n));
-  const exportEdges = (reactFlowRef.instance?.getEdges() ?? state.edges).map((e) => (e.selected ? { ...e, selected: false } : e));
-  const isTransparent = bgType === 'transparent';
-  const isDark = isTransparent ? !!state.darkMode : bgType === 'dark';
-  const svgBg = isTransparent
-    ? 'none'
-    : resolveCanvasTokens({
-        renderStyleId: state.diagramRenderStyle,
-        colorThemeId: state.diagramStyleTheme,
-        isDark,
-      }).cssVars['--arch-canvas-bg'];
+  const flow = reactFlowRef.instance;
+  const transparent = bgType === 'transparent';
+  const isDark = transparent ? state.darkMode : bgType === 'dark';
+  // Read the graph from React Flow so High-level and Detailed view export the visible projection.
+  return {
+    nodes: (flow?.getNodes() ?? state.nodes).map((node) => ({ ...node, selected: false, dragging: false })),
+    edges: (flow?.getEdges() ?? state.edges).map((edge) => ({ ...edge, selected: false })),
+    view: {
+      readOnly: true,
+      renderStyleId: state.diagramRenderStyle,
+      colorThemeId: state.diagramStyleTheme,
+      direction: state.activeLayoutPresetId === 'layered-tb' ? 'TD' as const : 'LR' as const,
+      iconMode: state.iconMode,
+      isDark,
+      labelZoom: flow?.getZoom(),
+      planKey: state.activeCanvasId ?? 'active-canvas',
+    },
+    background: state.canvasBackground,
+    svgBackground: resolveSvgCanvasBackground(state.canvasBackground, state.showGrid, isDark, element),
+    showGrid: state.showGrid,
+    transparent,
+    showGroupPlates: !!element?.querySelector('[data-group-plates]'),
+  };
+}
 
-  const { generatePureSVG } = await import('@/lib/diagram/export/svgExport');
-  const svg = generatePureSVG(
-    exportNodes,
-    exportEdges,
-    isDark,
-    svgBg,
-    layoutDirection,
-    state.diagramRenderStyle,
-    state.diagramStyleTheme,
-    state.iconMode,
-    resolveSvgCanvasBackground(state.canvasBackground, state.showGrid, isDark, element),
-    reactFlowRef.instance?.getZoom?.(),
-  );
-  return inlineBrandImages(svg, requireBrandImages);
+async function buildExportSvg(snapshot: ReturnType<typeof exportSnapshot>): Promise<string> {
+  const { nodes, edges, view, transparent, background, svgBackground } = snapshot;
+  const [{ generatePureSVG }, { embedExportAssets }] = await Promise.all([
+    import('@/lib/diagram/export/svgExport'),
+    import('@/lib/diagram/export/svg/embedAssets'),
+  ]);
+  await document.fonts.ready;
+  const fill = transparent ? 'none' : background.bgColor ?? resolveCanvasTokens(view).cssVars['--arch-canvas-bg'];
+  const svg = generatePureSVG(nodes, edges, view.isDark, fill, view.direction, view.renderStyleId,
+    view.colorThemeId, view.iconMode, svgBackground, view.labelZoom);
+  return embedExportAssets(svg);
 }
 
 function generateEmbedHTML(svg: string): string {
@@ -237,6 +150,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
   const [exportOpen, setExportOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const exportInProgress = useRef(false);
   const [upgradeModal, setUpgradeModal] = useState<{ feature: string; message: string; benefits: string[] } | null>(null);
 
   const downloadFile = (blob: Blob, filename: string) => {
@@ -256,53 +170,8 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
     }, 1000);
   };
 
-  const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      // Fast path: decode dataURL directly without re-rendering via canvas when possible.
-      // Fallback to canvas path only if fetch is unavailable.
-      if (typeof fetch !== 'undefined') {
-        fetch(dataUrl)
-          .then((r) => r.blob())
-          .then(resolve)
-          .catch(() => {
-            // Fallback to canvas decode
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
-              ctx.drawImage(img, 0, 0);
-              canvas.toBlob((blob) => {
-                if (blob) resolve(blob);
-                else reject(new Error('Failed to convert to blob'));
-              }, 'image/png');
-            };
-            img.onerror = () => reject(new Error('Failed to load image'));
-            img.src = dataUrl;
-          });
-        return;
-      }
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Failed to convert to blob'));
-        }, 'image/png');
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = dataUrl;
-    });
-  };
-
   const doExport = async (format: ExportFormat) => {
+    if (exportInProgress.current) return;
     setExportOpen(false);
 
     if (format === 'json') {
@@ -314,7 +183,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
 
     if (format === 'html-embed') {
       try {
-        const svg = await buildExportSvg('dark', document.querySelector('.react-flow') as HTMLElement | null, nodes, false);
+        const svg = await buildExportSvg(exportSnapshot('dark', document.querySelector<HTMLElement>('.react-flow')));
         const htmlContent = generateEmbedHTML(svg);
         const iframeCode = `<iframe \n  srcdoc="${htmlContent.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" \n  width="100%" \n  height="600" \n  style="border:none;border-radius:12px;"\n  title="ArchDraw Diagram"\n></iframe>`;
         await navigator.clipboard.writeText(iframeCode);
@@ -331,17 +200,16 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
       ? (useDiagramStore.getState().darkMode ? 'dark' : 'light')
       : format.includes('dark') ? 'dark' : format.includes('light') ? 'light' : 'transparent';
 
-    const { fitView } = useDiagramStore.getState();
+    exportInProgress.current = true;
     setIsExporting(true);
 
-    let edgeSnapshots: ReturnType<typeof prepareReactFlowForImageExport> = [];
-
     try {
-      const element = document.querySelector('.react-flow') as HTMLElement | null;
-      const isTransparent = bgType === 'transparent';
+      const element = document.querySelector<HTMLElement>('.react-flow');
+      const snapshot = exportSnapshot(bgType, element);
+      const isTransparent = snapshot.transparent;
 
       if (isSvg) {
-        const svgContent = await buildExportSvg(bgType, element, useDiagramStore.getState().nodes, false);
+        const svgContent = await buildExportSvg(snapshot);
         downloadFile(new Blob([svgContent], { type: 'image/svg+xml' }), getExportFilename('svg'));
         toast.success(isTransparent ? 'Exported as vector SVG (no background)' : 'Exported as vector SVG');
         analytics.track({
@@ -358,173 +226,17 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         return;
       }
 
-      // For PNG we now rasterize the *vector* SVG (generatePureSVG) rather than
-      // screenshotting the DOM via html-to-image. The DOM path captures the
-      // viewport at its current zoom (often 0.5-0.7 after fitView) and then
-      // upscales – text was rastered at small size then stretched, looking
-      // blurry in Canva/print. Vector -> canvas at 3-4× is sharp at any size.
-      // We keep html-to-image as a fallback if SVG rasterization fails.
-      let dataUrl: string | null = null;
-      let pixelRatio = 3.5;
-      let lastErr: unknown = null;
-
+      let raster: { dataUrl: string; pixelRatio: number };
       try {
-        // Ensure fonts are ready so <text> in SVG uses Inter/Geist not fallback
-        if (typeof document !== 'undefined' && document.fonts?.ready) {
-          try { await document.fonts.ready; } catch {}
-          await new Promise<void>((r) => requestAnimationFrame(() => r()));
-        }
-
-        const svgContent = await buildExportSvg(bgType, element, nodes, true);
-        const svgBg: string = bgType === 'transparent'
-          ? 'none'
-          : resolveCanvasTokens({
-              renderStyleId: useDiagramStore.getState().diagramRenderStyle,
-              colorThemeId: useDiagramStore.getState().diagramStyleTheme,
-              isDark: bgType === 'dark',
-            }).cssVars['--arch-canvas-bg'];
-
-        // Parse SVG dimensions from the generated markup (width/height in viewBox)
-        const widthMatch = svgContent.match(/width="(\d+(?:\.\d+)?)"/);
-        const heightMatch = svgContent.match(/height="(\d+(?:\.\d+)?)"/);
-        const svgW = widthMatch ? parseFloat(widthMatch[1]) : 1200;
-        const svgH = heightMatch ? parseFloat(heightMatch[1]) : 800;
-
-        const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-        const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
-        const maxPixels = 48_000_000; // allow ~6000×8000 @4× for large Canva prints
-        // Adaptive hires: cap to feasible ratio for very large diagrams (e.g. 8590×1780 → 1.5× = 34M <48M)
-        const maxFeasibleRatio = Math.sqrt(maxPixels / (svgW * svgH));
-        const feasibleSteps = Math.floor(Math.min(desiredRatio, maxFeasibleRatio) * 2) / 2;
-        pixelRatio = Math.max(1, feasibleSteps);
-        // Keep at least 2× when feasible to preserve hires, otherwise use max feasible (1-1.5) for huge canvases
-        if (feasibleSteps >= 2 && pixelRatio < 2) pixelRatio = 2;
-
-        // Rasterize SVG -> PNG at high DPI with retry on OOM / taint
-        let svgDataUrl: string | null = null;
-          // Try from high to low DPI; large canvases can OOM on low-memory devices — allow down to 1× for huge diagrams (still hires vs viewport)
-          let lastRasterErr: unknown = null;
-          for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
-            try {
-              const attemptW = Math.round(svgW * attemptRatio);
-              const attemptH = Math.round(svgH * attemptRatio);
-              if (attemptW <= 0 || attemptH <= 0) throw new Error(`Invalid SVG size ${svgW}x${svgH}`);
-              if (attemptW * attemptH > 64_000_000) continue; // skip absurd sizes before even trying
-
-              const img = await loadSvgImage(svgContent, svgW, svgH);
-
-              const canvas = document.createElement('canvas');
-              canvas.width = attemptW;
-              canvas.height = attemptH;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) throw new Error('Failed to get canvas context');
-              ctx.imageSmoothingEnabled = true;
-              (ctx as unknown as { imageSmoothingQuality?: string }).imageSmoothingQuality = 'high';
-              if (svgBg === 'none') {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-              } else if (svgBg && svgBg !== 'none') {
-                // Ensure background even if SVG rect fails to paint at edge
-                ctx.fillStyle = svgBg;
-                ctx.fillRect(0, 0, attemptW, attemptH);
-              }
-              ctx.scale(attemptRatio, attemptRatio);
-              ctx.drawImage(img, 0, 0, svgW, svgH);
-              if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) img.close();
-              svgDataUrl = canvas.toDataURL('image/png');
-              pixelRatio = attemptRatio;
-              lastRasterErr = null;
-              break;
-            } catch (e) {
-              lastRasterErr = e;
-              logger.warn(`SVG raster at ${attemptRatio}x failed, retrying lower`, e);
-              await new Promise((r) => setTimeout(r, 100));
-            }
-          }
-          if (!svgDataUrl) throw lastRasterErr ?? new Error('All SVG raster attempts failed');
-          dataUrl = svgDataUrl;
-        // Skip DOM-screenshot path entirely on success
-      } catch (svgErr) {
-        lastErr = svgErr;
-        logger.warn('SVG->PNG rasterization failed, falling back to DOM screenshot', String(svgErr));
-        // Fallback: original html-to-image path (viewport screenshot + crop)
-        const bgColor = resolveExportBackgroundColor(bgType, element);
-        fitView({ padding: 0.1, duration: 300 });
-        await waitForReactFlowFrame(400);
-        if (typeof document !== 'undefined' && document.fonts?.ready) {
-          try { await document.fonts.ready; } catch {}
-          await new Promise<void>((r) => requestAnimationFrame(() => r()));
-        }
-        edgeSnapshots = prepareReactFlowForImageExport(element);
-        const exportFilter = (node: unknown) => reactFlowExportFilter(node as HTMLElement);
-        const exportNodes = reactFlowRef.instance?.getNodes() ?? nodes;
-        const shouldCrop = !!reactFlowRef.instance && exportNodes.length > 0;
-        // Unified framing with SVG path: SVG uses 50px fixed padding (nodeLayout.ts:57).
-        // Fallback previously used 0.12 ratio -> larger padding on large diagrams and mismatched crop.
-        // Use same 50px in flow space so PNG/SVG framing is identical even when SVG raster fails.
-        let cropRect: ReturnType<typeof computeDiagramCropRect> = null;
-        if (shouldCrop) {
-          try {
-            const { getNodesBounds } = await import('reactflow');
-            const bounds = getNodesBounds(exportNodes);
-            if (bounds.width && bounds.height) {
-              const FIXED_PAD = 50;
-              const flowX = bounds.x - FIXED_PAD;
-              const flowY = bounds.y - FIXED_PAD;
-              const flowW = bounds.width + FIXED_PAD * 2;
-              const flowH = bounds.height + FIXED_PAD * 2;
-              const { x, y, zoom } = reactFlowRef.instance!.getViewport();
-              cropRect = {
-                x: flowX * zoom + x,
-                y: flowY * zoom + y,
-                width: flowW * zoom,
-                height: flowH * zoom,
-              };
-            } else {
-              cropRect = computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12);
-            }
-          } catch {
-            cropRect = computeDiagramCropRect(exportNodes, reactFlowRef.instance!.getViewport(), 0.12);
-          }
-        }
-        const { safeToPng } = await import('@/lib/diagram/export/safeHtmlToImage');
-        const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-        // Unified hires with SVG path: SVG uses 3-4x, 48M cap, 0.5 steps. Fallback previously 2.5-3.5, 32M, 1x steps -> blurrier.
-        const desiredRatio = Math.min(4, Math.max(3, Math.ceil(baseRatio * 2)));
-        const elW = element.clientWidth || element.offsetWidth || 1200;
-        const elH = element.clientHeight || element.offsetHeight || 800;
-        let fallbackRatio = desiredRatio;
-        const maxPixels = 48_000_000;
-        while (fallbackRatio > 1 && elW * fallbackRatio * elH * fallbackRatio > maxPixels) {
-          fallbackRatio -= 0.5;
-        }
-        fallbackRatio = Math.max(1, fallbackRatio);
-        let fallbackDataUrl: string | null = null;
-        let fallbackErr: unknown = null;
-        for (let attemptRatio = fallbackRatio; attemptRatio >= 1; attemptRatio -= 0.5) {
-          try {
-            fallbackDataUrl = await safeToPng(element, {
-              backgroundColor: bgColor,
-              pixelRatio: attemptRatio,
-              cacheBust: true,
-              filter: exportFilter,
-            });
-            pixelRatio = attemptRatio;
-            break;
-          } catch (e) {
-            fallbackErr = e;
-            logger.error(`PNG fallback failed at pixelRatio ${attemptRatio}`, e);
-            if (attemptRatio <= 1) throw e;
-            await new Promise((r) => setTimeout(r, 100));
-          }
-        }
-        if (!fallbackDataUrl) throw fallbackErr ?? new Error('Failed to generate PNG via fallback');
-        dataUrl = fallbackDataUrl;
-        if (cropRect) {
-          const cropped = await cropRasterDataUrl(fallbackDataUrl, cropRect, pixelRatio, 'image/png');
-          dataUrl = cropped.dataUrl;
-        }
+        const { captureDiagram } = await import('@/lib/diagram/export/captureDiagram');
+        raster = await captureDiagram(snapshot);
+      } catch (error) {
+        logger.warn('Canvas capture failed. Rendering the diagram from SVG.', error);
+        const { rasterizeExportSvg } = await import('@/lib/diagram/export/rasterizeSvg');
+        const svg = await buildExportSvg(snapshot);
+        raster = await rasterizeExportSvg(svg, Math.min(4, Math.max(3, Math.ceil(window.devicePixelRatio * 2))));
       }
-      if (!dataUrl) throw lastErr ?? new Error('Failed to generate PNG');
+      const { dataUrl, pixelRatio } = raster;
 
       let finalDataUrl = dataUrl;
       if (shouldWatermark(tier, 'png')) {
@@ -535,13 +247,16 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         const { jsPDF } = await import('jspdf');
         const img = new window.Image();
         img.src = finalDataUrl;
-        await new Promise<void>((r) => { img.onload = () => r(); });
+        await img.decode();
+        const width = img.naturalWidth * 72 / 96;
+        const height = img.naturalHeight * 72 / 96;
         const pdf = new jsPDF({
-          orientation: img.width > img.height ? 'landscape' : 'portrait',
-          unit: 'px',
-          format: [img.width, img.height],
+          orientation: width > height ? 'landscape' : 'portrait',
+          unit: 'pt',
+          format: [width, height],
+          compress: true,
         });
-        pdf.addImage(finalDataUrl, 'PNG', 0, 0, img.width, img.height);
+        pdf.addImage(finalDataUrl, 'PNG', 0, 0, width, height);
         pdf.save(getExportFilename('pdf'));
         toast.success('Exported as PDF');
         analytics.track({
@@ -552,11 +267,11 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         });
       } else {
         try {
-          const blob = await dataUrlToBlob(finalDataUrl);
+          const blob = pngDataUrlToBlob(finalDataUrl);
           downloadFile(blob, getExportFilename('png'));
         } catch (blobErr) {
           // Fallback: download the data URL directly (avoids canvas re-render).
-          logger.error('dataUrlToBlob failed, falling back to direct download', blobErr);
+          logger.error('PNG blob conversion failed. Downloading the data URL.', blobErr);
           const a = document.createElement('a');
           a.href = finalDataUrl;
           a.download = getExportFilename('png');
@@ -582,9 +297,7 @@ export const ExportControls = forwardRef<ExportControlsHandle, ExportControlsPro
         payload: { format: 'unknown', success: false, error: String(err) },
       });
     } finally {
-      if (edgeSnapshots.length > 0) {
-        restoreReactFlowAfterImageExport(edgeSnapshots);
-      }
+      exportInProgress.current = false;
       setIsExporting(false);
     }
   };

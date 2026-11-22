@@ -1,4 +1,5 @@
 import type { MarkerType, BackgroundVariant, ConnectionMode } from 'reactflow';
+import type { CanvasBackgroundConfig } from '@/store/diagram/types';
 
 // ─── CANVAS ──────────────────────────────────────────────────
 
@@ -19,6 +20,14 @@ export const CANVAS_CONFIG = {
     color:           '#334155',
   },
 } as const;
+
+export const DEFAULT_CANVAS_BACKGROUND = {
+  variant: 'lines',
+  bgColor: null,
+  patternColor: null,
+  gap: 24,
+  size: 1,
+} satisfies CanvasBackgroundConfig;
 
 // ─── EDGES ───────────────────────────────────────────────────
 
