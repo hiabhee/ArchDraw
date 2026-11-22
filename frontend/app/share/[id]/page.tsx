@@ -31,6 +31,7 @@ async function getSharedCanvas(id: string) {
       canvas: {
         id: shared.id,
         canvas_name: shared.canvasName,
+        isMcpPreview: Boolean(shared.mcpUpdateToken),
         nodes,
         edges,
       },

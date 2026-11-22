@@ -1,8 +1,7 @@
 'use client';
 
 import ReactFlow, {
-  Background, BackgroundVariant,
-  useReactFlow, ReactFlowProvider, useViewport, useStore, useStoreApi,
+  useReactFlow, ReactFlowProvider, useStore, useStoreApi,
   SelectionMode, ConnectionLineType,
   ConnectionMode,
   type OnSelectionChangeParams,
@@ -22,6 +21,7 @@ import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/canvas/GuideLines';
 import { GroupBackgroundLayer } from '@/components/canvas/GroupBackgroundLayer';
+import { CanvasGrid } from '@/components/canvas/CanvasGrid';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
 import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
 import { ComponentHistoryCard } from '@/components/canvas/ComponentHistoryCard';
@@ -154,15 +154,17 @@ function CanvasUrlSync() {
     loadSession(sessionId);
   }, [searchParams, loadSession]);
 
-  const urlCanvasHandledRef = useRef(false);
+  const requestedCanvasId = searchParams.get('canvas');
+  const requestedCanvasReady = useDiagramStore((state) =>
+    state.canvases.some(canvas => canvas.id === requestedCanvasId),
+  );
+  const openedUrlCanvas = useRef<string | null>(null);
   useEffect(() => {
-    if (urlCanvasHandledRef.current) return;
-    const canvasId = searchParams.get('canvas');
-    if (!canvasId) { urlCanvasHandledRef.current = true; return; }
-    const canvases = useDiagramStore.getState().canvases;
-    const exists = canvases.find(c => c.id === canvasId);
-    if (exists) { switchCanvas(canvasId); urlCanvasHandledRef.current = true; }
-  }, [searchParams, switchCanvas]);
+    if (requestedCanvasId && requestedCanvasReady && openedUrlCanvas.current !== requestedCanvasId) {
+      openedUrlCanvas.current = requestedCanvasId;
+      switchCanvas(requestedCanvasId);
+    }
+  }, [requestedCanvasId, requestedCanvasReady, switchCanvas]);
 
   return null;
 }
@@ -190,30 +192,6 @@ function writeHighLevelPositions(canvasId: string | null, positions: Record<stri
 
 /** Only very large diagrams are culled to the viewport (see `onlyRenderVisibleElements`). */
 const CULL_NODES_ABOVE = 400;
-
-/**
- * The "lines" grid, kept in its own component: it follows every pan/zoom
- * frame, which must not re-render the whole canvas.
- */
-function LinesBackground({ gap, color, opacity }: { gap: number; color: string; opacity: number }) {
-  const { x, y, zoom } = useViewport();
-  return (
-    <div
-      className="archdraw-lines-background"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 0,
-        backgroundColor: 'transparent',
-        backgroundImage: `linear-gradient(to right, ${color} 1px, transparent 1px), linear-gradient(to bottom, ${color} 1px, transparent 1px)`,
-        backgroundSize: `${gap * zoom}px ${gap * zoom}px`,
-        backgroundPosition: `${x}px ${y}px`,
-        opacity,
-        pointerEvents: 'none',
-      }}
-    />
-  );
-}
 
 function CanvasInner() {
 
@@ -1032,22 +1010,7 @@ function CanvasInner() {
         proOptions={{ hideAttribution: true }}
       >
         {!projection && <GroupBackgroundLayer />}
-        {canvasBackground.variant === 'dots' && showGrid && (
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={canvasBackground.gap}
-            size={canvasBackground.size}
-            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0')}
-            style={{ opacity: isDark ? 0.35 : 0.5 }}
-          />
-        )}
-        {canvasBackground.variant === 'lines' && showGrid && (
-          <LinesBackground
-            gap={canvasBackground.gap}
-            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')}
-            opacity={isDark ? 0.25 : 1}
-          />
-        )}
+        {showGrid && <CanvasGrid background={canvasBackground} isDark={isDark} gridColor={themeVars['--arch-canvas-grid']} />}
         <SVGEdgeMarkerDefs />
         <GuideLines />
         {(!highLevel || detailView) && <AgentAtlasLayer />}

@@ -7,6 +7,7 @@ import { analytics } from '@/lib/client/analytics';
 export interface SharedCanvas {
   id: string;
   canvas_name: string;
+  isMcpPreview?: boolean;
   nodes: unknown[];
   edges: unknown[];
 }
