@@ -8,7 +8,7 @@ import {
 } from '@/lib/theme/stylingConstants';
 import { resolveCylinderAxis } from '@/lib/diagram/nodes/cylinderAxis';
 import { semanticShapeBodySvg } from '@/lib/diagram/nodes/shapeSilhouetteSvg';
-import { resolveTextLabelColor } from '@/lib/diagram/nodes/textSizing';
+import { resolveTextLabelColor, TEXT_LABEL_FONT_SIZE, TEXT_LABEL_FONT_WEIGHT, TEXT_LABEL_LINE_HEIGHT, wrapTextLabel } from '@/lib/diagram/nodes/textSizing';
 import { getShapePrimitives } from '@/lib/theme/shapeGeometry';
 import { Fragment, isValidElement, type ReactNode } from 'react';
 import { CustomNodeIcon, toCustomNodeIconName } from '@/lib/icons/CustomNodeIcon';
@@ -17,7 +17,8 @@ import { getTechnologyBrandSlug, technologyBrandIconUrl } from '@/lib/icons/bran
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { formatStudioCardTitle, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
-import { STUDIO_ICON_GAP, STUDIO_SCALE, STUDIO_SUBTITLE_PX, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
+import { STUDIO_ICON_GAP, STUDIO_SCALE, STUDIO_SHAPE_LABEL_GAP, STUDIO_SHAPE_LABEL_PAD_X, STUDIO_SUBTITLE_PX, STUDIO_SYSTEM_CONTENT_INSET, STUDIO_TEXT_PAD_X, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
+import { STUDIO_METALLIC_TITLE_WEIGHT } from '@/lib/theme/renderStyles/studioMetallic';
 import { wrapText } from './textMeasure';
 import { decorOpacity, decorPrimitives, statIconName, statLayout, type DecorNodeData, type StatNodeData } from '@/lib/diagram/nodes/infographicNodes';
 
@@ -28,7 +29,6 @@ import {
   getRenderStyle,
   getStrokeRenderer,
   isStudioRenderStyle,
-  renderSketchBodyMarkup,
   renderSketchSurface,
   resolveRenderSurface,
   BRUTAL_BORDER,
@@ -44,10 +44,6 @@ import {
   SKETCH_INK_LIGHT_SUBTITLE,
   SKETCH_INK_DARK_TITLE,
   SKETCH_INK_DARK_SUBTITLE,
-  SKETCH_GROUP_FILL_LIGHT,
-  SKETCH_GROUP_STROKE_LIGHT,
-  SKETCH_GROUP_FILL_DARK,
-  SKETCH_GROUP_STROKE_DARK,
   type DiagramRenderStyleId,
   type ShapePrimitive,
 } from '@/lib/theme/renderStyles';
@@ -109,22 +105,33 @@ function studioIconSvg(data: ShapeNodeData, color: string, isDark: boolean, sele
     : null;
   if (brandSlug) {
     const brandUrl = technologyBrandIconUrl(brandSlug, resolved.color);
-    return `<image data-brand-icon="${escapeXml(brandSlug)}" href="${escapeXml(brandUrl)}" x="0" y="0" width="36" height="36" preserveAspectRatio="xMidYMid meet" crossorigin="anonymous" />`;
+    return `<image data-brand-icon="${escapeXml(brandSlug)}" href="${escapeXml(brandUrl)}" x="0" y="0" width="${STUDIO_ICON_GLYPH_PX}" height="${STUDIO_ICON_GLYPH_PX}" preserveAspectRatio="xMidYMid meet" crossorigin="anonymous" />`;
   }
   const name = toCustomNodeIconName(resolved.icon);
-  return name ? `<g data-semantic-icon="${name}">${iconElementSvg(CustomNodeIcon({ name, color, size: 36 }))}</g>` : '';
+  return name ? `<g data-semantic-icon="${name}">${iconElementSvg(CustomNodeIcon({ name, color, size: STUDIO_ICON_GLYPH_PX }))}</g>` : '';
+}
+
+function renderStudioIconWell(
+  icon: string, x: number, y: number, color: string, radius: number, fillOpacity: number, outlined: boolean,
+): string {
+  if (!icon) return '';
+  const inset = (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
+  const border = outlined ? ` stroke="${color}" stroke-opacity="0.4"` : '';
+  return `<rect x="${x}" y="${y}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${radius}" fill="${color}" fill-opacity="${fillOpacity}"${border} />
+    <g transform="translate(${x + inset}, ${y + inset})">${icon}</g>`;
 }
 
 function renderStudioCardText(
   title: string,
   subtitle: string | undefined,
   {
-    x, width, height, blockTop, anchor, fontFamily, titleColor, subtitleColor,
+    x, width, height, blockTop, anchor, fontFamily, titleColor, subtitleColor, titleWeight = 600,
   }: {
     x: number;
     width: number;
     height: number;
     blockTop?: number;
+    titleWeight?: number;
     anchor: 'start' | 'middle';
     fontFamily: string;
     titleColor: string;
@@ -135,14 +142,14 @@ function renderStudioCardText(
   const subtitleSpacing = 0.01 * STUDIO_SUBTITLE_PX;
   const titleLine = STUDIO_TITLE_PX * 1.25;
   const subtitleLine = STUDIO_SUBTITLE_PX * 1.2;
-  const titleLines = title ? wrapText(formatStudioCardTitle(title), width, { weight: 600, px: STUDIO_TITLE_PX, letterSpacing: titleSpacing }) : [];
+  const titleLines = title ? wrapText(formatStudioCardTitle(title), width, { weight: titleWeight, px: STUDIO_TITLE_PX, letterSpacing: titleSpacing }) : [];
   const subtitleLines = subtitle ? wrapText(subtitle, width, { weight: 400, px: STUDIO_SUBTITLE_PX, letterSpacing: subtitleSpacing }) : [];
   const blockHeight = titleLines.length * titleLine + (subtitleLines.length ? 1 + subtitleLines.length * subtitleLine : 0);
   const top = blockTop ?? (height - blockHeight) / 2;
   // First baseline of a line box: half-leading above the glyphs plus the font's ascent.
   const baseline = (lineTop: number, line: number, size: number) => lineTop + (line - size * 1.21) / 2 + size * 0.969;
   return [
-    ...titleLines.map((line, i) => `<text x="${x}" y="${baseline(top + i * titleLine, titleLine, STUDIO_TITLE_PX).toFixed(2)}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="600" letter-spacing="${titleSpacing.toFixed(3)}" text-anchor="${anchor}">${escapeXml(line)}</text>`),
+    ...titleLines.map((line, i) => `<text x="${x}" y="${baseline(top + i * titleLine, titleLine, STUDIO_TITLE_PX).toFixed(2)}" fill="${titleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_TITLE_PX}" font-weight="${titleWeight}" letter-spacing="${titleSpacing.toFixed(3)}" text-anchor="${anchor}">${escapeXml(line)}</text>`),
     ...subtitleLines.map((line, i) => `<text x="${x}" y="${baseline(top + titleLines.length * titleLine + 1 + i * subtitleLine, subtitleLine, STUDIO_SUBTITLE_PX).toFixed(2)}" fill="${subtitleColor}" font-family="${svgFontFamily(fontFamily)}" font-size="${STUDIO_SUBTITLE_PX}" letter-spacing="${subtitleSpacing.toFixed(3)}" text-anchor="${anchor}">${escapeXml(line)}</text>`),
   ].join('\n        ');
 }
@@ -313,17 +320,16 @@ export function renderSystemNode(
   if (studio) {
     const showIcon = resolveNodeIconVisibility(iconMode, data.showIcon);
     const icon = showIcon ? studioIconSvg(data as ShapeNodeData, accentColor, isDark, !!selected) : '';
-    const textX = icon ? 70 : 16;
+    const iconX = STUDIO_SYSTEM_CONTENT_INSET;
+    const iconY = (height - STUDIO_ICON_WELL_PX) / 2;
+    const textX = icon ? iconX + STUDIO_ICON_WELL_PX + STUDIO_ICON_GAP : iconX;
     const selectedFill = isDark && selected ? '#f7f9fc' : fillBg;
     const selectedTitle = isDark && selected ? '#111827' : titleColor;
     const selectedSubtitle = isDark && selected ? '#526174' : subtitleColor;
     const selectedBorder = isDark
       ? selected ? hexToRgba(accentColor, 0.78) : 'rgba(148,163,184,0.22)'
       : borderCol;
-    const cornerRadius = isDark ? 12 : 18;
-    const iconWell = isDark && selected
-      ? `<rect x="10" y="8" width="48" height="48" rx="11" fill="${accentColor}" fill-opacity="0.18" stroke="${accentColor}" stroke-opacity="0.4" />`
-      : `<rect x="10" y="8" width="48" height="48" rx="11" fill="${hexToRgba(accentColor, isDark ? 0.2 : 0.11)}" />`;
+    const cornerRadius = isDark ? (aesthetics.render.nodeMaterial === 'metallic' ? 16 : 12) : 18;
     return `
       <g transform="translate(${x}, ${y})">
         ${isDark && selected ? `<rect x="-3" y="-3" width="${width + 6}" height="${height + 6}" rx="15" fill="none" stroke="${accentColor}" stroke-opacity="0.16" stroke-width="6" />` : ''}
@@ -331,13 +337,14 @@ export function renderSystemNode(
         <rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="${selectedFill}" stroke="${selectedBorder}" stroke-width="1.5" />
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="0.75" y="0.75" width="${width - 1.5}" height="${height - 1.5}" rx="${cornerRadius}" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
-        ${icon ? `${iconWell}<g transform="translate(16, 14)">${icon}</g>` : ''}
+        ${renderStudioIconWell(icon, iconX, iconY, accentColor, isDark ? 10 : 11, isDark && selected ? 0.18 : isDark ? 0.2 : 0.11, isDark && !!selected)}
         ${renderStudioCardText(data.label || 'Service', data.subtitle ? String(data.subtitle) : undefined, {
           x: textX,
-          width: Math.max(56, width - textX - 16),
+          width: Math.max(56, width - textX - (STUDIO_TEXT_PAD_X - iconX)),
           height,
           anchor: 'start',
           fontFamily: 'Inter, IBM Plex Sans, system-ui, sans-serif',
+          titleWeight: aesthetics.render.nodeMaterial === 'metallic' ? STUDIO_METALLIC_TITLE_WEIGHT : undefined,
           titleColor: selectedTitle,
           subtitleColor: selectedSubtitle,
         })}
@@ -436,25 +443,21 @@ export function renderImageNode(node: SystemNodeRenderData, isDark: boolean): st
 }
 
 export function renderTextLabel(node: SystemNodeRenderData, isDark: boolean): string {
-  const { x, y, data } = node;
+  const { x, y, width, data } = node;
 
   const extData = data as TextLabelNodeData;
   const textVal = extData.text || data.label || '';
 
-  const sizeStr = extData.fontSize || 'medium';
-  const sizeMap: Record<string, number> = {
-    small: 14,
-    medium: 18,
-    large: 26,
-    heading: 36,
-  };
-  const fontSize = sizeMap[sizeStr] || 18;
-  const fontWeight = extData.bold ? 700 : 500;
+  const requestedSize = extData.fontSize;
+  const size = requestedSize === 'small' || requestedSize === 'large' || requestedSize === 'heading'
+    ? requestedSize : 'medium';
+  const fontSize = TEXT_LABEL_FONT_SIZE[size];
+  const fontWeight = extData.bold ? 700 : TEXT_LABEL_FONT_WEIGHT[size];
   const color = resolveTextLabelColor(data.color, isDark);
 
-  const lines = textVal.split('\n');
+  const lines = wrapTextLabel(textVal, width, size, fontWeight);
   const tspanElements = lines.map((line: string, idx: number) => `
-    <tspan x="4" dy="${idx === 0 ? 0 : fontSize * 1.3}">${escapeXml(line)}</tspan>
+    <tspan x="4" dy="${idx === 0 ? 0 : fontSize * TEXT_LABEL_LINE_HEIGHT}">${escapeXml(line)}</tspan>
   `).join('');
 
   return `
@@ -568,15 +571,11 @@ export function renderGroupNode(
   const sketch = renderStyleId === 'sketch';
   const brutal = renderStyleId === 'neubrutalism';
   const brutalBorder = isDark ? BRUTAL_BORDER_DARK : BRUTAL_BORDER;
-  // Sketch groups are warm neutral zones (tokenized fill/stroke) so the dashed
-  // box reads as a penciled boundary, not a colored swimlane; the concern tint
-  // stays on the caption label and the selected state.
-  // Precision was almost invisible at 0.05/0.09 — match GroupNode 0.08/0.14.
   const bgRgba = brutal
     ? (isDark ? BRUTAL_GROUP_FILL_DARK : BRUTAL_GROUP_FILL_LIGHT)
     : sketch
-      ? isDark ? SKETCH_GROUP_FILL_DARK : SKETCH_GROUP_FILL_LIGHT
-      : hexToRgba(groupColor, isDark ? 0.14 : 0.08);
+      ? hexToRgba(groupColor, isDark ? 0.06 : 0.04)
+      : hexToRgba(groupColor, isDark ? 0.14 : 0.12);
   const borderColor = brutal
     ? brutalBorder
     : selected
@@ -584,7 +583,7 @@ export function renderGroupNode(
         ? hexToRgba(groupColor, 0.65)
         : hexToRgba(groupColor, 0.6)
       : sketch
-        ? isDark ? SKETCH_GROUP_STROKE_DARK : SKETCH_GROUP_STROKE_LIGHT
+        ? hexToRgba(groupColor, isDark ? 0.30 : 0.25)
         : isDark
           ? hexToRgba(groupColor, 0.42)
           : hexToRgba(groupColor, 0.35);
@@ -592,27 +591,27 @@ export function renderGroupNode(
   const borderWidth = selected ? 1.5 : 1.25;
 
   const label = (data as { groupLabel?: string; label?: string })?.groupLabel ||
-               (data as { label?: string })?.label || '';
+               (data as { label?: string })?.label || 'Group';
+  const groupOptions = data as { isLoop?: boolean; variant?: string };
+  const isLoop = groupOptions.isLoop || groupOptions.variant === 'dashed';
 
   const tagText = isDark ? hexToRgba(groupColor, 0.9) : groupColor;
   const studioZone = isStudioRenderStyle(renderStyleId) && !sketch && !brutal;
 
   let zone = '';
   if (sketch) {
-    const renderer = getStrokeRenderer('rough');
-    const seed = renderer.seedFor(`group-${x}-${y}`);
-    zone = renderSketchBodyMarkup(
-      getShapePrimitives('rounded-rectangle', width, height),
-      {
-        fill: bgRgba,
-        stroke: borderColor,
-        strokeWidth: Math.max(1.6, borderWidth * 1.15),
-        fillStyle: 'hachure',
-      },
-      seed,
-      isDark,
-      'group',
+    const radius = Math.round(aesthetics?.borderRadius ?? 0);
+    const primitives = getShapePrimitives('rounded-rectangle', width + 4, height + 4).map((primitive) =>
+      primitive.rx ? { ...primitive, rx: Math.max(primitive.rx, radius) } : primitive,
     );
+    const surface = renderSketchSurface({
+      primitives,
+      surface: { fill: bgRgba, stroke: borderColor, strokeWidth: borderWidth, fillStyle: 'hachure' },
+      seedId: node.id,
+      isDark,
+      shape: 'group',
+    });
+    zone = `<g transform="translate(-2, -2)">${surface}</g>`;
   } else if (brutal) {
     const shadowId = isDark ? 'brutal-shadow-dark' : 'brutal-shadow';
     zone = `
@@ -641,6 +640,7 @@ export function renderGroupNode(
         fill="${bgRgba}"
         stroke="${borderColor}"
         stroke-width="${borderWidth}"
+        ${isLoop ? 'stroke-dasharray="4 4"' : ''}
         rx="12" ry="12"
       />`;
   }
@@ -648,8 +648,8 @@ export function renderGroupNode(
   return `
     <g transform="translate(${x}, ${y})">
       ${zone}
-      ${label && studioZone ? `
-      <text x="19" y="32" fill="${isDark ? '#cbd5e1' : '#52627a'}" font-family="${svgFontFamily(getRenderStyle(renderStyleId).fonts.title)}" font-size="13" font-weight="600" letter-spacing="0.52">${escapeXml(label)}</text>` : label ? `
+      ${isLoop ? `<text x="12" y="${height + 24}" fill="${isDark ? '#94a3b8' : '#64748b'}" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="500">↻ ${escapeXml(label)}</text>` : studioZone ? `
+      <text x="19" y="32" fill="${isDark ? '#cbd5e1' : '#52627a'}" font-family="${svgFontFamily(getRenderStyle(renderStyleId).fonts.title)}" font-size="13" font-weight="600" letter-spacing="0.52">${escapeXml(label)}</text>` : `
       <text
         x="12" y="20"
         fill="${brutal ? brutalBorder : tagText}"
@@ -657,7 +657,7 @@ export function renderGroupNode(
         font-size="${sketch ? 15 : brutal ? 12 : 11}"
         font-weight="${brutal ? 700 : 500}"
         letter-spacing="${brutal ? '0.02em' : sketch ? '0.02em' : '0.04em'}"
-      >${escapeXml(label)}</text>` : ''}
+      >${escapeXml(label)}</text>`}
     </g>
   `.trim();
 }
@@ -780,36 +780,36 @@ export function renderShapeNode(
   if (studio) {
     const showIcon = resolveNodeIconVisibility(iconMode, shapeData.showIcon);
     const icon = showIcon ? studioIconSvg(shapeData, color, isDark, !!selected) : '';
-    const stackIcon = Boolean(icon) && shouldStackLabelVertically(W, STUDIO_ICON_WELL_PX);
-    const iconX = stackIcon ? (W - STUDIO_ICON_WELL_PX) / 2 : S(6);
+    const labelWidth = getShapeLabelMaxWidth(shape, W, 'title');
+    const stackIcon = Boolean(icon) && shouldStackLabelVertically(labelWidth, STUDIO_ICON_WELL_PX);
+    const inlineIcon = Boolean(icon) && !stackIcon;
+    const iconX = stackIcon ? (W - STUDIO_ICON_WELL_PX) / 2 : (W - labelWidth) / 2 + STUDIO_SHAPE_LABEL_PAD_X;
     const contentHeight = STUDIO_ICON_WELL_PX + (title ? S(18) : 0) + (subtitle ? S(14) : 0);
-    const iconY = stackIcon ? Math.max(S(4), (H - contentHeight) / 2) : S(8);
-    const textX = icon && !stackIcon ? iconX + STUDIO_ICON_WELL_PX + S(8) : W / 2;
-    const textAnchor = icon && !stackIcon ? 'start' : 'middle';
+    const iconY = stackIcon ? Math.max(S(4), (H - contentHeight) / 2) : (H - STUDIO_ICON_WELL_PX) / 2;
+    const textX = inlineIcon ? iconX + STUDIO_ICON_WELL_PX + STUDIO_SHAPE_LABEL_GAP : W / 2;
+    const textWidth = inlineIcon
+      ? labelWidth - 2 * STUDIO_SHAPE_LABEL_PAD_X - STUDIO_ICON_WELL_PX - STUDIO_SHAPE_LABEL_GAP
+      : labelWidth - 8;
 
     const textSvg = renderStudioCardText(title, subtitle ? String(subtitle) : undefined, {
       x: textX,
       // The label area is the shape's safe width less padding and the adjacent icon.
-      width: Math.max(56, getShapeLabelMaxWidth(shape, W, 'title') - 8 - (icon && !stackIcon ? STUDIO_ICON_WELL_PX + STUDIO_ICON_GAP : 0)),
+      width: Math.max(56, textWidth),
       height: H,
       ...(stackIcon ? { blockTop: iconY + STUDIO_ICON_WELL_PX + 6 } : {}),
-      anchor: textAnchor,
+      titleWeight: aesthetics.render.nodeMaterial === 'metallic' ? STUDIO_METALLIC_TITLE_WEIGHT : undefined,
+      anchor: inlineIcon ? 'start' : 'middle',
       fontFamily,
       titleColor,
       subtitleColor,
     });
-    const iconWell = isDark && selected
-      ? `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-opacity="0.4" />`
-      : `<rect x="${iconX}" y="${iconY}" width="${STUDIO_ICON_WELL_PX}" height="${STUDIO_ICON_WELL_PX}" rx="${S(11)}" fill="${hexToRgba(color, isDark ? 0.2 : 0.11)}" />`;
-    const iconGlyphX = iconX + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
-    const iconGlyphY = iconY + (STUDIO_ICON_WELL_PX - STUDIO_ICON_GLYPH_PX) / 2;
     return `
       <g transform="translate(${x}, ${y})">
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="3" width="${W - 2}" height="${H - 2}" rx="16" fill="${surface.fill}" filter="url(#archdraw-metallic-shadow)" />` : `<rect x="0" y="0" width="${W}" height="${H}" rx="16" fill="#000" filter="url(#archdraw-studio-shadow)" />`}
         ${body}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-sheen)" pointer-events="none" />` : ''}
         ${aesthetics.render.nodeMaterial === 'metallic' ? `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="16" fill="url(#archdraw-metallic-edge)" pointer-events="none" />` : ''}
-        ${icon ? `${iconWell}<g transform="translate(${iconGlyphX}, ${iconGlyphY})">${icon}</g>` : ''}
+        ${renderStudioIconWell(icon, iconX, iconY, color, 11, isDark && selected ? 0.18 : 0.12, isDark && !!selected)}
         ${textSvg}
       </g>
     `.trim();

@@ -23,6 +23,7 @@ export interface ImageOptions {
   colorTheme?: string;
   /** The editor's default line grid behind the diagram (default on, as in the editor). */
   grid?: boolean;
+  direction?: 'LR' | 'TD';
 }
 
 const STYLE_IDS: Record<ImageStyle, DiagramRenderStyleId> = {
@@ -36,18 +37,20 @@ const STYLE_IDS: Record<ImageStyle, DiagramRenderStyleId> = {
 /** The widest PNG produced, in pixels. */
 export const MAX_PNG_WIDTH = 4096;
 
-export function renderDiagramSvg(nodes: unknown[], edges: unknown[], options: Pick<ImageOptions, 'style' | 'theme' | 'colorTheme' | 'grid'>): string {
+export function renderDiagramSvg(nodes: unknown[], edges: unknown[], options: Pick<ImageOptions, 'style' | 'theme' | 'colorTheme' | 'grid' | 'direction'> & { transparent?: boolean }): string {
   const studio = options.style === 'studio' || options.style === 'studio-metallic';
   const isDark = options.theme === 'dark';
   const colorTheme = options.colorTheme ?? (studio ? 'studio-minimal' : 'default');
   // The canvas's own background token, so the image sits on the colour the editor draws.
   const tokens = resolveCanvasTokens({ renderStyleId: STYLE_IDS[options.style], colorThemeId: colorTheme, isDark }).cssVars;
+  const background = options.transparent ? 'none'
+    : options.style === 'studio-metallic' && isDark ? '#000000' : tokens['--arch-canvas-bg'];
   const grid = options.grid !== false;
   // The same default grid the editor draws and its export bakes in (24px lines in the theme's grid colour).
   const canvasBackground = grid
     ? { variant: 'lines' as const, bgColor: null, patternColor: tokens['--arch-canvas-grid'] || (isDark ? '#475569' : '#e5e7eb'), gap: 24, size: 1, showGrid: true }
     : undefined;
-  return generatePureSVG(nodes as Node[], edges as Edge[], isDark, tokens['--arch-canvas-bg'], 'LR', STYLE_IDS[options.style], colorTheme, 'all', canvasBackground);
+  return generatePureSVG(nodes as Node[], edges as Edge[], isDark, background, options.direction ?? 'LR', STYLE_IDS[options.style], colorTheme, 'all', canvasBackground);
 }
 
 export interface RenderedImage {

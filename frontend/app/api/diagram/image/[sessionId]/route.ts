@@ -14,8 +14,9 @@ const IMAGE_LIMIT_PER_HOUR = 120;
 const QuerySchema = z.object({
   format: z.enum(['png', 'svg']).default('png'),
   style: z.enum(IMAGE_STYLES).default('sketch'),
-  theme: z.enum(['light', 'dark']).default('light'),
+  theme: z.enum(['light', 'dark']).optional(),
   grid: z.enum(['on', 'off']).default('on'),
+  direction: z.enum(['LR', 'TD']).default('LR'),
   colorTheme: z.string().regex(/^[a-z0-9-]{1,32}$/).optional(),
   scale: z.coerce.number().min(1).max(3).default(2),
 });
@@ -48,7 +49,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Session has expired' }, { status: 410 });
     }
 
-    const image = await renderDiagramImage(shared.nodes as unknown[], shared.edges as unknown[], { ...query.data, grid: query.data.grid === 'on' });
+    const theme = query.data.theme ?? (query.data.style === 'studio-metallic' ? 'dark' : 'light');
+    const image = await renderDiagramImage(shared.nodes as unknown[], shared.edges as unknown[], { ...query.data, theme, grid: query.data.grid === 'on' });
     const name = (shared.canvasName || 'diagram').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'diagram';
     const body = typeof image.body === 'string' ? image.body : new Uint8Array(image.body);
     return new NextResponse(body, {
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         'Content-Disposition': `inline; filename="${name}.${query.data.format}"`,
         // Short, so an updated drawing shows up quickly; the revision lets a cache tell versions apart.
         'Cache-Control': 'public, max-age=60, s-maxage=60',
-        ETag: `"${sessionId}-${shared.revision ?? 0}-${query.data.style}${query.data.colorTheme ? `-${query.data.colorTheme}` : ''}-${query.data.theme}-${query.data.grid}-${query.data.format}-${query.data.scale}"`,
+        ETag: `"${sessionId}-${shared.revision ?? 0}-${query.data.style}${query.data.colorTheme ? `-${query.data.colorTheme}` : ''}-${theme}-${query.data.grid}-${query.data.format}-${query.data.scale}${query.data.direction === 'TD' ? '-TD' : ''}"`,
         'X-Content-Type-Options': 'nosniff',
       },
     });

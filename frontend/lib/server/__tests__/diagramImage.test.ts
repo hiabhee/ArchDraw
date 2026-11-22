@@ -4,7 +4,7 @@ import { renderDiagramImage, renderDiagramSvg } from '../diagramImage';
 
 // A drawing as the MCP drawing tool makes it: text, a blank card, a decision, a group, a note.
 const nodes = [
-  { id: 'title', type: 'textLabelNode', position: { x: 40, y: 20 }, width: 300, height: 100, data: { text: 'Release plan', fontSize: 'heading', bold: true } },
+  { id: 'title', type: 'textLabelNode', position: { x: 40, y: 20 }, width: 600, height: 100, data: { text: 'Release plan', fontSize: 'heading', bold: true } },
   { id: 'blank', type: 'shapeNode', position: { x: 40, y: 220 }, width: 200, height: 90, data: { label: '', shape: 'rounded-rectangle', nodeWidth: 200, nodeHeight: 90 } },
   { id: 'decide', type: 'shapeNode', position: { x: 360, y: 200 }, width: 180, height: 130, data: { label: 'Ship it?', shape: 'diamond', nodeWidth: 180, nodeHeight: 130, strokeColor: '#f59e0b' } },
   { id: 'g', type: 'groupNode', position: { x: 700, y: 170 }, width: 260, height: 190, style: { width: 260, height: 190 }, data: { label: 'Backend', isGroup: true } },

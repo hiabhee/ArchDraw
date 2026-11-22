@@ -37,3 +37,10 @@ export const STUDIO_TEXT_PAD_X = Math.round(28 * STUDIO_SCALE);
 export const STUDIO_TEXT_PAD_Y = Math.round(24 * STUDIO_SCALE);
 /** Gap between the icon well and the text beside it. */
 export const STUDIO_ICON_GAP = Math.round(10 * STUDIO_SCALE);
+
+/** Distance from the system card edge to the icon well or the plain title. */
+export const STUDIO_SYSTEM_CONTENT_INSET = Math.round(19 * STUDIO_SCALE);
+
+/** Inner padding and gap of the centered label row on Studio shape cards. */
+export const STUDIO_SHAPE_LABEL_PAD_X = 6;
+export const STUDIO_SHAPE_LABEL_GAP = 8;

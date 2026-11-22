@@ -13,6 +13,15 @@ describe('icons picked from a card label', () => {
     expect(icon('Notification Service')).toBe('arch-notification');
   });
 
+  it('chooses distinct icons for the roles in a search pipeline', () => {
+    expect(icon('Googlebot')).toBe('arch-agent');
+    expect(icon('Page Indexer')).toBe('arch-etl');
+    expect(icon('Search Index')).toBe('arch-storage');
+    expect(icon('Search Query')).toBe('arch-search');
+    expect(icon('Search Serving')).toBe('arch-router');
+    expect(icon('Results Page')).toBe('arch-file');
+  });
+
   it('reads a generically named store as a database', () => {
     expect(icon('User & Group DB')).toBe('arch-database');
     expect(icon('Message Store')).toBe('arch-database');

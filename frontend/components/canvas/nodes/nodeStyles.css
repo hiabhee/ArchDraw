@@ -1504,6 +1504,12 @@
   z-index: -1 !important;
 }
 
+/* Match the rounded rim of the Studio Metallic shape cards. */
+.dark [data-render-style='studio-metallic'] .node-card,
+.dark[data-render-style='studio-metallic'] .node-card {
+  border-radius: 16px;
+}
+
 /* Studio Metallic uses a satin highlight over the active palette's node fill. */
 [data-render-style='studio-metallic'] .node-card {
   background-image: var(--arch-node-surface-overlay);
@@ -1676,7 +1682,7 @@
 
 /* Studio cards carry larger text so a fitted map stays readable. */
 /* Sizes mirror STUDIO_TITLE_PX / STUDIO_SUBTITLE_PX in lib/diagram/nodes/studioMetrics.ts. */
-[data-render-style^='studio'] .node-title { font-size: 23px; }
+[data-render-style^='studio'] .node-title { font-size: 23px; font-weight: var(--arch-node-title-weight, 600); }
 [data-render-style^='studio'] .node-subtitle { font-size: 15.5px; }
 
 /* Text tool armed: the pane takes the text cursor so a click reads as "place text here". */

@@ -12,6 +12,7 @@ import { NodeIcon } from '@/components/canvas/nodes/NodeIcon';
 import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { resolveAutoCloudIcon } from '@/lib/icons/cloud/autoResolution';
+import { STUDIO_SHAPE_LABEL_GAP, STUDIO_SHAPE_LABEL_PAD_X } from '@/lib/diagram/nodes/studioMetrics';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
@@ -186,6 +187,7 @@ export function Label({
       style={{
         width: '100%',
         maxWidth: maxWidth ?? '100%',
+        ...(studio && horizontalWithIcon ? { gap: STUDIO_SHAPE_LABEL_GAP, paddingInline: STUDIO_SHAPE_LABEL_PAD_X } : {}),
         transform: labelNudge ? `translateY(${labelNudge}px)` : undefined,
         padding: isPipeText ? '0 12px' : sketch ? '6px 8px' : undefined,
         cursor: iconOnly ? 'text' : undefined,

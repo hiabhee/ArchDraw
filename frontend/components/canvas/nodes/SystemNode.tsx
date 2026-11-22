@@ -31,7 +31,7 @@ import {
   studioCompactNodeSize,
 } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { formatStudioCardTitle } from '@/lib/diagram/nodes/shapeTextLayout';
-import { STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
+import { STUDIO_ICON_GAP, STUDIO_SYSTEM_CONTENT_INSET, STUDIO_TEXT_PAD_X, STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import './nodeStyles.css';
 
 const NODE_WIDTH = DIAGRAM_CONSTANTS.node.width;
@@ -370,6 +370,11 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             width: cardWidth,
             minWidth: studio ? studioSize.width : Math.max(NODE_WIDTH, SIZE_M),
             minHeight: cardHeight,
+            ...(studio ? {
+              paddingBlock: 8,
+              paddingInlineStart: `calc(${STUDIO_SYSTEM_CONTENT_INSET}px - var(--arch-stroke-width, 1.25px))`,
+              paddingInlineEnd: `calc(${STUDIO_TEXT_PAD_X - STUDIO_SYSTEM_CONTENT_INSET}px - var(--arch-stroke-width, 1.25px))`,
+            } : {}),
           }}
         onClick={handleClick}
       >
@@ -394,7 +399,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
           </div>
         )}
 
-        <div className="node-header">
+        <div className="node-header" style={studio ? { gap: STUDIO_ICON_GAP } : undefined}>
           {showIcon && (
           <div
             className="node-icon-box"
