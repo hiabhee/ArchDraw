@@ -235,10 +235,8 @@ function pointsNear(
 }
 
 /**
- * Snap near-aligned facing terminals to a pixel-straight line at the
- * midpoint. A 2–7px diagonal reads as a slanted wire, while ≤4px off a
- * handle center stays inside the handle donut. Returns the (possibly
- * unchanged) endpoint pair.
+ * Without measured handles, a 2–7px diagonal reads as a slanted wire while the
+ * midpoint stays inside both handle donuts. Measured anchors keep their center.
  */
 function snapNearAlignedEndpoints(
   sh: { x: number; y: number },
@@ -261,6 +259,18 @@ function snapNearAlignedEndpoints(
     return [{ x: midX, y: sh.y }, { x: midX, y: th.y }]
   }
   return [sh, th]
+}
+
+/** Measured handle centers can refine clearance but cannot shift the side's slot. */
+function applyMeasuredClearance(
+  scored: { x: number; y: number },
+  measured: { x: number; y: number } | undefined,
+  side: Position,
+): { x: number; y: number } {
+  if (!measured || !pointsNear(measured, scored)) return scored;
+  return side === Position.Left || side === Position.Right
+    ? { x: measured.x, y: scored.y }
+    : { x: scored.x, y: measured.y };
 }
 
 /**
@@ -447,11 +457,8 @@ function computeDirectWaypoints(
   maxExpandedStates?: number,
   preferStraight: boolean = false,
 ): { waypoints: Array<{ x: number; y: number }>; outcome?: RoutePathOutcome } {
-  // A tiny height difference should read as one straight connector. Snap to
-  // the midpoint so the wire is pixel-straight instead of a shallow diagonal;
-  // moving either endpoint stays inside the handle donut. An orthogonal Z
-  // route would put a short vertical kink in the middle, while moving only
-  // one endpoint would detach the line from its visible handle.
+  // A tiny height difference should read as one straight connector only when no
+  // measured handle center must be honored. Measured anchors stay centered.
   const nearHorizontal =
     ((sourcePosition === Position.Right && targetPosition === Position.Left && sh.x < th.x) ||
       (sourcePosition === Position.Left && targetPosition === Position.Right && sh.x > th.x)) &&
@@ -462,11 +469,11 @@ function computeDirectWaypoints(
       (sourcePosition === Position.Top && targetPosition === Position.Bottom && sh.y > th.y)) &&
     Math.abs(sh.x - th.x) > 0.01 &&
     Math.abs(sh.x - th.x) < 8;
-  if (edgeOffset === 0 && (nearHorizontal || nearVertical)) {
+  if (!trustMeasuredTerminals && edgeOffset === 0 && (nearHorizontal || nearVertical)) {
     const [ssh, sth] = snapNearAlignedEndpoints(sh, th, sourcePosition, targetPosition);
     const straight = [ssh, sth];
     const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
-    if (!blocked && (trustMeasuredTerminals || !pathEntersTerminalInterior(straight, sourceRect, targetRect))) {
+    if (!blocked && !pathEntersTerminalInterior(straight, sourceRect, targetRect)) {
       return { waypoints: straight };
     }
   }
@@ -1078,17 +1085,26 @@ export function computeEdgeRoute(
       targetPosition = handlerPair.targetSide
     }
 
+    if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+    if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+    const hasMeasuredSides = handleAnchors?.sourceSide !== undefined || handleAnchors?.targetSide !== undefined
+    const resolveSide: typeof context.resolveSide = hasMeasuredSides
+      ? (candidate, nodeId) => candidate.id === edge.id
+        ? (nodeId === edge.source ? sourcePosition : targetPosition)
+        : context.resolveSide(candidate, nodeId)
+      : context.resolveSide;
+
     const nodeMap = context.nodeById
     const sourceShift = getEdgeShiftOffset(
       edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
       undefined, undefined,
-      context.resolveSide,
+      resolveSide,
       renderStyleId, iconMode,
     )
     const targetShift = getEdgeShiftOffset(
       edge.target, edge.id, targetPosition, edges, nodeMap, 24,
       undefined, undefined,
-      context.resolveSide,
+      resolveSide,
       renderStyleId, iconMode,
     )
     const scoredSh = getBoundaryAnchor(
@@ -1099,18 +1115,8 @@ export function computeEdgeRoute(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
       targetPosition, targetShift,
     )
-    // Same staleness rule as the main branch: stored handle ids go stale when
-    // a side re-floats, and the measured center then belongs to a hidden
-    // handle. Adopt it only on the scorer winner; otherwise a dragged edge
-    // validates (and draws) against empty canvas.
-    const sh = handleAnchors?.source && pointsNear(handleAnchors.source, scoredSh)
-      ? handleAnchors.source
-      : scoredSh
-    const th = handleAnchors?.target && pointsNear(handleAnchors.target, scoredTh)
-      ? handleAnchors.target
-      : scoredTh
-    if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
-    if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+    const sh = applyMeasuredClearance(scoredSh, handleAnchors?.source, sourcePosition);
+    const th = applyMeasuredClearance(scoredTh, handleAnchors?.target, targetPosition);
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
     const result = {
@@ -1196,9 +1202,14 @@ export function computeEdgeRoute(
   if (!routeOptions.attachmentSides && manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
   if (!routeOptions.attachmentSides && manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
+  const hasMeasuredSides = handleAnchors?.sourceSide !== undefined || handleAnchors?.targetSide !== undefined
   const routeForSides = (sourcePosition: Position, targetPosition: Position): EdgeRouteResult => {
     const nodeMap = context.nodeById
-    const resolveSide = context.resolveSide
+    const resolveSide: typeof context.resolveSide = hasMeasuredSides
+      ? (candidate, nodeId) => candidate.id === edge.id
+        ? (nodeId === edge.source ? sourcePosition : targetPosition)
+        : context.resolveSide(candidate, nodeId)
+      : context.resolveSide;
 
     const sourceShift = getEdgeShiftOffset(
       edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
@@ -1227,14 +1238,8 @@ export function computeEdgeRoute(
     )
     const measuredSh = handleAnchors?.source
     const measuredTh = handleAnchors?.target
-    const [preSh, preTh] = [
-      measuredSh && pointsNear(measuredSh, scoredSh) ? measuredSh : scoredSh,
-      measuredTh && pointsNear(measuredTh, scoredTh) ? measuredTh : scoredTh,
-    ]
-    // Pixel-straighten near-aligned facing terminals (see helper): a 2–7px
-    // diagonal reads as slanted, while the midpoint stays in both donuts.
-    const [sh, th] = snapNearAlignedEndpoints(preSh, preTh, sourcePosition, targetPosition)
-
+    const sh = applyMeasuredClearance(scoredSh, measuredSh, sourcePosition);
+    const th = applyMeasuredClearance(scoredTh, measuredTh, targetPosition);
 
     // Intermediate nodes only for the obstacle map — source/target are added
     // inside computeDirectWaypoints so detours cannot tunnel through terminals.

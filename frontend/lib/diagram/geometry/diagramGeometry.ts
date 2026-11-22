@@ -12,7 +12,7 @@ import { resolveEdgeFlowSemantics } from '@/lib/diagram/mermaid/edgeFlowSemantic
 
 // Change when routing semantics change so persisted in-memory geometry plans
 // from the prior router cannot keep drawing stale attachment choices.
-const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v3';
+const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v4';
 
 export interface DiagramGeometryOptions {
   direction: EdgeRouteDirection;
@@ -32,6 +32,8 @@ export interface DiagramGeometryOptions {
    * Scoring, repair, canvas and export must use the same value.
    */
   straightEdges?: boolean;
+  /** Give the final displayed routes a bounded retry when they still cross. */
+  repairReturnCrossings?: boolean;
 }
 
 export interface DiagramGeometryPlan {
@@ -175,6 +177,7 @@ export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: Diagr
     options.renderStyleId ?? '',
     options.iconMode ?? '',
     options.straightEdges === true,
+    options.repairReturnCrossings === true,
     nodes.map(node => [node.id, node.type, node.parentNode, (node as Node & { parentId?: string }).parentId, bounds.get(node.id), node.data]),
     edges.map(edge => [edge.id, edge.source, edge.target, edge.sourceHandle, edge.targetHandle, edge.label, options.ignoreLabelPosition ? withoutLabelPosition(edge.data) : edge.data, edge.style]),
     [...(options.handleAnchors ?? new Map()).entries()],
@@ -211,6 +214,7 @@ export function computeDiagramGeometryPlan(
     nodes, edges, direction: options.direction, renderStyleId: options.renderStyleId,
     iconMode: options.iconMode, handleAnchors: options.handleAnchors,
     straightEdges: options.straightEdges === true,
+    repairReturnCrossings: options.repairReturnCrossings,
   });
   const optimizedRoutes = routeOptimization.routes;
 
@@ -274,10 +278,14 @@ export function computeDiagramGeometryPlan(
   for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
     const a = edges[i], b = edges[j];
     const pathA = paths.get(a.id), pathB = paths.get(b.id);
-    if (pathA && pathB && getRenderedPathInteraction(pathA, pathB).crossing) {
-      crossings++;
-      violations.push({ severity: 'soft', code: 'EDGE_CROSSING', edgeId: a.id, otherEdgeId: b.id });
-    }
+    if (!pathA || !pathB) continue;
+    const { crossingCount } = getRenderedPathInteraction(pathA, pathB);
+    if (crossingCount === 0) continue;
+    crossings++;
+    violations.push({
+      severity: 'soft', code: 'EDGE_CROSSING', edgeId: a.id, otherEdgeId: b.id,
+      ...(crossingCount > 1 ? { count: crossingCount } : {}),
+    });
   }
   for (const diagnostic of routeOptimization.diagnostics) {
     if (diagnostic.kind === 'private-overlap') {
@@ -330,7 +338,7 @@ export function computeDiagramGeometryPlan(
         return role === 'main' ? 10 : role === 'branch' ? 4 : role === 'feedback' ? 2 : 1;
       };
       // A crossing involving the main flow has the same cost in either edge order.
-      return sum + Math.max(weight(violation.edgeId), weight(violation.otherEdgeId));
+      return sum + (violation.count ?? 1) * Math.max(weight(violation.edgeId), weight(violation.otherEdgeId));
     }, 0);
   const unexplainedPrivateOverlapLength = violations.reduce((sum, violation) => sum + (violation.code === 'PRIVATE_ROUTE_OVERLAP' ? violation.length : 0), 0);
   const quality = {

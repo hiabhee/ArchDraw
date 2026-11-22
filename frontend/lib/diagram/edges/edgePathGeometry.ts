@@ -15,7 +15,13 @@ export interface RenderedEdgePath {
 
 export interface PathObstacle { id: string; rect: Rect }
 
-const interactionCache = new WeakMap<RenderedEdgePath, WeakMap<RenderedEdgePath, { crossing: boolean; privateOverlap: number }>>();
+interface RenderedPathInteraction {
+  crossing: boolean;
+  crossingCount: number;
+  privateOverlap: number;
+}
+
+const interactionCache = new WeakMap<RenderedEdgePath, WeakMap<RenderedEdgePath, RenderedPathInteraction>>();
 const sampleIndexes = new WeakMap<RenderedEdgePath, { turns: readonly Point[]; cells: Map<string, Point[]> }>();
 function indexSamples(path: RenderedEdgePath) {
   const cached = sampleIndexes.get(path);
@@ -38,21 +44,21 @@ function indexSamples(path: RenderedEdgePath) {
 }
 
 /** Exact proper crossings of the sampled polyline; cache repeated cost checks. */
-export function getRenderedPathInteraction(a: RenderedEdgePath, b: RenderedEdgePath): { crossing: boolean; privateOverlap: number } {
+export function getRenderedPathInteraction(a: RenderedEdgePath, b: RenderedEdgePath): RenderedPathInteraction {
   let byOther = interactionCache.get(a);
   const cached = byOther?.get(b);
   if (cached) return cached;
   if (!byOther) { byOther = new WeakMap(); interactionCache.set(a, byOther); }
-  let crossing = false, privateOverlap = 0;
+  let crossingCount = 0, privateOverlap = 0;
   if (a.bounds.x <= b.bounds.x + b.bounds.width + 4 && a.bounds.x + a.bounds.width + 4 >= b.bounds.x
     && a.bounds.y <= b.bounds.y + b.bounds.height + 4 && a.bounds.y + a.bounds.height + 4 >= b.bounds.y) {
     const ai = indexSamples(a), bi = indexSamples(b);
     const cross = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
-    outer: for (let i = 1; i < ai.turns.length; i++) for (let j = 1; j < bi.turns.length; j++) {
+    for (let i = 1; i < ai.turns.length; i++) for (let j = 1; j < bi.turns.length; j++) {
       const p = ai.turns[i - 1], q = ai.turns[i], r = bi.turns[j - 1], s = bi.turns[j];
       if (Math.max(p.x, q.x) < Math.min(r.x, s.x) || Math.max(r.x, s.x) < Math.min(p.x, q.x)
         || Math.max(p.y, q.y) < Math.min(r.y, s.y) || Math.max(r.y, s.y) < Math.min(p.y, q.y)) continue;
-      if (cross(p, q, r) * cross(p, q, s) < 0 && cross(r, s, p) * cross(r, s, q) < 0) { crossing = true; break outer; }
+      if (cross(p, q, r) * cross(p, q, s) < 0 && cross(r, s, p) * cross(r, s, q) < 0) crossingCount++;
     }
     if (a.samples.length >= 3 && b.samples.length >= 3) for (let i = 1; i < a.samples.length - 1; i++) {
       const t = i / (a.samples.length - 1);
@@ -67,7 +73,7 @@ export function getRenderedPathInteraction(a: RenderedEdgePath, b: RenderedEdgeP
       if (near) privateOverlap += distance(point, a.samples[i - 1]);
     }
   }
-  const result = { crossing, privateOverlap };
+  const result = { crossing: crossingCount > 0, crossingCount, privateOverlap };
   byOther.set(b, result);
   return result;
 }

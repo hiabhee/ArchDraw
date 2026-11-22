@@ -19,17 +19,33 @@ function makeEdge(id: string, source: string, target: string): Edge {
 }
 
 describe('computeEdgeRoute routing', () => {
-  it('snaps a near-aligned link (<8px) to a pixel-straight line at the midpoint', () => {
+  it('keeps measured handles centered when the cards differ by only 6px', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 106)];
     const edge = makeEdge('e1', 'a', 'b');
-    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, {
+      source: { x: 312, y: 150 }, target: { x: 488, y: 156 },
+      sourceSide: Position.Right, targetSide: Position.Left,
+    });
 
-    // 6px of vertical drift would read as a slanted wire — both ends meet at
-    // the midpoint (153), staying inside either handle donut.
-    expect(route.sourcePoint).toEqual({ x: 312, y: 153 });
-    expect(route.targetPoint).toEqual({ x: 488, y: 153 });
-    expect(route.waypoints).toEqual([route.sourcePoint, route.targetPoint]);
-    expect(route.svgPath).toBe('M 312,153 L 488,153');
+    expect(route.sourcePoint).toEqual({ x: 312, y: 150 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 156 });
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints.at(-1)).toEqual(route.targetPoint);
+  });
+
+  it('centers a vertical connection even if the reported handle is off to one side', () => {
+    const nodes = [makeNode('a', 100, 0), makeNode('b', 106, 360)];
+    const edge = makeEdge('e1', 'a', 'b');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'TD', undefined, {
+      source: { x: 203, y: 112 }, target: { x: 203, y: 348 },
+    }, undefined, {
+      attachmentSides: { sourceSide: Position.Bottom, targetSide: Position.Top },
+    });
+
+    expect(route.sourcePoint.x).toBe(200);
+    expect(route.targetPoint.x).toBe(206);
+    expect(route.waypoints[0].x).toBe(200);
+    expect(route.waypoints.at(-1)?.x).toBe(206);
   });
 
   it('leaves the top border before turning right, even when the target is level with the handle', () => {

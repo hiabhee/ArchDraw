@@ -68,6 +68,26 @@ describe('optimizeEdgeRoutes', () => {
     expect(top[top.length - 1]).toEqual(bottom[bottom.length - 1]);
   });
 
+  it('reports overlapping solid and dashed connections when separate strokes are requested', () => {
+    const nodes = [node('api', 0, 120), node('cache', 600, 0), node('worker', 600, 240)];
+    const edges = [
+      {
+        id: 'lookup', source: 'api', target: 'cache',
+        data: { customWaypoints: [{ x: 400, y: 170 }, { x: 400, y: 50 }] },
+      },
+      {
+        id: 'schedule', source: 'api', target: 'worker',
+        data: { edgeVariant: 'dashed', separateSharedStrokes: true, customWaypoints: [{ x: 400, y: 170 }, { x: 400, y: 290 }] },
+      },
+    ] as Edge[];
+
+    const result = optimizeEdgeRoutes({ nodes, edges, direction: 'LR' });
+
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      edgeId: 'lookup', otherEdgeId: 'schedule', kind: 'private-overlap',
+    }));
+  });
+
   it('keeps edges off a shared bus when they only run alongside each other', () => {
     const nodes = [node('a', 0, 0), node('b', 0, 300), node('c', 600, 600), node('d', 600, 900)];
     const edges = [

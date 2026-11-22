@@ -166,8 +166,8 @@ export function separateFanLanes(
           const other = edgeById.get(otherId);
           if (!other) continue;
           const drawn = next.get(otherId) ?? otherRoute;
-          if (getRenderedPathInteraction(route.renderedPath, drawn.renderedPath).crossing
-            && !getRenderedPathInteraction(before.renderedPath, otherRoute.renderedPath).crossing) return null;
+          if (getRenderedPathInteraction(route.renderedPath, drawn.renderedPath).crossingCount
+            > getRenderedPathInteraction(before.renderedPath, otherRoute.renderedPath).crossingCount) return null;
         }
       }
       return next;
