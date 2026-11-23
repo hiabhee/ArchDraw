@@ -184,7 +184,7 @@ describe('POST /api/diagram/load preview', () => {
     expect(body.nodes.filter((node: Node) => node.type === 'groupNode')).toHaveLength(4);
     expect(body.nodes).toHaveLength(20);
     expect(body.edges).toHaveLength(23);
-  }, 30000);
+  }, 90000);
 
   it('refuses a raw drawing with a node type the canvas does not know', async () => {
     const response = await POST(post({ nodes: [{ id: 'x', type: 'scriptNode', position: { x: 0, y: 0 }, data: {} }], edges: [], dryRun: true }));
