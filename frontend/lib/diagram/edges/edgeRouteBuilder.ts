@@ -822,6 +822,7 @@ export function buildLanePath(
 /** Closest a shared trunk sits to the node it hugs (room for the corner radius), and its share of the gap. */
 const FAN_TRUNK_MIN = 32
 const FAN_TRUNK_SHARE = 0.3
+const TOP_DOWN_FAN_EDGE_LIMIT = 40
 
 function fanChannel(
   edge: Edge,
@@ -873,6 +874,9 @@ export function computeEdgeRoute(
   routeOptions: EdgeRouteOptions = {},
 ): EdgeRouteResult {
   const context = routeOptions.context ?? createEdgeRoutingContext(nodes, edges, direction, renderStyleId, iconMode)
+  // Dense graphs need the full side search to avoid long overlapping trunks.
+  const preferTopDownFan = direction === 'TD' &&
+    (edges.length < TOP_DOWN_FAN_EDGE_LIMIT || edge.data?.separateSharedStrokes === true)
   const sourceNode = context.nodeById.get(edge.source)
   const targetNode = context.nodeById.get(edge.target)
 
@@ -1282,7 +1286,7 @@ export function computeEdgeRoute(
     // Align the initial fan channel; bidirectional lanes keep their own offset.
     let channelOffset = 0
     const channelAxis = sourcePosition === Position.Right && targetPosition === Position.Left ? 'x'
-      : direction === 'TD' && edge.data?.separateSharedStrokes === true && sourcePosition === Position.Bottom && targetPosition === Position.Top ? 'y' : null
+      : preferTopDownFan && sourcePosition === Position.Bottom && targetPosition === Position.Top ? 'y' : null
     if (channelAxis && edgeOffset === 0 && sh[channelAxis] < th[channelAxis] && routeAxisSeparation >= 8) {
       const channel = fanChannel(edge, nodes, edges, sh, th, sourceRect, targetRect, channelAxis, renderStyleId, iconMode)
       if (channel !== null && channel > sh[channelAxis] && channel < th[channelAxis]) {
@@ -1379,9 +1383,9 @@ export function computeEdgeRoute(
     || routeOptions.attachmentSides !== undefined
   if (sidesPinned) return primary
 
-  // In a top-down preview, give forward branches room to separate their strokes
-  // on a shared channel before considering shorter side attachments.
-  if (direction === 'TD' && edge.data?.separateSharedStrokes === true && !routeOptions.straightEdges && !bidirectionalSides
+  // Give forward branches room to separate their strokes on a shared channel
+  // before considering shorter side attachments.
+  if (preferTopDownFan && !routeOptions.straightEdges && !bidirectionalSides
     && (!laneSourcePreference || laneSourcePreference === Position.Bottom)
     && (!laneTargetPreference || laneTargetPreference === Position.Top)
     && targetRect.y - (sourceRect.y + sourceRect.h) > 2 * HANDLER_ENDPOINT_GAP) {
