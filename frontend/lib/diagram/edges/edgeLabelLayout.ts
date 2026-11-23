@@ -4,11 +4,16 @@ import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from '@/lib/diagram/pipeline-
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles'
 import type { NodeIconMode } from '../nodes/nodeIconVisibility'
 import type { RenderedEdgePath } from './edgePathGeometry'
+import type { Rect } from '../geometry/geometryTypes'
 
 export interface EdgeLabelAnchor {
   x: number
   y: number
   t: number
+}
+
+export function hasFittedPreviewLabels(edges: readonly Edge[]): boolean {
+  return edges.some(edge => edge.data?.fitPreviewLabels === true)
 }
 
 // ── Label sizing ────────────────────────────────────────────────────────────
@@ -771,6 +776,7 @@ function computeLayout(
   avoidCorners = false,
 ): Map<string, EdgeLabelAnchor> {
   const nodes = Array.from(nodeInternals.values())
+  const fitPreviewLabels = hasFittedPreviewLabels(edges)
   const brutal = renderStyle === 'neubrutalism'
   const nodeGap = brutal ? BRUTAL_NODE_LABEL_GAP : NODE_LABEL_GAP
 
@@ -937,13 +943,16 @@ function computeLayout(
     })
     const clearOfNodes = (cand: LabelCandidate) =>
       !nodeObstacles.some((n) => rectsOverlap(n, cssRectAt(cand)))
-    /** The drawn pill does not cover a card (the safe size and the clearance margin may be touched). */
     const drawnW = item.size.w / LABEL_SAFE_SCALE
     const drawnH = item.size.h / LABEL_SAFE_SCALE
-    const clearOfCards = (cand: LabelCandidate) => {
+    const clearOfDrawnCards = (cand: LabelCandidate) => {
       const rect = { x: cand.x - drawnW / 2, y: cand.y - drawnH / 2, w: drawnW, h: drawnH }
       return !cardBoxes.some((n) => rectsOverlap(n, rect))
     }
+    // A fitted preview needs room for the scaled pill even when we drop the margin.
+    const clearOfCards = (cand: LabelCandidate) => fitPreviewLabels
+      ? !cardBoxes.some((n) => rectsOverlap(n, cssRectAt(cand)))
+      : clearOfDrawnCards(cand)
     const clearOfLabels = (cand: LabelCandidate) => {
       const rect = { x: cand.x - item.size.w / 2, y: cand.y - item.size.h / 2, w: item.size.w, h: item.size.h }
       return !placed.some((p) => rectsOverlap(p, rect))
@@ -1017,6 +1026,7 @@ function computeLayout(
       }
       chosen = beside((cand) => clearOfNodes(cand) && clearOfLabels(cand) && clearOfOtherEdges(cand))
         ?? beside((cand) => clearOfCards(cand) && clearOfLabels(cand))
+        ?? (fitPreviewLabels ? beside((cand) => clearOfDrawnCards(cand) && clearOfLabels(cand)) : null)
     }
     if (!chosen) {
       for (const cand of item.candidates) {
@@ -1043,46 +1053,48 @@ function computeLayout(
   return result
 }
 
-/**
- * Labels that cover something: the edges whose label sits on a card or a group title, and the
- * number of label pairs that overlap. Uses the
- * geometry check's own pill size and node bounds (diagramGeometry.ts), so a placement this prefers
- * never scores worse there.
- */
-function labelObstructions(
+/** Label pills must clear every card, group title, and other pill. */
+export function findEdgeLabelCollisions(
   anchors: ReadonlyMap<string, EdgeLabelAnchor>,
   edges: Edge[],
   nodeInternals: ReadonlyMap<string, Node>,
   renderStyle?: DiagramRenderStyleId,
-): { onNodes: Set<string>; onLabels: number } {
+  bounds?: ReadonlyMap<string, Rect>,
+) {
+  const fitPreviewLabels = hasFittedPreviewLabels(edges)
   const boxes = [...nodeInternals.values()].map((node) => {
     const data = node.data as { nodeWidth?: number; nodeHeight?: number } | undefined
     const at = node.positionAbsolute ?? node.position
+    const size = bounds?.get(node.id)
+    const group = isGroupNode(node)
+    const height = size?.height ?? node.height ?? data?.nodeHeight ?? 88
     return {
-      node,
-      group: isGroupNode(node),
+      id: node.id,
+      group,
       x: at.x, y: at.y,
-      w: node.width ?? data?.nodeWidth ?? 200,
-      h: node.height ?? data?.nodeHeight ?? 88,
+      w: size?.width ?? node.width ?? data?.nodeWidth ?? 200,
+      h: group ? Math.min(40, height) : height,
     }
   })
-  const rects: Array<PlacedRect & { edge: Edge }> = []
-  const onNodes = new Set<string>()
+  const rects: Array<PlacedRect & { edgeId: string }> = []
+  const onNodes: Array<{ edgeId: string; withId: string }> = []
+  const onLabels: Array<{ edgeId: string; withId: string }> = []
   for (const edge of edges) {
     const anchor = anchors.get(edge.id)
     const label = getDisplayLabel(edge)
     if (!anchor || !label) continue
     const { w, h } = estimateLabelSize(label, renderStyle)
     const rect = { x: anchor.x - w / 2, y: anchor.y - h / 2, w, h }
-    const hit = boxes.some((box) => box.group
-      ? rectsOverlap(rect, { x: box.x, y: box.y, w: box.w, h: Math.min(40, box.h) })
-      : box.node.id !== edge.source && box.node.id !== edge.target && rectsOverlap(rect, box))
-    if (hit) onNodes.add(edge.id)
-    rects.push({ ...rect, edge })
-  }
-  let onLabels = 0
-  for (let i = 0; i < rects.length; i++) {
-    for (let j = i + 1; j < rects.length; j++) if (rectsOverlap(rects[i], rects[j])) onLabels++
+    const obstructions = boxes.filter(box => (fitPreviewLabels || box.group || (box.id !== edge.source && box.id !== edge.target))
+      && rectsOverlap(rect, box))
+    const hits = fitPreviewLabels ? obstructions : [obstructions.find(box => !box.group), obstructions.find(box => box.group)]
+    for (const box of hits) {
+      if (box) onNodes.push({ edgeId: edge.id, withId: box.id })
+    }
+    for (const placed of rects) {
+      if (rectsOverlap(rect, placed)) onLabels.push({ edgeId: edge.id, withId: placed.edgeId })
+    }
+    rects.push({ ...rect, edgeId: edge.id })
   }
   return { onNodes, onLabels }
 }
@@ -1139,15 +1151,17 @@ export function computeEdgeLabelLayout(
   // Labels are kept off the bends of their edges when that costs nothing: the corner-free placement
   // is used only when it puts no more labels on cards, group titles or other labels than the plain
   // one (measured as the layout check measures them), so layout choices never get worse for it.
+  const fitPreviewLabels = hasFittedPreviewLabels(edges)
   const plain = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode, false)
   let result = plain
   const hasBends = [...(routes?.values() ?? [])].some(route => route.waypoints.length > 2) || !routes
   if (hasBends && edges.some(edge => getDisplayLabel(edge))) {
     const cornerFree = computeLayout(edges, nodeInternals, direction, renderStyle, routes, iconMode, true)
-    const a = labelObstructions(cornerFree, edges, nodeInternals, renderStyle)
-    const b = labelObstructions(plain, edges, nodeInternals, renderStyle)
+    const a = findEdgeLabelCollisions(cornerFree, edges, nodeInternals, renderStyle)
+    const b = findEdgeLabelCollisions(plain, edges, nodeInternals, renderStyle)
     // No label may end up covering something it did not cover before.
-    if ([...a.onNodes].every(id => b.onNodes.has(id)) && a.onLabels <= b.onLabels) result = cornerFree
+    if (a.onNodes.every(hit => b.onNodes.some(before => before.edgeId === hit.edgeId && (!fitPreviewLabels || before.withId === hit.withId)))
+      && a.onLabels.length <= b.onLabels.length) result = cornerFree
   }
   layoutCache.set(edges, { nodeInternals, direction, renderStyle, routes, iconMode, result })
   if (layoutCache.size > CACHE_MAX) {

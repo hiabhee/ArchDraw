@@ -1,6 +1,6 @@
 import { DagreLayoutEngine } from './DagreLayout';
 import { layoutZones } from './ZoneLayout';
-import type { LayoutEdge, LayoutEdgeImportance, LayoutParams, LayoutResult, RankDirection } from './LayoutEngine';
+import type { LayoutEdge, LayoutEdgeImportance, LayoutOptions, LayoutParams, LayoutResult, RankDirection } from './LayoutEngine';
 import { defaultCompoundLayoutOptions, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from './LayoutEngine';
 import { isTextNode } from '../textNodes';
 import type { RFNode, RFEdgeInput, RFObjectsInput, Direction } from '../reactflow/types';
@@ -11,23 +11,7 @@ export type { RFNode, RFEdgeInput, RFObjectsInput, Direction };
 
 export interface IntegratedLayoutOptions {
   direction?: Direction;
-  options?: {
-    nodeSep?: number;
-    rankSep?: number;
-    marginX?: number;
-    marginY?: number;
-    padding?: number;
-    paddingTop?: number;
-    paddingBottom?: number;
-    paddingLeft?: number;
-    paddingRight?: number;
-    /** Top-level groups are flow stages: keep them in rank order (no sidecar lanes). */
-    flowAreas?: boolean;
-    /** Hub-and-zones placement (see ZoneLayout); falls back to the flow layout when there is no hub. */
-    zones?: boolean;
-    /** `false` skips the settle passes (see `LayoutOptions.settle`): a quick layout for scoring. */
-    settle?: boolean;
-  };
+  options?: LayoutOptions;
 }
 
 /**

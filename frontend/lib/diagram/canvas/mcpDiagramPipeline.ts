@@ -6,10 +6,12 @@ export function runMcpMermaidPipeline(mermaid: string, autoDirection: boolean, f
   const run = autoDirection ? runCompactMermaidPipeline : runMermaidPipeline;
   return run(mermaid, {
     layoutProfile: 'studio-minimal',
+    layoutStyle: 'auto',
     iconMode: 'all',
     areaOrder: 'flow',
     renderStyleId: 'studio-minimal',
     separateSharedStrokes: true,
+    fitPreviewLabels: true,
     foldLongFlows,
   });
 }

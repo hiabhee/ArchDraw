@@ -3,7 +3,7 @@ import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
 import { computeEdgeRoute, createEdgeRoutingContext, isGroupNode, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
-import { computeEdgeLabelLayout, estimateLabelSize, getDisplayLabel, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
+import { computeEdgeLabelLayout, findEdgeLabelCollisions, hasFittedPreviewLabels, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
 import { optimizeEdgeRoutes } from '../edges/edgeRouteOptimizer';
 import { validateRenderedPath, getRenderedPathInteraction, type RenderedEdgePath } from '../edges/edgePathGeometry';
 import type { GeometryStatus, GeometryViolation, Rect } from './geometryTypes';
@@ -100,9 +100,17 @@ export function computeDiagramGeometryPreview(
     sourceSides.set(edge.id, route.sourcePosition);
     targetSides.set(edge.id, route.targetPosition);
   }
+  const fitPreviewLabels = hasFittedPreviewLabels(edges);
   const labelNodes = new Map(nodes.map(node => {
     const rect = rects.get(node.id)!;
-    return [node.id, { ...node, position: { x: rect.x, y: rect.y }, positionAbsolute: { x: rect.x, y: rect.y }, parentNode: undefined, parentId: undefined } as Node];
+    return [node.id, {
+      ...node,
+      ...(fitPreviewLabels ? { width: rect.width, height: rect.height } : {}),
+      position: { x: rect.x, y: rect.y },
+      positionAbsolute: { x: rect.x, y: rect.y },
+      parentNode: undefined,
+      parentId: undefined,
+    } as Node];
   }));
   const labels = computeEdgeLabelLayout(edges, labelNodes, options.direction, options.renderStyleId, routes, options.iconMode);
   const totalPathLength = [...paths.values()].reduce((sum, path) => sum + path.length, 0);
@@ -210,12 +218,14 @@ export function computeDiagramGeometryPlan(
   const nodes = withoutDecorNodes(allNodes);
   const nodeById = new Map(nodes.map(node => [node.id, node]));
   const bounds = getBounds(nodes, options);
+  const fitPreviewLabels = hasFittedPreviewLabels(edges);
   // Label placement works in canvas coordinates. Normalize parent-relative
   // nodes once so grouped diagrams share the same absolute geometry as routes.
   const nodeInternals = new Map(nodes.map(node => {
     const rect = bounds.get(node.id)!;
     return [node.id, {
       ...node,
+      ...(fitPreviewLabels ? { width: rect.width, height: rect.height } : {}),
       position: { x: rect.x, y: rect.y },
       positionAbsolute: { x: rect.x, y: rect.y },
       parentNode: undefined,
@@ -304,28 +314,9 @@ export function computeDiagramGeometryPlan(
   }
 
   const labels = computeEdgeLabelLayout(edges, nodeInternals, options.direction, options.renderStyleId, routes, options.iconMode);
-  for (const [edgeId, anchor] of labels) {
-    const edge = edges.find(candidate => candidate.id === edgeId);
-    if (!edge) continue;
-    const label = getDisplayLabel(edge);
-    if (!label) continue;
-    const { w: width, h: height } = estimateLabelSize(label, options.renderStyleId);
-    const rect = { x: anchor.x - width / 2, y: anchor.y - height / 2, width, height };
-    const obstruction = leafNodes.find(node => {
-      if (node.id === edge.source || node.id === edge.target) return false;
-      const box = bounds.get(node.id);
-      return box && rect.x < box.x + box.width && rect.x + rect.width > box.x && rect.y < box.y + box.height && rect.y + rect.height > box.y;
-    });
-    if (obstruction) violations.push({ severity: 'hard', code: 'LABEL_COLLISION', edgeId, withId: obstruction.id });
-    const titleObstruction = nodes.find(node => {
-      if (!isGroupNode(node)) return false;
-      const box = bounds.get(node.id);
-      if (!box) return false;
-      const titleStrip = { x: box.x, y: box.y, width: box.width, height: Math.min(40, box.height) };
-      return rect.x < titleStrip.x + titleStrip.width && rect.x + rect.width > titleStrip.x
-        && rect.y < titleStrip.y + titleStrip.height && rect.y + rect.height > titleStrip.y;
-    });
-    if (titleObstruction) violations.push({ severity: 'hard', code: 'LABEL_COLLISION', edgeId, withId: titleObstruction.id });
+  const { onNodes, onLabels } = findEdgeLabelCollisions(labels, edges, nodeInternals, options.renderStyleId, bounds);
+  for (const collision of fitPreviewLabels ? [...onNodes, ...onLabels] : onNodes) {
+    violations.push({ severity: 'hard', code: 'LABEL_COLLISION', ...collision });
   }
   const hardViolations = violations.filter(violation => violation.severity === 'hard').length;
   const hasFailedRoute = [...routes.values()].some(route => route.status === 'failed');

@@ -74,12 +74,16 @@ describe('computeDiagramGeometryPlan', () => {
     expect(visible.diagnostics).toEqual([]);
   });
 
-  it('ignores a label that only touches its own terminal card', () => {
+  it('reports when a fitted preview label overlaps its own terminal cards', () => {
     const nodes = [node('a', 0, 0), node('b', 325, 0)];
-    const edges = [edge('index', 'Index page information')];
+    const index = edge('index', 'Index page information');
+    const edges = [{ ...index, data: { ...index.data, fitPreviewLabels: true } }];
     const plan = computeDiagramGeometryPlan(nodes, edges, { direction: 'LR', renderStyleId: 'studio-metallic' });
 
-    expect(plan.violations).toEqual([]);
+    expect(plan.violations).toEqual([
+      { severity: 'hard', code: 'LABEL_COLLISION', edgeId: 'index', withId: 'a' },
+      { severity: 'hard', code: 'LABEL_COLLISION', edgeId: 'index', withId: 'b' },
+    ]);
   });
 
   it('uses orthogonal segments for staggered nodes under the canvas routing policy', () => {

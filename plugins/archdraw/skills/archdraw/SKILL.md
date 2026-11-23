@@ -11,6 +11,7 @@ Use ArchDraw for plain-language requests to create or refine diagrams. Choose th
 
 - Prefer `generate_diagram` with Mermaid (`graph LR` or `graph TD`) because this uses the same parser and Dagre layout pipeline as the ArchDraw editor. Use structured node and edge data only when the user already has it or requests it.
 - For simple diagrams, aim for 3–6 named nodes and use one generation call with `compactResponse: true`. Reopen the canvas only when the user asks or after a separate edit.
+- For broad architecture requests, show the major components and primary flows in an overview. Include the subsystem details and secondary connections the user requests. Use the `direction` argument when the user asks for a specific orientation.
 - Include the user's original request in `userPrompt` when available. Pass named technologies through `techStack` and explicitly requested special requirements through `customFeatures`.
 - Use subgraphs to group tiers or trust boundaries when they make the system easier to read. Keep labels concise and add communication labels for asynchronous, event, or streaming edges.
 - Before generation, check each edge against the intended architecture. Keep real replies, feedback, and data delivery to clients. Show a hub when the system has one.

@@ -38,7 +38,7 @@ const TOOLS: Tool[] = [
     annotations: { title: 'Generate an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: `Generate an architecture diagram and show it in the chat. The optional preview and edit links expire after 7 days.
 
-**Plan the main flow first.** For a simple request, make one Mermaid call with 3–6 named nodes where possible. Start with graph LR. Use graph TD when the user requests a vertical layout.
+**Plan the main flow first.** For a simple request, make one Mermaid call with 3–6 named nodes where possible. For a broad architecture request, start with a readable overview of the major components and flows. Include detailed subsystems and secondary connections when the user asks for that depth. Start with graph LR. Use the direction argument when the user requests a specific orientation.
 - Connect each step to the one it calls or triggers. Show where branches rejoin. Keep real return paths, feedback loops, and hub connections.
 - Use short node names and edge labels. Add subtitles or groups when they explain details the user needs.
 

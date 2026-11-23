@@ -270,6 +270,8 @@ export async function runMermaidPipeline(
     foldLongFlows?: boolean;
     /** Keep differently styled branches legible when an external preview requests separate strokes. */
     separateSharedStrokes?: boolean;
+    /** Reserve room for every label at the preview's fitted zoom. */
+    fitPreviewLabels?: boolean;
     /** Score the restored graph during React Flow relayout. The caller verifies it after sizing and text placement. */
     prepareGeometry?: PrepareLayoutGeometry;
     /** Lay out some top-level groups the other way (top-down in a left-to-right diagram, or the reverse) when that fits the screen clearly better. Default on. */
@@ -318,22 +320,29 @@ export async function runCompactMermaidPipeline(
   options: Parameters<typeof runMermaidPipeline>[1],
 ): Promise<DomainPipelineResult<PipelineResult>> {
   const unfolded = { ...options, foldLongFlows: false }
-  const horizontal = await runMermaidPipeline(text, unfolded)
-  if (!horizontal.success || horizontal.data.direction !== 'LR') return horizontal
+  const preferred = await runMermaidPipeline(text, unfolded)
+  if (!preferred.success) return preferred
+  const { direction, geometrySummary: before } = preferred.data
+  if (!before || (direction !== 'LR' && direction !== 'TD')) return preferred
 
-  const before = horizontal.data.geometrySummary
-  const horizontalFit = measureLayoutAesthetics(horizontal.data.nodes, horizontal.data.edges, 'LR').fitScale
-  if (!before) return horizontal
+  const preferredFit = measureLayoutAesthetics(preferred.data.nodes, preferred.data.edges, direction).fitScale
   const hasLayoutProblems = before.hardViolations || before.criticalPathDisconnectCount
     || before.crossings || before.labelCollisions || before.unexplainedPrivateOverlapLength
-  if (!hasLayoutProblems && horizontalFit >= 0.55) return horizontal
+  if (!hasLayoutProblems && preferredFit >= 0.55) return preferred
 
-  const topDownText = text.replace(/^(\s*(?:graph|flowchart)\s+)LR\b/im, '$1TD')
-  if (topDownText === text) return horizontal
-  const topDown = await runMermaidPipeline(topDownText, unfolded)
-  if (!topDown.success || !topDown.data.geometrySummary) return horizontal
-  const after = topDown.data.geometrySummary
-  const topDownFit = measureLayoutAesthetics(topDown.data.nodes, topDown.data.edges, 'TD').fitScale
+  const alternateDirection = direction === 'LR' ? 'TD' : 'LR'
+  const alternateText = text.replace(/^(\s*(?:graph|flowchart)\s+)(?:LR|TD|TB)\b/im, `$1${alternateDirection}`)
+  if (alternateText === text) return preferred
+  const alternate = await runMermaidPipeline(alternateText, unfolded)
+  if (!alternate.success || !alternate.data.geometrySummary) return preferred
+  const after = alternate.data.geometrySummary
+  const alternateFit = measureLayoutAesthetics(alternate.data.nodes, alternate.data.edges, alternateDirection).fitScale
+
+  // A few extra crossings are preferable to unreadable labels or blocked cards
+  // when the alternate fits almost as well and keeps the main flow connected.
+  if (after.hardViolations < before.hardViolations
+    && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
+    && alternateFit >= preferredFit * 0.9) return alternate
 
   const noWorse = after.hardViolations <= before.hardViolations
     && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
@@ -344,6 +353,6 @@ export async function runCompactMermaidPipeline(
     || after.criticalPathDisconnectCount < before.criticalPathDisconnectCount
     || after.crossings < before.crossings || after.labelCollisions < before.labelCollisions
     || after.unexplainedPrivateOverlapLength < before.unexplainedPrivateOverlapLength
-  const improvesFit = topDownFit >= horizontalFit * 1.2
-  return noWorse && (improvesFit || (fixesIssue && topDownFit >= horizontalFit * 0.9)) ? topDown : horizontal
+  const improvesFit = alternateFit >= preferredFit * 1.2
+  return noWorse && (improvesFit || (fixesIssue && alternateFit >= preferredFit * 0.9)) ? alternate : preferred
 }

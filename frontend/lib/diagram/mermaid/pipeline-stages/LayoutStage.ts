@@ -205,7 +205,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     const wantsZones = _context.metadata.layoutStyle === 'zones';
     const flowAreas = { ...(_context.metadata.areaOrder ? { flowAreas: true } : {}) };
     const candidateAreas = { ...flowAreas, ...(wantsZones ? { zones: true } : {}) };
-    const candidates = [
+    const candidates: Array<{ nodes: RFObjects['nodes']; options?: Parameters<typeof applyRfLayout>[2] }> = [
       { nodes: canonicalNodes, options: layoutOptions || Object.keys(candidateAreas).length ? { ...layoutOptions, ...candidateAreas } : undefined },
       { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(candidateAreas).length ? { ...layoutOptions, ...candidateAreas } : undefined },
       { nodes: canonicalNodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), rankSep: Math.max(40, baseRankSep - 20), ...candidateAreas } },
@@ -329,7 +329,8 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     // Keep topology, dimensions and groups intact; never delete edges for aesthetics.
     const evaluated = new Set<string>();
     const evaluate = (candidateSpec: typeof candidates[number]) => {
-      const signature = `${(candidateSpec.options as { zones?: boolean } | undefined)?.zones ? 'zones' : 'flow'}:${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
+      const options = candidateSpec.options;
+      const signature = `${options?.zones ? 'zones' : 'flow'}:${options?.nodeSep ?? 'default'}:${options?.rankSep ?? 'default'}:${options?.groupRankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
       if (evaluated.has(signature)) return;
       evaluated.add(signature);
       const laid = placeCandidate(candidateSpec);
@@ -498,6 +499,14 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       if (cleared < EXTENDED_REPAIR_MIN_GAIN || shrink > EXTENDED_REPAIR_MAX_SHRINK) {
         best = before.best;
         layouted = before.layouted;
+      }
+    }
+
+    // Opening an internal rank can clear labels even when extra room between groups cannot.
+    if (autoLayoutStyle && canonicalNodes.length <= 40 && canonicalNodes.some(isGroupLike)) {
+      for (const groupRankSep of [112, 152]) {
+        if (!best?.geometry.violations.some(issue => issue.code === 'LABEL_COLLISION')) break;
+        evaluate({ nodes: canonicalNodes, options: { ...base, groupRankSep, ...candidateAreas } });
       }
     }
 

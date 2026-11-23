@@ -401,9 +401,10 @@ export function optimizeEdgeRoutes(input: RouteOptimizationInput): RouteOptimiza
     return { crossings, overlap };
   };
 
-  // On dense diagrams, reconsider the worst conflicts after all paths are
-  // known. Keep the chosen attachment sides and try the two nearby corridors.
-  if (input.searchBudget?.maxCandidateRoutes === undefined && edges.length >= 40) {
+  // Reconsider the worst conflicts once all paths are known. Preview diagrams
+  // also use this pass so differently styled lines have a chance to separate.
+  if (input.searchBudget?.maxCandidateRoutes === undefined &&
+    (edges.length >= 40 || edges.some(edge => edge.data?.separateSharedStrokes))) {
     const eligible = edges.flatMap(edge => {
       const route = routes.get(edge.id);
       if (route?.status !== 'ok' || edge.data?.customWaypoints?.length) return [];

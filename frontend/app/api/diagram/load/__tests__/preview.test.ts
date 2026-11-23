@@ -122,6 +122,70 @@ describe('POST /api/diagram/load preview', () => {
     expect(connections(compact.edges)).toEqual(connections(unfolded.edges));
   });
 
+  it('leaves room for all labels in a dense rideshare preview', async () => {
+    const mermaid = `graph LR
+  subgraph apps["Mobile apps"]
+    driver["Driver app"]
+    rider["Rider app"]
+  end
+  subgraph market["Marketplace and maps"]
+    location["Live driver location"]
+    eta["Routing and Deep ETA"]
+    h3["H3 geospatial index"]
+    matching["Driver matching"]
+    pricing["Upfront pricing"]
+  end
+  subgraph trip["Trip lifecycle"]
+    api["Mobile APIs"]
+    spanner[("Cloud Spanner")]
+    fulfillment["Fulfillment"]
+    ramen["RAMEN push platform"]
+  end
+  subgraph events["Trip events and payments"]
+    kafka["Kafka event streams"]
+    analytics["Analytics and ML"]
+    payments["Payments platform"]
+    balances["Entity balances"]
+    providers["Payment providers"]
+  end
+  driver -->|Send GPS updates| location
+  driver -->|Accept, start, end| api
+  rider -->|Quote and book| api
+  location -->|Latest driver positions| matching
+  location -->|GPS for traffic estimates| eta
+  location -->|Supply and demand by area| h3
+  eta -->|Pickup ETA| matching
+  eta -->|Travel time| pricing
+  h3 -->|Local marketplace signals| pricing
+  api -->|Get fare quote| pricing
+  api -->|Send trip commands| fulfillment
+  fulfillment -->|Request driver match| matching
+  matching -->|Propose assignment| fulfillment
+  fulfillment -->|Write trip and offer state| spanner
+  fulfillment -.->|Offers and trip status| ramen
+  location -.->|Live trip position| ramen
+  ramen -.->|Offers and updates| driver
+  ramen -.->|Ride updates| rider
+  fulfillment -.->|Publish trip events| kafka
+  kafka -.->|Trip and marketplace data| analytics
+  kafka -.->|Completed trip| payments
+  payments -->|Record money movements| balances
+  payments -->|Collect and disburse| providers`;
+    const response = await POST(post({
+      mermaid, dryRun: true, preview: true, previewSurface: 'canvas', layout: { autoDirection: true },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.previewSvg).toContain('Write trip and offer state');
+    expect(body.previewQuality).toMatchObject({
+      labelCollisions: 0, hardViolations: 0, criticalPathDisconnectCount: 0,
+    });
+    expect(body.direction).toBe('TD');
+    expect(body.nodes.filter((node: Node) => node.type === 'groupNode')).toHaveLength(4);
+    expect(body.nodes).toHaveLength(20);
+    expect(body.edges).toHaveLength(23);
+  }, 30000);
+
   it('refuses a raw drawing with a node type the canvas does not know', async () => {
     const response = await POST(post({ nodes: [{ id: 'x', type: 'scriptNode', position: { x: 0, y: 0 }, data: {} }], edges: [], dryRun: true }));
     expect(response.status).toBe(400);
