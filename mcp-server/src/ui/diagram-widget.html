@@ -300,7 +300,7 @@
         button.disabled = true;
         try {
           const background = getComputedStyle(stage).getPropertyValue('--paper').trim() || '#000000';
-          const dataUrl = canvasVisible() ? await liveCanvas.downloadPng(background) : rasterizeFallback(background);
+          const dataUrl = canvasVisible() ? await liveCanvas.downloadPng() : rasterizeFallback(background);
           const name = fileName();
           try {
             const result = await request('ui/download-file', {
@@ -348,12 +348,18 @@
       }
 
       function render(result) {
-        const version = ++renderVersion;
-        resetLiveCanvas();
-        showMessage('Drawing the diagram…');
         const data = result.structuredContent || {};
         const svg = result._meta?.[META_KEY];
         const preview = result._meta?.[CANVAS_META_KEY];
+        const hasSvg = typeof svg === 'string' && svg.startsWith('<svg');
+        const { nodes, edges } = preview ?? data;
+        const hasGraph = Array.isArray(nodes) && nodes.length > 0 && Array.isArray(edges);
+        // Some hosts follow the tool result with a completion carrying only text.
+        // It cannot replace the graph that belongs to this widget.
+        if ((liveCanvas || natural) && !hasGraph && !hasSvg) return;
+        const version = ++renderVersion;
+        resetLiveCanvas();
+        showMessage('Drawing the diagram…');
         $('title').textContent = String(data.label || 'ArchDraw diagram');
         const link = data.diagramUrl || data.shareUrl;
         shareLink = typeof data.shareUrl === 'string' && /^https:\/\//.test(data.shareUrl) ? data.shareUrl : null;
@@ -367,12 +373,10 @@
           const boundedDetail = detail?.length > 300 ? detail.slice(0, 297) + '…' : detail;
           return showMessage(boundedDetail ? 'ArchDraw could not draw this diagram.\n' + boundedDetail : 'ArchDraw could not draw this diagram.');
         }
-        const hasSvg = typeof svg === 'string' && svg.startsWith('<svg');
-        const { nodes, edges } = preview ?? data;
-        const direction = preview?.direction ?? (data.metadata?.direction === 'DOWN' ? 'TD' : 'LR');
+        const direction = preview?.direction ?? (data.metadata?.direction === 'DOWN' ? 'TD' : undefined);
         const style = preview?.style;
         const studioPreview = !style || style === 'studio' || style === 'studio-metallic';
-        if ((studioPreview || !hasSvg) && window.ArchDrawCanvas && Array.isArray(nodes) && nodes.length && Array.isArray(edges)) {
+        if ((studioPreview || !hasSvg) && window.ArchDrawCanvas && hasGraph) {
           const initialStyle = preferredStyle ?? (style === 'studio-metallic' ? style : 'studio-minimal');
           $('diagram-style').value = initialStyle;
           try {
@@ -435,7 +439,7 @@
           return;
         }
         if (message.method === 'ui/notifications/tool-result') render(message.params || {});
-        if (message.method === 'ui/notifications/tool-cancelled') {
+        if (message.method === 'ui/notifications/tool-cancelled' && !liveCanvas && !natural) {
           renderVersion++;
           resetLiveCanvas();
           showMessage('Generation cancelled.');

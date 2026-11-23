@@ -26,6 +26,7 @@ interface CaptureOptions {
   surfaceColor?: string;
   transparent?: boolean;
   showGroupPlates?: boolean;
+  useGeometryWorker?: boolean;
 }
 
 function CaptureReady({ onReady, needsNodes, needsRoutes }: {
@@ -41,7 +42,7 @@ function CaptureReady({ onReady, needsNodes, needsRoutes }: {
   return null;
 }
 
-function CaptureCanvas({ nodes, edges, view, background, showGrid, gridOpacity, transparent, showGroupPlates, onReady, onInit }: CaptureOptions & {
+function CaptureCanvas({ nodes, edges, view, background, showGrid, gridOpacity, transparent, showGroupPlates, useGeometryWorker, onReady, onInit }: CaptureOptions & {
   onReady: () => void;
   onInit: (instance: ReactFlowInstance) => void;
 }) {
@@ -55,7 +56,7 @@ function CaptureCanvas({ nodes, edges, view, background, showGrid, gridOpacity, 
       style={{ ...cssVars, width: '100%', height: '100%', '--arch-canvas-bg': fill } as CSSProperties}>
       <ReactFlowProvider>
         <CanvasHostProvider value={view}>
-          <DiagramGeometryProvider nodes={nodes} edges={edges} isolated>
+          <DiagramGeometryProvider nodes={nodes} edges={edges} isolated useWorker={useGeometryWorker}>
             <ReactFlow
               id={id}
               nodes={nodes}

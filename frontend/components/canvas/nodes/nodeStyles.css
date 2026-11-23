@@ -4,6 +4,43 @@
    No runtime injection, no port-dependent behavior.
    ────────────────────────────────────────────────────────────────── */
 
+.shape-label,
+.shape-label-text,
+.node-header-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.shape-label,
+.shape-label-text {
+  align-items: center;
+  text-align: center;
+}
+
+.shape-label {
+  box-sizing: border-box;
+  padding-inline: 4px;
+  user-select: none;
+}
+
+.shape-label--row {
+  flex-direction: row;
+  gap: 8px;
+  padding-inline: 6px;
+}
+
+.shape-label--row .shape-label-text,
+.node-header-text {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.shape-label--row .shape-label-text {
+  align-items: flex-start;
+  text-align: left;
+}
+
 /* ── CSS Custom Properties (tunable per-node via inline style) ──── */
 
 .node-wrapper {

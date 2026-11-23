@@ -371,7 +371,9 @@ function flowFacingSides(
       ? { source: Position.Right, target: Position.Left }
       : null;
   }
-  return targetRect.y - (sourceRect.y + sourceRect.height) >= FLOW_RANK_GAP
+  // In top-down rows the horizontal offset can span several siblings. A clear
+  // corridor between the handle standoffs is sufficient for a vertical route.
+  return targetRect.y - (sourceRect.y + sourceRect.height) > 2 * HANDLER_ENDPOINT_GAP
     ? { source: Position.Bottom, target: Position.Top }
     : null;
 }

@@ -21,12 +21,15 @@ import { Download, Save, Sun, Moon, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
 import { assignEdgeColors } from '@/lib/theme/edgeColors';
+import { edgeThemeInk } from '@/lib/theme/edgeInk';
 import type { LayoutDirection } from '@/lib/diagram/mermaid/relayout';
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
-import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
+import { CANVAS_CONFIG, DEFAULT_CANVAS_BACKGROUND, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
+import { CanvasGrid } from '@/components/canvas/CanvasGrid';
+import { useSearchParams } from 'next/navigation';
 import { useTheme } from '@/lib/theme/appTheme';
 import '@/components/canvas/nodes/nodeStyles.css';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
@@ -38,6 +41,8 @@ interface SharedCanvas {
   id: string;
   canvas_name: string;
   isMcpPreview?: boolean;
+  direction?: LayoutDirection;
+  originalPositions?: Pick<Node, 'id' | 'position'>[];
   nodes: unknown[];
   edges: unknown[];
 }
@@ -77,6 +82,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   const { fitView, getNodes, getEdges, getZoom } = useReactFlow();
   const viewerRef = useRef<HTMLDivElement>(null);
   const editablePreview = Boolean(canvas.isMcpPreview);
+  const searchParams = useSearchParams();
 
   // Preserve the creator's render style (if any) from the share URL.
   // Read in an effect (not a state initializer) so SSR/hydration always
@@ -105,12 +111,12 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     }
   }, [renderStyle]);
 
-  const themeVars = useMemo(
+  const { cssVars: themeVars, colors } = useMemo(
     () => resolveCanvasTokens({
       renderStyleId: renderStyle,
       colorThemeId: renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? 'studio-minimal' : 'slate',
       isDark,
-    }).cssVars,
+    }),
     [renderStyle, isDark],
   );
 
@@ -129,13 +135,12 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   // path. Always re-layouts from the shared base graph (never compounds),
   // caches per canvas + direction, and never writes back to the store.
   const canvasId = canvas?.id;
-  // The shared diagram is shown as it was saved; the viewer has no layout controls.
-  const layoutDir: LayoutDirection = 'LR';
+  const layoutDir: LayoutDirection = canvas.direction ?? (searchParams.get('direction') === 'TD' ? 'TD' : 'LR');
 
   const displayedNodes = nodes;
   const displayedEdges = useMemo(
-    () => assignEdgeColors(edges, isDark),
-    [edges, isDark],
+    () => assignEdgeColors(edges, isDark, renderStyle === 'sketch', edgeThemeInk(colors)),
+    [edges, isDark, renderStyle, colors],
   );
   const hoverFocus = useHoverFocus(displayedNodes, displayedEdges);
 
@@ -222,7 +227,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     <div
       ref={viewerRef}
       className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground ${renderStyle === 'sketch' ? sketchHandwritingFont.className : ''}`}
-      style={themeVars as React.CSSProperties}
+      style={{ ...themeVars, ...(editablePreview ? { backgroundColor: themeVars['--arch-canvas-bg'] } : {}) } as React.CSSProperties}
       data-render-style={renderStyle}
     >
       {/* Floating preview controls share the canvas background. */}
@@ -273,7 +278,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
             <button
               type="button"
               onClick={() => {
-                const url = previewCopyUrl(window.location.href, crypto.randomUUID(), initialNodes, getNodes());
+                const url = previewCopyUrl(window.location.href, crypto.randomUUID(), canvas.originalPositions ?? initialNodes, getNodes());
                 if (url) window.open(url, '_blank', 'noopener,noreferrer');
               }}
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium hover:bg-secondary/80"
@@ -343,16 +348,16 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           connectionLineType={ConnectionLineType.SmoothStep}
           minZoom={CANVAS_CONFIG.minZoom}
           maxZoom={CANVAS_CONFIG.maxZoom}
-          defaultMarkerColor="#1E2130"
+          defaultMarkerColor={themeVars['--arch-edge-primary']}
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         >
-          <Background
+          {editablePreview ? <CanvasGrid background={DEFAULT_CANVAS_BACKGROUND} isDark={isDark} gridColor={themeVars['--arch-canvas-grid']} /> : <Background
             variant={BackgroundVariant.Dots}
             gap={CANVAS_CONFIG.background.gap}
             size={CANVAS_CONFIG.background.size}
             color={isDark ? '#475569' : '#cbd5e1'}
             style={{ opacity: 0.6 }}
-          />
+          />}
           <Controls
             showInteractive={false}
             className="!bg-card !border-border !text-foreground !shadow-sm"

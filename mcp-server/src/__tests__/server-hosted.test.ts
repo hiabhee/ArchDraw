@@ -65,6 +65,7 @@ describe('hosted (stateless HTTP) mode', () => {
     expect(generated.content[0].text).toContain('/share/s1');
     expect(generated.content[0].text).toContain('/editor?session=s1');
     expect(generated.content[0].text).not.toContain('/api/diagram/image/');
+    expect(generated._meta?.[PREVIEW_CANVAS_META_KEY]).toMatchObject({ nodes: previewBody.nodes, edges: previewBody.edges });
     expect(String(fetchImpl.mock.calls[0][0])).toBe(`${API}/api/diagram/load`);
     const workingSessionId = generated.structuredContent?.workingSessionId as string;
     expect(workingSessionId).toMatch(/^[0-9a-f-]{36}$/);
@@ -101,6 +102,17 @@ describe('hosted (stateless HTTP) mode', () => {
     });
   });
 
+  it('keeps the graph in the interactive canvas when the model requests a compact result', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(json(previewBody));
+    const result = await callTool(memoryStore(), fetchImpl, 'generate_diagram', {
+      mermaid: MERMAID, publish: false, compactResponse: true,
+    });
+    expect(result.structuredContent).toMatchObject({ success: true, metadata: { nodeCount: 2, edgeCount: 1 } });
+    expect(result.structuredContent).not.toHaveProperty('nodes');
+    expect(result.structuredContent).not.toHaveProperty('edges');
+    expect(result._meta?.[PREVIEW_CANVAS_META_KEY]).toMatchObject({ nodes: previewBody.nodes, edges: previewBody.edges });
+  });
+
   it('refuses stateful calls without a workingSessionId instead of sharing a default session', async () => {
     const result = await callTool(memoryStore(), vi.fn(), 'update_diagram', {});
     expect(result.isError).toBe(true);
@@ -113,6 +125,28 @@ describe('hosted (stateless HTTP) mode', () => {
   });
 
   describe('draw_on_canvas', () => {
+    it('blocks unnamed cards at final preview and accepts their names after an edit', async () => {
+      const store = memoryStore();
+      const fetchImpl = vi.fn().mockResolvedValue(json({ previewSvg: '<svg/>' }));
+      const drawn = await callTool(store, fetchImpl, 'draw_on_canvas', {
+        publish: false, ops: [{ op: 'card', id: 'person', title: '   ', x: 0, y: 0 }],
+      });
+      const workingSessionId = drawn.structuredContent?.workingSessionId;
+      const incomplete = await callTool(store, fetchImpl, 'show_diagram', { workingSessionId });
+      expect(incomplete.isError).toBe(true);
+      expect(incomplete.content[0].text).toMatch(/visible names: person/);
+      expect(incomplete._meta?.[PREVIEW_CANVAS_META_KEY]).toBeUndefined();
+
+      await callTool(store, fetchImpl, 'draw_on_canvas', {
+        workingSessionId, publish: false, ops: [{ op: 'update', id: 'person', title: 'Olympias' }],
+      });
+      const finished = await callTool(store, fetchImpl, 'show_diagram', { workingSessionId });
+      expect(finished.isError).toBeFalsy();
+      expect(finished._meta?.[PREVIEW_CANVAS_META_KEY]).toMatchObject({
+        nodes: [expect.objectContaining({ id: 'person', data: expect.objectContaining({ label: 'Olympias' }) })],
+      });
+    });
+
     it('is listed with a schema an agent can follow', async () => {
       const request = new Request('https://archdraw.test/api/mcp', {
         method: 'POST',
@@ -126,28 +160,22 @@ describe('hosted (stateless HTTP) mode', () => {
       expect(tool.inputSchema.required).toEqual(['ops']);
       expect(tool.inputSchema.properties.ops.items.properties.op.enum).toEqual(expect.arrayContaining(['text', 'card', 'note', 'group', 'connect', 'move', 'align', 'distribute', 'remove', 'clear']));
       expect(tool.description).toMatch(/ALL of them apply or NONE do/);
-      for (const name of ['draw_on_canvas', 'layout_diagram']) {
-        expect(body.result.tools.find((item) => item.name === name)?._meta?.ui?.resourceUri).toBe(DIAGRAM_WIDGET_URI);
-      }
+      expect(body.result.tools.filter((item) => item._meta?.ui?.resourceUri === DIAGRAM_WIDGET_URI).map((item) => item.name))
+        .toEqual(['generate_diagram', 'show_diagram']);
     });
 
     it('starts a canvas with no session id, then edits it by the id it returned', async () => {
       const store = memoryStore();
       const fetchImpl = vi.fn<typeof fetch>()
-        .mockResolvedValueOnce(json({ sessionId: 'd1', updateToken: 'dt1', revision: 1, previewSvg: '<svg/>' }))
+        .mockResolvedValueOnce(json({ sessionId: 'd1', updateToken: 'dt1', revision: 1, previewNodeSizes: { c1: { width: 300, height: 114 } } }))
         .mockResolvedValueOnce(json({ sessionId: 'd1', revision: 2 }))
         .mockResolvedValueOnce(json({ previewSvg: '<svg/>' }));
 
       const first = await callTool(store, fetchImpl, 'draw_on_canvas', { ops: [{ op: 'card', id: 'c1', x: 10, y: 20 }] });
       expect(first.isError).toBeFalsy();
       expect(first.content[0].text).toContain('https://archdraw.test/share/d1');
-      expect(first._meta?.[PREVIEW_SVG_META_KEY]).toBe('<svg/>');
-      expect(first._meta?.[PREVIEW_CANVAS_META_KEY]).toEqual({
-        nodes: [expect.objectContaining({ id: 'c1' })],
-        edges: [],
-        direction: 'LR',
-        style: 'studio',
-      });
+      expect(first._meta).toBeUndefined();
+      expect(first.structuredContent?.canvas).toEqual([expect.objectContaining({ id: 'c1', width: 300, height: 114 })]);
       const workingSessionId = first.structuredContent?.workingSessionId as string;
       expect(workingSessionId).toMatch(/^[0-9a-f-]{36}$/);
       expect(store.data.get(workingSessionId)?.diagram?.nodes).toHaveLength(1);
@@ -156,6 +184,14 @@ describe('hosted (stateless HTTP) mode', () => {
       expect(second.isError).toBeFalsy();
       expect(store.data.get(workingSessionId)?.diagram?.nodes).toHaveLength(2);
       expect(second.structuredContent?.canvas).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'c1', text: 'Written in' })]));
+      expect(second._meta).toBeUndefined();
+      const preview = await callTool(store, vi.fn().mockResolvedValue(json({ previewSvg: '<svg/>' })), 'show_diagram', { workingSessionId });
+      expect(preview._meta?.[PREVIEW_SVG_META_KEY]).toBe('<svg/>');
+      expect(preview._meta?.[PREVIEW_CANVAS_META_KEY]).toEqual({
+        nodes: [expect.objectContaining({ id: 'c1' }), expect.any(Object)],
+        edges: [],
+        style: 'studio',
+      });
     });
 
     it('returns a usable error for a bad operation and for a missing id on an edit', async () => {

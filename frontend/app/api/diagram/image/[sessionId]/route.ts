@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { Edge, Node } from 'reactflow';
 import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
 import { checkRateLimitWithFallback } from '@/lib/server/redis';
 import { getClientIP } from '@/lib/server/ip';
 import { IMAGE_STYLES, ImageUnavailableError, renderDiagramImage } from '@/lib/server/diagramImage';
+import { recoverMcpLayout } from '@/lib/diagram/canvas/recoverMcpLayout';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +18,7 @@ const QuerySchema = z.object({
   style: z.enum(IMAGE_STYLES).default('sketch'),
   theme: z.enum(['light', 'dark']).optional(),
   grid: z.enum(['on', 'off']).default('on'),
-  direction: z.enum(['LR', 'TD']).default('LR'),
+  direction: z.enum(['LR', 'TD']).optional(),
   colorTheme: z.string().regex(/^[a-z0-9-]{1,32}$/).optional(),
   scale: z.coerce.number().min(1).max(3).default(2),
 });
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const shared = await prisma.sharedCanvas.findUnique({
       where: { id: sessionId },
-      select: { canvasName: true, nodes: true, edges: true, expiresAt: true, revision: true },
+      select: { canvasName: true, nodes: true, edges: true, expiresAt: true, revision: true, mcpUpdateToken: true },
     });
     if (!shared) return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     if (shared.expiresAt && new Date(shared.expiresAt) < new Date()) {
@@ -50,7 +52,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const theme = query.data.theme ?? (query.data.style === 'studio-metallic' ? 'dark' : 'light');
-    const image = await renderDiagramImage(shared.nodes as unknown[], shared.edges as unknown[], { ...query.data, theme, grid: query.data.grid === 'on' });
+    const nodes = shared.nodes as unknown as Node[];
+    const edges = shared.edges as unknown as Edge[];
+    const studio = query.data.style === 'studio' || query.data.style === 'studio-metallic';
+    const recovered = shared.mcpUpdateToken && studio ? await recoverMcpLayout(nodes, edges, query.data.direction) : null;
+    const direction = recovered?.direction ?? query.data.direction ?? 'LR';
+    const image = await renderDiagramImage(recovered?.nodes ?? nodes, edges, { ...query.data, direction, theme, grid: query.data.grid === 'on' });
     const name = (shared.canvasName || 'diagram').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'diagram';
     const body = typeof image.body === 'string' ? image.body : new Uint8Array(image.body);
     return new NextResponse(body, {
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         'Content-Disposition': `inline; filename="${name}.${query.data.format}"`,
         // Short, so an updated drawing shows up quickly; the revision lets a cache tell versions apart.
         'Cache-Control': 'public, max-age=60, s-maxage=60',
-        ETag: `"${sessionId}-${shared.revision ?? 0}-${query.data.style}${query.data.colorTheme ? `-${query.data.colorTheme}` : ''}-${theme}-${query.data.grid}-${query.data.format}-${query.data.scale}${query.data.direction === 'TD' ? '-TD' : ''}"`,
+        ETag: `"${sessionId}-${shared.revision ?? 0}-${query.data.style}${query.data.colorTheme ? `-${query.data.colorTheme}` : ''}-${theme}-${query.data.grid}-${query.data.format}-${query.data.scale}${direction === 'TD' ? '-TD' : ''}"`,
         'X-Content-Type-Options': 'nosniff',
       },
     });

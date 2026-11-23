@@ -18,6 +18,7 @@ import { prepareImage } from '@/lib/client/imageDownscale';
 import type { ImageNodeData } from '@/components/canvas/nodes/ImageNode';
 import type { NodeData } from '@/store/diagram/types';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
+import { recoverMcpLayout } from '@/lib/diagram/canvas/recoverMcpLayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/canvas/GuideLines';
 import { GroupBackgroundLayer } from '@/components/canvas/GroupBackgroundLayer';
@@ -102,7 +103,7 @@ function CanvasUrlSync() {
     }
   }, [searchParams, addCanvas, importDiagram, renameCanvas, router]);
 
-  const loadSession = useCallback(async (sessionId: string) => {
+  const loadSession = useCallback(async (sessionId: string, direction: string | null) => {
     try {
       const response = await fetch(`/api/diagram/session/${sessionId}`);
       if (!response.ok) {
@@ -133,14 +134,16 @@ function CanvasUrlSync() {
         const { id, source, target, label, data: extraData, ...rest } = e;
         return createEdge(source, target, String(extraData?.label || label || ''), {
           id, type: 'simpleFloating', sourceHandle: undefined, targetHandle: undefined,
-          data: { ...extraData, pathType: 'Smoothstep' }, ...rest
+          data: { pathType: 'Smoothstep', ...extraData }, ...rest
         });
       });
+      const recovered = isMCP ? await recoverMcpLayout(nodesWithType, edgesWithType, direction) : null;
       const canvasName = isMCP ? `MCP: ${data.label || 'Diagram'}` : (data.label || 'Session Diagram');
       const previousCanvasId = useDiagramStore.getState().activeCanvasId;
       const canvasId = addCanvas(canvasName, sessionId);
       if (canvasId === previousCanvasId && canvasId !== sessionId) return;
-      importDiagram(nodesWithType, edgesWithType, { preserveLayout: isMCP });
+      if (recovered) useDiagramStore.getState().setActiveLayoutPresetId(recovered.direction === 'TD' ? 'layered-tb' : 'layered-lr');
+      importDiagram(recovered?.nodes ?? nodesWithType, edgesWithType, { preserveLayout: isMCP });
       router.replace(`/editor?canvas=${canvasId}`);
       toast.success(`Diagram loaded: ${data.label || 'Untitled'}`);
     } catch {
@@ -151,7 +154,7 @@ function CanvasUrlSync() {
   useEffect(() => {
     const sessionId = searchParams.get('session');
     if (!sessionId) return;
-    loadSession(sessionId);
+    loadSession(sessionId, searchParams.get('direction'));
   }, [searchParams, loadSession]);
 
   const requestedCanvasId = searchParams.get('canvas');

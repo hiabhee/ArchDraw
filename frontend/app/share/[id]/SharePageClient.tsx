@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import type { Node } from 'reactflow';
 import { SharedCanvasViewer } from '@/components/viewers/SharedCanvasViewer';
 import { analytics } from '@/lib/client/analytics';
 
@@ -8,6 +9,8 @@ export interface SharedCanvas {
   id: string;
   canvas_name: string;
   isMcpPreview?: boolean;
+  direction?: 'LR' | 'TD';
+  originalPositions?: Pick<Node, 'id' | 'position'>[];
   nodes: unknown[];
   edges: unknown[];
 }

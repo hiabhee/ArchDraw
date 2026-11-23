@@ -15,6 +15,7 @@ import {
   scoreAllHandlerPairs,
   buildDefaultOrthogonalWaypoints,
   anchorOutsideBoundary,
+  HANDLER_ENDPOINT_GAP,
   type HandlerRect,
   type HandlerPairScore,
 } from './handlerPairScorer'
@@ -456,6 +457,7 @@ function computeDirectWaypoints(
   trustMeasuredTerminals: boolean = false,
   maxExpandedStates?: number,
   preferStraight: boolean = false,
+  foreignNodeClearance: number = DIRECT_FOREIGN_NODE_CLEARANCE,
 ): { waypoints: Array<{ x: number; y: number }>; outcome?: RoutePathOutcome } {
   // A tiny height difference should read as one straight connector only when no
   // measured handle center must be honored. Measured anchors stay centered.
@@ -503,7 +505,7 @@ function computeDirectWaypoints(
   const hitsObstacle = !!(
     nodeRects &&
     nodeRects.size > 0 &&
-    pathCollidesWithRects(directWaypoints, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE)
+    pathCollidesWithRects(directWaypoints, nodeRects, foreignNodeClearance)
   )
   const hitsTerminal = !trustMeasuredTerminals && pathEntersTerminalInterior(directWaypoints, sourceRect, targetRect)
 
@@ -812,19 +814,16 @@ export function buildLanePath(
 }
 
 /**
- * Where the vertical channel of a left-to-right Z route should run so that every
- * edge of a fan shares it: edges into one node meet in one channel (the middle
- * of the gap between the rightmost source and the target), edges out of one node
- * leave through one (the middle of the gap before the nearest target). Without
- * this each edge picks the middle of its own two anchors, so sources of
- * different widths stagger their channels and the merge looks uneven.
+ * Align a fan's branches to a common channel before trying private lanes or
+ * obstacle detours. Measure along the flow axis, so this also works for rows
+ * whose cards have different heights.
  * Returns null when the edge is not part of a fan or the fan does not face it.
  */
 /** Closest a shared trunk sits to the node it hugs (room for the corner radius), and its share of the gap. */
 const FAN_TRUNK_MIN = 32
 const FAN_TRUNK_SHARE = 0.3
 
-function fanChannelX(
+function fanChannel(
   edge: Edge,
   nodes: Node[],
   edges: Edge[],
@@ -832,13 +831,15 @@ function fanChannelX(
   th: { x: number; y: number },
   sourceRect: ObstacleRect,
   targetRect: ObstacleRect,
+  axis: 'x' | 'y',
   renderStyleId?: string,
   iconMode?: NodeIconMode,
 ): number | null {
   const byId = (id: string) => nodes.find(node => node.id === id)
   const rectOf = (id: string) => { const node = byId(id); return node ? getNodeRect(node, nodes, renderStyleId, iconMode) : null }
-  const sourceGap = sh.x - (sourceRect.x + sourceRect.w)
-  const targetGap = th.x - targetRect.x
+  const size = axis === 'x' ? 'w' : 'h'
+  const sourceGap = sh[axis] - (sourceRect[axis] + sourceRect[size])
+  const targetGap = th[axis] - targetRect[axis]
 
   const sources = [...new Set(edges.filter(e => e.target === edge.target && e.source !== e.target).map(e => e.source))]
   const targets = [...new Set(edges.filter(e => e.source === edge.source && e.source !== e.target).map(e => e.target))]
@@ -852,13 +853,13 @@ function fanChannelX(
   // an arrowhead, so labels ended up touching the marker.
   const trunkOffset = (gap: number) => Math.min(gap / 2, Math.max(FAN_TRUNK_MIN, gap * FAN_TRUNK_SHARE))
   if (fanOut && (!fanIn || targets.length >= sources.length)) {
-    const lefts = targets.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + targetGap)
-    if (lefts.length !== targets.length || lefts.some(x => x <= sh.x)) return null
-    return sh.x + trunkOffset(Math.min(...lefts) - sh.x)
+    const starts = targets.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r[axis] + targetGap)
+    if (starts.length !== targets.length || starts.some(coord => coord <= sh[axis])) return null
+    return sh[axis] + trunkOffset(Math.min(...starts) - sh[axis])
   }
-  const rights = sources.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + r.w + sourceGap)
-  if (rights.length !== sources.length || rights.some(x => x >= th.x)) return null
-  return th.x - trunkOffset(th.x - Math.max(...rights))
+  const ends = sources.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r[axis] + r[size] + sourceGap)
+  if (ends.length !== sources.length || ends.some(coord => coord >= th[axis])) return null
+  return th[axis] - trunkOffset(th[axis] - Math.max(...ends))
 }
 
 export function computeEdgeRoute(
@@ -1278,14 +1279,15 @@ export function computeEdgeRoute(
     const parallelLaneOffset = routeOptions.laneOffset ?? (parallelEdges.length > 1
       ? (parallelIndex - (parallelEdges.length - 1) / 2) * 28
       : 0)
-    // Edges of one fan share a channel (see fanChannelX); bidirectional lanes keep their own offset.
+    // Align the initial fan channel; bidirectional lanes keep their own offset.
     let channelOffset = 0
-    if (
-      edgeOffset === 0 && sourcePosition === Position.Right && targetPosition === Position.Left &&
-      sh.x < th.x && Math.abs(sh.y - th.y) >= 8
-    ) {
-      const channelX = fanChannelX(edge, nodes, edges, sh, th, sourceRect, targetRect, renderStyleId, iconMode)
-      if (channelX !== null && channelX > sh.x && channelX < th.x) channelOffset = channelX - (sh.x + th.x) / 2
+    const channelAxis = sourcePosition === Position.Right && targetPosition === Position.Left ? 'x'
+      : direction === 'TD' && sourcePosition === Position.Bottom && targetPosition === Position.Top ? 'y' : null
+    if (channelAxis && edgeOffset === 0 && sh[channelAxis] < th[channelAxis] && routeAxisSeparation >= 8) {
+      const channel = fanChannel(edge, nodes, edges, sh, th, sourceRect, targetRect, channelAxis, renderStyleId, iconMode)
+      if (channel !== null && channel > sh[channelAxis] && channel < th[channelAxis]) {
+        channelOffset = channel - (sh[channelAxis] + th[channelAxis]) / 2
+      }
     }
     const directRoute = computeDirectWaypoints(
       sh, th, sourcePosition, targetPosition, edgeOffset + channelOffset,
@@ -1297,6 +1299,9 @@ export function computeEdgeRoute(
       ),
       routeOptions.searchBudget?.maxExpandedStates,
       routeOptions.straightEdges === true && edgeOffset === 0,
+      // A horizontal fan channel can pass above a taller sibling with the
+      // same clearance as a handle. Keep the full padding for arbitrary routes.
+      channelAxis === 'y' && channelOffset !== 0 ? HANDLER_ENDPOINT_GAP : DIRECT_FOREIGN_NODE_CLEARANCE,
     )
     let waypoints = directRoute.waypoints
     let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
@@ -1373,6 +1378,18 @@ export function computeEdgeRoute(
   const sidesPinned = manualSourceSide !== undefined || manualTargetSide !== undefined
     || routeOptions.attachmentSides !== undefined
   if (sidesPinned) return primary
+
+  // A clean forward branch should leave the bottom of its parent and enter
+  // the top of its child. The shortest route can otherwise attach to the side
+  // of a distant sibling solely because it saves the width of two cards.
+  if (direction === 'TD' && !routeOptions.straightEdges && !bidirectionalSides
+    && (!laneSourcePreference || laneSourcePreference === Position.Bottom)
+    && (!laneTargetPreference || laneTargetPreference === Position.Top)
+    && targetRect.y - (sourceRect.y + sourceRect.h) > 2 * HANDLER_ENDPOINT_GAP) {
+    const forward = sourcePosition === Position.Bottom && targetPosition === Position.Top
+      ? primary : routeForSides(Position.Bottom, Position.Top)
+    if (forward.status === 'ok' && forward.waypoints.length <= 4) return forward
+  }
 
   const alternatives = applyLaneBias(
     scoreAllHandlerPairs(srcHandlerRect, tgtHandlerRect, direction, scorerObstacles, excludedIds),

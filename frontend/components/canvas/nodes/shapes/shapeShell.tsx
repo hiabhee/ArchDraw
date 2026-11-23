@@ -178,11 +178,7 @@ export function Label({
   return (
     <div
       ref={containerRef}
-      className={
-        horizontalWithIcon
-          ? 'flex flex-row items-center justify-center gap-2 px-1.5 select-none'
-          : 'flex flex-col items-center justify-center text-center px-1 select-none'
-      }
+      className={`shape-label${horizontalWithIcon ? ' shape-label--row' : ''}`}
       onDoubleClick={iconOnly ? labelEdit.startEdit : undefined}
       style={{
         width: '100%',
@@ -232,7 +228,7 @@ export function Label({
         </div>
       </div>
       )}
-      <div className={horizontalWithIcon ? 'flex min-w-0 flex-1 flex-col items-start justify-center text-left' : 'flex flex-col items-center justify-center text-center'}>
+      <div className="shape-label-text">
         {labelEdit.isEditing ? (
           <input
             {...labelEdit.inputProps}

@@ -74,12 +74,14 @@ export function DiagramGeometryProvider({
   edges,
   isolated = false,
   useWorker = true,
+  enabled = true,
   children,
 }: {
   nodes: Node[];
   edges: Edge[];
   isolated?: boolean;
   useWorker?: boolean;
+  enabled?: boolean;
   children: ReactNode;
 }) {
   const [geometryStore] = useState(() => new DiagramGeometryStore());
@@ -128,9 +130,9 @@ export function DiagramGeometryProvider({
   const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true, straightEdges: false, repairReturnCrossings: true }), [direction, renderStyleId, iconMode, handleAnchors]);
   const geometryKey = useMemo(() => geometrySnapshotKey(measuredNodes, edges, options), [measuredNodes, edges, options]);
   useEffect(() => {
-    if (isDragging) return;
+    if (!enabled || isDragging) return;
     const currentKey = geometryKey;
-    if (settledPlans.get(planStoreKey)?.key === currentKey) return;
+    if (!isolated && settledPlans.get(planStoreKey)?.key === currentKey) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       const job = useWorker
@@ -150,14 +152,14 @@ export function DiagramGeometryProvider({
       });
     }, 60);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [isDragging, geometryKey, measuredNodes, edges, options, planStoreKey, isolated, useWorker]);
+  }, [enabled, isDragging, geometryKey, measuredNodes, edges, options, planStoreKey, isolated, useWorker]);
 
   // During a drag the diagram keeps the last plan it had, instead of rebuilding
   // a preview for every pointer move.
   const plan = useMemo(() => {
-    if (workerPlan?.key === geometryKey) return workerPlan;
-    if (settledPlan?.key === geometryKey) return settledPlan;
-    if (isDragging) {
+    if (enabled && workerPlan?.key === geometryKey) return workerPlan;
+    if (enabled && !isolated && settledPlan?.key === geometryKey) return settledPlan;
+    if (enabled && isDragging) {
       const held = settledPlan ?? geometryStore.plan;
       if (held) return held;
     }
@@ -169,7 +171,7 @@ export function DiagramGeometryProvider({
       quality: { hardViolations: 0, crossings: 0, weightedCrossings: 0, unexplainedPrivateOverlapLength: 0,
         criticalPathDisconnectCount: 0, bendCount: 0, totalPathLength: 0, area: 0 }, provisional: true,
     };
-  }, [isDragging, settledPlan, workerPlan, geometryKey, geometryStore]);
+  }, [enabled, isolated, isDragging, settledPlan, workerPlan, geometryKey, geometryStore]);
 
   useEffect(() => { geometryStore.set(plan); }, [geometryStore, plan]);
   useEffect(() => { geometryStore.setDragging(isDragging); }, [geometryStore, isDragging]);

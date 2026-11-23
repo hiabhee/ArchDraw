@@ -1,8 +1,9 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import type { GenerateDiagramInput } from '../lib/schema.js';
 import { DEFAULT_MCP_IMAGE_STYLE, describeSaveFailure, previewOptions } from '../lib/preview-links.js';
-import { fetchWithTimeout, getApiBase } from '../lib/http.js';
+import { DIAGRAM_LAYOUT_TIMEOUT_MS, fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { validateGraph } from './validate-diagram.js';
+import { diagramPipeline, type PreviewQuality } from '../lib/diagram-pipeline.js';
 
 function structuredInputToMermaid(nodes: NonNullable<GenerateDiagramInput['nodes']>, edges: NonNullable<GenerateDiagramInput['edges']>, direction: GenerateDiagramInput['direction']): string {
   const graphDirection = direction === 'DOWN' || direction === 'UP' ? 'TD' : 'LR';
@@ -199,15 +200,6 @@ function validateEdgeTopology(
   return topologyErrors;
 } */
 
-interface PreviewQuality {
-  status: 'ok' | 'degraded' | 'invalid' | 'failed';
-  hardViolations: number;
-  crossings: number;
-  labelCollisions: number;
-  criticalPathDisconnectCount: number;
-  unexplainedPrivateOverlapLength: number;
-}
-
 interface DiagramPreview {
   nodes: ReactFlowNode[];
   edges: ReactFlowEdge[];
@@ -251,7 +243,10 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
     if (input.mermaid) {
       const API_BASE = getApiBase();
       const label = input.label || 'AI Diagram';
-      if (!API_BASE) {
+      // Short inputs can share the bundled editor pipeline. Keep the remote
+      // layout budget and limits for larger inputs and API-only installations.
+      const localLayout = input.mermaid.length <= 4096 ? diagramPipeline?.runMcpMermaidPipeline : undefined;
+      if (!API_BASE && !localLayout) {
         return { success: false, nodes: [], edges: [], elkPositions: [], metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 }, errors: ['Mermaid generation requires API_BASE_URL to run the ArchDraw pipeline.'] };
       }
       
@@ -264,32 +259,43 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         layout: { autoDirection: input.direction === undefined },
         previewStyle: DEFAULT_MCP_IMAGE_STYLE,
       };
-      const previewResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...graph,
-          dryRun: true,
-          ...previewOptions(),
-        }),
-      });
-
-      if (!previewResponse.ok) {
-        const errText = await previewResponse.text();
-        let errData;
-        try {
-          errData = JSON.parse(errText);
-        } catch {}
-        const errorMsg = errData?.error || errText || 'Failed to save diagram to API';
-        const warnings = errData?.warnings ? ` Warnings: ${errData.warnings.join(', ')}` : '';
-        return {
-          success: false, nodes: [], edges: [], elkPositions: [],
-          metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 },
-          errors: [`${errorMsg}${warnings}`],
+      let preview: DiagramPreview;
+      if (localLayout) {
+        const laid = await localLayout(mermaid, graph.layout.autoDirection);
+        if (!laid.success) throw new Error(['Failed to parse Mermaid code', ...(laid.warnings ?? [])].join('. '));
+        const { nodes, edges, warnings, geometrySummary, direction } = laid.data;
+        preview = {
+          nodes, edges, warnings, previewQuality: geometrySummary,
+          direction: direction === 'TD' || direction === 'BT' ? 'TD' : 'LR',
         };
-      }
+      } else {
+        const previewResponse = await fetchWithTimeout(`${API_BASE}/api/diagram/load`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...graph,
+            dryRun: true,
+            ...previewOptions(),
+          }),
+        }, DIAGRAM_LAYOUT_TIMEOUT_MS);
 
-      const preview = await previewResponse.json() as DiagramPreview;
+        if (!previewResponse.ok) {
+          const errText = await previewResponse.text();
+          let errData;
+          try {
+            errData = JSON.parse(errText);
+          } catch {}
+          const errorMsg = errData?.error || errText || 'Failed to save diagram to API';
+          const warnings = errData?.warnings ? ` Warnings: ${errData.warnings.join(', ')}` : '';
+          return {
+            success: false, nodes: [], edges: [], elkPositions: [],
+            metadata: { nodeCount: 0, edgeCount: 0, layoutAlgorithm: 'Mermaid Pipeline', direction: input.direction || 'RIGHT', groupCount: 0 },
+            errors: [`${errorMsg}${warnings}`],
+          };
+        }
+
+        preview = await previewResponse.json() as DiagramPreview;
+      }
       const validation = validateGraph(preview.nodes, preview.edges);
       const structuralErrors = validation.issues.filter(issue => issue.severity === 'error').map(issue => issue.message);
       if (structuralErrors.length > 0) {
@@ -301,7 +307,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
       let diagramUrl: string | undefined;
       let shareUrl: string | undefined;
       let linkError: string | undefined;
-      if (input.publish) {
+      if (input.publish && API_BASE) {
         // A failed publish must not throw away a successfully generated
         // diagram — return it and report why there is no link.
         try {
@@ -313,7 +319,7 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
           // Reuse the accepted preview layout. If an older API or the raw-graph
           // limits reject it, keep the existing Mermaid publication path.
           let saveResponse = await publishGraph({ nodes: preview.nodes, edges: preview.edges });
-          if (saveResponse.status === 400) saveResponse = await publishGraph(graph);
+          if (saveResponse.status === 400 && !localLayout) saveResponse = await publishGraph(graph);
           if (saveResponse.ok) {
             const saved = await saveResponse.json() as { sessionId: string; updateToken: string };
             sessionId = saved.sessionId;
@@ -326,6 +332,8 @@ export async function generateDiagram(input: GenerateDiagramInput): Promise<{
         } catch (error) {
           linkError = error instanceof Error ? error.message : 'ArchDraw could not save the preview';
         }
+      } else if (input.publish) {
+        linkError = 'API_BASE_URL is not set';
       }
       const saveData = preview;
       const nodeCount = saveData.nodes.filter(n => !n.data?.isGroup).length;

@@ -9,7 +9,7 @@ export function isPreviewId(value: string): boolean {
 export function previewCopyUrl(
   shareUrl: string,
   copyId: string,
-  initial: readonly Node[],
+  initial: readonly Pick<Node, 'id' | 'position'>[],
   current: readonly Node[],
 ): string {
   const url = new URL(shareUrl);

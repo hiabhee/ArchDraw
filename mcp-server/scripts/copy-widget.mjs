@@ -18,6 +18,14 @@ try {
 }
 
 if (esbuild) {
+  const postcss = frontendRequire('postcss');
+  const tailwind = frontendRequire('@tailwindcss/postcss');
+  const globalStyles = new URL('app/globals.css', frontend);
+  const styles = (await readFile(globalStyles, 'utf8')).replace(
+    '@import "tailwindcss";',
+    '@import "tailwindcss" source(none);\n@source "../components/canvas";',
+  );
+  const canvasStyles = await postcss([tailwind({ optimize: true })]).process(styles, { from: fileURLToPath(globalStyles) });
   const bundle = await esbuild.build({
     absWorkingDir: fileURLToPath(frontend),
     entryPoints: ['components/viewers/embed/McpCanvasSurface.tsx'],
@@ -32,7 +40,7 @@ if (esbuild) {
     define: { 'process.env': '{"NODE_ENV":"production"}' },
     write: false,
   });
-  const css = bundle.outputFiles.find(file => file.path.endsWith('.css')).text;
+  const css = canvasStyles.css + bundle.outputFiles.find(file => file.path.endsWith('.css')).text;
   const js = bundle.outputFiles.find(file => file.path.endsWith('.js')).text;
   const assets = `<style>${css.replace(/<\/style/gi, '<\\/style')}</style><script>${js.replace(/<\/script/gi, '<\\/script')}</script>`;
   html = html.replace('<!-- ARCHDRAW_CANVAS_ASSETS -->', () => assets);
@@ -40,3 +48,15 @@ if (esbuild) {
 
 await mkdir(destinationDirectory, { recursive: true });
 await writeFile(destination, html);
+
+if (esbuild) {
+  await esbuild.build({
+    absWorkingDir: fileURLToPath(frontend),
+    entryPoints: ['lib/diagram/canvas/mcpDiagramPipeline.ts'],
+    outfile: fileURLToPath(new URL('recover-mcp-layout.cjs', destinationDirectory)),
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    minify: true,
+  });
+}

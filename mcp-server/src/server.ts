@@ -11,7 +11,7 @@ import { generateDiagram } from './tools/generate-diagram.js';
 import { applyTemplate } from './tools/apply-template.js';
 import { clearDiagramState, getDiagramState, hasDiagramState, setDiagramState, type DiagramState } from './lib/diagram-state.js';
 import { clearCheckpoints, exportCheckpoints, importCheckpoints, type Checkpoint } from './lib/checkpoints.js';
-import { runWithMcpContext, type McpRequestContext } from './lib/http.js';
+import { fetchWithTimeout, getApiBase, runWithMcpContext, type McpRequestContext } from './lib/http.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { updateDiagram } from './tools/update-diagram.js';
 import { drawOnCanvas } from './tools/draw-on-canvas.js';
@@ -25,42 +25,30 @@ import {
   CARD_SHAPES,
 } from './lib/schema.js';
 import { DIAGRAM_WIDGET_HTML, DIAGRAM_WIDGET_URI, PREVIEW_CANVAS_META_KEY, PREVIEW_SVG_META_KEY } from './ui/diagram-widget.js';
-import { DEFAULT_MCP_IMAGE_STYLE, IMAGE_STYLE_NAMES, formatPreviewLinks, type ImageStyleName } from './lib/preview-links.js';
+import { DEFAULT_MCP_IMAGE_STYLE, IMAGE_STYLE_NAMES, formatPreviewLinks, previewOptions } from './lib/preview-links.js';
 import type { ReactFlowNode, ReactFlowEdge } from './types/index.js';
+import { finishDiagram, syncFinishedDiagram } from './lib/finish-diagram.js';
 
-const DIAGRAM_INSTRUCTIONS = `Use ArchDraw for plain-language requests to make or refine diagrams.
-For a new diagram, call generate_diagram with Mermaid built from the request. The user only needs to describe the subject. Choose a compact layout and use the default style unless they ask for something specific. Keep real requests, replies, and event flows. Use the canvas as the visual result. Keep any final text short and share the preview and edit links when available. Only attach an extra image when the user asks for one.
-Use the returned preview quality and any visible defects to decide if a layout pass is needed. If the result has a layout problem, make one targeted repair in the same working session before responding. Keep the graph intact for visual edits. Never require the user to name a tool, supply a reference, or choose a layout unless that is part of what they want.`;
+const DIAGRAM_INSTRUCTIONS = `For a new diagram, call generate_diagram once with Mermaid and compactResponse:true. The result opens an in-chat canvas. Call show_diagram after a separate edit or to reopen a diagram. Keep the reply brief.`;
 
 const TOOLS: Tool[] = [
   {
     name: 'generate_diagram',
     title: 'Generate an ArchDraw diagram',
     annotations: { title: 'Generate an ArchDraw diagram', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    description: `Generate an architecture diagram with ArchDraw's editor layout engine. Compatible chat clients show an inline preview. Include the returned preview link (shareUrl) and edit link (diagramUrl) so the user can open the result. Published links are view-by-link and expire after 7 days.
+    description: `Generate an architecture diagram and show it in the chat. The optional preview and edit links expire after 7 days.
 
-${DIAGRAM_INSTRUCTIONS}
+**Plan the main flow first.** For a simple request, make one Mermaid call with 3–6 named nodes where possible. Start with graph LR. Use graph TD when the user requests a vertical layout.
+- Connect each step to the one it calls or triggers. Show where branches rejoin. Keep real return paths, feedback loops, and hub connections.
+- Use short node names and edge labels. Add subtitles or groups when they explain details the user needs.
 
-**Plan the main flow first.**
-1. Choose the request, event, or data flow the user needs to trace. Write its steps in order before you write Mermaid. Start with graph LR, or graph TD when the user requests a vertical layout. Set the direction field when the user specifies an orientation. Otherwise ArchDraw can rotate an overly wide flow to read from top to bottom.
-2. Connect each consecutive step. Attach caches, workers, event subscribers, and other branches to the step that actually calls, feeds, or triggers them. Show where branches rejoin by using a single node for the shared destination. Keep several entry points or paths if the architecture requires them.
-3. Give every edge a short action, protocol, or event label. Use solid arrows for direct calls and dashed arrows for asynchronous work. Keep real return paths, feedback loops, and hub connections. Verify each arrow against the source material or the user's design.
-4. Use short node names and add a subtitle when it explains the role or technology. Add a subgraph only when it shows a meaningful system boundary, such as a deployment, trust, or ownership boundary. Let ArchDraw align the main path and place parallel branches.
-
-**Preferred input: Mermaid.** For example, the order request follows Client → Orders API → Orders DB. A background worker branches from the API:
-
+Example:
     graph LR
       client["Client"] -->|Place order| api["Orders API"]
       api -->|Save order| db[("Orders DB")]
       api -.->|Queue confirmation| worker["Email Worker"]
 
-Optional shape directives such as %% archdraw-shape: {"id":"api","shape":"shield"} are supported. As an alternative to Mermaid, pass structured nodes and edges. ArchDraw converts those to Mermaid and applies the same layout.
-
-Pass userPrompt, techStack, and customFeatures when available. Keep technologies the user specified in the relevant node names or subtitles. Model components and flows supported by the context.
-
-Review the preview if the client makes it available. The tool normally returns a compact, ready-to-show diagram in one call. If previewQuality reports layout faults, use layout_diagram in the same working session, or draw_on_canvas for a precise correction. Check that each branch starts and ends at the correct component. Revise the graph only if the underlying relationships are wrong.
-
-Pass publish:false when the user asks to keep the diagram private. Keep the returned workingSessionId for later calls about the same diagram.`,
+Use structured nodes and edges only if already supplied. Keep workingSessionId for edits. Repair hard layout faults in that session. Set publish:false for private diagrams.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -68,6 +56,7 @@ Pass publish:false when the user asks to keep the diagram private. Keep the retu
           type: 'string',
           description: 'Preferred input. Mermaid with a labeled main flow and related branches. Use graph LR or graph TD.',
         },
+        compactResponse: { type: 'boolean', description: 'Use true in chat. The interactive canvas still gets the complete diagram.' },
         nodes: {
           type: 'array',
           description: 'Structured input when Mermaid is omitted. Each node needs an id, label, tier, and subtitle. Use isGroup and parentId for meaningful system boundaries when needed.',
@@ -157,19 +146,15 @@ Pass publish:false when the user asks to keep the diagram private. Keep the retu
         },
         errors: { type: 'array', items: { type: 'string' } },
       },
-      required: ['success', 'nodes', 'edges', 'workingSessionId', 'metadata'],
+      required: ['success', 'workingSessionId', 'metadata'],
     },
-    _meta: {
-      ui: { resourceUri: DIAGRAM_WIDGET_URI },
-      'openai/toolInvocation/invoking': 'Generating diagram…',
-      'openai/toolInvocation/invoked': 'Diagram preview ready',
-    },
+    _meta: { ui: { resourceUri: DIAGRAM_WIDGET_URI } },
   },
   {
     name: 'apply_template',
     title: 'Apply an ArchDraw template',
     annotations: { title: 'Apply an ArchDraw template', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    description: `Apply a pre-built architecture template with pre-defined nodes and edges. Compatible chat clients display the result as an inline preview.
+    description: `Apply a pre-built architecture template with pre-defined nodes and edges. Call show_diagram to display the finished diagram.
 
 **USE WHEN**: User wants a common architecture pattern (e-commerce, chat app, rideshare, etc.)
 **OUTPUT**: Full diagram with positioned nodes and edges, plus a preview link (shareUrl) and edit link (diagramUrl) created by default. Include those links in your reply. Pass publish:false only if the user asks to keep it private.
@@ -220,11 +205,6 @@ Pass publish:false when the user asks to keep the diagram private. Keep the retu
         workingSessionId: { type: 'string', description: 'Opaque local workspace key for isolating parallel diagrams.' },
       },
       required: ['templateId'],
-    },
-    _meta: {
-      ui: { resourceUri: DIAGRAM_WIDGET_URI },
-      'openai/toolInvocation/invoking': 'Loading template…',
-      'openai/toolInvocation/invoked': 'Diagram preview ready',
     },
   },
   {
@@ -320,7 +300,7 @@ CONTROLS
 - fold: wrap a long flow into rows so it fits a 16:9 screen (default true); false keeps one long row/column.
 - mixDirections: allow groups to run the other way when that fits clearly better (default true); false keeps every group in the main direction.
 - groupDirections: force particular groups, by id, e.g. {"api":"TD"} (the ids are in "canvas" from any earlier call, or get_diagram_state). Named groups are never overridden.
-Works on the current diagram (workingSessionId). The reply lists every node's new position and size, and (published by default) preview and edit links. Use the inline canvas as the diagram when available.`,
+Works on the current diagram (workingSessionId). The reply lists every node's new position and size, and (published by default) preview and edit links. Call show_diagram once the layout is ready.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -336,7 +316,6 @@ Works on the current diagram (workingSessionId). The reply lists every node's ne
         expectedRevision: { type: 'number', description: 'Optional: refuse if the published diagram changed since this revision.' },
       },
     },
-    _meta: { ui: { resourceUri: DIAGRAM_WIDGET_URI } },
   },
   {
     name: 'draw_on_canvas',
@@ -345,7 +324,7 @@ Works on the current diagram (workingSessionId). The reply lists every node's ne
     description: `Draws on a canvas with exact control: place text, empty cards to write in, shapes, panels and dividers, big-number stats, notes, components and groups at precise positions, connect them, restyle, move, align and remove. Use it when the user wants something drawn that generate_diagram's automatic layout cannot give (a whiteboard, a sketch, annotations, a precise arrangement, a simple infographic: steps, a timeline, a comparison, key numbers), or to add to / edit any existing diagram.
 
 HOW IT WORKS
-- Coordinates are canvas pixels: x grows right, y grows DOWN, (x, y) is the top-left corner. A typical card is ~200x90, so leave ~60px between neighbours.
+- Coordinates are canvas pixels from the top-left. Studio cards with icons are 300px wide and grow taller when the title or subtitle wraps. Leave about 60px between rendered cards and use the returned dimensions for adjustments.
 - "ops" run in order. ALL of them apply or NONE do: an error names the failing operation (Operation N) and nothing is drawn, so fix it and resend.
 - Give an "id" to anything you will refer to later (connect, group, update, move...). Otherwise one is generated (text_1, card_2...) and returned in "steps".
 - Every reply checks the result and lists layout problems: cards or groups overlapping, a card sticking out of its group or sitting over another group, and connected cards too close for their label (it would cover a card). Fix each one with move / update / distribute in a follow-up call before showing the user; a reply with no problems says so.
@@ -367,7 +346,7 @@ OPERATIONS (field "op")
 - remove: {ids}: nodes and/or connections. Removing a group frees its children where they are.
 - clear: empties the canvas and starts a new drawing.
 
-By default the result is published and links are returned (publish:false keeps it in this session): a preview link and an edit link. Use the inline canvas as the diagram. The canvas can download a PNG.`,
+By default the result is published and links are returned (publish:false keeps it in this session): a preview link and an edit link. Call show_diagram after the final edit to display the canvas and enable PNG download.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -437,6 +416,20 @@ By default the result is published and links are returned (publish:false keeps i
       },
       required: ['ops'],
     },
+  },
+  {
+    name: 'show_diagram',
+    title: 'Show the finished ArchDraw diagram',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: 'Check the finished diagram and open one interactive preview. Use the links from this result. If it reports blank or overlapping cards, fix those in the same working session and retry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workingSessionId: { type: 'string' },
+        allowBlankCards: { type: 'boolean', description: 'Use true only if the user explicitly requested blank cards.' },
+      },
+      required: ['workingSessionId'],
+    },
     _meta: { ui: { resourceUri: DIAGRAM_WIDGET_URI } },
   },
 ];
@@ -490,30 +483,12 @@ const STATEFUL_TOOLS = new Set([
   'update_diagram',
   'draw_on_canvas',
   'layout_diagram',
+  'show_diagram',
 ]);
 const SESSION_CREATING_TOOLS = new Set(['generate_diagram', 'apply_template', 'get_diagram_state', 'draw_on_canvas']);
 const WORKING_SESSION_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ToolArgs = Record<string, unknown> | undefined;
-
-// The drawn diagram goes to the inline preview in _meta, which hosts keep out
-// of the model's context (it is tens of KB of SVG).
-function previewMeta(previewSvg: string | undefined) {
-  return previewSvg ? { _meta: { [PREVIEW_SVG_META_KEY]: previewSvg } } : {};
-}
-
-function canvasPreviewMeta(
-  result: Pick<Awaited<ReturnType<typeof drawOnCanvas>>, 'nodes' | 'edges' | 'previewSvg'>,
-  style: ImageStyleName,
-  direction: 'LR' | 'TD',
-) {
-  return {
-    _meta: {
-      ...previewMeta(result.previewSvg)._meta,
-      [PREVIEW_CANVAS_META_KEY]: { nodes: result.nodes, edges: result.edges, style, direction },
-    },
-  };
-}
 
 function errorResult(text: string) {
   return { content: [{ type: 'text' as const, text }], isError: true };
@@ -559,24 +534,74 @@ async function withWorkingSession<T>(store: WorkingSessionStore, id: string, run
   }
 }
 
+async function buildDiagramPreview(workingSession: string, {
+  allowBlankCards = false, initialSvg, fetchFallback = true, privateByRequest = false,
+}: { allowBlankCards?: boolean; initialSvg?: string; fetchFallback?: boolean; privateByRequest?: boolean } = {}) {
+  const state = getDiagramState(workingSession);
+  if (!state.nodes.length) return { ok: false as const, error: 'There is no diagram to show.', label: state.label };
+  const finished = await finishDiagram(state, allowBlankCards);
+  if (!finished.result) {
+    return { ok: false as const, error: finished.error, label: state.label };
+  }
+  const { nodes, direction } = finished.result;
+  const { edges, sessionId, label, style = DEFAULT_MCP_IMAGE_STYLE } = state;
+  const api = getApiBase();
+  const layoutChanged = nodes !== state.nodes;
+  const revision = layoutChanged && sessionId ? await syncFinishedDiagram(state, nodes) : state.revision;
+  const linkError = layoutChanged && sessionId && revision === undefined
+    ? 'the repaired layout could not be saved to the original link' : undefined;
+  if (revision !== undefined && (layoutChanged || direction !== state.direction)) {
+    setDiagramState({ ...state, nodes, direction, revision }, workingSession);
+  }
+  const shareParams = new URLSearchParams();
+  if (direction) shareParams.set('direction', direction);
+  if (style !== 'studio') shareParams.set('style', style);
+  const shareUrl = api && sessionId && !linkError ? `${api}/share/${sessionId}${shareParams.size ? '?' + shareParams : ''}` : undefined;
+  const diagramUrl = api && sessionId && !linkError ? `${api}/editor?session=${sessionId}${direction ? '&direction=' + direction : ''}` : undefined;
+  let previewSvg = layoutChanged ? undefined : initialSvg;
+  if (!previewSvg && fetchFallback && api && (!DIAGRAM_WIDGET_HTML.includes('var ArchDrawCanvas=') || (style !== 'studio' && style !== 'studio-metallic'))) {
+    try {
+      const response = await fetchWithTimeout(`${api}/api/diagram/load`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes, edges, dryRun: true, previewDirection: direction, ...previewOptions(style) }),
+      });
+      if (response.ok) previewSvg = ((await response.json()) as { previewSvg?: string }).previewSvg;
+    } catch {
+      // The interactive canvas and share link can still open.
+    }
+  }
+  return {
+    ok: true as const,
+    content: [{ type: 'text' as const, text: formatPreviewLinks({ shareUrl, diagramUrl, linkError, privateByRequest }) }],
+    structuredContent: { success: true, label, shareUrl, diagramUrl, workingSessionId: workingSession, ...(linkError ? { linkError } : {}) },
+    _meta: {
+      ...(previewSvg ? { [PREVIEW_SVG_META_KEY]: previewSvg } : {}),
+      [PREVIEW_CANVAS_META_KEY]: { nodes, edges, style, direction },
+    },
+  };
+}
+
 async function dispatchTool(name: string, args: ToolArgs, workingSession: string) {
   switch (name) {
     case 'generate_diagram': {
       const input = GenerateDiagramInputSchema.parse(args);
       const result = await generateDiagram(input);
       if (result.success) {
-        setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken }, workingSession);
+        setDiagramState({
+          nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken,
+          label: input.label || 'ArchDraw diagram',
+          direction: result.metadata.direction === 'DOWN' || result.metadata.direction === 'UP' ? 'TD' : 'LR',
+        }, workingSession);
       }
       const structuredContent = {
         success: result.success,
-        nodes: result.nodes,
-        edges: result.edges,
         ...(result.diagramUrl ? { diagramUrl: result.diagramUrl } : {}),
         ...(result.shareUrl ? { shareUrl: result.shareUrl } : {}),
         ...(result.sessionId ? { sessionId: result.sessionId } : {}),
         workingSessionId: workingSession,
         label: input.label || 'ArchDraw diagram',
         metadata: result.metadata,
+        ...(!input.compactResponse ? { nodes: result.nodes, edges: result.edges } : {}),
         ...(result.previewQuality ? { previewQuality: result.previewQuality } : {}),
         ...(result.errors?.length ? { errors: result.errors } : {}),
       };
@@ -585,16 +610,27 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       const layoutFeedback = quality && (quality.hardViolations || quality.crossings || quality.criticalPathDisconnectCount || quality.labelCollisions || quality.unexplainedPrivateOverlapLength)
         ? `\n\nLayout review: ${quality.hardViolations} hard issues (including ${quality.labelCollisions} label collisions), ${quality.crossings} crossings, ${quality.criticalPathDisconnectCount} main-flow route failures, ${Math.round(quality.unexplainedPrivateOverlapLength)}px of shared path. Check the preview and make a targeted repair if it improves readability.`
         : '';
-      const text = result.success
-        ? `${formatPreviewLinks({
-            ...result,
-            privateByRequest: input.publish === false,
-          })}\n\n${summary}${layoutFeedback}`
-        : `Diagram generation failed: ${(result.errors || ['Unknown error']).join('; ')}`;
+      if (!result.success) {
+        return { ...errorResult(`Diagram generation failed: ${(result.errors || ['Unknown error']).join('; ')}`), structuredContent };
+      }
+      const preview = await buildDiagramPreview(workingSession, {
+        initialSvg: result.previewSvg, fetchFallback: false, privateByRequest: input.publish === false,
+      });
+      if (!preview.ok) {
+        return {
+          ...errorResult(preview.error),
+          structuredContent: { ...structuredContent, success: false, shareUrl: undefined, diagramUrl: undefined, errors: [preview.error] },
+        };
+      }
       return {
-        structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
-        content: [{ type: 'text' as const, text }],
-        ...previewMeta(result.previewSvg),
+        structuredContent: {
+          ...structuredContent,
+          ...preview.structuredContent,
+          ...(!input.compactResponse ? { nodes: preview._meta[PREVIEW_CANVAS_META_KEY].nodes } : {}),
+          ...(result.linkError && !preview.structuredContent.linkError ? { linkError: result.linkError } : {}),
+        },
+        content: [{ type: 'text' as const, text: `${preview.content[0].text}\n\n${summary}${layoutFeedback}` }],
+        _meta: preview._meta,
       };
     }
 
@@ -602,7 +638,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       const input = ApplyTemplateInputSchema.parse(args);
       const result = await applyTemplate(input);
       if (result.success) {
-        setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken }, workingSession);
+        setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: result.updateToken, label: input.templateId }, workingSession);
       }
       const structuredContent = {
         success: result.success,
@@ -627,7 +663,6 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       return {
         structuredContent: { ...structuredContent, ...(result.linkError ? { linkError: result.linkError } : {}) },
         content: [{ type: 'text' as const, text }],
-        ...previewMeta(result.previewSvg),
       };
     }
 
@@ -674,7 +709,7 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       const result = await updateDiagram(input, workingSession);
       if (result.success) {
         const previous = getDiagramState(workingSession);
-        setDiagramState({ nodes: result.nodes, edges: result.edges, sessionId: result.sessionId, updateToken: previous.updateToken }, workingSession);
+        setDiagramState({ ...previous, revision: undefined, nodes: result.nodes, edges: result.edges, sessionId: result.sessionId }, workingSession);
       }
       const details = JSON.stringify({
         success: result.success,
@@ -703,12 +738,16 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
       if (!result.success) {
         return errorResult(`${result.error ?? 'Could not draw.'}${result.failedOperation !== undefined ? ` (operation index ${result.failedOperation})` : ''}`);
       }
+      const previous = getDiagramState(workingSession);
       setDiagramState({
         nodes: result.nodes as unknown as ReactFlowNode[],
         edges: result.edges as unknown as ReactFlowEdge[],
         sessionId: result.sessionId,
         updateToken: result.updateToken,
         revision: result.revision,
+        label: input.label ?? (input.ops.some(op => op.op === 'clear') ? undefined : previous.label),
+        direction: input.ops.some(op => op.op === 'clear') ? undefined : previous.direction,
+        style: args?.style === undefined && !input.ops.some(op => op.op === 'clear') ? previous.style : input.style,
       }, workingSession);
       const made = result.steps.flatMap(step => (['text', 'card', 'shape', 'stat', 'note', 'component', 'group', 'connect'].includes(step.op) ? step.ids.slice(0, 1).map(id => `${step.op} ${id}`) : []));
       const linkBlock = result.canvas.length > 0
@@ -731,7 +770,6 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
           ...(result.linkError ? { linkError: result.linkError } : {}),
         },
         content: [{ type: 'text' as const, text: `${linkBlock}${summary}\n\nCanvas (id type x,y WxH):\n${result.canvas.slice(0, 120).map(e => `${e.id} ${e.type} ${e.x},${e.y} ${e.width}x${e.height}${e.parent ? ` in ${e.parent}` : ''}${e.text ? ` "${e.text}"` : ''}`).join('\n')}${result.canvas.length > 120 ? `\n…and ${result.canvas.length - 120} more` : ''}` }],
-        ...canvasPreviewMeta(result, input.style, 'LR'),
       };
     }
 
@@ -745,6 +783,9 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
         sessionId: result.sessionId,
         updateToken: result.updateToken,
         revision: result.revision,
+        label: input.label ?? getDiagramState(workingSession).label,
+        direction: input.direction,
+        style: args?.style === undefined ? getDiagramState(workingSession).style : input.style,
       }, workingSession);
       const linkBlock = `${formatPreviewLinks({ shareUrl: result.shareUrl, diagramUrl: result.diagramUrl, linkError: result.linkError, privateByRequest: input.publish === false })}\n\n`;
       const summary = `Laid out ${result.canvas.length} node(s) ${input.direction === 'LR' ? 'left to right' : 'top down'} (${input.arrangement}). Only positions and sizes changed.${result.message ? `\nNote: ${result.message}` : ''}${layoutIssuesText(result.issues)}\nworkingSessionId: ${workingSession}`;
@@ -762,8 +803,15 @@ async function dispatchTool(name: string, args: ToolArgs, workingSession: string
           ...(result.linkError ? { linkError: result.linkError } : {}),
         },
         content: [{ type: 'text' as const, text: `${linkBlock}${summary}\n\nCanvas (id type x,y WxH):\n${result.canvas.slice(0, 120).map(e => `${e.id} ${e.type} ${e.x},${e.y} ${e.width}x${e.height}${e.parent ? ` in ${e.parent}` : ''}${e.text ? ` "${e.text}"` : ''}`).join('\n')}${result.canvas.length > 120 ? `\n…and ${result.canvas.length - 120} more` : ''}` }],
-        ...canvasPreviewMeta(result, input.style, input.direction),
       };
+    }
+
+    case 'show_diagram': {
+      const preview = await buildDiagramPreview(workingSession, { allowBlankCards: args?.allowBlankCards === true });
+      if (!preview.ok) {
+        return { ...errorResult(preview.error), structuredContent: { success: false, label: preview.label, errors: [preview.error] } };
+      }
+      return { content: preview.content, structuredContent: preview.structuredContent, _meta: preview._meta };
     }
 
     default:

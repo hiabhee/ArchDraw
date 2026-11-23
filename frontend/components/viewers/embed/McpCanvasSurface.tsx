@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
-import ReactFlow, { ReactFlowProvider, useReactFlow, useNodesState, type Edge, type Node } from 'reactflow';
+import ReactFlow, { ReactFlowProvider, useReactFlow, useNodesInitialized, useNodesState, type Edge, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import '@/components/canvas/nodes/nodeStyles.css';
 import { CanvasGrid } from '@/components/canvas/CanvasGrid';
 import { EDGE_TYPES, NODE_TYPES } from '@/components/canvas/canvasTypes';
-import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
+import { DiagramGeometryProvider, useDiagramGeometryPlan } from '@/components/canvas/edges/DiagramGeometryProvider';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
 import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
 import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
-import { generatePureSVG } from '@/lib/diagram/export/svg';
+import { assignEdgeColors } from '@/lib/theme/edgeColors';
+import { edgeThemeInk } from '@/lib/theme/edgeInk';
+import { captureDiagram } from '@/lib/diagram/export/captureDiagram';
 import { previewCopyUrl } from '@/lib/diagram/canvas/previewCopy';
-import { rasterizeExportSvg } from '@/lib/diagram/export/rasterizeSvg';
+import { recoverMcpLayout } from '@/lib/diagram/canvas/recoverMcpLayout';
+import { levelNearAlignedNodes } from '@/lib/diagram/geometry/levelNearAligned';
 import { resolveCanvasTokens } from '@/lib/theme/renderStyles';
 import { CANVAS_CONFIG, DEFAULT_CANVAS_BACKGROUND, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
 
@@ -26,6 +29,7 @@ interface ViewportControls {
   fit(): void;
   zoomIn(): void;
   zoomOut(): void;
+  zoom(): number;
   nodes(): Node[];
 }
 
@@ -33,18 +37,27 @@ const isDark = true;
 type StudioPreviewStyle = 'studio-minimal' | 'studio-metallic';
 const colorThemeId = 'studio-minimal';
 
-function ViewportBridge({ controls, onReady, element }: {
+function ViewportBridge({ controls, onReady, element, layoutReady, needsRoutes }: {
   controls: ViewportControls;
   onReady(): void;
   element: HTMLElement;
+  layoutReady: boolean;
+  needsRoutes: boolean;
 }) {
   const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
+  const plan = useDiagramGeometryPlan();
+  const shown = useRef(false);
   useEffect(() => {
     controls.fit = () => { void fitView({ padding: 0.16 }); };
     controls.zoomIn = () => { void zoomIn({ duration: 100 }); };
     controls.zoomOut = () => { void zoomOut({ duration: 100 }); };
+    controls.zoom = () => getViewport().zoom;
+  }, [controls, fitView, zoomIn, zoomOut, getViewport]);
+  useEffect(() => {
+    if (shown.current || !layoutReady || (needsRoutes && (!plan || plan.provisional))) return;
+    shown.current = true;
     onReady();
-  }, [controls, fitView, zoomIn, zoomOut, onReady]);
+  }, [layoutReady, needsRoutes, onReady, plan]);
   useEffect(() => {
     let width = element.clientWidth;
     let height = element.clientHeight;
@@ -71,31 +84,47 @@ function Surface({ nodes: initialNodes, edges, direction, renderStyleId, control
   controls: ViewportControls;
   onReady(): void;
 }) {
-  const { cssVars } = useMemo(() => resolveCanvasTokens({ renderStyleId, colorThemeId, isDark }), [renderStyleId]);
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const currentNodes = useRef(nodes);
+  const { cssVars, colors } = useMemo(() => resolveCanvasTokens({ renderStyleId, colorThemeId, isDark }), [renderStyleId]);
+  const displayedEdges = useMemo(() => assignEdgeColors(edges, isDark, false, edgeThemeInk(colors)), [edges, colors]);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [layoutReady, setLayoutReady] = useState(false);
+  const nodesInitialized = useNodesInitialized();
+  const { getNodes } = useReactFlow();
   useEffect(() => {
+    if (layoutReady || !nodesInitialized) return;
+    const moves = levelNearAlignedNodes(getNodes(), edges, direction);
+    if (moves.size) {
+      setNodes(current => current.map(node => {
+        const position = moves.get(node.id);
+        return position ? { ...node, position, positionAbsolute: undefined } : node;
+      }));
+    }
+    setLayoutReady(true);
+  }, [direction, edges, getNodes, layoutReady, nodesInitialized, setNodes]);
+
+  const currentNodes = useRef(nodes);
+  useLayoutEffect(() => {
     currentNodes.current = nodes;
     controls.nodes = () => currentNodes.current;
   }, [controls, nodes]);
   const host = useMemo<CanvasHost>(() => ({
-    readOnly: true, nodes, edges, direction, isDark, renderStyleId, colorThemeId,
+    readOnly: true, nodes, edges: displayedEdges, direction, isDark, renderStyleId, colorThemeId,
     iconMode: 'all', planKey: 'mcp-widget',
-  }), [nodes, edges, direction, renderStyleId]);
-  const focus = useHoverFocus(nodes, edges);
+  }), [nodes, displayedEdges, direction, renderStyleId]);
+  const focus = useHoverFocus(nodes, displayedEdges);
   return (
     <div
-      className={focus.css ? `dark ${SELECTION_FOCUS_CLASS}` : 'dark'}
+      className={focus.css ? `dark diagram-chrome-present ${SELECTION_FOCUS_CLASS}` : 'dark diagram-chrome-present'}
       data-render-style={renderStyleId}
-      data-canvas-theme={colorThemeId}
-      style={{ ...cssVars, height: '100%', width: '100%' } as CSSProperties}
+      data-color-theme={colorThemeId}
+      style={{ ...cssVars, backgroundColor: cssVars['--arch-canvas-bg'], height: '100%', width: '100%' } as CSSProperties}
     >
       {focus.css && <style>{focus.css}</style>}
       <CanvasHostProvider value={host}>
-        <DiagramGeometryProvider nodes={nodes} edges={edges} isolated useWorker={false}>
+        <DiagramGeometryProvider nodes={nodes} edges={displayedEdges} isolated useWorker={false} enabled={layoutReady}>
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={displayedEdges}
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
             defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
@@ -121,7 +150,7 @@ function Surface({ nodes: initialNodes, edges, direction, renderStyleId, control
           >
             <CanvasGrid background={DEFAULT_CANVAS_BACKGROUND} isDark gridColor={cssVars['--arch-canvas-grid']} />
             <SVGEdgeMarkerDefs />
-            <ViewportBridge controls={controls} onReady={onReady} element={element} />
+            <ViewportBridge controls={controls} onReady={onReady} element={element} layoutReady={layoutReady} needsRoutes={edges.some(edge => !edge.hidden)} />
           </ReactFlow>
         </DiagramGeometryProvider>
       </CanvasHostProvider>
@@ -131,21 +160,29 @@ function Surface({ nodes: initialNodes, edges, direction, renderStyleId, control
 
 export function mount(
   element: HTMLElement,
-  graph: Graph,
+  graph: Omit<Graph, 'direction'> & { direction?: Graph['direction'] },
   onReady: () => void,
   onError: () => void,
   initialStyle: StudioPreviewStyle = 'studio-minimal',
 ) {
   const root = createRoot(element, { onUncaughtError: onError });
   const noop = () => {};
-  const controls: ViewportControls = { fit: noop, zoomIn: noop, zoomOut: noop, nodes: () => graph.nodes };
+  const controls: ViewportControls = { fit: noop, zoomIn: noop, zoomOut: noop, zoom: () => 1, nodes: () => graph.nodes };
   let renderStyleId = initialStyle;
-  const render = () => root.render(
-    <ReactFlowProvider>
-      <Surface {...graph} renderStyleId={renderStyleId} controls={controls} onReady={onReady} element={element} />
-    </ReactFlowProvider>,
-  );
-  render();
+  let disposed = false;
+  let previewGraph: Graph | undefined;
+  const render = () => {
+    if (disposed || !previewGraph) return;
+    root.render(
+      <ReactFlowProvider>
+        <Surface {...previewGraph} renderStyleId={renderStyleId} controls={controls} onReady={onReady} element={element} />
+      </ReactFlowProvider>,
+    );
+  };
+  void recoverMcpLayout(graph.nodes, graph.edges, graph.direction).then(recovered => {
+    previewGraph = { ...graph, ...recovered };
+    render();
+  }).catch(() => { if (!disposed) onError(); });
   return {
     setStyle(style: StudioPreviewStyle) {
       if ((style === 'studio-minimal' || style === 'studio-metallic') && style !== renderStyleId) {
@@ -157,14 +194,22 @@ export function mount(
     zoomIn: () => controls.zoomIn(),
     zoomOut: () => controls.zoomOut(),
     saveUrl: (shareUrl: string) => previewCopyUrl(shareUrl, crypto.randomUUID(), graph.nodes, controls.nodes()),
-    async downloadPng(background: string) {
-      const { cssVars } = resolveCanvasTokens({ renderStyleId, colorThemeId, isDark });
-      const svg = generatePureSVG(controls.nodes(), graph.edges, isDark, background, graph.direction, renderStyleId, colorThemeId, 'all', {
-        variant: 'lines', gap: DEFAULT_CANVAS_BACKGROUND.gap, size: DEFAULT_CANVAS_BACKGROUND.size,
-        patternColor: cssVars['--arch-canvas-grid'] ?? null, showGrid: true,
+    async downloadPng() {
+      if (!previewGraph) throw new Error('The preview is still drawing.');
+      const { cssVars, colors } = resolveCanvasTokens({ renderStyleId, colorThemeId, isDark });
+      const { dataUrl } = await captureDiagram({
+        nodes: controls.nodes(),
+        edges: assignEdgeColors(previewGraph.edges, isDark, false, edgeThemeInk(colors)),
+        view: { readOnly: true, direction: previewGraph.direction, renderStyleId, colorThemeId, isDark, iconMode: 'all', labelZoom: controls.zoom() },
+        background: { ...DEFAULT_CANVAS_BACKGROUND, patternColor: cssVars['--arch-canvas-grid'] },
+        showGrid: true,
+        useGeometryWorker: false,
       });
-      return (await rasterizeExportSvg(svg, 2)).dataUrl;
+      return dataUrl;
     },
-    dispose: () => root.unmount(),
+    dispose() {
+      disposed = true;
+      root.unmount();
+    },
   };
 }

@@ -442,7 +442,7 @@ function SystemNodeComponent({ id, data, selected }: NodeProps<NodeData>) {
             )}
           </div>
           )}
-          <div className="flex flex-col min-w-0 flex-1 justify-center">
+          <div className="node-header-text">
             {labelEdit.isEditing ? (
               <input
                 {...labelEdit.inputProps}

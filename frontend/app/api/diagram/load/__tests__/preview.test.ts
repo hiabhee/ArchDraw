@@ -58,6 +58,35 @@ describe('POST /api/diagram/load preview', () => {
     expect(sketch.previewSvg).toContain(paper); // the sketch paper
     expect(clean.previewSvg).not.toContain(paper);
     expect(sketch.previewSvg).not.toBe(clean.previewSvg);
+    expect(clean.previewNodeSizes.b).toEqual(getEffectiveNodeDimensions(nodes[1], 'studio-minimal', 'all'));
+    expect(clean.previewNodeSizes.b.width).toBeGreaterThan(nodes[1].width);
+  });
+
+  it('re-lays overlapping family-tree cards as a top-down hierarchy using their rendered sizes', async () => {
+    const nodes: Node[] = [
+      { id: 'parents', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Parents' } },
+      { id: 'root', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Central figure', subtitle: 'Second generation' } },
+      { id: 'branch-a', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Descendants in the first branch', subtitle: 'Children and grandchildren' } },
+      { id: 'branch-b', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Descendants in the second branch' } },
+    ];
+    const edges = [
+      { id: 'descent', source: 'parents', target: 'root', type: 'simpleFloating' },
+      { id: 'first', source: 'root', target: 'branch-a', type: 'simpleFloating' },
+      { id: 'second', source: 'root', target: 'branch-b', type: 'simpleFloating' },
+    ];
+    const response = await POST(post({
+      nodes, edges, dryRun: true, preview: true, layout: { direction: 'TD', profile: 'studio-minimal', foldLongFlows: false },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json() as { nodes: Node[]; edges: typeof edges };
+    const byId = new Map(body.nodes.map(node => [node.id, node]));
+    expect(body.edges.map(({ id, source, target }) => ({ id, source, target }))).toEqual(edges.map(({ id, source, target }) => ({ id, source, target })));
+    expect(byId.get('parents')!.position.y).toBeLessThan(byId.get('root')!.position.y);
+    const [left, right] = [byId.get('branch-a')!, byId.get('branch-b')!].sort((a, b) => a.position.x - b.position.x);
+    const leftSize = getEffectiveNodeDimensions(left, 'studio-minimal', 'all');
+    const rightSize = getEffectiveNodeDimensions(right, 'studio-minimal', 'all');
+    expect(left.position.y + leftSize.height / 2).toBeCloseTo(right.position.y + rightSize.height / 2);
+    expect(left.position.x + leftSize.width).toBeLessThan(right.position.x);
   });
 
   it('renders a compact Studio Metallic preview on black while preserving its graph', async () => {

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 const FETCH_TIMEOUT_MS = 8000;
+export const DIAGRAM_LAYOUT_TIMEOUT_MS = 30_000;
 
 /**
  * Per-request overrides for hosts that embed the tools (the hosted

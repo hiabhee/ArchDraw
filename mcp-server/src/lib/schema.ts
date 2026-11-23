@@ -68,6 +68,7 @@ export const GenerateDiagramInputSchema = z.object({
   customFeatures: z.array(z.string()).optional().describe(
     'Custom features or components the user explicitly requested.'
   ),
+  compactResponse: z.boolean().optional().describe('Keep graph data in the in-chat canvas and return a concise tool result.'),
   publish: z.boolean().optional().default(true).describe('Create a preview link (default). Links are unguessable, view-by-link and expire after 7 days. Set false only when the user asks to keep the diagram private.'),
 });
 

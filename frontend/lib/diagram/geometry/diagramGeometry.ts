@@ -2,17 +2,19 @@ import type { Edge, Node } from 'reactflow';
 import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
-import { computeEdgeRoute, createEdgeRoutingContext, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
+import { computeEdgeRoute, createEdgeRoutingContext, isGroupNode, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
 import { computeEdgeLabelLayout, estimateLabelSize, getDisplayLabel, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
 import { optimizeEdgeRoutes } from '../edges/edgeRouteOptimizer';
 import { validateRenderedPath, getRenderedPathInteraction, type RenderedEdgePath } from '../edges/edgePathGeometry';
 import type { GeometryStatus, GeometryViolation, Rect } from './geometryTypes';
 import type { Position } from 'reactflow';
 import { resolveEdgeFlowSemantics } from '@/lib/diagram/mermaid/edgeFlowSemantics';
+import { getEffectiveNodeDimensions } from '../nodes/shapeNodeDimensions';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 
 // Change when routing semantics change so persisted in-memory geometry plans
 // from the prior router cannot keep drawing stale attachment choices.
-const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v4';
+const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v5';
 
 export interface DiagramGeometryOptions {
   direction: EdgeRouteDirection;
@@ -67,7 +69,7 @@ export function computeDiagramGeometryPreview(
   options: DiagramGeometryOptions,
 ): DiagramGeometryPlan {
   const nodes = withoutDecorNodes(allNodes);
-  const rects = getBounds(nodes);
+  const rects = getBounds(nodes, options);
   const moved = new Set<string>();
   const affectedRects: Rect[] = [];
   for (const [id, next] of rects) {
@@ -122,10 +124,6 @@ export function computeDiagramGeometryPreview(
   };
 }
 
-function isGroup(node: Node): boolean {
-  return node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
-}
-
 function absolutePosition(node: Node, nodesById: ReadonlyMap<string, Node>): { x: number; y: number } {
   const position = (node as Node & { positionAbsolute?: { x: number; y: number } }).positionAbsolute;
   if (position) return position;
@@ -143,14 +141,33 @@ function absolutePosition(node: Node, nodesById: ReadonlyMap<string, Node>): { x
   return { x, y };
 }
 
-function getBounds(nodes: readonly Node[]): Map<string, Rect> {
+function getBounds(nodes: readonly Node[], options?: Pick<DiagramGeometryOptions, 'renderStyleId' | 'iconMode'>): Map<string, Rect> {
   const byId = new Map(nodes.map(node => [node.id, node]));
   return new Map(nodes.map(node => {
     const position = absolutePosition(node, byId);
+    if (isStudioRenderStyle(options?.renderStyleId) && (node.type === 'shapeNode' || node.type === 'systemNode')) {
+      return [node.id, { ...position, ...getEffectiveNodeDimensions(node, options?.renderStyleId, options?.iconMode) }];
+    }
     const width = node.width ?? (node.data as { nodeWidth?: number } | undefined)?.nodeWidth ?? 200;
     const height = node.height ?? (node.data as { nodeHeight?: number } | undefined)?.nodeHeight ?? 88;
     return [node.id, { x: position.x, y: position.y, width, height }];
   }));
+}
+
+function nodeCollisions(leaves: readonly Node[], bounds: ReadonlyMap<string, Rect>): GeometryViolation[] {
+  const collisions: GeometryViolation[] = [];
+  for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) {
+    const a = bounds.get(leaves[i].id), b = bounds.get(leaves[j].id);
+    if (a && b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y) {
+      collisions.push({ severity: 'hard', code: 'NODE_COLLISION', nodeId: leaves[i].id, otherNodeId: leaves[j].id });
+    }
+  }
+  return collisions;
+}
+
+export function findNodeCollisions(nodes: Node[], options: Pick<DiagramGeometryOptions, 'renderStyleId' | 'iconMode'>): GeometryViolation[] {
+  const cards = withoutDecorNodes(nodes);
+  return nodeCollisions(cards.filter(node => !isGroupNode(node)), getBounds(cards, options));
 }
 
 function countBends(route: EdgeRouteResult): number {
@@ -169,7 +186,7 @@ function withoutLabelPosition(data: unknown): unknown {
   return rest;
 }
 
-export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes)): string {
+export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes, options)): string {
   return JSON.stringify([
     options.revision ?? 0,
     EDGE_ROUTING_ALGORITHM_REVISION,
@@ -192,7 +209,7 @@ export function computeDiagramGeometryPlan(
   // Decoration (panels, lines) is drawn under the diagram: never an obstacle, never an end.
   const nodes = withoutDecorNodes(allNodes);
   const nodeById = new Map(nodes.map(node => [node.id, node]));
-  const bounds = getBounds(nodes);
+  const bounds = getBounds(nodes, options);
   // Label placement works in canvas coordinates. Normalize parent-relative
   // nodes once so grouped diagrams share the same absolute geometry as routes.
   const nodeInternals = new Map(nodes.map(node => {
@@ -209,7 +226,8 @@ export function computeDiagramGeometryPlan(
   const paths = new Map<string, RenderedEdgePath>();
   const sourceSides = new Map<string, Position>();
   const targetSides = new Map<string, Position>();
-  const violations: GeometryViolation[] = [];
+  const leafNodes = nodes.filter(node => !isGroupNode(node));
+  const violations = nodeCollisions(leafNodes, bounds);
   const routeOptimization = optimizeEdgeRoutes({
     nodes, edges, direction: options.direction, renderStyleId: options.renderStyleId,
     iconMode: options.iconMode, handleAnchors: options.handleAnchors,
@@ -217,14 +235,6 @@ export function computeDiagramGeometryPlan(
     repairReturnCrossings: options.repairReturnCrossings,
   });
   const optimizedRoutes = routeOptimization.routes;
-
-  const leafNodes = nodes.filter(node => !isGroup(node));
-  for (let i = 0; i < leafNodes.length; i++) for (let j = i + 1; j < leafNodes.length; j++) {
-    const a = bounds.get(leafNodes[i].id), b = bounds.get(leafNodes[j].id);
-    if (a && b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y) {
-      violations.push({ severity: 'hard', code: 'NODE_COLLISION', nodeId: leafNodes[i].id, otherNodeId: leafNodes[j].id });
-    }
-  }
 
   for (const edge of edges) {
     const route = optimizedRoutes.get(edge.id) ?? computeEdgeRoute(
@@ -245,7 +255,7 @@ export function computeDiagramGeometryPlan(
     }
     // Only cards are obstacles: an edge may cross any group's empty space (see edgeRouteBuilder).
     const obstacles = nodes
-      .filter(node => node.id !== edge.source && node.id !== edge.target && (!isGroup(node) || (Boolean(process.env.EXP_GROUP_WALLS) && !__ancestorsOf(edge, nodeById).has(node.id))))
+      .filter(node => node.id !== edge.source && node.id !== edge.target && (!isGroupNode(node) || (Boolean(process.env.EXP_GROUP_WALLS) && !__ancestorsOf(edge, nodeById).has(node.id))))
       .flatMap(node => {
         const rect = bounds.get(node.id);
         return rect ? [{ id: node.id, rect }] : [];
@@ -308,7 +318,7 @@ export function computeDiagramGeometryPlan(
     });
     if (obstruction) violations.push({ severity: 'hard', code: 'LABEL_COLLISION', edgeId, withId: obstruction.id });
     const titleObstruction = nodes.find(node => {
-      if (!isGroup(node)) return false;
+      if (!isGroupNode(node)) return false;
       const box = bounds.get(node.id);
       if (!box) return false;
       const titleStrip = { x: box.x, y: box.y, width: box.width, height: Math.min(40, box.height) };
