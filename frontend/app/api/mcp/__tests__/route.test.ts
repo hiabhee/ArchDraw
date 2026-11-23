@@ -57,7 +57,9 @@ describe('POST /api/mcp (hosted MCP)', () => {
     }));
     const body = await res.json();
     expect(body.result.isError).toBeFalsy();
-    expect(body.result.structuredContent.shareUrl).toMatch(/\/share\/share-1$/);
+    const shareUrl = new URL(body.result.structuredContent.shareUrl);
+    expect(shareUrl.pathname).toBe('/share/share-1');
+    expect(shareUrl.searchParams.get('direction')).toBe('LR');
     expect(body.result.content[0].text).toMatch(/Show these links to the user/);
     expect(m.rateLimit).toHaveBeenCalledWith(`diagram-load:create:ip:${CLIENT_IP}`, 30, 3600);
     expect(m.create).toHaveBeenCalledTimes(1);
@@ -69,7 +71,7 @@ describe('POST /api/mcp (hosted MCP)', () => {
     expect(JSON.parse(state.result.content[0].text).nodes.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('returns a private 15-product diagram as SVG for the expandable canvas', async () => {
+  it('returns a private 15-product diagram for the interactive canvas', async () => {
     const mermaid = `graph LR
   contacts["Google Contacts"] --> gmail["Gmail"]
   gmail --> calendar["Google Calendar"]
@@ -87,15 +89,16 @@ describe('POST /api/mcp (hosted MCP)', () => {
   script["Apps Script"] --> sheets`;
     const response = await POST(rpc('tools/call', {
       name: 'generate_diagram',
-      arguments: { mermaid, label: 'Google Workspace', publish: false },
+      arguments: { mermaid, label: 'Google Workspace', publish: false, compactResponse: true },
     }));
     const { result } = await response.json();
 
     expect(result.structuredContent.success).toBe(true);
-    expect(result.structuredContent.nodes).toHaveLength(15);
-    expect(result.structuredContent.edges).toHaveLength(14);
-    expect(result._meta['archdraw/previewSvg']).toMatch(/^<svg[\s>]/);
-    expect(result._meta['archdraw/previewSvg']).toContain('Google Calendar');
+    expect(result.structuredContent.nodes).toBeUndefined();
+    const canvas = result._meta['archdraw/previewCanvas'];
+    expect(canvas.nodes).toHaveLength(15);
+    expect(canvas.edges).toHaveLength(14);
+    expect(canvas.nodes.find((node: { id: string }) => node.id === 'calendar')?.data.label).toBe('Google Calendar');
     expect(m.create).not.toHaveBeenCalled();
   });
 

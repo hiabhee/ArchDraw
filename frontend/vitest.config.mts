@@ -12,6 +12,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     testTimeout: 60000,
+    // Load the linked MCP build in Node so its on-disk widget assets resolve as in production.
+    server: { deps: { external: [/[/\\]mcp-server[/\\]dist[/\\]/] } },
   },
   resolve: {
     alias: {
