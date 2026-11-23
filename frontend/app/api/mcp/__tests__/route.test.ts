@@ -47,7 +47,7 @@ describe('POST /api/mcp (hosted MCP)', () => {
 
     const list = await (await POST(rpc('tools/list'))).json();
     const names = list.result.tools.map((t: { name: string }) => t.name);
-    expect(names).toEqual(expect.arrayContaining(['generate_diagram', 'update_diagram', 'apply_template']));
+    expect(names).toEqual(expect.arrayContaining(['generate_diagram', 'update_diagram', 'apply_template', 'show_diagram']));
   });
 
   it('generates in-process with a preview link, throttled by the real client IP, and keeps state across requests', async () => {
