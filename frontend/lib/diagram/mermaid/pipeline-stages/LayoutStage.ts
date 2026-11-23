@@ -442,8 +442,14 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
 
     // A nearly full-size fold may need only a few pixels less per rank.
     // Keep the usual route checks, including the space reserved for labels.
-    if (foldDirection && canonicalNodes.length <= 20 && best && best.fit >= 0.95 && best.fit < 1) {
-      evaluate({ nodes: canonicalNodes, options: { ...base, rankSep: Math.max(36, baseRankSep - 24), ...candidateAreas } });
+    if (foldDirection && best && best.fit >= 0.95 && best.fit < 1) {
+      const rankSep = Math.max(36, baseRankSep - 24);
+      if (canonicalNodes.length <= 20) {
+        evaluate({ nodes: canonicalNodes, options: { ...base, rankSep, ...candidateAreas } });
+      }
+      if (best.fit < 1) {
+        evaluate({ ...candidates[2], options: { ...candidates[2].options, rankSep } });
+      }
     }
 
     // On dense graphs, try a small reduction in rank spacing independently

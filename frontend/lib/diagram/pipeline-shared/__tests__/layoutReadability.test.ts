@@ -111,11 +111,10 @@ function expectNoOverlapAndContained(nodes: Node[], label: string) {
 }
 
 describe('layout readability', () => {
-  // One test per direction: each lays out every template twice (folded and not), which is slow on a busy machine.
   for (const direction of ['LR', 'TD'] as const) {
-    it(`${direction}: keeps every shipped template at least as large on screen as when this shipped, and never smaller than unfolded`, async () => {
-      for (const template of TEMPLATES) {
-        const label = `${template.id}:${direction}`;
+    for (const template of TEMPLATES) {
+      const label = `${template.id}:${direction}`;
+      it(`${label} keeps fitted titles readable and never smaller than unfolded`, async () => {
         const options = { title: template.name, renderStyleId: 'studio-minimal' as const };
         // Folding is opt-in (live project maps); these floors guard it where it is used.
         const folded = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { ...options, foldLongFlows: true });
@@ -130,8 +129,8 @@ describe('layout readability', () => {
           expect(folded.geometrySummary?.unexplainedPrivateOverlapLength, label).toBeLessThanOrEqual(direction === 'LR' ? 0 : 81);
         }
         expectNoOverlapAndContained(folded.nodes, label);
-      }
-    }, 900_000);
+      }, 180_000);
+    }
   }
 
   const classes: Array<[string, RandomDiagramOptions]> = [
