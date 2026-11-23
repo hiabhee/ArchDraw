@@ -25,15 +25,12 @@ describe('formatPreviewLinks', () => {
     expect(text).toContain(`${API}/editor?session=s1`);
   });
 
-  it('adds a shareable image link, hand-drawn by default, derived from the share link', () => {
-    const text = formatPreviewLinks({ shareUrl: `${API}/share/s1` });
-    expect(text).toContain(`🖼️ Image to share (PNG, hand-drawn): ${API}/api/diagram/image/s1?style=sketch&format=png`);
-    expect(text).toContain(`![diagram](${API}/api/diagram/image/s1?style=sketch&format=png)`);
-    expect(text).toContain(`${API}/api/diagram/image/s1?style=studio&format=png`);
-    const clean = formatPreviewLinks({ shareUrl: `${API}/share/s1`, imageStyle: 'studio' });
-    expect(clean).toContain('PNG, clean');
-    expect(clean).not.toContain('Clean style:');
-    expect(formatPreviewLinks({ diagramUrl: `${API}/editor?session=s1` })).not.toContain('Image to share');
+  it('keeps the preview and edit links without an image URL or Markdown image', () => {
+    const text = formatPreviewLinks({ shareUrl: `${API}/share/s1`, diagramUrl: `${API}/editor?session=s1` });
+    expect(text).toContain(`${API}/share/s1`);
+    expect(text).toContain(`${API}/editor?session=s1`);
+    expect(text).not.toContain('/api/diagram/image/');
+    expect(text).not.toContain('![');
   });
 
   it('explains private (publish:false) and failed-link cases instead of staying silent', () => {
@@ -68,6 +65,59 @@ describe('generate_diagram preview links', () => {
     expect(result.shareUrl).toBe(`${API}/share/s1`);
     expect(result.diagramUrl).toBe(`${API}/editor?session=s1`);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [preview, save] = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(preview).toMatchObject({
+      layout: { autoDirection: true },
+      previewStyle: 'studio',
+      previewTheme: 'dark',
+      previewSurface: 'canvas',
+    });
+    expect(save).toMatchObject({ nodes: previewBody.nodes, edges: previewBody.edges, publish: true });
+    expect(save.mermaid).toBeUndefined();
+  });
+
+  it('falls back to publishing Mermaid if the API rejects the generated graph', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(previewBody))
+      .mockResolvedValueOnce(json({ error: 'The canvas is too large.' }, false, 400))
+      .mockResolvedValueOnce(json({ sessionId: 's1', updateToken: 't1' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { generateDiagram } = await import('../generate-diagram.js');
+
+    const result = await generateDiagram(GenerateDiagramInputSchema.parse({ mermaid: MERMAID }));
+
+    expect(result.shareUrl).toBe(`${API}/share/s1`);
+    const fallback = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(fallback).toMatchObject({ mermaid: MERMAID, layout: { autoDirection: true }, publish: true });
+  });
+
+  it('sends structured groups, subtitles, shapes and connection labels to the layout pipeline', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(previewBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const { generateDiagram } = await import('../generate-diagram.js');
+
+    const result = await generateDiagram(GenerateDiagramInputSchema.parse({
+      publish: false,
+      direction: 'DOWN',
+      nodes: [
+        { id: 'api', label: 'API Gateway', subtitle: 'NGINX', tier: 'edge', shape: 'hexagon', parentId: 'web' },
+        { id: 'web', label: 'Web tier', subtitle: '', tier: 'edge', isGroup: true },
+        { id: 'worker', label: 'Worker', subtitle: 'Processes orders', tier: 'async' },
+      ],
+      edges: [{ source: 'api', target: 'worker', label: 'Order | created', communicationType: 'event' }],
+    }));
+
+    expect(result.success).toBe(true);
+    const { mermaid, layout } = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(layout.autoDirection).toBe(false);
+    expect(mermaid).toBe([
+      'graph TD',
+      '  subgraph web["Web tier"]',
+      '  api{{"API Gateway<br/>NGINX"}}',
+      '  end',
+      '  worker["Worker<br/>Processes orders"]',
+      '  api -.->|"Order | created"| worker',
+    ].join('\n'));
   });
 
   it('still returns the diagram when saving the preview fails', async () => {

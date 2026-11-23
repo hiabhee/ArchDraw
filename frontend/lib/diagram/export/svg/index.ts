@@ -2,8 +2,9 @@ import type { Node, Edge } from 'reactflow';
 import type { NodeData } from '@/store/diagram/types';
 import type { EdgeData } from '@/data/edgeTypes';
 
-import { type EdgeRouteDirection } from '@/lib/diagram/edges/edgeRouteBuilder';
-import { buildEdgePathGeometry } from '@/lib/diagram/edges/edgePathGeometry';
+import { isGroupNode, type EdgeRouteDirection } from '@/lib/diagram/edges/edgeRouteBuilder';
+import { composeEdgeDisplayLabel, estimateLabelSize } from '@/lib/diagram/edges/edgeLabelLayout';
+import { buildEdgePathGeometry, pointAtRenderedPath } from '@/lib/diagram/edges/edgePathGeometry';
 import { getCachedDiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
 import { buildShadowFilter } from './cssShadow';
 import { resolveCanvasTokens, isStudioRenderStyle, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
@@ -42,9 +43,10 @@ export function generatePureSVG(
 ): string {
   const aesthetics = resolveCanvasTokens({ renderStyleId, colorThemeId, isDark });
   const rawNodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const visibleNodes = nodes.filter((node) => !node.hidden);
 
-  const preparedNodes = nodes.map((node) => {
-    const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
+  const preparedNodes = visibleNodes.map((node) => {
+    const isGroup = isGroupNode(node);
     // Text and infographic pieces are drawn at their own box, not a card's effective size.
     const isText = node.type === 'textLabelNode' || node.type === 'annotationNode' || isDecorNode(node) || node.type === STAT_NODE_TYPE;
 
@@ -83,7 +85,7 @@ export function generatePureSVG(
 
   const nodeMap = new Map(preparedNodes.map((n) => [n.id, n]));
   const sortedNodes = [...preparedNodes].sort(
-    (a, b) => nodeDepth(a, nodeMap) - nodeDepth(b, nodeMap),
+    (a, b) => nodeDepth(rawNodeMap.get(a.id)!, rawNodeMap) - nodeDepth(rawNodeMap.get(b.id)!, rawNodeMap),
   );
 
   // Every connection is drawn, as on the canvas: a request and its response (A to B and B to A)
@@ -91,9 +93,11 @@ export function generatePureSVG(
   const processedEdges: Edge[] = [];
   const processedEdgeIds = new Set<string>();
   for (const edge of edges) {
-    if (processedEdgeIds.has(edge.id)) continue;
+    if (edge.hidden || processedEdgeIds.has(edge.id) || !nodeMap.has(edge.source) || !nodeMap.has(edge.target)) continue;
     processedEdgeIds.add(edge.id);
-    processedEdges.push(edge);
+    const data = (edge.data ?? {}) as EdgeData;
+    const label = data.responseLabel ? edge.label || data.label : data.label || edge.label;
+    processedEdges.push({ ...edge, data: { ...data, label: typeof label === 'string' ? label : undefined } });
   }
 
   // Routing must use nodes with parent relationships intact so passable groups
@@ -101,25 +105,12 @@ export function generatePureSVG(
   // parents cleared and absolute positions - using it makes every group look
   // like an obstacle, causing the export to route around Compute Tier etc.
   // Build routingNodes that keep parents but have correct effective dimensions.
-  const routingNodes: Node[] = nodes.map((node) => {
-    const isGroup = node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean })?.isGroup === true;
-    const isText = node.type === 'textLabelNode' || node.type === 'annotationNode' || isDecorNode(node) || node.type === STAT_NODE_TYPE;
-    let w: number | undefined;
-    let h: number | undefined;
-    if (!isText && !isGroup) {
-      const eff = getEffectiveNodeDimensions(node, renderStyleId, iconMode);
-      w = eff.width;
-      h = eff.height;
-    } else {
-      w = node.width ?? (node.data as { nodeWidth?: number })?.nodeWidth ?? undefined;
-      h = node.height ?? (node.data as { nodeHeight?: number })?.nodeHeight ?? undefined;
-    }
-    return {
-      ...node,
-      ...(w !== undefined ? { width: w } : {}),
-      ...(h !== undefined ? { height: h } : {}),
-    } as Node;
-  });
+  const routingNodes: Node[] = visibleNodes.map((node, index) => ({
+    ...node,
+    width: preparedNodes[index].width,
+    height: preparedNodes[index].height,
+    positionAbsolute: preparedNodes[index].position,
+  }));
 
   const geometry = getCachedDiagramGeometryPlan(routingNodes, processedEdges, {
     direction: layoutDirection,
@@ -127,6 +118,7 @@ export function generatePureSVG(
     iconMode,
     revision: 'svg-export',
     straightEdges: false,
+    repairReturnCrossings: true,
   });
 
   const nodeBounds = calculateBounds(preparedNodes);
@@ -137,8 +129,19 @@ export function generatePureSVG(
     if (route.path.kind === 'orthogonal') routePoints.push(...route.path.waypoints);
     else routePoints.push(route.path.start, route.path.control1, route.path.control2, route.path.end);
   }
-  for (const label of geometry.labels.values()) {
-    routePoints.push({ x: label.x - 90, y: label.y - 24 }, { x: label.x + 90, y: label.y + 24 });
+  const labels = new Map(geometry.labels);
+  for (const { id, data } of processedEdges) {
+    const text = composeEdgeDisplayLabel(data.label, data.responseLabel);
+    if (!text || data.hideLabel) continue;
+    let label = labels.get(id);
+    const renderedPath = geometry.paths.get(id);
+    if (renderedPath && data.labelPlacement === 'midpoint') {
+      label = { ...pointAtRenderedPath(renderedPath, 0.5), t: 0.5 };
+      labels.set(id, label);
+    }
+    if (!label) continue;
+    const { w, h } = estimateLabelSize(text, renderStyleId);
+    routePoints.push({ x: label.x - w / 2, y: label.y - h / 2 }, { x: label.x + w / 2, y: label.y + h / 2 });
   }
   const bounds = extendBounds(nodeBounds, routePoints, 24);
   const width = bounds.maxX - bounds.minX;
@@ -149,9 +152,10 @@ export function generatePureSVG(
   const gridPhaseY = ((-bounds.minY % gridGap) + gridGap) % gridGap;
   const gridColor = canvasBackground?.patternColor ?? aesthetics.cssVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0');
   const safeGridColor = escapeXml(gridColor);
+  const dotRadius = Math.max(0.5, canvasBackground?.size ?? 1);
   const backgroundPattern = canvasBackground?.showGrid
     ? canvasBackground.variant === 'dots'
-      ? `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="${Math.max(0.5, canvasBackground.size)}" fill="${safeGridColor}" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.35 : 0.5}" />`
+      ? `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX - dotRadius}" y="${gridPhaseY - dotRadius}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><circle cx="${dotRadius}" cy="${dotRadius}" r="${dotRadius}" fill="${safeGridColor}" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.35 : 0.5}" />`
       : `<defs><pattern id="archdraw-background-pattern" x="${gridPhaseX}" y="${gridPhaseY}" width="${gridGap}" height="${gridGap}" patternUnits="userSpaceOnUse"><path d="M ${gridGap} 0 H 0 V ${gridGap}" fill="none" stroke="${safeGridColor}" stroke-width="1" /></pattern></defs><rect x="0" y="0" width="${width}" height="${height}" fill="url(#archdraw-background-pattern)" opacity="${isDark ? 0.25 : 1}" />`
     : '';
 
@@ -164,6 +168,7 @@ export function generatePureSVG(
   const fitZoom = viewZoom && viewZoom > 0 ? viewZoom : Math.max(0.1, Math.min(1, 1280 / Math.max(1, width), 720 / Math.max(1, height)));
   const labelScale = Math.min(1.4, Math.max(0.85, 1 / fitZoom));
   const nodeElements: string[] = [];
+  const groupElements: string[] = [];
   // Decoration sits under the connections, as on the canvas (zIndex below the edges).
   const decorElements: string[] = [];
   const edgeElements: string[] = [];
@@ -193,8 +198,8 @@ export function generatePureSVG(
       nodeElements.push(renderTextLabel(nodeData, isDark));
     } else if (node.type === 'annotationNode') {
       nodeElements.push(renderAnnotationNode(nodeData, isDark));
-    } else if (node.type === 'groupNode' || node.type === 'group') {
-      nodeElements.push(renderGroupNode(nodeData, isDark, renderStyleId, aesthetics));
+    } else if (isGroupNode(node)) {
+      groupElements.push(renderGroupNode(nodeData, isDark, renderStyleId, aesthetics));
     } else if (node.type === 'shapeNode') {
       nodeElements.push(renderShapeNode(nodeData, isDark, renderStyleId, aesthetics, iconMode));
     } else {
@@ -203,11 +208,6 @@ export function generatePureSVG(
   }
 
   for (const edge of processedEdges) {
-    const sourceNode = routingNodes.find((n) => n.id === edge.source);
-    const targetNode = routingNodes.find((n) => n.id === edge.target);
-
-    if (!sourceNode || !targetNode) continue;
-
     const route = geometry.routes.get(edge.id);
     if (!route) continue;
 
@@ -225,7 +225,7 @@ export function generatePureSVG(
       : { kind: 'cubic' as const, start: shifted(route.path.start), control1: shifted(route.path.control1), control2: shifted(route.path.control2), end: shifted(route.path.end) };
     const svgPath = buildEdgePathGeometry(shiftedInput).d;
 
-    const labelAnchor = geometry.labels.get(edge.id);
+    const labelAnchor = labels.get(edge.id);
     const labelX = labelAnchor ? labelAnchor.x - bounds.minX : undefined;
     const labelY = labelAnchor ? labelAnchor.y - bounds.minY : undefined;
 
@@ -260,8 +260,11 @@ export function generatePureSVG(
   ${renderStyleId === 'neubrutalism' ? brutalShadowFilter(isDark) : ''}
   ${metallicSurfaceDefs}
   ${studioSurfaceDefs}
-  ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${backgroundColor}"/>`}
+  ${backgroundColor === 'none' ? '' : `<rect x="0" y="0" width="${width}" height="${height}" fill="${escapeXml(backgroundColor)}"/>`}
   ${backgroundPattern}
+  <g id="groups">
+${groupElements.map((g) => '    ' + g.replace(/\n/g, '\n    ')).join('\n')}
+  </g>
   <g id="decor">
 ${decorElements.map((d) => '    ' + d.replace(/\n/g, '\n    ')).join('\n')}
   </g>

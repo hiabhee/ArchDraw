@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand';
 import { applyThemeChange } from '@/lib/theme/themeBridge';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { DiagramState } from '../types';
+import { DEFAULT_CANVAS_BACKGROUND } from '@/lib/config';
 
 export type UiSlice = Pick<
   DiagramState,
@@ -68,13 +69,7 @@ export const createUiSlice: StateCreator<
   isPenModeActive: false,
   // View state (never pushed to undo): 'text' arms click-to-place until a node is placed or Esc.
   activeTool: 'select',
-  canvasBackground: {
-    variant: 'lines',
-    bgColor: null,
-    patternColor: null,
-    gap: 24,
-    size: 1,
-  },
+  canvasBackground: { ...DEFAULT_CANVAS_BACKGROUND },
   setGuideLines: (lines) => set({ guideLines: lines }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setCanvasMode: (mode) => set({ canvasMode: mode }),

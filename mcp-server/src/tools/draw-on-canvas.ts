@@ -4,7 +4,7 @@ import { getDiagramState } from '../lib/diagram-state.js';
 import { applyDrawOps, DrawError, type CanvasEdge, type CanvasNode, type DrawStep } from '../lib/canvas-ops.js';
 import { validateGraph } from './validate-diagram.js';
 import { fetchWithTimeout, getApiBase } from '../lib/http.js';
-import { describeSaveFailure, type ImageStyleName } from '../lib/preview-links.js';
+import { describeSaveFailure, previewOptions, type ImageStyleName } from '../lib/preview-links.js';
 import { checkLayout, type LayoutIssue } from '../lib/layout-check.js';
 
 /** One line per node: where it is on the canvas and how big, so the next drawing can be placed exactly. */
@@ -50,7 +50,10 @@ const textOf = (node: CanvasNode): string | undefined => {
 };
 
 /** Canvas positions of every node (a node in a group stores its position relative to the group). */
-export function describeCanvas(nodes: CanvasNode[]): { canvas: CanvasEntry[]; bounds?: DrawResult['bounds'] } {
+export function describeCanvas(
+  nodes: CanvasNode[],
+  previewSizes?: PreviewResponse['previewNodeSizes'],
+): { canvas: CanvasEntry[]; bounds?: DrawResult['bounds'] } {
   const byId = new Map(nodes.map(node => [node.id, node]));
   const origin = (node: CanvasNode): { x: number; y: number } => {
     let x = node.position.x, y = node.position.y;
@@ -67,7 +70,8 @@ export function describeCanvas(nodes: CanvasNode[]): { canvas: CanvasEntry[]; bo
     const text = textOf(node);
     return {
       id: node.id, type: node.type, x: Math.round(x), y: Math.round(y),
-      width: Math.round(node.width ?? 200), height: Math.round(node.height ?? 70),
+      width: Math.round(previewSizes?.[node.id]?.width ?? node.width ?? 200),
+      height: Math.round(previewSizes?.[node.id]?.height ?? node.height ?? 70),
       ...(node.parentNode ? { parent: node.parentNode } : {}),
       ...(text ? { text } : {}),
     };
@@ -82,14 +86,25 @@ const fail = (error: string, extra: Partial<DrawResult> = {}): DrawResult => ({
   success: false, error, nodes: [], edges: [], steps: [], canvas: [], revision: 0, ...extra,
 });
 
-async function preview(apiBase: string, nodes: CanvasNode[], edges: CanvasEdge[], style: ImageStyleName): Promise<string | undefined> {
+interface PreviewResponse {
+  previewSvg?: string;
+  previewNodeSizes?: Record<string, { width: number; height: number }>;
+}
+
+function withPreview(base: DrawResult, preview: PreviewResponse = {}): DrawResult {
+  if (!preview.previewNodeSizes) return { ...base, previewSvg: preview.previewSvg };
+  const geometry = describeCanvas(base.nodes, preview.previewNodeSizes);
+  return { ...base, ...geometry, issues: checkLayout(geometry.canvas, base.edges as never), previewSvg: preview.previewSvg };
+}
+
+async function preview(apiBase: string, nodes: CanvasNode[], edges: CanvasEdge[], style: ImageStyleName): Promise<PreviewResponse | undefined> {
   try {
     const response = await fetchWithTimeout(`${apiBase}/api/diagram/load`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodes, edges, dryRun: true, preview: true, previewStyle: style }),
+      body: JSON.stringify({ nodes, edges, dryRun: true, ...previewOptions(style) }),
     });
     if (!response.ok) return undefined;
-    return ((await response.json()) as { previewSvg?: string }).previewSvg;
+    return await response.json() as PreviewResponse;
   } catch {
     return undefined;
   }
@@ -158,9 +173,8 @@ export async function publishCanvas(
       }
       const saved = await response.json() as { sessionId: string; revision: number };
       return {
-        ...base, revision: saved.revision, sessionId: saved.sessionId, updateToken,
+        ...withPreview(base, await preview(apiBase, nodes, edges, input.style)), revision: saved.revision, sessionId: saved.sessionId, updateToken,
         diagramUrl: `${apiBase}/editor?session=${saved.sessionId}`, shareUrl: `${apiBase}/share/${saved.sessionId}`,
-        previewSvg: await preview(apiBase!, nodes, edges, input.style),
       };
     } catch {
       return fail('Could not reach ArchDraw to update the published canvas. Nothing was drawn.', { revision: state.revision });
@@ -172,21 +186,20 @@ export async function publishCanvas(
     try {
       const response = await fetchWithTimeout(`${apiBase}/api/diagram/load`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodes, edges, label: input.label || 'ArchDraw canvas', source: 'mcp', publish: true, preview: true, previewStyle: input.style }),
+        body: JSON.stringify({ nodes, edges, label: input.label || 'ArchDraw canvas', source: 'mcp', publish: true, ...previewOptions(input.style) }),
       });
       if (response.ok) {
-        const saved = await response.json() as { sessionId: string; updateToken?: string; revision?: number; previewSvg?: string };
+        const saved = await response.json() as PreviewResponse & { sessionId: string; updateToken?: string; revision?: number };
         return {
-          ...base, revision: saved.revision ?? 1, sessionId: saved.sessionId, updateToken: saved.updateToken,
+          ...withPreview(base, saved), revision: saved.revision ?? 1, sessionId: saved.sessionId, updateToken: saved.updateToken,
           diagramUrl: `${apiBase}/editor?session=${saved.sessionId}`, shareUrl: `${apiBase}/share/${saved.sessionId}`,
-          previewSvg: saved.previewSvg,
         };
       }
-      return { ...base, linkError: describeSaveFailure(response.status), previewSvg: await preview(apiBase!, nodes, edges, input.style) };
+      return { ...withPreview(base, await preview(apiBase, nodes, edges, input.style)), linkError: describeSaveFailure(response.status) };
     } catch (error) {
       return { ...base, linkError: error instanceof Error ? error.message : 'ArchDraw could not save the canvas' };
     }
   }
 
-  return { ...base, ...(links ? { previewSvg: await preview(apiBase!, nodes, edges, input.style) } : {}) };
+  return links ? withPreview(base, await preview(apiBase, nodes, edges, input.style)) : base;
 }

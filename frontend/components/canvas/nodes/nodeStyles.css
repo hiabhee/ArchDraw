@@ -4,6 +4,43 @@
    No runtime injection, no port-dependent behavior.
    ────────────────────────────────────────────────────────────────── */
 
+.shape-label,
+.shape-label-text,
+.node-header-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.shape-label,
+.shape-label-text {
+  align-items: center;
+  text-align: center;
+}
+
+.shape-label {
+  box-sizing: border-box;
+  padding-inline: 4px;
+  user-select: none;
+}
+
+.shape-label--row {
+  flex-direction: row;
+  gap: 8px;
+  padding-inline: 6px;
+}
+
+.shape-label--row .shape-label-text,
+.node-header-text {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.shape-label--row .shape-label-text {
+  align-items: flex-start;
+  text-align: left;
+}
+
 /* ── CSS Custom Properties (tunable per-node via inline style) ──── */
 
 .node-wrapper {
@@ -1504,6 +1541,12 @@
   z-index: -1 !important;
 }
 
+/* Match the rounded rim of the Studio Metallic shape cards. */
+.dark [data-render-style='studio-metallic'] .node-card,
+.dark[data-render-style='studio-metallic'] .node-card {
+  border-radius: 16px;
+}
+
 /* Studio Metallic uses a satin highlight over the active palette's node fill. */
 [data-render-style='studio-metallic'] .node-card {
   background-image: var(--arch-node-surface-overlay);
@@ -1676,7 +1719,7 @@
 
 /* Studio cards carry larger text so a fitted map stays readable. */
 /* Sizes mirror STUDIO_TITLE_PX / STUDIO_SUBTITLE_PX in lib/diagram/nodes/studioMetrics.ts. */
-[data-render-style^='studio'] .node-title { font-size: 23px; }
+[data-render-style^='studio'] .node-title { font-size: 23px; font-weight: var(--arch-node-title-weight, 600); }
 [data-render-style^='studio'] .node-subtitle { font-size: 15.5px; }
 
 /* Text tool armed: the pane takes the text cursor so a click reads as "place text here". */

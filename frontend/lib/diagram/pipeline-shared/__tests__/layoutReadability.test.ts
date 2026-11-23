@@ -23,8 +23,8 @@ import { randomDiagram, type RandomDiagramOptions } from './fixtures/randomDiagr
  * The mean over all templates went from 13.5px to 15.5px.
  */
 const TITLE_PX_FLOOR: Record<string, number> = {
-  'archdraw_self:LR': 2.7,
-  'archdraw_self:TD': 3.3,
+  'archdraw_self:LR': 3.0,
+  'archdraw_self:TD': 4.2,
   'chatgpt:LR': 6.6,
   'chatgpt:TD': 6.2,
   'instagram:LR': 5.4,
@@ -123,6 +123,11 @@ describe('layout readability', () => {
         const unfoldedScore = measureLayoutAesthetics(unfolded.nodes, unfolded.edges, direction);
         expect(foldedScore.titlePxAtFit, `${label} title size vs unfolded`).toBeGreaterThanOrEqual(unfoldedScore.titlePxAtFit - 1e-6);
         expect(foldedScore.titlePxAtFit, `${label} title size floor`).toBeGreaterThanOrEqual(TITLE_PX_FLOOR[label] ?? 0);
+        if (template.id === 'archdraw_self') {
+          expect(folded.geometrySummary?.hardViolations, label).toBe(0);
+          expect(folded.geometrySummary?.crossings, label).toBeLessThanOrEqual(direction === 'LR' ? 12 : 11);
+          expect(folded.geometrySummary?.unexplainedPrivateOverlapLength, label).toBeLessThanOrEqual(direction === 'LR' ? 0 : 81);
+        }
         expectNoOverlapAndContained(folded.nodes, label);
       }, 180_000);
     }

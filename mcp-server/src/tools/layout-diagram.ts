@@ -1,7 +1,7 @@
 import type { LayoutDiagramInput } from '../lib/schema.js';
 import { getDiagramState } from '../lib/diagram-state.js';
 import type { CanvasEdge, CanvasNode } from '../lib/canvas-ops.js';
-import { fetchWithTimeout, getApiBase } from '../lib/http.js';
+import { DIAGRAM_LAYOUT_TIMEOUT_MS, fetchWithTimeout, getApiBase } from '../lib/http.js';
 import { describeCanvas, publishCanvas, type DrawResult } from './draw-on-canvas.js';
 import { checkLayout } from '../lib/layout-check.js';
 
@@ -37,7 +37,7 @@ export async function layoutDiagram(input: LayoutDiagramInput, workingSession?: 
         nodes, edges: state.edges, dryRun: true,
         layout: { direction: input.direction, style: input.arrangement, foldLongFlows: input.fold, mixGroupDirections: input.mixDirections, profile: 'studio-minimal' },
       }),
-    });
+    }, DIAGRAM_LAYOUT_TIMEOUT_MS);
     if (!response.ok) {
       const detail = await response.json().catch(() => ({})) as { error?: string };
       return fail(`${detail.error ?? `ArchDraw could not lay the diagram out (HTTP ${response.status}).`} Nothing was changed.`, state.revision);

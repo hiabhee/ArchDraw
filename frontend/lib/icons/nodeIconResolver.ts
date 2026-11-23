@@ -186,6 +186,12 @@ const LABEL_MATCHERS: Array<{
   { source: 'label', icon: 'arch-coordinator', test: /\b(zookeeper|coordinator|coordination|orchestrat)\b/i },
   { source: 'label', icon: 'arch-cdn', test: /\b(cdn|cloudfront|content delivery|edge cache)\b/i },
   { source: 'label', icon: 'arch-dns', test: /\b(dns|route\s*53|name server)\b/i },
+  // Search pipeline roles use distinct glyphs before the general search matcher.
+  { source: 'label', icon: 'arch-agent', test: /\b(googlebot|web crawler|search crawler|web spider)\b/i },
+  { source: 'label', icon: 'arch-etl', test: /\b(indexer|indexing|index builder)\b/i },
+  { source: 'label', icon: 'arch-storage', test: /\b(search index|inverted index|index store)\b/i },
+  { source: 'label', icon: 'arch-router', test: /\b(search serving|search ranker|query service|ranking service)\b/i },
+  { source: 'label', icon: 'arch-file', test: /\b(results? page|search results|search listings)\b/i },
   { source: 'label', icon: 'arch-search', test: /\b(search|elasticsearch|algolia|opensearch|meilisearch|typesense)\b/i },
   { source: 'label', icon: 'arch-function', test: /\b(lambda|cloud function|serverless|azure function)\b/i },
   { source: 'label', icon: 'arch-worker', test: /\b(worker|job runner|cron|background job)\b/i },

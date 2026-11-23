@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Edge, Node } from 'reactflow';
+import { Position, type Edge, type Node } from 'reactflow';
 import { computeDiagramGeometryPlan, computeDiagramGeometryPreview, geometrySnapshotKey, getCachedDiagramGeometryPlan } from '../diagramGeometry';
-import { computeEdgeRoute } from '../../edges/edgeRouteBuilder';
+import { computeEdgeRoute, getNodeRect } from '../../edges/edgeRouteBuilder';
+import { optimizeEdgeRoutes } from '../../edges/edgeRouteOptimizer';
+import { TEMPLATES } from '@/data/templates';
+import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
 
 const node = (id: string, x: number, y: number): Node => ({
   id, type: 'systemNode', position: { x, y }, width: 160, height: 80, data: { label: id },
@@ -11,6 +14,78 @@ const edge = (id: string, label: string): Edge => ({
 } as Edge);
 
 describe('computeDiagramGeometryPlan', () => {
+  it('reroutes the Restaurant Portal crossing on a Food Delivery canvas laid out at default card sizes', async () => {
+    const template = TEMPLATES.find(({ id }) => id === 'food_delivery')!;
+    const layout = await layoutDiagramViaMermaid(template.nodes, template.edges, 'LR', { title: template.name });
+    expect(layout.success).toBe(true);
+    const options = { direction: 'LR', renderStyleId: 'studio-metallic', iconMode: 'all', straightEdges: false } as const;
+    const original = computeDiagramGeometryPlan(layout.nodes, layout.edges, options);
+    expect(original.violations).toContainEqual(expect.objectContaining({
+      code: 'EDGE_CROSSING', edgeId: 'fd_e2', otherEdgeId: 'fd_e9',
+    }));
+
+    const visible = computeDiagramGeometryPlan(layout.nodes, layout.edges, { ...options, repairReturnCrossings: true });
+
+    expect(visible.quality.crossings).toBe(0);
+    expect(visible.quality.hardViolations).toBe(0);
+    expect(visible.routes.size).toBe(layout.edges.length);
+    expect(visible.quality.unexplainedPrivateOverlapLength).toBeLessThanOrEqual(original.quality.unexplainedPrivateOverlapLength);
+    const changedRoutes = layout.edges.filter(({ id }) =>
+      visible.routes.get(id)?.svgPath !== original.routes.get(id)?.svgPath,
+    );
+    const movedReturn = layout.edges.find(({ id }) => id === 'fd_e9')!;
+    expect(changedRoutes).toContain(movedReturn);
+    for (const changed of changedRoutes) {
+      // Other routes may re-center when the return edge leaves their side.
+      expect([changed.source, changed.target].some(id => id === movedReturn.source || id === movedReturn.target)).toBe(true);
+    }
+    expect(visible.routes.get('fd_e2')?.svgPath).toBe(original.routes.get('fd_e2')?.svgPath);
+    expect(['left', 'bottom']).toContain(visible.routes.get('fd_e9')?.sourcePosition);
+  });
+
+  it('centers the remaining incoming edge when the return edge leaves the top side', () => {
+    const nodes = [node('gateway', 700, 0), node('order', 700, 360), node('events', 0, 360)];
+    const edges: Edge[] = [
+      { id: 'incoming', source: 'gateway', target: 'order', data: {
+        sourceSide: 'bottom', sourceSideLocked: true, targetSide: 'top', targetSideLocked: true,
+      } },
+      { id: 'return', source: 'order', target: 'events', data: { targetSide: 'right', targetSideLocked: true } },
+    ];
+    const options = {
+      nodes, edges, direction: 'LR' as const,
+      searchBudget: { maxCandidateRoutes: edges.length },
+      handleAnchors: new Map([
+        ['return', { sourceSide: Position.Top, source: { x: 800, y: 348 }, target: { x: 212, y: 400 } }],
+      ]),
+    };
+    const original = optimizeEdgeRoutes(options);
+    const incoming = original.routes.get('incoming')!;
+    const returning = original.routes.get('return')!;
+    expect(returning.sourcePosition).toBe('top');
+    expect(incoming.targetPosition).toBe('top');
+    expect(returning.sourcePoint.x).not.toBe(incoming.targetPoint.x);
+
+    const visible = optimizeEdgeRoutes({ ...options, repairReturnCrossings: true });
+
+    expect(['left', 'bottom']).toContain(visible.routes.get('return')?.sourcePosition);
+    const box = getNodeRect(nodes[1], nodes);
+    expect(visible.routes.get('incoming')?.targetPosition).toBe(incoming.targetPosition);
+    expect(visible.routes.get('incoming')?.targetPoint.x).toBe(box.x + box.w / 2);
+    expect(visible.diagnostics).toEqual([]);
+  });
+
+  it('reports when a fitted preview label overlaps its own terminal cards', () => {
+    const nodes = [node('a', 0, 0), node('b', 325, 0)];
+    const index = edge('index', 'Index page information');
+    const edges = [{ ...index, data: { ...index.data, fitPreviewLabels: true } }];
+    const plan = computeDiagramGeometryPlan(nodes, edges, { direction: 'LR', renderStyleId: 'studio-metallic' });
+
+    expect(plan.violations).toEqual([
+      { severity: 'hard', code: 'LABEL_COLLISION', edgeId: 'index', withId: 'a' },
+      { severity: 'hard', code: 'LABEL_COLLISION', edgeId: 'index', withId: 'b' },
+    ]);
+  });
+
   it('uses orthogonal segments for staggered nodes under the canvas routing policy', () => {
     const nodes = [node('a', 0, 0), node('b', 500, 200)];
     const edges: Edge[] = [{ id: 'step', source: 'a', target: 'b' }];
@@ -176,14 +251,15 @@ describe('computeDiagramGeometryPlan', () => {
     const base = { direction: 'LR' as const, revision: 4 };
     const first = getCachedDiagramGeometryPlan(nodes, edges, {
       ...base,
-      handleAnchors: new Map([['e1', { source: { x: 312, y: 145 }, target: { x: 488, y: 145 } }]]),
+      handleAnchors: new Map([['e1', { source: { x: 309, y: 145 }, target: { x: 491, y: 145 } }]]),
     });
     const second = getCachedDiagramGeometryPlan(nodes, edges, {
       ...base,
-      handleAnchors: new Map([['e1', { source: { x: 312, y: 155 }, target: { x: 488, y: 155 } }]]),
+      handleAnchors: new Map([['e1', { source: { x: 315, y: 155 }, target: { x: 485, y: 155 } }]]),
     });
 
     expect(second.key).not.toBe(first.key);
-    expect(second.routes.get('e1')?.sourcePoint.y).not.toBe(first.routes.get('e1')?.sourcePoint.y);
+    expect(second.routes.get('e1')?.sourcePoint.x).not.toBe(first.routes.get('e1')?.sourcePoint.x);
+    expect(second.routes.get('e1')?.sourcePoint.y).toBe(first.routes.get('e1')?.sourcePoint.y);
   });
 });

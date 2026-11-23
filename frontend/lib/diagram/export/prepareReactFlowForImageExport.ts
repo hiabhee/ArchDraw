@@ -1,79 +1,25 @@
 /**
- * Shared DOM capture prep for PNG / SVG export via html-to-image.
- * Clones the live canvas subtree so exports match what users see.
+ * Helpers for capturing and encoding the offscreen export canvas.
  */
 
 type BgType = 'dark' | 'light' | 'transparent';
 
-interface PathSnapshot {
-  path: SVGPathElement;
-  attributes: Record<string, string | null>;
-}
-
-function snapshotPath(path: SVGPathElement): PathSnapshot {
-  const names = ['stroke-dasharray', 'stroke', 'stroke-width', 'opacity', 'fill', 'marker-end', 'marker-start'];
-  const attributes: Record<string, string | null> = {};
-  for (const name of names) {
-    attributes[name] = path.hasAttribute(name) ? path.getAttribute(name) : null;
-  }
-  return { path, attributes };
-}
-
-function restorePathSnapshots(snapshots: PathSnapshot[]): void {
-  for (const { path, attributes } of snapshots) {
-    for (const [name, value] of Object.entries(attributes)) {
-      if (value === null) path.removeAttribute(name);
-      else path.setAttribute(name, value);
-    }
-  }
-}
-
-/**
- * Inline computed styles onto SVG edge paths before html-to-image export.
- */
-/** Canvas wrapper whose selection-focus dimming is paused during an export. */
-let pausedFocusRoot: Element | null = null;
-
-export function prepareReactFlowForImageExport(root: HTMLElement): PathSnapshot[] {
-  // Selection focus is a view effect: never bake the dimming into an image.
-  pausedFocusRoot = root.closest('.archdraw-focus') ?? root.querySelector('.archdraw-focus');
-  pausedFocusRoot?.classList.remove('archdraw-focus');
-  const snapshots: PathSnapshot[] = [];
-  const paths = root.querySelectorAll<SVGPathElement>('.react-flow__edge-path');
-  paths.forEach((path) => {
-    snapshots.push(snapshotPath(path));
-    const computed = window.getComputedStyle(path);
-    const dash = path.style.strokeDasharray || computed.strokeDasharray;
-    if (dash && dash !== 'none') {
-      path.setAttribute('stroke-dasharray', dash);
-    }
-    const stroke = path.style.stroke || computed.stroke;
-    if (stroke) path.setAttribute('stroke', stroke);
-    const strokeWidth = path.style.strokeWidth || computed.strokeWidth;
-    if (strokeWidth) path.setAttribute('stroke-width', strokeWidth);
-    const opacity = path.style.opacity || computed.opacity;
-    if (opacity && opacity !== '1') path.setAttribute('opacity', opacity);
+/** Inline SVG attributes for the offscreen copy. The image decoder has no page stylesheet. */
+export function prepareReactFlowForImageExport(root: HTMLElement): void {
+  for (const path of root.querySelectorAll<SVGPathElement>('.react-flow__edge-path')) {
+    const computed = getComputedStyle(path);
+    path.setAttribute('stroke-dasharray', computed.strokeDasharray);
+    path.setAttribute('stroke', computed.stroke);
+    path.setAttribute('stroke-width', computed.strokeWidth);
+    path.setAttribute('opacity', computed.opacity);
     path.setAttribute('fill', 'none');
-    const markerEnd = path.getAttribute('marker-end');
-    if (markerEnd) path.setAttribute('marker-end', markerEnd);
-    const markerStart = path.getAttribute('marker-start');
-    if (markerStart) path.setAttribute('marker-start', markerStart);
-  });
-  return snapshots;
+  }
 }
 
-export function restoreReactFlowAfterImageExport(snapshots: PathSnapshot[]): void {
-  restorePathSnapshots(snapshots);
-  pausedFocusRoot?.classList.add('archdraw-focus');
-  pausedFocusRoot = null;
-}
-
-/** Skip minimap, controls, dot background and handles — handles must never leak into exported PNG. */
+/** Keep diagram content and its grid. Exclude controls and handles from the image. */
 export function reactFlowExportFilter(node: HTMLElement): boolean {
   const cls = node.classList;
   if (!cls) return true;
-  // Keep `react-flow__background`: the primary SVG→PNG path draws the grid
-  // when it's shown on the canvas, so the DOM-screenshot fallback must too.
   if (
     cls.contains('react-flow__minimap') ||
     cls.contains('react-flow__controls') ||
@@ -120,8 +66,12 @@ export function resolveExportBackgroundColor(
   return '#ffffff';
 }
 
-export async function waitForReactFlowFrame(ms = 400): Promise<void> {
-  await new Promise((r) => setTimeout(r, ms));
-  await new Promise<void>((r) => requestAnimationFrame(() => r()));
-  await new Promise<void>((r) => requestAnimationFrame(() => r()));
+/** Decode the raster without an extra image draw or a CSP-sensitive fetch of a data URL. */
+export function pngDataUrlToBlob(dataUrl: string): Blob {
+  const prefix = 'data:image/png;base64,';
+  if (!dataUrl.startsWith(prefix)) throw new Error('Invalid PNG data URL');
+  const characters = atob(dataUrl.slice(prefix.length));
+  const bytes = new Uint8Array(characters.length);
+  for (let index = 0; index < bytes.length; index += 1) bytes[index] = characters.charCodeAt(index);
+  return new Blob([bytes], { type: 'image/png' });
 }

@@ -1,9 +1,13 @@
 import type { ReactFlowNode, ReactFlowEdge } from '../types/index.js';
 import { fetchWithTimeout, getApiBase } from './http.js';
+import type { ImageStyleName } from './preview-links.js';
 
 export interface DiagramState {
   nodes: ReactFlowNode[];
   edges: ReactFlowEdge[];
+  label?: string;
+  direction?: 'LR' | 'TD';
+  style?: ImageStyleName;
   sessionId?: string;
   /** Opaque capability used only to update an explicitly published diagram. */
   updateToken?: string;
@@ -16,11 +20,9 @@ export const DEFAULT_WORKING_SESSION = 'default';
 
 function copy(state: DiagramState): DiagramState {
   return {
+    ...state,
     nodes: state.nodes.map(node => ({ ...node, position: { ...node.position }, data: { ...node.data } })),
     edges: state.edges.map(edge => ({ ...edge, data: edge.data ? { ...edge.data } : edge.data })),
-    ...(state.sessionId ? { sessionId: state.sessionId } : {}),
-    ...(state.updateToken ? { updateToken: state.updateToken } : {}),
-    revision: state.revision,
   };
 }
 

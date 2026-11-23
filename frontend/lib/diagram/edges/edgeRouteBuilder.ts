@@ -15,6 +15,7 @@ import {
   scoreAllHandlerPairs,
   buildDefaultOrthogonalWaypoints,
   anchorOutsideBoundary,
+  HANDLER_ENDPOINT_GAP,
   type HandlerRect,
   type HandlerPairScore,
 } from './handlerPairScorer'
@@ -50,9 +51,46 @@ function completeRoute<T extends Omit<EdgeRouteResult, 'path' | 'renderedPath' |
   nodes: Node[],
   excludedNodeIds: Set<string>,
   borderRadius: number,
-  terminals?: { source: ObstacleRect; target: ObstacleRect },
+  terminals?: { source: ObstacleRect; target: ObstacleRect; preserveLane?: boolean },
   routeOutcome?: RoutePathOutcome,
 ): EdgeRouteResult {
+  // The router starts above or below the card for clearance. Draw the
+  // departure from the border so the vertical leg is visible at the card.
+  if (terminals && (result.sourcePosition === Position.Top || result.sourcePosition === Position.Bottom) && result.waypoints.length >= 2) {
+    const [anchor, next] = result.waypoints;
+    const box = terminals.source;
+    const top = result.sourcePosition === Position.Top;
+    const start = { x: anchor.x, y: top ? box.y : box.y + box.h };
+    const rise = (y: number) => (y - start.y) * (top ? -1 : 1);
+    if (rise(anchor.y) > 0 && rise(anchor.y) <= 16) {
+      const leavesVertically = Math.abs(next.x - anchor.x) < 0.01 && rise(next.y) > 0;
+      // Established vertical runs already show the departure clearly.
+      // Extend a short or tangential exit to make the rise visible.
+      let points = result.waypoints;
+      if (!leavesVertically || rise(next.y) - rise(anchor.y) <= 8) {
+        points = [start, ...result.waypoints.slice(leavesVertically ? 1 : 0)];
+      }
+
+      // A tiny step between two horizontal runs just after a vertical
+      // departure can usually be absorbed into that departure.
+      const firstSideways = result.waypoints.findIndex(point => Math.abs(point.x - anchor.x) >= 0.01);
+      const [elbow, jogStart, jogEnd, laneEnd] = firstSideways > 0
+        ? result.waypoints.slice(firstSideways - 1, firstSideways + 3)
+        : [];
+      if (!terminals.preserveLane && elbow && jogStart && jogEnd && laneEnd
+        && Math.abs(elbow.y - jogStart.y) < 0.01
+        && Math.abs(jogStart.x - jogEnd.x) < 0.01
+        && Math.abs(jogEnd.y - laneEnd.y) < 0.01
+        && Math.abs(jogEnd.y - jogStart.y) > 0.01
+        && Math.abs(jogEnd.y - jogStart.y) <= 8
+        && Math.sign(jogStart.x - elbow.x) * Math.sign(laneEnd.x - jogEnd.x) > 0
+        && rise(jogEnd.y) >= 8) {
+        const simplified = [start, { x: start.x, y: jogEnd.y }, ...result.waypoints.slice(firstSideways + 2)];
+        if (routeStatus(simplified, nodes, excludedNodeIds, terminals).status === 'ok') points = simplified;
+      }
+      if (points !== result.waypoints) result = { ...result, waypoints: points, sourcePoint: start };
+    }
+  }
   // Route corridors terminate outside the card for clearance. Extend only the
   // final terminal leg to the visible border so the arrow never floats in air.
   if (terminals && (result.targetPosition === Position.Top || result.targetPosition === Position.Bottom) && result.waypoints.length >= 2) {
@@ -198,10 +236,8 @@ function pointsNear(
 }
 
 /**
- * Snap near-aligned facing terminals to a pixel-straight line at the
- * midpoint. A 2–7px diagonal reads as a slanted wire, while ≤4px off a
- * handle center stays inside the handle donut. Returns the (possibly
- * unchanged) endpoint pair.
+ * Without measured handles, a 2–7px diagonal reads as a slanted wire while the
+ * midpoint stays inside both handle donuts. Measured anchors keep their center.
  */
 function snapNearAlignedEndpoints(
   sh: { x: number; y: number },
@@ -224,6 +260,18 @@ function snapNearAlignedEndpoints(
     return [{ x: midX, y: sh.y }, { x: midX, y: th.y }]
   }
   return [sh, th]
+}
+
+/** Measured handle centers can refine clearance but cannot shift the side's slot. */
+function applyMeasuredClearance(
+  scored: { x: number; y: number },
+  measured: { x: number; y: number } | undefined,
+  side: Position,
+): { x: number; y: number } {
+  if (!measured || !pointsNear(measured, scored)) return scored;
+  return side === Position.Left || side === Position.Right
+    ? { x: measured.x, y: scored.y }
+    : { x: scored.x, y: measured.y };
 }
 
 /**
@@ -409,12 +457,10 @@ function computeDirectWaypoints(
   trustMeasuredTerminals: boolean = false,
   maxExpandedStates?: number,
   preferStraight: boolean = false,
+  foreignNodeClearance: number = DIRECT_FOREIGN_NODE_CLEARANCE,
 ): { waypoints: Array<{ x: number; y: number }>; outcome?: RoutePathOutcome } {
-  // A tiny height difference should read as one straight connector. Snap to
-  // the midpoint so the wire is pixel-straight instead of a shallow diagonal;
-  // moving either endpoint stays inside the handle donut. An orthogonal Z
-  // route would put a short vertical kink in the middle, while moving only
-  // one endpoint would detach the line from its visible handle.
+  // A tiny height difference should read as one straight connector only when no
+  // measured handle center must be honored. Measured anchors stay centered.
   const nearHorizontal =
     ((sourcePosition === Position.Right && targetPosition === Position.Left && sh.x < th.x) ||
       (sourcePosition === Position.Left && targetPosition === Position.Right && sh.x > th.x)) &&
@@ -425,11 +471,11 @@ function computeDirectWaypoints(
       (sourcePosition === Position.Top && targetPosition === Position.Bottom && sh.y > th.y)) &&
     Math.abs(sh.x - th.x) > 0.01 &&
     Math.abs(sh.x - th.x) < 8;
-  if (edgeOffset === 0 && (nearHorizontal || nearVertical)) {
+  if (!trustMeasuredTerminals && edgeOffset === 0 && (nearHorizontal || nearVertical)) {
     const [ssh, sth] = snapNearAlignedEndpoints(sh, th, sourcePosition, targetPosition);
     const straight = [ssh, sth];
     const blocked = nodeRects && pathCollidesWithRects(straight, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE);
-    if (!blocked && (trustMeasuredTerminals || !pathEntersTerminalInterior(straight, sourceRect, targetRect))) {
+    if (!blocked && !pathEntersTerminalInterior(straight, sourceRect, targetRect)) {
       return { waypoints: straight };
     }
   }
@@ -459,7 +505,7 @@ function computeDirectWaypoints(
   const hitsObstacle = !!(
     nodeRects &&
     nodeRects.size > 0 &&
-    pathCollidesWithRects(directWaypoints, nodeRects, DIRECT_FOREIGN_NODE_CLEARANCE)
+    pathCollidesWithRects(directWaypoints, nodeRects, foreignNodeClearance)
   )
   const hitsTerminal = !trustMeasuredTerminals && pathEntersTerminalInterior(directWaypoints, sourceRect, targetRect)
 
@@ -768,19 +814,17 @@ export function buildLanePath(
 }
 
 /**
- * Where the vertical channel of a left-to-right Z route should run so that every
- * edge of a fan shares it: edges into one node meet in one channel (the middle
- * of the gap between the rightmost source and the target), edges out of one node
- * leave through one (the middle of the gap before the nearest target). Without
- * this each edge picks the middle of its own two anchors, so sources of
- * different widths stagger their channels and the merge looks uneven.
+ * Align a fan's branches to a common channel before trying private lanes or
+ * obstacle detours. Measure along the flow axis, so this also works for rows
+ * whose cards have different heights.
  * Returns null when the edge is not part of a fan or the fan does not face it.
  */
 /** Closest a shared trunk sits to the node it hugs (room for the corner radius), and its share of the gap. */
 const FAN_TRUNK_MIN = 32
 const FAN_TRUNK_SHARE = 0.3
+const TOP_DOWN_FAN_EDGE_LIMIT = 40
 
-function fanChannelX(
+function fanChannel(
   edge: Edge,
   nodes: Node[],
   edges: Edge[],
@@ -788,13 +832,15 @@ function fanChannelX(
   th: { x: number; y: number },
   sourceRect: ObstacleRect,
   targetRect: ObstacleRect,
+  axis: 'x' | 'y',
   renderStyleId?: string,
   iconMode?: NodeIconMode,
 ): number | null {
   const byId = (id: string) => nodes.find(node => node.id === id)
   const rectOf = (id: string) => { const node = byId(id); return node ? getNodeRect(node, nodes, renderStyleId, iconMode) : null }
-  const sourceGap = sh.x - (sourceRect.x + sourceRect.w)
-  const targetGap = th.x - targetRect.x
+  const size = axis === 'x' ? 'w' : 'h'
+  const sourceGap = sh[axis] - (sourceRect[axis] + sourceRect[size])
+  const targetGap = th[axis] - targetRect[axis]
 
   const sources = [...new Set(edges.filter(e => e.target === edge.target && e.source !== e.target).map(e => e.source))]
   const targets = [...new Set(edges.filter(e => e.source === edge.source && e.source !== e.target).map(e => e.target))]
@@ -808,13 +854,13 @@ function fanChannelX(
   // an arrowhead, so labels ended up touching the marker.
   const trunkOffset = (gap: number) => Math.min(gap / 2, Math.max(FAN_TRUNK_MIN, gap * FAN_TRUNK_SHARE))
   if (fanOut && (!fanIn || targets.length >= sources.length)) {
-    const lefts = targets.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + targetGap)
-    if (lefts.length !== targets.length || lefts.some(x => x <= sh.x)) return null
-    return sh.x + trunkOffset(Math.min(...lefts) - sh.x)
+    const starts = targets.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r[axis] + targetGap)
+    if (starts.length !== targets.length || starts.some(coord => coord <= sh[axis])) return null
+    return sh[axis] + trunkOffset(Math.min(...starts) - sh[axis])
   }
-  const rights = sources.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r.x + r.w + sourceGap)
-  if (rights.length !== sources.length || rights.some(x => x >= th.x)) return null
-  return th.x - trunkOffset(th.x - Math.max(...rights))
+  const ends = sources.map(id => rectOf(id)).filter((r): r is ObstacleRect => r !== null).map(r => r[axis] + r[size] + sourceGap)
+  if (ends.length !== sources.length || ends.some(coord => coord >= th[axis])) return null
+  return th[axis] - trunkOffset(th[axis] - Math.max(...ends))
 }
 
 export function computeEdgeRoute(
@@ -828,6 +874,9 @@ export function computeEdgeRoute(
   routeOptions: EdgeRouteOptions = {},
 ): EdgeRouteResult {
   const context = routeOptions.context ?? createEdgeRoutingContext(nodes, edges, direction, renderStyleId, iconMode)
+  // Dense graphs need the full side search to avoid long overlapping trunks.
+  const preferTopDownFan = direction === 'TD' &&
+    (edges.length < TOP_DOWN_FAN_EDGE_LIMIT || edge.data?.separateSharedStrokes === true)
   const sourceNode = context.nodeById.get(edge.source)
   const targetNode = context.nodeById.get(edge.target)
 
@@ -1041,17 +1090,26 @@ export function computeEdgeRoute(
       targetPosition = handlerPair.targetSide
     }
 
+    if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
+    if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+    const hasMeasuredSides = handleAnchors?.sourceSide !== undefined || handleAnchors?.targetSide !== undefined
+    const resolveSide: typeof context.resolveSide = hasMeasuredSides
+      ? (candidate, nodeId) => candidate.id === edge.id
+        ? (nodeId === edge.source ? sourcePosition : targetPosition)
+        : context.resolveSide(candidate, nodeId)
+      : context.resolveSide;
+
     const nodeMap = context.nodeById
     const sourceShift = getEdgeShiftOffset(
       edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
       undefined, undefined,
-      context.resolveSide,
+      resolveSide,
       renderStyleId, iconMode,
     )
     const targetShift = getEdgeShiftOffset(
       edge.target, edge.id, targetPosition, edges, nodeMap, 24,
       undefined, undefined,
-      context.resolveSide,
+      resolveSide,
       renderStyleId, iconMode,
     )
     const scoredSh = getBoundaryAnchor(
@@ -1062,18 +1120,8 @@ export function computeEdgeRoute(
       targetRect.x, targetRect.y, targetRect.w, targetRect.h,
       targetPosition, targetShift,
     )
-    // Same staleness rule as the main branch: stored handle ids go stale when
-    // a side re-floats, and the measured center then belongs to a hidden
-    // handle. Adopt it only on the scorer winner; otherwise a dragged edge
-    // validates (and draws) against empty canvas.
-    const sh = handleAnchors?.source && pointsNear(handleAnchors.source, scoredSh)
-      ? handleAnchors.source
-      : scoredSh
-    const th = handleAnchors?.target && pointsNear(handleAnchors.target, scoredTh)
-      ? handleAnchors.target
-      : scoredTh
-    if (manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
-    if (manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
+    const sh = applyMeasuredClearance(scoredSh, handleAnchors?.source, sourcePosition);
+    const th = applyMeasuredClearance(scoredTh, handleAnchors?.target, targetPosition);
 
     const { waypoints, svgPath } = buildCustomWaypointPath(sh, th, customWaypoints, curveRadius)
     const result = {
@@ -1159,9 +1207,14 @@ export function computeEdgeRoute(
   if (!routeOptions.attachmentSides && manualSourceSide === undefined && handleAnchors?.sourceSide) sourcePosition = handleAnchors.sourceSide
   if (!routeOptions.attachmentSides && manualTargetSide === undefined && handleAnchors?.targetSide) targetPosition = handleAnchors.targetSide
 
+  const hasMeasuredSides = handleAnchors?.sourceSide !== undefined || handleAnchors?.targetSide !== undefined
   const routeForSides = (sourcePosition: Position, targetPosition: Position): EdgeRouteResult => {
     const nodeMap = context.nodeById
-    const resolveSide = context.resolveSide
+    const resolveSide: typeof context.resolveSide = hasMeasuredSides
+      ? (candidate, nodeId) => candidate.id === edge.id
+        ? (nodeId === edge.source ? sourcePosition : targetPosition)
+        : context.resolveSide(candidate, nodeId)
+      : context.resolveSide;
 
     const sourceShift = getEdgeShiftOffset(
       edge.source, edge.id, sourcePosition, edges, nodeMap, 24,
@@ -1190,14 +1243,8 @@ export function computeEdgeRoute(
     )
     const measuredSh = handleAnchors?.source
     const measuredTh = handleAnchors?.target
-    const [preSh, preTh] = [
-      measuredSh && pointsNear(measuredSh, scoredSh) ? measuredSh : scoredSh,
-      measuredTh && pointsNear(measuredTh, scoredTh) ? measuredTh : scoredTh,
-    ]
-    // Pixel-straighten near-aligned facing terminals (see helper): a 2–7px
-    // diagonal reads as slanted, while the midpoint stays in both donuts.
-    const [sh, th] = snapNearAlignedEndpoints(preSh, preTh, sourcePosition, targetPosition)
-
+    const sh = applyMeasuredClearance(scoredSh, measuredSh, sourcePosition);
+    const th = applyMeasuredClearance(scoredTh, measuredTh, targetPosition);
 
     // Intermediate nodes only for the obstacle map — source/target are added
     // inside computeDirectWaypoints so detours cannot tunnel through terminals.
@@ -1236,14 +1283,15 @@ export function computeEdgeRoute(
     const parallelLaneOffset = routeOptions.laneOffset ?? (parallelEdges.length > 1
       ? (parallelIndex - (parallelEdges.length - 1) / 2) * 28
       : 0)
-    // Edges of one fan share a channel (see fanChannelX); bidirectional lanes keep their own offset.
+    // Align the initial fan channel; bidirectional lanes keep their own offset.
     let channelOffset = 0
-    if (
-      edgeOffset === 0 && sourcePosition === Position.Right && targetPosition === Position.Left &&
-      sh.x < th.x && Math.abs(sh.y - th.y) >= 8
-    ) {
-      const channelX = fanChannelX(edge, nodes, edges, sh, th, sourceRect, targetRect, renderStyleId, iconMode)
-      if (channelX !== null && channelX > sh.x && channelX < th.x) channelOffset = channelX - (sh.x + th.x) / 2
+    const channelAxis = sourcePosition === Position.Right && targetPosition === Position.Left ? 'x'
+      : preferTopDownFan && sourcePosition === Position.Bottom && targetPosition === Position.Top ? 'y' : null
+    if (channelAxis && edgeOffset === 0 && sh[channelAxis] < th[channelAxis] && routeAxisSeparation >= 8) {
+      const channel = fanChannel(edge, nodes, edges, sh, th, sourceRect, targetRect, channelAxis, renderStyleId, iconMode)
+      if (channel !== null && channel > sh[channelAxis] && channel < th[channelAxis]) {
+        channelOffset = channel - (sh[channelAxis] + th[channelAxis]) / 2
+      }
     }
     const directRoute = computeDirectWaypoints(
       sh, th, sourcePosition, targetPosition, edgeOffset + channelOffset,
@@ -1255,6 +1303,9 @@ export function computeEdgeRoute(
       ),
       routeOptions.searchBudget?.maxExpandedStates,
       routeOptions.straightEdges === true && edgeOffset === 0,
+      // A horizontal fan channel can pass above a taller sibling with the
+      // same clearance as a handle. Keep the full padding for arbitrary routes.
+      channelAxis === 'y' && channelOffset !== 0 ? HANDLER_ENDPOINT_GAP : DIRECT_FOREIGN_NODE_CLEARANCE,
     )
     let waypoints = directRoute.waypoints
     let svgPath = buildSmoothStepSvg(waypoints, curveRadius)
@@ -1316,7 +1367,11 @@ export function computeEdgeRoute(
       validation.status = 'failed'
       validation.failureReason = 'no-path-found'
     }
-    return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, { source: sourceRect, target: targetRect }, directRoute.outcome)
+    return completeRoute({ ...result, waypoints, svgPath, ...validation }, nodes, validationExcludedIds, curveRadius, {
+      source: sourceRect,
+      target: targetRect,
+      preserveLane: parallelEdges.length > 1,
+    }, directRoute.outcome)
   }
 
   const primary = routeForSides(sourcePosition, targetPosition)
@@ -1327,6 +1382,17 @@ export function computeEdgeRoute(
   const sidesPinned = manualSourceSide !== undefined || manualTargetSide !== undefined
     || routeOptions.attachmentSides !== undefined
   if (sidesPinned) return primary
+
+  // Give forward branches room to separate their strokes on a shared channel
+  // before considering shorter side attachments.
+  if (preferTopDownFan && !routeOptions.straightEdges && !bidirectionalSides
+    && (!laneSourcePreference || laneSourcePreference === Position.Bottom)
+    && (!laneTargetPreference || laneTargetPreference === Position.Top)
+    && targetRect.y - (sourceRect.y + sourceRect.h) > 2 * HANDLER_ENDPOINT_GAP) {
+    const forward = sourcePosition === Position.Bottom && targetPosition === Position.Top
+      ? primary : routeForSides(Position.Bottom, Position.Top)
+    if (forward.status === 'ok' && forward.waypoints.length <= 4) return forward
+  }
 
   const alternatives = applyLaneBias(
     scoreAllHandlerPairs(srcHandlerRect, tgtHandlerRect, direction, scorerObstacles, excludedIds),

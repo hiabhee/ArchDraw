@@ -8,8 +8,10 @@ import { successResult, errorResult, warningResult } from '@/lib/diagram/pipelin
 import type { PipelineResult as CorePipelineResult } from '@/lib/diagram/pipeline-core/PipelineResult'
 import type { PipelineContext } from '@/lib/diagram/pipeline-core/PipelineContext'
 import type { RFObjects, RFNode, RFEdge, Direction, MermaidAST } from './types'
+import type { PrepareLayoutGeometry } from './pipeline-stages/LayoutStage'
 import type { EdgeLayoutSemantics } from './edgeFlowSemantics'
-import { computeDiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry'
+import { getCachedDiagramGeometryPlan, type DiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry'
+import { measureLayoutAesthetics } from '@/lib/diagram/pipeline-shared/layout/layoutAesthetics'
 import type { GeometryStatus } from '@/lib/diagram/geometry/geometryTypes'
 import {
   ParseStage,
@@ -45,6 +47,22 @@ export interface GeometrySummary {
   labelCollisions: number;
   bendCount: number;
   totalPathLength: number;
+}
+
+export function summarizeGeometry(plan: DiagramGeometryPlan): GeometrySummary {
+  return {
+    status: plan.status,
+    ...plan.quality,
+    labelCollisions: plan.violations.filter(issue => issue.code === 'LABEL_COLLISION').length,
+  };
+}
+
+export function geometryWarnings(warnings: string[], geometry?: GeometrySummary): string[] {
+  const current = warnings.filter(warning => !/^\[GEOMETRY_(?:DEGRADED|INVALID|FAILED)\]/.test(warning));
+  if (geometry && geometry.status !== 'ok') {
+    current.push(`[GEOMETRY_${geometry.status.toUpperCase()}] ${geometry.hardViolations} hard geometry violations, ${geometry.criticalPathDisconnectCount} main-path route failures, and ${geometry.unexplainedPrivateOverlapLength}px private route overlap remain after bounded layout repair.`);
+  }
+  return [...new Set(current)];
 }
 
 /**
@@ -214,22 +232,15 @@ export function createMermaidPipelineStages(): Stage<string, MermaidPipelineData
         if (!result.success || !result.data) {
           return errorResult(result.error ?? new Error('Output validation failed'), result.warnings)
         }
-        const nodes = input.objects.nodes;
-        const edges = input.objects.edges;
-        const plan = computeDiagramGeometryPlan(nodes, edges, { direction: input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD', straightEdges: false, renderStyleId: (context.metadata.renderStyleId ?? (context.metadata.layoutProfile === 'studio-minimal' || context.metadata.layoutProfile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined, iconMode: context.metadata.iconMode as NodeIconMode | undefined });
-        const geometrySummary: GeometrySummary = {
-          status: plan.status,
-          ...plan.quality,
-          labelCollisions: plan.violations.filter(issue => issue.code === 'LABEL_COLLISION').length,
-        };
-        const geometryWarnings = plan.status === 'ok' ? [] : [
-          `[GEOMETRY_${plan.status.toUpperCase()}] ${plan.quality.hardViolations} hard geometry violations, ${plan.quality.criticalPathDisconnectCount} main-path route failures, and ${plan.quality.unexplainedPrivateOverlapLength}px private route overlap remain after bounded layout repair.`,
-        ];
-        const warnings = [...new Set([
-          ...input.warnings.filter(warning => !/^\[GEOMETRY_(?:DEGRADED|INVALID|FAILED)\]/.test(warning)),
-          ...result.data.validationWarnings.filter(warning => !/^\[GEOMETRY_(?:DEGRADED|INVALID|FAILED)\]/.test(warning)),
-          ...geometryWarnings,
-        ])];
+        const geometrySummary = context.metadata.prepareGeometry ? undefined : summarizeGeometry(
+          getCachedDiagramGeometryPlan(input.objects.nodes, input.objects.edges, {
+            direction: input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD',
+            straightEdges: false,
+            renderStyleId: (context.metadata.renderStyleId ?? (context.metadata.layoutProfile === 'studio-minimal' || context.metadata.layoutProfile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined,
+            iconMode: context.metadata.iconMode as NodeIconMode | undefined,
+          }),
+        );
+        const warnings = geometryWarnings([...input.warnings, ...result.data.validationWarnings], geometrySummary);
         const data = { ...input, warnings, geometrySummary }
         return warnings.length > 0 ? warningResult(data, warnings) : successResult(data)
       },
@@ -246,16 +257,23 @@ export async function runMermaidPipeline(
     diagramKind?: 'architecture' | 'workflow';
     pruneOrphans?: boolean;
     layoutProfile?: MermaidLayoutProfile;
+    studioNodeSizes?: ReadonlyMap<string, { width: number; height: number }>;
     edgeSemantics?: ReadonlyMap<string, EdgeLayoutSemantics>;
     /**
      * `flow`: top-level subgraphs are listed in data-flow order; or their ids
      * in that order. Edges back to an earlier one are feedback (not ranked).
      */
     areaOrder?: 'flow' | readonly string[];
-    /** `zones`: hub-and-zones placement around the most connected component; `flow` (default): rank columns. */
-    layoutStyle?: 'flow' | 'zones';
+    /** `auto`: compare applicable arrangements; `flow` (default): rank columns; `zones`: prefer a hub arrangement. */
+    layoutStyle?: 'auto' | 'flow' | 'zones';
     /** Fold a long left-to-right flow into rows when that fits the screen far better (live projects). */
     foldLongFlows?: boolean;
+    /** Keep differently styled branches legible when an external preview requests separate strokes. */
+    separateSharedStrokes?: boolean;
+    /** Reserve room for every label at the preview's fitted zoom. */
+    fitPreviewLabels?: boolean;
+    /** Score the restored graph during React Flow relayout. The caller verifies it after sizing and text placement. */
+    prepareGeometry?: PrepareLayoutGeometry;
     /** Lay out some top-level groups the other way (top-down in a left-to-right diagram, or the reverse) when that fits the screen clearly better. Default on. */
     mixGroupDirections?: boolean;
   } = {},
@@ -294,4 +312,47 @@ export async function runMermaidPipeline(
     warnings: domainResult.warnings,
     metrics: domainResult.metrics,
   }
+}
+
+/** Prefer a readable, unfolded main flow in a compact preview. */
+export async function runCompactMermaidPipeline(
+  text: string,
+  options: Parameters<typeof runMermaidPipeline>[1],
+): Promise<DomainPipelineResult<PipelineResult>> {
+  const unfolded = { ...options, foldLongFlows: false }
+  const preferred = await runMermaidPipeline(text, unfolded)
+  if (!preferred.success) return preferred
+  const { direction, geometrySummary: before } = preferred.data
+  if (!before || (direction !== 'LR' && direction !== 'TD')) return preferred
+
+  const preferredFit = measureLayoutAesthetics(preferred.data.nodes, preferred.data.edges, direction).fitScale
+  const hasLayoutProblems = before.hardViolations || before.criticalPathDisconnectCount
+    || before.crossings || before.labelCollisions || before.unexplainedPrivateOverlapLength
+  if (!hasLayoutProblems && preferredFit >= 0.55) return preferred
+
+  const alternateDirection = direction === 'LR' ? 'TD' : 'LR'
+  const alternateText = text.replace(/^(\s*(?:graph|flowchart)\s+)(?:LR|TD|TB)\b/im, `$1${alternateDirection}`)
+  if (alternateText === text) return preferred
+  const alternate = await runMermaidPipeline(alternateText, unfolded)
+  if (!alternate.success || !alternate.data.geometrySummary) return preferred
+  const after = alternate.data.geometrySummary
+  const alternateFit = measureLayoutAesthetics(alternate.data.nodes, alternate.data.edges, alternateDirection).fitScale
+
+  // A few extra crossings are preferable to unreadable labels or blocked cards
+  // when the alternate fits almost as well and keeps the main flow connected.
+  if (after.hardViolations < before.hardViolations
+    && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
+    && alternateFit >= preferredFit * 0.9) return alternate
+
+  const noWorse = after.hardViolations <= before.hardViolations
+    && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
+    && after.crossings <= before.crossings
+    && after.labelCollisions <= before.labelCollisions
+    && after.unexplainedPrivateOverlapLength <= before.unexplainedPrivateOverlapLength
+  const fixesIssue = after.hardViolations < before.hardViolations
+    || after.criticalPathDisconnectCount < before.criticalPathDisconnectCount
+    || after.crossings < before.crossings || after.labelCollisions < before.labelCollisions
+    || after.unexplainedPrivateOverlapLength < before.unexplainedPrivateOverlapLength
+  const improvesFit = alternateFit >= preferredFit * 1.2
+  return noWorse && (improvesFit || (fixesIssue && alternateFit >= preferredFit * 0.9)) ? alternate : preferred
 }

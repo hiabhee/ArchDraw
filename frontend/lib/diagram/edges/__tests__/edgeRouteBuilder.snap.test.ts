@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Edge, Node } from 'reactflow';
+import { Position } from '../edgePositions';
 import { computeEdgeRoute } from '../edgeRouteBuilder';
 
 function makeNode(id: string, x: number, y: number, w = 160, h = 80): Node {
@@ -18,17 +19,67 @@ function makeEdge(id: string, source: string, target: string): Edge {
 }
 
 describe('computeEdgeRoute routing', () => {
-  it('snaps a near-aligned link (<8px) to a pixel-straight line at the midpoint', () => {
+  it('keeps measured handles centered when the cards differ by only 6px', () => {
     const nodes = [makeNode('a', 100, 100), makeNode('b', 500, 106)];
     const edge = makeEdge('e1', 'a', 'b');
-    const route = computeEdgeRoute(edge, nodes, [edge], 'LR');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, {
+      source: { x: 312, y: 150 }, target: { x: 488, y: 156 },
+      sourceSide: Position.Right, targetSide: Position.Left,
+    });
 
-    // 6px of vertical drift would read as a slanted wire — both ends meet at
-    // the midpoint (153), staying inside either handle donut.
-    expect(route.sourcePoint).toEqual({ x: 312, y: 153 });
-    expect(route.targetPoint).toEqual({ x: 488, y: 153 });
-    expect(route.waypoints).toEqual([route.sourcePoint, route.targetPoint]);
-    expect(route.svgPath).toBe('M 312,153 L 488,153');
+    expect(route.sourcePoint).toEqual({ x: 312, y: 150 });
+    expect(route.targetPoint).toEqual({ x: 488, y: 156 });
+    expect(route.waypoints[0]).toEqual(route.sourcePoint);
+    expect(route.waypoints.at(-1)).toEqual(route.targetPoint);
+  });
+
+  it('centers a vertical connection even if the reported handle is off to one side', () => {
+    const nodes = [makeNode('a', 100, 0), makeNode('b', 106, 360)];
+    const edge = makeEdge('e1', 'a', 'b');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'TD', undefined, {
+      source: { x: 203, y: 112 }, target: { x: 203, y: 348 },
+    }, undefined, {
+      attachmentSides: { sourceSide: Position.Bottom, targetSide: Position.Top },
+    });
+
+    expect(route.sourcePoint.x).toBe(200);
+    expect(route.targetPoint.x).toBe(206);
+    expect(route.waypoints[0].x).toBe(200);
+    expect(route.waypoints.at(-1)?.x).toBe(206);
+  });
+
+  it('leaves the top border before turning right, even when the target is level with the handle', () => {
+    const nodes = [makeNode('source', 0, 250), makeNode('target', 450, 188)];
+    const edge = makeEdge('wire', 'source', 'target');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, {
+      attachmentSides: { sourceSide: Position.Top, targetSide: Position.Left },
+    });
+
+    expect(route.status).toBe('ok');
+    expect(route.sourcePoint.y).toBe(250);
+    expect(route.waypoints).toEqual([
+      route.sourcePoint,
+      { x: route.sourcePoint.x, y: 238 },
+      route.targetPoint,
+    ]);
+    expect(route.svgPath).toContain(`M ${route.sourcePoint.x},250 L ${route.sourcePoint.x},244`);
+  });
+
+  it('absorbs a short step in a horizontal run into the vertical departure', () => {
+    const nodes = [makeNode('source', 0, 250), makeNode('target', 450, 158)];
+    const edge = makeEdge('wire', 'source', 'target');
+    const route = computeEdgeRoute(edge, nodes, [edge], 'LR', undefined, undefined, undefined, {
+      laneOffset: -4,
+      attachmentSides: { sourceSide: Position.Top, targetSide: Position.Left },
+    });
+
+    expect(route.status).toBe('ok');
+    expect(route.sourcePoint.y).toBe(250);
+    expect(route.waypoints).toEqual([
+      route.sourcePoint,
+      { x: route.sourcePoint.x, y: route.targetPoint.y },
+      route.targetPoint,
+    ]);
   });
 
   it('does not straighten a link through another node', () => {

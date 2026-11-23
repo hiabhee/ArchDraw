@@ -1,3 +1,5 @@
+import { measureText, wrapText } from '@/lib/diagram/export/svg/textMeasure'
+
 /**
  * Free-text node sizing — single source of truth for font maps and dimension
  * estimates shared by TextLabelNode / AnnotationNode, the Mermaid build stage,
@@ -77,7 +79,7 @@ export interface TextDimensions {
 /** Average character width as a fraction of the font size. */
 const AVG_CHAR_FACTOR = 0.6
 
-const TEXT_LINE_HEIGHT = 1.3
+export const TEXT_LABEL_LINE_HEIGHT = 1.3
 const TEXT_PADDING_X = 16
 const TEXT_PADDING_Y = 12
 const TEXT_MIN_WIDTH = 60
@@ -98,22 +100,19 @@ function linesOf(text: string | undefined): string[] {
     .filter(Boolean)
 }
 
-/**
- * Estimate the natural size of a TextLabelNode (rendered `fit-content`, so the
- * box matches a single unwrapped line per explicit line break).
- */
+/** Wrap within the label box, leaving room for the canvas's text padding. */
+export function wrapTextLabel(text: string, width: number, size: TextSize, weight = TEXT_LABEL_FONT_WEIGHT[size]): string[] {
+  return wrapText(text, Math.max(1, width - 8), { px: TEXT_LABEL_FONT_SIZE[size] ?? TEXT_LABEL_FONT_SIZE.medium, weight: weight ?? TEXT_LABEL_FONT_WEIGHT.medium })
+}
+
 export function estimateTextNodeSize(text: string, size: TextSize = 'medium'): TextDimensions {
   const fontSize = TEXT_LABEL_FONT_SIZE[size]
-  const lines = linesOf(text || 'Text')
-  const longestLine = Math.max(1, ...lines.map((line) => line.length))
-  const width = Math.min(
-    TEXT_MAX_WIDTH,
-    Math.max(TEXT_MIN_WIDTH, Math.round(longestLine * fontSize * AVG_CHAR_FACTOR + TEXT_PADDING_X))
-  )
-  const height = Math.max(
-    TEXT_MIN_HEIGHT,
-    Math.round(Math.max(1, lines.length) * fontSize * TEXT_LINE_HEIGHT + TEXT_PADDING_Y)
-  )
+  const weight = TEXT_LABEL_FONT_WEIGHT[size]
+  const content = text || 'Text'
+  const naturalWidth = Math.max(...content.split('\n').map(line => measureText(line, weight, fontSize)))
+  const width = Math.min(TEXT_MAX_WIDTH, Math.max(TEXT_MIN_WIDTH, Math.ceil(naturalWidth + TEXT_PADDING_X)))
+  const rows = wrapTextLabel(content, width, size, weight).length
+  const height = Math.max(TEXT_MIN_HEIGHT, Math.ceil(rows * fontSize * TEXT_LABEL_LINE_HEIGHT + TEXT_PADDING_Y))
   return { width, height }
 }
 

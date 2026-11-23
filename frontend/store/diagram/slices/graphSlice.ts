@@ -444,6 +444,22 @@ export const createGraphSlice: StateCreator<
   importDiagram: (nodes, edges, options) => {
     get().pushHistory();
 
+    const apply = (nodes: Node[], edges: Edge[], report: ReturnType<typeof get>['clarityReport']) => {
+      const canvases = get().canvases.map((canvas) =>
+        canvas.id === get().activeCanvasId
+          ? { ...canvas, nodes, edges, updatedAt: Date.now() }
+          : canvas
+      );
+      set({ canvases, clarityReport: report });
+      setTimeout(() => get().fitView(), 80);
+    };
+
+    // Relayout already verified these exact coordinates and routes.
+    if (options?.preserveLayout) {
+      apply(nodes, edges, undefined);
+      return;
+    }
+
     const preserveTopology = options?.preserveTopology === true;
     const normalizedNodes = normalizeNodes(nodes);
     const cleanedNodes = preserveTopology ? normalizedNodes : stripReservedLayerNodes(normalizedNodes);
@@ -532,13 +548,7 @@ export const createGraphSlice: StateCreator<
           get().iconMode,
         );
 
-    const canvases = get().canvases.map((c) =>
-      c.id === get().activeCanvasId
-        ? { ...c, nodes: placedNodes, edges: edgesWithHandles, updatedAt: Date.now() }
-        : c
-    );
-    set({ canvases, clarityReport: report });
-    setTimeout(() => get().fitView(), 80);
+    apply(placedNodes, edgesWithHandles, report);
   },
 
   clearDiagram: () => {

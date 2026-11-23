@@ -81,6 +81,7 @@ interface CompoundContext {
   directionByGroup: Map<string, RankDirection>;
   nodeSep: number;
   rankSep: number;
+  groupRankSep?: number;
   warnings: string[];
   globalEdgeDensity?: number;
 }
@@ -901,7 +902,7 @@ function layoutLevel(members: string[], ctx: CompoundContext, depth: number = 0)
   // diagram uses an editorial spacing profile. The group bounds are derived
   // from these child positions, so this also removes the dead space seen in
   // small groups without changing the outer flow or the frame padding.
-  if (depth > 0) rankSep = Math.min(rankSep, SUBGRAPH_CONTENT_RANK_SEP);
+  if (depth > 0) rankSep = ctx.groupRankSep ?? Math.min(rankSep, SUBGRAPH_CONTENT_RANK_SEP);
 
   // Phase 2 — dagre over leaves + group-boxes.
   const g = new dagre.graphlib.Graph();
@@ -1155,6 +1156,7 @@ export function layoutCompoundTwoPhase(params: LayoutParams): LayoutResult | nul
       directionByGroup,
       nodeSep: baseNodeSep,
       rankSep: baseRankSep,
+      groupRankSep: opts.groupRankSep,
       warnings,
       globalEdgeDensity: params.edges.reduce(
         (count, edge) => count + Math.min(1, getLayoutEdgeWeight(edge) / 3),

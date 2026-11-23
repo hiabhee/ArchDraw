@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TEMPLATES } from '../../../data/templates';
 import { layoutDiagramViaMermaid } from '../../../lib/diagram/mermaid/relayout';
-import { computeDiagramGeometryPlan } from '../../../lib/diagram/geometry/diagramGeometry';
 import { measureLayoutAesthetics } from '../../../lib/diagram/pipeline-shared/layout/layoutAesthetics';
 import { generatePureSVG } from '../../../lib/diagram/export/svgExport';
 
@@ -14,11 +13,25 @@ const results = [];
 const panels: string[] = [];
 for (const template of TEMPLATES.filter(t => !process.argv[3] || process.argv[3].split(',').includes(t.id))) {
   for (const direction of ['LR', 'TD'] as const) {
+    const options = { renderStyleId: 'studio-minimal', foldLongFlows: true } as const;
     const start = performance.now();
-    const result = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, { renderStyleId: 'studio-minimal', foldLongFlows: true });
-    const geometry = computeDiagramGeometryPlan(result.nodes, result.edges, { direction, renderStyleId: 'studio-minimal', straightEdges: false });
+    const result = await layoutDiagramViaMermaid(template.nodes, template.edges, direction, options);
+    const relayoutMs = performance.now() - start;
+    if (!result.success || !result.geometrySummary) {
+      throw new Error(`Layout failed for ${template.id} ${direction}. ${result.warnings.join(' ')}`);
+    }
+    const repeatStart = performance.now();
+    await layoutDiagramViaMermaid(template.nodes, template.edges, direction, options);
+    const cachedRelayoutMs = performance.now() - repeatStart;
     const aesthetics = measureLayoutAesthetics(result.nodes, result.edges, direction);
-    const metrics = { id: template.id, direction, ms: Math.round(performance.now() - start), ...geometry.quality, titlePxAtFit: aesthetics.titlePxAtFit };
+    const metrics = {
+      id: template.id,
+      direction,
+      relayoutMs: Math.round(relayoutMs),
+      cachedRelayoutMs: Number(cachedRelayoutMs.toFixed(2)),
+      ...result.geometrySummary,
+      titlePxAtFit: aesthetics.titlePxAtFit,
+    };
     results.push(metrics);
     console.log(JSON.stringify(metrics));
     const filename = `${template.id}-${direction}.svg`;

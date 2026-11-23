@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { buildEdgePathGeometry, pointAtRenderedPath, validateRenderedPath } from '../edgePathGeometry';
+import { buildEdgePathGeometry, getRenderedPathInteraction, pointAtRenderedPath, validateRenderedPath } from '../edgePathGeometry';
 
 describe('shared rendered edge path geometry', () => {
+  it('counts both crossings between two interlocking rounded turns', () => {
+    const up = buildEdgePathGeometry({
+      kind: 'orthogonal',
+      waypoints: [{ x: 0, y: 114 }, { x: 183, y: 114 }, { x: 183, y: -30 }],
+      cornerRadius: 35,
+    });
+    const right = buildEdgePathGeometry({
+      kind: 'orthogonal',
+      waypoints: [{ x: 98, y: 240 }, { x: 98, y: 68 }, { x: 440, y: 68 }],
+      cornerRadius: 40,
+    });
+
+    expect(getRenderedPathInteraction(up, right).crossingCount).toBe(2);
+    expect(getRenderedPathInteraction(right, up).crossingCount).toBe(2);
+  });
+
   it('preserves obstacle-avoiding bends with square corners', () => {
     const path = buildEdgePathGeometry({
       kind: 'orthogonal',

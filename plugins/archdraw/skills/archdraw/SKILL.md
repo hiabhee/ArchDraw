@@ -5,28 +5,32 @@ description: Use ArchDraw to create, refine, validate, lay out, template, checkp
 
 # ArchDraw architecture diagrams
 
-Use ArchDraw's MCP tools when the user wants an architecture represented or changed as a diagram. Model only components and relationships supported by the user's description. Ask a focused question when a missing constraint would materially change the architecture; otherwise state a small assumption in the result.
+Use ArchDraw for plain-language requests to create or refine diagrams. Choose the tools, layout, and default style from the request. The user can give only a subject. Model only components and relationships supported by the user's description. Ask a focused question when a missing constraint would materially change the architecture; otherwise state a small assumption in the result.
 
 ## Create a diagram
 
 - Prefer `generate_diagram` with Mermaid (`graph LR` or `graph TD`) because this uses the same parser and Dagre layout pipeline as the ArchDraw editor. Use structured node and edge data only when the user already has it or requests it.
+- For simple diagrams, aim for 3–6 named nodes and use one generation call with `compactResponse: true`. Reopen the canvas only when the user asks or after a separate edit.
+- For broad architecture requests, show the major components and primary flows in an overview. Include the subsystem details and secondary connections the user requests. Use the `direction` argument when the user asks for a specific orientation.
 - Include the user's original request in `userPrompt` when available. Pass named technologies through `techStack` and explicitly requested special requirements through `customFeatures`.
 - Use subgraphs to group tiers or trust boundaries when they make the system easier to read. Keep labels concise and add communication labels for asynchronous, event, or streaming edges.
-- Before generation, audit the planned edges: avoid arrows into client-tier nodes except between client-tier nodes; prevent one node from becoming an unjustified hub; and keep the flow consistent with the intended architecture rather than adding layers by habit.
+- Before generation, check each edge against the intended architecture. Keep real replies, feedback, and data delivery to clients. Show a hub when the system has one.
 - Keep the `workingSessionId` returned by `generate_diagram` / `apply_template` and pass it on every later call about that diagram (`update_diagram`, `get_diagram_state`). The hosted server requires it.
 
 ## Refine and validate
 
+- Review the layout quality before displaying the diagram. Fix overlaps and clipped labels in the same working session. For top-down hierarchies such as family trees, use explicit top-down generation and keep each generation in a clear row. If manual placement is necessary, use the reported Studio card sizes and re-layout when the result overlaps. Preserve node identities and connection directions for visual edits.
+
 - Call `get_diagram_state` before editing an existing diagram if its current state is not already available.
-- Use `draw_on_canvas` when the user wants something drawn with exact control: a whiteboard or sketch, free text, empty cards to write in, notes, shapes, precise placement, or changes the automatic layout cannot make. Positions are canvas pixels (x right, y down, top-left corner; a card is about 200x90, so leave about 60px between neighbours). Operations run in order and all apply or none do; an error names the failing operation. Give an `id` to anything you will refer to again, and use the `canvas` list in the reply to place the next things. Start a new drawing with `{"op":"clear"}`.
+- Use `draw_on_canvas` when the user wants a whiteboard, free text, notes, shapes, precise placement, or changes the automatic layout cannot make. Positions are canvas pixels from the top-left. Studio cards with icons are 300px wide and grow taller when the title or subtitle wraps. Leave about 60px between rendered cards. Operations apply together and an error names the failing operation. Give reusable objects an `id` and use the dimensions in the `canvas` reply when placing more objects.
 - Use `layout_diagram` to re-arrange a diagram that looks cramped, too wide or too tall, or when the user asks to tidy it, make it top-down or fit a screen. It re-lays out the current diagram (direction, flow or zones, wrapping, per-group direction via `groupDirections`) and changes only positions; follow with `draw_on_canvas` move/align for manual touch-ups.
 - Use `update_diagram` for targeted edits. To change the layout direction or restructure the diagram, call `generate_diagram` again with revised Mermaid; it lays the diagram out with the editor's Mermaid-to-Dagre path.
 - Use `apply_template` when the user wants a template (its description lists the template ids).
 - For an image, point the user to the preview's Download PNG button or the editor link's export.
 
-## Preview links (always share them)
+## Preview links
 
-- A diagram is visual, and in a terminal or IDE the user cannot see it unless you give them the link. `generate_diagram`, `apply_template`, and `update_diagram` return a preview link (`shareUrl`) and an edit link (`diagramUrl`) in the same response — no extra call is needed. **Always put both links in your reply**, near the top. The reply also has an image link (PNG, hand-drawn by default; add `style: "studio"` to `draw_on_canvas` for a clean look). When the user wants to share the diagram, give them that image link or its Markdown (`![diagram](url)`).
+- Use the canvas returned by `generate_diagram` as the final in-chat diagram. Call `show_diagram` after a separate edit or when the user asks to reopen the canvas. If either tool reports a missing label or overlap, fix the listed cards in the same working session and then show the corrected diagram. Only use blank cards when the user requested a blank card. For family trees, use labeled people in top-down rows and keep source notes in free text.
 - Links are unguessable, viewable by anyone who has them, and expire after 7 days. If the user asks to keep a diagram private, pass `publish: false`; then say plainly that no link was created.
 - If the result contains `linkError` instead of links, tell the user the diagram was generated but could not be published, and include the reason.
 - Never put secrets, credentials, or private hostnames in diagram labels. Anyone with the link can read them.

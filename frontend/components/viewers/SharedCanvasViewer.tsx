@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -8,6 +8,7 @@ import ReactFlow, {
   MiniMap,
   ReactFlowProvider,
   useReactFlow,
+  useNodesState,
   ConnectionLineType,
   ConnectionMode,
   type Edge,
@@ -16,24 +17,32 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { useHoverFocus } from '@/lib/diagram/canvas/useHoverFocus';
 import { SELECTION_FOCUS_CLASS } from '@/lib/diagram/canvas/selectionFocus';
-import { Download, Sun, Moon, Maximize } from 'lucide-react';
+import { Download, Save, Sun, Moon, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { SVGEdgeMarkerDefs } from '@/lib/theme/edgeColorUtils';
 import { assignEdgeColors } from '@/lib/theme/edgeColors';
+import { edgeThemeInk } from '@/lib/theme/edgeInk';
 import type { LayoutDirection } from '@/lib/diagram/mermaid/relayout';
 import { resolveCanvasTokens, ensureSketchFontLoaded, ensureRenderStyleFontLoaded, type DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import { sketchHandwritingFont } from '@/lib/theme/renderStyles/sketchFont';
 import { NODE_TYPES, EDGE_TYPES } from '@/components/canvas/canvasTypes';
 import { DiagramGeometryProvider } from '@/components/canvas/edges/DiagramGeometryProvider';
-import { CANVAS_CONFIG, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
+import { CANVAS_CONFIG, DEFAULT_CANVAS_BACKGROUND, DEFAULT_EDGE_OPTIONS } from '@/lib/config';
+import { CanvasGrid } from '@/components/canvas/CanvasGrid';
+import { useSearchParams } from 'next/navigation';
 import { useTheme } from '@/lib/theme/appTheme';
 import '@/components/canvas/nodes/nodeStyles.css';
 import { CanvasHostProvider, type CanvasHost } from '@/lib/diagram/canvas/CanvasHostContext';
+import { previewCopyUrl } from '@/lib/diagram/canvas/previewCopy';
 import { BrandMark } from '@/components/ui/BrandMark';
+import { pngDataUrlToBlob } from '@/lib/diagram/export/prepareReactFlowForImageExport';
 
 interface SharedCanvas {
   id: string;
   canvas_name: string;
+  isMcpPreview?: boolean;
+  direction?: LayoutDirection;
+  originalPositions?: Pick<Node, 'id' | 'position'>[];
   nodes: unknown[];
   edges: unknown[];
 }
@@ -66,60 +75,14 @@ function normalizeEdges(raw: unknown[]): Edge[] {
   });
 }
 
-const dataUrlToBlob = (dataUrl: string): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    if (typeof fetch !== 'undefined') {
-      fetch(dataUrl)
-        .then((r) => r.blob())
-        .then(resolve)
-        .catch(() => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) { reject(new Error('Failed to get canvas context')); return; }
-            ctx.drawImage(img, 0, 0);
-            canvas.toBlob((blob) => {
-              if (blob) resolve(blob);
-              else reject(new Error('Failed to convert to blob'));
-            }, 'image/png');
-          };
-          img.onerror = () => reject(new Error('Failed to load image'));
-          img.src = dataUrl;
-        });
-      return;
-    }
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error('Failed to convert to blob'));
-        }
-      }, 'image/png');
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = dataUrl;
-  });
-};
-
 function Viewer({ canvas }: { canvas: SharedCanvas }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const { isDark, setTheme } = useTheme();
-  const { fitView } = useReactFlow();
+  const { fitView, getNodes, getEdges, getZoom } = useReactFlow();
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const editablePreview = Boolean(canvas.isMcpPreview);
+  const searchParams = useSearchParams();
 
   // Preserve the creator's render style (if any) from the share URL.
   // Read in an effect (not a state initializer) so SSR/hydration always
@@ -148,19 +111,21 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     }
   }, [renderStyle]);
 
-  const themeVars = useMemo(
+  const { cssVars: themeVars, colors } = useMemo(
     () => resolveCanvasTokens({
       renderStyleId: renderStyle,
       colorThemeId: renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? 'studio-minimal' : 'slate',
       isDark,
-    }).cssVars,
+    }),
     [renderStyle, isDark],
   );
 
-  const nodes = useMemo(
+  const initialNodes = useMemo(
     () => normalizeNodes((canvas?.nodes as unknown[]) || []),
     [canvas]
   );
+  const [previewNodes, , onNodesChange] = useNodesState(initialNodes);
+  const nodes = editablePreview ? previewNodes : initialNodes;
   const edges = useMemo(
     () => normalizeEdges((canvas?.edges as unknown[]) || []),
     [canvas]
@@ -170,13 +135,12 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
   // path. Always re-layouts from the shared base graph (never compounds),
   // caches per canvas + direction, and never writes back to the store.
   const canvasId = canvas?.id;
-  // The shared diagram is shown as it was saved; the viewer has no layout controls.
-  const layoutDir: LayoutDirection = 'LR';
+  const layoutDir: LayoutDirection = canvas.direction ?? (searchParams.get('direction') === 'TD' ? 'TD' : 'LR');
 
   const displayedNodes = nodes;
   const displayedEdges = useMemo(
-    () => assignEdgeColors(edges, isDark),
-    [edges, isDark],
+    () => assignEdgeColors(edges, isDark, renderStyle === 'sketch', edgeThemeInk(colors)),
+    [edges, isDark, renderStyle, colors],
   );
   const hoverFocus = useHoverFocus(displayedNodes, displayedEdges);
 
@@ -203,54 +167,25 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
     setIsDownloading(true);
 
     try {
-      fitView({ padding: 0.1, duration: 300 });
-      await new Promise((r) => setTimeout(r, 350));
-
-      const el = document.querySelector('.react-flow') as HTMLElement | null;
-      if (!el) {
-        toast.error('Canvas not ready. Please try again.');
-        return;
-      }
-
-      const { safeToPng } = await import('@/lib/diagram/export/safeHtmlToImage');
-      // Adaptive ratio to avoid OOM on large shared canvases
-      const baseRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-      let pixelRatio = Math.min(3, Math.max(2, Math.ceil(baseRatio * 1.5)));
-      const elW = el.clientWidth || el.offsetWidth || 1200;
-      const elH = el.clientHeight || el.offsetHeight || 800;
-      const maxPixels = 16_000_000;
-      while (pixelRatio > 1 && elW * pixelRatio * elH * pixelRatio > maxPixels) pixelRatio -= 0.5;
-      pixelRatio = Math.max(1, pixelRatio);
-
-      let dataUrl: string | null = null;
-      for (let attemptRatio = pixelRatio; attemptRatio >= 1; attemptRatio -= 1) {
-        try {
-          dataUrl = await safeToPng(el, {
-            backgroundColor: isDark ? '#0f172a' : '#ffffff',
-            pixelRatio: attemptRatio,
-            cacheBust: true,
-            filter: (node) => {
-              const cls = (node as HTMLElement).classList;
-              if (!cls) return true;
-              return (
-                !cls.contains('react-flow__minimap') &&
-                !cls.contains('react-flow__controls') &&
-                !cls.contains('react-flow__panel') &&
-                !cls.contains('react-flow__background')
-              );
-            },
-          });
-          pixelRatio = attemptRatio;
-          break;
-        } catch (e) {
-          if (attemptRatio <= 1) throw e;
-          await new Promise((r) => setTimeout(r, 100));
-        }
-      }
-      if (!dataUrl) throw new Error('Failed to generate PNG');
+      const { captureDiagram } = await import('@/lib/diagram/export/captureDiagram');
+      const { dataUrl } = await captureDiagram({
+        nodes: getNodes(),
+        edges: getEdges(),
+        view: { ...canvasHost, renderStyleId: renderStyle, isDark, labelZoom: getZoom() },
+        background: {
+          variant: 'dots',
+          gap: CANVAS_CONFIG.background.gap,
+          size: CANVAS_CONFIG.background.size,
+          patternColor: isDark ? '#475569' : '#cbd5e1',
+          bgColor: null,
+        },
+        surfaceColor: viewerRef.current ? getComputedStyle(viewerRef.current).backgroundColor : undefined,
+        showGrid: true,
+        gridOpacity: 0.6,
+      });
       let blob: Blob | null = null;
       try {
-        blob = await dataUrlToBlob(dataUrl);
+        blob = pngDataUrlToBlob(dataUrl);
       } catch {
         // Fallback to direct data URL download
         const a2 = document.createElement('a');
@@ -290,13 +225,14 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
 
   return (
     <div
+      ref={viewerRef}
       className={`${isDark ? 'dark' : ''} w-screen h-[100dvh] bg-[hsl(var(--canvas-bg))] text-foreground ${renderStyle === 'sketch' ? sketchHandwritingFont.className : ''}`}
-      style={themeVars as React.CSSProperties}
+      style={{ ...themeVars, ...(editablePreview ? { backgroundColor: themeVars['--arch-canvas-bg'] } : {}) } as React.CSSProperties}
       data-render-style={renderStyle}
     >
-      {/* Top banner */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2.5 bg-[hsl(var(--canvas-bg))]/95 backdrop-blur-sm border-b border-border/40">
-        <div className="flex items-center gap-2">
+      {/* Floating preview controls share the canvas background. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
           <BrandMark size={20} className="rounded-md" />
           <span className="font-semibold text-sm">ArchDraw</span>
           <span className="text-muted-foreground text-sm">·</span>
@@ -304,8 +240,8 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
             {canvas.canvas_name}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs hidden sm:inline">View only</span>
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+          {!editablePreview && <span className="text-muted-foreground text-xs hidden sm:inline">View only</span>}
           <span className="hidden md:inline text-xs text-muted-foreground tabular-nums">
             {nodes.length} nodes · {edges.length} edges
           </span>
@@ -338,12 +274,24 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
             <Download className="w-3.5 h-3.5" />
             {isDownloading ? 'Downloading…' : 'Download'}
           </button>
-          <a
-            href="/editor"
-            className="text-xs bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-md transition-colors font-medium"
-          >
-            Create your own →
-          </a>
+          {editablePreview ? (
+            <button
+              type="button"
+              onClick={() => {
+                const url = previewCopyUrl(window.location.href, crypto.randomUUID(), canvas.originalPositions ?? initialNodes, getNodes());
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium hover:bg-secondary/80"
+              aria-label="Save to ArchDraw"
+            >
+              <Save className="size-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Save to ArchDraw</span>
+            </button>
+          ) : (
+            <a href="/editor" className="rounded-md px-3 py-1.5 text-xs font-medium hover:bg-secondary/80">
+              Open editor
+            </a>
+          )}
         </div>
       </div>
 
@@ -359,8 +307,20 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
         </div>
       )}
 
-      <div className={`w-full h-full pt-12${hoverFocus.css ? ` ${SELECTION_FOCUS_CLASS}` : ''}`}>
+      <div className={`w-full h-full${hoverFocus.css ? ` ${SELECTION_FOCUS_CLASS}` : ''}`}>
         {hoverFocus.css && <style>{hoverFocus.css}</style>}
+        {editablePreview && (
+          <select
+            aria-label="Diagram style"
+            value={renderStyle === 'studio-minimal' || renderStyle === 'studio-metallic' ? renderStyle : ''}
+            onChange={(event) => setRenderStyle(event.target.value === 'studio-metallic' ? 'studio-metallic' : 'studio-minimal')}
+            className="absolute bottom-4 left-16 z-10 cursor-pointer rounded-md bg-surface-page px-2 py-1.5 text-xs text-text-primary hover:bg-secondary"
+          >
+            {renderStyle !== 'studio-minimal' && renderStyle !== 'studio-metallic' && <option value="" disabled>Shared style</option>}
+            <option value="studio-minimal">Studio Minimal</option>
+            <option value="studio-metallic">Studio Metallic</option>
+          </select>
+        )}
         <CanvasHostProvider value={canvasHost}>
         <DiagramGeometryProvider nodes={nodes} edges={displayedEdges}>
         <ReactFlow
@@ -370,13 +330,15 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           edgeTypes={EDGE_TYPES}
           onNodeMouseEnter={hoverFocus.onNodeMouseEnter}
           onNodeMouseLeave={hoverFocus.onNodeMouseLeave}
-          nodesDraggable={false}
+          nodesDraggable={editablePreview}
+          onNodesChange={editablePreview ? onNodesChange : undefined}
+          deleteKeyCode={null}
           nodesConnectable={false}
           elementsSelectable={true}
           elevateNodesOnSelect={false}
           elevateEdgesOnSelect={false}
           panOnDrag
-          // A read-only viewer: the wheel zooms (as on a map) and dragging pans.
+          // Dragging the background pans, and dragging a preview node moves it locally.
           zoomOnScroll
           zoomOnPinch
           fitView
@@ -386,16 +348,16 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
           connectionLineType={ConnectionLineType.SmoothStep}
           minZoom={CANVAS_CONFIG.minZoom}
           maxZoom={CANVAS_CONFIG.maxZoom}
-          defaultMarkerColor="#1E2130"
+          defaultMarkerColor={themeVars['--arch-edge-primary']}
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
         >
-          <Background
+          {editablePreview ? <CanvasGrid background={DEFAULT_CANVAS_BACKGROUND} isDark={isDark} gridColor={themeVars['--arch-canvas-grid']} /> : <Background
             variant={BackgroundVariant.Dots}
             gap={CANVAS_CONFIG.background.gap}
             size={CANVAS_CONFIG.background.size}
             color={isDark ? '#475569' : '#cbd5e1'}
             style={{ opacity: 0.6 }}
-          />
+          />}
           <Controls
             showInteractive={false}
             className="!bg-card !border-border !text-foreground !shadow-sm"
@@ -418,7 +380,7 @@ function Viewer({ canvas }: { canvas: SharedCanvas }) {
 export function SharedCanvasViewer({ canvas }: { canvas: SharedCanvas }) {
   return (
     <ReactFlowProvider>
-      <Viewer canvas={canvas} />
+      <Viewer key={canvas.id} canvas={canvas} />
     </ReactFlowProvider>
   );
 }

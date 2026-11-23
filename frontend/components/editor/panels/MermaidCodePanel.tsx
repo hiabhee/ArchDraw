@@ -8,6 +8,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
 import { runMermaidPipeline } from '@/lib/diagram/mermaid/pipeline';
 import { mergePreservingLayout } from '@/lib/diagram/mermaid/mergePreservingLayout';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 import type { Edge, Node } from 'reactflow';
 import { toast } from 'sonner';
 
@@ -78,14 +79,18 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
       if (newCode === lastProcessedRef.current) return;
 
       try {
-        const result = await runMermaidPipeline(newCode);
+        const store = useDiagramStore.getState();
+        const result = await runMermaidPipeline(newCode, {
+          renderStyleId: store.diagramRenderStyle,
+          layoutProfile: isStudioRenderStyle(store.diagramRenderStyle) ? 'studio-minimal' : undefined,
+          layoutStyle: 'auto',
+        });
 
         if (!result.success) {
           setError((result.error?.message ?? result.warnings.join('; ')) || 'Failed to render Mermaid diagram.');
           return;
         }
 
-        const store = useDiagramStore.getState();
         const existingNodes = store.nodes;
         const currentPresetId = store.activeLayoutPresetId;
         const newDirection = result.data.direction; // 'LR' or 'TD'
@@ -97,7 +102,10 @@ export function MermaidCodePanel({ onClose }: MermaidCodePanelProps) {
         const { nodes: processedNodes, edges: processedEdges } = mergePreservingLayout(
           existingNodes,
           { nodes: result.data.nodes as Node[], edges: result.data.edges as Edge[] },
-          { directionChanged: Boolean(directionChanged) },
+          // Code edits define a new graph topology. Reusing old node positions
+          // makes the fresh layout invalid as soon as an edge or node is added.
+          // The code editor always lays out the full graph after topology edits.
+          { directionChanged: true },
         );
 
         if (processedNodes.length === 0 && processedEdges.length === 0) {

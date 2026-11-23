@@ -54,6 +54,19 @@ describe('inlineFontUrlsInCss', () => {
     expect(css).toContain('https://example.com/grotesk.woff2');
   });
 
+  it('resolves quoted font files relative to the stylesheet', async () => {
+    const fetchImpl = (async (url: URL) => {
+      expect(url.href).toBe('https://example.com/assets/Inter.woff2?v=1');
+      return new Response(new Uint8Array([0, 1, 2, 3]));
+    }) as typeof fetch;
+    const css = await inlineFontUrlsInCss(
+      '@font-face{font-family:Inter;src:url("../assets/Inter.woff2?v=1")}',
+      fetchImpl,
+      'https://example.com/css/app.css',
+    );
+    expect(css).toContain('data:font/woff2;base64,AAECAw==');
+  });
+
   it('skips oversized or empty files', async () => {
     const empty = (async () => ({
       ok: true,

@@ -3,9 +3,12 @@ import Link from 'next/link';
 import prisma from '@/lib/server/prisma';
 import logger from '@/lib/logger';
 import SharePageClient from './SharePageClient';
+import type { Edge, Node } from 'reactflow';
+import { recoverMcpLayout } from '@/lib/diagram/canvas/recoverMcpLayout';
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ direction?: string }>;
 }
 
 // User-generated content: always render on demand so new shares work instantly
@@ -31,6 +34,7 @@ async function getSharedCanvas(id: string) {
       canvas: {
         id: shared.id,
         canvas_name: shared.canvasName,
+        isMcpPreview: Boolean(shared.mcpUpdateToken),
         nodes,
         edges,
       },
@@ -56,7 +60,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SharePage({ params }: Props) {
+export default async function SharePage({ params, searchParams }: Props) {
   const { id } = await params;
   const result = await getSharedCanvas(id);
 
@@ -84,9 +88,10 @@ export default async function SharePage({ params }: Props) {
     );
   }
 
-  return (
-    <SharePageClient
-      canvas={result.canvas}
-    />
-  );
+  const canvas = result.canvas;
+  if (!canvas.isMcpPreview) return <SharePageClient canvas={canvas} />;
+  const original = canvas.nodes as unknown as Node[];
+  const recovered = await recoverMcpLayout(original, canvas.edges as unknown as Edge[], (await searchParams).direction);
+  const originalPositions = recovered.nodes === original ? undefined : original.map(({ id, position }) => ({ id, position }));
+  return <SharePageClient canvas={{ ...canvas, ...recovered, originalPositions }} />;
 }

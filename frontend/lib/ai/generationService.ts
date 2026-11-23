@@ -1,6 +1,7 @@
 import type { Node, Edge } from 'reactflow';
 import type { GenerationProgress } from '@/lib/ai/types';
 import { parseAndValidateRepoDiagram } from '@/lib/repo-diagram/importRepoDiagram';
+import type { RelayoutOptions } from '@/lib/diagram/mermaid/relayout';
 import { parseGitHubUrl } from '@/lib/repo-diagram/githubUrl';
 import type { RepoDiagramApiResponse } from '@/lib/repo-diagram/types';
 
@@ -162,6 +163,7 @@ export async function generateDiagramFromRepo(
   repoUrl: string,
   detailLevel: 1 | 2 | 3,
   onProgress?: (progress: GenerationProgress) => void,
+  layoutOptions?: RelayoutOptions,
 ): Promise<{ nodes: Node[]; edges: Edge[]; nodeCount: number; edgeCount: number }> {
   onProgress?.({
     phase: 'generating',
@@ -252,7 +254,7 @@ export async function generateDiagramFromRepo(
     );
   }
 
-  const parsed = parseAndValidateRepoDiagram(payload.ndjson);
+  const parsed = await parseAndValidateRepoDiagram(payload.ndjson, layoutOptions);
   if (!parsed) {
     throw new GenerationServiceError(
       'No architectural components could be detected in this repository.',

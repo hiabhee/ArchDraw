@@ -70,12 +70,25 @@ function lines(text: string | undefined): string[] {
 
 export function estimateText(text: string, size = 'medium'): { width: number; height: number } {
   const font = TEXT_FONT[size] ?? 32;
-  const rows = lines(text || 'Text');
+  const rows = (text || 'Text').split('\n');
   const longest = Math.max(1, ...rows.map(row => row.length));
-  return {
-    width: Math.min(560, Math.max(60, Math.round(longest * font * AVG_CHAR + 16))),
-    height: Math.max(100, Math.round(Math.max(1, rows.length) * font * 1.3 + 12)),
-  };
+  const width = Math.min(560, Math.max(60, Math.round(longest * font * AVG_CHAR + 16)));
+  const columns = Math.max(1, Math.floor((width - 8) / (font * AVG_CHAR)));
+  let rowCount = 0;
+  for (const row of rows) {
+    let used = 0;
+    rowCount++;
+    for (const word of row.trim().split(/\s+/).filter(Boolean)) {
+      if (used && used + 1 + word.length > columns) {
+        rowCount++;
+        used = 0;
+      }
+      used += word.length + (used ? 1 : 0);
+      rowCount += Math.floor((used - 1) / columns);
+      used = (used - 1) % columns + 1;
+    }
+  }
+  return { width, height: Math.max(100, Math.ceil(rowCount * font * 1.3 + 12)) };
 }
 
 export function estimateNote(title?: string, body?: string): { width: number; height: number } {

@@ -60,6 +60,24 @@
         ],
         "createdAt": "2026-11-01T06:01:38.611Z",
         "reason": "intentional design: status flag triangles"
+      },
+      {
+        "rule": "overused-font",
+        "value": "space grotesk",
+        "files": [
+          "frontend/lib/diagram/export/svg/__tests__/embedFonts.test.ts"
+        ],
+        "createdAt": "2026-11-22T07:09:08.863Z",
+        "reason": "Agent: this Vitest fixture uses a literal font name with a mocked offline fetch to exercise SVG font embedding."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "frontend/components/canvas/edges/SimpleFloatingEdge.tsx"
+        ],
+        "createdAt": "2026-11-22T07:09:08.880Z",
+        "reason": "Agent: the SVG path animates its painted stroke thickness on hover and selection with stroke-width. The path geometry and layout stay fixed."
       }
     ]
   }

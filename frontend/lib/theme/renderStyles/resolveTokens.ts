@@ -10,7 +10,7 @@ import {
 import type { DiagramRenderStyleId, ResolvedCanvasTokens } from './types';
 import { getRenderStyle } from './registry';
 import { getStrokeRenderer } from './strokeRenderer';
-import { metallicSurfaceElevation, metallicSurfaceInset, metallicSurfaceOverlayCss } from './studioMetallic';
+import { metallicSurfaceElevation, metallicSurfaceInset, metallicSurfaceOverlayCss, STUDIO_METALLIC_TITLE_WEIGHT } from './studioMetallic';
 import {
   SKETCH_PAPER_TINT,
   SKETCH_PAPER_DARK,
@@ -96,6 +96,7 @@ export function resolveCanvasTokens(opts: ResolveCanvasTokensOpts): ResolvedCanv
     '--arch-stroke-width': `${strokeWidth}px`,
     '--arch-radius': `${borderRadius}px`,
     ...(isMetallic ? {
+      '--arch-node-title-weight': String(STUDIO_METALLIC_TITLE_WEIGHT),
       '--arch-node-surface-overlay': metallicSurfaceOverlayCss(opts.isDark),
       '--arch-node-surface-inset': metallicSurfaceInset(opts.isDark),
       '--arch-node-surface-elevation': metallicSurfaceElevation(opts.isDark),

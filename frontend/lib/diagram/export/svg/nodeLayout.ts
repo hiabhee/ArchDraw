@@ -2,26 +2,34 @@ import type { Node } from 'reactflow';
 import { NODE_WIDTH, NODE_HEIGHT, getConcernColor } from '@/lib/theme/stylingConstants';
 import { hexToRgba } from './svgPrimitives';
 
+function parentIdOf(node: Node) {
+  return node.parentNode ?? (node as Node & { parentId?: string }).parentId;
+}
+
 export function resolveAbsolutePosition(node: Node, nodeMap: Map<string, Node>): { x: number; y: number } {
   let x = node.position.x;
   let y = node.position.y;
-  let parentId = node.parentNode;
-  while (parentId) {
+  let parentId = parentIdOf(node);
+  const seen = new Set([node.id]);
+  while (parentId && !seen.has(parentId)) {
     const parent = nodeMap.get(parentId);
     if (!parent) break;
     x += parent.position.x;
     y += parent.position.y;
-    parentId = parent.parentNode;
+    seen.add(parentId);
+    parentId = parentIdOf(parent);
   }
   return { x, y };
 }
 
 export function nodeDepth(node: Node, nodeMap: Map<string, Node>): number {
   let depth = 0;
-  let parentId = node.parentNode;
-  while (parentId && nodeMap.has(parentId)) {
+  let parentId = parentIdOf(node);
+  const seen = new Set([node.id]);
+  while (parentId && nodeMap.has(parentId) && !seen.has(parentId)) {
     depth += 1;
-    parentId = nodeMap.get(parentId)!.parentNode;
+    seen.add(parentId);
+    parentId = parentIdOf(nodeMap.get(parentId)!);
   }
   return depth;
 }
@@ -50,8 +58,8 @@ export function calculateBounds(nodes: Node[]): { minX: number; minY: number; ma
     const height = node.height ?? node.data?.nodeHeight ?? NODE_HEIGHT;
     minX = Math.min(minX, node.position.x);
     minY = Math.min(minY, node.position.y);
-    maxX = Math.max(maxX, node.position.x + width + 20);
-    maxY = Math.max(maxY, node.position.y + height + 20);
+    maxX = Math.max(maxX, node.position.x + width);
+    maxY = Math.max(maxY, node.position.y + height);
   }
 
   const padding = 50;

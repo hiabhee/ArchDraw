@@ -366,11 +366,6 @@ export default function EditorPage() {
       })) as Edge[];
 
       const store = useDiagramStore.getState();
-      const styleTheme = (result.metadata?.styleTheme || result.metadata?.theme) as string | undefined;
-      if (styleTheme) {
-        store.setDiagramStyleTheme(styleTheme);
-      }
-
       // Apply the same layout transformation the horizontal/vertical layout
       // toggler performs so freshly generated diagrams are laid out properly
       // (parent groups resized to contain nested children) without requiring a
@@ -382,6 +377,7 @@ export default function EditorPage() {
       const serverLayoutMatches = result.metadata?.layoutEngine === 'mermaid-dagre-v1'
         && result.metadata?.layoutDirection === mermaidDirection
         && isStudioRenderStyle(store.diagramRenderStyle)
+        && store.iconMode !== 'off'
         && store.diagramLayoutStyle === 'flow';
       const relayouted = serverLayoutMatches
         ? { nodes: processedNodes, edges: processedEdges, success: true, warnings: [] }
@@ -389,6 +385,7 @@ export default function EditorPage() {
             title: canvasName,
             renderStyleId: store.diagramRenderStyle,
             layoutStyle: store.diagramLayoutStyle,
+            iconMode: store.iconMode,
           });
       // `store` was a snapshot taken before the await — the user may have
       // edited (or another generation may have landed) meanwhile. Re-read the
@@ -401,6 +398,7 @@ export default function EditorPage() {
       }
       const liveStore = useDiagramStore.getState();
       liveStore.setDiagramViewMode('overview');
+      liveStore.setActiveLayoutPresetId(activePresetId);
       const finalNodes = relayouted.success ? relayouted.nodes : processedNodes;
       const finalEdges = relayouted.success ? relayouted.edges : processedEdges;
 
@@ -417,7 +415,7 @@ export default function EditorPage() {
       // visible (see mergeGeneratedNodes).
       let usedImportDiagram = false;
       if (replace) {
-        importDiagram(finalNodes, finalEdges);
+        importDiagram(finalNodes, finalEdges, { preserveLayout: relayouted.success });
         usedImportDiagram = true;
       } else {
         const { nodes: mergedNodes, edges: mergedEdges } = mergeGeneratedNodes(
@@ -432,13 +430,9 @@ export default function EditorPage() {
           liveStore.setNodes(mergedNodes);
           liveStore.setEdges(mergedEdges);
         } else {
-          importDiagram(finalNodes, finalEdges);
+          importDiagram(finalNodes, finalEdges, { preserveLayout: relayouted.success });
           usedImportDiagram = true;
         }
-      }
-
-      if (direction) {
-        useDiagramStore.getState().setActiveLayoutPresetId(direction);
       }
 
       renameCanvas(useDiagramStore.getState().activeCanvasId, canvasName);
@@ -506,14 +500,19 @@ export default function EditorPage() {
 
     try {
       if (isGitHubRepoUrl(description)) {
-        const parsed = await generateDiagramFromRepo(description, detailLevel, (p) => setProgress(p));
+        const { diagramRenderStyle, diagramLayoutStyle, iconMode } = useDiagramStore.getState();
+        const parsed = await generateDiagramFromRepo(description, detailLevel, (p) => setProgress(p), {
+          renderStyleId: diagramRenderStyle,
+          layoutStyle: diagramLayoutStyle,
+          iconMode,
+        });
         // The user may have switched to a live map while the repo was analysed.
         if (!useDiagramStore.getState().openTabIfLiveProject()) {
           throw new Error('Could not open a new tab for this result. The live map was kept.');
         }
-        importDiagram(parsed.nodes, parsed.edges);
+        useDiagramStore.getState().setActiveLayoutPresetId('layered-lr');
+        importDiagram(parsed.nodes, parsed.edges, { preserveLayout: true });
         renameCanvas(useDiagramStore.getState().activeCanvasId, canvasName);
-        setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
         markPipelineDone();
         toast.success(`Generated repo diagram: ${parsed.nodeCount} nodes, ${parsed.edgeCount} edges`);
         analytics.track({
@@ -537,7 +536,7 @@ export default function EditorPage() {
       );
 
       markPipelineDone();
-      handleGenerationComplete(responseData.data, canvasName, !!responseData.cached, replace);
+      await handleGenerationComplete(responseData.data, canvasName, !!responseData.cached, replace);
       window.dispatchEvent(new CustomEvent('archdraw:credits-updated'));
 
       analytics.track({

@@ -16,6 +16,12 @@ describe('text', () => {
     expect(r.steps[0].ids).toEqual([t.id]);
   });
 
+  it('reserves height for a heading that wraps at the text box width cap', () => {
+    const r = run([{ op: 'text', text: 'Netflix system architecture', x: 0, y: 0, size: 'heading' }]);
+    expect(r.nodes[0].width).toBe(560);
+    expect(r.nodes[0].height).toBeGreaterThanOrEqual(200);
+  });
+
   it('allows an empty text box to be filled in later', () => {
     const r = run([{ op: 'text', text: '', x: 0, y: 0 }]);
     expect(r.nodes[0].data.text).toBe('');

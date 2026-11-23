@@ -51,10 +51,13 @@ const HUB_SYSTEM = `graph LR
 
 interface Box { x: number; y: number; w: number; h: number }
 
-async function lay(source: string, layoutStyle?: 'flow' | 'zones') {
+async function lay(source: string, layoutStyle?: 'auto' | 'flow' | 'zones') {
   const result = (await runMermaidPipeline(source, { layoutProfile: 'studio-minimal', areaOrder: 'flow', layoutStyle })) as unknown as {
     success: boolean;
-    data: { nodes: Array<{ id: string; position: { x: number; y: number }; width?: number; height?: number; parentNode?: string }> };
+    data: {
+      geometrySummary?: { hardViolations: number };
+      nodes: Array<{ id: string; position: { x: number; y: number }; width?: number; height?: number; parentNode?: string }>;
+    };
   };
   expect(result.success).toBe(true);
   const nodes = result.data.nodes;
@@ -64,7 +67,7 @@ async function lay(source: string, layoutStyle?: 'flow' | 'zones') {
     const parent = node.parentNode ? box(node.parentNode) : { x: 0, y: 0, w: 0, h: 0 };
     return { x: parent.x + node.position.x, y: parent.y + node.position.y, w: node.width ?? 0, h: node.height ?? 0 };
   };
-  return { nodes, box };
+  return { nodes, box, geometrySummary: result.data.geometrySummary };
 }
 
 const centerX = (b: Box) => b.x + b.w / 2;
@@ -127,15 +130,25 @@ describe('hub-and-zones layout', () => {
     for (const node of flow.nodes) expect(zones.box(node.id)).toEqual(flow.box(node.id));
   });
 
-  it('is off by default and falls back to the flow layout when there is no hub', async () => {
+  it('selects between flow and zones automatically, and falls back to flow when there is no hub', async () => {
     const chain = `graph LR
   a["A"] --> b["B"] --> c["C"] --> d["D"] --> e["E"]
 `;
     const flow = await lay(chain, 'flow');
     const zones = await lay(chain, 'zones');
     for (const node of flow.nodes) expect(zones.box(node.id)).toEqual(flow.box(node.id));
-    const plain = await lay(HUB_SYSTEM);
+    const plain = await lay(HUB_SYSTEM, 'auto');
     const explicit = await lay(HUB_SYSTEM, 'flow');
-    for (const node of plain.nodes) expect(explicit.box(node.id)).toEqual(plain.box(node.id));
+    expect(plain.nodes.map(node => node.id).sort()).toEqual(explicit.nodes.map(node => node.id).sort());
+    const leaves = plain.nodes.filter(node => !plain.nodes.some(child => child.parentNode === node.id));
+    for (let i = 0; i < leaves.length; i++) {
+      for (let j = i + 1; j < leaves.length; j++) {
+        expect(overlaps(plain.box(leaves[i].id), plain.box(leaves[j].id))).toBe(false);
+      }
+    }
+    expect(plain.geometrySummary?.hardViolations).toBe(0);
+
+    const automaticChain = await lay(chain);
+    for (const node of automaticChain.nodes) expect(flow.box(node.id)).toEqual(automaticChain.box(node.id));
   });
 });

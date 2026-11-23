@@ -47,8 +47,7 @@ class DiagramGeometryStore {
   }
   getEdge = (id: string) => this.edges.get(id) ?? emptyEdgeGeometry;
 }
-const geometryStore = new DiagramGeometryStore();
-const DiagramGeometryContext = createContext(geometryStore);
+const DiagramGeometryContext = createContext(new DiagramGeometryStore());
 
 /** True while a node is being dragged. Changes only at drag start and end. */
 export function useDiagramDragging(): boolean {
@@ -67,19 +66,25 @@ function publishSettledPlan(key: string, plan: DiagramGeometryPlan): void {
   if (settledPlans.get(key) === plan) return;
   settledPlans.set(key, plan);
   if (settledPlans.size > 16) settledPlans.delete(settledPlans.keys().next().value!);
-  geometryStore.set(plan);
   settledPlanListeners.get(key)?.forEach(listener => listener());
 }
 
 export function DiagramGeometryProvider({
   nodes,
   edges,
+  isolated = false,
+  useWorker = true,
+  enabled = true,
   children,
 }: {
   nodes: Node[];
   edges: Edge[];
+  isolated?: boolean;
+  useWorker?: boolean;
+  enabled?: boolean;
   children: ReactNode;
 }) {
+  const [geometryStore] = useState(() => new DiagramGeometryStore());
   const { direction, planKey: planStoreKey, renderStyleId, iconMode, readOnly } = useCanvasView();
   const [repairing, setRepairing] = useState(false);
   const [repairMessage, setRepairMessage] = useState('');
@@ -122,34 +127,39 @@ export function DiagramGeometryProvider({
     return result;
   }, [measuredNodes, edges]);
   // A label drag rewrites `labelT` on every pointer move; keep it out of the plan key so the other edges are not re-planned (and flicker to their fallback routes) mid-drag.
-  const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true, straightEdges: false }), [direction, renderStyleId, iconMode, handleAnchors]);
+  const options = useMemo(() => ({ direction, renderStyleId, iconMode, handleAnchors, ignoreLabelPosition: true, straightEdges: false, repairReturnCrossings: true }), [direction, renderStyleId, iconMode, handleAnchors]);
   const geometryKey = useMemo(() => geometrySnapshotKey(measuredNodes, edges, options), [measuredNodes, edges, options]);
   useEffect(() => {
-    if (isDragging) return;
+    if (!enabled || isDragging) return;
     const currentKey = geometryKey;
-    if (settledPlans.get(planStoreKey)?.key === currentKey) return;
+    if (!isolated && settledPlans.get(planStoreKey)?.key === currentKey) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      void computeDiagramGeometryInWorker(measuredNodes, edges, options).then((next) => {
+      const job = useWorker
+        ? computeDiagramGeometryInWorker(measuredNodes, edges, options, !isolated)
+        : Promise.resolve().then(() => computeDiagramGeometryPlan(measuredNodes, edges, options));
+      void job.then((next) => {
         if (cancelled || next.key !== currentKey) return;
         setWorkerPlan(next);
-        publishSettledPlan(planStoreKey, next);
+        if (!isolated) publishSettledPlan(planStoreKey, next);
       }).catch((error: unknown) => {
         if (cancelled || (error instanceof Error && error.name === 'ObsoleteGeometryRequest')) return;
         // The worker may be unavailable in older browser/test hosts.
         const next = computeDiagramGeometryPlan(measuredNodes, edges, options);
-        if (next.key === currentKey) { setWorkerPlan(next); publishSettledPlan(planStoreKey, next); }
+        if (next.key !== currentKey) return;
+        setWorkerPlan(next);
+        if (!isolated) publishSettledPlan(planStoreKey, next);
       });
     }, 60);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [isDragging, geometryKey, measuredNodes, edges, options, planStoreKey]);
+  }, [enabled, isDragging, geometryKey, measuredNodes, edges, options, planStoreKey, isolated, useWorker]);
 
   // During a drag the diagram keeps the last plan it had, instead of rebuilding
   // a preview for every pointer move.
   const plan = useMemo(() => {
-    if (workerPlan?.key === geometryKey) return workerPlan;
-    if (settledPlan?.key === geometryKey) return settledPlan;
-    if (isDragging) {
+    if (enabled && workerPlan?.key === geometryKey) return workerPlan;
+    if (enabled && !isolated && settledPlan?.key === geometryKey) return settledPlan;
+    if (enabled && isDragging) {
       const held = settledPlan ?? geometryStore.plan;
       if (held) return held;
     }
@@ -161,10 +171,10 @@ export function DiagramGeometryProvider({
       quality: { hardViolations: 0, crossings: 0, weightedCrossings: 0, unexplainedPrivateOverlapLength: 0,
         criticalPathDisconnectCount: 0, bendCount: 0, totalPathLength: 0, area: 0 }, provisional: true,
     };
-  }, [isDragging, settledPlan, workerPlan, geometryKey]);
+  }, [enabled, isolated, isDragging, settledPlan, workerPlan, geometryKey, geometryStore]);
 
-  useEffect(() => { geometryStore.set(plan); }, [plan]);
-  useEffect(() => { geometryStore.setDragging(isDragging); }, [isDragging]);
+  useEffect(() => { geometryStore.set(plan); }, [geometryStore, plan]);
+  useEffect(() => { geometryStore.setDragging(isDragging); }, [geometryStore, isDragging]);
 
   // Surface collisions and substantial congestion; a single ordinary crossing
   // should not leave a permanent warning on an otherwise readable diagram.

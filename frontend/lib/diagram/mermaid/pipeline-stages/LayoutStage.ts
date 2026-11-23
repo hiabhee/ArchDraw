@@ -1,3 +1,4 @@
+import type { Node, Edge } from 'reactflow';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { BaseStage, type StageResult, successResult } from '@/lib/diagram/pipeline-core';
@@ -73,9 +74,49 @@ function foldCrossingAllowance(fitGain: number, addedCrossings = 0): number {
 
 /** A diagram with more nodes than this is not searched for a mix of directions (each trial is a layout). */
 const MIX_MAX_NODES = 120;
+/** Full geometry comparisons for individual group directions stay bounded. */
+const MIX_ROUTE_SEARCH_MAX_NODES = 48;
+const MIX_ROUTE_SEARCH_MAX_GROUPS = 4;
+const MIX_ROUTE_MAX_SHRINK = 0.1;
 
 const isGroupLike = (node: { type?: string; data?: unknown }) =>
   node.type === 'groupNode' || (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
+
+function hasLikelyLayoutHub(nodes: RFObjects['nodes'], edges: RFObjects['edges']): boolean {
+  const parent = new Map(nodes.map(node => [node.id, node.parentNode ?? (node.data as { parentId?: string } | undefined)?.parentId]));
+  const topUnit = (id: string): string | undefined => {
+    let current = id;
+    const seen = new Set<string>();
+    while (parent.get(current) && !seen.has(parent.get(current)!)) {
+      seen.add(current);
+      current = parent.get(current)!;
+    }
+    return nodes.some(node => node.id === current) ? current : undefined;
+  };
+  const units = new Set(nodes.map(node => topUnit(node.id)).filter((id): id is string => Boolean(id)));
+  if (units.size < 4 || nodes.length > 80) return false;
+
+  const neighbours = new Map<string, Map<string, number>>();
+  let crossEdges = 0;
+  for (const edge of edges) {
+    const source = topUnit(edge.source);
+    const target = topUnit(edge.target);
+    if (!source || !target || source === target) continue;
+    crossEdges++;
+    const sourceLinks = neighbours.get(source) ?? neighbours.set(source, new Map()).get(source)!;
+    const targetLinks = neighbours.get(target) ?? neighbours.set(target, new Map()).get(target)!;
+    sourceLinks.set(target, (sourceLinks.get(target) ?? 0) + 1);
+    targetLinks.set(source, (targetLinks.get(source) ?? 0) + 1);
+  }
+  if (crossEdges === 0) return false;
+  const hub = [...neighbours.values()].reduce((best, links) => {
+    const weightedDegree = [...links.values()].reduce((sum, count) => sum + count, 0);
+    return Math.max(best, weightedDegree);
+  }, 0);
+  return hub / crossEdges >= 0.4 && Math.max(...[...neighbours.values()].map(links => links.size)) >= 3;
+}
+
+export type PrepareLayoutGeometry = (objects: RFObjects) => { nodes: Node[]; edges: Edge[] };
 
 export interface LayoutStageInput {
   objects: RFObjects;
@@ -158,16 +199,17 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     const baseNodeSep = base.nodeSep ?? 110;
     const baseRankSep = base.rankSep ?? 170;
     // Areas given in data-flow order are stages: keep them in rank order.
-    // `zones`: hub-and-zones placement (falls back to the flow layout with no hub).
-    const flowAreas = {
-      ...(_context.metadata.areaOrder ? { flowAreas: true } : {}),
-      ...(_context.metadata.layoutStyle === 'zones' ? { zones: true } : {}),
-    };
-    const candidates = [
-      { nodes: canonicalNodes, options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
-      { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined },
-      { nodes: canonicalNodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), rankSep: Math.max(40, baseRankSep - 20), ...flowAreas } },
-      { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48, ...flowAreas } },
+    // Auto compares hub-and-zones with the normal flow when the graph has a
+    // plausible hub. Explicit styles keep their existing meaning.
+    const autoLayoutStyle = _context.metadata.layoutStyle === 'auto';
+    const wantsZones = _context.metadata.layoutStyle === 'zones';
+    const flowAreas = { ...(_context.metadata.areaOrder ? { flowAreas: true } : {}) };
+    const candidateAreas = { ...flowAreas, ...(wantsZones ? { zones: true } : {}) };
+    const candidates: Array<{ nodes: RFObjects['nodes']; options?: Parameters<typeof applyRfLayout>[2] }> = [
+      { nodes: canonicalNodes, options: layoutOptions || Object.keys(candidateAreas).length ? { ...layoutOptions, ...candidateAreas } : undefined },
+      { nodes: [...canonicalNodes].reverse(), options: layoutOptions || Object.keys(candidateAreas).length ? { ...layoutOptions, ...candidateAreas } : undefined },
+      { nodes: canonicalNodes, options: { ...base, nodeSep: Math.max(COLUMN_PACK_MIN_GAP, baseNodeSep - 32), rankSep: Math.max(40, baseRankSep - 20), ...candidateAreas } },
+      { nodes: canonicalNodes, options: { ...base, rankSep: baseRankSep + 48, ...candidateAreas } },
     ];
     const qualityDirection = input.direction === 'TD' ? 'TB' : input.direction;
     const geometryDirection = input.direction === 'LR' || input.direction === 'RL' ? 'LR' : 'TD';
@@ -179,24 +221,37 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       : input.direction === 'TD' ? 'TD' as const
       : undefined;
 
-    const measureCandidate = (laid: RFObjects) => {
+    const prepareGeometry = _context.metadata.prepareGeometry as PrepareLayoutGeometry | undefined;
+    const nodeOrder = new Map(semanticObjects.nodes.map((node, index) => [node.id, index]));
+    const geometryOptions = {
+      direction: geometryDirection,
+      straightEdges: false,
+      renderStyleId: (_context.metadata.renderStyleId ?? (profile === 'studio-minimal' || profile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined,
+      iconMode: _context.metadata.iconMode as NodeIconMode | undefined,
+    } as const;
+    const prepareCandidate = (laid: RFObjects) => {
       // Dagre emits absolute child coordinates. Normalize them through the
       // canonical sizing pass before measuring, otherwise parent offsets are
       // counted twice and grouped candidates receive incorrect scores.
       const normalized = applySubgraphBoundsToRf(laid.nodes);
+      const graph = prepareGeometry
+        ? prepareGeometry({
+            nodes: [...normalized].sort((a, b) => nodeOrder.get(a.id)! - nodeOrder.get(b.id)!),
+            edges: laid.edges,
+          })
+        : { nodes: normalized, edges: laid.edges };
+      const fit = measureLayoutAesthetics(graph.nodes, [], geometryDirection).fitScale;
+      return { normalized, graph, fit };
+    };
+    const measureCandidate = (laid: RFObjects, { normalized, graph, fit } = prepareCandidate(laid)) => {
       const quality = measureLayoutQuality(normalized, laid.edges, qualityDirection);
-      const geometry = getCachedDiagramGeometryPlan(normalized as never, laid.edges as never, {
-        direction: geometryDirection,
-        straightEdges: false,
-        renderStyleId: (_context.metadata.renderStyleId ?? (profile === 'studio-minimal' || profile === 'studio-live' ? 'studio-minimal' : undefined)) as DiagramRenderStyleId | undefined,
-        iconMode: _context.metadata.iconMode as NodeIconMode | undefined,
-      });
+      const geometry = getCachedDiagramGeometryPlan(graph.nodes, graph.edges, geometryOptions);
       const labelCollisions = geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
       return {
         quality,
         geometry,
         // How large the diagram can be drawn on a typical screen (1 = full size).
-        fit: measureLayoutAesthetics(normalized as never, [], geometryDirection).fitScale,
+        fit,
         candidateScore: [
           geometry.quality.hardViolations,
           geometry.quality.criticalPathDisconnectCount,
@@ -212,31 +267,37 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     };
     type Measured = ReturnType<typeof measureCandidate>;
 
-    /** Lays the nodes out, then tries folding the result; returns the layout to use and its measure. */
-    const produce = (spec: typeof candidates[number]): { candidate: RFObjects; measured: Measured; folded: boolean } => {
-      const laidOut = applyRfLayout(
-        { ...semanticObjects, nodes: spec.nodes } as unknown as Parameters<typeof applyRfLayout>[0],
-        input.direction,
-        spec.options,
-      ) as unknown as RFObjects;
+    const placeCandidate = (spec: typeof candidates[number]) => applyRfLayout(
+      { ...semanticObjects, nodes: spec.nodes } as unknown as Parameters<typeof applyRfLayout>[0],
+      input.direction,
+      spec.options,
+    ) as unknown as RFObjects;
 
+    const foldsFor = (laid: RFObjects) => foldDirection
+      ? foldCandidates(laid.nodes, { direction: foldDirection, edges: laid.edges }).slice(0, foldTries(laid.nodes.length))
+      : [];
+
+    /** Routes a placement and its most promising folds. */
+    const produce = (laidOut: RFObjects, folds = foldsFor(laidOut), prepared = prepareCandidate(laidOut)) => {
       // A long flow is also tried folded into rows (or lanes) so it fills a 16:9
       // screen; the fold is used only when routing it is no worse (see FOLD_*), since
       // the wrap can put an edge across others. Folding happens before scoring, so
       // the score sees the rows that will be drawn.
       let candidate = laidOut;
-      let measured = measureCandidate(laidOut);
+      let measured = measureCandidate(laidOut, prepared);
       let usedFold = false;
-      if (foldDirection) {
+      if (folds.length) {
         // Best-fitting fold first; the first that routes about as cleanly as the
         // unfolded layout wins. A few are tried: the best fit is not always the
         // one whose wrap edges clear every node and label.
-        const folds = foldCandidates(laidOut.nodes, { direction: foldDirection, edges: laidOut.edges }).slice(0, foldTries(laidOut.nodes.length));
         for (const fold of folds) {
           const folded = { ...laidOut, nodes: fold.nodes };
           const foldedMeasure = measureCandidate(folded);
           const before = measured.geometry.quality;
           const after = foldedMeasure.geometry.quality;
+          if (process.env.DEBUG_LAYOUT_STAGE === '1') {
+            console.debug('[layout fold]', { rows: fold.rows, rowGap: fold.rowGap, fit: foldedMeasure.fit, ...after });
+          }
           // Preserve the overlap cap on clean routes. On an already congested
           // layout, a fold can trade soft overlap for fewer weighted crossings.
           const acceptableOverlap =
@@ -268,12 +329,39 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     // Keep topology, dimensions and groups intact; never delete edges for aesthetics.
     const evaluated = new Set<string>();
     const evaluate = (candidateSpec: typeof candidates[number]) => {
-      const signature = `${(candidateSpec.options as { zones?: boolean } | undefined)?.zones ? 'zones' : 'flow'}:${candidateSpec.options?.nodeSep ?? 'default'}:${candidateSpec.options?.rankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
+      const options = candidateSpec.options;
+      const signature = `${options?.zones ? 'zones' : 'flow'}:${options?.nodeSep ?? 'default'}:${options?.rankSep ?? 'default'}:${options?.groupRankSep ?? 'default'}:${candidateSpec.nodes.map(node => node.id).join(',')}`;
       if (evaluated.has(signature)) return;
       evaluated.add(signature);
-      const { candidate, measured, folded } = produce(candidateSpec);
+      const laid = placeCandidate(candidateSpec);
+      const prepared = prepareCandidate(laid);
+      const folds = foldsFor(laid);
+      // Smaller candidates can only win by repairing a hard or main-path
+      // failure. Skip routing when even their folds cannot beat a clean fit.
+      if (best && best.geometry.quality.hardViolations === 0 && best.geometry.quality.criticalPathDisconnectCount === 0) {
+        const fitFloor = best.fit - 1e-6;
+        if (prepared.fit < fitFloor && folds.every(fold => prepareCandidate({ ...laid, nodes: fold.nodes }).fit < fitFloor)) return;
+      }
+      const { candidate, measured, folded } = produce(laid, folds, prepared);
       const { quality, geometry, candidateScore } = measured;
-
+      if (process.env.DEBUG_LAYOUT_STAGE === '1') {
+        console.debug('[layout candidate]', {
+          spacing: [candidateSpec.options?.nodeSep, candidateSpec.options?.rankSep],
+          reversed: candidateSpec.nodes[0]?.id !== canonicalNodes[0]?.id,
+          folded,
+          fit: measured.fit,
+          ...geometry.quality,
+        });
+      }
+      if (autoLayoutStyle && layouted && best
+        && geometry.quality.hardViolations === best.geometry.quality.hardViolations
+        && geometry.quality.criticalPathDisconnectCount === best.geometry.quality.criticalPathDisconnectCount) {
+        const aesthetics = (value: RFObjects) => measureLayoutAesthetics(applySubgraphBoundsToRf(value.nodes) as never, value.edges as never, geometryDirection);
+        const before = aesthetics(layouted);
+        const after = aesthetics(candidate);
+        if (after.fanCenteringError > before.fanCenteringError + 0.5
+          || after.straightEdgeRatio < before.straightEdgeRatio - 1e-9) return;
+      }
 
       const score = (value: typeof best) => value
         ? [
@@ -322,12 +410,21 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     // Only pay for alternate Dagre order when cheap node-level scoring or the
     // selected route plan reports crossings; spacing repairs target hard issues.
     evaluate(candidates[0]);
-    // Zones (hub in the middle) is used only when it routes at least as cleanly as the plain flow:
-    // on a diagram whose hub has request/reply loops to both sides it adds crossings and long return
-    // edges, and the flow layout reads better. The comparison is the same score as every candidate.
-    if (flowAreas.zones) {
-      const { zones: _zones, ...flowOnly } = flowAreas;
-      evaluate({ nodes: canonicalNodes, options: layoutOptions || Object.keys(flowOnly).length ? { ...layoutOptions, ...flowOnly } : undefined });
+    // Auto mode compares the alternate arrangement only when graph structure
+    // looks hub-like. Both candidates use the same geometry score and safety
+    // checks, so a visually larger but invalid zone layout cannot win.
+    if (autoLayoutStyle && hasLikelyLayoutHub(semanticObjects.nodes, semanticObjects.edges)) {
+      evaluate({
+        nodes: canonicalNodes,
+        options: { ...base, ...flowAreas, zones: true },
+      });
+      evaluate({
+        nodes: [...canonicalNodes].reverse(),
+        options: { ...base, ...flowAreas, zones: true },
+      });
+    }
+    if (wantsZones) {
+      evaluate({ nodes: canonicalNodes, options: layoutOptions || Object.keys(flowAreas).length ? { ...layoutOptions, ...flowAreas } : undefined });
     }
     if ((best?.nodeQuality.weightedCrossings ?? 0) > 0 || (best?.geometry.quality.weightedCrossings ?? 0) > 0) {
       evaluate(candidates[1]);
@@ -344,12 +441,25 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       }
     }
 
-    // A folded layout just wider than its viewport can fit at full scale
-    // with a slightly tighter rank gap. Evaluate it through the same route guards.
+    // A nearly full-size fold may need only a few pixels less per rank.
+    // Keep the usual route checks, including the space reserved for labels.
     if (foldDirection && best && best.fit >= 0.95 && best.fit < 1) {
+      const rankSep = Math.max(36, baseRankSep - 24);
+      if (canonicalNodes.length <= 20) {
+        evaluate({ nodes: canonicalNodes, options: { ...base, rankSep, ...candidateAreas } });
+      }
+      if (best.fit < 1) {
+        evaluate({ ...candidates[2], options: { ...candidates[2].options, rankSep } });
+      }
+    }
+
+    // On dense graphs, try a small reduction in rank spacing independently
+    // from the tighter stacks above. The stacks can close a routing corridor
+    // even when there is still extra space between ranks.
+    if (canonicalNodes.length > 40 && best && best.fit < 0.4) {
       evaluate({
-        ...candidates[2],
-        options: { ...candidates[2].options, rankSep: Math.max(36, baseRankSep - 24) },
+        nodes: canonicalNodes,
+        options: { ...base, rankSep: Math.max(40, baseRankSep - 10), ...candidateAreas },
       });
     }
 
@@ -392,6 +502,14 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       }
     }
 
+    // Opening an internal rank can clear labels even when extra room between groups cannot.
+    if (autoLayoutStyle && canonicalNodes.length <= 40 && canonicalNodes.some(isGroupLike)) {
+      for (const groupRankSep of [112, 152]) {
+        if (!best?.geometry.violations.some(issue => issue.code === 'LABEL_COLLISION')) break;
+        evaluate({ nodes: canonicalNodes, options: { ...base, groupRankSep, ...candidateAreas } });
+      }
+    }
+
     // A mix of directions: some groups are laid out the other way (a tall block
     // instead of a wide one) when that lets the diagram be drawn clearly larger.
     // Searched on quick layouts, then routed like a fold and used only if it routes
@@ -399,7 +517,7 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
     // by the author, so they are removed from the result again (see below).
     let mixedGroups: ReadonlyMap<string, FlowDirection> | undefined;
     const otherDirection: FlowDirection | undefined = input.direction === 'LR' ? 'TD' : input.direction === 'TD' ? 'LR' : undefined;
-    if (otherDirection && _context.metadata.mixGroupDirections !== false && best && best.fit < 1 && semanticObjects.nodes.length <= MIX_MAX_NODES) {
+    if (otherDirection && _context.metadata.mixGroupDirections !== false && best && semanticObjects.nodes.length <= MIX_MAX_NODES) {
       const hasOwnDirection = (node: { data?: unknown }) => Boolean((node.data as { direction?: string; groupDirection?: string } | undefined)?.direction || (node.data as { groupDirection?: string } | undefined)?.groupDirection);
       const memberCount = new Map<string, number>();
       for (const node of canonicalNodes) {
@@ -429,9 +547,12 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       };
       const found = searchGroupDirections(topGroups, otherDirection, fitOf);
       if (found) {
-        const { candidate, measured } = produce({ nodes: withDirections(found.assignment), options: candidates[0].options });
+        const { candidate, measured } = produce(placeCandidate({ nodes: withDirections(found.assignment), options: candidates[0].options }));
         const before = best.geometry.quality;
         const after = measured.geometry.quality;
+        if (process.env.DEBUG_LAYOUT_STAGE === '1') {
+          console.debug('[layout group directions]', { groups: [...found.assignment.keys()], fit: measured.fit, ...after });
+        }
         if (
           measured.fit >= best.fit * MIN_MIX_GAIN &&
           after.hardViolations <= before.hardViolations &&
@@ -444,6 +565,46 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
           best = { nodeQuality: measured.quality, geometry: measured.geometry, fit: measured.fit };
           layouted = candidate;
           mixedGroups = found.assignment;
+        }
+      }
+
+      // The quick fit search above can miss a group direction that keeps a
+      // similar canvas size but routes the graph much more cleanly. For small
+      // grouped diagrams, route each top-level group once in the other
+      // direction and keep a Pareto improvement with at most a small fit loss.
+      if (autoLayoutStyle && best && (best.geometry.quality.hardViolations > 0 || best.geometry.quality.crossings > 0 || best.geometry.quality.unexplainedPrivateOverlapLength > 0)
+        && semanticObjects.nodes.length <= MIX_ROUTE_SEARCH_MAX_NODES
+        && topGroups.length <= MIX_ROUTE_SEARCH_MAX_GROUPS) {
+        const routeAssignments: Map<string, FlowDirection>[] = topGroups.map(groupId => new Map([[groupId, otherDirection]]));
+        // A group can need its neighbour to turn with it: one direction alone
+        // may route worse, while a pair creates a clean, compact lane.
+        for (let i = 0; i < topGroups.length; i++) {
+          for (let j = i + 1; j < topGroups.length; j++) {
+            routeAssignments.push(new Map([[topGroups[i], otherDirection], [topGroups[j], otherDirection]]));
+          }
+        }
+        for (const assignment of routeAssignments) {
+          const { candidate, measured } = produce(placeCandidate({ nodes: withDirections(assignment), options: candidates[0].options }));
+          if (!best || !layouted) continue;
+          const before = best.geometry.quality;
+          const after = measured.geometry.quality;
+          const noHardRegression = after.hardViolations <= before.hardViolations
+            && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount;
+          const noRoutingRegression = after.crossings <= before.crossings
+            && after.weightedCrossings <= before.weightedCrossings
+            && after.unexplainedPrivateOverlapLength <= before.unexplainedPrivateOverlapLength
+            && measured.geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length
+              <= best.geometry.violations.filter(issue => issue.code === 'LABEL_COLLISION').length;
+          const improvesRouting = after.crossings < before.crossings
+            || after.weightedCrossings < before.weightedCrossings
+            || after.unexplainedPrivateOverlapLength < before.unexplainedPrivateOverlapLength
+            || after.bendCount < before.bendCount;
+          const keepsReadableScale = measured.fit >= best.fit * (1 - MIX_ROUTE_MAX_SHRINK);
+          if (noHardRegression && noRoutingRegression && improvesRouting && keepsReadableScale) {
+            best = { nodeQuality: measured.quality, geometry: measured.geometry, fit: measured.fit };
+            layouted = candidate;
+            mixedGroups = assignment;
+          }
         }
       }
     }
@@ -469,20 +630,18 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       // services), and moving it onto the spine must not pull it off the middle of its branches.
       const fans = (nodes: RFObjects['nodes']) => measureLayoutAesthetics(applySubgraphBoundsToRf(nodes) as never, semanticObjects.edges as never, geometryDirection);
       const fansBefore = fans(layouted.nodes);
-      const worse = (measured: Measured, nodes: RFObjects['nodes']) => {
+      const worsensAesthetics = (nodes: RFObjects['nodes']) => {
+        const fansAfter = fans(nodes);
+        return fansAfter.fanCenteringError > fansBefore.fanCenteringError + 0.5
+          || fansAfter.straightEdgeRatio < fansBefore.straightEdgeRatio - 1e-9;
+      };
+      const worsensRoutes = (measured: Measured) => {
         const after = measured.geometry.quality;
-        if (measured.fit < settled.fit - 1e-6
-          || after.unexplainedPrivateOverlapLength > before.unexplainedPrivateOverlapLength
+        return after.unexplainedPrivateOverlapLength > before.unexplainedPrivateOverlapLength
           || after.hardViolations > before.hardViolations
           || after.criticalPathDisconnectCount > before.criticalPathDisconnectCount
           || after.weightedCrossings > before.weightedCrossings
-          || labelHits(measured.geometry) > labelHits(settled.geometry)) return true;
-        const fansAfter = fans(nodes);
-        // Straightening the spine must not bend a link that was straight.
-        // The worst fan may not get worse and no straight link may bend; small shifts of other
-        // fans are the price of a straight spine.
-        return fansAfter.fanCenteringError > fansBefore.fanCenteringError + 0.5
-          || fansAfter.straightEdgeRatio < fansBefore.straightEdgeRatio - 1e-9;
+          || labelHits(measured.geometry) > labelHits(settled.geometry);
       };
       let chosen: { nodes: RFObjects['nodes']; measured: Measured; count: number } | undefined;
       // One card at a time on small spines (each move is kept only if it routes no worse, so a card
@@ -498,8 +657,12 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
           const aligned = alignMainSpine(nodes as never, semanticObjects.edges as never, geometryDirection, { target: line, only });
           if (!aligned) continue;
           const next = aligned as unknown as RFObjects['nodes'];
-          const trial = measureCandidate({ ...layouted, nodes: next });
-          if (worse(trial, next)) continue;
+          if (worsensAesthetics(next)) continue;
+          const trialGraph = { ...layouted, nodes: next };
+          const prepared = prepareCandidate(trialGraph);
+          if (prepared.fit < settled.fit - 1e-6) continue;
+          const trial = measureCandidate(trialGraph, prepared);
+          if (worsensRoutes(trial)) continue;
           nodes = next;
           measured = trial;
         }
@@ -524,15 +687,17 @@ export class LayoutStage extends BaseStage<LayoutStageInput, RFObjects> {
       const tryStep = (moved: unknown[] | undefined, minFit: number) => {
         if (!moved || !layouted || !best) return;
         const next = moved as unknown as RFObjects['nodes'];
-        const trial = measureCandidate({ ...layouted, nodes: next });
+        const trialGraph = { ...layouted, nodes: next };
+        const prepared = prepareCandidate(trialGraph);
+        if (prepared.fit < minFit) return;
+        const trial = measureCandidate(trialGraph, prepared);
         const before = best.geometry.quality;
         const after = trial.geometry.quality;
         if (after.hardViolations <= before.hardViolations
           && after.criticalPathDisconnectCount <= before.criticalPathDisconnectCount
           && after.weightedCrossings <= before.weightedCrossings
           && labelHits(trial.geometry) <= labelHits(best.geometry)
-          && after.bendCount <= before.bendCount
-          && trial.fit >= minFit) {
+          && after.bendCount <= before.bendCount) {
           // Fans stay centred and straight links stay straight, as in the spine pass.
           const aesthetics = (nodes: RFObjects['nodes']) => measureLayoutAesthetics(applySubgraphBoundsToRf(nodes) as never, semanticObjects.edges as never, geometryDirection);
           const was = aesthetics(layouted.nodes);

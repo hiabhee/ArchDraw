@@ -28,6 +28,24 @@ describe('POST /api/diagram/load preview', () => {
     expect(body.previewSvg).not.toMatch(/href="https?:/);
   });
 
+  it('defaults the inline canvas to dark Studio Minimal and honors explicit preview styles', async () => {
+    const input = { mermaid: MERMAID, dryRun: true, preview: true };
+    const explicitCanvas = { ...input, previewStyle: 'studio', previewSurface: 'canvas' };
+    const explicitMetallic = { ...explicitCanvas, previewStyle: 'studio-metallic' };
+    const explicitLight = { ...input, previewStyle: 'studio', previewTheme: 'light' };
+    const [defaultPreview, canvas, metallic, light] = await Promise.all([input, explicitCanvas, explicitMetallic, explicitLight].map(async options =>
+      (await POST(post(options))).json(),
+    ));
+
+    expect(canvas.previewSvg).not.toContain('archdraw-metallic-sheen');
+    expect(canvas.previewSvg).toContain('fill="#191d24"');
+    expect(canvas.previewSvg).not.toContain('archdraw-background-pattern');
+    expect(defaultPreview.previewSvg).toBe(canvas.previewSvg);
+    expect(metallic.previewSvg).toContain('archdraw-metallic-sheen');
+    expect(metallic.previewSvg).not.toContain('archdraw-background-pattern');
+    expect(light.previewSvg).toContain('fill="#fdfdfc"');
+  });
+
   it('draws a raw drawing hand-drawn when previewStyle is sketch, and keeps the Studio look otherwise', async () => {
     const nodes = [
       { id: 'a', type: 'textLabelNode', position: { x: 0, y: 0 }, width: 200, height: 100, data: { text: 'Whiteboard' } },
@@ -40,7 +58,133 @@ describe('POST /api/diagram/load preview', () => {
     expect(sketch.previewSvg).toContain(paper); // the sketch paper
     expect(clean.previewSvg).not.toContain(paper);
     expect(sketch.previewSvg).not.toBe(clean.previewSvg);
+    expect(clean.previewNodeSizes.b).toEqual(getEffectiveNodeDimensions(nodes[1], 'studio-minimal', 'all'));
+    expect(clean.previewNodeSizes.b.width).toBeGreaterThan(nodes[1].width);
   });
+
+  it('re-lays overlapping family-tree cards as a top-down hierarchy using their rendered sizes', async () => {
+    const nodes: Node[] = [
+      { id: 'parents', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Parents' } },
+      { id: 'root', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Central figure', subtitle: 'Second generation' } },
+      { id: 'branch-a', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Descendants in the first branch', subtitle: 'Children and grandchildren' } },
+      { id: 'branch-b', type: 'systemNode', position: { x: 0, y: 0 }, data: { label: 'Descendants in the second branch' } },
+    ];
+    const edges = [
+      { id: 'descent', source: 'parents', target: 'root', type: 'simpleFloating' },
+      { id: 'first', source: 'root', target: 'branch-a', type: 'simpleFloating' },
+      { id: 'second', source: 'root', target: 'branch-b', type: 'simpleFloating' },
+    ];
+    const response = await POST(post({
+      nodes, edges, dryRun: true, preview: true, layout: { direction: 'TD', profile: 'studio-minimal', foldLongFlows: false },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json() as { nodes: Node[]; edges: typeof edges };
+    const byId = new Map(body.nodes.map(node => [node.id, node]));
+    expect(body.edges.map(({ id, source, target }) => ({ id, source, target }))).toEqual(edges.map(({ id, source, target }) => ({ id, source, target })));
+    expect(byId.get('parents')!.position.y).toBeLessThan(byId.get('root')!.position.y);
+    const [left, right] = [byId.get('branch-a')!, byId.get('branch-b')!].sort((a, b) => a.position.x - b.position.x);
+    const leftSize = getEffectiveNodeDimensions(left, 'studio-minimal', 'all');
+    const rightSize = getEffectiveNodeDimensions(right, 'studio-minimal', 'all');
+    expect(left.position.y + leftSize.height / 2).toBeCloseTo(right.position.y + rightSize.height / 2);
+    expect(left.position.x + leftSize.width).toBeLessThan(right.position.x);
+  });
+
+  it('renders a compact Studio Metallic preview on black while preserving its graph', async () => {
+    const mermaid = `graph LR
+  client["Client<br/>Creates or opens a short link"] -->|Create or resolve link| gateway["Load balancer"]
+  gateway -->|Route request| api["URL shortener API"]
+  api -->|Check cached redirect| cache["Redis cache"]
+  api -->|Save or read URL mapping| db[("PostgreSQL")]
+  api -.->|Schedule expiry| worker["Cleanup worker"]
+  worker -->|Delete expired mappings| db`;
+    const input = { mermaid, dryRun: true, preview: true, previewStyle: 'studio-metallic', previewTheme: 'dark' };
+    const unfolded = await (await POST(post(input))).json();
+    const compact = await (await POST(post({ ...input, layout: { autoDirection: true } }))).json();
+    const aspectRatio = (svg: string) => {
+      const match = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)!;
+      return Number(match[1]) / Number(match[2]);
+    };
+
+    expect(compact.previewSvg).toContain('fill="#000000"');
+    expect(compact.previewSvg).toContain('url(#archdraw-metallic-sheen)');
+    expect(aspectRatio(compact.previewSvg)).toBeLessThan(aspectRatio(unfolded.previewSvg) / 2);
+    expect(compact.direction).toBe('TD');
+    expect(compact.previewQuality).toMatchObject({
+      hardViolations: 0, crossings: 0, labelCollisions: 0, criticalPathDisconnectCount: 0,
+    });
+    const row = (id: string) => compact.nodes.find((node: Node) => node.id === id).position.y;
+    expect(row('client')).toBeLessThan(row('gateway'));
+    expect(row('gateway')).toBeLessThan(row('api'));
+    expect(row('api')).toBeLessThan(row('db'));
+    expect(compact.nodes.map((node: Node) => node.id).sort()).toEqual(unfolded.nodes.map((node: Node) => node.id).sort());
+    const connections = (edges: Array<{ source: string; target: string; label: string }>) =>
+      edges.map(({ source, target, label }) => [source, target, label].join(':')).sort();
+    expect(connections(compact.edges)).toEqual(connections(unfolded.edges));
+  });
+
+  it('leaves room for all labels in a dense rideshare preview', async () => {
+    const mermaid = `graph LR
+  subgraph apps["Mobile apps"]
+    driver["Driver app"]
+    rider["Rider app"]
+  end
+  subgraph market["Marketplace and maps"]
+    location["Live driver location"]
+    eta["Routing and Deep ETA"]
+    h3["H3 geospatial index"]
+    matching["Driver matching"]
+    pricing["Upfront pricing"]
+  end
+  subgraph trip["Trip lifecycle"]
+    api["Mobile APIs"]
+    spanner[("Cloud Spanner")]
+    fulfillment["Fulfillment"]
+    ramen["RAMEN push platform"]
+  end
+  subgraph events["Trip events and payments"]
+    kafka["Kafka event streams"]
+    analytics["Analytics and ML"]
+    payments["Payments platform"]
+    balances["Entity balances"]
+    providers["Payment providers"]
+  end
+  driver -->|Send GPS updates| location
+  driver -->|Accept, start, end| api
+  rider -->|Quote and book| api
+  location -->|Latest driver positions| matching
+  location -->|GPS for traffic estimates| eta
+  location -->|Supply and demand by area| h3
+  eta -->|Pickup ETA| matching
+  eta -->|Travel time| pricing
+  h3 -->|Local marketplace signals| pricing
+  api -->|Get fare quote| pricing
+  api -->|Send trip commands| fulfillment
+  fulfillment -->|Request driver match| matching
+  matching -->|Propose assignment| fulfillment
+  fulfillment -->|Write trip and offer state| spanner
+  fulfillment -.->|Offers and trip status| ramen
+  location -.->|Live trip position| ramen
+  ramen -.->|Offers and updates| driver
+  ramen -.->|Ride updates| rider
+  fulfillment -.->|Publish trip events| kafka
+  kafka -.->|Trip and marketplace data| analytics
+  kafka -.->|Completed trip| payments
+  payments -->|Record money movements| balances
+  payments -->|Collect and disburse| providers`;
+    const response = await POST(post({
+      mermaid, dryRun: true, preview: true, previewSurface: 'canvas', layout: { autoDirection: true },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.previewSvg).toContain('Write trip and offer state');
+    expect(body.previewQuality).toMatchObject({
+      labelCollisions: 0, hardViolations: 0, criticalPathDisconnectCount: 0,
+    });
+    expect(body.direction).toBe('TD');
+    expect(body.nodes.filter((node: Node) => node.type === 'groupNode')).toHaveLength(4);
+    expect(body.nodes).toHaveLength(20);
+    expect(body.edges).toHaveLength(23);
+  }, 90000);
 
   it('refuses a raw drawing with a node type the canvas does not know', async () => {
     const response = await POST(post({ nodes: [{ id: 'x', type: 'scriptNode', position: { x: 0, y: 0 }, data: {} }], edges: [], dryRun: true }));

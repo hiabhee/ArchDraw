@@ -67,28 +67,20 @@ export function findAstFallbackPathDetailed(
   grid[sg.y][sg.x] = false;
   grid[tg.y][tg.x] = false;
 
-  const manhattan = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-    Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-
-  type PNode = { x: number; y: number };
-  const key = (p: PNode) => `${p.x},${p.y}`;
-
-  const gScore = new Map<string, number>();
-  const fScore = new Map<string, number>();
-  const cameFrom = new Map<string, string | null>();
-
-  const sk = key(sg);
-  gScore.set(sk, 0);
-  fScore.set(sk, manhattan(sg, tg));
-  cameFrom.set(sk, null);
+  const manhattan = (x: number, y: number) => Math.abs(x - tg.x) + Math.abs(y - tg.y);
+  const start = sg.y * cols + sg.x;
+  const goal = tg.y * cols + tg.x;
+  const gScore = new Map<number, number>([[start, 0]]);
+  const open = new Set<number>([start]);
+  const cameFrom = new Map<number, number>();
 
   const dirs = [
     { x: 0, y: 1 }, { x: 1, y: 0 },
     { x: 0, y: -1 }, { x: -1, y: 0 },
   ];
 
-  const heap: Array<{ key: string; priority: number }> = [];
-  const heapPush = (k: string, p: number) => {
+  const heap: Array<{ key: number; priority: number }> = [];
+  const heapPush = (k: number, p: number) => {
     heap.push({ key: k, priority: p });
     let i = heap.length - 1;
     while (i > 0) {
@@ -98,7 +90,7 @@ export function findAstFallbackPathDetailed(
       i = parent;
     }
   };
-  const heapPop = (): string | undefined => {
+  const heapPop = (): number | undefined => {
     if (heap.length === 0) return undefined;
     const top = heap[0];
     const bottom = heap.pop()!;
@@ -120,7 +112,7 @@ export function findAstFallbackPathDetailed(
     return top.key;
   };
 
-  heapPush(sk, fScore.get(sk)!);
+  heapPush(start, manhattan(sg.x, sg.y));
 
   let found = false;
   let expandedStates = 0;
@@ -133,25 +125,22 @@ export function findAstFallbackPathDetailed(
     }
     const current = heapPop()!;
 
-    if (fScore.get(current) === undefined) continue;
+    if (!open.has(current)) continue;
 
-    if (current === key(tg)) {
+    if (current === goal) {
       found = true;
       break;
     }
 
-    fScore.delete(current);
+    open.delete(current);
     expandedStates++;
 
-    const [cx, cy] = current.split(',').map(Number);
+    const cx = current % cols;
+    const cy = Math.floor(current / cols);
     const g = gScore.get(current) ?? Infinity;
 
-    const parentKey = cameFrom.get(current);
-    let parentDir: { x: number; y: number } | null = null;
-    if (parentKey) {
-      const [px, py] = parentKey.split(',').map(Number);
-      parentDir = { x: cx - px, y: cy - py };
-    }
+    const parent = cameFrom.get(current);
+    const previousStep = parent === undefined ? undefined : current - parent;
 
     for (const d of dirs) {
       const nx = cx + d.x;
@@ -159,21 +148,20 @@ export function findAstFallbackPathDetailed(
       if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
       if (grid[ny][nx]) continue;
 
-      const nk = `${nx},${ny}`;
+      const next = ny * cols + nx;
 
       let moveCost = 1;
       // Heavy turn penalty — prefer long straight corridors over S-routes
-      if (parentDir && (d.x !== parentDir.x || d.y !== parentDir.y)) moveCost += 8;
+      if (previousStep !== undefined && next - current !== previousStep) moveCost += 8;
 
       const tentativeG = g + moveCost;
-      const existingG = gScore.get(nk);
+      const existingG = gScore.get(next);
 
       if (existingG === undefined || tentativeG < existingG) {
-        cameFrom.set(nk, current);
-        gScore.set(nk, tentativeG);
-        const f = tentativeG + manhattan({ x: nx, y: ny }, tg);
-        fScore.set(nk, f);
-        heapPush(nk, f);
+        cameFrom.set(next, current);
+        gScore.set(next, tentativeG);
+        open.add(next);
+        heapPush(next, tentativeG + manhattan(nx, ny));
       }
     }
   }
@@ -186,16 +174,11 @@ export function findAstFallbackPathDetailed(
     };
   }
 
-  const pathG: PNode[] = [];
-  let ck: string | null = key(tg);
-  while (ck) {
-    const [cx, cy] = ck.split(',').map(Number);
-    pathG.push({ x: cx, y: cy });
-    ck = cameFrom.get(ck) ?? null;
+  const waypoints: Array<{ x: number; y: number }> = [];
+  for (let cell: number | undefined = goal; cell !== undefined; cell = cameFrom.get(cell)) {
+    waypoints.push({ x: toWorld(cell % cols, minX), y: toWorld(Math.floor(cell / cols), minY) });
   }
-  pathG.reverse();
-
-  const waypoints = pathG.map(p => ({ x: toWorld(p.x, minX), y: toWorld(p.y, minY) }));
+  waypoints.reverse();
   waypoints[0] = { x: sx, y: sy };
   waypoints[waypoints.length - 1] = { x: tx, y: ty };
 

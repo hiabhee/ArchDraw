@@ -75,12 +75,13 @@ The ArchDraw plugin for Claude Code uses this link to report the files that each
 
 | Tool | Function |
 | --- | --- |
-| `generate_diagram` | Makes a diagram from Mermaid text or from nodes and edges. |
+| `generate_diagram` | Makes a diagram from Mermaid text or from nodes and edges and opens its canvas in compatible chat clients. |
 | `update_diagram` | Adds, removes, or changes nodes and edges in the current diagram. |
 | `get_diagram_state` | Gives the nodes and edges of the current diagram. |
 | `apply_template` | Loads an architecture template. |
 | `draw_on_canvas` | Draws with exact control: places text, blank cards to write in, shapes, notes, components and groups at precise positions, plus infographic pieces (`shape`: panels, circles, dividers and arrows drawn behind everything; `stat`: big-number cards with a label, caption and icon), connects them, and restyles, moves, aligns, distributes or removes them. All operations in a call apply, or none do. Every reply also checks the result and lists layout problems for the agent to fix: overlapping cards or groups, a card outside its group or over another group, and connected cards too close for their label. Works on a blank canvas or on any existing diagram. Takes `style` to match the editor look: `"sketch"` (hand-drawn, the default), `"studio"`, `"studio-metallic"`, `"neubrutalism"` or `"precision"`. |
 | `layout_diagram` | Re-arranges the current diagram with ArchDraw's own layout engine (the editor's layout toggle): `direction` LR/TD, `arrangement` flow/zones, `fold` (wrap long flows for 16:9), `mixDirections`, and `groupDirections` to force particular groups. Only positions and sizes change. Combine with `draw_on_canvas` move/align for manual touch-ups. |
+| `show_diagram` | Opens the interactive canvas after an edit or reopens an existing diagram, with the same working session ID. |
 
 ## Data and privacy
 

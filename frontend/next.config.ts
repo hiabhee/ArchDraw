@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
+import { resolve } from 'node:path';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
+const repoRoot = resolve(process.cwd(), '..');
 
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
@@ -68,20 +70,19 @@ const nextConfig: NextConfig = {
   // Source maps for the browser bundles: Lighthouse flags large first-party JS without them,
   // and they make production errors readable. The code is open source, so nothing is exposed.
   productionBrowserSourceMaps: true,
-  // Keep build tracing inside the frontend package even when a parent
-  // workspace manifest exists outside the repository checkout.
-  outputFileTracingRoot: process.cwd(),
-  // Same for the dev watcher: a stray lockfile in a parent folder (e.g. the
-  // home directory) would otherwise make Turbopack watch all of it, and every
-  // write there (~/.claude session logs) recompiles and reloads the page.
-  turbopack: { root: process.cwd() },
+  // The hosted MCP dependency is linked from the sibling package in this checkout.
+  outputFileTracingRoot: repoRoot,
+  turbopack: { root: repoRoot },
   poweredByHeader: false,
   compress: true,
   // Hosted MCP endpoint: load the server package natively so its widget HTML
   // (read via import.meta.url) resolves from node_modules at runtime.
   serverExternalPackages: ['@hiabhee/archdraw-mcp-server', '@resvg/resvg-js'],
   // PNG images draw text with these bundled fonts, read from disk at request time.
-  outputFileTracingIncludes: { '/api/diagram/image/[sessionId]': ['./assets/fonts/**'] },
+  outputFileTracingIncludes: {
+    '/api/diagram/image/[sessionId]': ['./assets/fonts/**'],
+    '/api/mcp': ['../mcp-server/dist/ui/*.html', '../mcp-server/dist/ui/*.cjs'],
+  },
   transpilePackages: [],
   // Bundle: tree-shake barrel imports (Vercel: 28% faster builds, 40% faster cold starts)
   // Before: only 6 packages → landing paid for reactflow/mermaid/framer-motion

@@ -1,8 +1,7 @@
 'use client';
 
 import ReactFlow, {
-  Background, BackgroundVariant,
-  useReactFlow, ReactFlowProvider, useViewport, useStore, useStoreApi,
+  useReactFlow, ReactFlowProvider, useStore, useStoreApi,
   SelectionMode, ConnectionLineType,
   ConnectionMode,
   type OnSelectionChangeParams,
@@ -19,9 +18,11 @@ import { prepareImage } from '@/lib/client/imageDownscale';
 import type { ImageNodeData } from '@/components/canvas/nodes/ImageNode';
 import type { NodeData } from '@/store/diagram/types';
 import { layoutDiagramViaMermaid } from '@/lib/diagram/mermaid/relayout';
+import { recoverMcpLayout } from '@/lib/diagram/canvas/recoverMcpLayout';
 import { TEMPLATES } from '@/data/templates/index';
 import { GuideLines } from '@/components/canvas/GuideLines';
 import { GroupBackgroundLayer } from '@/components/canvas/GroupBackgroundLayer';
+import { CanvasGrid } from '@/components/canvas/CanvasGrid';
 import { AgentAtlasLayer } from '@/components/canvas/AgentAtlasLayer';
 import { NeedsYouQueue } from '@/components/canvas/NeedsYouQueue';
 import { ComponentHistoryCard } from '@/components/canvas/ComponentHistoryCard';
@@ -102,7 +103,7 @@ function CanvasUrlSync() {
     }
   }, [searchParams, addCanvas, importDiagram, renameCanvas, router]);
 
-  const loadSession = useCallback(async (sessionId: string) => {
+  const loadSession = useCallback(async (sessionId: string, direction: string | null) => {
     try {
       const response = await fetch(`/api/diagram/session/${sessionId}`);
       if (!response.ok) {
@@ -133,12 +134,16 @@ function CanvasUrlSync() {
         const { id, source, target, label, data: extraData, ...rest } = e;
         return createEdge(source, target, String(extraData?.label || label || ''), {
           id, type: 'simpleFloating', sourceHandle: undefined, targetHandle: undefined,
-          data: { ...extraData, pathType: 'Smoothstep' }, ...rest
+          data: { pathType: 'Smoothstep', ...extraData }, ...rest
         });
       });
+      const recovered = isMCP ? await recoverMcpLayout(nodesWithType, edgesWithType, direction) : null;
       const canvasName = isMCP ? `MCP: ${data.label || 'Diagram'}` : (data.label || 'Session Diagram');
+      const previousCanvasId = useDiagramStore.getState().activeCanvasId;
       const canvasId = addCanvas(canvasName, sessionId);
-      importDiagram(nodesWithType, edgesWithType);
+      if (canvasId === previousCanvasId && canvasId !== sessionId) return;
+      if (recovered) useDiagramStore.getState().setActiveLayoutPresetId(recovered.direction === 'TD' ? 'layered-tb' : 'layered-lr');
+      importDiagram(recovered?.nodes ?? nodesWithType, edgesWithType, { preserveLayout: isMCP });
       router.replace(`/editor?canvas=${canvasId}`);
       toast.success(`Diagram loaded: ${data.label || 'Untitled'}`);
     } catch {
@@ -149,18 +154,20 @@ function CanvasUrlSync() {
   useEffect(() => {
     const sessionId = searchParams.get('session');
     if (!sessionId) return;
-    loadSession(sessionId);
+    loadSession(sessionId, searchParams.get('direction'));
   }, [searchParams, loadSession]);
 
-  const urlCanvasHandledRef = useRef(false);
+  const requestedCanvasId = searchParams.get('canvas');
+  const requestedCanvasReady = useDiagramStore((state) =>
+    state.canvases.some(canvas => canvas.id === requestedCanvasId),
+  );
+  const openedUrlCanvas = useRef<string | null>(null);
   useEffect(() => {
-    if (urlCanvasHandledRef.current) return;
-    const canvasId = searchParams.get('canvas');
-    if (!canvasId) { urlCanvasHandledRef.current = true; return; }
-    const canvases = useDiagramStore.getState().canvases;
-    const exists = canvases.find(c => c.id === canvasId);
-    if (exists) { switchCanvas(canvasId); urlCanvasHandledRef.current = true; }
-  }, [searchParams, switchCanvas]);
+    if (requestedCanvasId && requestedCanvasReady && openedUrlCanvas.current !== requestedCanvasId) {
+      openedUrlCanvas.current = requestedCanvasId;
+      switchCanvas(requestedCanvasId);
+    }
+  }, [requestedCanvasId, requestedCanvasReady, switchCanvas]);
 
   return null;
 }
@@ -188,30 +195,6 @@ function writeHighLevelPositions(canvasId: string | null, positions: Record<stri
 
 /** Only very large diagrams are culled to the viewport (see `onlyRenderVisibleElements`). */
 const CULL_NODES_ABOVE = 400;
-
-/**
- * The "lines" grid, kept in its own component: it follows every pan/zoom
- * frame, which must not re-render the whole canvas.
- */
-function LinesBackground({ gap, color, opacity }: { gap: number; color: string; opacity: number }) {
-  const { x, y, zoom } = useViewport();
-  return (
-    <div
-      className="archdraw-lines-background"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 0,
-        backgroundColor: 'transparent',
-        backgroundImage: `linear-gradient(to right, ${color} 1px, transparent 1px), linear-gradient(to bottom, ${color} 1px, transparent 1px)`,
-        backgroundSize: `${gap * zoom}px ${gap * zoom}px`,
-        backgroundPosition: `${x}px ${y}px`,
-        opacity,
-        pointerEvents: 'none',
-      }}
-    />
-  );
-}
 
 function CanvasInner() {
 
@@ -1030,22 +1013,7 @@ function CanvasInner() {
         proOptions={{ hideAttribution: true }}
       >
         {!projection && <GroupBackgroundLayer />}
-        {canvasBackground.variant === 'dots' && showGrid && (
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={canvasBackground.gap}
-            size={canvasBackground.size}
-            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? '#94a3b8' : '#e2e8f0')}
-            style={{ opacity: isDark ? 0.35 : 0.5 }}
-          />
-        )}
-        {canvasBackground.variant === 'lines' && showGrid && (
-          <LinesBackground
-            gap={canvasBackground.gap}
-            color={canvasBackground.patternColor ?? themeVars['--arch-canvas-grid'] ?? (isDark ? 'hsl(var(--grid-color))' : '#e5e7eb')}
-            opacity={isDark ? 0.25 : 1}
-          />
-        )}
+        {showGrid && <CanvasGrid background={canvasBackground} isDark={isDark} gridColor={themeVars['--arch-canvas-grid']} />}
         <SVGEdgeMarkerDefs />
         <GuideLines />
         {(!highLevel || detailView) && <AgentAtlasLayer />}

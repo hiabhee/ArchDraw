@@ -2,17 +2,19 @@ import type { Edge, Node } from 'reactflow';
 import { withoutDecorNodes } from '@/lib/diagram/nodes/infographicNodes';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import type { NodeIconMode } from '../nodes/nodeIconVisibility';
-import { computeEdgeRoute, createEdgeRoutingContext, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
-import { computeEdgeLabelLayout, estimateLabelSize, getDisplayLabel, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
+import { computeEdgeRoute, createEdgeRoutingContext, isGroupNode, type EdgeRouteDirection, type EdgeRouteHandleAnchors, type EdgeRouteResult } from '../edges/edgeRouteBuilder';
+import { computeEdgeLabelLayout, findEdgeLabelCollisions, hasFittedPreviewLabels, type EdgeLabelAnchor } from '../edges/edgeLabelLayout';
 import { optimizeEdgeRoutes } from '../edges/edgeRouteOptimizer';
 import { validateRenderedPath, getRenderedPathInteraction, type RenderedEdgePath } from '../edges/edgePathGeometry';
 import type { GeometryStatus, GeometryViolation, Rect } from './geometryTypes';
 import type { Position } from 'reactflow';
 import { resolveEdgeFlowSemantics } from '@/lib/diagram/mermaid/edgeFlowSemantics';
+import { getEffectiveNodeDimensions } from '../nodes/shapeNodeDimensions';
+import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 
 // Change when routing semantics change so persisted in-memory geometry plans
 // from the prior router cannot keep drawing stale attachment choices.
-const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v2';
+const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v6';
 
 export interface DiagramGeometryOptions {
   direction: EdgeRouteDirection;
@@ -32,6 +34,8 @@ export interface DiagramGeometryOptions {
    * Scoring, repair, canvas and export must use the same value.
    */
   straightEdges?: boolean;
+  /** Give the final displayed routes a bounded retry when they still cross. */
+  repairReturnCrossings?: boolean;
 }
 
 export interface DiagramGeometryPlan {
@@ -65,7 +69,8 @@ export function computeDiagramGeometryPreview(
   options: DiagramGeometryOptions,
 ): DiagramGeometryPlan {
   const nodes = withoutDecorNodes(allNodes);
-  const rects = getBounds(nodes);
+  const fitPreviewLabels = hasFittedPreviewLabels(edges);
+  const rects = getBounds(nodes, fitPreviewLabels ? options : undefined);
   const moved = new Set<string>();
   const affectedRects: Rect[] = [];
   for (const [id, next] of rects) {
@@ -98,7 +103,14 @@ export function computeDiagramGeometryPreview(
   }
   const labelNodes = new Map(nodes.map(node => {
     const rect = rects.get(node.id)!;
-    return [node.id, { ...node, position: { x: rect.x, y: rect.y }, positionAbsolute: { x: rect.x, y: rect.y }, parentNode: undefined, parentId: undefined } as Node];
+    return [node.id, {
+      ...node,
+      ...(fitPreviewLabels ? { width: rect.width, height: rect.height } : {}),
+      position: { x: rect.x, y: rect.y },
+      positionAbsolute: { x: rect.x, y: rect.y },
+      parentNode: undefined,
+      parentId: undefined,
+    } as Node];
   }));
   const labels = computeEdgeLabelLayout(edges, labelNodes, options.direction, options.renderStyleId, routes, options.iconMode);
   const totalPathLength = [...paths.values()].reduce((sum, path) => sum + path.length, 0);
@@ -120,10 +132,6 @@ export function computeDiagramGeometryPreview(
   };
 }
 
-function isGroup(node: Node): boolean {
-  return node.type === 'groupNode' || node.type === 'group' || (node.data as { isGroup?: boolean } | undefined)?.isGroup === true;
-}
-
 function absolutePosition(node: Node, nodesById: ReadonlyMap<string, Node>): { x: number; y: number } {
   const position = (node as Node & { positionAbsolute?: { x: number; y: number } }).positionAbsolute;
   if (position) return position;
@@ -141,14 +149,33 @@ function absolutePosition(node: Node, nodesById: ReadonlyMap<string, Node>): { x
   return { x, y };
 }
 
-function getBounds(nodes: readonly Node[]): Map<string, Rect> {
+function getBounds(nodes: readonly Node[], options?: Pick<DiagramGeometryOptions, 'renderStyleId' | 'iconMode'>): Map<string, Rect> {
   const byId = new Map(nodes.map(node => [node.id, node]));
   return new Map(nodes.map(node => {
     const position = absolutePosition(node, byId);
+    if (isStudioRenderStyle(options?.renderStyleId) && (node.type === 'shapeNode' || node.type === 'systemNode')) {
+      return [node.id, { ...position, ...getEffectiveNodeDimensions(node, options?.renderStyleId, options?.iconMode) }];
+    }
     const width = node.width ?? (node.data as { nodeWidth?: number } | undefined)?.nodeWidth ?? 200;
     const height = node.height ?? (node.data as { nodeHeight?: number } | undefined)?.nodeHeight ?? 88;
     return [node.id, { x: position.x, y: position.y, width, height }];
   }));
+}
+
+function nodeCollisions(leaves: readonly Node[], bounds: ReadonlyMap<string, Rect>): GeometryViolation[] {
+  const collisions: GeometryViolation[] = [];
+  for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) {
+    const a = bounds.get(leaves[i].id), b = bounds.get(leaves[j].id);
+    if (a && b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y) {
+      collisions.push({ severity: 'hard', code: 'NODE_COLLISION', nodeId: leaves[i].id, otherNodeId: leaves[j].id });
+    }
+  }
+  return collisions;
+}
+
+export function findNodeCollisions(nodes: Node[], options: Pick<DiagramGeometryOptions, 'renderStyleId' | 'iconMode'>): GeometryViolation[] {
+  const cards = withoutDecorNodes(nodes);
+  return nodeCollisions(cards.filter(node => !isGroupNode(node)), getBounds(cards, options));
 }
 
 function countBends(route: EdgeRouteResult): number {
@@ -167,7 +194,7 @@ function withoutLabelPosition(data: unknown): unknown {
   return rest;
 }
 
-export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes)): string {
+export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes, hasFittedPreviewLabels(edges) ? options : undefined)): string {
   return JSON.stringify([
     options.revision ?? 0,
     EDGE_ROUTING_ALGORITHM_REVISION,
@@ -175,6 +202,7 @@ export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: Diagr
     options.renderStyleId ?? '',
     options.iconMode ?? '',
     options.straightEdges === true,
+    options.repairReturnCrossings === true,
     nodes.map(node => [node.id, node.type, node.parentNode, (node as Node & { parentId?: string }).parentId, bounds.get(node.id), node.data]),
     edges.map(edge => [edge.id, edge.source, edge.target, edge.sourceHandle, edge.targetHandle, edge.label, options.ignoreLabelPosition ? withoutLabelPosition(edge.data) : edge.data, edge.style]),
     [...(options.handleAnchors ?? new Map()).entries()],
@@ -189,13 +217,17 @@ export function computeDiagramGeometryPlan(
   // Decoration (panels, lines) is drawn under the diagram: never an obstacle, never an end.
   const nodes = withoutDecorNodes(allNodes);
   const nodeById = new Map(nodes.map(node => [node.id, node]));
-  const bounds = getBounds(nodes);
+  const fitPreviewLabels = hasFittedPreviewLabels(edges);
+  // Relayout and the canvas provide their own boxes. An MCP fitted preview can
+  // also be scored before the interactive host measures its styled cards.
+  const bounds = getBounds(nodes, fitPreviewLabels ? options : undefined);
   // Label placement works in canvas coordinates. Normalize parent-relative
   // nodes once so grouped diagrams share the same absolute geometry as routes.
   const nodeInternals = new Map(nodes.map(node => {
     const rect = bounds.get(node.id)!;
     return [node.id, {
       ...node,
+      ...(fitPreviewLabels ? { width: rect.width, height: rect.height } : {}),
       position: { x: rect.x, y: rect.y },
       positionAbsolute: { x: rect.x, y: rect.y },
       parentNode: undefined,
@@ -206,21 +238,15 @@ export function computeDiagramGeometryPlan(
   const paths = new Map<string, RenderedEdgePath>();
   const sourceSides = new Map<string, Position>();
   const targetSides = new Map<string, Position>();
-  const violations: GeometryViolation[] = [];
+  const leafNodes = nodes.filter(node => !isGroupNode(node));
+  const violations = nodeCollisions(leafNodes, bounds);
   const routeOptimization = optimizeEdgeRoutes({
     nodes, edges, direction: options.direction, renderStyleId: options.renderStyleId,
     iconMode: options.iconMode, handleAnchors: options.handleAnchors,
     straightEdges: options.straightEdges === true,
+    repairReturnCrossings: options.repairReturnCrossings,
   });
   const optimizedRoutes = routeOptimization.routes;
-
-  const leafNodes = nodes.filter(node => !isGroup(node));
-  for (let i = 0; i < leafNodes.length; i++) for (let j = i + 1; j < leafNodes.length; j++) {
-    const a = bounds.get(leafNodes[i].id), b = bounds.get(leafNodes[j].id);
-    if (a && b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y) {
-      violations.push({ severity: 'hard', code: 'NODE_COLLISION', nodeId: leafNodes[i].id, otherNodeId: leafNodes[j].id });
-    }
-  }
 
   for (const edge of edges) {
     const route = optimizedRoutes.get(edge.id) ?? computeEdgeRoute(
@@ -241,7 +267,7 @@ export function computeDiagramGeometryPlan(
     }
     // Only cards are obstacles: an edge may cross any group's empty space (see edgeRouteBuilder).
     const obstacles = nodes
-      .filter(node => node.id !== edge.source && node.id !== edge.target && (!isGroup(node) || (Boolean(process.env.EXP_GROUP_WALLS) && !__ancestorsOf(edge, nodeById).has(node.id))))
+      .filter(node => node.id !== edge.source && node.id !== edge.target && (!isGroupNode(node) || (Boolean(process.env.EXP_GROUP_WALLS) && !__ancestorsOf(edge, nodeById).has(node.id))))
       .flatMap(node => {
         const rect = bounds.get(node.id);
         return rect ? [{ id: node.id, rect }] : [];
@@ -274,10 +300,14 @@ export function computeDiagramGeometryPlan(
   for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
     const a = edges[i], b = edges[j];
     const pathA = paths.get(a.id), pathB = paths.get(b.id);
-    if (pathA && pathB && getRenderedPathInteraction(pathA, pathB).crossing) {
-      crossings++;
-      violations.push({ severity: 'soft', code: 'EDGE_CROSSING', edgeId: a.id, otherEdgeId: b.id });
-    }
+    if (!pathA || !pathB) continue;
+    const { crossingCount } = getRenderedPathInteraction(pathA, pathB);
+    if (crossingCount === 0) continue;
+    crossings++;
+    violations.push({
+      severity: 'soft', code: 'EDGE_CROSSING', edgeId: a.id, otherEdgeId: b.id,
+      ...(crossingCount > 1 ? { count: crossingCount } : {}),
+    });
   }
   for (const diagnostic of routeOptimization.diagnostics) {
     if (diagnostic.kind === 'private-overlap') {
@@ -286,28 +316,9 @@ export function computeDiagramGeometryPlan(
   }
 
   const labels = computeEdgeLabelLayout(edges, nodeInternals, options.direction, options.renderStyleId, routes, options.iconMode);
-  for (const [edgeId, anchor] of labels) {
-    const edge = edges.find(candidate => candidate.id === edgeId);
-    if (!edge) continue;
-    const label = getDisplayLabel(edge);
-    if (!label) continue;
-    const { w: width, h: height } = estimateLabelSize(label, options.renderStyleId);
-    const rect = { x: anchor.x - width / 2, y: anchor.y - height / 2, width, height };
-    const obstruction = leafNodes.find(node => {
-      if (node.id === edge.source || node.id === edge.target) return false;
-      const box = bounds.get(node.id);
-      return box && rect.x < box.x + box.width && rect.x + rect.width > box.x && rect.y < box.y + box.height && rect.y + rect.height > box.y;
-    });
-    if (obstruction) violations.push({ severity: 'hard', code: 'LABEL_COLLISION', edgeId, withId: obstruction.id });
-    const titleObstruction = nodes.find(node => {
-      if (!isGroup(node)) return false;
-      const box = bounds.get(node.id);
-      if (!box) return false;
-      const titleStrip = { x: box.x, y: box.y, width: box.width, height: Math.min(40, box.height) };
-      return rect.x < titleStrip.x + titleStrip.width && rect.x + rect.width > titleStrip.x
-        && rect.y < titleStrip.y + titleStrip.height && rect.y + rect.height > titleStrip.y;
-    });
-    if (titleObstruction) violations.push({ severity: 'hard', code: 'LABEL_COLLISION', edgeId, withId: titleObstruction.id });
+  const { onNodes, onLabels } = findEdgeLabelCollisions(labels, edges, nodeInternals, options.renderStyleId, bounds);
+  for (const collision of fitPreviewLabels ? [...onNodes, ...onLabels] : onNodes) {
+    violations.push({ severity: 'hard', code: 'LABEL_COLLISION', ...collision });
   }
   const hardViolations = violations.filter(violation => violation.severity === 'hard').length;
   const hasFailedRoute = [...routes.values()].some(route => route.status === 'failed');
@@ -330,7 +341,7 @@ export function computeDiagramGeometryPlan(
         return role === 'main' ? 10 : role === 'branch' ? 4 : role === 'feedback' ? 2 : 1;
       };
       // A crossing involving the main flow has the same cost in either edge order.
-      return sum + Math.max(weight(violation.edgeId), weight(violation.otherEdgeId));
+      return sum + (violation.count ?? 1) * Math.max(weight(violation.edgeId), weight(violation.otherEdgeId));
     }, 0);
   const unexplainedPrivateOverlapLength = violations.reduce((sum, violation) => sum + (violation.code === 'PRIVATE_ROUTE_OVERLAP' ? violation.length : 0), 0);
   const quality = {

@@ -51,6 +51,8 @@ export interface AggregatedLayoutEdge extends LayoutEdge {
 export interface LayoutOptions {
   nodeSep?: number;
   rankSep?: number;
+  /** Override rank spacing inside groups when labels need more room. */
+  groupRankSep?: number;
   marginX?: number;
   marginY?: number;
   padding?: number;

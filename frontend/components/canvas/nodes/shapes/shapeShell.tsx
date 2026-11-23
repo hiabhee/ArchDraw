@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useUpdateNodeInternals } from 'reactflow';
 import { ICON_SIZE, PROMINENT_ICON_SLOT_PX, PROMINENT_ICON_GLYPH_RATIO, prominentIconGlyphSize, type NodeStyleConfig } from '@/lib/theme/stylingConstants';
 import { countPipeLabelLines } from '@/lib/diagram/nodes/nodeSizing';
-import { getDiamondLabelNudge, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
+import { formatStudioCardTitle, getDiamondLabelNudge, getShapeLabelMaxWidth, shouldStackLabelVertically } from '@/lib/diagram/nodes/shapeTextLayout';
 import { NodeHandles } from '@/components/canvas/nodes/NodeHandles';
 import { useInlineLabelEdit } from '@/hooks/useInlineLabelEdit';
 import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
@@ -12,6 +12,7 @@ import { NodeIcon } from '@/components/canvas/nodes/NodeIcon';
 import { resolveNodeIcon } from '@/lib/icons/nodeIconResolver';
 import { resolveNodeIconVisibility } from '@/lib/diagram/nodes/nodeIconVisibility';
 import { resolveAutoCloudIcon } from '@/lib/icons/cloud/autoResolution';
+import { STUDIO_SHAPE_LABEL_GAP, STUDIO_SHAPE_LABEL_PAD_X } from '@/lib/diagram/nodes/studioMetrics';
 import { STUDIO_ICON_GLYPH_PX, STUDIO_ICON_WELL_PX } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { STUDIO_TITLE_PX } from '@/lib/diagram/nodes/studioMetrics';
 import { ProviderServiceIcon } from '@/components/icons/ProviderServiceIcon';
@@ -177,15 +178,12 @@ export function Label({
   return (
     <div
       ref={containerRef}
-      className={
-        horizontalWithIcon
-          ? 'flex flex-row items-center justify-center gap-2 px-1.5 select-none'
-          : 'flex flex-col items-center justify-center text-center px-1 select-none'
-      }
+      className={`shape-label${horizontalWithIcon ? ' shape-label--row' : ''}`}
       onDoubleClick={iconOnly ? labelEdit.startEdit : undefined}
       style={{
         width: '100%',
         maxWidth: maxWidth ?? '100%',
+        ...(studio && horizontalWithIcon ? { gap: STUDIO_SHAPE_LABEL_GAP, paddingInline: STUDIO_SHAPE_LABEL_PAD_X } : {}),
         transform: labelNudge ? `translateY(${labelNudge}px)` : undefined,
         padding: isPipeText ? '0 12px' : sketch ? '6px 8px' : undefined,
         cursor: iconOnly ? 'text' : undefined,
@@ -230,7 +228,7 @@ export function Label({
         </div>
       </div>
       )}
-      <div className={horizontalWithIcon ? 'flex min-w-0 flex-1 flex-col items-start justify-center text-left' : 'flex flex-col items-center justify-center text-center'}>
+      <div className="shape-label-text">
         {labelEdit.isEditing ? (
           <input
             {...labelEdit.inputProps}
@@ -283,7 +281,7 @@ export function Label({
               overflow: undefined,
             }}
           >
-            {data.label}
+            {studio ? formatStudioCardTitle(data.label) : data.label}
           </span>
         ) : null}
         {showSubtitle && (

@@ -1,3 +1,4 @@
+import { formatStudioCardTitle } from '@/lib/diagram/nodes/shapeTextLayout';
 import { describe, it, expect } from 'vitest';
 import { resolveShapeNodeDimensions, getEffectiveNodeDimensions, studioContentNodeSize } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import type { Node } from 'reactflow';
@@ -97,6 +98,18 @@ describe('resolveShapeNodeDimensions', () => {
       data: { label: 'Probability Distribution', subtitle: 'Billing: 0.82 · Technical: 0.13 · Other: 0.05', shape: 'rounded-rectangle' },
     };
     expect(getEffectiveNodeDimensions(node, 'studio-minimal', 'all')).toEqual(detailed);
+  });
+
+  it('spaces shorter identifiers and keeps established product names intact', () => {
+    expect(formatStudioCardTitle('ParseStage · ShapeNode')).toBe('Parse Stage · Shape Node');
+    expect(formatStudioCardTitle('GitHub API · PostgreSQL · OpenRouter · OAuth')).toBe('GitHub API · PostgreSQL · OpenRouter · OAuth');
+  });
+
+  it('measures identifier titles with the spaces that the Studio card displays', () => {
+    expect(studioContentNodeSize('DagreLayoutEngine', undefined, true))
+      .toEqual(studioContentNodeSize('Dagre Layout Engine', undefined, true));
+    expect(studioContentNodeSize('SimpleFloatingEdge', undefined, true))
+      .toEqual(studioContentNodeSize('Simple Floating Edge', undefined, true));
   });
 
   it('widens Studio Minimal cards when an icon is stored', () => {

@@ -2,14 +2,14 @@ import type { NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
 import type { Direction } from '@/lib/diagram/pipeline-shared/reactflow/types';
 import type { Node, Edge } from 'reactflow';
 import { reactFlowToMermaid } from '@/lib/ai/pipeline/mermaid-pipeline/mermaidTranslator';
-import { runMermaidPipeline, type MermaidLayoutProfile } from './pipeline';
+import { geometryWarnings, runMermaidPipeline, summarizeGeometry, type GeometrySummary, type MermaidLayoutProfile } from './pipeline';
+import { getCachedDiagramGeometryPlan } from '@/lib/diagram/geometry/diagramGeometry';
 import { isDomainSuccess } from '@/lib/diagram/pipeline-core';
-import { resolveShapeNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
+import { getEffectiveNodeDimensions, resolveShapeNodeDimensions } from '@/lib/diagram/nodes/shapeNodeDimensions';
 import { ensureDiagramHeading } from './diagramHeading';
 import type { DiagramRenderStyleId } from '@/lib/theme/renderStyles';
 import {
   createSemanticEdgeKey,
-  normalizeSemanticType,
   semanticEdgeKeyString,
   type EdgeLayoutSemantics,
 } from './edgeFlowSemantics';
@@ -19,6 +19,7 @@ export interface RelayoutCanvasResult {
   edges: Edge[];
   success: boolean;
   warnings: string[];
+  geometrySummary?: GeometrySummary;
 }
 
 /** The two canvas layout directions the toolbar toggles between. */
@@ -30,8 +31,8 @@ export interface RelayoutOptions {
   title?: string;
   /** Applies an appearance-specific spacing profile without changing topology. */
   renderStyleId?: DiagramRenderStyleId;
-  /** `zones`: hub-and-zones placement (clients left, data above, chains below); `flow` (default): rank columns. */
-  layoutStyle?: 'flow' | 'zones';
+  /** `auto`: compare applicable arrangements; `flow` (default): rank columns; `zones`: prefer a hub arrangement. */
+  layoutStyle?: 'auto' | 'flow' | 'zones';
   /** Fold a long flow into rows when that fits the screen far better (live project maps). */
   foldLongFlows?: boolean;
   /** Lay out some groups the other way when that fits the screen clearly better (default on). */
@@ -168,9 +169,122 @@ export async function layoutDiagramViaMermaid(
       });
     }
     const mermaid = reactFlowToMermaid(layoutNodes, orderedLayoutEdges, direction);
+    const layoutProfile = options.layoutProfile
+      ?? (options.renderStyleId === 'studio-minimal' || options.renderStyleId === 'studio-metallic' ? 'studio-minimal' : undefined);
+    const originalNodeMap = new Map(nodesWithHeading.map((n) => [n.id, n]));
+
+    const restoreNodes = (laidOut: Node[]): Node[] => {
+      const preservedNodes = laidOut.map((layoutNode) => {
+        const newNode = {
+          ...layoutNode,
+          id: restoreId(layoutNode.id)!,
+          parentNode: restoreId(layoutNode.parentNode),
+          parentId: restoreId((layoutNode as { parentId?: string }).parentId),
+        };
+        const originalNode = originalNodeMap.get(newNode.id);
+        if (!originalNode) return newNode as Node;
+
+        const mergedData = {
+          ...originalNode.data,
+          shape: originalNode.data?.shape ?? newNode.data?.shape,
+        };
+
+        const group = isGroupNode(originalNode) || isGroupNode(newNode as Node);
+
+        // Group nodes: prefer pipeline-computed dimensions which are derived
+        // from the actual child bounding box. Using the original node's stale
+        // dimensions causes children to overflow the group.
+        // Prefer the sizes Dagre reserved. If they are missing, fit shapes
+        // without their stored dimensions to avoid retaining an oversized box.
+        const fallback = !group && (newNode.width === undefined || newNode.height === undefined)
+          ? dimensionsForNode({ ...originalNode, data: mergedData })
+          : undefined;
+        const width = newNode.width ?? fallback?.width ?? originalNode.width ?? undefined;
+        const height = newNode.height ?? fallback?.height ?? originalNode.height ?? undefined;
+
+        return {
+          ...originalNode,
+          position: newNode.position,
+          positionAbsolute: undefined,
+          // Use the NEW parent relationships from the Mermaid pipeline, not the original ones.
+          // The Mermaid round-trip correctly preserves subgraph/group structure.
+          parentNode: newNode.parentNode,
+          parentId: (newNode as { parentId?: string }).parentId,
+          extent: originalNode.extent ?? newNode.extent,
+          width,
+          height,
+          // Groups need the pipeline's -1 layering; non-group nodes keep their
+          // original z-order instead of losing it to the rebuilt default.
+          zIndex: group
+            ? (newNode.zIndex ?? originalNode.zIndex)
+            : (originalNode.zIndex ?? newNode.zIndex),
+          style: group
+            ? {
+                ...(originalNode.style as Record<string, unknown> | undefined),
+                ...(typeof width === 'number' ? { width } : {}),
+                ...(typeof height === 'number' ? { height } : {}),
+              }
+            : originalNode.style,
+          data: {
+            ...mergedData,
+            nodeWidth: width,
+            nodeHeight: height,
+          },
+        } as Node;
+      });
+
+      // Keep any original nodes the pipeline dropped (e.g. freeform annotations)
+      const laidOutIds = new Set(preservedNodes.map((n) => n.id));
+      const orphans = nodesWithHeading.filter((n) => !laidOutIds.has(n.id));
+      return orphans.length > 0 ? [...preservedNodes, ...orphans] : preservedNodes;
+    };
+
+    // Parsed edges supply inferred metadata and fallback handles. The original
+    // array owns identity, topology, and authored properties even if parsing
+    // normalizes or drops a connection.
+    const restoredEdgeArrays = new WeakMap<Edge[], Edge[]>();
+    const restoreEdges = (laidOut: Edge[]): Edge[] => {
+      const cached = restoredEdgeArrays.get(laidOut);
+      if (cached) return cached;
+      const layoutEdgeBuckets = new Map<string, Edge[]>();
+      const edgeKey = (edge: Edge) => semanticEdgeKeyString(createSemanticEdgeKey(edge, edge.source, edge.target, 0));
+      for (const edge of laidOut) {
+        const key = edgeKey(edge);
+        const bucket = layoutEdgeBuckets.get(key);
+        if (bucket) bucket.push(edge);
+        else layoutEdgeBuckets.set(key, [edge]);
+      }
+      const restoredEdges = new Map<string, Edge>();
+      for (const edge of orderedLayoutEdges) {
+        const inferred = layoutEdgeBuckets.get(edgeKey(edge))?.shift();
+        if (inferred) restoredEdges.set(edge.id, inferred);
+      }
+      const preservedEdges = edges.map(edge => {
+        const inferred = restoredEdges.get(edge.id);
+        return inferred ? {
+          ...inferred,
+          ...edge,
+          data: { ...inferred.data, ...edge.data },
+        } : edge;
+      });
+      restoredEdgeArrays.set(laidOut, preservedEdges);
+      return preservedEdges;
+    };
+
+    // Dagre needs the renderer's icon-dependent card width before ranking.
+    const studioNodeSizes = layoutProfile && options.iconMode
+      ? new Map(layoutNodes
+          .filter(node => !isGroupNode(node) && (node.type === 'shapeNode' || node.type === 'systemNode'))
+          .map(node => [node.id, getEffectiveNodeDimensions(node, 'studio-minimal', options.iconMode)]))
+      : undefined;
+
     const result = await runMermaidPipeline(mermaid, {
-      layoutProfile: options.layoutProfile
-        ?? (options.renderStyleId === 'studio-minimal' || options.renderStyleId === 'studio-metallic' ? 'studio-minimal' : undefined),
+      layoutProfile,
+      studioNodeSizes,
+      prepareGeometry: (objects) => ({
+        nodes: restoreNodes(objects.nodes),
+        edges: restoreEdges(objects.edges),
+      }),
       renderStyleId: options.renderStyleId,
       iconMode: options.iconMode,
       edgeSemantics,
@@ -189,157 +303,20 @@ export async function layoutDiagramViaMermaid(
       };
     }
 
-    const originalNodeMap = new Map(nodesWithHeading.map((n) => [n.id, n]));
-
-    const preservedNodes = result.data.nodes.map((layoutNode) => {
-      const newNode = {
-        ...layoutNode,
-        id: restoreId(layoutNode.id)!,
-        parentNode: restoreId(layoutNode.parentNode),
-        parentId: restoreId((layoutNode as { parentId?: string }).parentId),
-      };
-      const originalNode = originalNodeMap.get(newNode.id);
-      if (!originalNode) return newNode as Node;
-
-      const mergedData = {
-        ...originalNode.data,
-        shape: newNode.data?.shape || originalNode.data?.shape,
-      };
-
-      const group = isGroupNode(originalNode) || isGroupNode(newNode as Node);
-
-      // Group nodes: prefer pipeline-computed dimensions which are derived
-      // from the actual child bounding box. Using the original node's stale
-      // dimensions causes children to overflow the group.
-      let width: number | undefined;
-      let height: number | undefined;
-      if (group) {
-        width = newNode.width ?? originalNode.width ?? undefined;
-        height = newNode.height ?? originalNode.height ?? undefined;
-      } else {
-        // Non-group nodes: trust the pipeline-fresh dimensions first (dagre
-        // spaced ranks using exactly these), then a fresh fit that ignores
-        // stale stored nodeWidth/nodeHeight. Falling back to the stored size
-        // here is what caused laid-out width ≠ assigned width and the
-        // grow-only ratchet.
-        const shapeDims = dimensionsForNode({
-          ...originalNode,
-          data: mergedData,
-        } as Node);
-        width = newNode.width ?? shapeDims.width ?? originalNode.width ?? undefined;
-        height = newNode.height ?? shapeDims.height ?? originalNode.height ?? undefined;
-      }
-
-      return {
-        ...newNode,
-        type: originalNode.type,
-        // Use the NEW parent relationships from the Mermaid pipeline, not the original ones.
-        // The Mermaid round-trip correctly preserves subgraph/group structure.
-        parentNode: newNode.parentNode,
-        parentId: (newNode as { parentId?: string }).parentId,
-        extent: newNode.extent || originalNode.extent,
-        width,
-        height,
-        // Groups need the pipeline's -1 layering; non-group nodes keep their
-        // original z-order instead of losing it to the rebuilt default.
-        zIndex: group
-          ? (newNode.zIndex ?? originalNode.zIndex)
-          : (originalNode.zIndex ?? newNode.zIndex),
-        style: group
-          ? {
-              ...(originalNode.style as Record<string, unknown> | undefined),
-              ...(typeof width === 'number' ? { width } : {}),
-              ...(typeof height === 'number' ? { height } : {}),
-            }
-          : originalNode.style,
-        data: {
-          ...mergedData,
-          nodeWidth: width,
-          nodeHeight: height,
-        },
-      } as Node;
-    });
-
-    // Keep any original nodes the pipeline dropped (e.g. freeform annotations)
-    const laidOutIds = new Set(preservedNodes.map((n) => n.id));
-    const orphans = nodesWithHeading.filter((n) => !laidOutIds.has(n.id));
-
-    // Preserve original edge identity and user data through the round-trip.
-    // The parser regenerates ids and rebuilds data from scratch, which would
-    // otherwise discard custom waypoints, style, type, handles, animated, and
-    // break undo/selection keyed on stable edge ids.
-    const originalEdgeBuckets = new Map<string, Edge[]>();
-    const edgeKey = (edge: Edge, source = edge.source, target = edge.target) =>
-      `${source}|${target}|${typeof (edge.label ?? edge.data?.label) === 'string' ? String(edge.label ?? edge.data?.label).trim().toLowerCase() : ''}|${normalizeSemanticType(edge)}`;
-    for (const edge of edges) {
-      const key = edgeKey(edge);
-      const bucket = originalEdgeBuckets.get(key);
-      if (bucket) bucket.push(edge);
-      else originalEdgeBuckets.set(key, [edge]);
-    }
-    for (const bucket of originalEdgeBuckets.values()) bucket.sort((a, b) => a.id.localeCompare(b.id));
-
-    // Preserve original edge identity, but ensure no edges are silently dropped.
-    // If the pipeline produces fewer edges than input (e.g. due to duplicate labels or parse loss),
-    // keep the original edges count and warn — dropping edges on layout toggle is a critical bug.
-    const expectedEdgeCount = edges.length;
-    const pipelineEdgeCount = (result.data.edges as Edge[]).length;
-    if (pipelineEdgeCount < expectedEdgeCount) {
-      console.warn(`[Relayout] Edge loss detected: pipeline produced ${pipelineEdgeCount} edges but input had ${expectedEdgeCount}. Keeping original edges for missing ones.`);
-    }
-
-    const preservedEdges = (result.data.edges as Edge[]).map((layoutEdge) => {
-      const newEdge = {
-        ...layoutEdge,
-        source: restoreId(layoutEdge.source)!,
-        target: restoreId(layoutEdge.target)!,
-      };
-      const bucket = originalEdgeBuckets.get(edgeKey(newEdge))
-        ?? [...originalEdgeBuckets.entries()].find(([key]) => key.startsWith(`${newEdge.source}|${newEdge.target}|`))?.[1];
-      // Also try matching via data.label if label is empty
-      const fallbackBucket = !bucket ? [...originalEdgeBuckets.entries()].find(([key]) => key.startsWith(`${newEdge.source}|${newEdge.target}|`))?.[1] : undefined;
-      const targetBucket = bucket ?? fallbackBucket;
-      const original = targetBucket?.shift();
-      if (!original) return newEdge;
-      return {
-        ...newEdge,
-        id: original.id,
-        sourceHandle: original.sourceHandle ?? newEdge.sourceHandle,
-        targetHandle: original.targetHandle ?? newEdge.targetHandle,
-        type: original.type ?? newEdge.type,
-        style: original.style ?? newEdge.style,
-        animated: original.animated ?? newEdge.animated,
-        hidden: original.hidden ?? newEdge.hidden,
-        markerStart: original.markerStart ?? newEdge.markerStart,
-        markerEnd: original.markerEnd ?? newEdge.markerEnd,
-        data: { ...newEdge.data, ...original.data },
-      } as Edge;
-    });
-
-    // If pipeline dropped edges, append the unmatched originals so nothing disappears on toggle.
-    if (preservedEdges.length < expectedEdgeCount) {
-      const remaining: Edge[] = [];
-      for (const bucket of originalEdgeBuckets.values()) {
-        remaining.push(...bucket);
-      }
-      if (remaining.length > 0) {
-        console.warn(`[Relayout] Restoring ${remaining.length} dropped edges`);
-        preservedEdges.push(...remaining.map((edge) => ({
-          ...edge,
-          data: { ...edge.data },
-        })));
-      }
-    }
-
-    const originalEdgeOrder = new Map(edges.map((edge, index) => [edge.id, index]));
-    preservedEdges.sort((a, b) => (originalEdgeOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER)
-      - (originalEdgeOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER));
-
+    const finalNodes = restoreNodes(result.data.nodes);
+    const preservedEdges = restoreEdges(result.data.edges);
+    const geometrySummary = summarizeGeometry(getCachedDiagramGeometryPlan(finalNodes, preservedEdges, {
+      direction,
+      renderStyleId: options.renderStyleId ?? (layoutProfile ? 'studio-minimal' : undefined),
+      iconMode: options.iconMode,
+      straightEdges: false,
+    }));
     const output = {
-      nodes: orphans.length > 0 ? [...preservedNodes, ...orphans] : preservedNodes,
+      nodes: finalNodes,
       edges: preservedEdges,
       success: true,
-      warnings: result.data.warnings ?? [],
+      geometrySummary,
+      warnings: geometryWarnings(result.data.warnings, geometrySummary),
     };
     if (byOptions.size >= 8) byOptions.delete(byOptions.keys().next().value!);
     byOptions.set(cacheKey, output);

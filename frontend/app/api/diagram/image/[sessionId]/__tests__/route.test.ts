@@ -41,8 +41,18 @@ describe('GET /api/diagram/image/[sessionId]', () => {
     const response = await call('?format=svg&style=studio&theme=dark');
     expect(response.headers.get('content-type')).toMatch(/svg/);
     const text = await response.text();
-    expect(text).toContain('Hello drawing');
+    expect(text).toContain('>Hello</tspan>');
+    expect(text).toContain('>drawing</tspan>');
     expect(response.headers.get('etag')).toContain('studio-dark-on-svg');
+  });
+
+  it('defaults Studio Metallic downloads to dark and honors an explicit light theme', async () => {
+    const dark = await call('?format=svg&style=studio-metallic');
+    const light = await call('?format=svg&style=studio-metallic&theme=light');
+
+    expect(dark.headers.get('etag')).toContain('studio-metallic-dark-on-svg');
+    expect(await dark.text()).toMatch(/<rect x="0" y="0" width="[^"]+" height="[^"]+" fill="#000000"\/>/);
+    expect(light.headers.get('etag')).toContain('studio-metallic-light-on-svg');
   });
 
   it('rejects options it does not know', async () => {

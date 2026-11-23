@@ -225,7 +225,7 @@ export interface DiagramState {
     originHandleType: 'source' | 'target' | null;
     position: { x: number; y: number };
   }) => string;
-  importDiagram: (nodes: Node[], edges: Edge[], options?: { preserveTopology?: boolean }) => void;
+  importDiagram: (nodes: Node[], edges: Edge[], options?: { preserveTopology?: boolean; preserveLayout?: boolean }) => void;
   clearDiagram: () => void;
   deleteSelected: () => void;
   selectAll: () => void;

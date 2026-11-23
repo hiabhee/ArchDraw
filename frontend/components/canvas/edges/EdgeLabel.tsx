@@ -126,7 +126,7 @@ export function EdgeLabel({
 
   const lineColor = color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : undefined;
   // Match canvas fill so the label looks transparent but punches a gap in the edge.
-  const knockout = 'hsl(var(--canvas-bg))';
+  const knockout = 'var(--arch-canvas-bg, hsl(var(--canvas-bg)))';
   const sketch = renderStyleId === 'sketch';
   const brutal = renderStyleId === 'neubrutalism';
 

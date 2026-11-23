@@ -13,7 +13,7 @@ export type GeometryViolation =
   | { severity: 'hard'; code: 'NODE_COLLISION'; nodeId: string; otherNodeId: string }
   | { severity: 'hard'; code: 'OBSTACLE_INTERSECTION'; edgeId: string; obstacleId: string }
   | { severity: 'hard'; code: 'TERMINAL_INTERSECTION'; edgeId: string; nodeId: string }
-  | { severity: 'soft'; code: 'EDGE_CROSSING'; edgeId: string; otherEdgeId: string }
+  | { severity: 'soft'; code: 'EDGE_CROSSING'; edgeId: string; otherEdgeId: string; count?: number }
   | { severity: 'soft'; code: 'PRIVATE_ROUTE_OVERLAP'; edgeId: string; otherEdgeId: string; length: number }
   | { severity: 'hard'; code: 'LABEL_COLLISION'; edgeId: string; withId: string };
 

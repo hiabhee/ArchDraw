@@ -372,6 +372,10 @@ body {
   background-color: var(--arch-canvas-bg, hsl(var(--canvas-bg))) !important;
 }
 
+.react-flow__background.archdraw-export-grid-transparent {
+  background-color: transparent !important;
+}
+
 /* Technical drafting grid */
 .react-flow__background pattern circle {
   opacity: 1;

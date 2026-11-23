@@ -17,6 +17,7 @@ const EXPORT_FONT_FAMILIES = new Set([
   'patrick hand',
   'nanum pen script',
   'geist',
+  'jetbrains mono',
 ]);
 
 const MAX_FONT_FILES = 12;
@@ -40,17 +41,19 @@ function normalizeFamily(ruleText: string): string | null {
 export async function inlineFontUrlsInCss(
   cssText: string,
   fetchImpl: typeof fetch = fetch,
+  baseUrl?: string,
 ): Promise<string> {
-  const urls = Array.from(cssText.matchAll(/url\(\s*(https?:[^)]+|blob:[^)]+?)\s*\)/gi));
+  const urls = Array.from(cssText.matchAll(/url\(\s*(?:"([^"]+)"|'([^']+)'|([^\s)]+))\s*\)/gi));
   let out = cssText;
   for (const match of urls) {
-    const url = match[1].replace(/^["']|["']$/g, '');
     try {
+      const url = new URL(match[1] ?? match[2] ?? match[3], baseUrl);
+      if (!['https:', 'http:', 'blob:'].includes(url.protocol)) continue;
       const res = await fetchImpl(url);
       if (!res.ok) continue;
       const buf = new Uint8Array(await res.arrayBuffer());
       if (buf.length === 0 || buf.length > MAX_FONT_BYTES) continue;
-      const mime = url.endsWith('.woff2') ? 'font/woff2' : url.endsWith('.woff') ? 'font/woff' : 'font/ttf';
+      const mime = url.pathname.endsWith('.woff2') ? 'font/woff2' : url.pathname.endsWith('.woff') ? 'font/woff' : 'font/ttf';
       out = out.split(match[0]).join(`url(data:${mime};base64,${base64Encode(buf)})`);
     } catch {
       // keep the remote url — harmless if unreachable in isolation
@@ -61,7 +64,7 @@ export async function inlineFontUrlsInCss(
 
 export async function buildExportFontCss(): Promise<string> {
   if (typeof document === 'undefined' || typeof fetch === 'undefined') return '';
-  const rules: string[] = [];
+  const rules: Array<{ text: string; baseUrl: string }> = [];
   try {
     for (const sheet of Array.from(document.styleSheets)) {
       let cssRules: CSSRuleList | null = null;
@@ -77,7 +80,7 @@ export async function buildExportFontCss(): Promise<string> {
         const family = normalizeFamily(text);
         if (!family || !EXPORT_FONT_FAMILIES.has(family)) continue;
         if (rules.length >= MAX_FONT_FILES) break;
-        rules.push(text);
+        rules.push({ text, baseUrl: sheet.href ?? document.baseURI });
       }
       if (rules.length >= MAX_FONT_FILES) break;
     }
@@ -86,6 +89,6 @@ export async function buildExportFontCss(): Promise<string> {
   }
   if (rules.length === 0) return '';
 
-  const inlined = await Promise.all(rules.map((text) => inlineFontUrlsInCss(text)));
+  const inlined = await Promise.all(rules.map(({ text, baseUrl }) => inlineFontUrlsInCss(text, fetch, baseUrl)));
   return inlined.join('\n');
 }

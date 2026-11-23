@@ -15,7 +15,7 @@ import { buildEdgePathGeometry } from '@/lib/diagram/edges/edgePathGeometry';
 import { buildDefaultOrthogonalWaypoints } from '@/lib/diagram/edges/handlerPairScorer';
 import type { EdgeRouteResult } from '@/lib/diagram/edges/edgeRouteBuilder';
 
-import { useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
+import { useCanvasHost, useCanvasView } from '@/lib/diagram/canvas/CanvasHostContext';
 import { useDiagramStore } from '@/store/diagramStore';
 import { DIAGRAM_CONSTANTS } from '@/lib/diagram/constants/diagram';
 import { useCanvasTheme } from '@/lib/theme/appTheme';
@@ -110,6 +110,7 @@ export default function SimpleFloatingEdge({
   const rfStore = useStoreApi();
   const edges = useStore((s: ReactFlowState) => s.edges);
   const zoom = useStore((s: ReactFlowState) => s.transform[2]);
+  const labelZoom = useCanvasHost().labelZoom ?? zoom;
   const nodeDragging = useDiagramDragging();
   const { getViewport } = useReactFlow();
   const { readOnly, direction, iconMode } = useCanvasView();
@@ -542,10 +543,9 @@ export default function SimpleFloatingEdge({
     const resolved = labelLayout;
     // A label the user placed (`labelT`) is read straight from the edge: the plan is not rebuilt while it is dragged.
     if (resolved && localLabelT === null && typeof data?.labelT !== 'number') {
-      // The shared label planner routes without React Flow's measured handle
-      // centers. Keep its collision-aware position along the edge, but sample
-      // the path we actually render so the pill is centered on the visible wire.
-      if (stableEdgePath && typeof window !== 'undefined') {
+      // The settled route and label share a plan. Keep the offset when the
+      // planner moved the pill beside the wire to clear a card.
+      if (route !== geometry.route && stableEdgePath) {
         return getPointOnPath(stableEdgePath, resolved.t);
       }
       return { x: resolved.x, y: resolved.y, angle: 0 };
@@ -555,13 +555,13 @@ export default function SimpleFloatingEdge({
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayout, localLabelT, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement]);
+  }, [labelLayout, localLabelT, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement, data?.labelT, route, geometry.route]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill
   // is now compact (8px brutal / 6.5px precision) and max scale is capped
   // at 1.4 so zoomed-out world size never balloons.
-  const rawScale = zoom ? 1 / zoom : 1;
+  const rawScale = labelZoom ? 1 / labelZoom : 1;
   const labelScale = Math.min(1.4, Math.max(0.85, rawScale));
   const labelTransform = (x: number, y: number, centering: string) =>
     `translate(${x}px, ${y}px) scale(${labelScale}) ${centering}`;

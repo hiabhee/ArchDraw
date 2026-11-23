@@ -1,5 +1,10 @@
 // Label/text normalization helpers for the Mermaid parser.
 
+/** Apostrophes in unquoted words are punctuation, not string delimiters. */
+export function startsQuotedLabel(text: string, index: number): boolean {
+  return text[index] === '"' || (text[index] === "'" && !/[\p{L}\p{N}_]/u.test(text[index - 1] ?? ''))
+}
+
 /**
  * Mermaid allows labels that span multiple physical lines, e.g.
  *   P0["Partition 0
@@ -54,8 +59,8 @@ export function mergeMultilineLabels(text: string): string {
       }
       continue
     }
-    if (ch === '"' || ch === "'") {
-      inQuote = ch
+    if (startsQuotedLabel(text, i)) {
+      inQuote = ch as '"' | "'"
       out += ch
       continue
     }
@@ -102,8 +107,8 @@ export function maskQuotedSpans(line: string): string {
       out += QUOTE_MASK_CHAR
       continue
     }
-    if (ch === '"' || ch === "'") {
-      inQuote = ch
+    if (startsQuotedLabel(line, i)) {
+      inQuote = ch as '"' | "'"
       out += ch
       continue
     }
@@ -200,8 +205,8 @@ export function normalizeEdgeLabels(text: string): string {
         i++;
         continue;
       }
-      if (ch === '"' || ch === "'") {
-        inQuote = ch;
+      if (startsQuotedLabel(line, i)) {
+        inQuote = ch as '"' | "'";
         out += ch;
         i++;
         continue;
@@ -210,7 +215,7 @@ export function normalizeEdgeLabels(text: string): string {
       // with the same regexes the old code used.
       let nextQuote = -1;
       for (let j = i; j < line.length; j++) {
-        if (line[j] === '"' || line[j] === "'") { nextQuote = j; break; }
+        if (startsQuotedLabel(line, j)) { nextQuote = j; break; }
       }
       const chunkEnd = nextQuote === -1 ? line.length : nextQuote;
       let chunk = line.slice(i, chunkEnd);

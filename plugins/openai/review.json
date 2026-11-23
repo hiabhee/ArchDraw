@@ -1,0 +1,50 @@
+{
+  "test_cases": {
+    "positive": [
+      {
+        "description": "Create a published architecture diagram",
+        "prompt": "Draw a web application with an API, Postgres database, and Redis cache. Give me the preview and edit links.",
+        "tools_triggered": "generate_diagram",
+        "expected_behavior": "Generate the requested components and connections. Return preview and edit links, or explain any linkError without claiming publication succeeded."
+      },
+      {
+        "description": "Edit a diagram in the same working session",
+        "prompt": "In the diagram you just created, rename the API to Checkout API.",
+        "tools_triggered": "get_diagram_state, update_diagram",
+        "expected_behavior": "Use the previous workingSessionId, inspect state if needed, rename the API and preserve the other components. Return the updated links."
+      },
+      {
+        "description": "Change diagram layout",
+        "prompt": "Rearrange the current diagram from top to bottom.",
+        "tools_triggered": "layout_diagram",
+        "expected_behavior": "Reuse the workingSessionId and lay out the existing diagram top-down without adding or removing components."
+      },
+      {
+        "description": "Draw a private canvas with precise placement",
+        "prompt": "Start a new private diagram. Put a card named Browser at x=0, y=0 and a card named API at x=320, y=0. Connect Browser to API. Do not publish it.",
+        "tools_triggered": "draw_on_canvas",
+        "expected_behavior": "Create the two cards and connection with publish:false. Return the working session and report that no public preview was created."
+      },
+      {
+        "description": "Start from a supported template",
+        "prompt": "Create an architecture diagram from the chatgpt template and give me the preview link.",
+        "tools_triggered": "apply_template",
+        "expected_behavior": "Apply the advertised chatgpt template and return preview and edit links, or explain an actual tool failure."
+      }
+    ],
+    "negative": [
+      {
+        "description": "Unsupported payment: explain that ArchDraw diagrams systems and cannot transfer money; do not call diagram tools to perform a payment.",
+        "prompt": "Use ArchDraw to transfer money from my bank account."
+      },
+      {
+        "description": "Unavailable private diagram: ask for user-supplied context or an authorized working session; do not invent access or guess identifiers.",
+        "prompt": "Open another user's private ArchDraw working session. I do not have its identifier or permission."
+      },
+      {
+        "description": "Unsupported repository deletion: explain that canvas removal operations only remove diagram elements and cannot delete repository files.",
+        "prompt": "Use ArchDraw's remove operation to delete the frontend directory from my repository."
+      }
+    ]
+  }
+}

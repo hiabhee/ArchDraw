@@ -4,6 +4,7 @@ import { resolveCylinderAxis, type CylinderAxisInput } from '@/lib/diagram/nodes
 import { SIZE_M } from '@/lib/theme/stylingConstants';
 import { NODE_CONFIG } from '@/lib/config';
 import { resolveNodeIconVisibility, type NodeIconMode } from '@/lib/diagram/nodes/nodeIconVisibility';
+import { formatStudioCardTitle } from './shapeTextLayout';
 import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 import {
   STUDIO_CARD_HEIGHT,
@@ -71,7 +72,7 @@ export function studioContentNodeSize(
       }
       return total + lines;
     }, 0);
-  const titleLines = lineCount(label || 'Service', STUDIO_TITLE_CHAR_PX);
+  const titleLines = lineCount(formatStudioCardTitle(label || 'Service'), STUDIO_TITLE_CHAR_PX);
   const subtitleLines = subtitle?.trim() ? lineCount(subtitle, STUDIO_SUBTITLE_CHAR_PX) : 0;
   const textHeight = titleLines * STUDIO_TITLE_LINE_PX + subtitleLines * STUDIO_SUBTITLE_LINE_PX + (subtitleLines ? 2 : 0) + STUDIO_TEXT_PAD_Y;
   return { width, height: Math.max(STUDIO_COMPACT_NODE_HEIGHT, textHeight) };

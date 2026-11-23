@@ -491,6 +491,7 @@ function TextLabelNodeComponent({ id, data, selected }: NodeProps<TextLabelNodeD
             color: textColor,
             lineHeight: 1.3,
             whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
             cursor: 'default',
             display: 'block',
             padding: '4px',

@@ -1,4 +1,20 @@
+import { getTechnologyBrandSlug } from '@/lib/icons/brandIcons';
 import type { ShapeFit } from '@/lib/diagram/nodes/nodeSizing';
+
+// Mixed-case names that have no entry in the icon brand registry.
+const COMPACT_NAMES = new Set(['github', 'oauth', 'openrouter', 'javascript', 'typescript', 'youtube', 'linkedin', 'macos']);
+
+/** Give identifier titles real break opportunities while preserving their stored spelling. */
+export function formatStudioCardTitle(label: string): string {
+  return label.replace(/\b[A-Za-z][A-Za-z0-9]*\b/g, word => {
+    const spaced = word
+      .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    if (spaced === word) return word;
+    const name = word.toLowerCase();
+    return COMPACT_NAMES.has(name) || getTechnologyBrandSlug(name) ? word : spaced;
+  });
+}
 
 /** CSS clip-path inset matching ShapeNode diamond polygon (4px inset). */
 export function diamondClipPath(width: number, height: number, inset = 4): string {
