@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import layoutModule from './diagram-pipeline-runtime.js';
 import type { ReactFlowEdge, ReactFlowNode } from '../types/index.js';
 
 export interface PreviewQuality {
@@ -31,7 +29,4 @@ interface DiagramPipeline {
   >;
 }
 
-const layoutModule = new URL('../ui/recover-mcp-layout.cjs', import.meta.url);
-export const diagramPipeline: DiagramPipeline | undefined = existsSync(layoutModule)
-  ? createRequire(import.meta.url)(fileURLToPath(layoutModule)) as DiagramPipeline
-  : undefined;
+export const diagramPipeline = layoutModule as DiagramPipeline | undefined;

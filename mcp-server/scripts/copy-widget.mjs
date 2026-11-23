@@ -48,6 +48,7 @@ if (esbuild) {
 
 await mkdir(destinationDirectory, { recursive: true });
 await writeFile(destination, html);
+await writeFile(new URL('diagram-widget-html.js', destinationDirectory), `export default ${JSON.stringify(html)};\n`);
 
 if (esbuild) {
   await esbuild.build({
@@ -59,4 +60,5 @@ if (esbuild) {
     format: 'cjs',
     minify: true,
   });
+  await writeFile(new URL('../dist/lib/diagram-pipeline-runtime.js', import.meta.url), "export { default } from '../ui/recover-mcp-layout.cjs';\n");
 }
