@@ -15,21 +15,26 @@ export default function SavePreviewPage({ params }: { params: Promise<{ id: stri
   const isSignedIn = Boolean(userId && userId !== 'guest');
 
   useEffect(() => {
-    const copy = new URLSearchParams(window.location.search).get('copy') ?? '';
-    if (!isPreviewId(id) || !isPreviewId(copy)) {
-      setError('Open the preview and choose Save to ArchDraw again.');
-      return;
-    }
-    const fragment = window.location.hash.slice(1);
-    try {
-      const key = `archdraw-preview-copy:${id}:${copy}`;
-      const moves = fragment || sessionStorage.getItem(key);
-      if (!moves) throw new Error();
-      if (fragment) sessionStorage.setItem(key, fragment);
-      setHandoff({ copy, moves });
-    } catch {
-      setError('The preview layout could not be restored. Open the preview and try again.');
-    }
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const copy = new URLSearchParams(window.location.search).get('copy') ?? '';
+      if (!isPreviewId(id) || !isPreviewId(copy)) {
+        setError('Open the preview and choose Save to ArchDraw again.');
+        return;
+      }
+      const fragment = window.location.hash.slice(1);
+      try {
+        const key = `archdraw-preview-copy:${id}:${copy}`;
+        const moves = fragment || sessionStorage.getItem(key);
+        if (!moves) throw new Error();
+        if (fragment) sessionStorage.setItem(key, fragment);
+        setHandoff({ copy, moves });
+      } catch {
+        setError('The preview layout could not be restored. Open the preview and try again.');
+      }
+    });
+    return () => { active = false; };
   }, [id]);
 
   useEffect(() => {

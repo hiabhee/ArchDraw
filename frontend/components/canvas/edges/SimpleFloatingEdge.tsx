@@ -555,7 +555,7 @@ export default function SimpleFloatingEdge({
     } catch {
       return { x: (sx + tx) / 2 || 0, y: (sy + ty) / 2 || 0, angle: 0 };
     }
-  }, [labelLayout, localLabelT, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement, route, geometry.route]);
+  }, [labelLayout, localLabelT, displayLabel, stableEdgePath, labelT, sx, sy, tx, ty, data?.labelPlacement, data?.labelT, route, geometry.route]);
 
   // Labels stay small but readable: bounded counter-scale keeps them
   // legible when zoomed out without becoming drastically large. Base pill

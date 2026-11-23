@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactFlow, { ReactFlowProvider, useReactFlow, useNodesInitialized, useNodesState, type Edge, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -37,22 +37,25 @@ const isDark = true;
 type StudioPreviewStyle = 'studio-minimal' | 'studio-metallic';
 const colorThemeId = 'studio-minimal';
 
-function ViewportBridge({ controls, onReady, element, layoutReady, needsRoutes }: {
-  controls: ViewportControls;
+function ViewportBridge({ onControlsReady, onReady, element, layoutReady, needsRoutes }: {
+  onControlsReady(controls: ViewportControls): void;
   onReady(): void;
   element: HTMLElement;
   layoutReady: boolean;
   needsRoutes: boolean;
 }) {
-  const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, getViewport, setViewport, getNodes } = useReactFlow();
   const plan = useDiagramGeometryPlan();
   const shown = useRef(false);
   useEffect(() => {
-    controls.fit = () => { void fitView({ padding: 0.16 }); };
-    controls.zoomIn = () => { void zoomIn({ duration: 100 }); };
-    controls.zoomOut = () => { void zoomOut({ duration: 100 }); };
-    controls.zoom = () => getViewport().zoom;
-  }, [controls, fitView, zoomIn, zoomOut, getViewport]);
+    onControlsReady({
+      fit: () => { void fitView({ padding: 0.16 }); },
+      zoomIn: () => { void zoomIn({ duration: 100 }); },
+      zoomOut: () => { void zoomOut({ duration: 100 }); },
+      zoom: () => getViewport().zoom,
+      nodes: getNodes,
+    });
+  }, [onControlsReady, fitView, zoomIn, zoomOut, getViewport, getNodes]);
   useEffect(() => {
     if (shown.current || !layoutReady || (needsRoutes && (!plan || plan.provisional))) return;
     shown.current = true;
@@ -78,10 +81,10 @@ function ViewportBridge({ controls, onReady, element, layoutReady, needsRoutes }
   return null;
 }
 
-function Surface({ nodes: initialNodes, edges, direction, renderStyleId, controls, onReady, element }: Graph & {
+function Surface({ nodes: initialNodes, edges, direction, renderStyleId, onControlsReady, onReady, element }: Graph & {
   element: HTMLElement;
   renderStyleId: StudioPreviewStyle;
-  controls: ViewportControls;
+  onControlsReady(controls: ViewportControls): void;
   onReady(): void;
 }) {
   const { cssVars, colors } = useMemo(() => resolveCanvasTokens({ renderStyleId, colorThemeId, isDark }), [renderStyleId]);
@@ -92,21 +95,19 @@ function Surface({ nodes: initialNodes, edges, direction, renderStyleId, control
   const { getNodes } = useReactFlow();
   useEffect(() => {
     if (layoutReady || !nodesInitialized) return;
-    const moves = levelNearAlignedNodes(getNodes(), edges, direction);
-    if (moves.size) {
-      setNodes(current => current.map(node => {
-        const position = moves.get(node.id);
-        return position ? { ...node, position, positionAbsolute: undefined } : node;
-      }));
-    }
-    setLayoutReady(true);
+    const frame = requestAnimationFrame(() => {
+      const moves = levelNearAlignedNodes(getNodes(), edges, direction);
+      if (moves.size) {
+        setNodes(current => current.map(node => {
+          const position = moves.get(node.id);
+          return position ? { ...node, position, positionAbsolute: undefined } : node;
+        }));
+      }
+      setLayoutReady(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [direction, edges, getNodes, layoutReady, nodesInitialized, setNodes]);
 
-  const currentNodes = useRef(nodes);
-  useLayoutEffect(() => {
-    currentNodes.current = nodes;
-    controls.nodes = () => currentNodes.current;
-  }, [controls, nodes]);
   const host = useMemo<CanvasHost>(() => ({
     readOnly: true, nodes, edges: displayedEdges, direction, isDark, renderStyleId, colorThemeId,
     iconMode: 'all', planKey: 'mcp-widget',
@@ -150,7 +151,7 @@ function Surface({ nodes: initialNodes, edges, direction, renderStyleId, control
           >
             <CanvasGrid background={DEFAULT_CANVAS_BACKGROUND} isDark gridColor={cssVars['--arch-canvas-grid']} />
             <SVGEdgeMarkerDefs />
-            <ViewportBridge controls={controls} onReady={onReady} element={element} layoutReady={layoutReady} needsRoutes={edges.some(edge => !edge.hidden)} />
+            <ViewportBridge onControlsReady={onControlsReady} onReady={onReady} element={element} layoutReady={layoutReady} needsRoutes={edges.some(edge => !edge.hidden)} />
           </ReactFlow>
         </DiagramGeometryProvider>
       </CanvasHostProvider>
@@ -167,7 +168,8 @@ export function mount(
 ) {
   const root = createRoot(element, { onUncaughtError: onError });
   const noop = () => {};
-  const controls: ViewportControls = { fit: noop, zoomIn: noop, zoomOut: noop, zoom: () => 1, nodes: () => graph.nodes };
+  let controls: ViewportControls = { fit: noop, zoomIn: noop, zoomOut: noop, zoom: () => 1, nodes: () => graph.nodes };
+  const onControlsReady = (next: ViewportControls) => { controls = next; };
   let renderStyleId = initialStyle;
   let disposed = false;
   let previewGraph: Graph | undefined;
@@ -175,7 +177,7 @@ export function mount(
     if (disposed || !previewGraph) return;
     root.render(
       <ReactFlowProvider>
-        <Surface {...previewGraph} renderStyleId={renderStyleId} controls={controls} onReady={onReady} element={element} />
+        <Surface {...previewGraph} renderStyleId={renderStyleId} onControlsReady={onControlsReady} onReady={onReady} element={element} />
       </ReactFlowProvider>,
     );
   };
