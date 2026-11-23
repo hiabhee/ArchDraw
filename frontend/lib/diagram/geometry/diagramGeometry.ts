@@ -14,7 +14,7 @@ import { isStudioRenderStyle } from '@/lib/theme/renderStyles';
 
 // Change when routing semantics change so persisted in-memory geometry plans
 // from the prior router cannot keep drawing stale attachment choices.
-const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v5';
+const EDGE_ROUTING_ALGORITHM_REVISION = 'floating-sides-v6';
 
 export interface DiagramGeometryOptions {
   direction: EdgeRouteDirection;
@@ -69,7 +69,8 @@ export function computeDiagramGeometryPreview(
   options: DiagramGeometryOptions,
 ): DiagramGeometryPlan {
   const nodes = withoutDecorNodes(allNodes);
-  const rects = getBounds(nodes, options);
+  const fitPreviewLabels = hasFittedPreviewLabels(edges);
+  const rects = getBounds(nodes, fitPreviewLabels ? options : undefined);
   const moved = new Set<string>();
   const affectedRects: Rect[] = [];
   for (const [id, next] of rects) {
@@ -100,7 +101,6 @@ export function computeDiagramGeometryPreview(
     sourceSides.set(edge.id, route.sourcePosition);
     targetSides.set(edge.id, route.targetPosition);
   }
-  const fitPreviewLabels = hasFittedPreviewLabels(edges);
   const labelNodes = new Map(nodes.map(node => {
     const rect = rects.get(node.id)!;
     return [node.id, {
@@ -194,7 +194,7 @@ function withoutLabelPosition(data: unknown): unknown {
   return rest;
 }
 
-export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes, options)): string {
+export function geometrySnapshotKey(nodes: Node[], edges: Edge[], options: DiagramGeometryOptions, bounds: ReadonlyMap<string, Rect> = getBounds(nodes, hasFittedPreviewLabels(edges) ? options : undefined)): string {
   return JSON.stringify([
     options.revision ?? 0,
     EDGE_ROUTING_ALGORITHM_REVISION,
@@ -217,8 +217,10 @@ export function computeDiagramGeometryPlan(
   // Decoration (panels, lines) is drawn under the diagram: never an obstacle, never an end.
   const nodes = withoutDecorNodes(allNodes);
   const nodeById = new Map(nodes.map(node => [node.id, node]));
-  const bounds = getBounds(nodes, options);
   const fitPreviewLabels = hasFittedPreviewLabels(edges);
+  // Relayout and the canvas provide their own boxes. An MCP fitted preview can
+  // also be scored before the interactive host measures its styled cards.
+  const bounds = getBounds(nodes, fitPreviewLabels ? options : undefined);
   // Label placement works in canvas coordinates. Normalize parent-relative
   // nodes once so grouped diagrams share the same absolute geometry as routes.
   const nodeInternals = new Map(nodes.map(node => {

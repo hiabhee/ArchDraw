@@ -1282,7 +1282,7 @@ export function computeEdgeRoute(
     // Align the initial fan channel; bidirectional lanes keep their own offset.
     let channelOffset = 0
     const channelAxis = sourcePosition === Position.Right && targetPosition === Position.Left ? 'x'
-      : direction === 'TD' && sourcePosition === Position.Bottom && targetPosition === Position.Top ? 'y' : null
+      : direction === 'TD' && edge.data?.separateSharedStrokes === true && sourcePosition === Position.Bottom && targetPosition === Position.Top ? 'y' : null
     if (channelAxis && edgeOffset === 0 && sh[channelAxis] < th[channelAxis] && routeAxisSeparation >= 8) {
       const channel = fanChannel(edge, nodes, edges, sh, th, sourceRect, targetRect, channelAxis, renderStyleId, iconMode)
       if (channel !== null && channel > sh[channelAxis] && channel < th[channelAxis]) {
@@ -1379,10 +1379,9 @@ export function computeEdgeRoute(
     || routeOptions.attachmentSides !== undefined
   if (sidesPinned) return primary
 
-  // A clean forward branch should leave the bottom of its parent and enter
-  // the top of its child. The shortest route can otherwise attach to the side
-  // of a distant sibling solely because it saves the width of two cards.
-  if (direction === 'TD' && !routeOptions.straightEdges && !bidirectionalSides
+  // In a top-down preview, give forward branches room to separate their strokes
+  // on a shared channel before considering shorter side attachments.
+  if (direction === 'TD' && edge.data?.separateSharedStrokes === true && !routeOptions.straightEdges && !bidirectionalSides
     && (!laneSourcePreference || laneSourcePreference === Position.Bottom)
     && (!laneTargetPreference || laneTargetPreference === Position.Top)
     && targetRect.y - (sourceRect.y + sourceRect.h) > 2 * HANDLER_ENDPOINT_GAP) {
