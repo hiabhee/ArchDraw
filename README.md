@@ -69,7 +69,7 @@ ALLOWED_EMBED_DOMAINS=example.com,another.com
 
 Only `GROQ_API_KEY` is required for AI generation. The app runs locally without Redis (rate limiting degrades gracefully).
 
-See `frontend/.env.example` for a complete list of available environment variables.
+
 
 For security configuration and best practices, see [SECURITY.md](SECURITY.md).
 
